@@ -14,7 +14,7 @@ class AbstractDetector(Node, CubeConsumer, ABC):
     def __init__(self, ref_spectra: list = []):
         super().__init__()
         self.ref_spectra = self.spectra_to_array(ref_spectra)
-        self.initialized = False
+        self._fit = False
 
     @staticmethod
     def spectra_to_array(ref_spectra: np.ndarray | list) -> np.ndarray:
@@ -26,22 +26,16 @@ class AbstractDetector(Node, CubeConsumer, ABC):
             ref_spectra = ref_spectra[np.newaxis, :]
         return ref_spectra
 
+    @abstractmethod
     def fit(self, X: np.ndarray):
-        self.initialized = True
-        return self
+        pass
 
-    def forward(self, X: np.ndarray, ref_spectra: list = None) -> np.ndarray:
-        ref = self.ref_spectra if ref_spectra is None else self.spectra_to_array(ref_spectra)
-        if ref.size > 0 or self._allow_refless:
-            if X.shape[-1] != (ref.shape[-1] if ref.size > 0 else X.shape[-1]):
-                raise ValueError("Mismatch in input data and reference spectra!")
-            # flatten spatial dims
-            flat = flatten_spatial(X)
-            scores = self.score(flat, ref)
-            # reshape back to spatial cube
-            return scores.reshape(*X.shape[:-1], scores.shape[-1])
-        else:
-            raise ValueError("No reference spectra provided and refless not enabled!")
+    def forward(self, X: np.ndarray) -> np.ndarray:
+        # flatten spatial dims
+        flat = flatten_spatial(X)
+        scores = self.score(flat)
+        # reshape back to spatial cube
+        return scores.reshape(*X.shape[:-1], scores.shape[-1])
 
     def serialize(self, working_dir: str) -> str:
         data = deepcopy(self.__dict__)
@@ -57,13 +51,9 @@ class AbstractDetector(Node, CubeConsumer, ABC):
         return self
 
     @abstractmethod
-    def score(self, data: np.ndarray, ref_spectra: np.ndarray) -> np.ndarray:
+    def score(self, data: np.ndarray) -> np.ndarray:
         """Compute anomaly score(s) for flat data or full cube."""
         pass
-
-    @property
-    def _allow_refless(self) -> bool:
-        return False
 
     @Node.input_dim.getter
     def input_dim(self) -> list:

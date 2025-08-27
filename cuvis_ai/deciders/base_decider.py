@@ -19,7 +19,7 @@ class BaseDecider(Node, CubeConsumer, ABC):
     def __init__(self):
         super().__init__()
 
-    def fit(self, X):
+    def fit(self, X, *args, **kwargs):
         # TODO refactor the thing with the empty fits
         pass
 

@@ -14,44 +14,57 @@ class RXDetector(AbstractDetector):
 
     def __init__(self, ref_spectra: list = None):
         super().__init__(ref_spectra or [])
+        self.mu = None
+        self.cov = None
+        self.cov_inv = None
+        self._fit = False
 
     @property
     def _allow_refless(self) -> bool:
         return True
 
-    def score(self, data: np.ndarray, ref_spectra: list = []) -> np.ndarray:
+    def score(self, data: np.ndarray) -> np.ndarray:
+        """Compute anomaly score(s) for flat data or full cube."""
         # Handle full data cube input
-        if data.ndim == 3:
-            # data shape: (H, W, B)
-            H, W, B = data.shape
-            flat = flatten_spatial(data)
-            flat_scores = self.score(flat, ref_spectra)
-            return unflatten_spatial(flat_scores, (H,W,1))
-
         # Now 'data' is flattened: (N, B)
         # Estimate background mean/covariance
-        if len(ref_spectra) == 0:
-            mu = np.mean(data, axis=0)
-            cov = np.cov(data, rowvar=False)
-        else:
-            mu = np.mean(ref_spectra, axis=0)
-            cov = np.cov(ref_spectra, rowvar=False)
-
+        # Iterate over the first axis
+        output = []
         # Warn if unnormalized data
         if np.percentile(data, 90) > 2.0:
             warnings.warn(
                 "RX detector is being used without properly normalized data. "
                 "Unexpected behavior may occur!"
             )
+        for x in range(data.shape[0]):
+            if not self._fit:
+                mu = np.mean(data[x,:,:], axis=0)
+                cov = np.cov(data[x,:,:], rowvar=False)
+                cov_inv = np.linalg.pinv(cov)
+            else:
+                mu = self.mu
+                cov_inv = self.cov_inv
+                # Invert covariance
+            diff = data[x,:,:] - mu
+            # Mahalanobis distance: diff * cov_inv * diff^T per sample
+            m_dist = np.einsum('ij,jk,ik->i', diff, cov_inv, diff)
+            # Return shape (N, 1)
+            output.append(m_dist[:, np.newaxis])
+        return np.array(output)
 
-        # Invert covariance
-        cov_inv = np.linalg.pinv(cov)
-        diff = data - mu
-        # Mahalanobis distance: diff * cov_inv * diff^T per sample
-        m_dist = np.einsum('ij,jk,ik->i', diff, cov_inv, diff)
-        # Return shape (N, 1)
-        return m_dist[:, np.newaxis]
-
-    def fit(self, X: np.ndarray):
-        super().fit(X)
+    def fit(self, data: np.ndarray, *args, **kwargs):
+        """ Calculate statistics to reuse for RX detector-like datasets """
+        means = []
+        covs = []
+        data = flatten_spatial(data)
+        for x in range(data.shape[0]):
+            mu = np.mean(data[x,:,:], axis=0)
+            means.append(mu)
+            cov = np.cov(data[x,:,:], rowvar=False)
+            covs.append(cov)
+        self.mu = np.mean(np.array(means), axis=0)
+        self.cov = np.mean(np.array(covs), axis=0)
+        self.cov_inv = np.linalg.pinv(self.cov)
+        # Mark the node as having been fit
+        self._fit = True
         return self
