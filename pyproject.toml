@@ -31,7 +31,8 @@ dependencies = [
 "torchvision",
 "scikit-image",
 "gdown",
-"dataclass-wizard"
+"dataclass-wizard",
+"tzdata; sys_platform == 'win32'"
 ]
 
 classifiers = [

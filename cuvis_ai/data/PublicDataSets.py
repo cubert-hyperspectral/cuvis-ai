@@ -46,12 +46,12 @@ class PublicDataSets:
                   F" '{dataset_name}'")
             for i in items:
                 try:
-                    gdown.download(id=i[0], output=os.path.join(
-                        download_path, i[1]), resume=True)
-                except e:
+                    gdown.download(id=i[0], output=os.path.join(download_path, i[1]), resume=True)
+                except Exception as e:
                     print("Failed to fetch file:", i[1])
                     print("Error:", e)
         else:
+            items = to_download
             total_items = len(items)
             current_idx = 1
             print(F"Downloading {total_items} folders from dataset"
@@ -59,8 +59,8 @@ class PublicDataSets:
             for i in items:
                 try:
                     gdown.download_folder(id=i[0], output=os.path.join(
-                        download_path, i[1]), resume=True)
-                except e:
+                        download_path, i[1]))
+                except Exception as e:
                     print("Failed to fetch folder:", i[1])
                     print("Error:", e)
 
@@ -145,5 +145,22 @@ class PublicDataSets:
             [
                 ("1eFau2tUcke6hx5p1ESvK9X4ImovLkkrj", "Aquarium_Sample.cu3s"),
             ],
-        ]
+        ],
+        "Lentils_Small": [
+            [
+            ("1vwj6IC0kTFDaflm_K-SOgf5AKmZKGrxr", "Lentils_000.cu3s"),
+            ("1_nMjSjc6mowGfx4vaDbR6eAkS0I0nGye", "Lentils_000.info"),
+            ("1MXcSPgHi0hl-VM37zDAXuspIs1-PNGff", "Lentils_000.json"),
+            ]
+        ],
     }
+    #Alias
+    _datasets["Lentils"] = _datasets["Lentils_Small"]
+    
+# if __name__ == "__main__":
+#     PublicDataSets.list_datasets(verbose=True)
+#     base_path = "../data/Lentils_SMALL"
+#     data_down = PublicDataSets()
+#     data_down.list_datasets(verbose=True)
+#     #data_down.download_dataset("Lentils_SMALL", download_path=base_path)
+#     data_down.download_dataset("Lentils_2_0_XMR", download_path=base_path)

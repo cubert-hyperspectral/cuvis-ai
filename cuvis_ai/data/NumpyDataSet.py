@@ -14,7 +14,7 @@ from ..tv_transforms import WavelengthList
 from functools import lru_cache, partial
 from .metadata import Metadata
 from pathlib import Path
-from .cocolabels import COCOData
+from .CocoLabels import COCOData
 
 debug_enabled = True
 
@@ -174,13 +174,14 @@ class NumpyDataSet(BaseDataSet):
         self.metas.append(meta)
 
         labelpath = filepath.with_suffix('.json')
+        has_labels = False #labelpath.exists()
         canvas_size = (meta.shape[0], meta.shape[1])
         l = None
-        if labelpath.exists():
-            coco = COCOData.from_path(labelpath)
-            anns = coco.annotations.where(image_id=coco.image_ids[0])[0]
-            l = anns.to_torchvision(canvas_size)
-            l['wavelength'] = WavelengthList(coco.images[0].wavelength)
+        # if has_labels:
+        #     coco = COCOData.from_path(labelpath)
+        #     anns = coco.annotations.where(image_id=coco.image_ids[0])[0]
+        #     l = anns.to_torchvision(canvas_size)
+        #     l['wavelength'] = WavelengthList(coco.images[0].wavelength)
         self.labels.append(l)
 
     def __len__(self) -> int:

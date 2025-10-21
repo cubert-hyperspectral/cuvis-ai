@@ -234,6 +234,7 @@ class SpectralAngle(AbstractDistance):
             ))
 
         output_scores = np.stack(output_scores, axis=-1)
+        # print(f"Output scores shape: {output_scores.shape}, min: {output_scores.min()}, max: {output_scores.max()}")
         return output_scores
 
 
