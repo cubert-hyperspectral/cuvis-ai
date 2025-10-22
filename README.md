@@ -24,14 +24,74 @@ foundation for the development of cutting-edge hyperspectral AI applications.
 ### Prerequisites
 
 If you want to directly work with cubert session files (.cu3s), you need to install cuvis C SDK from 
-[here](https://cloud.cubert-gmbh.de/s/q3YiPZPJe5oXziZ).
+[here](https://cloud.cubert-gmbh.de/s/qpxkyWkycrmBK9m).
 
-All other needed packages will be installed via the requirements.txt. To do so run 
+Local development now relies on [uv](https://docs.astral.sh/uv/) for Python and dependency management.  
+If `uv` is not already available on your system you can install it with:
 
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
-pip install .
+
+### Local development with uv
+
+Create or refresh a development environment at the repository root with:
+
+```bash
+uv sync
 ```
-from within your project environment
+
+This installs the runtime dependencies declared in `pyproject.toml`. `uv` automatically provisions the Python version declared in the project metadata, so no manual interpreter management is required.
+
+#### Advanced environment setup
+
+When you need the reproducible development toolchain (JupyterLab, TensorBoard, etc.) from the lock file, run:
+
+```bash
+uv sync --locked --extra dev
+```
+
+Use `uv run` to execute project tooling without manually activating virtual environments, for example:
+
+```bash
+uv run pytest
+```
+
+Collect coverage details (the `dev` extra installs `pytest-cov`) with:
+
+```bash
+uv run pytest --cov=cuvis_ai --cov-report=term-missing
+```
+
+Ruff handles both formatting and linting. Format sources and check style with:
+
+```bash
+uv run ruff format .
+uv run ruff check .
+```
+
+The configuration enforces import ordering, newline hygiene, modern string formatting, safe exception chaining, and practical return type annotations while avoiding noisy `Any` policing.
+
+Validate packaging metadata and build artifacts before publishing:
+
+```bash
+uv build
+```
+
+Detect lingering CamelCase module filenames with:
+
+```bash
+uv run python scripts/check_module_case.py
+```
+
+To build the documentation, add the `docs` extra:
+
+```bash
+uv sync --locked --extra docs
+uv run sphinx-build -M html docs docs/_build
+```
+
+Combine extras as needed (e.g. `uv sync --locked --extra dev --extra docs`). Whenever the `pyproject.toml` or `uv.lock` changes, rerun `uv sync --locked` with the extras you need to stay up to date.
 
 ### Via pip
 
@@ -43,6 +103,10 @@ pip install cuvis-ai
 ```
 
 or add `cuvis-ai` to your project `requirements.txt` or `setup.py`.
+
+## Release Notes
+
+See [CHANGELOG.md](CHANGELOG.md) for the consolidated refactor summary and upgrade guidance.
 
 ## How to ...
 

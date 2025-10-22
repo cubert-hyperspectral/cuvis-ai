@@ -6,34 +6,34 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-import sys
 import os
+import sys
 
-sys.path.insert(0, os.path.abspath('..'))
+sys.path.insert(0, os.path.abspath(".."))
 
-project = 'Cuvis AI'
-copyright = '2024, Cubert GmbH'
-author = 'Cubert GmbH'
-release = '0.1.0'
+project = "Cuvis AI"
+copyright = "2024, Cubert GmbH"
+author = "Cubert GmbH"
+release = "0.1.0"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
-	'sphinx.ext.autodoc',
-    'sphinx.ext.viewcode',
-    'sphinx.ext.napoleon',
-    'sphinx.ext.autosummary',
-    'sphinx.ext.intersphinx',
+    "sphinx.ext.autodoc",
+    "sphinx.ext.viewcode",
+    "sphinx.ext.napoleon",
+    "sphinx.ext.autosummary",
+    "sphinx.ext.intersphinx",
 ]
 
 
 intersphinx_mapping = {
-    'pytorch': ('https://pytorch.org/docs/stable/', None),
-    'sklearn': ('https://scikit-learn.org/stable/', None),
-    'numpy': ('https://docs.scipy.org/doc/numpy/', None),
-    'python': ('https://docs.python.org/3', None),
-    'torchvision': ('https://pytorch.org/vision/stable/', None),
+    "pytorch": ("https://pytorch.org/docs/stable/", None),
+    "sklearn": ("https://scikit-learn.org/stable/", None),
+    "numpy": ("https://docs.scipy.org/doc/numpy/", None),
+    "python": ("https://docs.python.org/3", None),
+    "torchvision": ("https://pytorch.org/vision/stable/", None),
 }
 
 
@@ -41,21 +41,19 @@ intersphinx_mapping = {
 
 autosummary_generate = True
 
-templates_path = ['_templates']
+templates_path = ["_templates"]
 
-source_suffix = '.rst'
+source_suffix = ".rst"
 
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = 'sphinx_rtd_theme'
-html_static_path = ['_static']
+html_theme = "sphinx_rtd_theme"
+html_static_path = ["_static"]
 
 # html_extra_path = ['C:\\dev\\builds\\cuvis_doc\\doc\\html']
 
-html_theme_options = {
-
-}
+html_theme_options = {}

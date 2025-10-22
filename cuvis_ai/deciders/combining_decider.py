@@ -1,11 +1,10 @@
-
-from .base_decider import BaseDecider
-from typing import Callable, Dict
-
-from ..utils.numpy import flatten_batch_and_spatial, unflatten_batch_and_spatial
+import pickle as pk
+from collections.abc import Callable
 
 import numpy as np
-import pickle as pk
+
+from cuvis_ai.deciders.base_decider import BaseDecider
+from cuvis_ai.utils.numpy import flatten_batch_and_spatial, unflatten_batch_and_spatial
 
 
 def all_agree(decisions: np.ndarray) -> bool:
@@ -29,7 +28,9 @@ class CombiningDecider(BaseDecider):
         Custom strategies may also be used.
     """
 
-    def __init__(self, channel_count: int = None, rule: Callable[[np.ndarray], bool] = None) -> None:
+    def __init__(
+        self, channel_count: int = None, rule: Callable[[np.ndarray], bool] = None
+    ) -> None:
         super().__init__()
 
         self.n = channel_count
@@ -73,15 +74,12 @@ class CombiningDecider(BaseDecider):
         Convert the class into a serialized representation
         """
         if not self.initialized:
-            print('Module not fully initialized, skipping output!')
+            print("Module not fully initialized, skipping output!")
             return
         # Write pickle object to file
         dump_file = f"{hash(self.rule)}_pca.pkl"
         pk.dump(self.rule, open(dump_file, "wb"))
-        data = {
-            "class_count": self.n,
-            "rules_file": os.path.join(directory, dump_file)
-        }
+        data = {"class_count": self.n, "rules_file": os.path.join(directory, dump_file)}
         return data
 
     def load(self, params: dict, filepath: str):
@@ -89,12 +87,12 @@ class CombiningDecider(BaseDecider):
         try:
             self.n = int(params["class_count"])
         except:
-            raise ValueError("Could not read attribute 'class_count' as int. "
-                             F"Read '{params}' from save file!")
+            raise ValueError(
+                f"Could not read attribute 'class_count' as int. Read '{params}' from save file!"
+            )
         try:
             dump_file = os.path.join(filepath, params["rules_file"])
-            self.rule = pk.load(open(dump_file, 'rb'))
+            self.rule = pk.load(open(dump_file, "rb"))
         except:
-            raise ValueError(
-                "Failed to restore attribute 'rule' from save file!")
+            raise ValueError("Failed to restore attribute 'rule' from save file!")
         self.initialized = True

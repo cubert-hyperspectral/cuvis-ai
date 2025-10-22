@@ -1,7 +1,8 @@
-from ..node.wrap import make_node
 import sklearn.discriminant_analysis
-import sklearn.svm
 import sklearn.neural_network
+import sklearn.svm
+
+from cuvis_ai.node.wrap import make_node
 
 
 @make_node

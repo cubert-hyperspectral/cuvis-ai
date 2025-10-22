@@ -1,5 +1,6 @@
 import importlib
 
+from cuvis_ai._version import __version__, get_version
 
 _submodules = [
     "anomaly",
@@ -14,7 +15,7 @@ _submodules = [
     "transformation",
     "tv_transforms",
     "unsupervised",
-    "utils"
+    "utils",
 ]
 
 
@@ -29,5 +30,4 @@ def __getattr__(name):
         try:
             return globals()[name]
         except KeyError:
-            raise AttributeError(
-                f"Module 'cuvis_ai' has no attribute '{name}'")
+            raise AttributeError(f"Module 'cuvis_ai' has no attribute '{name}'")

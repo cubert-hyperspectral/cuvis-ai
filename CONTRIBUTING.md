@@ -10,6 +10,52 @@ If you plan on providing a dataset you own the rights to to cuvis.ai, you can sk
 
 For all code contributions, we suggest you follow this general process.
 
+### Prepare your environment
+
+cuvis.ai uses [uv](https://docs.astral.sh/uv/) to manage Python versions and dependencies. Install `uv` if required:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+From the repository root, sync the development toolchain (including JupyterLab and TensorBoard) with:
+
+```bash
+uv sync
+```
+
+`uv` automatically installs a compatible Python interpreter based on the `requires-python` constraint and pulls the runtime dependencies.
+For a reproducible developer setup that includes the optional tooling extras, run:
+
+```bash
+uv sync --locked --extra dev
+```
+
+Run commands through `uv run` so you do not have to manage virtual environments manually. Typical examples include:
+
+```bash
+uv run pytest
+uv run pytest --cov=cuvis_ai --cov-report=term-missing
+```
+
+If `pytest` cannot import `cuvis_ai`, re-run `uv sync --locked --extra dev` to ensure the optional tooling dependencies are installed.
+Add the documentation extras (`uv sync --locked --extra docs`) when you need to build the documentation locally, optionally combining extras (`uv sync --locked --extra dev --extra docs`).
+
+Format and lint the codebase with [Ruff](https://docs.astral.sh/ruff/) before sending a pull request:
+
+```bash
+uv run ruff format .
+uv run ruff check .
+```
+
+The Ruff ruleset keeps imports ordered, enforces trailing newlines, encourages modern string formatting, validates exception chaining, and requires practical return type annotations without over-policing uses of `Any`.
+
+Run the module casing guard before opening a pull request to ensure new files follow snake_case conventions:
+
+```bash
+uv run python scripts/check_module_case.py
+```
+
 ### Branch from main
 
 The first step towards a contribution is to clone the repository and create a new branch - see below for the branch name guide.
@@ -58,8 +104,8 @@ Here is an example metadata file
 ### Coding Guidelines
 
 Any code you write for cuvis.ai should follow these guidelines.
-We format all code according to [PEP8](https://peps.python.org/pep-0008/), so you should too.
-It is easy to let a formatter run before you push your code or simply add a "format on save" setting to the editor of your choice.
+We format all code according to [PEP8](https://peps.python.org/pep-0008/) using Ruff's formatter, so you should too.
+It is easy to let the formatter run before you push your code or simply add a "format on save" setting to the editor of your choice.
 
 Further style choices:
  - All indentation uses spaces only, 4 spaces per indentation
@@ -88,7 +134,7 @@ Further directories include:
  - *data:* Contains code for loading datasets and other data utilities
  - *node:* Contains the base abstract node class and other abstract classes
  - *pipeline:* Contains the Graph class
- - *test:* Contains all unit tests
+ - *tests:* Contains the pytest suite
  - *tv_transforms:* Contains extensions to the pytorch torchvision transforms project used in cuvis.ai
  - *utils:* Contains generic utilities used throughout cuvis.ai
 

@@ -1,18 +1,17 @@
-
-from types import MethodWrapperType, ModuleType
 import inspect
-import torch
+from types import ModuleType
+
 import sklearn
+import torch
 import torchvision
 import torchvision.transforms.v2
 
-from .sklearn import _wrap_sklearn_class, _wrap_sklearn_instance
-from .skorch import _wrap_torch_class, _wrap_torch_instance
-from .torchvision import _wrap_torchvision_class, _wrap_torchvision_instance
+from cuvis_ai.node.sklearn import _wrap_sklearn_class, _wrap_sklearn_instance
+from cuvis_ai.node.skorch import _wrap_torch_class, _wrap_torch_instance
+from cuvis_ai.node.torchvision import _wrap_torchvision_class, _wrap_torchvision_instance
 
 
 def _wrap_class(cls):
-
     if issubclass(cls, sklearn.base.BaseEstimator):
         return _wrap_sklearn_class(cls)
     elif issubclass(cls, torchvision.transforms.v2.Transform):
@@ -24,7 +23,6 @@ def _wrap_class(cls):
 
 
 def _wrap_instance(obj):
-
     if isinstance(obj, sklearn.base.BaseEstimator):
         return _wrap_sklearn_instance(obj)
     elif isinstance(obj, torchvision.transforms.v2.Transform):
@@ -39,7 +37,7 @@ def make_node(wrapped):
     """Node Wrapper / Decorator. Use to wrap a specific module into a node."""
 
     if isinstance(wrapped, ModuleType):
-        raise NotImplementedError('Currently cannot be wrapped')
+        raise NotImplementedError("Currently cannot be wrapped")
 
     if inspect.isclass(wrapped):
         return _wrap_class(wrapped)

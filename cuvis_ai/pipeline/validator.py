@@ -1,9 +1,9 @@
 import networkx as nx
-from ..node import Node
+
+from cuvis_ai.node import Node
 
 
-class ShapeValidator():
-
+class ShapeValidator:
     def __init__(self, input_shape: tuple[int, int, int]) -> None:
         self.input_shape = input_shape
 
@@ -12,8 +12,7 @@ class ShapeValidator():
             inshape = self.input_shape
 
 
-class GraphValidator():
-
+class GraphValidator:
     def __init__(self, graph: nx.DiGraph) -> None:
         self.graph = graph
 

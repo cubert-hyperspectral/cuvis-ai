@@ -1,19 +1,17 @@
-
-import numpy as np
-
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import proj3d
-
+import numpy as np
 from sklearn.decomposition import PCA as sk_pca
 
-def visualize_image(preds: np.ndarray, title='Empty'):
-    plt.imshow(preds, cmap='viridis')  # You can choose any colormap you like
+
+def visualize_image(preds: np.ndarray, title="Empty"):
+    plt.imshow(preds, cmap="viridis")  # You can choose any colormap you like
     plt.colorbar()
     plt.title(title)
-    plt.axis('off')
+    plt.axis("off")
     plt.show()
 
-def visualize_features(data: np.ndarray,labels=None, title='Empty'):
+
+def visualize_features(data: np.ndarray, labels=None, title="Empty"):
     # compress down to 3 max dimensions
 
     n_comps = max(3, data.shape[2])
@@ -26,9 +24,9 @@ def visualize_features(data: np.ndarray,labels=None, title='Empty'):
     compressed = pca.transform(image_2d)
 
     fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
+    ax = fig.add_subplot(111, projection="3d")
 
-    ax.scatter(compressed[:,0], compressed[:,1], compressed[:,2], c=labels)
+    ax.scatter(compressed[:, 0], compressed[:, 1], compressed[:, 2], c=labels)
     plt.title(title)
-    plt.axis('off')
+    plt.axis("off")
     plt.show()

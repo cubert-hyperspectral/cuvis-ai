@@ -1,10 +1,11 @@
-
-from .base_decider import BaseDecider
-from ..node import Node
-
-from ..utils.numpy import flatten_batch_and_spatial, unflatten_batch_and_spatial, get_shape_without_batch
-
 import numpy as np
+
+from cuvis_ai.deciders.base_decider import BaseDecider
+from cuvis_ai.utils.numpy import (
+    flatten_batch_and_spatial,
+    get_shape_without_batch,
+    unflatten_batch_and_spatial,
+)
 
 
 class MultiClassDecider(BaseDecider):
@@ -76,8 +77,9 @@ class MultiClassDecider(BaseDecider):
         try:
             self.n = int(params["class_count"])
         except:
-            raise ValueError("Could not read attribute 'class_count' as int. "
-                             F"Read '{params}' from save file!")
+            raise ValueError(
+                f"Could not read attribute 'class_count' as int. Read '{params}' from save file!"
+            )
 
 
 # TODO: How would this functionality be integrated into Deep Learning Methods and Models

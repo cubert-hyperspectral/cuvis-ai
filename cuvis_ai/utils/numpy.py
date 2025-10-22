@@ -1,10 +1,9 @@
-
-import numpy as np
-from typing import Tuple, Union
-import json
 import datetime
+import json
 import os.path as osp
+
 import cv2 as cv
+import numpy as np
 import pycocotools
 
 
@@ -38,7 +37,7 @@ def get_shape_without_batch(array: np.ndarray, ignore=()):
     return tuple([-1 if i in ignore else shape[i] for i in [0, 1, 2]])
 
 
-def check_array_shape(array: Union[np.ndarray, Tuple[int, int, int]], wanted_shape: Tuple[int, int, int]):
+def check_array_shape(array: np.ndarray | tuple[int, int, int], wanted_shape: tuple[int, int, int]):
     match array:
         case np.ndarray():
             array_shape = array.shape
@@ -125,6 +124,7 @@ def unflatten_batch_and_labels(array: np.ndarray, orig_shape):
         raise ValueError("Input array must be 1D.")
     return array.reshape(orig_shape)
 
+
 def binary_mask_to_rle(binary_mask):
     """
     converts a binary mask to RLE shamelessly copied from https://stackoverflow.com/a/76990451
@@ -147,7 +147,15 @@ def binary_mask_to_rle(binary_mask):
 
     return rle
 
-def gen_coco_labels(mask: np.ndarray, label_names: list, output_dir: str, name: str,img_name: str = None, single_object_per_label: bool = False):
+
+def gen_coco_labels(
+    mask: np.ndarray,
+    label_names: list,
+    output_dir: str,
+    name: str,
+    img_name: str = None,
+    single_object_per_label: bool = False,
+):
     """
     generating coco labels from numpy image and mask, occluded objects can not be labeled correctly at the moment
     :param mask: mask should be a mask containing zeros for background and integers for labels
@@ -164,7 +172,7 @@ def gen_coco_labels(mask: np.ndarray, label_names: list, output_dir: str, name: 
     out_ann_file = osp.realpath(osp.join(output_dir, name + "_annotations.json"))
     # if label file exists load and extend the file, create new data structure otherwise
     if osp.exists(out_ann_file):
-        data = json.load(open(out_ann_file, "r"))
+        data = json.load(open(out_ann_file))
 
     else:
         data = dict(
@@ -195,7 +203,7 @@ def gen_coco_labels(mask: np.ndarray, label_names: list, output_dir: str, name: 
             ],
         )
         for label_id, label in enumerate(label_names):
-            data['categories'].append(
+            data["categories"].append(
                 dict(
                     supercategory=None,
                     id=label_id,

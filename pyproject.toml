@@ -1,40 +1,37 @@
 [build-system]
-requires = ["setuptools", "wheel"]
+requires = ["setuptools>=64", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "cuvis_ai"
-version = "0.1.3"
+dynamic = ["version"]
 description = "The CUVIS.AI Toolset"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.14"
 license = { text = "Apache License 2.0" }
 authors = [
-    { name = "Cubert GmbH, Ulm, Germany", email = "SDK@cubert-gmbh.com" }
+    { name = "Cubert GmbH, Ulm, Germany", email = "SDK@cubert-gmbh.com" },
 ]
-
 dependencies = [
-"cuvis",
-"setuptools; python_version>='3.12'",  # Only for Python 3.12+
-"torch",
-"torchvision",
-"scikit-learn",
-"scikit-image",
-"pycocotools",
-"matplotlib",
-"pyyaml",
-"pytorch-lightning",
-"skorch",
-"imantics",
-"networkx",
-"opencv-python",
-"torchvision",
-"scikit-image",
-"gdown",
-"dataclass-wizard",
-"tzdata; sys_platform == 'win32'"
+    "cuvis",
+    "dataclass-wizard",
+    "gdown",
+    "imantics",
+    "markupsafe!=3.0.2",
+    "matplotlib",
+    "networkx",
+    "opencv-python",
+    "pycocotools",
+    "pyyaml",
+    "scikit-image",
+    "scikit-learn",
+    "tensorboard",
+    "torch",
+    "torchmetrics",
+    "torchvision",
+    "pytorch-lightning",
+    "tzdata; sys_platform == 'win32'",
 ]
-
 classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: Apache Software License",
@@ -46,6 +43,24 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Image Processing",
 ]
 
+[project.optional-dependencies]
+docs = [
+    "sphinx",
+    "sphinx-rtd-theme",
+    "opencv-python-headless",
+]
+
+dev = [
+    "ipykernel",
+    "jupyterlab",
+    "tensorboard",
+    "ruff",
+    "pytest",
+    "pytest-cov",
+    "ipympl>=0.9.8",
+]
+
+
 [project.urls]
 Homepage = "https://www.cubert-hyperspectral.com/"
 Repository = "https://github.com/cubert-hyperspectral/cuvis.ai"
@@ -53,6 +68,70 @@ Documentation = "https://cubert-hyperspectral.github.io/cuvis.ai/"
 Changelog = "https://github.com/cubert-hyperspectral/cuvis.ai/releases"
 Issues = "https://github.com/cubert-hyperspectral/cuvis.ai/issues"
 
-[tool.setuptools]
-packages = ["cuvis_ai"]
-include-package-data = true
+[tool.setuptools.packages.find]
+include = ["cuvis_ai*"]
+
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu124" }
+torchvision = { index = "pytorch-cu124" }
+
+[tool.setuptools_scm]
+version_scheme = "post-release"
+local_scheme = "node-and-date"
+
+[tool.pytest.ini_options]
+addopts = "-ra --showlocals"
+testpaths = ["tests"]
+xfail_strict = true
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "F",
+    "W",
+    "I",
+    "B",
+    "UP",
+    "C4",
+]
+extend-select = [
+    "ANN201",
+    "ANN202",
+    "ANN204",
+]
+ignore = [
+    "ANN401",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"docs/**" = [
+    "ANN201",
+    "ANN202",
+    "ANN204",
+]
+"tests/**" = [
+    "ANN201",
+    "ANN202",
+    "ANN204",
+]
+
+# PyTorch CUDA 12.4 configuration
+[[tool.uv.index]]
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true

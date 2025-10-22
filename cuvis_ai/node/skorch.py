@@ -1,21 +1,17 @@
-
 import functools
-import torch
-
-from ..utils.numpy import *
-from ..utils.torch import InputDimension, guess_input_dimensionalty, extract_state_dict
-from ..utils.dict import remove_prefix, add_prefix
-from .node import Node
-from .base import BaseSupervised, BaseUnsupervised
+import uuid
 from pathlib import Path
 
 import numpy as np
-
+import skorch
 import torch
 import torch.nn as nn
-import skorch
 
-import uuid
+from cuvis_ai.node.base import BaseSupervised, BaseUnsupervised
+from cuvis_ai.node.node import Node
+from cuvis_ai.utils.dict import remove_prefix
+from cuvis_ai.utils.numpy import *
+from cuvis_ai.utils.torch import InputDimension, extract_state_dict, guess_input_dimensionalty
 
 
 class SkorchWrapped:
@@ -25,44 +21,38 @@ class SkorchWrapped:
 def _serialize_skorch_model(obj, cls, data_dir: Path) -> dict:
     data_independent = obj.model_args_no_prefix.copy()
     if not obj.initialized:
-        return {'params': data_independent, 'code': cls}
+        return {"params": data_independent, "code": cls}
 
-    f_params = f'{uuid.uuid4()}.pth'
+    f_params = f"{uuid.uuid4()}.pth"
 
     sd = obj.net.module_.state_dict()
     torch.save(sd, Path(data_dir) / f_params)
-    data_dependend = {'weights': f_params}
+    data_dependend = {"weights": f_params}
 
-    return {'params': data_independent, 'state': data_dependend, 'code': cls}
+    return {"params": data_independent, "state": data_dependend, "code": cls}
 
 
 def _load_skorch_model(obj, cls, params: dict, data_dir: Path) -> None:
-    data_independent_keys = set(remove_prefix(
-        obj.net.get_params(obj), 'module__', True).keys())
+    data_independent_keys = set(remove_prefix(obj.net.get_params(obj), "module__", True).keys())
 
-    params_independent = {key: params['params'][key]
-                          for key in data_independent_keys}
+    params_independent = {key: params["params"][key] for key in data_independent_keys}
 
-    params_independent_with_prefix = {f'module__{k}': v for k,
-                                      v in params_independent.items()}
+    params_independent_with_prefix = {f"module__{k}": v for k, v in params_independent.items()}
 
     obj.net.set_params(**params_independent_with_prefix)
     obj.model_args = params_independent
     obj.model_args_no_prefix = params_independent_with_prefix
 
-    if 'state' not in params.keys():
+    if "state" not in params.keys():
         return
 
-    data_dependent_keys = {
-        key for key in params['state'].keys()}
+    data_dependent_keys = {key for key in params["state"].keys()}
 
-    params_dependent = {key: params['state'][key]
-                        for key in data_dependent_keys}
+    params_dependent = {key: params["state"][key] for key in data_dependent_keys}
 
-    weights = params_dependent['weights']
+    weights = params_dependent["weights"]
 
-    loaded_weights = extract_state_dict(torch.load(
-        weights, weights_only=True), format='torch')
+    loaded_weights = extract_state_dict(torch.load(weights, weights_only=True), format="torch")
 
     obj.net.module_.load_state_dict(loaded_weights)
     obj.initialized = True
@@ -73,9 +63,7 @@ def _wrap_preprocessor_class(cls):
 
 
 def _wrap_supervised_class(cls):
-
     class SkorchWrappedSupervised(Node, BaseSupervised, SkorchWrapped):
-
         __doc__ = cls.__doc__
         __module__ = cls.__module__
 
@@ -84,19 +72,14 @@ def _wrap_supervised_class(cls):
             self.input_size = (-1, -1, -1)
             self.output_size = (-1, -1, -1)
 
-            self.model_args = {f'module__{k}': v for k,
-                               v in kwargs.items()}
+            self.model_args = {f"module__{k}": v for k, v in kwargs.items()}
 
-            self.model_args_no_prefix = {k: v for k,
-                                         v in kwargs.items()}
+            self.model_args_no_prefix = {k: v for k, v in kwargs.items()}
 
             self.criterion = torch.nn.NLLLoss
 
             self.net = skorch.NeuralNetClassifier(
-                module=cls,
-                criterion=self.criterion,
-                train_split=None,
-                **self.model_args
+                module=cls, criterion=self.criterion, train_split=None, **self.model_args
             )
             self.net.initialize()
 
@@ -119,11 +102,9 @@ def _wrap_supervised_class(cls):
                 flattened_label = flatten_labels(Y)
 
             if warm_start:
-                self.net.partial_fit(flattened_data, flattened_label,
-                                     warm_start=warm_start)
+                self.net.partial_fit(flattened_data, flattened_label, warm_start=warm_start)
             else:
-                self.net.fit(flattened_data, flattened_label,
-                             warm_start=warm_start)
+                self.net.fit(flattened_data, flattened_label, warm_start=warm_start)
 
             self._input_size = X.shape[-3:]
             self._output_size = X.shape[-3:]
@@ -146,9 +127,7 @@ def _wrap_supervised_class(cls):
 
 
 def _wrap_unsupervised_class(cls):
-
     class SkorchWrappedUnsupervised(Node, BaseUnsupervised, SkorchWrapped):
-
         __doc__ = cls.__doc__
         __module__ = cls.__module__
 
@@ -157,11 +136,9 @@ def _wrap_unsupervised_class(cls):
             self._input_size = (-1, -1, -1)
             self._output_size = (-1, -1, -1)
 
-            self.model_args = {f'module__{k}': v for k,
-                               v in kwargs.items()}
+            self.model_args = {f"module__{k}": v for k, v in kwargs.items()}
 
-            self.model_args_no_prefix = {k: v for k,
-                                         v in kwargs.items()}
+            self.model_args_no_prefix = {k: v for k, v in kwargs.items()}
 
             self.criterion = torch.nn.NLLLoss
 
@@ -169,8 +146,8 @@ def _wrap_unsupervised_class(cls):
                 module=cls,
                 criterion=self.criterion,
                 train_split=None,
-                device='cuda',
-                **self.model_args
+                device="cuda",
+                **self.model_args,
             )
             self.net.initialize()
 
@@ -189,7 +166,6 @@ def _wrap_unsupervised_class(cls):
             return self.net.module_
 
         def fit(self, X: np.ndarray, warm_start=False):
-
             if self.expected_dim == InputDimension.One:
                 flattened_data = flatten_batch_and_spatial(X)
             elif self.expected_dim == InputDimension.Three:
@@ -217,7 +193,7 @@ def _wrap_unsupervised_class(cls):
             start_time = time.time()
             transformed_data = self.net.forward(flattened_data)
             print("--- %s seconds ---" % (time.time() - start_time))
-            transformed_data = transformed_data.to('cpu').numpy()
+            transformed_data = transformed_data.to("cpu").numpy()
             if self.expected_dim == InputDimension.One:
                 return unflatten_batch_and_spatial(transformed_data, X.shape)
             elif self.expected_dim == InputDimension.Three:

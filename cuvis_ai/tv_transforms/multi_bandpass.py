@@ -1,8 +1,9 @@
-from torchvision.transforms.v2 import Transform
+from typing import Any
+
 import torch
-from typing import Dict, Any, List
-from .WavelengthList import WavelengthList
-from .Bandpass import Bandpass
+from torchvision.transforms.v2 import Transform
+
+from cuvis_ai.tv_transforms.bandpass import Bandpass
 
 
 class MultiBandpass(Transform):
@@ -16,12 +17,13 @@ class MultiBandpass(Transform):
     bandpasses : List(Bandpass)
         A list of :cls:`Bandpass` transformations, the output of which will be concatenated.
     """
-    def __init__(self, bandpasses:List[Bandpass]):
+
+    def __init__(self, bandpasses: list[Bandpass]):
         super().__init__()
         self.bandpasses = bandpasses
-        
-    def _transform(self, inpt: Any, params: Dict[str, Any]) -> Any:
-        if (isinstance(inpt, torch.Tensor) and len(inpt.shape) >= 4):
+
+    def _transform(self, inpt: Any, params: dict[str, Any]) -> Any:
+        if isinstance(inpt, torch.Tensor) and len(inpt.shape) >= 4:
             # Assuming [...]NCHW dimension ordering
             channel_dim = len(inpt.shape) - 3
             bands = [bp(inpt) for bp in self.bandpasses]

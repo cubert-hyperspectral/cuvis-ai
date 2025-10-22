@@ -1,32 +1,28 @@
+import importlib
 import os
 import shutil
-import torch
 import sys
-from typing import Any
-from datetime import datetime
-from os.path import expanduser
-from typing import Optional, Any, Union, Iterator
-import networkx as nx
-from typing import List, Union
-from collections import defaultdict
-import pkg_resources  # part of setuptools
-from ..node import Node
-from ..node.wrap import make_node
-from ..node.Consumers import *
-from ..data.OutputFormat import OutputFormat
-from ..utils.numpy import get_shape_without_batch, check_array_shape
-from ..utils.filesystem import change_working_dir
-from ..utils.serializer import YamlSerializer
-from ..utils.dependencies import get_installed_packages_str
-import numpy as np
 import tempfile
-from pathlib import Path
-import importlib
-from .executor import MemoryExecutor, HummingBirdExecutor
+from collections.abc import Iterator
 from copy import copy, deepcopy
 from functools import lru_cache
-from ..node.skorch import SkorchWrapped
-from ..node.sklearn import SklearnWrapped
+from pathlib import Path
+
+import networkx as nx
+import numpy as np
+import pkg_resources  # part of setuptools
+import torch
+
+from cuvis_ai.node import Node
+from cuvis_ai.node.consumers import *
+from cuvis_ai.node.sklearn import SklearnWrapped
+from cuvis_ai.node.skorch import SkorchWrapped
+from cuvis_ai.node.wrap import make_node
+from cuvis_ai.pipeline.executor import MemoryExecutor
+from cuvis_ai.utils.dependencies import get_installed_packages_str
+from cuvis_ai.utils.filesystem import change_working_dir
+from cuvis_ai.utils.numpy import check_array_shape
+from cuvis_ai.utils.serializer import YamlSerializer
 
 
 def maybe_wrap_node(node):
@@ -35,9 +31,8 @@ def maybe_wrap_node(node):
     return make_node(node)
 
 
-class Graph():
-    """Main class for connecting nodes in a CUVIS.AI processing graph
-    """
+class Graph:
+    """Main class for connecting nodes in a CUVIS.AI processing graph"""
 
     def __init__(self, name: str) -> None:
         self.graph = nx.DiGraph()
@@ -82,7 +77,7 @@ class Graph():
             raise ValueError("Not all parents are part of the Graph")
 
         if not all([check_array_shape(p.output_dim, node.input_dim) for p in parent]):
-            raise ValueError('Unsatisfied dimensionality constraint!')
+            raise ValueError("Unsatisfied dimensionality constraint!")
 
         self.graph.add_node(node.id)
 
@@ -159,8 +154,11 @@ class Graph():
 
         # Get all nodes without successors
         sink_nodes = [
-            new_graph.nodes[node] for node in new_graph.graph.nodes if new_graph.graph.out_degree(node) == 0]
-        if (len(sink_nodes) == 1):
+            new_graph.nodes[node]
+            for node in new_graph.graph.nodes
+            if new_graph.graph.out_degree(node) == 0
+        ]
+        if len(sink_nodes) == 1:
             new_graph.add_edge(sink_nodes[0], other)
         return new_graph
 
@@ -183,7 +181,7 @@ class Graph():
             # TODO: Issue what if multiple Nodes feed into the same successor Node, how would the shape look like?
             if not check_array_shape(self.nodes[start].output_dim, self.nodes[end].input_dim):
                 # TODO reenable this, for now skip
-                print('Unsatisfied dimensionality constraint!')
+                print("Unsatisfied dimensionality constraint!")
                 # return True
         return True
 
@@ -196,10 +194,10 @@ class Graph():
             Graph meets/does not meet requirements for ordered and error-free flow of data.
         """
         if len(self.nodes.keys()) == 0:
-            print('Empty graph!')
+            print("Empty graph!")
             return True
         elif len(self.nodes.keys()) == 1:
-            print('Single stage graph!')
+            print("Single stage graph!")
             return True
         # Check that no cycles exist
         if len(list(nx.simple_cycles(self.graph))) > 0:
@@ -233,9 +231,10 @@ class Graph():
         # Check if operation is valid
         if not len(list(self.graph.successors(id))) == 0:
             raise ValueError(
-                "The node does have successors, removing it would invalidate the Graph structure")
+                "The node does have successors, removing it would invalidate the Graph structure"
+            )
 
-        if not id in self.nodes:
+        if id not in self.nodes:
             raise ValueError("Cannot remove node, it no longer exists")
 
         self.graph.remove_edges_from([id])
@@ -246,88 +245,90 @@ class Graph():
         Numeric data and fit models will be stored in zipped directory named with current time.
         """
         from importlib.metadata import version
+
         data_dir = Path(data_dir)
         nodes_data = {}
         for key, node in self.nodes.items():
             serialized = node.serialize(data_dir)
-            node_data = {'__node_module__': str(node.__module__),
-                         '__node_class__': str(node.__class__.__name__)}
+            node_data = {
+                "__node_module__": str(node.__module__),
+                "__node_class__": str(node.__class__.__name__),
+            }
 
             # maybe serialize source code
-            if 'code' in serialized.keys():
+            if "code" in serialized.keys():
                 import cuvis_ai.utils.inspect as ins
-                cls = serialized.pop('code')
+
+                cls = serialized.pop("code")
                 node_code = ins.get_src(cls)
-                with open(data_dir / f'{cls.__name__}.py', 'w') as f:
+                with open(data_dir / f"{cls.__name__}.py", "w") as f:
                     f.writelines(node_code)
-                node_data['__node_code__'] = f'{cls.__name__}.py'
+                node_data["__node_code__"] = f"{cls.__name__}.py"
 
             node_data |= serialized
             nodes_data[key] = node_data
 
-        edges_data = [{'from': start, 'to': end}
-                      for start, end in list(self.graph.edges)]
+        edges_data = [{"from": start, "to": end} for start, end in list(self.graph.edges)]
 
         output = {
-            'edges': edges_data,
-            'nodes': nodes_data,
-            'name': self.name,
-            'entry_point': self.entry_point,
-            'version': version('cuvis_ai'),
-            'packages': get_installed_packages_str()
+            "edges": edges_data,
+            "nodes": nodes_data,
+            "name": self.name,
+            "entry_point": self.entry_point,
+            "version": version("cuvis_ai"),
+            "packages": get_installed_packages_str(),
         }
 
         return output
 
     def load(self, structure: dict, data_dir: Path) -> None:
         data_dir = Path(data_dir)
-        self.name = structure.get('name')
+        self.name = structure.get("name")
 
-        installed_cuvis_version = pkg_resources.require('cuvis_ai')[0].version
-        serialized_cuvis_version = structure.get('version')
+        installed_cuvis_version = pkg_resources.require("cuvis_ai")[0].version
+        serialized_cuvis_version = structure.get("version")
 
         if installed_cuvis_version != serialized_cuvis_version:
-            raise ValueError(f'Incorrect version of cuvis_ai package. Installed {installed_cuvis_version} but serialized with {serialized_cuvis_version}')  # nopep8
-        if not structure.get('nodes'):
-            print('No node information available!')
+            raise ValueError(
+                f"Incorrect version of cuvis_ai package. Installed {installed_cuvis_version} but serialized with {serialized_cuvis_version}"
+            )  # nopep8
+        if not structure.get("nodes"):
+            print("No node information available!")
 
         LOAD_SOURCE_FILES = True
 
-        for key, params in structure.get('nodes').items():
+        for key, params in structure.get("nodes").items():
+            node_module = params.get("__node_module__")
+            node_class = params.get("__node_class__")
+            node_code = params.get("__node_code__", None)
 
-            node_module = params.get('__node_module__')
-            node_class = params.get('__node_class__')
-            node_code = params.get('__node_code__', None)
-
-            if not node_code is None and LOAD_SOURCE_FILES:
-                spec = importlib.util.spec_from_file_location(
-                    node_module, data_dir / node_code)
+            if node_code is not None and LOAD_SOURCE_FILES:
+                spec = importlib.util.spec_from_file_location(node_module, data_dir / node_code)
                 module = importlib.util.module_from_spec(spec)
                 sys.modules[node_module] = module
                 spec.loader.exec_module(module)
-                cls = getattr(
-                    module, node_class)
+                cls = getattr(module, node_class)
             else:
                 cls = getattr(importlib.import_module(node_module), node_class)
             if not issubclass(cls, Node):
                 cls = make_node(cls)
 
-            if 'params' in params.keys():
-                stage = cls(**params['params'])
+            if "params" in params.keys():
+                stage = cls(**params["params"])
             else:
                 stage = cls()
             stage.load(params, data_dir)
             self.nodes[key] = stage
 
         # Set the entry point
-        self.entry_point = structure.get('entry_point')
+        self.entry_point = structure.get("entry_point")
         # Create the graph instance
         self.graph = nx.DiGraph()
         # Handle base case where there is only one node
-        if len(structure.get('nodes')) > 1:
+        if len(structure.get("nodes")) > 1:
             # Graph has at least one valid edge
-            for edge in structure.get('edges'):
-                self.graph.add_edge(edge.get('from'), edge.get('to'))
+            for edge in structure.get("edges"):
+                self.graph.add_edge(edge.get("from"), edge.get("to"))
         else:
             # Only single node exists, add it into the graph
             self.add_base_node(list(self.nodes.values())[0])
@@ -338,14 +339,13 @@ class Graph():
         os.makedirs(filepath.parent, exist_ok=True)
         with tempfile.TemporaryDirectory() as tmpDir:
             with change_working_dir(tmpDir):
-                graph_data = self.serialize('.')
+                graph_data = self.serialize(".")
 
-                serial = YamlSerializer(tmpDir, 'main')
+                serial = YamlSerializer(tmpDir, "main")
                 serial.serialize(graph_data)
 
-            shutil.make_archive(
-                f'{str(filepath)}', 'zip', tmpDir)
-            print(f'Project saved to {str(filepath)}')
+            shutil.make_archive(f"{str(filepath)}", "zip", tmpDir)
+            print(f"Project saved to {str(filepath)}")
 
     @classmethod
     def load_from_file(cls, filepath: str) -> None:
@@ -356,39 +356,47 @@ class Graph():
         filepath : str
             Location of zip archive
         """
-        new_graph = cls('Loaded')
+        new_graph = cls("Loaded")
         with tempfile.TemporaryDirectory() as tmpDir:
             shutil.unpack_archive(filepath, tmpDir)
 
             with change_working_dir(tmpDir):
-                serial = YamlSerializer(tmpDir, 'main')
+                serial = YamlSerializer(tmpDir, "main")
                 graph_data = serial.load()
 
-                new_graph.load(graph_data, '.')
+                new_graph.load(graph_data, ".")
         return new_graph
 
-    def forward(self, X: np.ndarray, Y: Optional[Union[np.ndarray, List]] = None, M: Optional[Union[np.ndarray, List]] = None, backend: str = 'memory') -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        if backend == 'memory':
+    def forward(
+        self,
+        X: np.ndarray,
+        Y: np.ndarray | list | None = None,
+        M: np.ndarray | list | None = None,
+        backend: str = "memory",
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        if backend == "memory":
             executor = MemoryExecutor(self.graph, self.nodes, self.entry_point)
-        elif backend == 'hummingbird':
-            from hummingbird.ml import convert
+        elif backend == "hummingbird":
             from copy import copy
+
+            from hummingbird.ml import convert
 
             def convert_node(node):
                 new_node = copy(node)
-                if '_wrapped' in node.__dict__ and isinstance(node, SklearnWrapped):
-                    new_node._wrapped = convert(node._wrapped, 'torch')
+                if "_wrapped" in node.__dict__ and isinstance(node, SklearnWrapped):
+                    new_node._wrapped = convert(node._wrapped, "torch")
                 return new_node
 
             nodes = {k: convert_node(v) for k, v in self.nodes.items()}
 
-            executor = MemoryExecutor(
-                self.graph, nodes, self.entry_point)
+            executor = MemoryExecutor(self.graph, nodes, self.entry_point)
         else:
             raise ValueError("Unknown Backend")
         return executor.forward(X, Y, M)
 
-    def fit(self, X: np.ndarray, Y: Optional[Union[np.ndarray, List]] = None, M: Optional[Union[np.ndarray, List]] = None):
+    def fit(
+        self, X: np.ndarray, Y: np.ndarray | list | None = None, M: np.ndarray | list | None = None
+    ):
         executor = MemoryExecutor(self.graph, self.nodes, self.entry_point)
         executor.fit(X, Y, M)
 
@@ -398,9 +406,8 @@ class Graph():
 
     @property
     @lru_cache(maxsize=128)
-    def torch_layers(self) -> List[torch.nn.Module]:
-        """Get a list with all pytorch layers in the Graph.
-        """
+    def torch_layers(self) -> list[torch.nn.Module]:
+        """Get a list with all pytorch layers in the Graph."""
         layers = []
         for key, node in self.nodes.items():
             if isinstance(node, SkorchWrapped):
@@ -408,7 +415,7 @@ class Graph():
         return layers
 
     def parameters(self) -> Iterator:
-        """Iterate over all (pytorch-) parameters in all layers contained in the Graph. """
+        """Iterate over all (pytorch-) parameters in all layers contained in the Graph."""
         for layer in self.torch_layers:
             yield from layer.parameters()
 

@@ -1,14 +1,15 @@
-from torchvision.tv_tensors import TVTensor
-import torch
+from typing import Any
+
 import numpy as np
-from typing import Union, Optional, Any, List, Union
+import torch
 from torchvision.transforms.v2 import functional as F
+from torchvision.tv_tensors import TVTensor
 
 
 class WavelengthList(TVTensor):
     """A torchvision transforms data type which represents a list of wavelengths.
     Is used in conjunction with a HSI data cube to describe the physical wavelengths that the channels of the cube represent.
-    
+
     Parameters
     ----------
     data : List(float) or np.ndarray
@@ -20,27 +21,28 @@ class WavelengthList(TVTensor):
     requires_grad : bool, optional
         Whether autograd should record operations.
     """
+
     def __new__(
         cls,
-        data: Union[List[float], np.ndarray],
+        data: list[float] | np.ndarray,
         *,
-        dtype: Optional[torch.dtype] = None,
-        device: Optional[Union[torch.device, str, int]] = None,
-        requires_grad: Optional[bool] = None,
+        dtype: torch.dtype | None = None,
+        device: torch.device | str | int | None = None,
+        requires_grad: bool | None = None,
     ):
         if not isinstance(data, list):
             raise ValueError("WavelengthList got invalid input data!")
-        #data = np.array([float(wl) for wl in data]).reshape((len(data), 1, 1))
+        # data = np.array([float(wl) for wl in data]).reshape((len(data), 1, 1))
         data = np.array(data).reshape((1, len(data), 1, 1))
-        tensor = cls._to_tensor(data, dtype=dtype, device=device, requires_grad=requires_grad).float()
+        tensor = cls._to_tensor(
+            data, dtype=dtype, device=device, requires_grad=requires_grad
+        ).float()
         return tensor.as_subclass(cls)
 
-    
     def __repr__(self, *, tensor_contents: Any = None) -> str:  # type: ignore[override]
         return self._make_repr()
 
 
-    
 @F.register_kernel(functional=F.erase_image, tv_tensor_cls=WavelengthList)
 @F.register_kernel(functional=F.erase_video, tv_tensor_cls=WavelengthList)
 @F.register_kernel(functional=F.adjust_brightness, tv_tensor_cls=WavelengthList)
@@ -153,6 +155,7 @@ class WavelengthList(TVTensor):
 @F.register_kernel(functional=F.uniform_temporal_subsample_video, tv_tensor_cls=WavelengthList)
 def wllist_noop(d, *args, **kwargs):
     return d
+
 
 @F.register_kernel(functional=F.to_grayscale, tv_tensor_cls=WavelengthList)
 @F.register_kernel(functional=F.rgb_to_grayscale, tv_tensor_cls=WavelengthList)

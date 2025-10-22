@@ -1,19 +1,19 @@
-from ..node.base import BaseSupervised
-from skorch import NeuralNetClassifier
-from ..utils.nn_config import Optimizer
-from ..utils.numpy import flatten_spatial, flatten_labels, unflatten_spatial
+from dataclasses import dataclass, field
+
 import numpy as np
+from skorch import NeuralNetClassifier
 from torch import nn
-from typing import Union
 from torch.optim.optimizer import Optimizer as torch_optim
 
-from dataclasses import dataclass, field
+from cuvis_ai.node.base import BaseSupervised
+from cuvis_ai.utils.nn_config import Optimizer
+from cuvis_ai.utils.numpy import flatten_labels, flatten_spatial, unflatten_spatial
 
 
 @dataclass
 class SkorchSupervised(BaseSupervised):
     epochs: int = 10
-    optimizer: Union[Optimizer, torch_optim] = None
+    optimizer: Optimizer | torch_optim = None
     verbose: bool = False
     model: nn.Module = None
     model_args: dict = field(default_factory=dict)
@@ -25,7 +25,7 @@ class SkorchSupervised(BaseSupervised):
         # if self.optimizer is not None:
         #    args.update(self.optimizer.args)
 
-        model_args = {f'module__{k}': v for k, v in self.model_args.items()}
+        model_args = {f"module__{k}": v for k, v in self.model_args.items()}
 
         self.classifier = NeuralNetClassifier(self.model, **args, **model_args)
 
@@ -34,8 +34,8 @@ class SkorchSupervised(BaseSupervised):
 
         flatten_l = flatten_labels(Y)
 
-        print(f'shape image: {flatten_image.shape}')
-        print(f'shape labels: {flatten_l.shape}')
+        print(f"shape image: {flatten_image.shape}")
+        print(f"shape labels: {flatten_l.shape}")
 
         self.classifier.fit(flatten_image, flatten_l)
 

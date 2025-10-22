@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-class Optimizer(ABC):
 
+class Optimizer(ABC):
     @property
     @abstractmethod
     def name(self):
@@ -22,7 +22,6 @@ class Optimizer(ABC):
     @abstractmethod
     def pytorch_args(self):
         pass
-
 
 
 @dataclass
@@ -32,46 +31,47 @@ class Adam(Optimizer):
     beta_1: float = 0.9
     beta_2: float = 0.999
     epsilon: float = 1e-8
-    
+
     @Optimizer.name.getter
     def name(self):
-        return 'Adam Optimizer'
-    
+        return "Adam Optimizer"
+
     @Optimizer.args.getter
     def args(self):
         return {
-            'learning_rate_init' : self.lr,
-            'alpha' : self.alpha,
-            'beta_1' : self.beta_1,
-            'beta_2' : self.beta_2,
-            'epsilon' : self.epsilon
+            "learning_rate_init": self.lr,
+            "alpha": self.alpha,
+            "beta_1": self.beta_1,
+            "beta_2": self.beta_2,
+            "epsilon": self.epsilon,
         }
-    
+
     @Optimizer.sklearn_args.getter
     def sklearn_args(self):
         return {
-            'learning_rate_init' : self.lr,
-            'alpha' : self.alpha,
-            'beta_1' : self.beta_1,
-            'beta_2' : self.beta_2,
-            'epsilon' : self.epsilon
+            "learning_rate_init": self.lr,
+            "alpha": self.alpha,
+            "beta_1": self.beta_1,
+            "beta_2": self.beta_2,
+            "epsilon": self.epsilon,
         }
-    
+
     @Optimizer.pytorch_args.getter
     def pytorch_args(self):
         try:
             import torch.optim
         except ImportError as exc:
-            msg  = "This feature requires pytorch to be installed"
+            msg = "This feature requires pytorch to be installed"
             raise ImportError(msg) from exc
 
         return {
-            'cls' : torch.optim.Adam,
-            'lr' : self.lr,
-            'weight_decay' : self.alpha,
-            'betas' : (self.beta_1,self.beta_2),
-            'eps' : self.epsilon
+            "cls": torch.optim.Adam,
+            "lr": self.lr,
+            "weight_decay": self.alpha,
+            "betas": (self.beta_1, self.beta_2),
+            "eps": self.epsilon,
         }
+
 
 @dataclass
 class SGD(Optimizer):
@@ -83,41 +83,41 @@ class SGD(Optimizer):
 
     @Optimizer.name.getter
     def name(self):
-        return 'SGD Optimizer'
-    
+        return "SGD Optimizer"
+
     @Optimizer.args.getter
     def args(self):
         return {
-            'learning_rate_init' : self.lr,
-            'alpha' : self.alpha,
-            'power_t' : self.power_t,
-            'momentum' : self.momentum,
-            'nesterov' : self.nesterov
-         }
-    
+            "learning_rate_init": self.lr,
+            "alpha": self.alpha,
+            "power_t": self.power_t,
+            "momentum": self.momentum,
+            "nesterov": self.nesterov,
+        }
+
     @Optimizer.sklearn_args.getter
     def sklearn_args(self):
         return {
-            'learning_rate_init' : self.lr,
-            'alpha' : self.alpha,
-            'power_t' : self.power_t,
-            'momentum' : self.momentum,
-            'nesterov_momentum' : self.nesterov
-         }
-    
+            "learning_rate_init": self.lr,
+            "alpha": self.alpha,
+            "power_t": self.power_t,
+            "momentum": self.momentum,
+            "nesterov_momentum": self.nesterov,
+        }
+
     @Optimizer.pytorch_args.getter
     def pytorch_args(self):
         try:
             import torch.optim
         except ImportError as exc:
-            msg  = "This feature requires pytorch to be installed"
+            msg = "This feature requires pytorch to be installed"
             raise ImportError(msg) from exc
 
         return {
-            'cls' : torch.optim.SGD,
-            'lr' : self.lr,
-            'weight_decay' : self.alpha,
-            'momentum' : self.momentum,
-            'nesterov' : self.nesterov,
-            'dampening'  : self.power_t
+            "cls": torch.optim.SGD,
+            "lr": self.lr,
+            "weight_decay": self.alpha,
+            "momentum": self.momentum,
+            "nesterov": self.nesterov,
+            "dampening": self.power_t,
         }

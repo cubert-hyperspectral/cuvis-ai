@@ -1,3 +1,2 @@
-
-from .torch_transformation import TorchTransformation
-from .reflectance import Reflectance
+from cuvis_ai.transformation.reflectance import Reflectance
+from cuvis_ai.transformation.torch_transformation import TorchTransformation

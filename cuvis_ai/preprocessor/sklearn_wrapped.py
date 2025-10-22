@@ -1,5 +1,6 @@
-from ..node.wrap import make_node
 import sklearn.decomposition
+
+from cuvis_ai.node.wrap import make_node
 
 
 @make_node
