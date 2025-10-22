@@ -178,6 +178,6 @@ pyrightconfig.json
 # End of https://www.toptal.com/developers/gitignore/api/python
 /docs/_autosummary
 .history/
-data/
+/data/
 docs_dev/
 examples/
