@@ -1,8 +1,7 @@
 from abc import ABC, abstractmethod
-import numpy as np
 from typing import Any
 
-from ..node import CubeConsumer, LabelConsumer
+from cuvis_ai.node import CubeConsumer, LabelConsumer
 
 
 class Preprocessor(ABC, CubeConsumer):
@@ -32,7 +31,6 @@ class Preprocessor(ABC, CubeConsumer):
 
 
 class BaseSupervised(ABC, CubeConsumer, LabelConsumer):
-
     @abstractmethod
     def fit(self, X, Y):
         pass
@@ -64,7 +62,7 @@ class BaseUnsupervised(ABC, CubeConsumer):
 
     @abstractmethod
     def forward(self, Any) -> Any:
-        """Transform 
+        """Transform
 
         Parameters
         ----------
@@ -80,7 +78,6 @@ class BaseUnsupervised(ABC, CubeConsumer):
 
 
 class BaseTransformation(CubeConsumer):
-
     @abstractmethod
     def forward(self, X):
         pass

@@ -1,16 +1,20 @@
 #!/bin/bash
+set -euo pipefail
 
 cd /app
-python3.12 -m venv .venv
-source .venv/bin/activate
-python3.12 -m pip install torch torchvision matplotlib --index-url https://download.pytorch.org/whl/cpu
-python3.12 -m pip install .
-python3.12 -m pip install opencv-python-headless tzdata
+
+if ! command -v uv >/dev/null 2>&1; then
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  export PATH="${HOME}/.local/bin:${PATH}"
+fi
+
+uv sync --locked
+
 echo "======================="
 echo "Test CUVIS.AI is importable"
 echo "======================="
-python3.12 -c "import cuvis; import cuvis_ai; print(cuvis.General.version())"
+uv run python -c "import cuvis; import cuvis_ai; print(cuvis.General.version())"
 echo "======================="
-echo "OUTPUT OF CUVIS.AI Unit testing"
+echo "OUTPUT OF CUVIS.AI pytest suite"
 echo "======================="
-python3.12 -m unittest discover
+uv run pytest --maxfail=1 --disable-warnings

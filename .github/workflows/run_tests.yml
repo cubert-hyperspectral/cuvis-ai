@@ -1,4 +1,4 @@
-name: Python Unittests CI
+name: Python Pytest CI
 on:
   pull_request:
     branches: [ main ]

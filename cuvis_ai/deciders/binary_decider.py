@@ -1,9 +1,7 @@
-
-from .base_decider import BaseDecider
-
-from ..utils.numpy import flatten_batch_and_spatial, unflatten_batch_and_spatial
-
 import numpy as np
+
+from cuvis_ai.deciders.base_decider import BaseDecider
+from cuvis_ai.utils.numpy import flatten_batch_and_spatial, unflatten_batch_and_spatial
 
 
 class BinaryDecider(BaseDecider):
@@ -76,8 +74,9 @@ class BinaryDecider(BaseDecider):
         try:
             self.threshold = float(params["threshold"])
         except:
-            raise ValueError("Could not read attribute 'threshold' as float. "
-                             F"Read '{params}' from save file!")
+            raise ValueError(
+                f"Could not read attribute 'threshold' as float. Read '{params}' from save file!"
+            )
 
 
 # TODO: How would this functionality be integrated into Deep Learning Methods and Models

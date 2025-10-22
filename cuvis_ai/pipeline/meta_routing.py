@@ -1,18 +1,18 @@
-
-from ..node import Node
 import numpy as np
+
+from cuvis_ai.node import Node
 
 
 def traverse(obj: dict, route: list[str]):
     for r in route:
-        if not r in obj.keys():
+        if r not in obj.keys():
             return None
         obj = obj[r]
     return obj
 
 
 def get_route(name) -> list[str]:
-    return name.split('__')
+    return name.split("__")
 
 
 def get_forward_metadata(node: Node, metadata: dict):
@@ -42,7 +42,9 @@ def get_requested_metadata(requested: dict[str, bool], metadata: dict):
                 continue
             retrieved = traverse(metadata[idx], get_route(k))
             if retrieved is None:
-                raise RuntimeError(f"Could not find requested metadata {'/'.join(get_route(k))}")  # nopep8
+                raise RuntimeError(
+                    f"Could not find requested metadata {'/'.join(get_route(k))}"
+                )  # nopep8
 
             additional_meta[k].append(retrieved)
 

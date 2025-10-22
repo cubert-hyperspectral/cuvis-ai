@@ -1,16 +1,17 @@
-
-
 import functools
-
-from ..utils.numpy import flatten_batch_and_spatial, unflatten_batch_and_spatial, flatten_batch_and_labels
-from .node import Node
 import uuid
-
-import numpy as np
 from pathlib import Path
 
-from sklearn.base import TransformerMixin, ClassifierMixin, ClusterMixin, DensityMixin
-from .base import Preprocessor, BaseUnsupervised, BaseSupervised
+import numpy as np
+from sklearn.base import ClassifierMixin, ClusterMixin, DensityMixin, TransformerMixin
+
+from cuvis_ai.node.base import BaseSupervised, BaseUnsupervised, Preprocessor
+from cuvis_ai.node.node import Node
+from cuvis_ai.utils.numpy import (
+    flatten_batch_and_labels,
+    flatten_batch_and_spatial,
+    unflatten_batch_and_spatial,
+)
 
 
 class SklearnWrapped:
@@ -20,7 +21,7 @@ class SklearnWrapped:
 def _serialize_sklearn_model(obj, cls, data_dir: Path, initialized: bool) -> dict:
     data_independent = cls.get_params(obj)
     if not initialized:
-        return {'params': data_independent}
+        return {"params": data_independent}
 
     def ignore_exceptions(obj, attr):
         try:
@@ -36,46 +37,41 @@ def _serialize_sklearn_model(obj, cls, data_dir: Path, initialized: bool) -> dic
         and ignore_exceptions(obj, attr)
         and not callable(getattr(obj, attr))
         and not attr.startswith("__")
-        and not attr[:-1] in data_independent.keys()
+        and attr[:-1] not in data_independent.keys()
     }
-    return {'params': data_independent, 'state': data_dependend}
+    return {"params": data_independent, "state": data_dependend}
 
 
 def _load_sklearn_model(obj, cls, params: dict, data_dir: Path) -> None:
     data_independent_keys = set(cls.get_params(obj).keys())
 
-    params_independent = {key: params['params'][key]
-                          for key in data_independent_keys}
+    params_independent = {key: params["params"][key] for key in data_independent_keys}
 
     cls.set_params(obj, **params_independent)
 
-    if 'state' not in params.keys():
+    if "state" not in params.keys():
         return
 
-    data_dependent_keys = {
-        key for key in params['state'].keys()}
+    data_dependent_keys = {key for key in params["state"].keys()}
 
-    params_dependent = {key: params['state'][key]
-                        for key in data_dependent_keys}
+    params_dependent = {key: params["state"][key] for key in data_dependent_keys}
 
     for k, v in params_dependent.items():
         try:
             setattr(obj, k, v)
         except:
-            print(f'Could not set state attribute {k} for {obj.id}')  # nopep8
+            print(f"Could not set state attribute {k} for {obj.id}")  # nopep8
 
 
 def _wrap_preprocessor_class(cls):
-
     class SklearnWrappedPreprocessor(Node, Preprocessor, SklearnWrapped):
-
         __doc__ = cls.__doc__
         __module__ = cls.__module__
 
         @functools.wraps(cls.__init__)
         def __init__(self, *args, **kwargs):
             super(SklearnWrappedPreprocessor, self).__init__()
-            self.id = f'{cls.__name__}-{str(uuid.uuid4())}'
+            self.id = f"{cls.__name__}-{str(uuid.uuid4())}"
             self._wrapped = cls(*args, **kwargs)
             __name__ = cls.__name__
             self._input_size = (-1, -1, -1)
@@ -122,16 +118,14 @@ def _wrap_preprocessor_class(cls):
 
 
 def _wrap_supervised_class(cls):
-
     class SklearnWrappedSupervised(Node, BaseSupervised, SklearnWrapped):
-
         __doc__ = cls.__doc__
         __module__ = cls.__module__
 
         @functools.wraps(cls.__init__)
         def __init__(self, *args, **kwargs):
             super(SklearnWrappedSupervised, self).__init__()
-            self.id = f'{cls.__name__}-{str(uuid.uuid4())}'
+            self.id = f"{cls.__name__}-{str(uuid.uuid4())}"
             self._wrapped = cls(*args, **kwargs)
             __name__ = cls.__name__
             self._input_size = (-1, -1, -1)
@@ -162,7 +156,7 @@ def _wrap_supervised_class(cls):
 
         def forward(self, X: np.ndarray):
             flattened_data = flatten_batch_and_spatial(X)
-            if 'predict_proba' in self._wrapped.__dict__:
+            if "predict_proba" in self._wrapped.__dict__:
                 transformed_data = self._wrapped.predict_proba(flattened_data)
             else:
                 transformed_data = self._wrapped.predict(flattened_data)
@@ -182,16 +176,14 @@ def _wrap_supervised_class(cls):
 
 
 def _wrap_unsupervised_class(cls):
-
     class SklearnWrappedUnsupervised(Node, BaseUnsupervised, SklearnWrapped):
-
         __doc__ = cls.__doc__
         __module__ = cls.__module__
 
         @functools.wraps(cls.__init__)
         def __init__(self, *args, **kwargs):
             super(SklearnWrappedUnsupervised, self).__init__()
-            self.id = f'{cls.__name__}-{str(uuid.uuid4())}'
+            self.id = f"{cls.__name__}-{str(uuid.uuid4())}"
             self._wrapped = cls(*args, **kwargs)
             __name__ = cls.__name__
             self._input_size = (-1, -1, -1)
@@ -221,9 +213,8 @@ def _wrap_unsupervised_class(cls):
 
         def forward(self, X: np.ndarray):
             flattened_data = flatten_batch_and_spatial(X)
-            if 'predict_proba' in self._wrapped.__dict__:
-                prediction_data = self._wrapped.predict_proba(
-                    flattened_data)
+            if "predict_proba" in self._wrapped.__dict__:
+                prediction_data = self._wrapped.predict_proba(flattened_data)
             else:
                 prediction_data = self._wrapped.predict(flattened_data)
             return unflatten_batch_and_spatial(prediction_data, X.shape)

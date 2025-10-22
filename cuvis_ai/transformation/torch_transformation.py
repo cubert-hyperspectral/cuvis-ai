@@ -1,10 +1,13 @@
-from typing import Optional, Any, Dict, Iterable, Tuple
 import pickle as pk
-import torch
-import numpy as np
-from ..node import Node
-from ..node.base import BaseTransformation
+from collections.abc import Iterable
 from pathlib import Path
+from typing import Any
+
+import numpy as np
+import torch
+
+from cuvis_ai.node import Node
+from cuvis_ai.node.base import BaseTransformation
 
 
 class TorchTransformation(Node, BaseTransformation):
@@ -20,7 +23,7 @@ class TorchTransformation(Node, BaseTransformation):
         Any additional keyword arguments will be passed to the pytorch function anytime it is called.
     """
 
-    def __init__(self, function_name: Optional[str] = None, *, operand_b: Optional[Any] = None, **kwargs):
+    def __init__(self, function_name: str | None = None, *, operand_b: Any | None = None, **kwargs):
         super().__init__()
         self.op_name = function_name
         self.b = operand_b
@@ -33,7 +36,7 @@ class TorchTransformation(Node, BaseTransformation):
             self.fun = None
             self.initialized = False
 
-    def forward(self, X: np.ndarray, Y: Optional[np.ndarray] = None):
+    def forward(self, X: np.ndarray, Y: np.ndarray | None = None):
         """Apply the pytorch method :arg:`function_name` on :arg:`X`.
         This node basically runs `torch.<function_name>(X, Y)`.
 
@@ -50,8 +53,10 @@ class TorchTransformation(Node, BaseTransformation):
             Returns the result of the pytorch method and any additional labels or metadata passed along with :arg:`X`
         """
         if Y is not None and self.b is not None:
-            raise ValueError(F"TorchTransformation with operation '{self.op_name}' was given a constant value and a second operand!"
-                             "\nTorchTransformation can have none or one of either, but must not have both.")
+            raise ValueError(
+                f"TorchTransformation with operation '{self.op_name}' was given a constant value and a second operand!"
+                "\nTorchTransformation can have none or one of either, but must not have both."
+            )
 
         if isinstance(X, np.ndarray):
             X = torch.as_tensor(X)
@@ -67,39 +72,41 @@ class TorchTransformation(Node, BaseTransformation):
             else:
                 return self.fun(X, **self.fun_kwargs).numpy()
         except RuntimeError as re:
-            raise RuntimeError(F"TorchTransformation with operation '{self.op_name}' was called with non-matching input and "
-                               F"{'constant ' if self.b is not None else ''}second operand shapes!\nPyTorch reports: '{re}'")
+            raise RuntimeError(
+                f"TorchTransformation with operation '{self.op_name}' was called with non-matching input and "
+                f"{'constant ' if self.b is not None else ''}second operand shapes!\nPyTorch reports: '{re}'"
+            )
 
-    def check_output_dim(self, X: Any, Y: Optional[Any] = None):
+    def check_output_dim(self, X: Any, Y: Any | None = None):
         pass
 
-    def check_input_dim(self, X: Iterable, Y: Optional[Iterable] = None):
+    def check_input_dim(self, X: Iterable, Y: Iterable | None = None):
         try:
             self.forward(X, Y)
         except RuntimeError:
-            assert (False)
+            assert False
 
     @Node.output_dim.getter
-    def output_dim(self) -> Tuple[int, int, int]:
+    def output_dim(self) -> tuple[int, int, int]:
         return -1, -1, -1
 
     @Node.input_dim.getter
-    def input_dim(self) -> Tuple[int, int, int]:
+    def input_dim(self) -> tuple[int, int, int]:
         return -1, -1, -1
 
     def serialize(self, serial_dir: str) -> str:
         """Serialize this node and save to :arg:`serial_dir`."""
         if not self.initialized:
-            print('Module not fully initialized, skipping output!')
+            print("Module not fully initialized, skipping output!")
             return
 
         blob = (self.b, self.fun_kwargs)
-        blobfile_name = F"{hash(str(blob))}_torchtransformation.pkl"
-        with open(Path(serial_dir) / blobfile_name, 'wb') as f:
+        blobfile_name = f"{hash(str(blob))}_torchtransformation.pkl"
+        with open(Path(serial_dir) / blobfile_name, "wb") as f:
             pk.dump(blob, f)
 
         data = {
-            'id': self.id,
+            "id": self.id,
             "op_name": self.op_name,
             "transformation_blob": blobfile_name,
         }
@@ -107,7 +114,7 @@ class TorchTransformation(Node, BaseTransformation):
 
     def load(self, params: dict, serial_dir: str):
         """Load this node from a serialized graph."""
-        self.id = params.get('id')
+        self.id = params.get("id")
         with open(Path(serial_dir) / params.get("transformation_blob"), "rb") as f:
             self.b, self.fun_kwargs = pk.load(f)
         self.op_name = params.get("op_name")

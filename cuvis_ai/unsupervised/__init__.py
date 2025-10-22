@@ -1,1 +1,1 @@
-from .sklearn_wrapped import KMeans, MeanShift, GMM
+from cuvis_ai.unsupervised.sklearn_wrapped import GMM, KMeans, MeanShift

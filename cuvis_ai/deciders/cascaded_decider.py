@@ -1,11 +1,9 @@
-from .base_decider import BaseDecider
-
 import numpy as np
-from typing import Dict
+
+from cuvis_ai.deciders.base_decider import BaseDecider
 
 
 class Cascaded(BaseDecider):
-
     def __init__(self) -> None:
         super().__init__()
 
@@ -33,8 +31,7 @@ class Cascaded(BaseDecider):
         """
         Convert the class into a serialized representation
         """
-        data = {
-        }
+        data = {}
         return data
 
     def load(self, params: dict, filepath: str):

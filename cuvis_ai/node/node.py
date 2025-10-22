@@ -1,9 +1,7 @@
-from abc import ABC, abstractmethod
-import numpy as np
-import typing
 import uuid
+from abc import ABC, abstractmethod
 
-from ..utils.numpy import get_shape_without_batch, check_array_shape
+from cuvis_ai.utils.numpy import check_array_shape, get_shape_without_batch
 
 
 class Node(ABC):
@@ -13,7 +11,7 @@ class Node(ABC):
 
     def __init__(self):
         super(Node, self).__init__()
-        self.id = f'{type(self).__name__}-{str(uuid.uuid4())}'
+        self.id = f"{type(self).__name__}-{str(uuid.uuid4())}"
         self.__forward_metadata = {}
         self.__fit_metadata = {}
         self.__forward_inputs = {}
@@ -43,7 +41,7 @@ class Node(ABC):
         X (array-like): Input data.
 
         Returns:
-        (Bool) Valid data 
+        (Bool) Valid data
         """
         return check_array_shape(get_shape_without_batch(X), self.output_dim)
 
@@ -56,20 +54,20 @@ class Node(ABC):
         X (array-like): Input data.
 
         Returns:
-        (Bool) Valid data 
+        (Bool) Valid data
         """
         return check_array_shape(get_shape_without_batch(X), self.input_dim)
 
     def set_forward_meta_request(self, **kwargs):
         for k, v in kwargs.items():
             if not isinstance(v, bool):
-                raise ValueError('Invalid usage of Metadata Routing')
+                raise ValueError("Invalid usage of Metadata Routing")
             self.__forward_metadata[k] = v
 
     def set_fit_meta_request(self, **kwargs):
         for k, v in kwargs.items():
             if not isinstance(v, bool):
-                raise ValueError('Invalid usage of Metadata Routing')
+                raise ValueError("Invalid usage of Metadata Routing")
             self.__fit_metadata[k] = v
 
     def get_forward_requested_meta(self):

@@ -1,6 +1,3 @@
-
-from .node import *
-
-from .Consumers import *
-
-from .wrap import make_node
+from cuvis_ai.node.consumers import *
+from cuvis_ai.node.node import *
+from cuvis_ai.node.wrap import make_node

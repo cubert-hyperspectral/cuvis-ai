@@ -1,15 +1,8 @@
-from cuvis_ai.node.wrap import node
-
-from sklearn.decomposition import PCA, NMF
-from sklearn.cluster import KMeans, MeanShift
-
-from cuvis_ai.utils.test import get_np_dummy_data
-
-import numpy as np
-
-import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+from cuvis_ai.node.wrap import node
+from cuvis_ai.utils.test import get_np_dummy_data
 
 
 @node
@@ -17,12 +10,9 @@ class SimpleCNN(nn.Module):
     def __init__(self, num_classes=10):
         super(SimpleCNN, self).__init__()
         # Convolutional layers
-        self.conv1 = nn.Conv2d(
-            in_channels=3, out_channels=16, kernel_size=3, stride=1, padding=1)
-        self.conv2 = nn.Conv2d(
-            in_channels=16, out_channels=32, kernel_size=3, stride=1, padding=1)
-        self.conv3 = nn.Conv2d(
-            in_channels=32, out_channels=64, kernel_size=3, stride=1, padding=1)
+        self.conv1 = nn.Conv2d(in_channels=3, out_channels=16, kernel_size=3, stride=1, padding=1)
+        self.conv2 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, stride=1, padding=1)
+        self.conv3 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, stride=1, padding=1)
 
         # Fully connected layers
         # Adjust based on input image size

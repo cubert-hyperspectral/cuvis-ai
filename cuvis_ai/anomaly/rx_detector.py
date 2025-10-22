@@ -1,7 +1,10 @@
-from .AbstractDetector import AbstractDetector
-import numpy as np
 import warnings
-from ..utils.numpy import flatten_spatial, unflatten_spatial
+
+import numpy as np
+
+from cuvis_ai.anomaly.abstract_detector import AbstractDetector
+from cuvis_ai.utils.numpy import flatten_spatial
+
 
 class RXDetector(AbstractDetector):
     """
@@ -38,29 +41,29 @@ class RXDetector(AbstractDetector):
             )
         for x in range(data.shape[0]):
             if not self._fit:
-                mu = np.mean(data[x,:,:], axis=0)
-                cov = np.cov(data[x,:,:], rowvar=False)
+                mu = np.mean(data[x, :, :], axis=0)
+                cov = np.cov(data[x, :, :], rowvar=False)
                 cov_inv = np.linalg.pinv(cov)
             else:
                 mu = self.mu
                 cov_inv = self.cov_inv
                 # Invert covariance
-            diff = data[x,:,:] - mu
+            diff = data[x, :, :] - mu
             # Mahalanobis distance: diff * cov_inv * diff^T per sample
-            m_dist = np.einsum('ij,jk,ik->i', diff, cov_inv, diff)
+            m_dist = np.einsum("ij,jk,ik->i", diff, cov_inv, diff)
             # Return shape (N, 1)
             output.append(m_dist[:, np.newaxis])
         return np.array(output)
 
     def fit(self, data: np.ndarray, *args, **kwargs):
-        """ Calculate statistics to reuse for RX detector-like datasets """
+        """Calculate statistics to reuse for RX detector-like datasets"""
         means = []
         covs = []
         data = flatten_spatial(data)
         for x in range(data.shape[0]):
-            mu = np.mean(data[x,:,:], axis=0)
+            mu = np.mean(data[x, :, :], axis=0)
             means.append(mu)
-            cov = np.cov(data[x,:,:], rowvar=False)
+            cov = np.cov(data[x, :, :], rowvar=False)
             covs.append(cov)
         self.mu = np.mean(np.array(means), axis=0)
         self.cov = np.mean(np.array(covs), axis=0)

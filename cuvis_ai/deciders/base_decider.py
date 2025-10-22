@@ -1,11 +1,7 @@
 from abc import ABC, abstractmethod
-import uuid
-import numpy as np
-import uuid
-from typing import Tuple
-from ..utils.numpy import get_shape_without_batch, check_array_shape
-from ..node import Node
-from ..node.Consumers import *
+
+from cuvis_ai.node import Node
+from cuvis_ai.node.consumers import *
 
 
 class BaseDecider(Node, CubeConsumer, ABC):

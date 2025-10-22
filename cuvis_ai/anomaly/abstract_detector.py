@@ -1,9 +1,11 @@
 from abc import ABC, abstractmethod
-from ..node import Node, CubeConsumer
-from ..utils.numpy import flatten_spatial, unflatten_spatial
+from copy import deepcopy
+
 import numpy as np
 import yaml
-from copy import deepcopy
+
+from cuvis_ai.node import CubeConsumer, Node
+from cuvis_ai.utils.numpy import flatten_spatial
 
 
 class AbstractDetector(Node, CubeConsumer, ABC):
@@ -39,13 +41,13 @@ class AbstractDetector(Node, CubeConsumer, ABC):
 
     def serialize(self, working_dir: str) -> str:
         data = deepcopy(self.__dict__)
-        data['type'] = type(self).__name__
-        data['ref_spectra'] = data['ref_spectra'].tolist()
+        data["type"] = type(self).__name__
+        data["ref_spectra"] = data["ref_spectra"].tolist()
         return yaml.dump(data, default_flow_style=False)
 
     def load(self, params: dict, filepath: str = None):
         params = params.copy()
-        params.pop('type', None)
+        params.pop("type", None)
         self.__dict__.update(params)
         self.ref_spectra = np.array(self.ref_spectra)
         return self

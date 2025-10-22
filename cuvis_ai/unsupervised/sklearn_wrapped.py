@@ -1,6 +1,7 @@
-from ..node.wrap import make_node
 import sklearn.cluster
 import sklearn.mixture
+
+from cuvis_ai.node.wrap import make_node
 
 
 @make_node

@@ -1,3 +1,3 @@
 # from .pipeline import *
-from .graph import Graph
-from .graph import Graph as Pipeline
+from cuvis_ai.pipeline.graph import Graph
+from cuvis_ai.pipeline.graph import Graph as Pipeline

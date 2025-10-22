@@ -1,6 +1,7 @@
-from ..node.base import BaseTransformation
-from ..node import Node
 import numpy as np
+
+from cuvis_ai.node import Node
+from cuvis_ai.node.base import BaseTransformation
 
 
 class Reflectance(Node, BaseTransformation):
@@ -21,8 +22,7 @@ class Reflectance(Node, BaseTransformation):
         self.upper_bound = upper_bound
         self.input_size = None
         self.output_size = None
-        self.set_forward_meta_request(
-            references__Dark=True, references__White=True)
+        self.set_forward_meta_request(references__Dark=True, references__White=True)
 
     def forward(self, X: np.ndarray, references__White: np.ndarray, references__Dark: np.ndarray):
         """Apply reflectance calculus to the data.
@@ -33,7 +33,7 @@ class Reflectance(Node, BaseTransformation):
         Parameters
             ----------
             X : np.ndarray
-                The input data array for which reflectance is computed. Must have the same shape 
+                The input data array for which reflectance is computed. Must have the same shape
                 as `references__White` and `references__Dark`.
             references__White : np.ndarray
                 The white reference array. Defines the maximum intensity for each pixel.
@@ -43,8 +43,8 @@ class Reflectance(Node, BaseTransformation):
             Returns
             -------
             np.ndarray
-                An array of reflectance values with the same shape as the input `X`. The reflectance 
-                values are computed as `(X - references__Dark) / (references__White - references__Dark)` 
+                An array of reflectance values with the same shape as the input `X`. The reflectance
+                values are computed as `(X - references__Dark) / (references__White - references__Dark)`
                 and optionally clamped between the lower and upper bounds.
 
         """
