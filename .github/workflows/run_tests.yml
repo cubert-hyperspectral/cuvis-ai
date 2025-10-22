@@ -1,0 +1,16 @@
+name: Python Pytest CI
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v3
+    - name: Build docker images
+      run: docker build -t "cuvis_ai" .
+    - name: Run docker container
+      run: docker run cuvis_ai /bin/bash  /app/entrypoint.sh
