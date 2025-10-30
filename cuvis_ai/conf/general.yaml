@@ -1,0 +1,27 @@
+# Configuration for Hamilton workflow visualization
+# Required fields are marked with ???
+
+data:
+ 
+  # Processing mode for cuvis data (e.g., Reflectance, Raw, etc.)
+  processing_mode: Reflectance
+
+dataloader:
+  
+  # DataLoader parameters
+  batch_size: 8
+  shuffle: false
+  num_workers: 0
+
+visualize:
+  # Channel index to visualize (0-based)
+  channel: 3
+  
+  # Output directory for visualization images
+  
+  # Optional: Maximum number of batches to process (null = process all)
+  max_batches: null
+
+dirs:
+    out_dir: ./outputs/
+

@@ -1,7 +1,9 @@
-import numpy as np
+from typing import Any
+
+from torch import Tensor
 
 from cuvis_ai.deciders.base_decider import BaseDecider
-from cuvis_ai.utils.numpy import flatten_batch_and_spatial, unflatten_batch_and_spatial
+from cuvis_ai.utils.general import _ensure_channels_last
 
 
 class BinaryDecider(BaseDecider):
@@ -13,26 +15,29 @@ class BinaryDecider(BaseDecider):
         The threshold to use for classification: result = (input >= threshold)
     """
 
-    def __init__(self, threshold: float = 1.0) -> None:
+    def __init__(self, threshold: float = 0.5) -> None:
         super().__init__()
         self.threshold = threshold
 
-    def forward(self, X: np.ndarray) -> np.ndarray:
-        """Apply binary decision on input data.
+    def forward(
+        self,
+        logits_bhwc: Tensor,
+        y: Tensor | None = None,
+        m: Any = None,
+        **_: Any,
+    ) -> Tensor:
+        """Apply threshold-based decisioning on channels-last data.
 
-        Paramaters
-        ----------
-        X : np.ndarray
-            Input data as numpy array
+        Args:
+            logits_bhwc: Tensor shaped (B, H, W) or (B, H, W, C).
+            binary_decider_params: Configuration with threshold and optional dtype.
 
-        Returns
-        -------
-        np.ndarray
-            Classified input data. Where the datapoints are False if smaller than the threshold or True if larger or equal.
+        Returns:
+            Boolean (B, H, W, 1) decision mask unless a dtype override is supplied.
         """
-        flatten_soft_output = flatten_batch_and_spatial(X)
-        decisions = flatten_soft_output >= self.threshold
-        return unflatten_batch_and_spatial(decisions, X.shape)
+        tensor = _ensure_channels_last(logits_bhwc)
+        decisions = (tensor >= self.threshold).to(tensor.dtype)
+        return decisions
 
     @BaseDecider.input_dim.getter
     def input_dim(self):
@@ -45,7 +50,7 @@ class BinaryDecider(BaseDecider):
         tuple
             Needed shape for data
         """
-        return [-1, -1, 1]
+        return [-1, -1, -1, 1]
 
     @BaseDecider.output_dim.getter
     def output_dim(self):
@@ -58,25 +63,19 @@ class BinaryDecider(BaseDecider):
         tuple
             Provided shape for data
         """
-        return [-1, -1, 1]
+        return [-1, -1, -1, 1]
 
     def serialize(self, directory: str):
         """
         Convert the class into a serialized representation
         """
-        data = {
+        return {
             "threshold": self.threshold,
         }
-        return data
 
     def load(self, params: dict, filepath: str):
         """Load this node from a serialized graph."""
         try:
             self.threshold = float(params["threshold"])
-        except:
-            raise ValueError(
-                f"Could not read attribute 'threshold' as float. Read '{params}' from save file!"
-            )
-
-
-# TODO: How would this functionality be integrated into Deep Learning Methods and Models
+        except Exception as e:
+            raise ValueError(f"Error loading BinaryDecider from params: {params}") from e

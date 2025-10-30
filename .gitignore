@@ -181,3 +181,5 @@ pyrightconfig.json
 /data/
 docs_dev/
 examples/
+/outputs/
+/wandb/
