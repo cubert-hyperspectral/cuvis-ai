@@ -8,7 +8,7 @@ from loguru import logger
 from skimage.draw import polygon
 from torch.utils.data import Dataset
 
-from cuvis_ai.data.coco_labels import COCOData
+from cuvis_ai.data.coco_labels import COCOData, Annotation, RLE2mask
 from cuvis_ai.utils.general import _resolve_measurement_indices, normalize_per_channel_vectorized
 
 
@@ -57,13 +57,22 @@ class SingleCu3sDataset(Dataset):
             f"Loaded cu3s dataset from {cu3s_path} with {len(self.measurement_indices)} "
             f"measurements: {self.measurement_indices}"
         )
-
-        self.has_labels = label_path is not None and Path(label_path).with_suffix(".json").exists()
+        self.has_labels = (
+            label_path is not None
+            and Path(label_path).exists()
+            or Path(cu3s_path).with_suffix(".json").exists()
+        )
+        if self.has_labels and label_path is None:
+            # Sane fallback: label file is named the same as the Session File
+            label_path = Path(cu3s_path).with_suffix(".json")
         self._coco: COCOData | None = None
         self.class_labels: dict[int, str] | None = None
         if self.has_labels:
-            coco_json = str(Path(label_path).with_suffix(".json"))
-            self._coco = COCOData.from_path(coco_json)
+            try:
+                self._coco = COCOData.from_path(label_path)
+            except Exception as e:
+                logger.warning(f"Could not load annotation for {label_path}:", e)
+                self.has_labels = False
             logger.info(f"Category map: {self._coco.category_id_to_name}")
             self.class_labels = self._coco.category_id_to_name
 
@@ -99,13 +108,17 @@ class SingleCu3sDataset(Dataset):
 
 
 def create_mask(
-    annotations: Iterable, image_height: int, image_width: int, overlap_strategy: str = "overwrite"
+    annotations: Iterable[Annotation],
+    image_height: int,
+    image_width: int,
+    overlap_strategy: str = "overwrite",
 ) -> np.ndarray:
     category_mask = np.zeros((image_height, image_width), dtype=np.int32)
     for ann in annotations:
         segs = ann.segmentation
+        mask = ann.mask
         cat_id = int(ann.category_id)
-        if not segs:
+        if not segs and not mask:
             continue
         if isinstance(segs, list) and len(segs) > 0 and isinstance(segs[0], (list, tuple)):
             for seg in segs:
@@ -119,6 +132,16 @@ def create_mask(
                 else:
                     write_idx = category_mask[rr, cc] == 0
                     category_mask[rr[write_idx], cc[write_idx]] = cat_id
+        if isinstance(mask, dict) and len(mask.get("counts", lambda: [])) > 0:
+            mask_width, mask_height = mask.get("size")
+            # decode RLE mask
+            decoded = RLE2mask(mask.get("counts"), mask_width=mask_width, mask_height=mask_height)
+            if overlap_strategy == "overwrite":
+                write_mask = decoded
+            else:
+                write_mask = decoded & (category_mask == 0)
+            category_mask[write_mask] = cat_id
+
     return category_mask
 
 
