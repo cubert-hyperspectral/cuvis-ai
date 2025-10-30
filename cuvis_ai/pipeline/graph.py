@@ -1,34 +1,27 @@
+from __future__ import annotations
+
 import importlib
 import os
 import shutil
 import sys
 import tempfile
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from copy import copy, deepcopy
-from functools import lru_cache
+from functools import cached_property
 from pathlib import Path
+from typing import Any
 
 import networkx as nx
-import numpy as np
 import pkg_resources  # part of setuptools
 import torch
+from torch import Tensor, nn
 
 from cuvis_ai.node import Node
 from cuvis_ai.node.consumers import *
-from cuvis_ai.node.sklearn import SklearnWrapped
-from cuvis_ai.node.skorch import SkorchWrapped
-from cuvis_ai.node.wrap import make_node
 from cuvis_ai.pipeline.executor import MemoryExecutor
-from cuvis_ai.utils.dependencies import get_installed_packages_str
 from cuvis_ai.utils.filesystem import change_working_dir
-from cuvis_ai.utils.numpy import check_array_shape
 from cuvis_ai.utils.serializer import YamlSerializer
-
-
-def maybe_wrap_node(node):
-    if isinstance(node, Node):
-        return node
-    return make_node(node)
+from cuvis_ai.utils.torch import check_array_shape
 
 
 class Graph:
@@ -76,7 +69,9 @@ class Graph:
         if not all([self.graph.has_node(p.id) for p in parent]):
             raise ValueError("Not all parents are part of the Graph")
 
-        if not all([check_array_shape(p.output_dim, node.input_dim) for p in parent]):
+        if not all(
+            [check_array_shape(p.output_dim, node.input_dim, p.id.split("-")[0]) for p in parent]
+        ):
             raise ValueError("Unsatisfied dimensionality constraint!")
 
         self.graph.add_node(node.id)
@@ -98,8 +93,6 @@ class Graph:
         node : Node
             CUVIS.AI node to add to the graph
         """
-        node = maybe_wrap_node(node)
-
         self.graph.add_node(node.id)
         self.nodes[node.id] = node
         self.entry_point = node.id
@@ -115,9 +108,6 @@ class Graph:
         node2 : Node
             Child node.
         """
-
-        node = maybe_wrap_node(node)
-        node2 = maybe_wrap_node(node2)
 
         self.graph.add_edge(node.id, node2.id)
         self.nodes[node.id] = node
@@ -310,8 +300,6 @@ class Graph:
                 cls = getattr(module, node_class)
             else:
                 cls = getattr(importlib.import_module(node_module), node_class)
-            if not issubclass(cls, Node):
-                cls = make_node(cls)
 
             if "params" in params.keys():
                 stage = cls(**params["params"])
@@ -369,59 +357,89 @@ class Graph:
 
     def forward(
         self,
-        X: np.ndarray,
-        Y: np.ndarray | list | None = None,
-        M: np.ndarray | list | None = None,
-        backend: str = "memory",
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        if backend == "memory":
-            executor = MemoryExecutor(self.graph, self.nodes, self.entry_point)
-        elif backend == "hummingbird":
-            from copy import copy
-
-            from hummingbird.ml import convert
-
-            def convert_node(node):
-                new_node = copy(node)
-                if "_wrapped" in node.__dict__ and isinstance(node, SklearnWrapped):
-                    new_node._wrapped = convert(node._wrapped, "torch")
-                return new_node
-
-            nodes = {k: convert_node(v) for k, v in self.nodes.items()}
-
-            executor = MemoryExecutor(self.graph, nodes, self.entry_point)
-        else:
-            raise ValueError("Unknown Backend")
-        return executor.forward(X, Y, M)
-
-    def fit(
-        self, X: np.ndarray, Y: np.ndarray | list | None = None, M: np.ndarray | list | None = None
-    ):
+        x: Tensor,
+        y: Tensor | Sequence[Any] | None = None,
+        m: Any = None,
+    ) -> tuple[Tensor, Any, Any]:
         executor = MemoryExecutor(self.graph, self.nodes, self.entry_point)
-        executor.fit(X, Y, M)
+        return executor.forward(x, y, m)
+
+    def fit(self, x: Tensor, y: Tensor | Sequence[Any] | None = None, m: Any = None):
+        executor = MemoryExecutor(self.graph, self.nodes, self.entry_point)
+        executor.fit(x, y, m)
 
     def train(self, train_dl: torch.utils.data.DataLoader, test_dl: torch.utils.data.DataLoader):
         executor = MemoryExecutor(self.graph, self.nodes, self.entry_point)
         executor.train(train_dl, test_dl)
 
-    @property
-    @lru_cache(maxsize=128)
-    def torch_layers(self) -> list[torch.nn.Module]:
-        """Get a list with all pytorch layers in the Graph."""
-        layers = []
-        for key, node in self.nodes.items():
-            if isinstance(node, SkorchWrapped):
-                layers.append(node.net.model_)
-        return layers
+    @cached_property
+    def torch_layers(self) -> nn.ModuleList:
+        """Torch modules stored in the graph's nodes, packaged as an nn.ModuleList."""
+        # If you'll mutate self.nodes after construction, delete this cache:
+        #   del self.__dict__['torch_layers']
+        modules = [node for node in self.nodes.values() if isinstance(node, nn.Module)]
+        return nn.ModuleList(modules)
 
-    def parameters(self) -> Iterator:
-        """Iterate over all (pytorch-) parameters in all layers contained in the Graph."""
+    def to(self, *args: Any, **kwargs: Any) -> Graph:
+        """Move all torch-backed nodes to the requested device/dtype."""
+        self.torch_layers.to(*args, **kwargs)
+        return self
+
+    def cuda(self, device: int | torch.device | None = None) -> Graph:
+        """CUDA convenience wrapper mirroring nn.Module.cuda."""
+        self.torch_layers.cuda(device=device)
+        return self
+
+    def cpu(self) -> Graph:
+        """CPU convenience wrapper mirroring nn.Module.cpu."""
+        self.torch_layers.cpu()
+        return self
+
+    def _iter_all_parameters(self, recurse: bool = True) -> Iterator[nn.Parameter]:
+        """
+        Yield parameters from all layers (optionally recursing into submodules),
+        de-duplicated across shared modules/parameters.
+        """
+        seen_params: set[int] = set()
         for layer in self.torch_layers:
-            yield from layer.parameters()
+            # nn.Module.parameters already includes submodules if recurse=True
+            iterator = layer.parameters() if recurse else layer.parameters(recurse=False)
+            for p in iterator:
+                pid = id(p)
+                if pid not in seen_params:
+                    seen_params.add(pid)
+                    yield p
 
-    def freeze(self):
-        for node in self.nodes.values():
-            if node.initialized:
-                node.freezed = True
-            else:
-                raise RuntimeError("Tried freezing a uninitialized node")
+    def parameters(
+        self, *, recurse: bool = True, require_grad: bool | None = None
+    ) -> Iterator[nn.Parameter]:
+        """
+        Iterate over unique parameters across the graph.
+
+        Args:
+            recurse: include parameters from child modules of each layer.
+            require_grad: if set, filter by p.requires_grad == require_grad.
+        """
+        for p in self._iter_all_parameters(recurse=recurse):
+            if require_grad is None or p.requires_grad is require_grad:
+                yield p
+
+    def named_parameters(
+        self, *, recurse: bool = True, require_grad: bool | None = None, sep: str = "."
+    ) -> Iterator[tuple[str, nn.Parameter]]:
+        """
+        Like torch.nn.Module.named_parameters, but across your graph.
+        Names are prefixed with the node key to avoid collisions.
+        """
+        seen_params: set[int] = set()
+        for key, node in self.nodes.items():
+            if not isinstance(node, nn.Module):
+                continue
+            iterator = node.named_parameters(recurse=recurse)
+            for local_name, p in iterator:
+                pid = id(p)
+                if pid in seen_params:
+                    continue
+                seen_params.add(pid)
+                if require_grad is None or p.requires_grad is require_grad:
+                    yield f"{key}{sep}{local_name}", p

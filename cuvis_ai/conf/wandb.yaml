@@ -1,0 +1,5 @@
+wandb:
+  project: cuvis-ai
+  entity: null
+  namespace: null
+  class_labels: null

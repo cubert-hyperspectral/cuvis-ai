@@ -1,73 +1,50 @@
-from enum import Enum
+from __future__ import annotations
+
+from collections.abc import Sequence
+from typing import Any
 
 import torch
-import torch.nn as nn
-
-from cuvis_ai.utils.dict import remove_prefix
 
 
-class InputDimension(Enum):
-    One = 1
-    Two = 2
-    Three = 3
-    Unknown = -1
+def _coerce_shape(obj: Any, name: str) -> tuple[int, ...]:
+    if hasattr(obj, "shape"):
+        shape = obj.shape
+        if isinstance(shape, torch.Size):
+            return tuple(shape)
+        if isinstance(shape, Sequence):
+            return tuple(int(dim) for dim in shape)
+    if isinstance(obj, Sequence):
+        try:
+            return tuple(int(dim) for dim in obj)
+        except Exception as exc:  # pragma: no cover
+            raise TypeError(f"Could not interpret {name} sequence as shape: {obj}") from exc
+    raise TypeError(f"{name} has no attribute `.shape` and is not a shape sequence.")
 
 
-def guess_input_dimensionalty(model: nn.Module) -> InputDimension:
-    """
-    Inspects the first layer of a PyTorch model to guess if the model expects
-    1D (flattened), 2D (spatial), or 3D input data.
+def check_array_shape(x: Any, desired_shape: Sequence[int], name: str = "Tensor") -> None:
+    """Validate that x.shape matches desired_shape, where -1 is a wildcard."""
+    actual = _coerce_shape(x, name)
+    desired = tuple(desired_shape)
 
-    Returns:
-        InputDimension: Enum value indicating likely input dimensions.
-    """
-    # Get the first layer of the model
-    first_layer = next(model.children(), None)
+    # quick spec sanity
+    if any((not isinstance(d, int)) or d < -1 for d in desired):
+        raise TypeError("desired_shape entries must be -1 or non-negative ints.")
 
-    if len(first_layer._modules.items()) > 0:
-        first_layer = list(first_layer._modules.values())[0]
+    # rank check
+    if len(actual) != len(desired):
+        raise ValueError(
+            f"{name} rank mismatch: expected {len(desired)}D per spec {desired}, got {len(actual)}D (shape={actual})."
+        )
 
-    # Check if there is a first layer in the model
-    if first_layer is None:
-        return InputDimension.Unknown  # No layers in the model
-
-    # Analyze the type of the first layer
-    if isinstance(first_layer, nn.Conv2d):
-        # 2D convolution, likely expects spatial (image-like) data
-        if first_layer.in_channels == 1:
-            return InputDimension.Two
-        else:
-            return InputDimension.Three
-    elif isinstance(first_layer, nn.Conv1d):
-        # 1D convolution, likely expects sequence data with channels
-        return InputDimension.One
-    elif isinstance(first_layer, nn.Conv3d):
-        # 3D convolution, likely expects 3D spatial data (e.g., video)
-        return InputDimension.Three
-    elif isinstance(first_layer, nn.Linear):
-        return InputDimension.One  # Linear layer, likely expects flattened data
-
-    return guess_input_dimensionalty(first_layer)
+    # per-dim check
+    for i, (a, d) in enumerate(zip(actual, desired)):
+        if d != -1 and a != d:
+            raise ValueError(
+                f"{name} dim {i} mismatch: expected {d}, got {a}. shape={actual}, spec={desired}"
+            )
+    return True
 
 
-def get_output_shape(input_shape, model):
-    dummy_input = torch.randn(*input_shape)
-    with torch.no_grad():
-        output = model(dummy_input)
-    return output.shape
-
-
-def guess_state_dict_format(state_dict):
-    keys = set(state_dict.keys())
-    if "pytorch-lightning_version" in keys:
-        return "lightning"
-
-
-def extract_state_dict(state_dict, format="torch"):
-    existing_format = guess_state_dict_format(state_dict)
-
-    if existing_format == "lightning":
-        if format == "torch":
-            return remove_prefix(state_dict["state_dict"], "model.", keep_only=True)
-
-    return state_dict
+def _flatten_bhwc(x: torch.Tensor) -> torch.Tensor:
+    B, H, W, C = x.shape
+    return x.view(B, H * W, C)

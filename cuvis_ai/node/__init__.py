@@ -1,3 +1,13 @@
-from cuvis_ai.node.consumers import *
-from cuvis_ai.node.node import *
-from cuvis_ai.node.wrap import make_node
+"""Convenience exports for node base classes and marker mixins."""
+
+from .consumers import CubeConsumer, LabelConsumer
+from .node import LabelLike, MetaLike, Node, NodeOutput
+
+__all__ = [
+    "Node",
+    "NodeOutput",
+    "LabelLike",
+    "MetaLike",
+    "CubeConsumer",
+    "LabelConsumer",
+]
