@@ -12,16 +12,16 @@ from skimage.draw import polygon2mask
 from torchvision.tv_tensors import BoundingBoxes, Mask
 
 
-def RLE2mask(rle: list, mask_size: tuple) -> np.ndarray:
-    mask = np.zeros(mask_size, np.uint8).reshape(-1)
+def RLE2mask(rle: list, mask_width: int, mask_height: int) -> np.ndarray:
+    mask = np.zeros(mask_width * mask_height, np.uint8)
     ids = 0
     value = 0
     for c in rle:
         mask[ids : ids + c] = value
         value = not value
         ids += c
-    mask = mask.reshape(mask_size, order="F")
-    return mask
+    mask = mask.reshape((mask_height, mask_width), order="F")
+    return mask.astype(bool, copy=False)
 
 
 class SafeWizard(JSONWizard):
@@ -40,7 +40,8 @@ class SafeWizard(JSONWizard):
 
         for key, value in vars(self).items():
             if not self._is_json_serializable(value):
-                final_dict[key] = value  # keep original object (Mask, Tensor, etc.)
+                # keep original object (Mask, Tensor, etc.)
+                final_dict[key] = value
                 continue
             val = base_dict.get(key, value)
             final_dict[key] = val
@@ -112,7 +113,8 @@ class Annotation(SafeWizard):
 
         for key, value in vars(self).items():
             if not self._is_json_serializable(value):
-                final_dict[key] = value  # keep original object (Mask, Tensor, etc.)
+                # keep original object (Mask, Tensor, etc.)
+                final_dict[key] = value
                 continue
             val = base_dict.get(key, value)
             final_dict[key] = val
@@ -187,8 +189,8 @@ class COCOData:
         self._images = None
 
     @classmethod
-    def from_path(cls, path):
-        return cls(COCO(str(path)))
+    def from_path(cls, path: Path | str):
+        return cls(COCO(path))
 
     @property
     def image_ids(self) -> list[int]:
