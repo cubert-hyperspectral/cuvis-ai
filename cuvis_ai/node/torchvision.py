@@ -1,10 +1,10 @@
 import functools
 from typing import Any
 
-import numpy as np
 import torch
 import torchvision
 import torchvision.transforms.v2
+from torch import Tensor
 
 from cuvis_ai.node import Node
 from cuvis_ai.node.base import BaseTransformation
@@ -20,15 +20,28 @@ def _wrap_torchvision_transform(cls):
             self.tv_transform = cls(*args, **kwargs)
             self.initialized = self.tv_transform is not None
 
-        def forward(self, X: np.ndarray) -> Any:
-            if isinstance(X, np.ndarray):
-                return (
-                    self.tv_transform(torch.as_tensor(X).permute([0, 3, 1, 2]))
-                    .permute([0, 2, 3, 1])
-                    .numpy()
+        def forward(
+            self,
+            x: Tensor,
+            y: Tensor | None = None,
+            m: Any = None,
+            **_: Any,
+        ) -> Tensor:
+            if not torch.is_tensor(x):
+                raise TypeError(
+                    f"{type(self).__name__} expects torch.Tensor input, received {type(x)!r}."
                 )
 
-        def fit(self, X: tuple | np.ndarray):
+            if x.dim() != 4:
+                raise ValueError(
+                    f"{type(self).__name__} expects BHWC tensors; received shape {tuple(x.shape)}"
+                )
+
+            channels_first = x.movedim(-1, 1)
+            transformed = self.tv_transform(channels_first)
+            return transformed.movedim(1, -1)
+
+        def fit(self, X: tuple | Tensor):
             pass
 
         @Node.output_dim.getter

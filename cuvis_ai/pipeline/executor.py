@@ -1,10 +1,17 @@
+from collections.abc import Sequence
+from typing import Any
+
 import networkx as nx
-import numpy as np
 import torch
+from torch import Tensor
 
 from cuvis_ai.node.consumers import CubeConsumer, LabelConsumer
 from cuvis_ai.node.node import Node
 from cuvis_ai.pipeline.meta_routing import get_fit_metadata, get_forward_metadata
+
+LabelLike = Tensor | Sequence[Any] | None
+MetaLike = Any
+NodeOutputs = tuple[Tensor, LabelLike, MetaLike]
 
 
 class MemoryExecutor:
@@ -13,36 +20,57 @@ class MemoryExecutor:
         self.nodes = nodes
         self.entry_point = entry_point
 
-    def forward(
-        self, X: np.ndarray, Y: np.ndarray | list | None = None, M: np.ndarray | list | None = None
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Pass data through the graph by starting at the root node and flowing through all
-        intermediary stages.
+    @staticmethod
+    def _ensure_tensor(value: Any) -> Tensor:
+        if not torch.is_tensor(value):
+            raise TypeError(
+                f"Expected torch.Tensor input, received {type(value)!r}. "
+                "Ensure all nodes emit torch tensors."
+            )
+        return value
 
-        Parameters
-        ----------
-        X : np.ndarray
-            Input data
-        Y : Optional[Union[np.ndarray, List]], optional
-            Label data
-        M : Optional[Union[np.ndarray, List]], optional
-            Metadata by default None
+    @staticmethod
+    def _ensure_bhwc(value: Any) -> Tensor:
+        tensor = MemoryExecutor._ensure_tensor(value)
+        if tensor.dim() == 3:
+            tensor = tensor.unsqueeze(0)
+        if tensor.dim() != 4:
+            raise ValueError(
+                f"Input tensors must follow BHWC format (B, H, W, C). Received shape {tuple(tensor.shape)}."
+            )
+        return tensor
 
-        Returns
-        -------
-        tuple[np.ndarray, np.ndarray, np.ndarray]
-            Residuals of processed X, Y, and M
-        """
+    @staticmethod
+    def _maybe_label(value: Any) -> LabelLike:
+        if value is None:
+            return None
+        if torch.is_tensor(value):
+            return value
+        if hasattr(value, "__array__"):
+            return torch.as_tensor(value)
+        return value
+
+    @staticmethod
+    def _is_missing(value: Any) -> bool:
+        if value is None:
+            return True
+        if isinstance(value, (list, tuple)):
+            return all(MemoryExecutor._is_missing(item) for item in value)
+        return False
+
+    def forward(self, x: Any, y: Any = None, m: Any = None) -> NodeOutputs:
+        """Execute the graph in inference mode using BHWC torch tensors end-to-end."""
         sorted_graph = list(nx.topological_sort(self.graph))
         assert sorted_graph[0] == self.entry_point
 
-        xs = X
-        ys = Y or [None] * len(xs)
-        ms = M or [None] * len(xs)
+        xs = self._ensure_bhwc(x)
+        ys = self._maybe_label(y)
+        ms = m
 
-        intermediary = {}
-        intermediary_labels = {}
-        intermediary_metas = {}
+        intermediary: dict[str, Tensor] = {}
+        intermediary_labels: dict[str, LabelLike] = {}
+        intermediary_metas: dict[str, MetaLike] = {}
+
         (
             intermediary[self.entry_point],
             intermediary_labels[self.entry_point],
@@ -52,218 +80,199 @@ class MemoryExecutor:
         for node in sorted_graph[1:]:
             self._forward_helper(node, intermediary, intermediary_labels, intermediary_metas)
 
-        results = intermediary[sorted_graph[-1]]
-        return results
-
-    def _forward_helper(
-        self, current: str, intermediary: dict, intermediary_labels: dict, intermediary_metas: dict
-    ):
-        """Helper function to aggregate inputs and calculate products from a given node.
-
-        Parameters
-        ----------
-        current : str
-            id for current node
-        intermediary : dict
-            Dictionary containing intermediary products with key as id of node
-        intermediary_labels : np.ndarray
-            Dictionary containing intermediary labels with key as id of node
-        intermediary_metas : np.ndarray
-            Dictionary containing intermediary metadata with key as id of node
-        """
-        p_nodes = list(self.graph.predecessors(current))
-        # TODO how to concat multiple input data from multiple nodes
-        use_prods = np.concatenate([intermediary[p] for p in p_nodes], axis=-1)
-
-        no_labels = intermediary_labels[p_nodes[0]] is None
-        if not no_labels:
-            if isinstance(intermediary_labels[p_nodes[0]], np.ndarray):
-                use_labels = np.concatenate([intermediary_labels[p] for p in p_nodes], axis=-1)
-            else:
-                use_labels = [intermediary_labels[p] for p in p_nodes]
-        else:
-            use_labels = []
-
-        no_metas = intermediary_metas[p_nodes[0]] is None
-        if not no_metas:
-            use_metas = [intermediary_metas[p] for p in p_nodes]
-        else:
-            use_metas = []
-
-        intermediary[current], intermediary_labels[current], intermediary_metas[current] = (
-            self.forward_node(self.nodes[current], use_prods, use_labels, use_metas)
+        last_node = sorted_graph[-1]
+        return (
+            intermediary[last_node],
+            intermediary_labels[last_node],
+            intermediary_metas[last_node],
         )
 
+    def _forward_helper(
+        self,
+        current: str,
+        intermediary: dict[str, Tensor],
+        intermediary_labels: dict[str, LabelLike],
+        intermediary_metas: dict[str, MetaLike],
+    ) -> None:
+        """Aggregate parent outputs and propagate tensors through a single node."""
+        parent_nodes = list(self.graph.predecessors(current))
+
+        parent_products = [self._ensure_tensor(intermediary[p]) for p in parent_nodes]
+        use_prods = torch.cat(parent_products, dim=-1)
+
+        base_label = intermediary_labels[parent_nodes[0]]
+        if self._is_missing(base_label):
+            use_labels: LabelLike = None
+        elif torch.is_tensor(base_label):
+            use_labels = torch.cat(
+                [self._ensure_tensor(intermediary_labels[p]) for p in parent_nodes],
+                dim=-1,
+            )
+        else:
+            use_labels = [intermediary_labels[p] for p in parent_nodes]
+
+        base_meta = intermediary_metas[parent_nodes[0]]
+        if self._is_missing(base_meta):
+            use_metas: MetaLike = None
+        elif torch.is_tensor(base_meta):
+            use_metas = torch.cat(
+                [self._ensure_tensor(intermediary_metas[p]) for p in parent_nodes],
+                dim=-1,
+            )
+        else:
+            use_metas = [intermediary_metas[p] for p in parent_nodes]
+
+        (
+            intermediary[current],
+            intermediary_labels[current],
+            intermediary_metas[current],
+        ) = self.forward_node(self.nodes[current], use_prods, use_labels, use_metas)
+
         if self._not_needed_anymore(current, intermediary):
-            # Free memory that is not needed for the current passthrough anymore
             intermediary.pop(current)
             intermediary_labels.pop(current)
             intermediary_metas.pop(current)
 
     def forward_node(
-        self, node: Node, data: np.ndarray, labels: np.ndarray, metadata: np.ndarray
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Pass data through a node which has already been trained/fit.
-
-        Parameters
-        ----------
-        node : Node
-            Node within the graph
-        data : np.ndarray
-            Data to pass through the nodes
-        labels : np.ndarray
-            Labels associated with input data
-        metadata : np.ndarray
-            Metadata needed for forward pass
-
-        Returns
-        -------
-        tuple[np.ndarray, np.ndarray, np.ndarray]
-            Output data, output labels, output metadata
-        """
+        self, node: Node, data: Any, labels: LabelLike, metadata: MetaLike
+    ) -> NodeOutputs:
+        """Run a single node forward pass using torch tensors."""
+        tensor_data = self._ensure_tensor(data)
         additional_meta = get_forward_metadata(node, metadata)
 
-        if len(additional_meta) > 0:
-            out = node.forward(data, **additional_meta)
-        else:
-            out = node.forward(data)
+        out = node.forward(
+            tensor_data,
+            y=labels,
+            m=metadata,
+            **additional_meta,
+        )
+
         if isinstance(out, tuple):
-            return out
+            data_out, labels_out, metadata_out = out
         else:
-            return out, labels, metadata
+            data_out, labels_out, metadata_out = out, labels, metadata
 
-    def _not_needed_anymore(self, id: str, intermediary: list[Node]) -> bool:
-        """Private function to determine if a node products are still needed or can be safely removed.
+        return self._ensure_tensor(data_out), self._maybe_label(labels_out), metadata_out
 
-        Parameters
-        ----------
-        id : str
-            Alphanumeric identifier for node to check
-        intermediary : list[Node]
-            List node nodes for which the current node's data is an intermediary
-
-        Returns
-        -------
-        bool
-           If all successors are already present in intermediary, it will return True
-        """
-        return (
-            all([succs in intermediary for succs in self.graph.successors(id)])
-            and len(list(self.graph.successors(id))) > 0
-        )  # Do not remove a terminal nodes data
+    def _not_needed_anymore(self, node_id: str, intermediary: dict[str, Tensor]) -> bool:
+        """Return True if all successors already computed their outputs."""
+        successors = list(self.graph.successors(node_id))
+        return all(successor in intermediary for successor in successors) and len(successors) > 0
 
     def train(
         self,
         train_dataloader: torch.utils.data.DataLoader,
         test_dataloader: torch.utils.data.DataLoader,
-    ):
-        """Train a graph use a dataloader to iteratively pass data through the graph
-
-        Parameters
-        ----------
-        train_dataloader : torch.utils.data.DataLoader
-            Training dataloader
-        test_dataloader : torch.utils.data.DataLoader
-            Test dataloader
-
-        Raises
-        ------
-        TypeError
-            Raises error if dataloaders passed to train function are not pytorch dataloaders
-        """
+    ) -> None:
+        """Fit and evaluate the graph using PyTorch dataloaders."""
         if not isinstance(train_dataloader, torch.utils.data.DataLoader) or not isinstance(
             test_dataloader, torch.utils.data.DataLoader
         ):
             raise TypeError("train or test dataloader argument is not a pytorch DataLoader!")
 
-        for x, y, m in iter(train_dataloader):
-            self.fit(np.squeeze(x), np.squeeze(y), m, warm_start=True)
+        for batch in iter(train_dataloader):
+            if isinstance(batch, Sequence):
+                if len(batch) == 3:
+                    x, y, m = batch
+                elif len(batch) == 2:
+                    x, y = batch
+                    m = None
+                else:
+                    raise ValueError("Train dataloader must yield (x, y) or (x, y, m).")
+            else:
+                raise ValueError("Train dataloader must yield a sequence.")
+            self.fit(x, y, m, warm_start=True)
 
-        # test stage
-        test_results = []
-        for x, y, m in iter(test_dataloader):
-            test_results.append(self.forward(x, y, m))
-            # do some metrics
+        for batch in iter(test_dataloader):
+            if isinstance(batch, Sequence):
+                if len(batch) == 3:
+                    x, y, m = batch
+                elif len(batch) == 2:
+                    x, y = batch
+                    m = None
+                else:
+                    raise ValueError("Test dataloader must yield (x, y) or (x, y, m).")
+            else:
+                raise ValueError("Test dataloader must yield a sequence.")
+            self.forward(x, y, m)
 
     def fit(
         self,
-        X: np.ndarray,
-        Y: np.ndarray | list | None = None,
-        M: np.ndarray | list | None = None,
-        warm_start=False,
-    ):
-        """Take a graph of uninitialized nodes and fit then given a set of inputs and outputs
-
-        Parameters
-        ----------
-        X : np.ndarray
-            Input data
-        Y : Optional[Union[np.ndarray, List]], optional
-            Input labels, by default None
-        M : Optional[Union[np.ndarray, List]], optional
-            Input metadata, by default None
-        """
-        # training stage
+        X: Any,
+        Y: Any = None,
+        M: Any = None,
+        warm_start: bool = False,
+    ) -> None:
+        """Fit all nodes in the graph using BHWC torch tensors."""
         sorted_graph = list(nx.topological_sort(self.graph))
         assert sorted_graph[0] == self.entry_point
 
-        intermediary = {}
-        intermediary_labels = {}
-        intermediary_metas = {}
+        data = self._ensure_bhwc(X)
+        labels = self._maybe_label(Y)
+        metadata = M
+
+        intermediary: dict[str, Tensor] = {}
+        intermediary_labels: dict[str, LabelLike] = {}
+        intermediary_metas: dict[str, MetaLike] = {}
 
         (
             intermediary[self.entry_point],
             intermediary_labels[self.entry_point],
             intermediary_metas[self.entry_point],
-        ) = self.fit_node(self.nodes[self.entry_point], X, Y, M, warm_start=warm_start)
+        ) = self.fit_node(
+            self.nodes[self.entry_point], data, labels, metadata, warm_start=warm_start
+        )
 
         for node in sorted_graph[1:]:
-            self._fit_helper(node, intermediary, intermediary_labels, intermediary_metas)
+            self._fit_helper(
+                node, intermediary, intermediary_labels, intermediary_metas, warm_start
+            )
 
     def _fit_helper(
         self,
         current: str,
-        intermediary: dict,
-        intermediary_labels: dict,
-        intermediary_metas: dict,
-        warm_start=False,
-    ):
-        """Private helper function to fit an individual node.
+        intermediary: dict[str, Tensor],
+        intermediary_labels: dict[str, LabelLike],
+        intermediary_metas: dict[str, MetaLike],
+        warm_start: bool = False,
+    ) -> None:
+        """Fit a single node by aggregating parent outputs."""
+        parent_nodes = list(self.graph.predecessors(current))
 
-        Parameters
-        ----------
-        current : str
-            id of current node in graph
-        intermediary : str
-            Dictionary containing intermediary products
-        intermediary_labels : np.ndarray
-            Dictionary containing intermediary labels
-        intermediary_metas : np.ndarray
-            Dictionary containing intermediary metadata
-        """
-        p_nodes = list(self.graph.predecessors(current))
+        parent_products = [self._ensure_tensor(intermediary[p]) for p in parent_nodes]
+        use_prods = torch.cat(parent_products, dim=-1)
 
-        # TODO how to concat multiple input data from multiple nodes
-        use_prods = np.concatenate([intermediary[p] for p in p_nodes], axis=-1)
-
-        no_labels = intermediary_labels[p_nodes[0]] is None
-        if not no_labels:
-            use_labels = np.concatenate([intermediary_labels[p] for p in p_nodes], axis=-1)
+        base_label = intermediary_labels[parent_nodes[0]]
+        if self._is_missing(base_label):
+            use_labels: LabelLike = None
+        elif torch.is_tensor(base_label):
+            use_labels = torch.cat(
+                [self._ensure_tensor(intermediary_labels[p]) for p in parent_nodes],
+                dim=-1,
+            )
         else:
-            use_labels = None
+            use_labels = [intermediary_labels[p] for p in parent_nodes]
 
-        no_metas = intermediary_metas[p_nodes[0]] is None
-        if not no_metas:
-            use_metas = np.concatenate([intermediary_metas[p] for p in p_nodes], axis=-1)
+        base_meta = intermediary_metas[parent_nodes[0]]
+        if self._is_missing(base_meta):
+            use_metas: MetaLike = None
+        elif torch.is_tensor(base_meta):
+            use_metas = torch.cat(
+                [self._ensure_tensor(intermediary_metas[p]) for p in parent_nodes],
+                dim=-1,
+            )
         else:
-            use_metas = None
+            use_metas = [intermediary_metas[p] for p in parent_nodes]
 
-        intermediary[current], intermediary_labels[current], intermediary_metas[current] = (
-            self.fit_node(self.nodes[current], use_prods, use_labels, use_metas)
+        (
+            intermediary[current],
+            intermediary_labels[current],
+            intermediary_metas[current],
+        ) = self.fit_node(
+            self.nodes[current], use_prods, use_labels, use_metas, warm_start=warm_start
         )
 
         if self._not_needed_anymore(current, intermediary):
-            # Free memory that is not needed for the current passthrough anymore
             intermediary.pop(current)
             intermediary_labels.pop(current)
             intermediary_metas.pop(current)
@@ -271,52 +280,32 @@ class MemoryExecutor:
     def fit_node(
         self,
         node: Node,
-        data: np.ndarray,
-        labels: np.ndarray,
-        metadata: np.ndarray,
-        warm_start=False,
-    ) -> np.ndarray:
-        """Private function wrapper to call the fit function for an individual node
+        data: Any,
+        labels: LabelLike,
+        metadata: MetaLike,
+        warm_start: bool = False,
+    ) -> NodeOutputs:
+        """Fit a single node and return its forward outputs."""
+        tensor_data = self._ensure_tensor(data)
+        label_input = self._maybe_label(labels)
 
-        Parameters
-        ----------
-        node : Node
-            Graph node that will be fit
-        data : np.ndarray
-            Training data
-        labels : np.ndarray
-            Training labels
-        metadata : np.ndarray
-            Training metadata
-
-        Returns
-        -------
-        np.ndarray
-            Results of passing data through the fit node
-
-        Raises
-        ------
-        RuntimeError
-            Data is empty (length 0)
-        """
-        node_input = []
-
+        node_input: list[Any] = []
         if isinstance(node, CubeConsumer):
-            node_input.append(data)
+            node_input.append(tensor_data)
         if isinstance(node, LabelConsumer):
-            node_input.append(labels)
+            node_input.append(label_input)
 
         if len(node_input) == 0:
             raise RuntimeError(f"Node {node} invalid, does not indicate input data type!")
 
         additional_meta = get_fit_metadata(node, metadata)
-        if node.freezed == False:
+        if not node.freezed:
             if len(additional_meta) > 0:
                 node.fit(*node_input, **additional_meta, warm_start=warm_start)
             else:
                 node.fit(*node_input, warm_start=warm_start)
 
-        return self.forward_node(node, data, labels, metadata)
+        return self.forward_node(node, tensor_data, label_input, metadata)
 
 
 class HummingBirdExecutor:

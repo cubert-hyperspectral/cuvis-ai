@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+import torch
 
 from cuvis_ai.preprocessor import NMF, PCA
 from cuvis_ai.supervised import LDA
 from cuvis_ai.unsupervised import GMM, KMeans, MeanShift
 from cuvis_ai.utils.serializer import YamlSerializer
 from cuvis_ai.utils.test import get_np_dummy_data
+from cuvis_ai.anomoly.rx_v2 import RXPerBatch
 
 TYPES_TO_COMPARE = (int, float, str, bool, list, tuple, np.ndarray)
 N_COMPONENTS = 3
@@ -78,3 +80,37 @@ def test_serialization_roundtrip(trained_node, tmp_path):
             mismatches.append(attr)
 
     assert not mismatches, f"Attributes differed after roundtrip: {mismatches}"
+
+
+def test_node_hparams_auto_population():
+    """Test that Node subclasses automatically populate hparams from init parameters."""
+    # Test with a single parameter
+    eps_value = 1e-99
+    model = RXPerBatch(eps=eps_value)
+    
+    assert hasattr(model, "hparams"), "Node should have hparams attribute"
+    assert "eps" in model.hparams, "hparams should contain eps parameter"
+    assert model.hparams["eps"] == eps_value, f"Expected eps={eps_value}, got {model.hparams['eps']}"
+    
+    # Test with default parameter
+    model_default = RXPerBatch()
+    assert hasattr(model_default, "hparams"), "Node with defaults should have hparams attribute"
+    assert "eps" in model_default.hparams, "hparams should contain eps parameter with default"
+    assert model_default.hparams["eps"] == 1e-6, "Default eps value should be 1e-6"
+
+
+def test_node_hparams_persistence():
+    """Test that hparams are preserved and can be used for node recreation."""
+    # Create a node with specific parameters
+    eps_value = 1e-8
+    original_node = RXPerBatch(eps=eps_value)
+    
+    # Verify hparams
+    assert original_node.hparams == {"eps": eps_value}
+    
+    # Create a new node with the same hparams
+    recreated_node = RXPerBatch(**original_node.hparams)
+    
+    # Verify the recreated node has the same hyperparameters
+    assert recreated_node.hparams == original_node.hparams
+    assert recreated_node.eps == original_node.eps

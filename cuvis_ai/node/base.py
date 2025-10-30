@@ -26,7 +26,7 @@ class Preprocessor(ABC, CubeConsumer):
         pass
 
     @abstractmethod
-    def forward(self, X):
+    def forward(self, X, y=None, m=None, **kwargs):
         pass
 
 
@@ -36,7 +36,7 @@ class BaseSupervised(ABC, CubeConsumer, LabelConsumer):
         pass
 
     @abstractmethod
-    def forward(self, X):
+    def forward(self, X, y=None, m=None, **kwargs):
         pass
 
 
@@ -61,7 +61,7 @@ class BaseUnsupervised(ABC, CubeConsumer):
         pass
 
     @abstractmethod
-    def forward(self, Any) -> Any:
+    def forward(self, Any, y=None, m=None, **kwargs) -> Any:
         """Transform
 
         Parameters
@@ -79,5 +79,5 @@ class BaseUnsupervised(ABC, CubeConsumer):
 
 class BaseTransformation(CubeConsumer):
     @abstractmethod
-    def forward(self, X):
+    def forward(self, X, y=None, m=None, **kwargs):
         pass

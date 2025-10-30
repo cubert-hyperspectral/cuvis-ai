@@ -1,85 +1,69 @@
-import numpy as np
+from __future__ import annotations
+
+from typing import Any
+
+import torch
+from torch import Tensor
 
 from cuvis_ai.deciders.base_decider import BaseDecider
-from cuvis_ai.utils.numpy import (
-    flatten_batch_and_spatial,
-    get_shape_without_batch,
-    unflatten_batch_and_spatial,
-)
+from cuvis_ai.utils.general import _ensure_channels_last
 
 
 class MultiClassDecider(BaseDecider):
-    """Simple multi-class maximum decider.
-    Given a matrix with N channels, chooses the channel with the highest value per spatial location.
-    The result will be a single channel matrix with the indices of the chosen channels as values."""
+    """Multi-class argmax/argmin decider operating on channels-last torch tensors."""
 
-    def __init__(self, n: int, use_min: bool = False) -> None:
-        """Create multi-class decider instance
-
-        Parameters
-        ----------
-        n : int
-            Number of classes
-        use_min : bool
-            Use the minimizing value to decide
-        """
+    def __init__(
+        self,
+        class_count: int | None = None,
+        use_min: bool = False,
+    ) -> None:
         super().__init__()
-        self.n = n
+        if class_count is None:
+            class_count = 1
+        self.class_count = class_count
         self.use_min = use_min
 
-    def forward(self, X: np.ndarray) -> np.ndarray:
-        """Apply the maximum classification on the data.
-        Parameters
-        ----------
-        X : np.ndarray
-            Data to apply the classification on.
-        Returns
-        -------
-        np.ndarray
-            Classified data. Single channel matrix comprised of the channel indices of the chosen classes.
-        """
-        self._input_dim = get_shape_without_batch(X, ignore=[0, 1])
-        flatten_soft_output = flatten_batch_and_spatial(X)
+    def forward(
+        self,
+        logits_bhwc: Tensor,
+        y: Tensor | None = None,
+        m: Any = None,
+        **_: Any,
+    ) -> Tensor:
+        """Select the winning class per pixel using torch operations."""
+
+        tensor = _ensure_channels_last(logits_bhwc)
+        num_channels = tensor.shape[-1]
+
+        assert num_channels == self.class_count, (
+            f"Input channel dimension ({num_channels}) does not match configured class_count ({self.class_count})."
+        )
+
         if self.use_min:
-            decisions = np.argmin(flatten_soft_output, axis=1)
+            indices = torch.argmin(tensor, dim=-1, keepdim=True)
         else:
-            decisions = np.argmax(flatten_soft_output, axis=1)
-        return unflatten_batch_and_spatial(decisions, X.shape)
+            indices = torch.argmax(tensor, dim=-1, keepdim=True)
+
+        return indices.to(torch.int32)
 
     @BaseDecider.input_dim.getter
     def input_dim(self):
-        return [-1, -1, self.n]
+        return [-1, -1, -1, self.class_count]
 
     @BaseDecider.output_dim.getter
     def output_dim(self):
-        """
-        Returns the provided shape for the output data.
-        If a dimension is not important it will return -1 in the specific position.
-
-        Returns
-        -------
-        tuple
-            Provided shape for data
-        """
-        return [-1, -1, 1]
+        return [-1, -1, -1, 1]
 
     def serialize(self, directory: str):
-        """
-        Convert the class into a serialized representation
-        """
-        data = {
-            "class_count": self.n,
+        return {
+            "class_count": int(self.class_count),
+            "use_min": bool(self.use_min),
         }
-        return data
 
     def load(self, params: dict, filepath: str):
         """Load this node from a serialized graph."""
         try:
-            self.n = int(params["class_count"])
-        except:
-            raise ValueError(
-                f"Could not read attribute 'class_count' as int. Read '{params}' from save file!"
-            )
-
-
-# TODO: How would this functionality be integrated into Deep Learning Methods and Models
+            self.use_min = bool(params["use_min"])
+            self.class_count = int(params["class_count"])
+        except Exception as e:
+            raise ValueError(f"Error loading MultiClassDecider from params: {params}") from e
