@@ -8,7 +8,7 @@ from loguru import logger
 from skimage.draw import polygon
 from torch.utils.data import Dataset
 
-from cuvis_ai.data.coco_labels import COCOData, Annotation, RLE2mask
+from cuvis_ai.data.coco_labels import Annotation, COCOData, RLE2mask
 from cuvis_ai.utils.general import _resolve_measurement_indices, normalize_per_channel_vectorized
 
 
@@ -92,7 +92,7 @@ class SingleCu3sDataset(Dataset):
 
         if self.has_labels and self._coco is not None:
             # Check if we have a valid COCO image_id for this frame index
-            if mesu_index < len(self._coco.image_ids):
+            if mesu_index not in self._coco.image_ids:
                 image_id = self._coco.image_ids[mesu_index]
                 anns = self._coco.annotations.where(image_id=image_id)
                 category_mask = create_mask(
@@ -101,7 +101,7 @@ class SingleCu3sDataset(Dataset):
                     image_width=cube_array.shape[1],
                 )
             else:
-                # Frame index exceeds available annotations
+                # Frame index not in available annotations
                 category_mask = np.zeros(cube_array.shape[:2], dtype=np.int32)
             out["mask"] = category_mask
         return out

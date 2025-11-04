@@ -53,27 +53,81 @@ class IdentityNormalizer(_ScoreNormalizerBase):
 
 
 class MinMaxNormalizer(_ScoreNormalizerBase):
-    """Min-max normalization per sample and channel (keeps gradients)."""
+    """Min-max normalization per sample and channel (keeps gradients).
+    
+    Can operate in two modes:
+    1. Per-sample normalization (default): min/max computed per batch
+    2. Global normalization: uses running statistics from initialization
+    """
 
-    def __init__(self, eps: float = 1e-6) -> None:
+    def __init__(self, eps: float = 1e-6, use_running_stats: bool = True) -> None:
         self.eps = float(eps)
-        # self._config.update({"eps": self.eps})
-        super().__init__(eps=eps)
+        self.use_running_stats = use_running_stats
+        super().__init__(eps=eps, use_running_stats=use_running_stats)
+
+        # Running statistics for global normalization
+        self.register_buffer("running_min", None)
+        self.register_buffer("running_max", None)
+        self._stats_initialized = False
+
+    @property
+    def requires_initial_fit(self) -> bool:
+        """MinMaxNormalizer can optionally use global statistics."""
+        return self.use_running_stats
+
+    def initialize_from_data(self, iterator) -> None:
+        """Compute global min/max from data iterator.
+        
+        Parameters
+        ----------
+        iterator : Iterator
+            Iterator yielding (x, y, m) tuples where x is the scores tensor
+        """
+        all_mins = []
+        all_maxs = []
+
+        for batch_data in iterator:
+            x, _, _ = batch_data
+            if x is not None:
+                # Flatten spatial dimensions
+                flat = x.reshape(x.shape[0], -1)
+                batch_min = flat.min()
+                batch_max = flat.max()
+                all_mins.append(batch_min)
+                all_maxs.append(batch_max)
+
+        if all_mins:
+            self.running_min = torch.stack(all_mins).min()
+            self.running_max = torch.stack(all_maxs).max()
+            self._stats_initialized = True
+            self._initialized = True
 
     def _normalize(self, tensor: Tensor) -> Tensor:
         B, H, W, C = tensor.shape
         flat = tensor.view(B, -1, C)
-        mins = flat.min(dim=1, keepdim=True).values
-        maxs = flat.max(dim=1, keepdim=True).values
-        ranges = torch.clamp(maxs - mins, min=self.eps)
-        scaled = (flat - mins) / ranges
+
+        # Use running stats if available and initialized
+        if self.use_running_stats and self._stats_initialized:
+            mins = self.running_min
+            maxs = self.running_max
+            ranges = torch.clamp(maxs - mins, min=self.eps)
+            scaled = (flat - mins) / ranges
+        else:
+            # Per-sample normalization
+            mins = flat.min(dim=1, keepdim=True).values
+            maxs = flat.max(dim=1, keepdim=True).values
+            ranges = torch.clamp(maxs - mins, min=self.eps)
+            scaled = (flat - mins) / ranges
+
         return scaled.view(B, H, W, C)
 
     def load(self, params: dict, serial_dir: str) -> None:
         super().load(params, serial_dir)
         cfg_eps = self._config.get("eps", self.eps)
         self.eps = float(cfg_eps)
+        self.use_running_stats = self._config.get("use_running_stats", True)
         self._config["eps"] = self.eps
+        self._config["use_running_stats"] = self.use_running_stats
 
 
 class SigmoidNormalizer(_ScoreNormalizerBase):
@@ -104,5 +158,5 @@ __all__ = [
     "IdentityNormalizer",
     "MinMaxNormalizer",
     "SigmoidNormalizer",
-    "resolve_score_normalizer",
+    # "resolve_score_normalizer",
 ]
