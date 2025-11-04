@@ -53,8 +53,11 @@ classifiers = [
 
 [project.optional-dependencies]
 docs = [
-    "sphinx",
-    "sphinx-rtd-theme",
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.5.0",
+    "mkdocstrings[python]>=0.24.0",
+    "mkdocs-gen-files>=0.5.0",
+    "mkdocs-literate-nav>=0.6.0",
     "opencv-python-headless",
 ]
 

@@ -18,7 +18,7 @@ def _wrap_torchvision_transform(cls):
         def __init__(self, *args, **kwargs):
             super().__init__()
             self.tv_transform = cls(*args, **kwargs)
-            self.initialized = self.tv_transform is not None
+            self._initialized = self.tv_transform is not None
 
         def forward(
             self,
@@ -54,7 +54,7 @@ def _wrap_torchvision_transform(cls):
 
         def serialize(self, serial_dir: str) -> dict[str, Any]:
             """Serialize this node."""
-            if not self.initialized:
+            if not self._initialized:
                 print("Module not fully initialized, skipping output!")
                 return dict()
 
@@ -74,7 +74,7 @@ def _wrap_torchvision_transform(cls):
             """Load this node from a serialized graph."""
             self.id = params.get("id")
             self.tv_transform = cls(**params["params"])
-            self.initialized = True
+            self._initialized = True
 
     WrappedTorchVisionTransformation.__name__ = cls.__name__
     functools.update_wrapper(WrappedTorchVisionTransformation.__init__, cls.__init__)

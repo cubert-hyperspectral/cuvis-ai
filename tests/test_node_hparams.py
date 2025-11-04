@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pytest
-from cuvis_ai.anomoly.rx_v2 import RXPerBatch
+from cuvis_ai.anomaly.rx_detector import RXPerBatch
 
 
 def test_node_hparams_auto_population():

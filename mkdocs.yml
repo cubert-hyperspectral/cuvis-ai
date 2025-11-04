@@ -1,0 +1,165 @@
+# MkDocs Configuration for cuvis.ai
+site_name: CUVIS.AI Documentation
+site_description: PyTorch Lightning Training Pipeline for Hyperspectral Data Analysis
+site_author: Cubert GmbH
+site_url: https://cubert-hyperspectral.github.io/cuvis.ai/
+
+# Repository
+repo_name: cubert-hyperspectral/cuvis.ai
+repo_url: https://github.com/cubert-hyperspectral/cuvis.ai
+edit_uri: edit/main/docs/
+
+# Copyright
+copyright: Copyright &copy; 2025 Cubert GmbH
+
+# Configuration
+theme:
+  name: material
+  language: en
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.tabs.link
+    - content.code.annotation
+    - content.code.copy
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  font:
+    text: Roboto
+    code: Roboto Mono
+  icon:
+    repo: fontawesome/brands/github
+
+# Extensions
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - toc:
+      permalink: true
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.magiclink:
+      normalize_issue_symbols: true
+      repo_url_shorthand: true
+      user: cubert-hyperspectral
+      repo: cuvis.ai
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+# Plugins
+plugins:
+  - search:
+      separator: '[\s\-,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
+  - gen-files:
+      scripts:
+        - docs/gen_ref_pages.py
+  - literate-nav:
+      nav_file: SUMMARY.md
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            docstring_section_style: table
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            signature_crossrefs: true
+            separate_signature: true
+            merge_init_into_class: true
+            show_if_no_docstring: false
+            members_order: source
+            filters:
+              - "!^_"
+              - "^__init__$"
+
+# Page tree
+nav:
+  - Home: index.md
+  - User Guide:
+      - Installation: user-guide/installation.md
+      - Quickstart: user-guide/quickstart.md
+      - Configuration: user-guide/configuration.md
+      - Limitations: user-guide/limitations.md
+  - Tutorials:
+      - Phase 1 - Statistical Training: tutorials/phase1_statistical.md
+      - Phase 2 - Visualization: tutorials/phase2_visualization.md
+      - Phase 3 - Gradient Training: tutorials/phase3_gradient_training.md
+      - Phase 4 - Channel Selection: tutorials/phase4_channel_selection.md
+  - API Reference:
+      - Graph & Pipeline: api/pipeline.md
+      - Nodes: api/nodes.md
+      - Training: api/training.md
+      - Data: api/data.md
+      - Utilities: api/utilities.md
+  - Reference:
+      - Architecture: reference/architecture.md
+      - Features: reference/features.md
+      - Stress Testing: reference/stress_testing.md
+
+# Extra
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/cubert-hyperspectral
+    - icon: fontawesome/solid/globe
+      link: https://www.cubert-hyperspectral.com/
+  version:
+    provider: mike
+
+# CSS
+extra_css:
+  - stylesheets/extra.css
+
+# JavaScript
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
