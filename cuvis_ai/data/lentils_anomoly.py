@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 
 from cuvis_ai.data.datasets import SingleCu3sDataset
 from cuvis_ai.data.public_datasets import PublicDatasets
-
+from typing import List
 
 def _first_available(path: Path, pattern: str) -> Path:
     """Return the first file matching pattern within path."""
@@ -29,30 +29,14 @@ def _resolve_lentils_assets(root: Path) -> tuple[Path, Path]:
     return cu3s, label
 
 
-def _bucket_measurements(total: int) -> tuple[list[int], list[int], list[int]]:
-    """
-    Create train/val/test index splits that always fall within `[0, total)`.
-
-    With very small datasets we fall back to reusing the available indices.
-    """
-    indices = list(range(total))
-    if not indices:
-        raise ValueError("No measurements found in the Lentils dataset.")
-
-    train = indices[: min(1, total)]
-    remaining = indices[len(train) :]
-
-    def _take_or_fallback(pool: Iterable[int], default: list[int]) -> list[int]:
-        seq = list(pool)
-        return seq[:1] if seq else default.copy()
-
-    val = _take_or_fallback(remaining[:1], train)
-    test = _take_or_fallback(remaining[1:2], val)
-    return train, val, test
-
-
-class LentilsAnomoly(pl.LightningDataModule):
-    def __init__(self, data_dir: str, batch_size: int = 2):
+class LentilsAnomaly(pl.LightningDataModule):
+    def __init__(self, 
+                 data_dir: str, 
+                 batch_size: int = 2, 
+                 train_ids: List[int] = [1,2,3],
+                 val_ids: List[int] = [4,5,6], 
+                 test_ids: List[int] = [10,11,12,13, 14] # Have no labels
+                 ) -> None:
         super().__init__()
         self.data_dir = Path(data_dir)
         self.batch_size = batch_size
@@ -60,29 +44,30 @@ class LentilsAnomoly(pl.LightningDataModule):
         self.train_ds = None
         self.vald_ds = None
         self.test_ds = None
+        self.train_ids = train_ids
+        self.val_ids = val_ids  
+        self.test_ids = test_ids
 
     def prepare_data(self):
         PublicDatasets().download_dataset("Lentils", download_path=str(self.data_dir))
 
     def setup(self, stage=None):
         cu3s_path, label_path = _resolve_lentils_assets(self.data_dir)
-        session = cuvis.SessionFile(str(cu3s_path))
-        total_measurements = len(session)
+        # session = cuvis.SessionFile(str(cu3s_path))
 
-        train_idx, val_idx, test_idx = _bucket_measurements(total_measurements)
 
         if stage == "fit" or stage is None:
             self.train_ds = SingleCu3sDataset(
                 cu3s_path=str(cu3s_path),
                 label_path=str(label_path),
                 processing_mode="Reflectance",
-                measurement_indices=train_idx,
+                measurement_indices=self.train_ids,
             )
-            self.vald_ds = SingleCu3sDataset(
+            self.val_ds = SingleCu3sDataset(
                 cu3s_path=str(cu3s_path),
                 label_path=str(label_path),
                 processing_mode="Reflectance",
-                measurement_indices=val_idx,
+                measurement_indices=self.val_ids,
             )
 
         if stage == "test" or stage is None:
@@ -90,14 +75,14 @@ class LentilsAnomoly(pl.LightningDataModule):
                 cu3s_path=str(cu3s_path),
                 label_path=str(label_path),
                 processing_mode="Reflectance",
-                measurement_indices=test_idx,
+                measurement_indices=self.test_ids,
             )
 
     def train_dataloader(self):
         return DataLoader(self.train_ds, shuffle=True, batch_size=self.batch_size)
 
     def val_dataloader(self):
-        return DataLoader(self.vald_ds, shuffle=False, batch_size=self.batch_size)
+        return DataLoader(self.val_ds, shuffle=False, batch_size=self.batch_size)
 
     def test_dataloader(self):
         return DataLoader(self.test_ds, shuffle=False, batch_size=self.batch_size)

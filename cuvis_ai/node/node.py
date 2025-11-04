@@ -30,8 +30,77 @@ class Node(nn.Module, ABC, Serializable):
         self.__fit_metadata = {}
         self.__forward_inputs = {}
         self.__fit_inputs = {}
-        self.initialized = False
+        self._initialized = False
         self.freezed = False
+
+    @property
+    def requires_initial_fit(self) -> bool:
+        """Whether this node requires statistical initialization before training.
+        
+        Returns
+        -------
+        bool
+            True if node needs initialize_from_data() to be called before training
+        """
+        return False
+
+    @property
+    def is_trainable(self) -> bool:
+        """Whether this node's parameters should receive gradients during training.
+        
+        Returns
+        -------
+        bool
+            True if parameters should be trainable
+        """
+        return False
+
+    def initialize_from_data(self, iterator) -> None:
+        """Initialize node parameters from a data iterator (statistical fitting).
+        
+        This method is called during the statistical initialization phase for nodes
+        that have requires_initial_fit=True. It should compute and store any
+        statistics needed from the data (e.g., mean, covariance for RX detector).
+        
+        Parameters
+        ----------
+        iterator : Iterator
+            Iterator yielding batches of (x, y, m) tuples where:
+            - x: input tensor
+            - y: labels (optional)
+            - m: metadata dict (optional)
+            
+        Raises
+        ------
+        NotImplementedError
+            If the node requires initialization but doesn't implement this method
+        """
+        if self.requires_initial_fit:
+            raise NotImplementedError(
+                f"{self.__class__.__name__} requires initial fit but does not "
+                "implement initialize_from_data()"
+            )
+
+    def prepare_for_train(self) -> None:
+        """Prepare node for gradient-based training.
+        
+        This method is called after statistical initialization for nodes that
+        have is_trainable=True. It should convert any buffers that need gradients
+        into nn.Parameters.
+        
+        For example, RXGlobal converts mu and cov from buffers to parameters
+        when trainable_stats=True.
+        """
+        pass
+
+    def freeze(self) -> None:
+        """Freeze all parameters in this node (disable gradient computation).
+        
+        This is called for statistical nodes that should remain fixed after
+        initialization (is_trainable=False).
+        """
+        self.freezed = True
+        self.requires_grad_(False)
 
     @abstractmethod
     def forward(
