@@ -14,10 +14,10 @@ class BaseDecider(Node, ABC):
     based on the task that needs to be accomplished.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
-    def fit(self, x, *args, **kwargs):
+    def fit(self, x, *args, **kwargs) -> None:
         # TODO refactor the thing with the empty fits
         pass
 
@@ -45,7 +45,7 @@ class BaseDecider(Node, ABC):
         pass
 
     @abstractmethod
-    def serialize(self):
+    def serialize(self) -> dict[str, Any]:
         """
         Convert the class into a serialized representation
         """

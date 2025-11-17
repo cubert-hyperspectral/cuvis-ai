@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from typing import Any, Iterable, Sequence
+from collections.abc import Iterable, Sequence
+from typing import Any
 
 import torch
 from torch import Tensor
 
-from .node import LabelLike, MetaLike, Node, NodeOutput
+from cuvis_ai.node.node import Node
+from cuvis_ai.pipeline.ports import PortSpec
 
 
 class BinaryAnomalyLabelMapper(Node):
@@ -21,29 +23,41 @@ class BinaryAnomalyLabelMapper(Node):
     anomaly_class_ids : Iterable[int] | None, optional
         Explicit anomaly IDs. When ``None`` all IDs not in ``normal_class_ids`` are
         treated as anomalies.
-    add_channel_axis : bool, optional
-        If ``True`` ensure the binary mask is returned as [..., 1] to align with
-        BHWC scores (default: True).
+
     """
 
-    def __init__(
-        self,
-        normal_class_ids: Iterable[int] = (0, 2),
-        anomaly_class_ids: Iterable[int] | None = None,
-        add_channel_axis: bool = True,
-    ) -> None:
+    INPUT_SPECS = {
+        "cube": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, -1),
+            description="Features/scores to pass through [B, H, W, C]",
+        ),
+        "mask": PortSpec(
+            dtype=torch.int32,
+            shape=(-1, -1, -1, 1),
+            description="Multi-class segmentation masks [B, H, W, 1]",
+        ),
+    }
+
+    OUTPUT_SPECS = {
+        "cube": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, -1),
+            description="Pass-through features/scores [B, H, W, C]",
+        ),
+        "mask": PortSpec(
+            dtype=torch.bool,
+            shape=(-1, -1, -1, 1),
+            description="Binary anomaly labels (0=normal, 1=anomaly) [B, H, W, 1]",
+        ),
+    }
+
+    def __init__(self, normal_class_ids: Iterable[int], **kwargs) -> None:
         self.normal_class_ids = tuple(int(c) for c in normal_class_ids)
-        self.anomaly_class_ids = (
-            tuple(int(c) for c in anomaly_class_ids) if anomaly_class_ids is not None else None
-        )
-        self.add_channel_axis = add_channel_axis
+
         self._target_dtype = torch.long
 
-        super().__init__(
-            normal_class_ids=self.normal_class_ids,
-            anomaly_class_ids=self.anomaly_class_ids,
-            add_channel_axis=add_channel_axis,
-        )
+        super().__init__(normal_class_ids=self.normal_class_ids, **kwargs)
 
     @staticmethod
     def _membership_mask(values: Tensor, class_ids: Sequence[int]) -> Tensor:
@@ -54,66 +68,37 @@ class BinaryAnomalyLabelMapper(Node):
         class_tensor = torch.as_tensor(class_ids, dtype=values.dtype, device=values.device)
         return (values.unsqueeze(-1) == class_tensor).any(dim=-1)
 
-    def forward(
-        self,
-        x: Tensor,
-        y: LabelLike = None,
-        m: MetaLike = None,
-        **_: Any,
-    ) -> NodeOutput:
-        if y is None:
-            return x, y, m
+    def forward(self, cube: Tensor, mask: Tensor, **_: Any) -> dict[str, Tensor]:
+        """Map multi-class labels to binary anomaly labels.
 
-        y_tensor = torch.as_tensor(y)
-        y_tensor = y_tensor.to(device=x.device, dtype=torch.long)
+        Parameters
+        ----------
+        cube : Tensor
+            Features/scores to pass through [B, H, W, C]
+        mask : Tensor
+            Multi-class segmentation masks [B, H, W, 1]
 
-        if y_tensor.dim() == 2:
-            y_tensor = y_tensor.unsqueeze(0)
-        if y_tensor.dim() == 4 and y_tensor.shape[-1] == 1:
-            y_tensor = y_tensor.squeeze(-1)
-        if y_tensor.dim() != 3:
-            raise ValueError(
-                "BinaryAnomalyLabelMapper expects labels shaped as [B, H, W] or [B, H, W, 1]. "
-                f"Received shape {tuple(y_tensor.shape)}."
-            )
+        Returns
+        -------
+        dict[str, Tensor]
+            Dictionary with "cube" (pass-through) and "mask" (binary bool) keys
+        """
 
-        mask_normal = self._membership_mask(y_tensor, self.normal_class_ids)
+        mask_normal = self._membership_mask(mask, self.normal_class_ids)
 
-        if self.anomaly_class_ids is None:
-            mask_anomaly = ~mask_normal
-        else:
-            mask_anomaly = self._membership_mask(y_tensor, self.anomaly_class_ids)
+        mask_anomaly = ~mask_normal
 
-        mapped = torch.zeros_like(y_tensor, dtype=self._target_dtype, device=y_tensor.device)
+        mapped = torch.zeros_like(mask, dtype=self._target_dtype, device=mask.device)
         mapped = torch.where(mask_anomaly, torch.ones_like(mapped), mapped)
         mapped = torch.where(mask_normal, torch.zeros_like(mapped), mapped)
 
-        if self.add_channel_axis and mapped.dim() == 3:
-            mapped = mapped.unsqueeze(-1)
+        # Convert to bool for smaller tensor size
+        mapped = mapped.bool()
 
-        return x, mapped, m
-
-    @property
-    def input_dim(self) -> tuple[int, int, int, int]:
-        return (-1, -1, -1, -1)
-
-    @property
-    def output_dim(self) -> tuple[int, int, int, int]:
-        return (-1, -1, -1, -1)
+        return {"cube": cube, "mask": mapped}
 
     def load(self, params: dict, serial_dir: str) -> None:
-        config = params.get("config", {})
-
-        self.normal_class_ids = tuple(int(c) for c in config.get("normal_class_ids", self.normal_class_ids))
-        anomaly_ids = config.get(
-            "anomaly_class_ids",
-            self.anomaly_class_ids if self.anomaly_class_ids is not None else None,
-        )
-        self.anomaly_class_ids = (
-            tuple(int(c) for c in anomaly_ids) if anomaly_ids is not None else None
-        )
-        self.add_channel_axis = config.get("add_channel_axis", self.add_channel_axis)
-        self._target_dtype = torch.long
+        pass
 
 
 __all__ = ["BinaryAnomalyLabelMapper"]

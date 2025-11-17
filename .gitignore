@@ -186,3 +186,5 @@ examples/
 lightning_logs/
 .vscode/
 
+/examples_torch/outputs/
+cuvis_ai/outputs/
