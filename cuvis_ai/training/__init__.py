@@ -3,10 +3,25 @@
 This module provides:
 - Training configuration dataclasses with Hydra support
 - GraphDataModule base class for data loading
-- Leaf node infrastructure for losses, metrics, and visualizations
+- Port-based loss and metric nodes for training
 - Internal Lightning module for training orchestration
 """
 
+from cuvis_ai.node.losses import (
+    AnomalyBCEWithLogits,
+    MSEReconstructionLoss,
+    OrthogonalityLoss,
+    SelectorDiversityRegularizer,
+    SelectorEntropyRegularizer,
+)
+from cuvis_ai.node.metrics import (
+    AnomalyDetectionMetrics,
+    ComponentOrthogonalityMetric,
+    ExplainedVarianceMetric,
+    ScoreStatisticsMetric,
+)
+from cuvis_ai.node.monitor import TensorBoardMonitorNode
+from cuvis_ai.node.visualizations import AnomalyMask, PCAVisualization
 from cuvis_ai.training.config import (
     OptimizerConfig,
     TrainerConfig,
@@ -18,38 +33,9 @@ from cuvis_ai.training.config import (
     register_training_config,
     to_dict_config,
 )
-from cuvis_ai.training.datamodule import GraphDataModule
-from cuvis_ai.training.leaf_nodes import (
-    LeafNode,
-    LossNode,
-    MetricNode,
-    MonitoringNode,
-    VisualizationNode,
-)
-from cuvis_ai.training.lightning_module import CuvisLightningModule
-from cuvis_ai.training.losses import (
-    AnomalyBCEWithLogits,
-    MSEReconstructionLoss,
-    OrthogonalityLoss,
-    WeightedMultiLoss,
-)
-from cuvis_ai.training.metrics import (
-    AnomalyDetectionMetrics,
-    ComponentOrthogonalityMetric,
-    ExplainedVarianceMetric,
-    ScoreStatisticsMetric,
-)
-from cuvis_ai.training.monitors import DummyMonitor, TensorBoardMonitor, WandBMonitor
-from cuvis_ai.training.special_visualization import (
-    SelectorChannelMaskPlot,
-    SelectorStabilityPlot,
-    SelectorTemperaturePlot,
-)
-from cuvis_ai.training.visualizations import (
-    AnomalyHeatmap,
-    PCAVisualization,
-    ScoreHistogram,
-)
+from cuvis_ai.training.datamodule import CuvisDataModule
+from cuvis_ai.training.trainers import GradientTrainer, StatisticalTrainer
+from cuvis_ai.utils.types import Context
 
 __all__ = [
     # Configuration
@@ -63,31 +49,26 @@ __all__ = [
     "to_dict_config",
     "from_dict_config",
     # Data Module
-    "GraphDataModule",
-    # Leaf Nodes
-    "LeafNode",
-    "LossNode",
-    "MetricNode",
-    "VisualizationNode",
-    "MonitoringNode",
-    # Loss Leaves
+    "CuvisDataModule",
+    # Context
+    "Context",
+    # External Trainers (Phase 4.7)
+    "GradientTrainer",
+    "StatisticalTrainer",
+    # Loss Nodes (port-based)
     "OrthogonalityLoss",
     "AnomalyBCEWithLogits",
     "MSEReconstructionLoss",
-    "WeightedMultiLoss",
-    # Metric Leaves
+    "SelectorEntropyRegularizer",
+    "SelectorDiversityRegularizer",
+    # Metric Nodes (port-based)
     "ExplainedVarianceMetric",
     "AnomalyDetectionMetrics",
     "ScoreStatisticsMetric",
     "ComponentOrthogonalityMetric",
-    # Visualization Leaves
-    "PCAVisualization",
-    "AnomalyHeatmap",
-    "ScoreHistogram",
     # Monitoring Adapters
-    "DummyMonitor",
-    "WandBMonitor",
-    "TensorBoardMonitor",
+    "TensorBoardMonitorNode",
     # Lightning Module (internal)
-    "CuvisLightningModule",
+    "PCAVisualization",
+    "AnomalyMask",
 ]

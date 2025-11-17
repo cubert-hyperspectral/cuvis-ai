@@ -51,6 +51,9 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Image Processing",
 ]
 
+[project.scripts]
+create-stubs = "tools.generate_node_port_stubs:main"
+
 [project.optional-dependencies]
 docs = [
     "mkdocs>=1.5.0",
@@ -64,7 +67,6 @@ docs = [
 dev = [
     "ipykernel",
     "jupyterlab",
-    "tensorboard",
     "ruff",
     "pytest",
     "pytest-cov",
@@ -81,7 +83,7 @@ Changelog = "https://github.com/cubert-hyperspectral/cuvis.ai/releases"
 Issues = "https://github.com/cubert-hyperspectral/cuvis.ai/issues"
 
 [tool.setuptools.packages.find]
-include = ["cuvis_ai*"]
+include = ["cuvis_ai*", "tools*"]
 
 
 [tool.uv.sources]
@@ -99,6 +101,10 @@ xfail_strict = true
 filterwarnings = [
     "ignore::DeprecationWarning",
     "ignore::PendingDeprecationWarning",
+]
+markers = [
+    "stress: marks tests as stress tests (deselect with '-m \"not stress\"')",
+    "gpu: marks tests as GPU tests (deselect with '-m \"not gpu\"')",
 ]
 
 [tool.ruff]
@@ -128,6 +134,7 @@ extend-select = [
 ]
 ignore = [
     "ANN401",
+    "E501"
 ]
 
 [tool.ruff.lint.per-file-ignores]

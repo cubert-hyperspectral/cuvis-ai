@@ -699,7 +699,6 @@ dev = [
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "ruff" },
-    { name = "tensorboard" },
 ]
 docs = [
     { name = "mkdocs" },
@@ -746,7 +745,6 @@ requires-dist = [
     { name = "sf-hamilton", extras = ["visualization"], specifier = ">=1.89.0" },
     { name = "skorch" },
     { name = "tensorboard" },
-    { name = "tensorboard", marker = "extra == 'dev'" },
     { name = "torch", index = "https://download.pytorch.org/whl/cu128" },
     { name = "torchmetrics" },
     { name = "torchvision", index = "https://download.pytorch.org/whl/cu128" },
