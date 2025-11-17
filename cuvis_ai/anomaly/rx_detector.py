@@ -1,23 +1,35 @@
 import torch
 import torch.nn as nn
 
-from cuvis_ai.node import LabelLike, MetaLike, Node, NodeOutput
+from cuvis_ai.node import Node
+from cuvis_ai.pipeline.ports import PortSpec
 from cuvis_ai.utils.torch import _flatten_bhwc
+from cuvis_ai.utils.types import InputStream
 
 
 # ---------- Shared base ----------
 class RXBase(Node):
-    def __init__(self, eps: float = 1e-6):
+    """Base class for RX anomaly detectors."""
+
+    INPUT_SPECS = {
+        "data": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, -1),
+            description="Input hyperspectral cube (BHWC format)",
+        )
+    }
+
+    OUTPUT_SPECS = {
+        "scores": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 1),
+            description="Anomaly scores per pixel (BHW1 format)",
+        )
+    }
+
+    def __init__(self, eps: float = 1e-6) -> None:
         self.eps = eps
         super().__init__(eps=eps)
-
-    @property
-    def input_dim(self) -> tuple[int, int, int, int]:
-        return (-1, -1, -1, -1)  # B,H,W,C
-
-    @property
-    def output_dim(self) -> tuple[int, int, int, int]:
-        return (-1, -1, -1, 1)  # B,H,W,1
 
     @staticmethod
     def _quad_form_solve(Xc: torch.Tensor, cov: torch.Tensor) -> torch.Tensor:
@@ -32,31 +44,23 @@ class RXBase(Node):
         md2 = (rhs * y).sum(dim=1)  # (B,N)
         return md2
 
-    # def serialize(self) -> Dict[str, Any]:
-    #     return {"class": f"{self.__class__.__module__}.{self.__class__.__name__}",
-    #             "config": {"eps": self.eps},
-    #             "state_dict": self.state_dict()}
-
-    # def load(self, payload: Dict[str, Any]) -> None:
-    #     cfg = payload.get("config", {})
-    #     self.eps = cfg.get("eps", self.eps)
-    #     self.load_state_dict(payload.get("state_dict", {}), strict=False)
-
 
 # ---------- Trained/global variant ----------
 class RXGlobal(RXBase):
     """
-    Uses global μ, Σ (estimated from train). Optionally trainable.
+    Uses global μ, Σ (estimated from train).
+
+    After statistical initialization with fit(), all parameters are stored as
+    buffers (frozen). Call unfreeze() to convert them to trainable nn.Parameters
+    for gradient-based optimization.
     """
 
-    def __init__(
-        self, eps: float = 1e-6, trainable_stats: bool = False, cache_inverse: bool = True
-    ):
+    def __init__(self, eps: float = 1e-6, cache_inverse: bool = True) -> None:
         super().__init__(eps)
-        self.trainable_stats = trainable_stats
         self.cache_inverse = cache_inverse
-        # global stats
+        # global stats - all stored as buffers initially
         self.register_buffer("mu", None)  # (C,)
+
         self.register_buffer("cov", None)  # (C,C)
         self.register_buffer("cov_inv", None)  # (C,C)
         # streaming accumulators
@@ -70,22 +74,19 @@ class RXGlobal(RXBase):
         """RXGlobal requires statistical initialization from data."""
         return True
 
-    @property
-    def is_trainable(self) -> bool:
-        """Whether statistics should receive gradients during training."""
-        return self.trainable_stats
-
-    def initialize_from_data(self, iterator) -> None:
+    def fit(self, input_stream: InputStream) -> None:
         """Initialize mu and Sigma from data iterator.
-        
+
         Parameters
         ----------
-        iterator : Iterator
-            Iterator yielding (x, y, m) tuples where x is BHWC tensor
+        input_stream : InputStream
+            Iterator yielding dicts matching INPUT_SPECS (port-based format)
+            Expected format: {"data": tensor} where tensor is BHWC
         """
         self.reset()
-        for batch_data in iterator:
-            x, _, _ = batch_data
+        for batch_data in input_stream:
+            # Extract data from port-based dict
+            x = batch_data["data"]
             if x is not None:
                 self.update(x)
 
@@ -93,18 +94,30 @@ class RXGlobal(RXBase):
             self.finalize()
         self._initialized = True
 
-    def prepare_for_train(self) -> None:
-        """Convert mu and cov to parameters if trainable."""
-        if self.trainable_stats and self.mu is not None and self.cov is not None:
+    def unfreeze(self) -> None:
+        """Convert mu and cov buffers to trainable nn.Parameters.
+
+        Call this method after fit() to enable gradient-based optimization of
+        the mean and covariance statistics. They will be converted from buffers
+        to nn.Parameters, allowing gradient updates during training.
+
+        Example
+        -------
+        >>> rx.fit(input_stream)  # Statistical initialization
+        >>> rx.unfreeze()  # Enable gradient training
+        >>> # Now RX statistics can be fine-tuned with gradient descent
+        """
+        if self.mu is not None and self.cov is not None:
             # Convert buffers to parameters
-            import torch.nn as nn
             self.mu = nn.Parameter(self.mu.clone(), requires_grad=True)
             self.cov = nn.Parameter(self.cov.clone(), requires_grad=True)
             if self.cov_inv is not None:
                 self.cov_inv = nn.Parameter(self.cov_inv.clone(), requires_grad=True)
+        # Call parent to enable requires_grad
+        super().unfreeze()
 
     @torch.no_grad()
-    def update(self, batch_bhwc: torch.Tensor):
+    def update(self, batch_bhwc: torch.Tensor) -> None:
         X = _flatten_bhwc(batch_bhwc).reshape(-1, batch_bhwc.shape[-1])  # (M,C)
         m = X.shape[0]
         if m <= 1:
@@ -122,41 +135,24 @@ class RXGlobal(RXBase):
         self._fitted = False
 
     @torch.no_grad()
-    def finalize(self):
+    def finalize(self) -> "RXGlobal":
         if self._n <= 1:
             raise ValueError("Not enough samples to finalize.")
         mu = self._mean.clone()
         cov = self._M2 / (self._n - 1)
         if self.eps > 0:
             cov = cov + self.eps * torch.eye(cov.shape[0], device=cov.device, dtype=cov.dtype)
-        # assign as params or buffers
-        if self.trainable_stats:
-            self.mu = nn.Parameter(mu, requires_grad=True)
-            self.cov = nn.Parameter(cov, requires_grad=True)
-            self.cov_inv = (
-                nn.Parameter(torch.linalg.pinv(cov), requires_grad=True)
-                if self.cache_inverse
-                else None
-            )
+        # Always store as buffers initially (frozen by default)
+        self.mu = mu
+        self.cov = cov
+        if self.cache_inverse:
+            self.cov_inv = torch.linalg.pinv(cov)
         else:
-            # Use register_buffer to ensure tensors are moved with .to(device)
-            self.register_buffer("mu", mu)
-            self.register_buffer("cov", cov)
-            if self.cache_inverse:
-                self.register_buffer("cov_inv", torch.linalg.pinv(cov))
-            else:
-                self.cov_inv = None
+            self.cov_inv = None
         self._fitted = True
         return self
 
-    @torch.no_grad()
-    def fit(self, data_bhwc: torch.Tensor):
-        self.reset()
-        self.update(data_bhwc)
-        self.finalize()
-        return self
-
-    def reset(self):
+    def reset(self) -> None:
         self.mu = None
         self.cov = None
         self.cov_inv = None
@@ -170,7 +166,6 @@ class RXGlobal(RXBase):
         return {
             "params": {
                 "eps": self.eps,
-                "trainable_stats": self.trainable_stats,
                 "cache_inverse": self.cache_inverse,
             },
             "state_dict": self.state_dict(),
@@ -180,35 +175,30 @@ class RXGlobal(RXBase):
         """Load RXGlobal state from serialized data."""
         config = params.get("params", {})
         self.eps = config.get("eps", self.eps)
-        self.trainable_stats = config.get("trainable_stats", self.trainable_stats)
         self.cache_inverse = config.get("cache_inverse", self.cache_inverse)
 
         state = params.get("state_dict", {})
         if state:
             self.load_state_dict(state, strict=False)
 
-    def forward(self, x_bhwc: torch.Tensor, y=None, m=None):
+    def forward(self, data: torch.Tensor, **_) -> dict[str, torch.Tensor]:
         """Forward pass computing anomaly scores.
-        
+
         Parameters
         ----------
-        x_bhwc : torch.Tensor
+        data : torch.Tensor
             Input tensor in BHWC format
-        y : optional
-            Labels/masks (passed through)
-        m : optional
-            Metadata (passed through)
-            
+
         Returns
         -------
-        tuple
-            (scores, y, m) where scores are BHW anomaly scores with extra dimension
+        dict[str, torch.Tensor]
+            Dictionary with "scores" key containing BHW1 anomaly scores
         """
         if not self._fitted or self.mu is None:
             raise RuntimeError("RXGlobal not finalized. Call update()/finalize() or fit().")
-        B, H, W, C = x_bhwc.shape
+        B, H, W, C = data.shape
         N = H * W
-        X = x_bhwc.view(B, N, C)
+        X = data.view(B, N, C)
         # Convert dtype if needed, but don't change device (assumes everything on same device)
         Xc = X - self.mu.to(X.dtype)
         if self.cov_inv is not None:
@@ -217,7 +207,7 @@ class RXGlobal(RXBase):
         else:
             md2 = self._quad_form_solve(Xc, self.cov.to(X.dtype))
         scores = md2.view(B, H, W).unsqueeze(-1)  # Add channel dimension (B,H,W,1)
-        return scores, y, m
+        return {"scores": scores}
 
 
 # ---------- Per-batch/stateless variant ----------
@@ -226,24 +216,30 @@ class RXPerBatch(RXBase):
     Computes μ, Σ per image in the batch on the fly; no fit/finalize.
     """
 
-    def forward(
-        self,
-        x: torch.Tensor,
-        y: LabelLike = None,
-        m: MetaLike = None,
-        **_: MetaLike,
-    ) -> NodeOutput:
-        B, H, W, C = x.shape
+    def forward(self, data: torch.Tensor, **_) -> dict[str, torch.Tensor]:
+        """Forward pass computing per-batch anomaly scores.
+
+        Parameters
+        ----------
+        data : torch.Tensor
+            Input tensor in BHWC format
+
+        Returns
+        -------
+        dict[str, torch.Tensor]
+            Dictionary with "scores" key containing BHW1 anomaly scores
+        """
+        B, H, W, C = data.shape
         N = H * W
-        X_flat = _flatten_bhwc(x)  # (B,N,C)
+        X_flat = _flatten_bhwc(data)  # (B,N,C)
         mu = X_flat.mean(1, keepdim=True)  # (B,1,C)
         Xc = X_flat - mu
         cov = torch.matmul(Xc.transpose(1, 2), Xc) / max(N - 1, 1)  # (B,C,C)
-        eye = torch.eye(C, device=x.device, dtype=x.dtype).expand(B, C, C)
+        eye = torch.eye(C, device=data.device, dtype=data.dtype).expand(B, C, C)
         cov = cov + self.eps * eye
         md2 = self._quad_form_solve(Xc, cov)  # (B,N)
         scores = md2.view(B, H, W)
-        return scores.unsqueeze(-1), y, m
+        return {"scores": scores.unsqueeze(-1)}
 
     def serialize(self, serial_dir: str) -> dict:
         return {

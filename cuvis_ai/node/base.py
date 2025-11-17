@@ -1,16 +1,14 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
-from cuvis_ai.node import CubeConsumer, LabelConsumer
 
-
-class Preprocessor(ABC, CubeConsumer):
+class Preprocessor(ABC):
     """
     Abstract class for data preprocessing.
     """
 
     @abstractmethod
-    def fit(self, X):
+    def fit(self, X: Any) -> "Preprocessor":
         """
         Fit the preprocessor to the data.
 
@@ -26,21 +24,21 @@ class Preprocessor(ABC, CubeConsumer):
         pass
 
     @abstractmethod
-    def forward(self, X, y=None, m=None, **kwargs):
+    def forward(self, X: Any, y: Any | None = None, m: Any = None, **kwargs: Any) -> Any:
         pass
 
 
-class BaseSupervised(ABC, CubeConsumer, LabelConsumer):
+class BaseSupervised(ABC):
     @abstractmethod
-    def fit(self, X, Y):
+    def fit(self, X: Any, Y: Any) -> "BaseSupervised":
         pass
 
     @abstractmethod
-    def forward(self, X, y=None, m=None, **kwargs):
+    def forward(self, X: Any, y: Any | None = None, m: Any = None, **kwargs: Any) -> Any:
         pass
 
 
-class BaseUnsupervised(ABC, CubeConsumer):
+class BaseUnsupervised(ABC):
     """Abstract node for all unsupervised classifiers to follow.
 
     Parameters
@@ -50,7 +48,7 @@ class BaseUnsupervised(ABC, CubeConsumer):
     """
 
     @abstractmethod
-    def fit(self, X: Any):
+    def fit(self, X: Any) -> "BaseUnsupervised":
         """_summary_
 
         Parameters
@@ -61,7 +59,7 @@ class BaseUnsupervised(ABC, CubeConsumer):
         pass
 
     @abstractmethod
-    def forward(self, Any, y=None, m=None, **kwargs) -> Any:
+    def forward(self, X: Any, y: Any | None = None, m: Any = None, **kwargs: Any) -> Any:
         """Transform
 
         Parameters
@@ -77,7 +75,7 @@ class BaseUnsupervised(ABC, CubeConsumer):
         pass
 
 
-class BaseTransformation(CubeConsumer):
+class BaseTransformation:
     @abstractmethod
-    def forward(self, X, y=None, m=None, **kwargs):
+    def forward(self, X: Any, y: Any | None = None, m: Any = None, **kwargs: Any) -> Any:
         pass

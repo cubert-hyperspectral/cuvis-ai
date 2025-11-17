@@ -5,7 +5,7 @@ from pathlib import Path
 import cuvis
 import numpy as np
 from loguru import logger
-from skimage.draw import polygon
+from skimage.draw import polygon2mask
 from torch.utils.data import Dataset
 
 from cuvis_ai.data.coco_labels import Annotation, COCOData, RLE2mask
@@ -39,7 +39,8 @@ class SingleCu3sDataset(Dataset):
 
             if processing_mode == cuvis.ProcessingMode.Reflectance:
                 assert has_white_ref and has_dark_ref, (
-                    "Reflectance processing mode requires both White and Dark references in the cu3s file."
+                    "Reflectance processing mode requires both White and Dark references "
+                    "in the cu3s file."
                 )
             self.pc.processing_mode = processing_mode
 
@@ -81,7 +82,7 @@ class SingleCu3sDataset(Dataset):
 
     def __getitem__(self, idx: int) -> dict[str, np.ndarray | int]:
         mesu_index = self.measurement_indices[idx]
-        mesu = self.session.get_measurement(mesu_index)
+        mesu = self.session.get_measurement(mesu_index) # starts the cound from 0
         if "cube" not in mesu.data:
             mesu = self.pc.apply(mesu)
         cube_array = mesu.cube.array.astype(np.float32)
@@ -92,8 +93,8 @@ class SingleCu3sDataset(Dataset):
 
         if self.has_labels and self._coco is not None:
             # Check if we have a valid COCO image_id for this frame index
-            if mesu_index not in self._coco.image_ids:
-                image_id = self._coco.image_ids[mesu_index]
+            if mesu_index in self._coco.image_ids:
+                image_id = self._coco.image_ids[self._coco.image_ids.index(mesu_index)]
                 anns = self._coco.annotations.where(image_id=image_id)
                 category_mask = create_mask(
                     annotations=anns,
@@ -104,6 +105,7 @@ class SingleCu3sDataset(Dataset):
                 # Frame index not in available annotations
                 category_mask = np.zeros(cube_array.shape[:2], dtype=np.int32)
             out["mask"] = category_mask
+
         return out
 
 
@@ -120,22 +122,26 @@ def create_mask(
         cat_id = int(ann.category_id)
         if not segs and not mask:
             continue
+
         if isinstance(segs, list) and len(segs) > 0 and isinstance(segs[0], (list, tuple)):
             for seg in segs:
                 if len(seg) < 6:
                     continue
                 xy = np.asarray(seg, dtype=np.float32).reshape(-1, 2)
-                x, y = xy[:, 0], xy[:, 1]
-                rr, cc = polygon(y, x, (image_height, image_width))
+                # polygon2mask expects coords in (row, col) format and returns a filled boolean mask
+                poly_mask = polygon2mask(
+                    (image_height, image_width), xy[:, [1, 0]]
+                )  # Swap x,y to row,col
                 if overlap_strategy == "overwrite":
-                    category_mask[rr, cc] = cat_id
+                    category_mask[poly_mask] = cat_id
                 else:
-                    write_idx = category_mask[rr, cc] == 0
-                    category_mask[rr[write_idx], cc[write_idx]] = cat_id
+                    write_idx = poly_mask & (category_mask == 0)
+                    category_mask[write_idx] = cat_id
         if isinstance(mask, dict) and len(mask.get("counts", lambda: [])) > 0:
             mask_width, mask_height = mask.get("size")
             # decode RLE mask
             decoded = RLE2mask(mask.get("counts"), mask_width=mask_width, mask_height=mask_height)
+
             if overlap_strategy == "overwrite":
                 write_mask = decoded
             else:
@@ -143,13 +149,3 @@ def create_mask(
             category_mask[write_mask] = cat_id
 
     return category_mask
-
-
-def _cuvis_initialized() -> bool:
-    try:
-        cuvis.init()
-        logger.info("Cuvis library initialized")
-        return True
-    except Exception as e:
-        logger.warning(f"Cuvis initialization failed or already initialized: {e}")
-        return True

@@ -40,25 +40,15 @@ This guide covers the installation of CUVIS.AI and its dependencies.
 3. **Install the package**:
    ```bash
    # Install with all dependencies
-   uv pip install -e .
+   uv sync
    
    # Install with development dependencies
-   uv pip install -e ".[dev]"
+   uv sync --extra dev
    
    # Install with documentation dependencies
-   uv pip install -e ".[docs]"
+   uv sync --extra docs
    ```
 
-### Using pip
-
-If you prefer using pip:
-
-```bash
-# Clone and install
-git clone https://github.com/cubert-hyperspectral/cuvis.ai.git
-cd cuvis.ai
-pip install -e .
-```
 
 ## GPU Support
 
@@ -75,26 +65,7 @@ print(f"CUDA version: {torch.version.cuda}")
 print(f"GPU count: {torch.cuda.device_count()}")
 ```
 
-### CPU-Only Installation
-
-If you don't have a GPU or prefer CPU-only:
-
-```bash
-# Modify pyproject.toml to remove CUDA-specific torch sources
-# Or install PyTorch separately:
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-```
-
 ## Optional Dependencies
-
-### WandB (Weights & Biases)
-
-For experiment tracking with WandB:
-
-```bash
-pip install wandb
-wandb login  # Follow prompts to authenticate
-```
 
 ### TensorBoard
 
@@ -126,27 +97,6 @@ print("Installation successful!")
 
 ## Common Issues
 
-### CUDA Version Mismatch
-
-**Problem**: PyTorch CUDA version doesn't match your system's CUDA version.
-
-**Solution**: Reinstall PyTorch with the correct CUDA version:
-```bash
-# For CUDA 11.8
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
-
-# For CUDA 12.1
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
-```
-
-### Import Errors
-
-**Problem**: `ModuleNotFoundError` when importing cuvis_ai.
-
-**Solution**: Ensure you installed in editable mode with `-e` flag:
-```bash
-uv pip install -e .
-```
 
 ### Memory Errors
 
@@ -173,12 +123,6 @@ To update to the latest version:
 ```bash
 cd cuvis.ai
 git pull
-uv pip install -e . --upgrade
+uv sync
 ```
 
-## Uninstallation
-
-To uninstall CUVIS.AI:
-
-```bash
-pip uninstall cuvis-ai

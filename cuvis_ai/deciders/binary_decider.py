@@ -1,71 +1,70 @@
 from typing import Any
 
+import torch
 from torch import Tensor
 
 from cuvis_ai.deciders.base_decider import BaseDecider
-from cuvis_ai.utils.general import _ensure_channels_last
+from cuvis_ai.pipeline.ports import PortSpec
 
 
 class BinaryDecider(BaseDecider):
     """Simple decider node using a static threshold to classify data.
 
+    Accepts logits as input, applies sigmoid transformation to convert to
+    probabilities [0, 1], then applies threshold to produce binary decisions.
+
     Parameters
     ----------
-    threshold : Any
-        The threshold to use for classification: result = (input >= threshold)
+    threshold : float
+        The threshold to use for classification after sigmoid:
+        result = (sigmoid(input) >= threshold)
+    apply_sigmoid : bool, optional
+        Whether to apply sigmoid transformation before thresholding (default: True).
+        Set to False if input is already probabilities.
     """
 
+    INPUT_SPECS = {
+        "logits": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, -1),
+            description="Input logits to threshold (BHWC format)",
+        )
+    }
+
+    OUTPUT_SPECS = {
+        "decisions": PortSpec(
+            dtype=torch.bool,
+            shape=(-1, -1, -1, 1),
+            description="Binary decision mask (BHWC format)",
+        )
+    }
+
     def __init__(self, threshold: float = 0.5) -> None:
-        super().__init__()
         self.threshold = threshold
+        super().__init__()
 
     def forward(
         self,
-        logits_bhwc: Tensor,
-        y: Tensor | None = None,
-        m: Any = None,
+        logits: Tensor,
         **_: Any,
-    ) -> Tensor:
-        """Apply threshold-based decisioning on channels-last data.
+    ) -> dict[str, Tensor]:
+        """Apply sigmoid and threshold-based decisioning on channels-last data.
 
         Args:
-            logits_bhwc: Tensor shaped (B, H, W) or (B, H, W, C).
-            binary_decider_params: Configuration with threshold and optional dtype.
+            logits: Tensor shaped (B, H, W, C) containing logits.
 
         Returns:
-            Boolean (B, H, W, 1) decision mask unless a dtype override is supplied.
+            Dictionary with "decisions" key containing (B, H, W, 1) decision mask.
         """
-        tensor = _ensure_channels_last(logits_bhwc)
-        decisions = (tensor >= self.threshold).to(tensor.dtype)
-        return decisions
 
-    @BaseDecider.input_dim.getter
-    def input_dim(self):
-        """
-        Returns the needed shape for the input data.
-        If a dimension is not important it will return -1 in the specific position.
+        # Apply sigmoid if needed to convert logits to probabilities
+        tensor = torch.sigmoid(logits)
 
-        Returns
-        -------
-        tuple
-            Needed shape for data
-        """
-        return [-1, -1, -1, 1]
+        # Apply threshold to get binary decisions
+        decisions = tensor >= self.threshold
+        return {"decisions": decisions}
 
-    @BaseDecider.output_dim.getter
-    def output_dim(self):
-        """
-        Returns the provided shape for the output data.
-        If a dimension is not important it will return -1 in the specific position.
-
-        Returns
-        -------
-        tuple
-            Provided shape for data
-        """
-        return [-1, -1, -1, 1]
-
-    def serialize(self, directory: str):
+    def serialize(self, directory: str) -> dict[str, float]:
         """
         Convert the class into a serialized representation
         """
@@ -73,7 +72,7 @@ class BinaryDecider(BaseDecider):
             "threshold": self.threshold,
         }
 
-    def load(self, params: dict, filepath: str):
+    def load(self, params: dict, filepath: str) -> None:
         """Load this node from a serialized graph."""
         try:
             self.threshold = float(params["threshold"])

@@ -6,23 +6,25 @@ from torch.utils.data import DataLoader, Dataset
 
 from cuvis_ai.anomaly.rx_detector import RXGlobal
 from cuvis_ai.anomaly.rx_logit_head import RXLogitHead
-from cuvis_ai.node.pca import TrainablePCA
-from cuvis_ai.node.selector import SoftChannelSelector
-from cuvis_ai.normalization.normalization import MinMaxNormalizer
-from cuvis_ai.pipeline.graph import Graph
-from cuvis_ai.training.config import OptimizerConfig, TrainerConfig, TrainingConfig
-from cuvis_ai.training.datamodule import GraphDataModule
-from cuvis_ai.training.losses import (
+from cuvis_ai.deciders.binary_decider import BinaryDecider
+from cuvis_ai.node.data import LentilsAnomalyDataNode
+from cuvis_ai.node.losses import (
     AnomalyBCEWithLogits,
     OrthogonalityLoss,
     SelectorDiversityRegularizer,
     SelectorEntropyRegularizer,
 )
-from cuvis_ai.training.metrics import (
+from cuvis_ai.node.metrics import (
     AnomalyDetectionMetrics,
     ComponentOrthogonalityMetric,
     ExplainedVarianceMetric,
 )
+from cuvis_ai.node.normalization import MinMaxNormalizer
+from cuvis_ai.node.pca import TrainablePCA
+from cuvis_ai.node.selector import SoftChannelSelector
+from cuvis_ai.pipeline.canvas import CuvisCanvas
+from cuvis_ai.training.config import OptimizerConfig, TrainerConfig, TrainingConfig
+from cuvis_ai.training.datamodule import CuvisDataModule
 
 
 class _SyntheticDictDataset(Dataset):
@@ -42,7 +44,7 @@ class _SyntheticDictDataset(Dataset):
         return sample
 
 
-class SyntheticAnomalyDataModule(GraphDataModule):
+class SyntheticAnomalyDataModule(CuvisDataModule):
     """Lightweight datamodule that generates deterministic synthetic anomaly data."""
 
     def __init__(
@@ -62,7 +64,9 @@ class SyntheticAnomalyDataModule(GraphDataModule):
         generator = torch.Generator().manual_seed(seed)
         cubes = torch.randn(num_samples, height, width, channels, generator=generator)
         masks = (
-            torch.randint(0, 2, (num_samples, height, width, 1), generator=generator).float()
+            torch.randint(
+                0, 2, (num_samples, height, width), generator=generator, dtype=torch.int32
+            )
             if include_labels
             else None
         )
@@ -113,36 +117,47 @@ def make_training_config(max_epochs: int = 2, lr: float = 1e-2) -> TrainingConfi
 
 def test_soft_selector_weights_update():
     """Test that SoftChannelSelector weights are updated during training."""
-    graph = Graph("test_selector_training")
+    from cuvis_ai.node.data import LentilsAnomalyDataNode
 
+    canvas = CuvisCanvas("test_selector_training")
+
+    # Add data node to handle batch dict
+    data_node = LentilsAnomalyDataNode(normal_class_ids=[0])
     normalizer = MinMaxNormalizer(eps=1.0e-6, use_running_stats=True)
     selector = SoftChannelSelector(
         n_select=15,
+        input_channels=20,
         init_method="variance",
         temperature_init=5.0,
         temperature_min=0.1,
         temperature_decay=0.9,
         hard=False,
-        trainable=True,
         eps=1.0e-6,
     )
-    rx = RXGlobal(eps=1.0e-6, trainable_stats=False, cache_inverse=True)
-    logit_head = RXLogitHead(init_scale=1.0, init_bias=5.0, trainable=True)
+    rx = RXGlobal(eps=1.0e-6, cache_inverse=True)
+    logit_head = RXLogitHead(init_scale=1.0, init_bias=5.0)
+    decider = BinaryDecider(threshold=0.5)
 
-    graph.add_node(normalizer)
-    graph.add_node(selector, parent=normalizer)
-    graph.add_node(rx, parent=selector)
-    graph.add_node(logit_head, parent=rx)
+    # Connect nodes
+    canvas.connect(data_node.outputs.cube, normalizer.data)
+    canvas.connect(normalizer.normalized, selector.data)
+    canvas.connect(selector.selected, rx.data)
+    canvas.connect(rx.scores, logit_head.scores)
 
+    # Add loss nodes
     entropy_reg = SelectorEntropyRegularizer(weight=0.01, target_entropy=None)
     diversity_reg = SelectorDiversityRegularizer(weight=0.01)
     anomaly_bce = AnomalyBCEWithLogits(weight=1.0, pos_weight=None, reduction="mean")
-    graph.add_leaf_node(entropy_reg, parent=selector)
-    graph.add_leaf_node(diversity_reg, parent=selector)
-    graph.add_leaf_node(anomaly_bce, parent=logit_head)
+    canvas.connect(selector.weights, entropy_reg.weights)
+    canvas.connect(selector.weights, diversity_reg.weights)
+    canvas.connect(logit_head.logits, anomaly_bce.predictions)
+    canvas.connect(data_node.outputs.mask, anomaly_bce.targets)
 
+    # Add decider and metrics
+    canvas.connect(logit_head.logits, decider.logits)
     anomaly_metrics = AnomalyDetectionMetrics(threshold=0.0)
-    graph.add_leaf_node(anomaly_metrics, parent=logit_head)
+    canvas.connect(decider.decisions, anomaly_metrics.decisions)
+    canvas.connect(data_node.outputs.mask, anomaly_metrics.targets)
 
     datamodule = SyntheticAnomalyDataModule(
         batch_size=4,
@@ -153,8 +168,28 @@ def test_soft_selector_weights_update():
         seed=42,
     )
 
+    # Statistical initialization
+    from cuvis_ai.training.trainers import GradientTrainer, StatisticalTrainer
+
+    stat_trainer = StatisticalTrainer(canvas=canvas, datamodule=datamodule)
+    stat_trainer.fit()
+
+    # Unfreeze trainable nodes
+    selector.unfreeze()
+    rx.unfreeze()
+    logit_head.unfreeze()
+
+    # Gradient training
     training_cfg = make_training_config(max_epochs=2, lr=1e-2)
-    graph.train(datamodule=datamodule, training_config=training_cfg)
+    loss_nodes = [node for node in canvas.nodes() if hasattr(node, "weight")]
+    grad_trainer = GradientTrainer(
+        canvas=canvas,
+        datamodule=datamodule,
+        loss_nodes=loss_nodes,
+        trainer_config=training_cfg.trainer,
+        optimizer_config=training_cfg.optimizer,
+    )
+    grad_trainer.fit()
 
     final_logits = selector.channel_logits.data.clone()
     final_mean = final_logits.mean().item()
@@ -192,17 +227,18 @@ def test_soft_selector_weights_update():
 
 def test_pca_weights_update():
     """Test that TrainablePCA components are updated during training."""
-    graph = Graph("test_pca_training")
+    canvas = CuvisCanvas("test_pca_training")
 
+    data_node = LentilsAnomalyDataNode(normal_class_ids=[0])
     normalizer = MinMaxNormalizer(eps=1.0e-6, use_running_stats=True)
     selector = SoftChannelSelector(
         n_select=15,
+        input_channels=20,
         init_method="variance",
         temperature_init=5.0,
         temperature_min=0.1,
         temperature_decay=0.9,
         hard=False,
-        trainable=True,
         eps=1.0e-6,
     )
     pca = TrainablePCA(
@@ -212,23 +248,26 @@ def test_pca_weights_update():
         eps=1.0e-6,
     )
 
-    graph.add_node(normalizer)
-    graph.add_node(selector, parent=normalizer)
-    graph.add_node(pca, parent=selector)
+    # Connect nodes
+    canvas.connect(data_node.outputs.cube, normalizer.data)
+    canvas.connect(normalizer.normalized, selector.data)
+    canvas.connect(selector.selected, pca.data)
 
+    # Add loss nodes
     entropy_reg = SelectorEntropyRegularizer(weight=0.01, target_entropy=None)
     diversity_reg = SelectorDiversityRegularizer(weight=0.01)
     orth_loss = OrthogonalityLoss(weight=1.0)
 
-    graph.add_leaf_node(entropy_reg, parent=selector)
-    graph.add_leaf_node(diversity_reg, parent=selector)
-    graph.add_leaf_node(orth_loss, parent=pca)
+    canvas.connect(selector.weights, entropy_reg.weights)
+    canvas.connect(selector.weights, diversity_reg.weights)
+    canvas.connect(pca.components, orth_loss.components)
 
+    # Add metrics
     explained_var = ExplainedVarianceMetric()
     comp_orth = ComponentOrthogonalityMetric()
 
-    graph.add_leaf_node(explained_var, parent=pca)
-    graph.add_leaf_node(comp_orth, parent=pca)
+    canvas.connect(pca.explained_variance_ratio, explained_var.explained_variance_ratio)
+    canvas.connect(pca.components, comp_orth.components)
 
     datamodule = SyntheticAnomalyDataModule(
         batch_size=4,
@@ -237,19 +276,45 @@ def test_pca_weights_update():
         width=8,
         channels=20,
         seed=1337,
+        include_labels=False,
     )
 
-    training_cfg = make_training_config(max_epochs=2, lr=1e-2)
-    graph.train(datamodule=datamodule, training_config=training_cfg)
+    # Statistical initialization
+    from cuvis_ai.training.trainers import GradientTrainer, StatisticalTrainer
 
-    assert pca.components is not None, "PCA components not initialized"
-    assert isinstance(pca.components, torch.nn.Parameter), (
+    stat_trainer = StatisticalTrainer(canvas=canvas, datamodule=datamodule)
+    stat_trainer.fit()
+
+    # Unfreeze trainable nodes
+    selector.unfreeze()
+    pca.unfreeze()
+
+    # Gradient training
+    training_cfg = make_training_config(max_epochs=2, lr=1e-2)
+    loss_nodes = [node for node in canvas.nodes() if hasattr(node, "weight")]
+    grad_trainer = GradientTrainer(
+        canvas=canvas,
+        datamodule=datamodule,
+        loss_nodes=loss_nodes,
+        trainer_config=training_cfg.trainer,
+        optimizer_config=training_cfg.optimizer,
+    )
+    grad_trainer.fit()
+
+    pca.unfreeze()
+
+    assert pca._components is not None, "PCA components not initialized"
+    assert isinstance(pca._components, torch.nn.Parameter), (
         "PCA components should be a Parameter after training"
     )
 
-    final_components = pca.components.data.clone()
+    final_components = pca._components.data.clone()
     final_mean_norm = torch.norm(final_components, dim=1).mean().item()
-    final_orth_loss = pca.compute_orthogonality_loss().item()
+
+    # Use OrthogonalityLoss node's forward method directly
+    orth_loss_fn = OrthogonalityLoss(weight=1.0)
+    orth_result = orth_loss_fn.forward(components=final_components, context=None)
+    final_orth_loss = orth_result["loss"].item()
 
     print("\nFinal PCA components:")
     print(f"  Shape: {final_components.shape}")
@@ -258,7 +323,7 @@ def test_pca_weights_update():
     print(f"  Min: {final_components.min().item():.6f}")
     print(f"  Max: {final_components.max().item():.6f}")
 
-    assert pca.components.requires_grad, "PCA components should require gradients for training"
+    assert pca._components.requires_grad, "PCA components should require gradients for training"
     assert final_orth_loss < 0.5, (
         f"PCA components have poor orthogonality (loss={final_orth_loss:.6f})"
     )
@@ -271,37 +336,44 @@ def test_pca_weights_update():
 
 def test_logit_head_weights_update():
     """Test that RXLogitHead parameters are updated during training."""
-    graph = Graph("test_logit_head_training")
-
+    canvas = CuvisCanvas("test_logit_head_training")
+    data_node = LentilsAnomalyDataNode(normal_class_ids=[0, 1])
     normalizer = MinMaxNormalizer(eps=1.0e-6, use_running_stats=True)
     selector = SoftChannelSelector(
         n_select=15,
+        input_channels=20,
         init_method="variance",
         temperature_init=5.0,
         temperature_min=0.1,
         temperature_decay=0.9,
         hard=False,
-        trainable=True,
         eps=1.0e-6,
     )
-    rx = RXGlobal(eps=1.0e-6, trainable_stats=False, cache_inverse=True)
-    logit_head = RXLogitHead(init_scale=1.0, init_bias=5.0, trainable=True)
+    rx = RXGlobal(eps=1.0e-6, cache_inverse=True)
+    logit_head = RXLogitHead(init_scale=1.0, init_bias=5.0)
+    decider = BinaryDecider(threshold=0.5)
 
-    graph.add_node(normalizer)
-    graph.add_node(selector, parent=normalizer)
-    graph.add_node(rx, parent=selector)
-    graph.add_node(logit_head, parent=rx)
+    # Connect nodes
+    canvas.connect(data_node.outputs.cube, normalizer.data)
+    canvas.connect(normalizer.normalized, selector.data)
+    canvas.connect(selector.selected, rx.data)
+    canvas.connect(rx.scores, logit_head.scores)
 
+    # Add loss nodes
     entropy_reg = SelectorEntropyRegularizer(weight=0.01, target_entropy=None)
     diversity_reg = SelectorDiversityRegularizer(weight=0.01)
     anomaly_bce = AnomalyBCEWithLogits(weight=1.0, pos_weight=None, reduction="mean")
 
-    graph.add_leaf_node(entropy_reg, parent=selector)
-    graph.add_leaf_node(diversity_reg, parent=selector)
-    graph.add_leaf_node(anomaly_bce, parent=logit_head)
+    canvas.connect(logit_head.logits, anomaly_bce.predictions)
+    canvas.connect(data_node.outputs.mask, anomaly_bce.targets)
+    canvas.connect(selector.weights, entropy_reg.weights)
+    canvas.connect(selector.weights, diversity_reg.weights)
 
+    # Add decider and metrics
+    canvas.connect(logit_head.logits, decider.logits)
     anomaly_metrics = AnomalyDetectionMetrics(threshold=0.0)
-    graph.add_leaf_node(anomaly_metrics, parent=logit_head)
+    canvas.connect(decider.decisions, anomaly_metrics.decisions)
+    canvas.connect(data_node.outputs.mask, anomaly_metrics.targets)
 
     datamodule = SyntheticAnomalyDataModule(
         batch_size=4,
@@ -310,6 +382,7 @@ def test_logit_head_weights_update():
         width=8,
         channels=20,
         seed=777,
+        include_labels=True,
     )
 
     initial_scale = logit_head.scale.item()
@@ -320,8 +393,28 @@ def test_logit_head_weights_update():
     print(f"  Bias: {initial_bias:.6f}")
     print(f"  Threshold: {logit_head.get_threshold():.6f}")
 
+    # Statistical initialization
+    from cuvis_ai.training.trainers import GradientTrainer, StatisticalTrainer
+
+    stat_trainer = StatisticalTrainer(canvas=canvas, datamodule=datamodule)
+    stat_trainer.fit()
+
+    # Unfreeze trainable nodes
+    selector.unfreeze()
+    rx.unfreeze()
+    logit_head.unfreeze()
+
+    # Gradient training
     training_cfg = make_training_config(max_epochs=2, lr=1e-2)
-    graph.train(datamodule=datamodule, training_config=training_cfg)
+    loss_nodes = [node for node in canvas.nodes() if hasattr(node, "weight")]
+    grad_trainer = GradientTrainer(
+        canvas=canvas,
+        datamodule=datamodule,
+        loss_nodes=loss_nodes,
+        trainer_config=training_cfg.trainer,
+        optimizer_config=training_cfg.optimizer,
+    )
+    grad_trainer.fit()
 
     final_scale = logit_head.scale.item()
     final_bias = logit_head.bias.item()

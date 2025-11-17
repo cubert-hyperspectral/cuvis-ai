@@ -1,4 +1,5 @@
 import json
+from collections.abc import Iterator
 from copy import copy
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -31,7 +32,7 @@ class SafeWizard(JSONWizard):
     as-is instead of falling back to string representations.
     """
 
-    def to_dict_safe(self):
+    def to_dict_safe(self) -> dict[str, Any]:
         """
         Like `to_dict()`, but leaves unsupported types untouched.
         """
@@ -104,7 +105,7 @@ class Annotation(SafeWizard):
     iscrowd: int | None = 0
     auxiliary: dict[str, Any] | None = field(default_factory=dict)
 
-    def to_dict_safe(self):
+    def to_dict_safe(self) -> dict[str, Any]:
         """
         Like `to_dict()`, but leaves unsupported types untouched.
         """
@@ -128,7 +129,7 @@ class Annotation(SafeWizard):
         except Exception:
             return False
 
-    def to_torchvision(self, size):
+    def to_torchvision(self, size: tuple[int, int]) -> dict[str, Any]:
         """Convert COCO-style bbox/segmentation/mask into torchvision tensors."""
         out = copy(self)
 
@@ -155,10 +156,10 @@ class Annotation(SafeWizard):
 
 
 class QueryableList:
-    def __init__(self, items: list[Any]):
+    def __init__(self, items: list[Any]) -> None:
         self._items = items
 
-    def where(self, **conditions):
+    def where(self, **conditions) -> list[Any]:
         """
         Filter items based on conditions.
         :param conditions: Keyword arguments representing field=value filters.
@@ -169,18 +170,18 @@ class QueryableList:
             filtered_items = [item for item in filtered_items if getattr(item, key) == value]
         return list(filtered_items)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Any]:
         return iter(self._items)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._items)
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int) -> Any:
         return self._items[index]
 
 
 class COCOData:
-    def __init__(self, coco: COCO):
+    def __init__(self, coco: COCO) -> None:
         self._coco = coco
         self._image_ids = None
         self._categories = None
@@ -232,7 +233,7 @@ class COCOData:
             self._images = [Image.from_dict(v) for v in self._coco.imgs.values()]
         return self._images
 
-    def save(self, path: str | Path):
+    def save(self, path: str | Path) -> None:
         """
         Save the current COCOData object (images, annotations, categories, etc.)
         back into a COCO-style JSON file.
