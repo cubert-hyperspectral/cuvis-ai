@@ -43,8 +43,8 @@ class TestLinearPipeline:
         outputs = canvas.forward(batch=batch, stage=ExecutionStage.INFERENCE)
 
         # Verify outputs exist
-        assert (rx.id, "scores") in outputs
-        scores = outputs[(rx.id, "scores")]
+        assert (rx.name, "scores") in outputs
+        scores = outputs[(rx.name, "scores")]
         assert scores.shape == (2, 10, 10, 1)
         assert torch.all(torch.isfinite(scores))
 
@@ -62,8 +62,8 @@ class TestLinearPipeline:
             batch_data = torch.randn(2, 10, 10, 50)
             # Use simple port name for entry point
             outputs = canvas.forward(stage=ExecutionStage.INFERENCE, batch={"data": batch_data})
-            assert (selector.id, "selected") in outputs
-            assert outputs[(selector.id, "selected")].shape == (2, 10, 10, 50)
+            assert (selector.name, "selected") in outputs
+            assert outputs[(selector.name, "selected")].shape == (2, 10, 10, 50)
 
 
 class TestComplexDAG:
@@ -96,11 +96,11 @@ class TestComplexDAG:
         outputs = canvas.forward(stage=ExecutionStage.INFERENCE, batch={"data": input_cube})
 
         # Both RX detectors should have outputs
-        assert (rx1.id, "scores") in outputs
-        assert (rx2.id, "scores") in outputs
+        assert (rx1.name, "scores") in outputs
+        assert (rx2.name, "scores") in outputs
 
         # Both should have same shape
-        assert outputs[(rx1.id, "scores")].shape == outputs[(rx2.id, "scores")].shape
+        assert outputs[(rx1.name, "scores")].shape == outputs[(rx2.name, "scores")].shape
 
 
 class TestGradientFlow:
@@ -132,7 +132,7 @@ class TestGradientFlow:
         outputs = canvas.forward(stage=ExecutionStage.TRAIN, batch={"data": input_cube})
 
         # Backward pass
-        loss = outputs[(rx.id, "scores")].sum()
+        loss = outputs[(rx.name, "scores")].sum()
         loss.backward()
 
         # Check gradients flow to input
@@ -159,7 +159,7 @@ class TestGradientFlow:
         outputs = canvas.forward(stage=ExecutionStage.INFERENCE, batch={"data": input_data})
 
         # Output should still require grad
-        output = outputs[(normalizer.id, "normalized")]
+        output = outputs[(normalizer.name, "normalized")]
         assert output.requires_grad
 
 
@@ -210,8 +210,8 @@ class TestBatchDistribution:
         outputs = canvas.forward(batch={}, stage=ExecutionStage.INFERENCE)
 
         # Both consumers should have received the data from source
-        assert (consumer1.id, "result") in outputs
-        assert (consumer2.id, "result") in outputs
+        assert (consumer1.name, "result") in outputs
+        assert (consumer2.name, "result") in outputs
 
 
 class TestStageAwareExecution:
@@ -257,13 +257,13 @@ class TestStageAwareExecution:
 
         # Inference stage: only always_node executes
         outputs_inf = canvas.forward(batch={}, stage=ExecutionStage.INFERENCE)
-        assert (always_node.id, "out") in outputs_inf
-        assert (train_node.id, "out") not in outputs_inf
+        assert (always_node.name, "out") in outputs_inf
+        assert (train_node.name, "out") not in outputs_inf
 
         # Train stage: both execute
         outputs_train = canvas.forward(batch={}, stage=ExecutionStage.TRAIN)
-        assert (always_node.id, "out") in outputs_train
-        assert (train_node.id, "out") in outputs_train
+        assert (always_node.name, "out") in outputs_train
+        assert (train_node.name, "out") in outputs_train
 
 
 class TestPortCompatibility:

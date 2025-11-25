@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import uuid
 from abc import ABC, abstractmethod
 from types import SimpleNamespace
 from typing import Any
@@ -43,18 +42,22 @@ class Node(nn.Module, ABC, Serializable):
             - ExecutionStage.INFERENCE: Only during inference
             - {ExecutionStage.TRAIN, ExecutionStage.VAL}: Multiple stages
         """
+        # Allow subclasses to forward name/execution_stages inside kwargs without duplication
+        if kwargs:
+            name = kwargs.pop("name", name)
+            execution_stages = kwargs.pop("execution_stages", execution_stages)
         if execution_stages is None:
             execution_stages = {ExecutionStage.ALWAYS}
         # Initialize Serializable first to capture hparams
         Serializable.__init__(self, *args, **kwargs)
         # Then initialize nn.Module without any args/kwargs
         nn.Module.__init__(self)
-        self.uuid = str(uuid.uuid4())
 
         if name is None:
             name = type(self).__name__
         # Store custom name
         self._name = name
+        self._canvas_counter: int | None = None
 
         # Execution stages
         self.execution_stages = set(execution_stages)
@@ -67,13 +70,17 @@ class Node(nn.Module, ABC, Serializable):
 
     @property
     def name(self) -> str:
-        """Get node name (custom or class name)."""
-        return self._name
+        """Get node name (base name with optional counter suffix)."""
+        if self._canvas_counter is None:
+            return self._name
+        if self._canvas_counter == 0:
+            return self._name
+        return f"{self._name}-{self._canvas_counter}"
 
-    @property
-    def id(self) -> str:
-        """Get node ID (same as node name)."""
-        return f"{self.name}-{self.uuid}"
+    @name.setter
+    def name(self, value: str) -> None:  # noqa: D401
+        """Disallow mutation of node names to avoid breaking graph keys."""
+        raise AttributeError(f"Node name is immutable. Cannot change '{self.name}' to '{value}'.")
 
     @property
     def requires_initial_fit(self) -> bool:
@@ -184,6 +191,18 @@ class Node(nn.Module, ABC, Serializable):
     def forward(self, **inputs: Any) -> dict[str, Any]:
         """Execute node computation returning a dictionary of named outputs."""
         raise NotImplementedError
+
+    @staticmethod
+    def consume_base_kwargs(
+        kwargs: dict[str, Any], default_stages: set[ExecutionStage] | None = None
+    ) -> tuple[str | None, set[ExecutionStage] | None]:
+        """Extract base Node kwargs centrally to avoid double-passing.
+
+        Subclasses can pop name/execution_stages here before calling super().__init__.
+        """
+        name = kwargs.pop("name", None)
+        execution_stages = kwargs.pop("execution_stages", default_stages)
+        return name, execution_stages
 
     # @abstractmethod
     def serialize(self, serial_dir: str) -> dict:

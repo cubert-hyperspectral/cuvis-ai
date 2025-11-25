@@ -313,4 +313,74 @@ class SoftChannelSelector(Node):
         return instance
 
 
-__all__ = ["SoftChannelSelector"]
+class TopKIndices(Node):
+    """Utility node that surfaces the top-k channel indices from selector weights.
+
+    This node extracts the indices of the top-k weighted channels from a selector's
+    weight vector. Useful for introspection and reporting which channels were selected.
+
+    Parameters
+    ----------
+    k : int
+        Number of top indices to return
+
+    Attributes
+    ----------
+    k : int
+        Number of top indices to return
+    """
+
+    INPUT_SPECS = {
+        "weights": PortSpec(
+            dtype=torch.float32,
+            shape=(-1,),
+            description="Channel selection weights",
+        )
+    }
+    OUTPUT_SPECS = {
+        "indices": PortSpec(
+            dtype=torch.int64,
+            shape=(-1,),
+            description="Top-k channel indices",
+        )
+    }
+
+    def __init__(self, k: int, **kwargs: Any) -> None:
+        self.k = int(k)
+
+        # Extract Node base parameters from kwargs to avoid duplication
+        name = kwargs.pop("name", None)
+        execution_stages = kwargs.pop("execution_stages", None)
+
+        super().__init__(
+            name=name,
+            execution_stages=execution_stages,
+            k=self.k,
+            **kwargs,
+        )
+
+    def forward(self, weights: torch.Tensor, **_: Any) -> dict[str, torch.Tensor]:
+        """Return the indices of the top-k weighted channels.
+
+        Parameters
+        ----------
+        weights : torch.Tensor
+            Channel selection weights [n_channels]
+
+        Returns
+        -------
+        dict[str, torch.Tensor]
+            Dictionary with "indices" key containing top-k indices
+        """
+        top_k = min(self.k, weights.shape[-1]) if weights.numel() else 0
+        if top_k == 0:
+            return {"indices": torch.zeros(0, dtype=torch.int64, device=weights.device)}
+
+        _, indices = torch.topk(weights, top_k)
+        return {"indices": indices}
+
+    def load(self, params: dict, serial_dir: str) -> None:  # pragma: no cover - not used yet
+        self.k = int(params.get("k", self.k))
+
+
+__all__ = ["SoftChannelSelector", "TopKIndices"]

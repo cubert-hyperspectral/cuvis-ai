@@ -1,0 +1,322 @@
+syntax = "proto3";
+
+package cuvis_ai.v1;
+
+// ============================================================================
+// Core Enums
+// ============================================================================
+
+enum ProcessingMode {
+  PROCESSING_MODE_UNSPECIFIED = 0;
+  PROCESSING_MODE_RAW = 1;
+  PROCESSING_MODE_REFLECTANCE = 2;
+}
+
+enum ExecutionStage {
+  EXECUTION_STAGE_UNSPECIFIED = 0;
+  EXECUTION_STAGE_TRAIN = 1;
+  EXECUTION_STAGE_VAL = 2;
+  EXECUTION_STAGE_TEST = 3;
+  EXECUTION_STAGE_INFERENCE = 4;
+}
+
+enum DType {
+  D_TYPE_UNSPECIFIED = 0;
+  D_TYPE_FLOAT32 = 1;
+  D_TYPE_FLOAT64 = 2;
+  D_TYPE_INT32 = 3;
+  D_TYPE_INT64 = 4;
+  D_TYPE_UINT8 = 5;
+  D_TYPE_BOOL = 6;
+  D_TYPE_FLOAT16 = 7;
+}
+
+enum TrainerType {
+  TRAINER_TYPE_UNSPECIFIED = 0;
+  TRAINER_TYPE_STATISTICAL = 1;
+  TRAINER_TYPE_GRADIENT = 2;
+}
+
+enum TrainStatus {
+  TRAIN_STATUS_UNSPECIFIED = 0;
+  TRAIN_STATUS_RUNNING = 1;
+  TRAIN_STATUS_COMPLETE = 2;
+  TRAIN_STATUS_ERROR = 3;
+}
+
+enum PointType {
+  POINT_TYPE_UNSPECIFIED = 0;
+  POINT_TYPE_POSITIVE = 1;
+  POINT_TYPE_NEGATIVE = 2;
+  POINT_TYPE_NEUTRAL = 3;
+}
+
+// ============================================================================
+// Core Types
+// ============================================================================
+
+message Tensor {
+  repeated int64 shape = 1;
+  DType dtype = 2;
+  bytes raw_data = 3;
+}
+
+message Context {
+  ExecutionStage stage = 1;
+  int32 epoch = 2;
+  int32 batch_idx = 3;
+  int32 global_step = 4;
+}
+
+message DataConfig {
+  string cu3s_file_path = 1;
+  string annotation_json_path = 2;
+  repeated int32 train_ids = 3;
+  repeated int32 val_ids = 4;
+  repeated int32 test_ids = 5;
+  int32 batch_size = 6;
+  ProcessingMode processing_mode = 7;
+}
+
+// ============================================================================
+// Input/Output Types
+// ============================================================================
+
+message BoundingBox {
+  int32 element_id = 1;
+  float x_min = 2;
+  float y_min = 3;
+  float x_max = 4;
+  float y_max = 5;
+}
+
+message BoundingBoxes {
+  repeated BoundingBox boxes = 1;
+}
+
+message Point {
+  int32 element_id = 1;
+  float x = 2;
+  float y = 3;
+  PointType type = 4;
+}
+
+message Points {
+  repeated Point points = 1;
+}
+
+message InputBatch {
+  Tensor wavelengths = 1;
+  Tensor cube = 2;
+  Tensor mask = 3;
+  BoundingBoxes bboxes = 4;
+  Points points = 5;
+  string text_prompt = 6;
+  map<string, Tensor> extra_inputs = 7;
+}
+
+message TensorSpec {
+  string name = 1;
+  repeated int64 shape = 2;  // -1 for dynamic dimensions
+  DType dtype = 3;
+  bool required = 4;
+}
+
+// ============================================================================
+// Training Types
+// ============================================================================
+
+message TrainResponse {
+  Context context = 1;
+  map<string, float> losses = 2;
+  map<string, float> metrics = 3;
+  TrainStatus status = 4;
+  string message = 5;
+}
+
+message TrainingConfig {
+  bytes config_json = 1;  // Serialized TrainingConfig dataclass
+}
+
+message ParamSpec {
+  string name = 1;
+  string type = 2;
+  bool required = 3;
+  string default_value = 4;
+  string description = 5;
+  string validation = 6;
+}
+
+message CallbackTypeInfo {
+  string type = 1;
+  string description = 2;
+  repeated ParamSpec parameters = 3;
+}
+
+message OptimizerParamsSchema {
+  repeated ParamSpec parameters = 1;
+}
+
+message SchedulerParamsSchema {
+  repeated ParamSpec parameters = 1;
+}
+
+// ============================================================================
+// Session Management
+// ============================================================================
+
+message CreateSessionRequest {
+  string pipeline_type = 1;  // "channel_selector", "statistical", "gradient"
+  string pipeline_config = 2;  // JSON config for pipeline
+  optional DataConfig data_config = 3;  // Optional: only needed for training
+}
+
+message CreateSessionResponse {
+  string session_id = 1;
+}
+
+message CloseSessionRequest {
+  string session_id = 1;
+}
+
+message CloseSessionResponse {
+  bool success = 1;
+}
+
+// ============================================================================
+// Training
+// ============================================================================
+
+message TrainRequest {
+  string session_id = 1;
+  TrainerType trainer_type = 2;
+  TrainingConfig config = 3;  // Only for GRADIENT training
+}
+
+message GetTrainStatusRequest {
+  string session_id = 1;
+}
+
+message GetTrainStatusResponse {
+  TrainStatus status = 1;
+  TrainResponse latest_progress = 2;
+}
+
+message GetTrainingCapabilitiesRequest {}
+
+message GetTrainingCapabilitiesResponse {
+  repeated string supported_optimizers = 1;
+  repeated string supported_schedulers = 2;
+  repeated CallbackTypeInfo supported_callbacks = 3;
+  OptimizerParamsSchema optimizer_params = 4;
+  SchedulerParamsSchema scheduler_params = 5;
+}
+
+message ValidateTrainingConfigRequest {
+  TrainingConfig config = 1;
+}
+
+message ValidateTrainingConfigResponse {
+  bool valid = 1;
+  repeated string errors = 2;
+  repeated string warnings = 3;
+}
+
+// ============================================================================
+// Pipeline Introspection
+// ============================================================================
+
+message GetPipelineInputsRequest {
+  string session_id = 1;
+}
+
+message GetPipelineInputsResponse {
+  repeated string input_names = 1;
+  map<string, TensorSpec> input_specs = 2;
+}
+
+message GetPipelineOutputsRequest {
+  string session_id = 1;
+}
+
+message GetPipelineOutputsResponse {
+  repeated string output_names = 1;
+  map<string, TensorSpec> output_specs = 2;
+}
+
+message GetPipelineVisualizationRequest {
+  string session_id = 1;
+  string format = 2;  // "png", "svg", "dot"
+}
+
+message GetPipelineVisualizationResponse {
+  bytes image_data = 1;
+  string format = 2;
+}
+
+// ============================================================================
+// Inference
+// ============================================================================
+
+message InferenceRequest {
+  string session_id = 1;
+  InputBatch inputs = 2;
+  repeated string output_specs = 3;
+}
+
+message InferenceResponse {
+  map<string, Tensor> outputs = 1;
+  map<string, float> metrics = 2;
+}
+
+// ============================================================================
+// Checkpoint Management
+// ============================================================================
+
+message SaveCheckpointRequest {
+  string session_id = 1;
+  string checkpoint_path = 2;
+}
+
+message SaveCheckpointResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message LoadCheckpointRequest {
+  string session_id = 1;
+  string checkpoint_path = 2;
+}
+
+message LoadCheckpointResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// ============================================================================
+// Service Definition
+// ============================================================================
+
+service CuvisAIService {
+  // Session Management
+  rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
+  rpc CloseSession(CloseSessionRequest) returns (CloseSessionResponse);
+  
+  // Training
+  rpc Train(TrainRequest) returns (stream TrainResponse);
+  rpc GetTrainStatus(GetTrainStatusRequest) returns (GetTrainStatusResponse);
+  rpc GetTrainingCapabilities(GetTrainingCapabilitiesRequest) returns (GetTrainingCapabilitiesResponse);
+  rpc ValidateTrainingConfig(ValidateTrainingConfigRequest) returns (ValidateTrainingConfigResponse);
+  
+  // Pipeline Introspection
+  rpc GetPipelineInputs(GetPipelineInputsRequest) returns (GetPipelineInputsResponse);
+  rpc GetPipelineOutputs(GetPipelineOutputsRequest) returns (GetPipelineOutputsResponse);
+  rpc GetPipelineVisualization(GetPipelineVisualizationRequest) returns (GetPipelineVisualizationResponse);
+  
+  // Inference
+  rpc Inference(InferenceRequest) returns (InferenceResponse);
+  
+  // Checkpoint Management
+  rpc SaveCheckpoint(SaveCheckpointRequest) returns (SaveCheckpointResponse);
+  rpc LoadCheckpoint(LoadCheckpointRequest) returns (LoadCheckpointResponse);
+}

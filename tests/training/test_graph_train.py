@@ -177,8 +177,8 @@ def test_graph_forward_after_training():
     batch = {"cube": test_input}
     outputs = canvas.forward(batch=batch, stage=ExecutionStage.INFERENCE)
 
-    # Extract normalized output using (node_id, port_name) tuple
-    normalized = outputs[(normalizer.id, "normalized")]
+    # Extract normalized output using (node_name, port_name) tuple
+    normalized = outputs[(normalizer.name, "normalized")]
 
     # Verify output shape
     assert normalized.shape == torch.Size([1, 10, 10, 1])

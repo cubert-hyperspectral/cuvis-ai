@@ -288,10 +288,10 @@ class CanvasVisualizer:
         return path
 
     def _dot_identifier(self, node: Node) -> str:
-        return self._sanitize_identifier(node.id)
+        return self._sanitize_identifier(node.name)
 
     def _mermaid_identifier(self, node: Node) -> str:
-        return self._sanitize_identifier(node.id, allow_dash=False)
+        return self._sanitize_identifier(node.name, allow_dash=False)
 
     def _format_node_label(
         self,

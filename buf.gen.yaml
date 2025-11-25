@@ -1,0 +1,10 @@
+version: v2
+managed:
+  enabled: false
+plugins:
+  - remote: buf.build/protocolbuffers/python
+    out: .
+  - remote: buf.build/protocolbuffers/pyi
+    out: .
+  - remote: buf.build/grpc/python
+    out: .

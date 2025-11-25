@@ -38,8 +38,9 @@ class OrthogonalityLoss(Node):
 
     def __init__(self, weight: float = 1.0, **kwargs) -> None:
         self.weight = weight
+
+        _ = kwargs.pop("execution_stages", None)
         super().__init__(
-            # execution_stages={ExecutionStage.TRAIN},
             weight=weight,
             **kwargs,
         )
@@ -124,8 +125,12 @@ class AnomalyBCEWithLogits(Node):
         self.pos_weight = pos_weight
         self.reduction = reduction
 
+        # Extract Node base parameters from kwargs to avoid duplication
+        name = kwargs.pop("name", None)
+        execution_stages = kwargs.pop("execution_stages", None)
         super().__init__(
-            # execution_stages={ExecutionStage.TRAIN},
+            name=name,
+            execution_stages=execution_stages,
             weight=weight,
             pos_weight=pos_weight,
             reduction=reduction,
@@ -215,8 +220,12 @@ class MSEReconstructionLoss(Node):
     def __init__(self, weight: float = 1.0, reduction: str = "mean", **kwargs) -> None:
         self.weight = weight
         self.reduction = reduction
+        # Extract Node base parameters from kwargs to avoid duplication
+        name = kwargs.pop("name", None)
+        execution_stages = kwargs.pop("execution_stages", None)
         super().__init__(
-            # execution_stages={ExecutionStage.TRAIN},
+            name=name,
+            execution_stages=execution_stages,
             weight=weight,
             reduction=reduction,
             **kwargs,
@@ -303,8 +312,12 @@ class SelectorEntropyRegularizer(Node):
         self.weight = weight
         self.target_entropy = target_entropy
         self.eps = eps
+        # Extract Node base parameters from kwargs to avoid duplication
+        name = kwargs.pop("name", None)
+        execution_stages = kwargs.pop("execution_stages", None)
         super().__init__(
-            # execution_stages={ExecutionStage.TRAIN},
+            name=name,
+            execution_stages=execution_stages,
             weight=weight,
             target_entropy=target_entropy,
             eps=eps,
@@ -375,8 +388,12 @@ class SelectorDiversityRegularizer(Node):
 
     def __init__(self, weight: float = 0.01, **kwargs) -> None:
         self.weight = weight
+        # Extract Node base parameters from kwargs to avoid duplication
+        name = kwargs.pop("name", None)
+        execution_stages = kwargs.pop("execution_stages", None)
         super().__init__(
-            # execution_stages={ExecutionStage.TRAIN},
+            name=name,
+            execution_stages=execution_stages,
             weight=weight,
             **kwargs,
         )
