@@ -103,9 +103,9 @@ class TestRequiredPortValidation:
         outputs = canvas.forward(stage="val", batch=bad_batch)
 
         # Execution should succeed up to rx_logits
-        assert (rx_logits.id, "logits") in outputs
+        assert (rx_logits.name, "logits") in outputs
         # BCE loss executes in val stage for validation metrics
-        assert (bce_loss.id, "loss") in outputs
+        assert (bce_loss.name, "loss") in outputs
 
     def test_upto_node_excludes_downstream_validation(self) -> None:
         """upto_node parameter should exclude downstream nodes from validation."""
@@ -132,9 +132,9 @@ class TestRequiredPortValidation:
         )
 
         # Should only execute data node (ancestor of rx_node)
-        assert (data.id, "cube") in outputs
+        assert (data.name, "cube") in outputs
         # rx_node itself should NOT execute (upto_node is exclusive)
-        assert (rx_node.id, "scores") not in outputs
+        assert (rx_node.name, "scores") not in outputs
 
 
 class TestOptionalPortHandling:
@@ -306,7 +306,7 @@ class TestBatchDataKeyMapping:
 
         # Consumer should receive data from producer, not batch
         expected = torch.tensor([20.0, 40.0, 60.0])  # producer output * 2
-        torch.testing.assert_close(outputs[(consumer.id, "result")], expected)
+        torch.testing.assert_close(outputs[(consumer.name, "result")], expected)
 
 
 class TestStageAwareExecution:
@@ -336,7 +336,7 @@ class TestStageAwareExecution:
         outputs = canvas.forward(stage="train", batch=batch)
 
         # Loss should execute in train stage
-        assert (bce_loss.id, "loss") in outputs
+        assert (bce_loss.name, "loss") in outputs
 
     def test_inference_stage_skips_loss_nodes(self) -> None:
         """Loss nodes should not execute in inference stage."""
@@ -359,9 +359,9 @@ class TestStageAwareExecution:
         outputs = canvas.forward(stage="inference", batch=batch)
 
         # Loss should NOT execute in inference stage
-        assert (bce_loss.id, "loss") not in outputs
+        assert (bce_loss.name, "loss") not in outputs
         # But rx_logits should execute
-        assert (rx_logits.id, "logits") in outputs
+        assert (rx_logits.name, "logits") in outputs
 
 
 class TestMultipleEntryPoints:
@@ -423,7 +423,7 @@ class TestMultipleEntryPoints:
 
         # Result should be (1.0 * 2) + (2.0 * 3) = 8.0
         expected = torch.tensor([8.0])
-        torch.testing.assert_close(outputs[(combiner.id, "out")], expected)
+        torch.testing.assert_close(outputs[(combiner.name, "out")], expected)
 
     def test_missing_one_entry_point_raises_error(self) -> None:
         """Missing one of multiple entry points should raise error."""

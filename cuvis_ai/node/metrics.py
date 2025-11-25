@@ -32,8 +32,19 @@ class ExplainedVarianceMetric(Node):
 
     OUTPUT_SPECS = {"metrics": PortSpec(dtype=list, shape=(), description="List of Metric objects")}
 
-    def __init__(self, **kwargs) -> None:
-        super().__init__(execution_stages={ExecutionStage.VAL, ExecutionStage.TEST}, **kwargs)
+    def __init__(
+        self,
+        execution_stages: set[ExecutionStage] | None = None,
+        **kwargs,
+    ) -> None:
+        name, execution_stages = Node.consume_base_kwargs(
+            kwargs, execution_stages or {ExecutionStage.VAL, ExecutionStage.TEST}
+        )
+        super().__init__(
+            name=name,
+            execution_stages=execution_stages,
+            **kwargs,
+        )
 
     def forward(self, explained_variance_ratio: Tensor, context: Context) -> dict[str, Any]:
         """Compute explained variance metrics.
@@ -120,8 +131,19 @@ class AnomalyDetectionMetrics(Node):
 
     OUTPUT_SPECS = {"metrics": PortSpec(dtype=list, shape=(), description="List of Metric objects")}
 
-    def __init__(self, **kwargs) -> None:
-        super().__init__(execution_stages={ExecutionStage.VAL, ExecutionStage.TEST}, **kwargs)
+    def __init__(
+        self,
+        execution_stages: set[ExecutionStage] | None = None,
+        **kwargs,
+    ) -> None:
+        name, execution_stages = Node.consume_base_kwargs(
+            kwargs, execution_stages or {ExecutionStage.VAL, ExecutionStage.TEST}
+        )
+        super().__init__(
+            name=name,
+            execution_stages=execution_stages,
+            **kwargs,
+        )
 
         # Initialize torchmetrics for binary classification
         # These are stateless (compute per-batch) since we don't call update()
@@ -223,8 +245,19 @@ class ScoreStatisticsMetric(Node):
 
     OUTPUT_SPECS = {"metrics": PortSpec(dtype=list, shape=(), description="List of Metric objects")}
 
-    def __init__(self, **kwargs) -> None:
-        super().__init__(execution_stages={ExecutionStage.VAL, ExecutionStage.TEST}, **kwargs)
+    def __init__(
+        self,
+        execution_stages: set[ExecutionStage] | None = None,
+        **kwargs,
+    ) -> None:
+        name, execution_stages = Node.consume_base_kwargs(
+            kwargs, execution_stages or {ExecutionStage.VAL, ExecutionStage.TEST}
+        )
+        super().__init__(
+            name=name,
+            execution_stages=execution_stages,
+            **kwargs,
+        )
 
     def forward(self, scores: Tensor, context: Context) -> dict[str, Any]:
         """Compute score statistics.
@@ -336,8 +369,19 @@ class ComponentOrthogonalityMetric(Node):
 
     OUTPUT_SPECS = {"metrics": PortSpec(dtype=list, shape=(), description="List of Metric objects")}
 
-    def __init__(self, **kwargs) -> None:
-        super().__init__(execution_stages={ExecutionStage.VAL, ExecutionStage.TEST}, **kwargs)
+    def __init__(
+        self,
+        execution_stages: set[ExecutionStage] | None = None,
+        **kwargs,
+    ) -> None:
+        name, execution_stages = Node.consume_base_kwargs(
+            kwargs, execution_stages or {ExecutionStage.VAL, ExecutionStage.TEST}
+        )
+        super().__init__(
+            name=name,
+            execution_stages=execution_stages,
+            **kwargs,
+        )
 
     def forward(self, components: Tensor, context: Context) -> dict[str, Any]:
         """Compute component orthogonality metrics.
@@ -432,10 +476,21 @@ class SelectorEntropyMetric(Node):
 
     OUTPUT_SPECS = {"metrics": PortSpec(dtype=list, shape=(), description="List of Metric objects")}
 
-    def __init__(self, eps: float = 1e-6, **kwargs) -> None:
+    def __init__(
+        self,
+        eps: float = 1e-6,
+        execution_stages: set[ExecutionStage] | None = None,
+        **kwargs,
+    ) -> None:
         self.eps = eps
+        name, execution_stages = Node.consume_base_kwargs(
+            kwargs, execution_stages or {ExecutionStage.VAL, ExecutionStage.TEST}
+        )
         super().__init__(
-            execution_stages={ExecutionStage.VAL, ExecutionStage.TEST}, eps=eps, **kwargs
+            name=name,
+            execution_stages=execution_stages,
+            eps=eps,
+            **kwargs,
         )
 
     def forward(self, weights: Tensor, context: Context) -> dict[str, Any]:
@@ -497,8 +552,19 @@ class SelectorDiversityMetric(Node):
 
     OUTPUT_SPECS = {"metrics": PortSpec(dtype=list, shape=(), description="List of Metric objects")}
 
-    def __init__(self, **kwargs) -> None:
-        super().__init__(execution_stages={ExecutionStage.VAL, ExecutionStage.TEST}, **kwargs)
+    def __init__(
+        self,
+        execution_stages: set[ExecutionStage] | None = None,
+        **kwargs,
+    ) -> None:
+        name, execution_stages = Node.consume_base_kwargs(
+            kwargs, execution_stages or {ExecutionStage.VAL, ExecutionStage.TEST}
+        )
+        super().__init__(
+            name=name,
+            execution_stages=execution_stages,
+            **kwargs,
+        )
 
     def forward(self, weights: Tensor, context: Context) -> dict[str, Any]:
         """Compute diversity metrics for selection weights.

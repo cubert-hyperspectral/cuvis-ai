@@ -64,6 +64,7 @@ class RXLogitHead(Node):
         self,
         init_scale: float = 1.0,
         init_bias: float = 0.0,
+        **kwargs,
     ) -> None:
         self.init_scale = init_scale
         self.init_bias = init_bias
@@ -71,6 +72,7 @@ class RXLogitHead(Node):
         super().__init__(
             init_scale=init_scale,
             init_bias=init_bias,
+            **kwargs,
         )
 
         # Initialize as buffers (frozen by default)

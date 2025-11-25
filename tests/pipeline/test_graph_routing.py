@@ -53,9 +53,9 @@ class TestGraphBasicRouting:
         outputs = canvas.forward(batch=batch, stage=ExecutionStage.INFERENCE)
 
         expected = (input_tensor * 2) + 1
-        torch.testing.assert_close(outputs[(n2.id, "y")], expected)
+        torch.testing.assert_close(outputs[(n2.name, "y")], expected)
         # Intermediate outputs should also be exposed
-        assert (n1.id, "y") in outputs
+        assert (n1.name, "y") in outputs
 
     def test_graph_returns_all_outputs(self) -> None:
         """Graph should expose every produced port value."""
@@ -94,9 +94,9 @@ class TestGraphBasicRouting:
 
         outputs = canvas.forward(batch={}, stage=ExecutionStage.INFERENCE)
 
-        assert outputs[(src.id, "out")].item() == 1.0
-        assert outputs[(src.id, "meta")].item() == 5.0
-        assert outputs[(dst.id, "out")].item() == 6.0
+        assert outputs[(src.name, "out")].item() == 1.0
+        assert outputs[(src.name, "meta")].item() == 5.0
+        assert outputs[(dst.name, "out")].item() == 6.0
 
 
 class TestGraphGradientFlow:
@@ -142,7 +142,7 @@ class TestGraphGradientFlow:
         entry = torch.tensor([1.5, -0.5], requires_grad=True)
         batch = {"x": entry}
         outputs = canvas.forward(batch=batch, stage=ExecutionStage.INFERENCE)
-        final = outputs[(bias.id, "y")].sum()
+        final = outputs[(bias.name, "y")].sum()
         final.backward()
 
         assert entry.grad is not None
@@ -223,9 +223,9 @@ class TestGraphMultipleConnections:
         expected_right = (-inp) + 3
         expected_merge = expected_left + expected_right
 
-        torch.testing.assert_close(outputs[(left.id, "out")], expected_left)
-        torch.testing.assert_close(outputs[(right.id, "out")], expected_right)
-        torch.testing.assert_close(outputs[(merge.id, "out")], expected_merge)
+        torch.testing.assert_close(outputs[(left.name, "out")], expected_left)
+        torch.testing.assert_close(outputs[(right.name, "out")], expected_right)
+        torch.testing.assert_close(outputs[(merge.name, "out")], expected_merge)
 
 
 class TestGraphEntryInputs:
@@ -280,7 +280,7 @@ class TestGraphEntryInputs:
         }
 
         outputs = canvas.forward(batch=batch, stage=ExecutionStage.INFERENCE)
-        torch.testing.assert_close(outputs[(c.id, "out")], torch.tensor([1.0 + (2.0 * 3.0)]))
+        torch.testing.assert_close(outputs[(c.name, "out")], torch.tensor([1.0 + (2.0 * 3.0)]))
 
 
 class TestGraphPartialExecution:
@@ -330,11 +330,11 @@ class TestGraphPartialExecution:
         outputs = canvas.forward(batch=batch, stage=ExecutionStage.INFERENCE, upto_node=n2)
 
         # Only n1 should execute (ancestors of n2)
-        assert (n1.id, "y") in outputs
+        assert (n1.name, "y") in outputs
         # n2 should NOT execute (upto_node is exclusive)
-        assert (n2.id, "y") not in outputs
+        assert (n2.name, "y") not in outputs
         # n3 should definitely NOT execute
-        assert (n3.id, "y") not in outputs
+        assert (n3.name, "y") not in outputs
 
 
 class TestGraphStageFiltering:
@@ -378,10 +378,10 @@ class TestGraphStageFiltering:
 
         # In inference stage, train_only should not execute
         outputs_inf = canvas.forward(batch=batch, stage=ExecutionStage.INFERENCE)
-        assert (always.id, "y") in outputs_inf
-        assert (train_only.id, "y") not in outputs_inf
+        assert (always.name, "y") in outputs_inf
+        assert (train_only.name, "y") not in outputs_inf
 
         # In train stage, both should execute
         outputs_train = canvas.forward(batch=batch, stage=ExecutionStage.TRAIN)
-        assert (always.id, "y") in outputs_train
-        assert (train_only.id, "y") in outputs_train
+        assert (always.name, "y") in outputs_train
+        assert (train_only.name, "y") in outputs_train

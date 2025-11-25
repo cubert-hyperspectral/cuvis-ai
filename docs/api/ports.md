@@ -331,7 +331,7 @@ print(f"Description: {port.description}")
 # Get all connections in the canvas
 connections = canvas.get_connections()
 for source, target in connections:
-    print(f"{source.node.id}.{source.name} → {target.node.id}.{target.name}")
+    print(f"{source.node.name}.{source.name} → {target.node.name}.{target.name}")
 ```
 
 ## Best Practices

@@ -226,7 +226,7 @@ class GradientTrainer(pl.LightningModule):
 
         for loss_node in self.loss_nodes:
             # O(1) lookup instead of O(n_outputs) iteration
-            loss_outputs = node_outputs.get(loss_node.id, {})
+            loss_outputs = node_outputs.get(loss_node.name, {})
 
             # Warn on first batch of first epoch if multiple outputs
             if epoch == 0 and batch_idx == 0 and len(loss_outputs) > 1:
@@ -282,7 +282,7 @@ class GradientTrainer(pl.LightningModule):
 
         for metric_node in self.metric_nodes:
             # O(1) lookup instead of O(n_outputs) iteration
-            metric_outputs = node_outputs.get(metric_node.id, {}).get("metrics", [])
+            metric_outputs = node_outputs.get(metric_node.name, {}).get("metrics", [])
 
             # Each metric node outputs a list of Metric dataclass objects
             for metric in metric_outputs:  # list[Metric] objects
@@ -590,6 +590,6 @@ class StatisticalTrainer:
                     for edge_data in self.canvas._graph[parent_node][target_node].values():
                         from_port = edge_data["from_port"]
                         to_port = edge_data["to_port"]
-                        node_inputs[to_port] = outputs[(parent_node.id, from_port)]
+                        node_inputs[to_port] = outputs[(parent_node.name, from_port)]
 
             yield node_inputs  # Clean dict matching INPUT_SPECS!

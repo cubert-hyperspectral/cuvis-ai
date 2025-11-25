@@ -79,11 +79,11 @@ class CuvisCanvas:
 
             # AUTO-ADD: Add source node if not in graph
             if source_node not in self._graph:
-                self._graph.add_node(source_node)
+                self._assign_counter_and_add_node(source_node)
 
             # AUTO-ADD: Add target node if not in graph
             if target_node not in self._graph:
-                self._graph.add_node(target_node)
+                self._assign_counter_and_add_node(target_node)
 
             # Add edge between Node objects (not IDs)
             self._graph.add_edge(
@@ -98,6 +98,12 @@ class CuvisCanvas:
                 del self.__dict__["_sorted_nodes"]
             # Clear validation cache since graph structure has changed
             self._validation_cache.clear()
+
+    def _assign_counter_and_add_node(self, node: Node) -> None:
+        """Assign counter to node based on existing nodes with same base name."""
+        same_name_count = sum(1 for existing in self._graph.nodes() if existing._name == node._name)
+        node._canvas_counter = same_name_count
+        self._graph.add_node(node)
 
     def _validate_connection(
         self,
@@ -218,13 +224,13 @@ class CuvisCanvas:
             Execution context with epoch, batch_idx, and global_step. If not provided,
             a default Context will be created with the specified stage.
         **entry_inputs : Any
-            Additional entry inputs keyed by "node_id.port_name"
+            Additional entry inputs keyed by "node_name.port_name"
             These override batch keys if there's a conflict.
 
         Returns
         -------
         dict[tuple[str, str], Any]
-            All outputs keyed by (node_id, port_name) tuples
+            All outputs keyed by (node_name, port_name) tuples
         """
 
         # Create or use provided context
@@ -241,8 +247,8 @@ class CuvisCanvas:
             # Validate node is in graph
             if upto_node not in self._graph:
                 raise ValueError(
-                    f"Node '{upto_node.id}' not found in graph. "
-                    f"Available nodes: {[n.id for n in self._graph.nodes()]}"
+                    f"Node '{upto_node.name}' not found in graph. "
+                    f"Available nodes: {[n.name for n in self._graph.nodes()]}"
                 )
 
             # Execute only ancestors of upto_node (nodes that feed into it)
@@ -293,7 +299,10 @@ class CuvisCanvas:
 
             # Store outputs
             for port_name, value in outputs.items():
-                port_data[(node.id, port_name)] = value
+                key = (node.name, port_name)
+                if key in port_data:
+                    raise ValueError(f"Duplicate output key detected: {key}")
+                port_data[key] = value
 
         return port_data
 
@@ -390,8 +399,8 @@ class CuvisCanvas:
 
         # Get from batch
         for port_name in getattr(node, "INPUT_SPECS", {}):
-            if (node.id, port_name) in port_data:
-                node_inputs[port_name] = port_data[(node.id, port_name)]
+            if (node.name, port_name) in port_data:
+                node_inputs[port_name] = port_data[(node.name, port_name)]
             elif port_name in batch:
                 node_inputs[port_name] = batch[port_name]
 
@@ -401,8 +410,8 @@ class CuvisCanvas:
                 from_port = edge_data["from_port"]
                 to_port = edge_data["to_port"]
 
-                if (predecessor_node.id, from_port) in port_data:
-                    source_data = port_data[(predecessor_node.id, from_port)]
+                if (predecessor_node.name, from_port) in port_data:
+                    source_data = port_data[(predecessor_node.name, from_port)]
 
                     port_spec = getattr(node, "INPUT_SPECS", {}).get(to_port)
                     is_variadic = isinstance(port_spec, list)
@@ -709,7 +718,7 @@ class CuvisCanvas:
     ) -> Iterator[tuple[str, nn.Parameter]]:
         """
         Like torch.nn.Module.named_parameters, but across your graph.
-        Names are prefixed with the node ID to avoid collisions.
+        Names are prefixed with the node name to avoid collisions.
         """
         seen_params: set[int] = set()
         for node in self._graph.nodes():
@@ -722,7 +731,165 @@ class CuvisCanvas:
                     continue
                 seen_params.add(pid)
                 if require_grad is None or p.requires_grad is require_grad:
-                    yield f"{node.id}{sep}{local_name}", p
+                    yield f"{node.name}{sep}{local_name}", p
+
+    def get_input_specs(self) -> dict[str, dict]:
+        """Get input specifications for canvas entry points.
+
+        Returns specifications for ports that are not connected from any predecessor
+        (i.e., they need to be provided in the batch input).
+
+        Time Complexity: O(N + E) where N=nodes, E=edges
+
+        Returns
+        -------
+        dict[str, dict]
+            Dictionary mapping port names to their specifications.
+            Each spec contains: name, dtype, shape, required
+
+        Example
+        -------
+        >>> canvas.get_input_specs()
+        {
+            'cube': {
+                'name': 'cube',
+                'dtype': 'float32',
+                'shape': [-1, -1, -1, -1],  # [B, H, W, C]
+                'required': True
+            }
+        }
+        """
+        # Step 1: Build set of connected input ports - O(E)
+        connected_inputs: set[tuple[Node, str]] = set()
+        for _source_node, target_node, edge_data in self._graph.edges(data=True):
+            to_port = edge_data.get("to_port")
+            if to_port:
+                connected_inputs.add((target_node, to_port))
+
+        # Step 2: Find unconnected input ports - O(N * avg_ports)
+        input_specs = {}
+        for node in self._graph.nodes():
+            for port_name, port_spec in getattr(node, "INPUT_SPECS", {}).items():
+                # Handle variadic ports
+                if isinstance(port_spec, list):
+                    port_spec = port_spec[0]
+
+                # O(1) lookup in set
+                if (node, port_name) not in connected_inputs:
+                    spec_dict = {
+                        "name": port_name,
+                        "dtype": self._dtype_to_string(port_spec.dtype),
+                        "shape": list(port_spec.shape) if hasattr(port_spec, "shape") else [-1],
+                        "required": not getattr(port_spec, "optional", False),
+                    }
+                    input_specs[port_name] = spec_dict
+
+        return input_specs
+
+    def get_output_specs(self) -> dict[str, dict]:
+        """Get output specifications for canvas exit points.
+
+        Returns specifications for ports that are not connected to any successor
+        (i.e., they are final outputs of the canvas).
+
+        Time Complexity: O(N + E) where N=nodes, E=edges
+
+        Returns
+        -------
+        dict[str, dict]
+            Dictionary mapping output keys ("node.port") to their specifications.
+            Each spec contains: name, dtype, shape, required
+
+        Example
+        -------
+        >>> canvas.get_output_specs()
+        {
+            'selector.selected': {
+                'name': 'selector.selected',
+                'dtype': 'float32',
+                'shape': [-1, -1, -1, -1],
+                'required': False
+            },
+            'decider.decisions': {
+                'name': 'decider.decisions',
+                'dtype': 'bool',
+                'shape': [-1],
+                'required': False
+            }
+        }
+        """
+        # Step 1: Build set of connected output ports - O(E)
+        connected_outputs: set[tuple[Node, str]] = set()
+        for source_node, _target_node, edge_data in self._graph.edges(data=True):
+            from_port = edge_data.get("from_port")
+            if from_port:
+                connected_outputs.add((source_node, from_port))
+
+        # Step 2: Find unconnected output ports - O(N * avg_ports)
+        output_specs = {}
+        for node in self._graph.nodes():
+            for port_name, port_spec in getattr(node, "OUTPUT_SPECS", {}).items():
+                # Handle variadic ports
+                if isinstance(port_spec, list):
+                    port_spec = port_spec[0]
+
+                # O(1) lookup in set
+                if (node, port_name) not in connected_outputs:
+                    output_key = f"{node.name}.{port_name}"
+                    spec_dict = {
+                        "name": output_key,
+                        "dtype": self._dtype_to_string(port_spec.dtype),
+                        "shape": list(port_spec.shape) if hasattr(port_spec, "shape") else [-1],
+                        "required": False,
+                    }
+                    output_specs[output_key] = spec_dict
+
+        return output_specs
+
+    def _dtype_to_string(self, dtype) -> str:
+        """Convert dtype to string representation.
+
+        Time Complexity: O(1)
+
+        Parameters
+        ----------
+        dtype : type or torch.dtype or np.dtype
+            Data type to convert
+
+        Returns
+        -------
+        str
+            String representation like "float32", "int32", etc.
+        """
+        import numpy as np
+
+        # Handle PyTorch dtypes
+        if isinstance(dtype, torch.dtype):
+            dtype_map = {
+                torch.float32: "float32",
+                torch.float64: "float64",
+                torch.int32: "int32",
+                torch.int64: "int64",
+                torch.uint8: "uint8",
+                torch.bool: "bool",
+                torch.float16: "float16",
+            }
+            return dtype_map.get(dtype, "float32")
+
+        # Handle numpy dtypes
+        if isinstance(dtype, type) and issubclass(dtype, np.generic):
+            return dtype.__name__
+
+        # Handle Python types
+        if dtype is float:
+            return "float32"
+        if dtype is int:
+            return "int64"
+        if dtype is bool:
+            return "bool"
+
+        # Default
+        return "float32"
 
     @property
     def nodes(self) -> NodeView:

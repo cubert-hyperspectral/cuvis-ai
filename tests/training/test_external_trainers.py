@@ -282,7 +282,7 @@ class TestGradientTrainer:
         initial_outputs = canvas.forward(stage=ExecutionStage.TRAIN, batch=initial_batch)
 
         # Extract initial loss directly from the loss node
-        loss_key = (loss_node.id, "loss")
+        loss_key = (loss_node.name, "loss")
         initial_loss = initial_outputs[loss_key].item()
 
         # Record initial parameters
@@ -290,10 +290,10 @@ class TestGradientTrainer:
         projection_node_id = None
         for node in canvas.nodes():
             if isinstance(node, TrainableProjection):
-                initial_params[node.id] = {
+                initial_params[node.name] = {
                     name: param.clone().detach() for name, param in node.named_parameters()
                 }
-                projection_node_id = node.id
+                projection_node_id = node.name
                 break
 
         assert projection_node_id is not None, "Could not find projection node"
@@ -328,7 +328,7 @@ class TestGradientTrainer:
         final_outputs = canvas.forward(stage=ExecutionStage.TRAIN, batch=initial_batch)
 
         # Extract final loss directly from the loss node
-        loss_key = (loss_node.id, "loss")
+        loss_key = (loss_node.name, "loss")
         final_loss = final_outputs[loss_key].item()
 
         # Verify loss decreased
@@ -342,7 +342,7 @@ class TestGradientTrainer:
             # Find node by id
             target_node = None
             for node in canvas.nodes():
-                if node.id == node_id:
+                if node.name == node_id:
                     target_node = node
                     break
             assert target_node is not None, f"Could not find node with id {node_id}"
