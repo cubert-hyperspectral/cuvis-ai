@@ -179,7 +179,7 @@ class TestRuntimeOutputValidation:
 
         # Should not raise
         outputs = canvas.forward(stage=ExecutionStage.INFERENCE)
-        assert (node.id, "result") in outputs
+        assert (node.name, "result") in outputs
 
     def test_wrong_dtype_output_fails(self):
         """Test that wrong output dtype is caught."""
@@ -235,7 +235,7 @@ class TestRuntimeOutputValidation:
 
         # Should not raise even with wrong dtype
         outputs = canvas.forward(stage=ExecutionStage.INFERENCE)
-        assert (node.id, "result") in outputs
+        assert (node.name, "result") in outputs
 
 
 class WrongDtypeSourceNode(Node):
@@ -330,7 +330,7 @@ class TestRuntimeInputValidation:
 
         # Different batch sizes should work (first 3 dims are flexible)
         outputs = canvas.forward(stage=ExecutionStage.INFERENCE)
-        assert (node.id, "result") in outputs
+        assert (node.name, "result") in outputs
 
 
 class TestBinaryDeciderBug:
@@ -389,6 +389,6 @@ class TestBinaryDeciderBug:
         outputs = canvas.forward(stage=ExecutionStage.INFERENCE)
 
         # Verify output is bool with correct shape
-        decisions = outputs[(decider.id, "decisions")]
+        decisions = outputs[(decider.name, "decisions")]
         assert decisions.dtype == torch.bool
         assert decisions.shape == (2, 4, 4, 1)

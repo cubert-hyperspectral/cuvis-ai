@@ -82,7 +82,7 @@ class SingleCu3sDataset(Dataset):
 
     def __getitem__(self, idx: int) -> dict[str, np.ndarray | int]:
         mesu_index = self.measurement_indices[idx]
-        mesu = self.session.get_measurement(mesu_index) # starts the cound from 0
+        mesu = self.session.get_measurement(mesu_index)  # starts the cound from 0
         if "cube" not in mesu.data:
             mesu = self.pc.apply(mesu)
         cube_array = mesu.cube.array.astype(np.float32)

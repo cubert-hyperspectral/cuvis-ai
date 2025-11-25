@@ -9,9 +9,9 @@ def restructure_output_to_node_dict(
     """Transform graph outputs from flat structure to nested structure.
 
     Transforms:
-        dict[(node_id, port_name), value]
+        dict[(node_name, port_name), value]
     To:
-        dict[node_id, dict[port_name, value]]
+        dict[node_name, dict[port_name, value]]
 
     This enables O(1) lookup per node instead of O(n_outputs) iteration,
     which is critical for efficient loss and metric collection.
@@ -19,18 +19,18 @@ def restructure_output_to_node_dict(
     Parameters
     ----------
     outputs : dict[tuple[str, str], Any]
-        Graph outputs keyed by (node_id, port_name) tuples
+        Graph outputs keyed by (node_name, port_name) tuples
 
     Returns
     -------
     dict[str, dict[str, Any]]
-        Restructured outputs with node_id as primary key
+        Restructured outputs with node_name as primary key
 
     Examples
     --------
     >>> outputs = {
-    ...     ("loss_node_123", "loss"): tensor(0.5),
-    ...     ("metric_node_456", "metrics"): [Metric(...), Metric(...)],
+    ...     ("loss_node", "loss"): tensor(0.5),
+    ...     ("metric_node", "metrics"): [Metric(...), Metric(...)],
     ... }
     >>> node_dict = restructure_output_to_node_dict(outputs)
     >>> # Access loss: node_dict["loss_node_123"]["loss"]

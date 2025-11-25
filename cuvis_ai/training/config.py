@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass, field
 from typing import Any
@@ -338,6 +339,19 @@ class TrainingConfig:
     trainer: TrainerConfig = field(default_factory=TrainerConfig)
     optimizer: OptimizerConfig = field(default_factory=OptimizerConfig)
     monitor_plugins: list[str] = field(default_factory=lambda: ["loguru"])
+
+    # ------------------------------------------------------------------
+    # Lightweight JSON helpers for RPC serialization
+    # ------------------------------------------------------------------
+    def to_json(self) -> str:
+        """Serialize the training config (including nested configs) to JSON."""
+        return json.dumps(asdict(self))
+
+    @classmethod
+    def from_json(cls, payload: str) -> TrainingConfig:
+        """Deserialize a TrainingConfig from a JSON string."""
+        data = json.loads(payload)
+        return from_dict_config(data)
 
 
 def _config_store() -> ConfigStore:

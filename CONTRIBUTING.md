@@ -56,6 +56,55 @@ Run the module casing guard before opening a pull request to ensure new files fo
 uv run python scripts/check_module_case.py
 ```
 
+### Installing Buf
+
+If you're contributing to the gRPC API, you'll need **Buf** for Protocol Buffer compilation. Buf provides better tooling than `protoc`, including linting, breaking change detection, and dependency management.
+
+**Note:** This is only required for contributors working on `.proto` files. End users don't need Buf.
+
+#### Installation by Platform
+
+**macOS:**
+```bash
+brew install bufbuild/buf/buf
+```
+
+**Linux:**
+```bash
+# Install to ~/.local/bin
+mkdir -p ~/.local/bin
+curl -sSL https://github.com/bufbuild/buf/releases/latest/download/buf-$(uname -s)-$(uname -m) \
+  -o ~/.local/bin/buf
+chmod +x ~/.local/bin/buf
+
+# Add to PATH (add to ~/.bashrc or ~/.zshrc for persistence)
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+**Windows:**
+```powershell
+# Using scoop package manager (recommended)
+scoop install buf
+
+# Or download binary from https://github.com/bufbuild/buf/releases
+# and add to PATH manually
+```
+
+**Verify installation:**
+```bash
+buf --version
+```
+
+You should see output like: `1.28.1` or similar.
+
+#### Buf Benefits for Contributors
+
+- **Linting**: Automatic style checking with 40+ rules
+- **Breaking Change Detection**: Prevents accidental API breakage
+- **Fast Compilation**: ~10x faster than protoc with caching
+- **Simple Commands**: `buf generate` instead of complex protoc invocations
+- **Dependency Management**: Declarative proto dependencies
+
 ### Branch from main
 
 The first step towards a contribution is to clone the repository and create a new branch - see below for the branch name guide.
@@ -79,6 +128,61 @@ If you are not sure which category is the correct one, feel free to contact us: 
 #### Contributing Core-Code
 
 Nothing extra to mention here, just name your feature branch correctly: "contrib_code/[add_my_feature/fix_my_bug]"
+
+#### Contributing to gRPC API
+
+If you're contributing to the gRPC API implementation (ALL-4917), you'll need additional setup for Protocol Buffer development.
+
+**Branch naming:** "contrib_grpc/[feature_name]"
+
+**Prerequisites:**
+- Buf CLI tool installed (see [Installing Buf](#installing-buf) section below)
+- Understanding of Protocol Buffers and gRPC concepts
+
+**File structure for gRPC contributions:**
+```
+cuvis_ai/
+├── proto/
+│   ├── buf.yaml                 # Buf configuration
+│   ├── buf.gen.yaml            # Code generation config
+│   └── cuvis_ai.proto          # Proto definitions
+├── grpc/
+│   ├── __init__.py
+│   ├── cuvis_ai_pb2.py         # Generated (must commit)
+│   ├── cuvis_ai_pb2_grpc.py    # Generated (must commit)
+│   ├── service.py              # Service implementation
+│   └── ...
+```
+
+**Workflow for proto changes:**
+
+1. **Edit proto file**: Modify `proto/cuvis_ai.proto`
+
+2. **Lint and validate**:
+   ```bash
+   cd proto
+   buf lint
+   ```
+
+3. **Check for breaking changes**:
+   ```bash
+   buf breaking --against .git#branch=main
+   ```
+
+4. **Generate Python code**:
+   ```bash
+   buf generate
+   ```
+
+5. **Commit ALL files** (including generated):
+   ```bash
+   git add proto/cuvis_ai.proto
+   git add cuvis_ai/grpc/cuvis_ai_pb2.py
+   git add cuvis_ai/grpc/cuvis_ai_pb2_grpc.py
+   git commit -m "feat(grpc): update proto definitions"
+   ```
+
+**Important:** Always commit generated `*_pb2.py` and `*_pb2_grpc.py` files so that end users who install via pip don't need Buf.
 
 #### Contributing Datasets
 
