@@ -10,7 +10,14 @@ from cuvis_ai.pipeline.ports import PortSpec
 
 
 class _ScoreNormalizerBase(Node):
-    """Base class for differentiable score normalizers operating on BHWC tensors."""
+    """Base class for differentiable score normalizers operating on BHWC tensors.
+
+    Notes
+    -----
+    All normalization nodes in this module expect inputs in BHWC format
+    ([batch, height, width, channels]). Callers are responsible for adding
+    a batch dimension when working with HWC tensors (use `x.unsqueeze(0)`).
+    """
 
     INPUT_SPECS = {
         "data": PortSpec(
@@ -30,12 +37,12 @@ class _ScoreNormalizerBase(Node):
         super().__init__(*args, **kwargs)
 
     def forward(self, data: Tensor, **_: Any) -> dict[str, Tensor]:
-        """Normalize input data.
+        """Normalize input data (BHWC only).
 
         Parameters
         ----------
         data : Tensor
-            Input tensor in BHWC format
+            Input tensor in BHWC format [B, H, W, C]
 
         Returns
         -------
@@ -286,10 +293,41 @@ class SigmoidTransform(Node):
         return {"transformed": torch.sigmoid(data)}
 
 
+class PerPixelUnitNorm(_ScoreNormalizerBase):
+    """Per-pixel mean-centering and L2 normalization across channels."""
+
+    def __init__(self, eps: float = 1e-8, **kwargs) -> None:
+        self.eps = float(eps)
+        super().__init__(eps=self.eps, **kwargs)
+        if not hasattr(self, "_config"):
+            self._config = {}
+        self._config["eps"] = self.eps
+
+    def forward(self, data: Tensor, **_: Any) -> dict[str, Tensor]:
+        """Normalize BHWC tensors per pixel."""
+        normalized = self._normalize(data)
+        return {"normalized": normalized}
+
+    def _normalize(self, tensor: Tensor) -> Tensor:
+        B, H, W, C = tensor.shape
+        flat = tensor.view(B, -1, C)
+        mu = flat.mean(dim=2, keepdim=True)
+        centered = flat - mu
+        l2 = centered.norm(p=2, dim=2, keepdim=True).clamp_min(self.eps)
+        normalized = (centered / l2).view(B, H, W, C)
+        return normalized
+
+    def load(self, params: dict, serial_dir: str) -> None:
+        super().load(params, serial_dir)
+        cfg_eps = getattr(self, "_config", {}).get("eps", self.eps)
+        self.eps = float(cfg_eps)
+
+
 __all__ = [
     "IdentityNormalizer",
     "MinMaxNormalizer",
     "SigmoidNormalizer",
     "ZScoreNormalizer",
     "SigmoidTransform",
+    "PerPixelUnitNorm",
 ]

@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Generator
 
-from grpc_health.v1 import health_pb2, health_pb2_grpc
-
 import grpc
+from grpc_health.v1 import health_pb2, health_pb2_grpc
 
 
 class HealthService(health_pb2_grpc.HealthServicer):

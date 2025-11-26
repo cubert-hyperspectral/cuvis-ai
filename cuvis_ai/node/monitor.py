@@ -45,12 +45,14 @@ class TensorBoardMonitorNode(Node):
                 description="Optional list of Artifact objects to log",
             )
         ],
-        "metrics": PortSpec(
-            dtype=list,
-            shape=(),
-            optional=True,
-            description="Optional list of Metric objects to log",
-        ),
+        "metrics": [
+            PortSpec(
+                dtype=list,
+                shape=(),
+                optional=True,
+                description="Optional list of Metric objects to log",
+            )
+        ],
     }
 
     OUTPUT_SPECS = {}  # Sink node - no outputs!
@@ -189,6 +191,15 @@ class TensorBoardMonitorNode(Node):
             for artifact in artifacts:
                 self._log_artifact(artifact, stage, step)
             logger.debug(f"Logged {len(artifacts)} artifacts to TensorBoard at step {step}")
+
+        # Flatten metrics if variadic input provided
+        if (
+            metrics is not None
+            and isinstance(metrics, list)
+            and metrics
+            and isinstance(metrics[0], list)
+        ):
+            metrics = [item for sublist in metrics for item in sublist]
 
         # Log metrics
         if metrics is not None:
