@@ -12,10 +12,10 @@ from concurrent import futures
 from pathlib import Path
 from typing import Any
 
+import grpc
 from dotenv import load_dotenv
 from grpc_health.v1 import health_pb2_grpc
 
-import grpc
 from cuvis_ai.grpc import cuvis_ai_pb2_grpc
 from cuvis_ai.grpc.health import HealthService
 from cuvis_ai.grpc.service import CuvisAIService

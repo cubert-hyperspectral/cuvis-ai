@@ -180,7 +180,6 @@ pyrightconfig.json
 .history/
 /data/
 docs_dev/
-examples/
 /outputs/
 /wandb/
 lightning_logs/

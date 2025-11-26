@@ -7,6 +7,7 @@ from typing import Any
 import torch
 from torch import Tensor
 from torchmetrics.classification import (
+    BinaryAveragePrecision,
     BinaryF1Score,
     BinaryJaccardIndex,
     BinaryPrecision,
@@ -127,6 +128,12 @@ class AnomalyDetectionMetrics(Node):
             shape=(-1, -1, -1, 1),
             description="Ground truth binary masks [B, H, W, 1]",
         ),
+        "logits": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 1),
+            description="Optional anomaly logits/probabilities for AP",
+            optional=True,
+        ),
     }
 
     OUTPUT_SPECS = {"metrics": PortSpec(dtype=list, shape=(), description="List of Metric objects")}
@@ -151,8 +158,15 @@ class AnomalyDetectionMetrics(Node):
         self.recall_metric = BinaryRecall()
         self.f1_metric = BinaryF1Score()
         self.iou_metric = BinaryJaccardIndex()
+        self.average_precision_metric = BinaryAveragePrecision()
 
-    def forward(self, decisions: Tensor, targets: Tensor, context: Context) -> dict[str, Any]:
+    def forward(
+        self,
+        decisions: Tensor,
+        targets: Tensor,
+        context: Context,
+        logits: Tensor | None = None,
+    ) -> dict[str, Any]:
         """Compute anomaly detection metrics using torchmetrics.
 
         Parameters
@@ -176,13 +190,6 @@ class AnomalyDetectionMetrics(Node):
         # Flatten to [N] where N = B*H*W for torchmetrics
         preds_flat = decisions.flatten()  # [B*H*W]
         targets_flat = targets.flatten()  # [B*H*W]
-
-        # Move metrics to same device as input tensors
-        device = preds_flat.device
-        self.precision_metric = self.precision_metric.to(device)
-        self.recall_metric = self.recall_metric.to(device)
-        self.f1_metric = self.f1_metric.to(device)
-        self.iou_metric = self.iou_metric.to(device)
 
         # Compute metrics using torchmetrics (they handle edge cases robustly)
         precision = self.precision_metric(preds_flat, targets_flat)
@@ -220,6 +227,21 @@ class AnomalyDetectionMetrics(Node):
                 batch_idx=context.batch_idx,
             ),
         ]
+
+        if logits is not None:
+            raw_scores = logits.squeeze(-1).flatten().float()
+            probs_for_ap = torch.sigmoid(raw_scores)
+            average_precision = self.average_precision_metric(probs_for_ap, targets_flat)
+
+            metrics.append(
+                Metric(
+                    name="average_precision",
+                    value=average_precision.item(),
+                    stage=context.stage,
+                    epoch=context.epoch,
+                    batch_idx=context.batch_idx,
+                )
+            )
 
         return {"metrics": metrics}
 
