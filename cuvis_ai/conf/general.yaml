@@ -2,7 +2,9 @@
 # Required fields are marked with ???
 
 data:
- 
+  # Directory containing dataset files (use absolute path or path relative to project root)
+  data_dir: C:/Users/anish.raj/projects/gitlab_cuvis_ai_3/cuvis.ai/data/Lentils
+  
   # Processing mode for cuvis data (e.g., Reflectance, Raw, etc.)
   processing_mode: Reflectance
 

@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from loguru import logger
+from torchmetrics.functional.classification import binary_average_precision
 
 from cuvis_ai.node.node import Node
 from cuvis_ai.pipeline.ports import PortSpec
@@ -390,6 +391,12 @@ class AnomalyMask(Node):
             shape=(-1, -1, -1, -1),
             description="Original cube [B, H, W, C] for visualization",
         ),
+        "scores": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 1),
+            description="Optional anomaly logits/scores [B, H, W, 1]",
+            optional=True,
+        ),
     }
 
     OUTPUT_SPECS = {
@@ -417,6 +424,7 @@ class AnomalyMask(Node):
         mask: torch.Tensor | None,
         cube: torch.Tensor,
         context: Context,
+        scores: torch.Tensor | None = None,
     ) -> dict:
         """Create anomaly mask visualizations with GT/pred comparison.
 
@@ -527,6 +535,14 @@ class AnomalyMask(Node):
                 axes[0].set_ylabel("Height")
 
                 # Subplot 2: Cube with TP/FP/FN overlay
+                per_image_ap = None
+                if scores is not None:
+                    raw_scores = scores[i, ..., 0]
+                    probs = torch.sigmoid(raw_scores).flatten()
+                    target_tensor = mask[i, ..., 0].flatten().to(dtype=torch.long)
+                    if probs.numel() == target_tensor.numel():
+                        per_image_ap = binary_average_precision(probs, target_tensor).item()
+
                 axes[1].imshow(cube_norm, cmap="gray", aspect="auto")
 
                 # Create color overlay
@@ -536,11 +552,13 @@ class AnomalyMask(Node):
                 overlay[fn] = [1, 1, 0, 0.6]  # Yellow: False Negatives
                 # TN pixels remain transparent (no overlay)
 
+                overlay_title = f"Overlay (Channel {self.channel}) - IoU: {iou:.3f}"
+                if per_image_ap is not None:
+                    overlay_title += f" | AP: {per_image_ap:.3f}"
+                overlay_title += "\nGreen=TP, Red=FP, Yellow=FN"
+
                 axes[1].imshow(overlay, aspect="auto")
-                axes[1].set_title(
-                    f"Overlay (Channel {self.channel}) - IoU: {iou:.3f}\n"
-                    f"Green=TP, Red=FP, Yellow=FN"
-                )
+                axes[1].set_title(overlay_title)
                 axes[1].set_xlabel("Width")
                 axes[1].set_ylabel("Height")
 
@@ -549,10 +567,11 @@ class AnomalyMask(Node):
 
                 # Add metrics as title (smaller font)
                 metrics_title = (
-                    f"Predicted Mask\n"
-                    f"IoU: {iou:.4f} | Prec: {precision:.4f} | Rec: {recall:.4f}\n"
-                    f"Batch IoU: {batch_iou:.4f} (all {batch_size} imgs) | Ch: {self.channel}/{cube_img.shape[2]}"
+                    f"Predicted Mask\nIoU: {iou:.4f} | Prec: {precision:.4f} | Rec: {recall:.4f}"
                 )
+                if per_image_ap is not None:
+                    metrics_title += f" | AP: {per_image_ap:.4f}"
+                metrics_title += f"\nBatch IoU: {batch_iou:.4f} (all {batch_size} imgs) | Ch: {self.channel}/{cube_img.shape[2]}"
                 axes[2].set_title(metrics_title, fontsize=9)
                 axes[2].set_xlabel("Width")
                 axes[2].set_ylabel("Height")
@@ -656,7 +675,89 @@ class AnomalyMask(Node):
         pass
 
 
+class ScoreHeatmapVisualizer(Node):
+    """Log LAD/RX score heatmaps as TensorBoard artifacts."""
+
+    INPUT_SPECS = {
+        "scores": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 1),
+            description="Anomaly scores [B, H, W, 1]",
+        )
+    }
+
+    OUTPUT_SPECS = {
+        "artifacts": PortSpec(
+            dtype=list,
+            shape=(),
+            description="List of Artifact objects with score heatmaps",
+        )
+    }
+
+    def __init__(
+        self,
+        normalize_scores: bool = True,
+        cmap: str = "inferno",
+        up_to: int | None = 5,
+        **kwargs,
+    ) -> None:
+        self.normalize_scores = normalize_scores
+        self.cmap = cmap
+        self.up_to = up_to
+        super().__init__(
+            execution_stages={ExecutionStage.VAL, ExecutionStage.TEST, ExecutionStage.INFERENCE},
+            normalize_scores=normalize_scores,
+            cmap=cmap,
+            up_to=up_to,
+            **kwargs,
+        )
+
+    def forward(self, scores: torch.Tensor, context: Context) -> dict[str, list[Artifact]]:
+        artifacts: list[Artifact] = []
+        batch_limit = scores.shape[0] if self.up_to is None else min(scores.shape[0], self.up_to)
+
+        for idx in range(batch_limit):
+            score_map = scores[idx, ..., 0].detach().cpu().numpy()
+
+            if self.normalize_scores:
+                min_v = float(score_map.min())
+                max_v = float(score_map.max())
+                if max_v - min_v > 1e-9:
+                    score_map = (score_map - min_v) / (max_v - min_v)
+                else:
+                    score_map = np.zeros_like(score_map)
+
+            fig, ax = plt.subplots(1, 1, figsize=(4, 4))
+            im = ax.imshow(score_map, cmap=self.cmap)
+            ax.set_title(f"Score Heatmap #{idx}")
+            ax.axis("off")
+            fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+            img_array = fig_to_array(fig, dpi=150)
+            plt.close(fig)
+
+            artifact = Artifact(
+                name=f"score_heatmap_img{idx:02d}",
+                value=img_array,
+                el_id=idx,
+                desc="Anomaly score heatmap",
+                type=ArtifactType.IMAGE,
+                stage=context.stage,
+                epoch=context.epoch,
+                batch_idx=context.batch_idx,
+            )
+            artifacts.append(artifact)
+
+        return {"artifacts": artifacts}
+
+    def serialize(self, serial_dir: str) -> dict:
+        return {**self.hparams}
+
+    def load(self, params: dict, serial_dir: str) -> None:
+        pass
+
+
 __all__ = [
     "PCAVisualization",
     "AnomalyMask",
+    "ScoreHeatmapVisualizer",
 ]

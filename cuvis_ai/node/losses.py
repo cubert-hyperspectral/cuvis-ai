@@ -427,10 +427,64 @@ class SelectorDiversityRegularizer(Node):
         pass
 
 
+class DeepSVDDSoftBoundaryLoss(Node):
+    """Soft-boundary Deep SVDD objective operating on BHWD embeddings."""
+
+    INPUT_SPECS = {
+        "embeddings": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, -1),
+            description="Deep SVDD embeddings [B, H, W, D]",
+        ),
+        "center": PortSpec(
+            dtype=torch.float32,
+            shape=(-1,),
+            description="Deep SVDD center vector",
+        ),
+    }
+
+    OUTPUT_SPECS = {
+        "loss": PortSpec(dtype=torch.float32, shape=(), description="Deep SVDD soft-boundary loss"),
+    }
+
+    def __init__(self, nu: float = 0.05, weight: float = 1.0, **kwargs) -> None:
+        if not (0.0 < nu < 1.0):
+            raise ValueError("nu must be in (0, 1)")
+        self.nu = float(nu)
+        self.weight = float(weight)
+
+        super().__init__(nu=self.nu, weight=self.weight, **kwargs)
+
+        self.r_unconstrained = nn.Parameter(torch.tensor(0.0))
+
+    def forward(self, embeddings: Tensor, center: Tensor, **_: Any) -> dict[str, Tensor]:
+        B, H, W, D = embeddings.shape
+        z = embeddings.reshape(B * H * W, D)
+        R = torch.nn.functional.softplus(self.r_unconstrained, beta=10.0)
+        dist = torch.sum((z - center.view(1, -1)) ** 2, dim=1)
+        slack = torch.relu(dist - R**2)
+        base_loss = R**2 + (1.0 / self.nu) * slack.mean()
+        loss = self.weight * base_loss
+
+        return {"loss": loss}
+
+    def serialize(self, serial_dir: str) -> dict:
+        return {
+            **self.hparams,
+            "state_dict": self.state_dict(),
+        }
+
+    def load(self, params: dict, serial_dir: str) -> None:
+        state = params.get("state_dict", {})
+        if state:
+            self.load_state_dict(state, strict=False)
+
+
 __all__ = [
     "OrthogonalityLoss",
     "AnomalyBCEWithLogits",
     "MSEReconstructionLoss",
     "SelectorEntropyRegularizer",
     "SelectorDiversityRegularizer",
+    "DeepSVDDSoftBoundaryLoss",
 ]

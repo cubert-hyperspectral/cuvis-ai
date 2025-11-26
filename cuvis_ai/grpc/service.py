@@ -10,10 +10,10 @@ from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import Any
 
+import grpc
 import numpy as np
 import torch
 
-import grpc
 from cuvis_ai.data.lentils_anomaly import SingleCu3sDataModule
 from cuvis_ai.grpc.callbacks import ProgressStreamCallback
 from cuvis_ai.training.config import TrainingConfig, create_callbacks_from_config
@@ -732,7 +732,7 @@ class CuvisAIService(cuvis_ai_pb2_grpc.CuvisAIServiceServicer):
         # data_config should be validated by caller, but add safety check
         if session.data_config is None:
             raise ValueError("data_config is required for gradient training")
-        
+
         loss_nodes, metric_nodes = self._configure_gradient_components(session, session.data_config)
 
         progress_queue: queue.Queue[cuvis_ai_pb2.TrainResponse] = queue.Queue()
