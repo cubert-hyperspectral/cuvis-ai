@@ -17,7 +17,7 @@ from cuvis_ai.node.metrics import ExplainedVarianceMetric
 from cuvis_ai.node.node import Node
 from cuvis_ai.node.normalization import MinMaxNormalizer
 from cuvis_ai.node.pca import TrainablePCA
-from cuvis_ai.pipeline.canvas import CuvisCanvas
+from cuvis_ai.pipeline.pipeline import CuvisPipeline
 from cuvis_ai.pipeline.ports import PortSpec
 from cuvis_ai.training.datamodule import CuvisDataModule
 from cuvis_ai.training.trainers import StatisticalTrainer
@@ -53,12 +53,6 @@ class SimpleDataNode(Node):
     def forward(self, cube, context):
         """Pass through the cube data."""
         return {"cube": cube}
-
-    def serialize(self, serial_dir: str) -> dict:
-        return {**self.hparams}
-
-    def load(self, params: dict, serial_dir: str) -> None:
-        pass
 
 
 class SyntheticDataModule(CuvisDataModule):
@@ -114,7 +108,7 @@ def get_memory_usage() -> dict[str, float]:
     return mem_info
 
 
-def create_test_graph(n_channels: int = 10) -> tuple[CuvisCanvas, dict]:
+def create_test_graph(n_channels: int = 10) -> tuple[CuvisPipeline, dict]:
     """Create a test graph with standard nodes for stress testing.
 
     Parameters
@@ -127,31 +121,31 @@ def create_test_graph(n_channels: int = 10) -> tuple[CuvisCanvas, dict]:
     tuple
         (graph, config_dict) where config_dict contains node references
     """
-    canvas = CuvisCanvas("stress_test")
+    pipeline = CuvisPipeline("stress_test")
 
     # Data node to extract cube from batch
     data_node = SimpleDataNode()
 
     # Normalizer
     normalizer = MinMaxNormalizer(use_running_stats=True)
-    canvas.connect(data_node.outputs.cube, normalizer.data)
+    pipeline.connect(data_node.outputs.cube, normalizer.data)
 
     # PCA (trainable) - before RX to reduce dimensionality for downstream metrics
     n_components = min(3, n_channels)  # Don't exceed available channels
     pca = TrainablePCA(n_components=n_components, trainable=True)
-    canvas.connect(normalizer.normalized, pca.data)
+    pipeline.connect(normalizer.normalized, pca.data)
 
     # RX detector operates on the normalized full channel space to keep statistics aligned
-    rx = RXGlobal()
-    canvas.connect(normalizer.normalized, rx.data)
+    rx = RXGlobal(num_channels=n_channels)
+    pipeline.connect(normalizer.normalized, rx.data)
 
     # Loss leaf on PCA
     orth_loss = OrthogonalityLoss(weight=0.1)
-    canvas.connect(pca.outputs.components, orth_loss.components)
+    pipeline.connect(pca.outputs.components, orth_loss.components)
 
     # Metric leaf on PCA
     var_metric = ExplainedVarianceMetric()
-    canvas.connect(pca.outputs.explained_variance_ratio, var_metric.explained_variance_ratio)
+    pipeline.connect(pca.outputs.explained_variance_ratio, var_metric.explained_variance_ratio)
 
     config = {
         "data_node": data_node,
@@ -162,7 +156,7 @@ def create_test_graph(n_channels: int = 10) -> tuple[CuvisCanvas, dict]:
         "var_metric": var_metric,
     }
 
-    return canvas, config
+    return pipeline, config
 
 
 @pytest.mark.stress
@@ -204,7 +198,7 @@ def test_small_scale():
     # (since max_epochs was 2, we'll do statistical init + a bit of gradient)
     # But based on the test context, this is primarily testing statistical initialization
     start_time = time.time()
-    trainer = StatisticalTrainer(canvas=graph, datamodule=datamodule)
+    trainer = StatisticalTrainer(pipeline=graph, datamodule=datamodule)
     trainer.fit()
     train_time = time.time() - start_time
 
@@ -272,7 +266,7 @@ def test_medium_scale():
 
     # Train using StatisticalTrainer
     start_time = time.time()
-    trainer = StatisticalTrainer(canvas=graph, datamodule=datamodule)
+    trainer = StatisticalTrainer(pipeline=graph, datamodule=datamodule)
     trainer.fit()
     train_time = time.time() - start_time
 
@@ -293,7 +287,9 @@ def test_medium_scale():
     print(f"  Time per sample: {train_time / stats['n_samples']:.4f} seconds")
 
     # Verify gradient computation
-    assert nodes["pca"].components.grad is None or True, "Gradient computation working"
+    components = nodes["pca"]._components
+    assert isinstance(components, torch.Tensor), "PCA components should be a tensor after init"
+    assert components.grad is None, "Statistical init should not track gradients yet"
 
     print("\n✓ Medium scale test passed")
 
@@ -330,7 +326,7 @@ def test_varying_channels():
 
         # Train and measure using StatisticalTrainer
         start_time = time.time()
-        trainer = StatisticalTrainer(canvas=graph, datamodule=datamodule)
+        trainer = StatisticalTrainer(pipeline=graph, datamodule=datamodule)
         trainer.fit()
         train_time = time.time() - start_time
 
@@ -400,7 +396,7 @@ def test_varying_spatial():
         # Train and measure using StatisticalTrainer
         mem_before = get_memory_usage()
         start_time = time.time()
-        trainer = StatisticalTrainer(canvas=graph, datamodule=datamodule)
+        trainer = StatisticalTrainer(pipeline=graph, datamodule=datamodule)
         trainer.fit()
         train_time = time.time() - start_time
         mem_after = get_memory_usage()
@@ -453,7 +449,7 @@ def test_forward_pass_latency():
     graph, nodes = create_test_graph(n_channels=10)
 
     # Use StatisticalTrainer for initialization
-    trainer = StatisticalTrainer(canvas=graph, datamodule=datamodule)
+    trainer = StatisticalTrainer(pipeline=graph, datamodule=datamodule)
     trainer.fit()
 
     # Test single sample latency

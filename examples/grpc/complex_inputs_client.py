@@ -12,15 +12,11 @@ def main() -> None:
 
     session = stub.CreateSession(
         cuvis_ai_pb2.CreateSessionRequest(
-            pipeline_type="gradient",
-            data_config=cuvis_ai_pb2.DataConfig(
-                cu3s_file_path="/path/to/data.cu3s",
-                batch_size=2,
-            ),
+            pipeline=cuvis_ai_pb2.PipelineConfig(config_bytes=b"channel_selector")
         )
     )
     session_id = session.session_id
-    cube = np.random.rand(1, 32, 32, 61).astype(np.float32)
+    cube = np.random.rand(1, 32, 32, 61).astype(np.uint16)
 
     print("1) Inference with bounding boxes")
     bbox_resp = stub.Inference(
@@ -29,7 +25,7 @@ def main() -> None:
             inputs=cuvis_ai_pb2.InputBatch(
                 cube=cuvis_ai_pb2.Tensor(
                     shape=list(cube.shape),
-                    dtype=cuvis_ai_pb2.D_TYPE_FLOAT32,
+                    dtype=cuvis_ai_pb2.D_TYPE_UINT16,
                     raw_data=cube.tobytes(),
                 ),
                 bboxes=cuvis_ai_pb2.BoundingBoxes(
@@ -55,7 +51,7 @@ def main() -> None:
             inputs=cuvis_ai_pb2.InputBatch(
                 cube=cuvis_ai_pb2.Tensor(
                     shape=list(cube.shape),
-                    dtype=cuvis_ai_pb2.D_TYPE_FLOAT32,
+                    dtype=cuvis_ai_pb2.D_TYPE_UINT16,
                     raw_data=cube.tobytes(),
                 ),
                 points=cuvis_ai_pb2.Points(
@@ -86,7 +82,7 @@ def main() -> None:
             inputs=cuvis_ai_pb2.InputBatch(
                 cube=cuvis_ai_pb2.Tensor(
                     shape=list(cube.shape),
-                    dtype=cuvis_ai_pb2.D_TYPE_FLOAT32,
+                    dtype=cuvis_ai_pb2.D_TYPE_UINT16,
                     raw_data=cube.tobytes(),
                 ),
                 text_prompt="Find anomalies",
@@ -102,7 +98,7 @@ def main() -> None:
             inputs=cuvis_ai_pb2.InputBatch(
                 cube=cuvis_ai_pb2.Tensor(
                     shape=list(cube.shape),
-                    dtype=cuvis_ai_pb2.D_TYPE_FLOAT32,
+                    dtype=cuvis_ai_pb2.D_TYPE_UINT16,
                     raw_data=cube.tobytes(),
                 ),
                 bboxes=cuvis_ai_pb2.BoundingBoxes(

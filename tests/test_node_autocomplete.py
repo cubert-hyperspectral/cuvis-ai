@@ -25,9 +25,6 @@ def test_init_subclass_adds_annotations():
         def forward(self, **inputs):
             return {}
 
-        def load(self, params: dict, serial_dir: str) -> None:
-            pass
-
     # Check that INPUT_SPECS and OUTPUT_SPECS are defined
     assert hasattr(TestNode, "INPUT_SPECS")
     assert hasattr(TestNode, "OUTPUT_SPECS")
@@ -83,9 +80,6 @@ def test_runtime_ports_still_created():
         def forward(self, **inputs):
             return {}
 
-        def load(self, params: dict, serial_dir: str) -> None:
-            pass
-
     # Create instance
     node = TestNode()
 
@@ -113,9 +107,6 @@ def test_duplicate_port_names_use_namespaces():
         def forward(self, **inputs):
             return {}
 
-        def load(self, params: dict, serial_dir: str) -> None:
-            pass
-
     node = DupNode()
 
     # When port name exists in both inputs and outputs, direct access raises error
@@ -136,9 +127,6 @@ def test_annotations_with_inheritance():
 
         def forward(self, **inputs):
             return {}
-
-        def load(self, params: dict, serial_dir: str) -> None:
-            pass
 
     class DerivedNode(BaseNode):
         INPUT_SPECS = {
@@ -169,9 +157,6 @@ def test_empty_specs_doesnt_fail():
 
         def forward(self, **inputs):
             return {}
-
-        def load(self, params: dict, serial_dir: str) -> None:
-            pass
 
     # Should not raise any errors
     node = EmptyNode()

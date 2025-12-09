@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader, Dataset, TensorDataset
 from cuvis_ai.anomaly.rx_detector import RXGlobal
 from cuvis_ai.node.node import Node
 from cuvis_ai.node.selector import SoftChannelSelector
-from cuvis_ai.pipeline.canvas import CuvisCanvas
+from cuvis_ai.pipeline.pipeline import CuvisPipeline
 from cuvis_ai.pipeline.ports import PortSpec
 from cuvis_ai.training import CuvisDataModule, MSEReconstructionLoss
 from cuvis_ai.training.config import OptimizerConfig, TrainerConfig
@@ -32,7 +32,7 @@ class TestGradientTrainer:
             def load(self, params: dict, serial_dir: str) -> None:
                 pass
 
-        canvas = CuvisCanvas("test")
+        pipeline = CuvisPipeline("test")
 
         class MockDataModule(pl.LightningDataModule):
             pass
@@ -42,7 +42,7 @@ class TestGradientTrainer:
 
         # Should raise TypeError - missing required parameter
         with pytest.raises(TypeError, match="loss_nodes"):
-            GradientTrainer(canvas=canvas, datamodule=datamodule, trainer_config=trainer_config)
+            GradientTrainer(pipeline=pipeline, datamodule=datamodule, trainer_config=trainer_config)
 
     def test_gradient_trainer_creates_executor_once(self):
         """Test that GradientTrainer is properly initialized."""
@@ -67,20 +67,20 @@ class TestGradientTrainer:
             def load(self, params: dict, serial_dir: str) -> None:
                 pass
 
-        canvas = CuvisCanvas("test")
+        pipeline = CuvisPipeline("test")
         source = SourceNode()
         loss_node = SimpleLossNode(name="test_loss")
         loss_node.execution_stages = {ExecutionStage.TRAIN, ExecutionStage.VAL}
 
         # Nodes auto-added when connected
-        canvas.connect(source.outputs.out, loss_node.value)
+        pipeline.connect(source.outputs.out, loss_node.value)
 
         class MockDataModule(pl.LightningDataModule):
             pass
 
         trainer_config = TrainerConfig(max_epochs=1)
         trainer = GradientTrainer(
-            canvas=canvas,
+            pipeline=pipeline,
             datamodule=MockDataModule(),
             trainer_config=trainer_config,
             loss_nodes=[loss_node],
@@ -118,11 +118,11 @@ class TestGradientTrainer:
             def load(self, params: dict, serial_dir: str) -> None:
                 pass
 
-        canvas = CuvisCanvas("test")
+        pipeline = CuvisPipeline("test")
         source = SourceNode()
         loss_node = SimpleLossNode(name="test_loss")
         loss_node.execution_stages = {ExecutionStage.TRAIN, ExecutionStage.VAL}
-        canvas.connect(source.outputs.out, loss_node.value)
+        pipeline.connect(source.outputs.out, loss_node.value)
 
         class MockDataModule(pl.LightningDataModule):
             def train_dataloader(self):
@@ -130,7 +130,7 @@ class TestGradientTrainer:
 
         trainer_config = TrainerConfig(max_epochs=1)
         trainer = GradientTrainer(
-            canvas=canvas,
+            pipeline=pipeline,
             datamodule=MockDataModule(),
             trainer_config=trainer_config,
             loss_nodes=[loss_node],
@@ -166,13 +166,9 @@ class TestGradientTrainer:
                 super().__init__()
                 self.register_buffer("mean", torch.zeros(1))
                 self.register_buffer("std", torch.ones(1))
-                self._requires_initial_fit = True
+                self._requires_initial_fit_override = True
 
-            @property
-            def requires_initial_fit(self) -> bool:
-                return self._requires_initial_fit
-
-            def fit(self, input_stream):
+            def statistical_initialization(self, input_stream):
                 """Port-based training."""
                 all_features = []
                 for inputs in input_stream:
@@ -182,9 +178,12 @@ class TestGradientTrainer:
                 all_features = torch.cat(all_features, dim=0)
                 self.mean = all_features.mean(dim=0, keepdim=True)
                 self.std = all_features.std(dim=0, keepdim=True) + 1e-8
-                self._requires_initial_fit = False
+                self._requires_initial_fit_override = False
+                self._statistically_initialized = True
 
             def forward(self, features, **kwargs):
+                if not self._statistically_initialized:
+                    raise RuntimeError("SimpleStatisticalNode not initialized")
                 normalized = (features - self.mean) / self.std
                 return {"normalized": normalized.unsqueeze(-1).unsqueeze(-1)}
 
@@ -251,14 +250,14 @@ class TestGradientTrainer:
                 }
 
         # Build graph
-        canvas = CuvisCanvas("test_training")
+        pipeline = CuvisPipeline("test_training")
         normalizer = SimpleStatisticalNode()
         projection = TrainableProjection(input_dim=10, output_dim=10)
         loss_node = MSEReconstructionLoss(name="mse_loss", weight=1.0)
         loss_node.execution_stages = {ExecutionStage.TRAIN, ExecutionStage.VAL}
 
         # Connect nodes
-        canvas.connect(
+        pipeline.connect(
             (normalizer.normalized, projection.features),
             (projection.outputs.projected, loss_node.reconstruction),
             (normalizer.normalized, loss_node.target),
@@ -268,7 +267,7 @@ class TestGradientTrainer:
         datamodule = TestDataModule(batch_size=16)
 
         # Step 1: Statistical initialization
-        stat_trainer = StatisticalTrainer(canvas=canvas, datamodule=datamodule)
+        stat_trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
         stat_trainer.fit()
 
         # Verify statistical initialization worked
@@ -279,7 +278,7 @@ class TestGradientTrainer:
         datamodule.setup("fit")
         initial_batch = next(iter(datamodule.train_dataloader()))
 
-        initial_outputs = canvas.forward(stage=ExecutionStage.TRAIN, batch=initial_batch)
+        initial_outputs = pipeline.forward(stage=ExecutionStage.TRAIN, batch=initial_batch)
 
         # Extract initial loss directly from the loss node
         loss_key = (loss_node.name, "loss")
@@ -288,7 +287,7 @@ class TestGradientTrainer:
         # Record initial parameters
         initial_params = {}
         projection_node_id = None
-        for node in canvas.nodes():
+        for node in pipeline.nodes():
             if isinstance(node, TrainableProjection):
                 initial_params[node.name] = {
                     name: param.clone().detach() for name, param in node.named_parameters()
@@ -307,7 +306,7 @@ class TestGradientTrainer:
         optimizer_config = OptimizerConfig(name="adam", lr=0.01)
 
         grad_trainer = GradientTrainer(
-            canvas=canvas,
+            pipeline=pipeline,
             datamodule=datamodule,
             trainer_config=trainer_config,
             optimizer_config=optimizer_config,
@@ -325,7 +324,7 @@ class TestGradientTrainer:
         grad_trainer.fit()
 
         # Step 4: Verify training effects
-        final_outputs = canvas.forward(stage=ExecutionStage.TRAIN, batch=initial_batch)
+        final_outputs = pipeline.forward(stage=ExecutionStage.TRAIN, batch=initial_batch)
 
         # Extract final loss directly from the loss node
         loss_key = (loss_node.name, "loss")
@@ -341,7 +340,7 @@ class TestGradientTrainer:
         for node_id in initial_params:
             # Find node by id
             target_node = None
-            for node in canvas.nodes():
+            for node in pipeline.nodes():
                 if node.name == node_id:
                     target_node = node
                     break
@@ -369,31 +368,23 @@ class TestStatisticalTrainer:
 
             def __init__(self):
                 super().__init__()
-                self.initialized = False
-                self._requires_initial_fit = True
+                self._statistically_initialized = False
 
-            @property
-            def requires_initial_fit(self) -> bool:
-                return self._requires_initial_fit
-
-            def fit(self, input_stream):
+            def statistical_initialization(self, input_stream):
                 """Port-based training method."""
                 for inputs in input_stream:
                     _ = inputs["data"]  # From INPUT_SPECS
-                    self.initialized = True
+                self._statistically_initialized = True
 
             def forward(self, data, **kwargs):
                 return {"out": data}
 
-            def load(self, params: dict, serial_dir: str) -> None:
-                pass
-
-        canvas = CuvisCanvas("test")
-        node1 = StatNode()
-        node2 = StatNode()
+        pipeline = CuvisPipeline("test")
+        node1: Node = StatNode()
+        node2: Node = StatNode()
 
         # Nodes auto-added when connected
-        canvas.connect(node1.outputs.out, node2.data)
+        pipeline.connect(node1.outputs.out, node2.data)
 
         class MockDataModule(pl.LightningDataModule):
             def setup(self, stage):
@@ -402,13 +393,13 @@ class TestStatisticalTrainer:
             def train_dataloader(self):
                 return [{"data": torch.randn(10)}]
 
-        trainer = StatisticalTrainer(canvas=canvas, datamodule=MockDataModule())
+        trainer = StatisticalTrainer(pipeline=pipeline, datamodule=MockDataModule())
 
         trainer.fit()
 
         # Both nodes should be initialized
-        assert node1.initialized
-        assert node2.initialized
+        assert node1._statistically_initialized, "Source node was not initialized"
+        assert node2._statistically_initialized, "Dependent node was not initialized"
 
     def test_statistical_trainer_skips_nodes_without_initial_fit(self):
         """Test that nodes without requires_initial_fit are skipped."""
@@ -427,10 +418,7 @@ class TestStatisticalTrainer:
             def forward(self, **inputs):
                 return {"out": torch.tensor(1.0)}
 
-            def load(self, params: dict, serial_dir: str) -> None:
-                pass
-
-        canvas = CuvisCanvas("test")
+        pipeline = CuvisPipeline("test")
         # Create a minimal node without connections
         RegularNode()
 
@@ -441,7 +429,7 @@ class TestStatisticalTrainer:
             def train_dataloader(self):
                 return []
 
-        trainer = StatisticalTrainer(canvas, MockDataModule())
+        trainer = StatisticalTrainer(pipeline, MockDataModule())
 
         # Should not raise error even with no statistical nodes
         trainer.fit()
@@ -452,7 +440,7 @@ class TestTrainerValidation:
 
     def test_trainer_requires_loss_nodes_parameter(self):
         """Test that GradientTrainer requires loss_nodes parameter."""
-        canvas = CuvisCanvas("test")
+        pipeline = CuvisPipeline("test")
 
         class MockDataModule(pl.LightningDataModule):
             pass
@@ -470,7 +458,7 @@ class TestTrainerValidation:
 
         # Test that providing no loss_nodes raises TypeError
         with pytest.raises(TypeError, match="loss_nodes"):
-            GradientTrainer(canvas, MockDataModule())
+            GradientTrainer(pipeline, MockDataModule())
 
 
 class TestGraphInputValidation:
@@ -498,25 +486,25 @@ class TestGraphInputValidation:
             def train_dataloader(self) -> DataLoader:
                 return DataLoader(self.dataset, batch_size=2, shuffle=False)
 
-        canvas = CuvisCanvas("selector_rx_validation")
+        pipeline = CuvisPipeline("selector_rx_validation")
         soft_selector = SoftChannelSelector(
             n_select=2, input_channels=8
         )  # input is data, output is selected
-        rx_node = RXGlobal()  # input is data, output is scores
-        canvas.connect(soft_selector.selected, rx_node.data)
+        rx_node = RXGlobal(num_channels=2)  # input is data, output is scores
+        pipeline.connect(soft_selector.selected, rx_node.data)
 
         datamodule = MockDataModule(
             batch_key="cube"
-        )  # we dont mention cube -> data mapping in canvas, hence forward should fail
+        )  # we dont mention cube -> data mapping in pipeline, hence forward should fail
         bad_batch = next(iter(datamodule.train_dataloader()))
 
         error_match = "missing required inputs"
 
         with pytest.raises(RuntimeError, match=error_match):
-            canvas.forward(stage=ExecutionStage.TRAIN, batch=bad_batch)
+            pipeline.forward(stage=ExecutionStage.TRAIN, batch=bad_batch)
 
         with pytest.raises(RuntimeError, match=error_match):
-            canvas.forward(
+            pipeline.forward(
                 stage=ExecutionStage.TRAIN,
                 batch=bad_batch,
                 upto_node=rx_node,

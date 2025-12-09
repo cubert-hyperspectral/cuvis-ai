@@ -27,11 +27,7 @@ If you want to directly work with cubert session files (.cu3s), you need to inst
 [here](https://cloud.cubert-gmbh.de/s/qpxkyWkycrmBK9m).
 
 Local development now relies on [uv](https://docs.astral.sh/uv/) for Python and dependency management.  
-If `uv` is not already available on your system you can install it with:
-
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
+If `uv` is not already available on your system you can install it following their installation instructions.
 
 ### Local development with uv
 
@@ -42,6 +38,16 @@ uv sync
 ```
 
 This installs the runtime dependencies declared in `pyproject.toml`. `uv` automatically provisions the Python version declared in the project metadata, so no manual interpreter management is required.
+
+#### Enable Git Hooks (Required)
+
+After cloning the repository, enable the git hooks for code quality enforcement:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+This configures Git to use the version-controlled hooks in `.githooks/` which automatically enforce code formatting, linting, and testing standards before commits and pushes. See [docs/development/git-hooks.md](docs/development/git-hooks.md) for details.
 
 #### Advanced environment setup
 
@@ -78,17 +84,11 @@ Validate packaging metadata and build artifacts before publishing:
 uv build
 ```
 
-Detect lingering CamelCase module filenames with:
-
-```bash
-uv run python scripts/check_module_case.py
-```
 
 To build the documentation, add the `docs` extra:
 
 ```bash
 uv sync --locked --extra docs
-uv run sphinx-build -M html docs docs/_build
 ```
 
 Combine extras as needed (e.g. `uv sync --locked --extra dev --extra docs`). Whenever the `pyproject.toml` or `uv.lock` changes, rerun `uv sync --locked` with the extras you need to stay up to date.
@@ -105,7 +105,7 @@ Key features:
 - Remote inference with hyperspectral data
 - Training pipeline management (statistical & gradient-based)
 - Pipeline introspection and visualization
-- Checkpoint management
+- Serialization and restoration management
 
 ### Developing the gRPC API
 

@@ -1,14 +1,10 @@
-"""Statistical Initialization Only - LAD Baseline (Reflectance/Raw toggle).
+"""Statistical Initialization Only - LAD Baseline.
 
-This example mirrors `examples_torch/statistical_training.py`, but swaps the RX detector
-for the newly ported LAD detector. The rest of the pipeline—normalization, metrics,
-visualizations, TensorBoard logging—remains unchanged so we can compare behavior apples-to-apples.
-
-Use the Hydra override `mode=Reflectance` or `mode=Raw` to switch data modes:
-
-    uv run python examples_torch/lad_statistical_training.py mode=Raw
+This example demonstrates LAD detector with statistical training.
+The pipeline includes normalization, metrics, visualizations, and TensorBoard logging.
 """
 
+from pathlib import Path
 from typing import Any
 
 import hydra
@@ -26,9 +22,14 @@ from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.node import Node
 from cuvis_ai.node.normalization import MinMaxNormalizer
 from cuvis_ai.node.visualizations import AnomalyMask, ScoreHeatmapVisualizer
-from cuvis_ai.pipeline.canvas import CuvisCanvas
+from cuvis_ai.pipeline.pipeline import CuvisPipeline
 from cuvis_ai.pipeline.ports import PortSpec
 from cuvis_ai.training import StatisticalTrainer
+from cuvis_ai.training.config import (
+    ExperimentConfig,
+    PipelineMetadata,
+    TrainingConfig,
+)
 from cuvis_ai.utils.types import Context, ExecutionStage, Metric
 
 
@@ -79,111 +80,156 @@ class SampleCustomMetrics(Node):
 
         return {"metrics": metrics}
 
-    def serialize(self, serial_dir: str) -> dict:
-        return {**self.hparams}
 
-    def load(self, params: dict, serial_dir: str) -> None:
-        pass
-
-
-@hydra.main(version_base=None, config_path="../cuvis_ai/conf", config_name="general")
+@hydra.main(config_path="../../configs/", config_name="experiment/default", version_base=None)
 def main(cfg: DictConfig) -> None:
-    dataset_mode = str(getattr(cfg, "mode", "Raw"))
-    normalize_to_unit = bool(getattr(cfg, "normalize_to_unit", False))
-    data_dir = str(getattr(cfg.data, "data_dir", "../data/Lentils"))
-    logger.info("=== Statistical Initialization for LAD Anomaly Detection ===")
-    logger.info(f"Dataset mode: {dataset_mode} | normalize_to_unit={normalize_to_unit}")
+    """LAD Statistical Anomaly Detection with experiment config saving."""
 
-    datamodule = SingleCu3sDataModule(
-        data_dir=data_dir,
-        dataset_name="Lentils",
-        batch_size=4,
-        train_ids=[0],
-        val_ids=[3, 4, 6],
-        test_ids=[1, 5],
-        processing_mode=dataset_mode,
-    )
+    logger.info("=== Statistical LAD Anomaly Detection ===")
+
+    output_dir = Path(cfg.output_dir)
+
+    # Stage 1: Setup datamodule
+    datamodule = SingleCu3sDataModule(**cfg.data)
     datamodule.setup(stage="fit")
 
-    wavelengths = datamodule.train_ds.wavelengths
-    logger.info(f"Wavelength range: {wavelengths.min():.1f} - {wavelengths.max():.1f} nm")
-
-    canvas = CuvisCanvas(f"LAD_Statistical_{dataset_mode}")
+    # Stage 2: Build graph
+    pipeline = CuvisPipeline("LAD_Statistical")
 
     data_node = LentilsAnomalyDataNode(
-        wavelengths=wavelengths,
         normal_class_ids=[0, 1],
+        # {0: 'Unlabeled', 1: 'Lentils_black', 2: 'Lentils_brown', 3: 'Stone', 4: 'Background'}
     )
     normalizer_node = MinMaxNormalizer(eps=1.0e-6, use_running_stats=True)
-    lad_node = LADGlobal(eps=1.0e-8, normalize_laplacian=True, use_numpy_laplacian=True)
+    lad_node = LADGlobal(
+        num_channels=61, eps=1.0e-8, normalize_laplacian=True, use_numpy_laplacian=True
+    )
     decider_node = QuantileBinaryDecider(quantile=0.995)
     metrics_anomaly = AnomalyDetectionMetrics(name="metrics_anomaly")
     sample_metrics = SampleCustomMetrics(name="sample_metrics")
-    viz_mask = AnomalyMask(channel=30, up_to=5)
-    score_viz = ScoreHeatmapVisualizer(normalize_scores=True, up_to=5)
+    viz_mask = AnomalyMask(name="mask", channel=30, up_to=5)
+    score_viz = ScoreHeatmapVisualizer(name="score_heatmap", normalize_scores=True, up_to=5)
+
     tensorboard_node = TensorBoardMonitorNode(
-        run_name=f"lad_statistical_quantile_{dataset_mode.lower()}",
-        output_dir="./outputs/",
+        output_dir=str(output_dir / ".." / "tensorboard"),
+        run_name=pipeline.name,
     )
 
-    # Core processing: optionally normalize to [0, 1] before LAD
-    if normalize_to_unit:
-        canvas.connect(
-            (data_node.outputs.cube, normalizer_node.data),
-            (normalizer_node.normalized, lad_node.data),
-        )
-    else:
-        canvas.connect(
-            (data_node.outputs.cube, lad_node.data),
-        )
+    # Stage 3: Connect graph
 
-    canvas.connect(
-        # LAD scores → quantile threshold
+    pipeline.connect(
+        # Processing flow
+        (data_node.outputs.cube, normalizer_node.data),
+        (normalizer_node.normalized, lad_node.data),
+        # Decision flow
         (lad_node.scores, decider_node.logits),
-        # Visualizations consume raw LAD scores (heatmaps) and cubes/masks (overlay)
-        (lad_node.scores, score_viz.scores),
-        (score_viz.artifacts, tensorboard_node.artifacts),
-        # Metrics consume binary decisions + ground-truth mask (no AP when logits absent)
+        # Metric flow
         (decider_node.decisions, metrics_anomaly.decisions),
         (data_node.outputs.mask, metrics_anomaly.targets),
         (metrics_anomaly.metrics, tensorboard_node.metrics),
-        # Custom per-batch statistics
+        # Sample custom metrics flow
         (decider_node.decisions, sample_metrics.decisions),
         (sample_metrics.metrics, tensorboard_node.metrics),
-        # Mask visualization overlays (decisions + GT + cube)
+        # Visualization flow
+        (lad_node.scores, score_viz.scores),
+        (score_viz.artifacts, tensorboard_node.artifacts),
         (decider_node.decisions, viz_mask.decisions),
         (data_node.outputs.mask, viz_mask.mask),
         (data_node.outputs.cube, viz_mask.cube),
         (viz_mask.artifacts, tensorboard_node.artifacts),
     )
 
-    canvas.visualize(
+    pipeline.visualize(
         format="render_graphviz",
-        output_path=f"outputs/canvases/{canvas.name}.png",
+        output_path=str(output_dir / "pipeline" / f"{pipeline.name}.png"),
         show_execution_stage=True,
     )
-    canvas.visualize(
+
+    pipeline.visualize(
         format="render_mermaid",
-        output_path=f"outputs/canvases/{canvas.name}.md",
+        output_path=str(output_dir / "pipeline" / f"{pipeline.name}.md"),
         direction="LR",
         include_node_class=True,
         wrap_markdown=True,
         show_execution_stage=True,
     )
 
-    stat_trainer = StatisticalTrainer(canvas=canvas, datamodule=datamodule)
+    # Stage 4: Statistical initialization
+    stat_trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
     stat_trainer.fit()
 
-    logger.info("Running validation...")
+    # Identify metric and loss nodes from pipeline
+    loss_nodes_list = [
+        node
+        for node in pipeline.nodes()
+        if hasattr(node, "__class__") and "Loss" in node.__class__.__name__
+    ]
+    metric_nodes_list = [
+        node
+        for node in pipeline.nodes()
+        if hasattr(node, "__class__") and "Metric" in node.__class__.__name__
+    ]
+
+    loss_node_names = [node.name for node in loss_nodes_list]
+    metric_node_names = [node.name for node in metric_nodes_list]
+    logger.info(f"Metric nodes: {metric_node_names}")
+    logger.info(f"Loss nodes: {loss_node_names}")
+
+    # Stage 5: Run validation
+    logger.info("Running validation evaluation...")
     stat_trainer.validate()
 
-    logger.info("Running test...")
+    # Stage 6: Run test
+    logger.info("Running test evaluation...")
     stat_trainer.test()
 
-    logger.info(
-        "Done! View logs via: uv run tensorboard --logdir=./outputs/lad_statistical_%s",
-        dataset_mode.lower(),
+    # Stage 7: Save trained pipeline and experiment config
+    results_dir = output_dir / "trained_models"
+
+    pipeline_output_path = results_dir / f"{pipeline.name}.yaml"
+    logger.info(f"Saving trained pipeline to: {pipeline_output_path}")
+
+    pipeline.save_to_file(
+        str(pipeline_output_path),
+        metadata=PipelineMetadata(
+            name=pipeline.name,
+            description=f"Trained model from {pipeline.name} experiment (statistical training)",
+            tags=["statistical", "lad"],
+            author="cuvis.ai",
+        ),
     )
+    logger.info(f"  Created: {pipeline_output_path}")
+    logger.info(f"  Weights: {pipeline_output_path.with_suffix('.pt')}")
+
+    # Create and save complete experiment config for reproducibility
+    pipeline_config = pipeline.serialize()
+
+    experiment_config = ExperimentConfig(
+        name=cfg.name,
+        pipeline=pipeline_config,
+        data=cfg.data,
+        training=TrainingConfig(seed=42),
+        output_dir=str(output_dir),
+        loss_nodes=loss_node_names,
+        metric_nodes=metric_node_names,
+        freeze_nodes=[],
+        unfreeze_nodes=[],
+    )
+
+    experiment_output_path = results_dir / f"{cfg.name}_experiment.yaml"
+    logger.info(f"Saving experiment config to: {experiment_output_path}")
+    experiment_config.save_to_file(str(experiment_output_path))
+
+    # Stage 8: Report results
+    logger.info("=== Training Complete ===")
+    logger.info(f"Trained pipeline saved: {pipeline_output_path}")
+    logger.info(f"Experiment config saved: {experiment_output_path}")
+    logger.info(f"TensorBoard logs: {tensorboard_node.output_dir}")
+    logger.info("To restore this experiment:")
+    logger.info(
+        f"  uv run python examples/serialization/restore_experiment.py --experiment-path {experiment_output_path}"
+    )
+    logger.info(f"View logs: uv run tensorboard --logdir={output_dir}")
 
 
 if __name__ == "__main__":

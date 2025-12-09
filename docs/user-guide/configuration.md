@@ -117,9 +117,7 @@ config = TrainingConfig(
         lr=0.001,
         weight_decay=0.0,
         betas=(0.9, 0.999),
-    ),
-    monitor_plugins=[]
-)
+    ))
 ```
 
 ### Trainer Parameters

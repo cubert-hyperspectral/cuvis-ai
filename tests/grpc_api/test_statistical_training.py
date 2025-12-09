@@ -5,39 +5,18 @@ import pytest
 from cuvis_ai.grpc import cuvis_ai_pb2
 
 
-@pytest.fixture
-def session_id(grpc_stub, test_data_path, mock_cuvis_sdk):
-    """Create a test session with real data"""
-    cu3s_file = test_data_path / "Lentils" / "Lentils_000.cu3s"
-    json_file = test_data_path / "Lentils" / "Lentils_000.json"
-
-    # Skip if test data not available
-    if not cu3s_file.exists() or not json_file.exists():
-        pytest.skip(f"Test data not found at {test_data_path}")
-
-    request = cuvis_ai_pb2.CreateSessionRequest(
-        pipeline_type="statistical",
-        data_config=cuvis_ai_pb2.DataConfig(
-            cu3s_file_path=str(cu3s_file),
-            annotation_json_path=str(json_file),
-            train_ids=[0, 1, 2],
-            val_ids=[3, 4],
-            test_ids=[5, 6],
-            batch_size=2,
-            processing_mode=cuvis_ai_pb2.PROCESSING_MODE_RAW,
-        ),
-    )
-    response = grpc_stub.CreateSession(request)
-    return response.session_id
-
-
 class TestStatisticalTraining:
     """Test statistical training workflow"""
 
-    def test_train_statistical_completes(self, grpc_stub, session_id):
+    @pytest.mark.slow
+    def test_train_statistical_completes(self, grpc_stub, session, data_config_factory):
         """Test that statistical training completes successfully"""
+        session_id = session()
+        data_config = data_config_factory()
         request = cuvis_ai_pb2.TrainRequest(
-            session_id=session_id, trainer_type=cuvis_ai_pb2.TRAINER_TYPE_STATISTICAL
+            session_id=session_id,
+            trainer_type=cuvis_ai_pb2.TRAINER_TYPE_STATISTICAL,
+            data=data_config,
         )
 
         progress_messages = []
@@ -51,26 +30,31 @@ class TestStatisticalTraining:
         final_progress = progress_messages[-1]
         assert final_progress.status == cuvis_ai_pb2.TRAIN_STATUS_COMPLETE
 
-    def test_statistical_training_updates_canvas(self, grpc_stub, session_id):
-        """Test that statistical training updates canvas nodes"""
-        # Train
+    @pytest.mark.slow
+    def test_statistical_training_updates_pipeline(self, grpc_stub, session, data_config_factory):
+        """Test that statistical training updates pipeline nodes"""
+        session_id = session()
+        data_config = data_config_factory()
+
         request = cuvis_ai_pb2.TrainRequest(
-            session_id=session_id, trainer_type=cuvis_ai_pb2.TRAINER_TYPE_STATISTICAL
+            session_id=session_id,
+            trainer_type=cuvis_ai_pb2.TRAINER_TYPE_STATISTICAL,
+            data=data_config,
         )
 
         for _progress in grpc_stub.Train(request):
             pass  # Consume all progress messages
 
-        # Verify canvas is updated by running inference
+        # Verify pipeline is updated by running inference
         # (Statistical training should initialize normalizers, selectors, etc.)
-        cube = np.random.rand(1, 32, 32, 61).astype(np.float32)
+        cube = np.random.randint(0, 65535, size=(1, 32, 32, 61), dtype=np.uint16)
 
         inference_request = cuvis_ai_pb2.InferenceRequest(
             session_id=session_id,
             inputs=cuvis_ai_pb2.InputBatch(
                 cube=cuvis_ai_pb2.Tensor(
                     shape=[1, 32, 32, 61],
-                    dtype=cuvis_ai_pb2.D_TYPE_FLOAT32,
+                    dtype=cuvis_ai_pb2.D_TYPE_UINT16,
                     raw_data=cube.tobytes(),
                 )
             ),
@@ -81,10 +65,15 @@ class TestStatisticalTraining:
         # Should have outputs (mask, decisions, etc.)
         assert len(response.outputs) > 0
 
-    def test_statistical_training_status(self, grpc_stub, session_id):
+    @pytest.mark.slow
+    def test_statistical_training_status(self, grpc_stub, session, data_config_factory):
         """Test progress status during statistical training"""
+        session_id = session()
+        data_config = data_config_factory()
         request = cuvis_ai_pb2.TrainRequest(
-            session_id=session_id, trainer_type=cuvis_ai_pb2.TRAINER_TYPE_STATISTICAL
+            session_id=session_id,
+            trainer_type=cuvis_ai_pb2.TRAINER_TYPE_STATISTICAL,
+            data=data_config,
         )
 
         statuses = []
@@ -98,6 +87,7 @@ class TestStatisticalTraining:
         )
         assert statuses[-1] == cuvis_ai_pb2.TRAIN_STATUS_COMPLETE
 
+    @pytest.mark.slow
     def test_invalid_session_training(self, grpc_stub):
         """Test error for training with invalid session"""
         request = cuvis_ai_pb2.TrainRequest(
@@ -110,11 +100,15 @@ class TestStatisticalTraining:
 
         assert exc_info.value.code() == grpc.StatusCode.NOT_FOUND
 
-    def test_get_train_status(self, grpc_stub, session_id):
+    @pytest.mark.slow
+    def test_get_train_status(self, grpc_stub, session, data_config_factory):
         """Test GetTrainStatus RPC"""
-        # Start training (non-blocking in real implementation)
+        session_id = session()
+        data_config = data_config_factory()
         train_request = cuvis_ai_pb2.TrainRequest(
-            session_id=session_id, trainer_type=cuvis_ai_pb2.TRAINER_TYPE_STATISTICAL
+            session_id=session_id,
+            trainer_type=cuvis_ai_pb2.TRAINER_TYPE_STATISTICAL,
+            data=data_config,
         )
 
         # In simplified test, just consume training
@@ -127,23 +121,17 @@ class TestStatisticalTraining:
         status_response = grpc_stub.GetTrainStatus(status_request)
 
         # Should have status
-        assert status_response.status in [
+        assert status_response.latest_progress.status in [
             cuvis_ai_pb2.TRAIN_STATUS_RUNNING,
             cuvis_ai_pb2.TRAIN_STATUS_COMPLETE,
             cuvis_ai_pb2.TRAIN_STATUS_ERROR,
         ]
 
-    def test_train_without_data_config_fails(self, grpc_stub):
+    @pytest.mark.slow
+    def test_train_without_data_config_fails(self, grpc_stub, session):
         """Test that training fails gracefully when data_config is not provided"""
-        # Create session without data_config (inference-only)
-        create_request = cuvis_ai_pb2.CreateSessionRequest(
-            pipeline_type="statistical",
-            # data_config intentionally omitted
-        )
-        create_response = grpc_stub.CreateSession(create_request)
-        session_id = create_response.session_id
+        session_id = session()
 
-        # Attempt to train should fail with FAILED_PRECONDITION
         train_request = cuvis_ai_pb2.TrainRequest(
             session_id=session_id, trainer_type=cuvis_ai_pb2.TRAINER_TYPE_STATISTICAL
         )
@@ -152,6 +140,6 @@ class TestStatisticalTraining:
             for _progress in grpc_stub.Train(train_request):
                 pass
 
-        assert exc_info.value.code() == grpc.StatusCode.FAILED_PRECONDITION
+        assert exc_info.value.code() == grpc.StatusCode.INVALID_ARGUMENT
         details = exc_info.value.details()
-        assert details is not None and "data_config" in details.lower()
+        assert details is not None and "data" in details.lower()

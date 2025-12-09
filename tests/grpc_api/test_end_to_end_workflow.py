@@ -3,38 +3,32 @@ from pathlib import Path
 import grpc
 import numpy as np
 import pytest
+import yaml
 
 from cuvis_ai.grpc import cuvis_ai_pb2, helpers
 from cuvis_ai.training.config import OptimizerConfig, TrainerConfig, TrainingConfig
-
-
-def _data_files(test_data_path: Path) -> tuple[Path, Path]:
-    cu3s_file = test_data_path / "Lentils" / "Lentils_000.cu3s"
-    json_file = test_data_path / "Lentils" / "Lentils_000.json"
-    if not cu3s_file.exists() or not json_file.exists():
-        pytest.skip(f"Test data not found under {test_data_path}")
-    return cu3s_file, json_file
+from tests.fixtures import create_pipeline_config_proto
 
 
 class TestCompleteWorkflow:
     """End-to-end integration flows for the gRPC service."""
 
-    def test_full_statistical_workflow(self, grpc_stub, test_data_path, mock_cuvis_sdk):
-        cu3s_file, json_file = _data_files(test_data_path)
+    def test_full_statistical_workflow(self, grpc_stub, test_data_files, mock_cuvis_sdk):
+        cu3s_file, json_file = test_data_files
 
         # 1. Create session
+        data_config = cuvis_ai_pb2.DataConfig(
+            cu3s_file_path=str(cu3s_file),
+            annotation_json_path=str(json_file),
+            train_ids=[0, 1, 2],
+            val_ids=[3, 4],
+            test_ids=[5, 6],
+            batch_size=2,
+            processing_mode=cuvis_ai_pb2.PROCESSING_MODE_REFLECTANCE,
+        )
         session_resp = grpc_stub.CreateSession(
             cuvis_ai_pb2.CreateSessionRequest(
-                pipeline_type="statistical",
-                data_config=cuvis_ai_pb2.DataConfig(
-                    cu3s_file_path=str(cu3s_file),
-                    annotation_json_path=str(json_file),
-                    train_ids=[0, 1, 2],
-                    val_ids=[3, 4],
-                    test_ids=[5, 6],
-                    batch_size=2,
-                    processing_mode=cuvis_ai_pb2.PROCESSING_MODE_REFLECTANCE,
-                ),
+                pipeline=create_pipeline_config_proto("channel_selector")
             )
         )
         session_id = session_resp.session_id
@@ -56,6 +50,7 @@ class TestCompleteWorkflow:
                 cuvis_ai_pb2.TrainRequest(
                     session_id=session_id,
                     trainer_type=cuvis_ai_pb2.TRAINER_TYPE_STATISTICAL,
+                    data=data_config,
                 )
             )
         }
@@ -63,7 +58,7 @@ class TestCompleteWorkflow:
         assert cuvis_ai_pb2.TRAIN_STATUS_COMPLETE in statuses
 
         # 4. Inference
-        cube = np.random.rand(1, 16, 16, 61).astype(np.float32)
+        cube = np.random.randint(0, 65535, size=(1, 16, 16, 61), dtype=np.uint16)
         inference_resp = grpc_stub.Inference(
             cuvis_ai_pb2.InferenceRequest(
                 session_id=session_id,
@@ -76,26 +71,56 @@ class TestCompleteWorkflow:
         close_resp = grpc_stub.CloseSession(cuvis_ai_pb2.CloseSessionRequest(session_id=session_id))
         assert close_resp.success
 
-    def test_full_gradient_workflow(self, grpc_stub, test_data_path, mock_cuvis_sdk, tmp_path):
-        cu3s_file, json_file = _data_files(test_data_path)
+    def test_full_gradient_workflow(self, grpc_stub, test_data_files, mock_cuvis_sdk, tmp_path):
+        cu3s_file, json_file = test_data_files
 
-        # 1. Create session
-        session_resp = grpc_stub.CreateSession(
-            cuvis_ai_pb2.CreateSessionRequest(
-                pipeline_type="gradient",
-                data_config=cuvis_ai_pb2.DataConfig(
-                    cu3s_file_path=str(cu3s_file),
-                    annotation_json_path=str(json_file),
-                    train_ids=[0, 1, 2],
-                    val_ids=[3, 4],
-                    batch_size=2,
-                    processing_mode=cuvis_ai_pb2.PROCESSING_MODE_REFLECTANCE,
-                ),
-            )
+        # 1. Create experiment config file with complete configuration
+        experiment_path = tmp_path / "test_experiment.yaml"
+
+        # Load the base pipeline config
+        pipeline_config_path = Path("configs/pipeline/channel_selector.yaml")
+        with open(pipeline_config_path) as f:
+            pipeline_dict = yaml.safe_load(f)
+
+        # Create complete experiment config with loss_nodes, metric_nodes, and unfreeze_nodes
+        experiment_dict = {
+            "name": "test_channel_selector_experiment",
+            "pipeline": pipeline_dict,
+            "data": {
+                "cu3s_file_path": str(cu3s_file),
+                "annotation_json_path": str(json_file),
+                "train_ids": [0, 1, 2],
+                "val_ids": [3, 4],
+                "batch_size": 2,
+                "processing_mode": "Reflectance",
+            },
+            "training": {
+                "seed": 42,
+                "trainer": {
+                    "max_epochs": 2,
+                    "accelerator": "cpu",
+                },
+                "optimizer": {
+                    "name": "adam",
+                    "lr": 0.001,
+                },
+            },
+            "loss_nodes": ["bce"],
+            "metric_nodes": ["metrics_anomaly"],
+            "unfreeze_nodes": ["SoftChannelSelector", "RXGlobal", "RXLogitHead"],
+        }
+
+        with open(experiment_path, "w") as f:
+            yaml.dump(experiment_dict, f, default_flow_style=False)
+
+        # 2. Restore experiment (creates session with complete config)
+        restore_resp = grpc_stub.RestoreExperiment(
+            cuvis_ai_pb2.RestoreExperimentRequest(experiment_path=str(experiment_path))
         )
-        session_id = session_resp.session_id
+        session_id = restore_resp.session_id
+        assert session_id
 
-        # 2. Statistical warmup
+        # 3. Statistical warmup
         for _ in grpc_stub.Train(
             cuvis_ai_pb2.TrainRequest(
                 session_id=session_id,
@@ -104,71 +129,66 @@ class TestCompleteWorkflow:
         ):
             pass
 
-        # 3. Validate config before gradient training
+        # 4. Validate config before gradient training
         config = TrainingConfig(
             trainer=TrainerConfig(max_epochs=2, accelerator="cpu"),
             optimizer=OptimizerConfig(name="adam", lr=0.001),
         )
         validation = grpc_stub.ValidateTrainingConfig(
             cuvis_ai_pb2.ValidateTrainingConfigRequest(
-                config=cuvis_ai_pb2.TrainingConfig(config_json=config.to_json().encode())
+                config=cuvis_ai_pb2.TrainingConfig(config_bytes=config.to_json().encode())
             )
         )
         assert validation.valid
         assert not validation.errors
 
-        # 4. Gradient training with progress monitoring
+        # 5. Gradient training with progress monitoring (uses config from experiment)
         progress_updates = list(
             grpc_stub.Train(
                 cuvis_ai_pb2.TrainRequest(
                     session_id=session_id,
                     trainer_type=cuvis_ai_pb2.TRAINER_TYPE_GRADIENT,
-                    config=cuvis_ai_pb2.TrainingConfig(config_json=config.to_json().encode()),
                 )
             )
         )
         assert progress_updates
         assert progress_updates[-1].status == cuvis_ai_pb2.TRAIN_STATUS_COMPLETE
 
-        # 5. Save checkpoint
-        checkpoint_path = tmp_path / "model.ckpt"
-        save_resp = grpc_stub.SaveCheckpoint(
-            cuvis_ai_pb2.SaveCheckpointRequest(
+        # 6. Save pipeline
+        pipeline_path = tmp_path / "model.yaml"
+        save_resp = grpc_stub.SavePipeline(
+            cuvis_ai_pb2.SavePipelineRequest(
                 session_id=session_id,
-                checkpoint_path=str(checkpoint_path),
+                pipeline_path=str(pipeline_path),
             )
         )
         assert save_resp.success
-        assert checkpoint_path.exists()
+        assert Path(save_resp.pipeline_path).exists()
+        assert Path(save_resp.weights_path).exists()
 
-        # 6. Inference
-        cube = np.random.rand(1, 16, 16, 61).astype(np.float32)
+        # 7. Inference
+        cube = np.random.randint(0, 65535, size=(1, 16, 16, 61), dtype=np.uint16)
         inference_resp = grpc_stub.Inference(
             cuvis_ai_pb2.InferenceRequest(
                 session_id=session_id,
                 inputs=cuvis_ai_pb2.InputBatch(cube=helpers.numpy_to_proto(cube)),
-                output_specs=["selector.selected", "anomaly_metrics"],
+                output_specs=["selected", "anomaly_metrics"],
             )
         )
         assert inference_resp.outputs or inference_resp.metrics
 
-        # 7. Cleanup
+        # 8. Cleanup
         close_resp = grpc_stub.CloseSession(cuvis_ai_pb2.CloseSessionRequest(session_id=session_id))
         assert close_resp.success
 
-    def test_multiple_sessions(self, grpc_stub, test_data_path, mock_cuvis_sdk):
-        cu3s_file, _ = _data_files(test_data_path)
+    def test_multiple_sessions(self, grpc_stub, test_data_files, mock_cuvis_sdk):
+        cu3s_file, _ = test_data_files
         session_ids: list[str] = []
 
         for _ in range(3):
             resp = grpc_stub.CreateSession(
                 cuvis_ai_pb2.CreateSessionRequest(
-                    pipeline_type="statistical",
-                    data_config=cuvis_ai_pb2.DataConfig(
-                        cu3s_file_path=str(cu3s_file),
-                        batch_size=2,
-                        processing_mode=cuvis_ai_pb2.PROCESSING_MODE_REFLECTANCE,
-                    ),
+                    pipeline=create_pipeline_config_proto("channel_selector"),
                 )
             )
             session_ids.append(resp.session_id)
@@ -191,12 +211,7 @@ class TestCompleteWorkflow:
 
         session_resp = grpc_stub.CreateSession(
             cuvis_ai_pb2.CreateSessionRequest(
-                pipeline_type="statistical",
-                data_config=cuvis_ai_pb2.DataConfig(
-                    cu3s_file_path="/tmp/fake.cu3s",
-                    batch_size=1,
-                    processing_mode=cuvis_ai_pb2.PROCESSING_MODE_REFLECTANCE,
-                ),
+                pipeline=create_pipeline_config_proto("rx_statistical"),
             )
         )
 

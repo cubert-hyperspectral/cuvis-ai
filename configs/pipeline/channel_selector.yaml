@@ -1,0 +1,127 @@
+metadata:
+  name: Channel_Selector
+  description: Trained model from Channel_Selector experiment (statistical + gradient
+    training)
+  created: ''
+  tags:
+  - gradient
+  - statistical
+  - channel_selector
+  - rx
+  author: cuvis.ai
+nodes:
+- name: LentilsAnomalyDataNode
+  class: cuvis_ai.node.data.LentilsAnomalyDataNode
+  params:
+    normal_class_ids:
+    - 0
+    - 1
+- name: MinMaxNormalizer
+  class: cuvis_ai.node.normalization.MinMaxNormalizer
+  params:
+    eps: 1.0e-06
+    use_running_stats: true
+- name: SoftChannelSelector
+  class: cuvis_ai.node.selector.SoftChannelSelector
+  params:
+    n_select: 3
+    input_channels: 61
+    init_method: variance
+    temperature_init: 5.0
+    temperature_min: 0.1
+    temperature_decay: 0.9
+    hard: false
+    eps: 1.0e-06
+- name: RXGlobal
+  class: cuvis_ai.anomaly.rx_detector.RXGlobal
+  params:
+    eps: 1.0e-06
+    num_channels: 61
+    cache_inverse: true
+- name: RXLogitHead
+  class: cuvis_ai.anomaly.rx_logit_head.RXLogitHead
+  params:
+    init_scale: 1.0
+    init_bias: 0.0
+- name: bce
+  class: cuvis_ai.node.losses.AnomalyBCEWithLogits
+  params:
+    weight: 10.0
+    pos_weight: null
+    reduction: mean
+- name: entropy
+  class: cuvis_ai.node.losses.SelectorEntropyRegularizer
+  params:
+    weight: 0.1
+    target_entropy: null
+    eps: 1.0e-06
+- name: diversity
+  class: cuvis_ai.node.losses.SelectorDiversityRegularizer
+  params:
+    weight: 0.01
+- name: BinaryDecider
+  class: cuvis_ai.deciders.binary_decider.BinaryDecider
+  params:
+    threshold: 0.5
+- name: metrics_anomaly
+  class: cuvis_ai.node.metrics.AnomalyDetectionMetrics
+  params:
+    execution_stages: null
+- name: TensorBoardMonitorNode
+  class: cuvis_ai.node.monitor.TensorBoardMonitorNode
+  params:
+    output_dir: outputs\channel_selector\..\tensorboard
+    run_name: Channel_Selector
+    comment: ''
+    flush_secs: 120
+- name: mask
+  class: cuvis_ai.node.visualizations.AnomalyMask
+  params:
+    channel: 30
+    up_to: 5
+- name: rgb
+  class: cuvis_ai.node.visualizations.CubeRGBVisualizer
+  params:
+    name: null
+    up_to: 5
+connections:
+- from: LentilsAnomalyDataNode.outputs.cube
+  to: MinMaxNormalizer.inputs.data
+- from: LentilsAnomalyDataNode.outputs.mask
+  to: bce.inputs.targets
+- from: LentilsAnomalyDataNode.outputs.mask
+  to: metrics_anomaly.inputs.targets
+- from: LentilsAnomalyDataNode.outputs.mask
+  to: mask.inputs.mask
+- from: LentilsAnomalyDataNode.outputs.cube
+  to: mask.inputs.cube
+- from: LentilsAnomalyDataNode.outputs.cube
+  to: rgb.inputs.cube
+- from: LentilsAnomalyDataNode.outputs.wavelengths
+  to: rgb.inputs.wavelengths
+- from: MinMaxNormalizer.outputs.normalized
+  to: SoftChannelSelector.inputs.data
+- from: SoftChannelSelector.outputs.selected
+  to: RXGlobal.inputs.data
+- from: SoftChannelSelector.outputs.weights
+  to: entropy.inputs.weights
+- from: SoftChannelSelector.outputs.weights
+  to: diversity.inputs.weights
+- from: SoftChannelSelector.outputs.weights
+  to: rgb.inputs.weights
+- from: RXGlobal.outputs.scores
+  to: RXLogitHead.inputs.scores
+- from: RXLogitHead.outputs.logits
+  to: bce.inputs.predictions
+- from: RXLogitHead.outputs.logits
+  to: BinaryDecider.inputs.logits
+- from: BinaryDecider.outputs.decisions
+  to: metrics_anomaly.inputs.decisions
+- from: BinaryDecider.outputs.decisions
+  to: mask.inputs.decisions
+- from: metrics_anomaly.outputs.metrics
+  to: TensorBoardMonitorNode.inputs.metrics
+- from: mask.outputs.artifacts
+  to: TensorBoardMonitorNode.inputs.artifacts
+- from: rgb.outputs.artifacts
+  to: TensorBoardMonitorNode.inputs.artifacts

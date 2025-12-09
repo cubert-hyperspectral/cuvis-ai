@@ -317,9 +317,3 @@ class TensorBoardMonitorNode(Node):
                 logger.debug("TensorBoard writer closed successfully")
             except Exception as e:
                 logger.error(f"Failed to close TensorBoard writer: {e}")
-
-    def serialize(self, serial_dir: str) -> dict:
-        return {**self.hparams}
-
-    def load(self, params: dict, serial_dir: str) -> None:
-        pass

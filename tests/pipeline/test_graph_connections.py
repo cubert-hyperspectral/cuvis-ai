@@ -9,7 +9,7 @@ import pytest
 import torch
 
 from cuvis_ai.node.node import Node
-from cuvis_ai.pipeline.canvas import CuvisCanvas
+from cuvis_ai.pipeline.pipeline import CuvisPipeline
 from cuvis_ai.pipeline.ports import PortCompatibilityError, PortSpec
 
 
@@ -28,9 +28,6 @@ class TestGraphConnectionBasics:
             def forward(self, **inputs):
                 return {"output": torch.zeros(1, 10)}
 
-            def load(self, params, serial_dir) -> None:
-                return None
-
         class ConsumerNode(Node):
             INPUT_SPECS = {
                 "input": PortSpec(dtype=torch.float32, shape=(-1, 10)),
@@ -40,18 +37,15 @@ class TestGraphConnectionBasics:
             def forward(self, **inputs):
                 return {}
 
-            def load(self, params, serial_dir) -> None:
-                return None
-
-        canvas = CuvisCanvas("test")
+        pipeline = CuvisPipeline("test")
         producer = ProducerNode()
         consumer = ConsumerNode()
 
         # Nodes are automatically added when connecting
-        canvas.connect(producer.outputs.output, consumer.input)
+        pipeline.connect(producer.outputs.output, consumer.input)
 
-        assert canvas._graph.has_edge(producer, consumer)
-        edge_dict = canvas._graph.get_edge_data(producer, consumer)
+        assert pipeline._graph.has_edge(producer, consumer)
+        edge_dict = pipeline._graph.get_edge_data(producer, consumer)
         assert edge_dict is not None
         edge_data = next(iter(edge_dict.values()))
         assert edge_data["from_port"] == "output"
@@ -70,9 +64,6 @@ class TestGraphConnectionBasics:
             def forward(self, **inputs):
                 return {"out1": torch.zeros(10), "out2": torch.ones(10)}
 
-            def load(self, params, serial_dir) -> None:
-                return None
-
         class TargetNode(Node):
             INPUT_SPECS = {
                 "in1": PortSpec(dtype=torch.float32, shape=(-1,)),
@@ -83,20 +74,17 @@ class TestGraphConnectionBasics:
             def forward(self, **inputs):
                 return {}
 
-            def load(self, params, serial_dir) -> None:
-                return None
-
-        canvas = CuvisCanvas("test")
+        pipeline = CuvisPipeline("test")
         source = SourceNode()
         target = TargetNode()
 
         # Nodes are automatically added when connecting
-        canvas.connect(
+        pipeline.connect(
             (source.outputs.out1, target.in1),
             (source.outputs.out2, target.in2),
         )
 
-        edge_dict = canvas._graph.get_edge_data(source, target)
+        edge_dict = pipeline._graph.get_edge_data(source, target)
         assert edge_dict is not None
         assert len(edge_dict) == 2
 
@@ -114,9 +102,6 @@ class TestConnectionValidation:
             def forward(self, **inputs):
                 return {}
 
-            def load(self, params, serial_dir) -> None:
-                return None
-
         class IntNode(Node):
             INPUT_SPECS = {"in": PortSpec(dtype=torch.int64, shape=())}
             OUTPUT_SPECS = {}
@@ -124,16 +109,13 @@ class TestConnectionValidation:
             def forward(self, **inputs):
                 return {}
 
-            def load(self, params, serial_dir) -> None:
-                return None
-
-        canvas = CuvisCanvas("test")
+        pipeline = CuvisPipeline("test")
         float_node = FloatNode()
         int_node = IntNode()
 
         # Connecting incompatible types should raise error
         with pytest.raises(PortCompatibilityError, match=r"(?i)dtype"):
-            canvas.connect(float_node.outputs.out, int_node.inputs.__getattribute__("in"))
+            pipeline.connect(float_node.outputs.out, int_node.inputs.__getattribute__("in"))
 
     def test_connecting_incompatible_shapes_raises_error(self) -> None:
         """Connecting mismatched shapes should raise PortCompatibilityError."""
@@ -145,9 +127,6 @@ class TestConnectionValidation:
             def forward(self, **inputs):
                 return {}
 
-            def load(self, params, serial_dir) -> None:
-                return None
-
         class Shape20Node(Node):
             INPUT_SPECS = {"in": PortSpec(dtype=torch.float32, shape=(20,))}
             OUTPUT_SPECS = {}
@@ -155,16 +134,13 @@ class TestConnectionValidation:
             def forward(self, **inputs):
                 return {}
 
-            def load(self, params, serial_dir) -> None:
-                return None
-
-        canvas = CuvisCanvas("test")
+        pipeline = CuvisPipeline("test")
         node_10 = Shape10Node()
         node_20 = Shape20Node()
 
         # Connecting incompatible shapes should raise error
         with pytest.raises(PortCompatibilityError, match=r"(?i)dimension"):
-            canvas.connect(node_10.outputs.out, node_20.inputs.__getattribute__("in"))
+            pipeline.connect(node_10.outputs.out, node_20.inputs.__getattribute__("in"))
 
     def test_connecting_compatible_flexible_shapes_succeeds(self) -> None:
         """Flexible shapes with -1 should be compatible."""
@@ -176,9 +152,6 @@ class TestConnectionValidation:
             def forward(self, **inputs):
                 return {}
 
-            def load(self, params, serial_dir) -> None:
-                return None
-
         class FlexNode2(Node):
             INPUT_SPECS = {"in": PortSpec(dtype=torch.float32, shape=(-1, -1))}
             OUTPUT_SPECS = {}
@@ -186,15 +159,14 @@ class TestConnectionValidation:
             def forward(self, **inputs):
                 return {}
 
-            def load(self, params, serial_dir) -> None:
-                return None
-
-        canvas = CuvisCanvas("test")
+        pipeline = CuvisPipeline("test")
         node_1 = FlexNode1()
         node_2 = FlexNode2()
 
         # Flexible shapes should be compatible
-        canvas.connect(node_1.outputs.out, node_2.inputs.__getattribute__("in"))  # Should not raise
+        pipeline.connect(
+            node_1.outputs.out, node_2.inputs.__getattribute__("in")
+        )  # Should not raise
 
 
 class TestMultiDiGraphIntegration:
@@ -203,8 +175,8 @@ class TestMultiDiGraphIntegration:
     def test_graph_uses_multidigraph(self) -> None:
         """Graph.graph should be a NetworkX MultiDiGraph."""
 
-        canvas = CuvisCanvas("test")
-        assert isinstance(canvas._graph, nx.MultiDiGraph)
+        pipeline = CuvisPipeline("test")
+        assert isinstance(pipeline._graph, nx.MultiDiGraph)
 
     def test_multiple_connections_between_same_nodes(self) -> None:
         """Multiple connections between same node pair should be supported."""
@@ -219,9 +191,6 @@ class TestMultiDiGraphIntegration:
             def forward(self, **inputs):
                 return {}
 
-            def load(self, params, serial_dir) -> None:
-                return None
-
         class MultiInNode(Node):
             INPUT_SPECS = {
                 "in1": PortSpec(dtype=torch.float32, shape=()),
@@ -232,20 +201,17 @@ class TestMultiDiGraphIntegration:
             def forward(self, **inputs):
                 return {}
 
-            def load(self, params, serial_dir) -> None:
-                return None
-
-        canvas = CuvisCanvas("test")
+        pipeline = CuvisPipeline("test")
         src = MultiOutNode()
         tgt = MultiInNode()
 
         # Multiple connections between same nodes
-        canvas.connect(
+        pipeline.connect(
             (src.outputs.out1, tgt.in1),
             (src.outputs.out2, tgt.in2),
         )
 
-        edge_dict = canvas._graph.get_edge_data(src, tgt)
+        edge_dict = pipeline._graph.get_edge_data(src, tgt)
         assert edge_dict is not None
         assert len(edge_dict) == 2
 
@@ -262,9 +228,6 @@ class TestMultiDiGraphIntegration:
             def forward(self, **inputs):
                 return {}
 
-            def load(self, params, serial_dir) -> None:
-                return None
-
         class Node2(Node):
             INPUT_SPECS = {
                 "x": PortSpec(dtype=torch.float32, shape=()),
@@ -275,17 +238,14 @@ class TestMultiDiGraphIntegration:
             def forward(self, **inputs):
                 return {}
 
-            def load(self, params, serial_dir) -> None:
-                return None
-
-        canvas = CuvisCanvas("test")
+        pipeline = CuvisPipeline("test")
         node_1 = Node1()
         node_2 = Node2()
 
         # Connect nodes
-        canvas.connect((node_1.a, node_2.x), (node_1.b, node_2.y))
+        pipeline.connect((node_1.a, node_2.x), (node_1.b, node_2.y))
 
-        edges = list(canvas._graph.edges(keys=True, data=True))
+        edges = list(pipeline._graph.edges(keys=True, data=True))
         assert len(edges) == 2
         for _, _, _, edge_data in edges:
             assert "from_port" in edge_data and "to_port" in edge_data

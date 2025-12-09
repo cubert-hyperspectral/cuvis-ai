@@ -17,7 +17,7 @@ CUVIS.AI is a modular, graph-based framework for processing hyperspectral data w
 ## Key Features
 
 ### 🔧 Typed I/O System
-Build pipelines with port-based connections that provide type safety, better error messages, and flexible pipeline construction. Connect nodes using `canvas.connect(source.port, target.port)` syntax.
+Build pipelines with port-based connections that provide type safety, better error messages, and flexible pipeline construction. Connect nodes using `pipeline.connect(source.port, target.port)` syntax.
 
 ### 🔧 Modular Architecture
 Build custom pipelines by composing nodes (normalizers, PCA, RX detector, channel selectors) with automatic dependency resolution and port-based connections.

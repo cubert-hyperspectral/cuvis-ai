@@ -1,21 +1,13 @@
 """Statistical Initialization - LAD with Bandpass and Per-Pixel Unit Norm Preprocessing.
 
-This example extends `lad_statistical_training.py` by adding preprocessing nodes:
+This example extends LAD statistical training by adding preprocessing nodes:
 - BandpassByWavelength: Filters channels by wavelength range
 - PerPixelUnitNorm: Normalizes each pixel's spectrum to unit L2 norm
 
-The pipeline: Data → Bandpass → PerPixelUnitNorm → LAD → Metrics/Viz
-
-Use Hydra overrides to configure:
-- mode: "Reflectance" or "Raw" (data loading mode)
-- normalize_to_unit: true/false (dataset-level normalization)
-- min_wavelength_nm: Minimum wavelength for bandpass (default: 500.0)
-- max_wavelength_nm: Maximum wavelength for bandpass (default: 900.0, or None for no upper bound)
-
-Example:
-    uv run python examples_torch/lad_statistical_training_with_preprocessing.py mode=Raw min_wavelength_nm=600.0 max_wavelength_nm=800.0
+The pipeline: Data → MinMax → Bandpass → PerPixelUnitNorm → LAD → Metrics/Viz
 """
 
+from pathlib import Path
 from typing import Any
 
 import hydra
@@ -34,9 +26,14 @@ from cuvis_ai.node.node import Node
 from cuvis_ai.node.normalization import MinMaxNormalizer, PerPixelUnitNorm
 from cuvis_ai.node.preprocessors import BandpassByWavelength
 from cuvis_ai.node.visualizations import AnomalyMask, ScoreHeatmapVisualizer
-from cuvis_ai.pipeline.canvas import CuvisCanvas
+from cuvis_ai.pipeline.pipeline import CuvisPipeline
 from cuvis_ai.pipeline.ports import PortSpec
 from cuvis_ai.training import StatisticalTrainer
+from cuvis_ai.training.config import (
+    ExperimentConfig,
+    PipelineMetadata,
+    TrainingConfig,
+)
 from cuvis_ai.utils.types import Context, ExecutionStage, Metric
 
 
@@ -87,139 +84,172 @@ class SampleCustomMetrics(Node):
 
         return {"metrics": metrics}
 
-    def serialize(self, serial_dir: str) -> dict:
-        return {**self.hparams}
 
-    def load(self, params: dict, serial_dir: str) -> None:
-        pass
-
-
-@hydra.main(version_base=None, config_path="../cuvis_ai/conf", config_name="general")
+@hydra.main(config_path="../../configs/", config_name="experiment/default", version_base=None)
 def main(cfg: DictConfig) -> None:
-    dataset_mode = str(getattr(cfg, "mode", "Raw"))
-    normalize_to_unit = bool(getattr(cfg, "normalize_to_unit", False))
-    min_wavelength_nm = float(getattr(cfg, "min_wavelength_nm", 700.0))
-    max_wavelength_nm = getattr(cfg, "max_wavelength_nm", None)
-    if max_wavelength_nm is not None:
-        max_wavelength_nm = float(max_wavelength_nm)
+    """LAD Statistical with Preprocessing and experiment config saving."""
 
     logger.info("=== LAD with Bandpass + Per-Pixel Unit Norm Preprocessing ===")
-    logger.info(f"Dataset mode: {dataset_mode} | normalize_to_unit={normalize_to_unit}")
-    max_wl_str = f"{max_wavelength_nm:.1f}" if max_wavelength_nm is not None else "inf"
-    logger.info(f"Bandpass range: {min_wavelength_nm:.1f} - {max_wl_str} nm")
 
-    data_dir = str(getattr(cfg.data, "data_dir", "../data/Lentils"))
-    datamodule = SingleCu3sDataModule(
-        data_dir=data_dir,
-        dataset_name="Lentils",
-        batch_size=4,
-        train_ids=[0],
-        val_ids=[3, 4, 6],
-        test_ids=[1, 5],
-        processing_mode=dataset_mode,
-    )
+    output_dir = Path(cfg.output_dir)
+
+    # Stage 1: Setup datamodule
+    datamodule = SingleCu3sDataModule(**cfg.data)
     datamodule.setup(stage="fit")
 
     wavelengths = datamodule.train_ds.wavelengths
-    logger.info(f"Full wavelength range: {wavelengths.min():.1f} - {wavelengths.max():.1f} nm")
+    logger.info(f"Wavelength range: {wavelengths.min():.1f} - {wavelengths.max():.1f} nm")
 
-    canvas = CuvisCanvas(f"LAD_Bandpass_UnitNorm_{dataset_mode}")
+    # Stage 2: Build graph
+    pipeline = CuvisPipeline("LAD_Bandpass_UnitNorm")
 
-    # Data entry node
     data_node = LentilsAnomalyDataNode(
-        wavelengths=wavelengths,
         normal_class_ids=[0, 1],
+        # {0: 'Unlabeled', 1: 'Lentils_black', 2: 'Lentils_brown', 3: 'Stone', 4: 'Background'}
     )
 
     # Preprocessing nodes
-    unit_range_node = MinMaxNormalizer(eps=1.0e-6, use_running_stats=False)
+    normalizer_node = MinMaxNormalizer(eps=1.0e-6, use_running_stats=True)
     bandpass_node = BandpassByWavelength(
-        min_wavelength_nm=min_wavelength_nm,
-        max_wavelength_nm=max_wavelength_nm,
-        wavelengths=wavelengths,  # Cache wavelengths for filtering
+        min_wavelength_nm=700.0,
+        max_wavelength_nm=None,
+        wavelengths=wavelengths,
     )
-    unit_norm_node = PerPixelUnitNorm(eps=1e-8)
+    unit_norm_node = PerPixelUnitNorm(eps=1.0e-8)
 
-    # Detection node
-    lad_node = LADGlobal(eps=1.0e-8, normalize_laplacian=True, use_numpy_laplacian=True)
-
-    # Decision and metrics nodes
+    lad_node = LADGlobal(
+        num_channels=20, eps=1.0e-8, normalize_laplacian=True, use_numpy_laplacian=True
+    )
     decider_node = QuantileBinaryDecider(quantile=0.99)
     metrics_anomaly = AnomalyDetectionMetrics(name="metrics_anomaly")
+    sample_metrics = SampleCustomMetrics(name="sample_metrics")
+    viz_mask = AnomalyMask(name="mask", channel=30, up_to=5)
+    score_viz = ScoreHeatmapVisualizer(name="score_heatmap", normalize_scores=True, up_to=5)
 
-    # Visualization nodes
-    viz_mask = AnomalyMask(channel=30, up_to=5)
-    score_viz = ScoreHeatmapVisualizer(normalize_scores=True, up_to=5)
-
-    # Monitoring node
     tensorboard_node = TensorBoardMonitorNode(
-        run_name=f"lad_bandpass_unitnorm_{dataset_mode.lower()}",
-        output_dir="./outputs/",
+        output_dir=str(output_dir / ".." / "tensorboard"),
+        run_name=pipeline.name,
     )
 
-    # Connect the pipeline:
-    # Data → (optional MinMax) → Bandpass → PerPixelUnitNorm → LAD → Decision/Metrics/Viz
-    if normalize_to_unit:
-        canvas.connect(
-            (data_node.outputs.cube, unit_range_node.data),
-            (unit_range_node.normalized, bandpass_node.data),
-        )
-    else:
-        canvas.connect(
-            (data_node.outputs.cube, bandpass_node.data),
-        )
+    # Stage 3: Connect graph
 
-    canvas.connect(
-        # Preprocessing chain after bandpass
+    pipeline.connect(
+        # Processing flow with preprocessing
+        (data_node.outputs.cube, normalizer_node.data),
+        (normalizer_node.normalized, bandpass_node.data),
         (data_node.outputs.wavelengths, bandpass_node.wavelengths),
         (bandpass_node.filtered, unit_norm_node.data),
-        # Detection chain
         (unit_norm_node.normalized, lad_node.data),
+        # Decision flow
         (lad_node.scores, decider_node.logits),
-        # Metrics
+        # Metric flow
         (decider_node.decisions, metrics_anomaly.decisions),
         (data_node.outputs.mask, metrics_anomaly.targets),
         (lad_node.scores, metrics_anomaly.logits),
         (metrics_anomaly.metrics, tensorboard_node.metrics),
-        # Visualizations
+        # Sample custom metrics flow
+        (decider_node.decisions, sample_metrics.decisions),
+        (sample_metrics.metrics, tensorboard_node.metrics),
+        # Visualization flow
         (lad_node.scores, score_viz.scores),
         (score_viz.artifacts, tensorboard_node.artifacts),
         (decider_node.decisions, viz_mask.decisions),
         (data_node.outputs.mask, viz_mask.mask),
         (data_node.outputs.cube, viz_mask.cube),
-        (lad_node.scores, viz_mask.scores),
         (viz_mask.artifacts, tensorboard_node.artifacts),
     )
 
-    # Visualize the canvas
-    canvas.visualize(
+    pipeline.visualize(
         format="render_graphviz",
-        output_path=f"outputs/canvases/{canvas.name}.png",
+        output_path=str(output_dir / "pipeline" / f"{pipeline.name}.png"),
         show_execution_stage=True,
     )
-    canvas.visualize(
+
+    pipeline.visualize(
         format="render_mermaid",
-        output_path=f"outputs/canvases/{canvas.name}.md",
+        output_path=str(output_dir / "pipeline" / f"{pipeline.name}.md"),
         direction="LR",
         include_node_class=True,
         wrap_markdown=True,
         show_execution_stage=True,
     )
 
-    # Train statistical nodes (LADGlobal)
-    stat_trainer = StatisticalTrainer(canvas=canvas, datamodule=datamodule)
+    # Stage 4: Statistical initialization
+    stat_trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
     stat_trainer.fit()
 
-    logger.info("Running validation...")
+    # Identify metric and loss nodes from pipeline
+    loss_nodes_list = [
+        node
+        for node in pipeline.nodes()
+        if hasattr(node, "__class__") and "Loss" in node.__class__.__name__
+    ]
+    metric_nodes_list = [
+        node
+        for node in pipeline.nodes()
+        if hasattr(node, "__class__") and "Metric" in node.__class__.__name__
+    ]
+
+    loss_node_names = [node.name for node in loss_nodes_list]
+    metric_node_names = [node.name for node in metric_nodes_list]
+    logger.info(f"Metric nodes: {metric_node_names}")
+    logger.info(f"Loss nodes: {loss_node_names}")
+
+    # Stage 5: Run validation
+    logger.info("Running validation evaluation...")
     stat_trainer.validate()
 
-    logger.info("Running test...")
+    # Stage 6: Run test
+    logger.info("Running test evaluation...")
     stat_trainer.test()
 
-    logger.info(
-        "Done! View logs via: uv run tensorboard --logdir=./outputs/lad_bandpass_unitnorm_%s",
-        dataset_mode.lower(),
+    # Stage 7: Save trained pipeline and experiment config
+    results_dir = output_dir / "trained_models"
+
+    pipeline_output_path = results_dir / f"{pipeline.name}.yaml"
+    logger.info(f"Saving trained pipeline to: {pipeline_output_path}")
+
+    pipeline.save_to_file(
+        str(pipeline_output_path),
+        metadata=PipelineMetadata(
+            name=pipeline.name,
+            description=f"Trained model from {pipeline.name} experiment (statistical training with preprocessing)",
+            tags=["statistical", "lad", "preprocessing", "bandpass", "unit_norm"],
+            author="cuvis.ai",
+        ),
     )
+    logger.info(f"  Created: {pipeline_output_path}")
+    logger.info(f"  Weights: {pipeline_output_path.with_suffix('.pt')}")
+
+    # Create and save complete experiment config for reproducibility
+    pipeline_config = pipeline.serialize()
+
+    experiment_config = ExperimentConfig(
+        name=cfg.name,
+        pipeline=pipeline_config,
+        data=cfg.data,
+        training=TrainingConfig(seed=42),
+        output_dir=str(output_dir),
+        loss_nodes=loss_node_names,
+        metric_nodes=metric_node_names,
+        freeze_nodes=[],
+        unfreeze_nodes=[],
+    )
+
+    experiment_output_path = results_dir / f"{cfg.name}_experiment.yaml"
+    logger.info(f"Saving experiment config to: {experiment_output_path}")
+    experiment_config.save_to_file(str(experiment_output_path))
+
+    # Stage 8: Report results
+    logger.info("=== Training Complete ===")
+    logger.info(f"Trained pipeline saved: {pipeline_output_path}")
+    logger.info(f"Experiment config saved: {experiment_output_path}")
+    logger.info(f"TensorBoard logs: {tensorboard_node.output_dir}")
+    logger.info("To restore this experiment:")
+    logger.info(
+        f"  uv run python examples/serialization/restore_experiment.py --experiment-path {experiment_output_path}"
+    )
+    logger.info(f"View logs: uv run tensorboard --logdir={output_dir}")
 
 
 if __name__ == "__main__":

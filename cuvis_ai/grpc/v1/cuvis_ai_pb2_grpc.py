@@ -19,6 +19,18 @@ class CuvisAIServiceStub:
         Args:
             channel: A grpc.Channel.
         """
+        self.ListAvailablePipelinees = channel.unary_unary(
+            "/cuvis_ai.v1.CuvisAIService/ListAvailablePipelinees",
+            request_serializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.ListAvailablePipelineesRequest.SerializeToString,
+            response_deserializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.ListAvailablePipelineesResponse.FromString,
+            _registered_method=True,
+        )
+        self.GetPipelineInfo = channel.unary_unary(
+            "/cuvis_ai.v1.CuvisAIService/GetPipelineInfo",
+            request_serializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.GetPipelineInfoRequest.SerializeToString,
+            response_deserializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.GetPipelineInfoResponse.FromString,
+            _registered_method=True,
+        )
         self.CreateSession = channel.unary_unary(
             "/cuvis_ai.v1.CuvisAIService/CreateSession",
             request_serializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.CreateSessionRequest.SerializeToString,
@@ -55,6 +67,30 @@ class CuvisAIServiceStub:
             response_deserializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.ValidateTrainingConfigResponse.FromString,
             _registered_method=True,
         )
+        self.SavePipeline = channel.unary_unary(
+            "/cuvis_ai.v1.CuvisAIService/SavePipeline",
+            request_serializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.SavePipelineRequest.SerializeToString,
+            response_deserializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.SavePipelineResponse.FromString,
+            _registered_method=True,
+        )
+        self.LoadPipeline = channel.unary_unary(
+            "/cuvis_ai.v1.CuvisAIService/LoadPipeline",
+            request_serializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.LoadPipelineRequest.SerializeToString,
+            response_deserializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.LoadPipelineResponse.FromString,
+            _registered_method=True,
+        )
+        self.SaveExperiment = channel.unary_unary(
+            "/cuvis_ai.v1.CuvisAIService/SaveExperiment",
+            request_serializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.SaveExperimentRequest.SerializeToString,
+            response_deserializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.SaveExperimentResponse.FromString,
+            _registered_method=True,
+        )
+        self.RestoreExperiment = channel.unary_unary(
+            "/cuvis_ai.v1.CuvisAIService/RestoreExperiment",
+            request_serializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.RestoreExperimentRequest.SerializeToString,
+            response_deserializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.RestoreExperimentResponse.FromString,
+            _registered_method=True,
+        )
         self.GetPipelineInputs = channel.unary_unary(
             "/cuvis_ai.v1.CuvisAIService/GetPipelineInputs",
             request_serializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.GetPipelineInputsRequest.SerializeToString,
@@ -79,18 +115,6 @@ class CuvisAIServiceStub:
             response_deserializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.InferenceResponse.FromString,
             _registered_method=True,
         )
-        self.SaveCheckpoint = channel.unary_unary(
-            "/cuvis_ai.v1.CuvisAIService/SaveCheckpoint",
-            request_serializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.SaveCheckpointRequest.SerializeToString,
-            response_deserializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.SaveCheckpointResponse.FromString,
-            _registered_method=True,
-        )
-        self.LoadCheckpoint = channel.unary_unary(
-            "/cuvis_ai.v1.CuvisAIService/LoadCheckpoint",
-            request_serializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.LoadCheckpointRequest.SerializeToString,
-            response_deserializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.LoadCheckpointResponse.FromString,
-            _registered_method=True,
-        )
 
 
 class CuvisAIServiceServicer:
@@ -99,6 +123,18 @@ class CuvisAIServiceServicer:
     ============================================================================
 
     """
+
+    def ListAvailablePipelinees(self, request, context):
+        """Pipeline Discovery"""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details("Method not implemented!")
+        raise NotImplementedError("Method not implemented!")
+
+    def GetPipelineInfo(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details("Method not implemented!")
+        raise NotImplementedError("Method not implemented!")
 
     def CreateSession(self, request, context):
         """Session Management"""
@@ -136,6 +172,30 @@ class CuvisAIServiceServicer:
         context.set_details("Method not implemented!")
         raise NotImplementedError("Method not implemented!")
 
+    def SavePipeline(self, request, context):
+        """Pipeline Management (Model Deployment)"""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details("Method not implemented!")
+        raise NotImplementedError("Method not implemented!")
+
+    def LoadPipeline(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details("Method not implemented!")
+        raise NotImplementedError("Method not implemented!")
+
+    def SaveExperiment(self, request, context):
+        """Experiment Management (Reproducibility)"""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details("Method not implemented!")
+        raise NotImplementedError("Method not implemented!")
+
+    def RestoreExperiment(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details("Method not implemented!")
+        raise NotImplementedError("Method not implemented!")
+
     def GetPipelineInputs(self, request, context):
         """Pipeline Introspection"""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -160,21 +220,19 @@ class CuvisAIServiceServicer:
         context.set_details("Method not implemented!")
         raise NotImplementedError("Method not implemented!")
 
-    def SaveCheckpoint(self, request, context):
-        """Checkpoint Management"""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details("Method not implemented!")
-        raise NotImplementedError("Method not implemented!")
-
-    def LoadCheckpoint(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details("Method not implemented!")
-        raise NotImplementedError("Method not implemented!")
-
 
 def add_CuvisAIServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
+        "ListAvailablePipelinees": grpc.unary_unary_rpc_method_handler(
+            servicer.ListAvailablePipelinees,
+            request_deserializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.ListAvailablePipelineesRequest.FromString,
+            response_serializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.ListAvailablePipelineesResponse.SerializeToString,
+        ),
+        "GetPipelineInfo": grpc.unary_unary_rpc_method_handler(
+            servicer.GetPipelineInfo,
+            request_deserializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.GetPipelineInfoRequest.FromString,
+            response_serializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.GetPipelineInfoResponse.SerializeToString,
+        ),
         "CreateSession": grpc.unary_unary_rpc_method_handler(
             servicer.CreateSession,
             request_deserializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.CreateSessionRequest.FromString,
@@ -205,6 +263,26 @@ def add_CuvisAIServiceServicer_to_server(servicer, server):
             request_deserializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.ValidateTrainingConfigRequest.FromString,
             response_serializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.ValidateTrainingConfigResponse.SerializeToString,
         ),
+        "SavePipeline": grpc.unary_unary_rpc_method_handler(
+            servicer.SavePipeline,
+            request_deserializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.SavePipelineRequest.FromString,
+            response_serializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.SavePipelineResponse.SerializeToString,
+        ),
+        "LoadPipeline": grpc.unary_unary_rpc_method_handler(
+            servicer.LoadPipeline,
+            request_deserializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.LoadPipelineRequest.FromString,
+            response_serializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.LoadPipelineResponse.SerializeToString,
+        ),
+        "SaveExperiment": grpc.unary_unary_rpc_method_handler(
+            servicer.SaveExperiment,
+            request_deserializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.SaveExperimentRequest.FromString,
+            response_serializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.SaveExperimentResponse.SerializeToString,
+        ),
+        "RestoreExperiment": grpc.unary_unary_rpc_method_handler(
+            servicer.RestoreExperiment,
+            request_deserializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.RestoreExperimentRequest.FromString,
+            response_serializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.RestoreExperimentResponse.SerializeToString,
+        ),
         "GetPipelineInputs": grpc.unary_unary_rpc_method_handler(
             servicer.GetPipelineInputs,
             request_deserializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.GetPipelineInputsRequest.FromString,
@@ -225,16 +303,6 @@ def add_CuvisAIServiceServicer_to_server(servicer, server):
             request_deserializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.InferenceRequest.FromString,
             response_serializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.InferenceResponse.SerializeToString,
         ),
-        "SaveCheckpoint": grpc.unary_unary_rpc_method_handler(
-            servicer.SaveCheckpoint,
-            request_deserializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.SaveCheckpointRequest.FromString,
-            response_serializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.SaveCheckpointResponse.SerializeToString,
-        ),
-        "LoadCheckpoint": grpc.unary_unary_rpc_method_handler(
-            servicer.LoadCheckpoint,
-            request_deserializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.LoadCheckpointRequest.FromString,
-            response_serializer=cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.LoadCheckpointResponse.SerializeToString,
-        ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
         "cuvis_ai.v1.CuvisAIService", rpc_method_handlers
@@ -250,6 +318,66 @@ class CuvisAIService:
     ============================================================================
 
     """
+
+    @staticmethod
+    def ListAvailablePipelinees(
+        request,
+        target,
+        options=(),
+        channel_credentials=None,
+        call_credentials=None,
+        insecure=False,
+        compression=None,
+        wait_for_ready=None,
+        timeout=None,
+        metadata=None,
+    ):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            "/cuvis_ai.v1.CuvisAIService/ListAvailablePipelinees",
+            cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.ListAvailablePipelineesRequest.SerializeToString,
+            cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.ListAvailablePipelineesResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True,
+        )
+
+    @staticmethod
+    def GetPipelineInfo(
+        request,
+        target,
+        options=(),
+        channel_credentials=None,
+        call_credentials=None,
+        insecure=False,
+        compression=None,
+        wait_for_ready=None,
+        timeout=None,
+        metadata=None,
+    ):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            "/cuvis_ai.v1.CuvisAIService/GetPipelineInfo",
+            cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.GetPipelineInfoRequest.SerializeToString,
+            cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.GetPipelineInfoResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True,
+        )
 
     @staticmethod
     def CreateSession(
@@ -432,6 +560,126 @@ class CuvisAIService:
         )
 
     @staticmethod
+    def SavePipeline(
+        request,
+        target,
+        options=(),
+        channel_credentials=None,
+        call_credentials=None,
+        insecure=False,
+        compression=None,
+        wait_for_ready=None,
+        timeout=None,
+        metadata=None,
+    ):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            "/cuvis_ai.v1.CuvisAIService/SavePipeline",
+            cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.SavePipelineRequest.SerializeToString,
+            cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.SavePipelineResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True,
+        )
+
+    @staticmethod
+    def LoadPipeline(
+        request,
+        target,
+        options=(),
+        channel_credentials=None,
+        call_credentials=None,
+        insecure=False,
+        compression=None,
+        wait_for_ready=None,
+        timeout=None,
+        metadata=None,
+    ):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            "/cuvis_ai.v1.CuvisAIService/LoadPipeline",
+            cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.LoadPipelineRequest.SerializeToString,
+            cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.LoadPipelineResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True,
+        )
+
+    @staticmethod
+    def SaveExperiment(
+        request,
+        target,
+        options=(),
+        channel_credentials=None,
+        call_credentials=None,
+        insecure=False,
+        compression=None,
+        wait_for_ready=None,
+        timeout=None,
+        metadata=None,
+    ):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            "/cuvis_ai.v1.CuvisAIService/SaveExperiment",
+            cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.SaveExperimentRequest.SerializeToString,
+            cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.SaveExperimentResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True,
+        )
+
+    @staticmethod
+    def RestoreExperiment(
+        request,
+        target,
+        options=(),
+        channel_credentials=None,
+        call_credentials=None,
+        insecure=False,
+        compression=None,
+        wait_for_ready=None,
+        timeout=None,
+        metadata=None,
+    ):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            "/cuvis_ai.v1.CuvisAIService/RestoreExperiment",
+            cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.RestoreExperimentRequest.SerializeToString,
+            cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.RestoreExperimentResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True,
+        )
+
+    @staticmethod
     def GetPipelineInputs(
         request,
         target,
@@ -540,66 +788,6 @@ class CuvisAIService:
             "/cuvis_ai.v1.CuvisAIService/Inference",
             cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.InferenceRequest.SerializeToString,
             cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.InferenceResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True,
-        )
-
-    @staticmethod
-    def SaveCheckpoint(
-        request,
-        target,
-        options=(),
-        channel_credentials=None,
-        call_credentials=None,
-        insecure=False,
-        compression=None,
-        wait_for_ready=None,
-        timeout=None,
-        metadata=None,
-    ):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            "/cuvis_ai.v1.CuvisAIService/SaveCheckpoint",
-            cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.SaveCheckpointRequest.SerializeToString,
-            cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.SaveCheckpointResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True,
-        )
-
-    @staticmethod
-    def LoadCheckpoint(
-        request,
-        target,
-        options=(),
-        channel_credentials=None,
-        call_credentials=None,
-        insecure=False,
-        compression=None,
-        wait_for_ready=None,
-        timeout=None,
-        metadata=None,
-    ):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            "/cuvis_ai.v1.CuvisAIService/LoadCheckpoint",
-            cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.LoadCheckpointRequest.SerializeToString,
-            cuvis__ai_dot_grpc_dot_v1_dot_cuvis__ai__pb2.LoadCheckpointResponse.FromString,
             options,
             channel_credentials,
             insecure,

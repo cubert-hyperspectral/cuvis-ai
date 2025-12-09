@@ -72,7 +72,7 @@ Ports can be connected if they satisfy compatibility rules:
 ```python
 # Check if ports are compatible
 if input_port.is_compatible_with(output_port):
-    canvas.connect(output_port, input_port)
+    pipeline.connect(output_port, input_port)
 else:
     print("Ports are incompatible")
 ```
@@ -128,14 +128,14 @@ class MinMaxNormalizer(Node):
 
 ```python
 # Connect two nodes using their ports
-canvas.connect(normalizer.normalized, selector.data)
+pipeline.connect(normalizer.normalized, selector.data)
 ```
 
 ### Multiple Connections
 
 ```python
 # Fan-in multiple outputs to a single input (e.g., monitoring artifacts)
-canvas.connect(
+pipeline.connect(
     (viz_mask.artifacts, tensorboard_node.artifacts),
     (viz_rgb.artifacts, tensorboard_node.artifacts),
 )
@@ -145,8 +145,8 @@ canvas.connect(
 
 ```python
 # Connect nodes for specific execution stages
-canvas.connect(normalizer.normalized, selector.data, stage="train")
-canvas.connect(selector.selected, pca.features, stage="both")
+pipeline.connect(normalizer.normalized, selector.data, stage="train")
+pipeline.connect(selector.selected, pca.features, stage="both")
 ```
 
 ### Loss Nodes Without an Aggregator
@@ -157,7 +157,7 @@ feed their inputs through standard port connections, as shown in
 `examples_torch/03_channel_selector.py`.
 
 ```python
-canvas.connect(
+pipeline.connect(
     (logit_head.logits, bce_loss.predictions),
     (data_node.outputs.mask, bce_loss.targets),
     (selector.weights, entropy_loss.weights),
@@ -165,7 +165,7 @@ canvas.connect(
 )
 
 grad_trainer = GradientTrainer(
-    canvas=canvas,
+    pipeline=pipeline,
     datamodule=datamodule,
     loss_nodes=[bce_loss, entropy_loss, diversity_loss],
     metric_nodes=[metrics_anomaly],
@@ -182,14 +182,14 @@ The port system enables explicit batch distribution to specific input ports.
 
 ```python
 # Distribute batch to a specific input port
-outputs = canvas.forward(batch={f"{normalizer.id}.data": input_data})
+outputs = pipeline.forward(batch={f"{normalizer.id}.data": input_data})
 ```
 
 ### Multiple Inputs
 
 ```python
 # Distribute different data to different input ports
-outputs = canvas.forward(batch={
+outputs = pipeline.forward(batch={
     f"{node1.id}.data1": data1,
     f"{node2.id}.data2": data2,
     f"{node3.id}.features": features
@@ -273,7 +273,7 @@ port_spec = PortSpec(
 
 ```python
 try:
-    canvas.connect(normalizer.nonexistent, selector.data)
+    pipeline.connect(normalizer.nonexistent, selector.data)
 except AttributeError as e:
     print(f"Port error: {e}")
     # Error: 'MinMaxNormalizer' object has no attribute 'nonexistent'
@@ -283,7 +283,7 @@ except AttributeError as e:
 
 ```python
 try:
-    canvas.connect(normalizer.normalized, pca.features)
+    pipeline.connect(normalizer.normalized, pca.features)
 except ValueError as e:
     print(f"Compatibility error: {e}")
     # Error: Port shapes are incompatible: (-1, -1, -1, -1) vs (-1, -1, -1, 3)
@@ -293,7 +293,7 @@ except ValueError as e:
 
 ```python
 try:
-    outputs = canvas.forward(batch=input_data)
+    outputs = pipeline.forward(batch=input_data)
 except KeyError as e:
     print(f"Batch error: {e}")
     # Error: Unable to find input port for batch key
@@ -328,8 +328,8 @@ print(f"Description: {port.description}")
 ### Connection Graph
 
 ```python
-# Get all connections in the canvas
-connections = canvas.get_connections()
+# Get all connections in the pipeline
+connections = pipeline.get_connections()
 for source, target in connections:
     print(f"{source.node.name}.{source.name} → {target.node.name}.{target.name}")
 ```
@@ -349,6 +349,6 @@ for source, target in connections:
 ## See Also
 
 - **[Nodes API](nodes.md)**: Node implementations with port specifications
-- **[Pipeline API](pipeline.md)**: Canvas and connection management
+- **[Pipeline API](pipeline.md)**: Pipeline and connection management
 - **[Migration Guide](../user-guide/typed-io-migration.md)**: Transition from legacy API
 - **[Quickstart](../user-guide/quickstart.md)**: Practical port usage examples

@@ -26,9 +26,6 @@ class TestNodePortCreation:
             def forward(self, **inputs):
                 raise NotImplementedError
 
-            def load(self, params, serial_dir) -> None:
-                return None
-
         node = TestNode()
 
         assert hasattr(node, "_input_ports")
@@ -49,9 +46,6 @@ class TestNodePortCreation:
             def forward(self, **inputs):
                 raise NotImplementedError
 
-            def load(self, params, serial_dir) -> None:
-                return None
-
         node = TestNode()
 
         assert hasattr(node, "_output_ports")
@@ -68,9 +62,6 @@ class TestNodePortCreation:
 
             def forward(self, **inputs):
                 raise NotImplementedError
-
-            def load(self, params, serial_dir) -> None:
-                return None
 
         node = EmptyNode()
         assert node._input_ports == {}
@@ -90,9 +81,6 @@ class TestNodePortAttributes:
             def forward(self, **inputs):
                 raise NotImplementedError
 
-            def load(self, params, serial_dir) -> None:
-                return None
-
         node = TestNode()
 
         assert hasattr(node, "features")
@@ -109,9 +97,6 @@ class TestNodePortAttributes:
 
             def forward(self, **inputs):
                 raise NotImplementedError
-
-            def load(self, params, serial_dir) -> None:
-                return None
 
         node = TestNode()
 
@@ -133,9 +118,6 @@ class TestNodePortAttributes:
 
             def forward(self, **inputs):
                 raise NotImplementedError
-
-            def load(self, params, serial_dir) -> None:
-                return None
 
         node = TestNode()
 
@@ -163,9 +145,6 @@ class TestNodeForwardSignature:
                 y = inputs["y"].unsqueeze(-1)
                 return {"result": x + y}
 
-            def load(self, params, serial_dir) -> None:
-                return None
-
         node = TestNode()
         x = torch.randn(5, 10)
         y = torch.randn(5)
@@ -185,9 +164,6 @@ class TestNodeForwardSignature:
             def forward(self, **inputs):
                 data = inputs["data"]
                 return {"doubled": data * 2}
-
-            def load(self, params, serial_dir) -> None:
-                return None
 
         node = TestNode()
         data = torch.randn(10)
@@ -212,9 +188,6 @@ class TestNodeForwardSignature:
                     "result1": torch.tensor(1.0),
                     "result2": torch.tensor(2.0),
                 }
-
-            def load(self, params, serial_dir) -> None:
-                return None
 
         node = TestNode()
         output = node.forward()
@@ -243,9 +216,6 @@ class TestMultiplePortNodes:
                 thermal = inputs["thermal"]
                 fused = torch.cat([spectral, spatial, thermal], dim=-1)
                 return {"fused": fused}
-
-            def load(self, params, serial_dir) -> None:
-                return None
 
         node = FusionNode()
 
@@ -281,9 +251,6 @@ class TestMultiplePortNodes:
                     "min": data.min(dim=0).values,
                     "max": data.max(dim=0).values,
                 }
-
-            def load(self, params, serial_dir) -> None:
-                return None
 
         node = AnalyzerNode()
 

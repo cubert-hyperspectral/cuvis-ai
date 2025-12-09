@@ -50,12 +50,12 @@ def test_lad_m_l_numpy_parity():
     H, W, C = 32, 32, 40
     x, _ = _synthetic_cube(H, W, C, seed=123)
 
-    lad = LADGlobal(use_numpy_laplacian=True)
+    lad = LADGlobal(num_channels=C, use_numpy_laplacian=True)
 
     def stream():
         yield {"data": x}
 
-    lad.fit(stream())
+    lad.statistical_initialization(stream())
 
     # NumPy reference
     M_np, L_np = _lad_fit_numpy(x)
@@ -75,12 +75,12 @@ def test_lad_scores_numpy_parity():
     # inject an anomaly patch in test
     x_test[:, 8:12, 8:12, -10:] += 0.8
 
-    lad = LADGlobal(use_numpy_laplacian=True)
+    lad = LADGlobal(num_channels=C, use_numpy_laplacian=True)
 
     def train_stream():
         yield {"data": x_train}
 
-    lad.fit(train_stream())
+    lad.statistical_initialization(train_stream())
 
     with torch.no_grad():
         out = lad.forward(x_test)
@@ -100,17 +100,17 @@ def test_lad_serialize_roundtrip(tmp_path):
     H, W, C = 16, 16, 20
     x, _ = _synthetic_cube(H, W, C, seed=7)
 
-    lad = LADGlobal(use_numpy_laplacian=True)
+    lad = LADGlobal(num_channels=C, use_numpy_laplacian=True)
 
     def stream():
         yield {"data": x}
 
-    lad.fit(stream())
+    lad.statistical_initialization(stream())
 
-    payload = lad.serialize(str(tmp_path))
+    state = lad.state_dict()
 
-    lad2 = LADGlobal()
-    lad2.load(payload, str(tmp_path))
+    lad2 = LADGlobal(num_channels=C)
+    lad2.load_state_dict(state)
 
     with torch.no_grad():
         s1 = lad.forward(x)["scores"]
@@ -124,22 +124,22 @@ def test_lad_serialize_roundtrip_after_unfreeze(tmp_path):
     H, W, C = 16, 16, 20
     x, _ = _synthetic_cube(H, W, C, seed=7)
 
-    lad = LADGlobal(use_numpy_laplacian=True)
+    lad = LADGlobal(num_channels=C, use_numpy_laplacian=True)
 
     def stream():
         yield {"data": x}
 
-    lad.fit(stream())
+    lad.statistical_initialization(stream())
     lad.unfreeze()  # Convert to parameters
 
     # Verify they are parameters
     assert isinstance(lad.M, nn.Parameter)
     assert isinstance(lad.L, nn.Parameter)
 
-    payload = lad.serialize(str(tmp_path))
+    state = lad.state_dict()
 
-    lad2 = LADGlobal()
-    lad2.load(payload, str(tmp_path))
+    lad2 = LADGlobal(num_channels=C)
+    lad2.load_state_dict(state)
 
     # After loading, M and L should be restored (as buffers or parameters depending on state_dict)
     # The important thing is that scores match
@@ -155,12 +155,12 @@ def test_lad_unfreeze_converts_buffers_to_parameters():
     H, W, C = 16, 16, 20
     x, _ = _synthetic_cube(H, W, C, seed=7)
 
-    lad = LADGlobal(use_numpy_laplacian=True)
+    lad = LADGlobal(num_channels=C, use_numpy_laplacian=True)
 
     def stream():
         yield {"data": x}
 
-    lad.fit(stream())
+    lad.statistical_initialization(stream())
 
     # Initially M and L should be buffers
     assert isinstance(lad.M, torch.Tensor)
@@ -191,69 +191,34 @@ def test_lad_unfreeze_converts_buffers_to_parameters():
     assert not lad.freezed
 
 
-def test_lad_trainable_parameters_update():
+def test_lad_trainable_parameters_update(synthetic_anomaly_datamodule, training_config_factory):
     """Test that LAD parameters can be updated during gradient training."""
-    import numpy as np
-    from torch.utils.data import DataLoader, Dataset
-
     from cuvis_ai.node.data import LentilsAnomalyDataNode
     from cuvis_ai.node.losses import AnomalyBCEWithLogits
     from cuvis_ai.node.normalization import MinMaxNormalizer
-    from cuvis_ai.pipeline.canvas import CuvisCanvas
-    from cuvis_ai.training.config import OptimizerConfig, TrainerConfig
-    from cuvis_ai.training.datamodule import CuvisDataModule
+    from cuvis_ai.pipeline.pipeline import CuvisPipeline
     from cuvis_ai.training.trainers import GradientTrainer, StatisticalTrainer
 
-    # Create synthetic dataset
-    class SimpleDataset(Dataset):
-        def __init__(self, cubes, masks):
-            self.cubes = cubes
-            self.masks = masks
+    # Create datamodule using fixture (includes wavelengths automatically)
+    datamodule = synthetic_anomaly_datamodule(
+        batch_size=2,
+        num_samples=16,
+        height=8,
+        width=8,
+        channels=20,
+        seed=42,
+        include_labels=True,
+        mode="random",
+    )
 
-        def __len__(self):
-            return len(self.cubes)
-
-        def __getitem__(self, idx):
-            return {"cube": self.cubes[idx], "mask": self.masks[idx]}
-
-    class SimpleDataModule(CuvisDataModule):
-        def __init__(self, cubes, masks, batch_size=2):
-            super().__init__()
-            self.cubes = cubes
-            self.masks = masks
-            self.batch_size = batch_size
-
-        def prepare_data(self):
-            pass
-
-        def setup(self, stage=None):
-            pass
-
-        def train_dataloader(self):
-            dataset = SimpleDataset(self.cubes, self.masks)
-            return DataLoader(dataset, batch_size=self.batch_size, shuffle=True, num_workers=0)
-
-        def val_dataloader(self):
-            dataset = SimpleDataset(self.cubes[:2], self.masks[:2])
-            return DataLoader(dataset, batch_size=self.batch_size, shuffle=False, num_workers=0)
-
-    # Generate synthetic data
-    H, W, C = 8, 8, 20
-    num_samples = 16
-    rng = np.random.default_rng(42)
-    cubes = torch.from_numpy(rng.normal(0, 1, size=(num_samples, H, W, C)).astype(np.float32))
-    masks = torch.randint(0, 2, (num_samples, H, W), dtype=torch.int32)
-
-    datamodule = SimpleDataModule(cubes, masks, batch_size=2)
-
-    # Build canvas
-    canvas = CuvisCanvas("test_lad_training")
+    # Build pipeline
+    pipeline = CuvisPipeline("test_lad_training")
     data_node = LentilsAnomalyDataNode(normal_class_ids=[0, 1])
     normalizer = MinMaxNormalizer(eps=1.0e-6, use_running_stats=True)
-    lad = LADGlobal(eps=1.0e-8, normalize_laplacian=True, use_numpy_laplacian=True)
+    lad = LADGlobal(num_channels=20, eps=1.0e-8, normalize_laplacian=True, use_numpy_laplacian=True)
     loss_node = AnomalyBCEWithLogits(weight=1.0)
 
-    canvas.connect(
+    pipeline.connect(
         (data_node.outputs.cube, normalizer.data),
         (normalizer.normalized, lad.data),
         (lad.scores, loss_node.predictions),
@@ -261,7 +226,7 @@ def test_lad_trainable_parameters_update():
     )
 
     # Statistical initialization
-    stat_trainer = StatisticalTrainer(canvas=canvas, datamodule=datamodule)
+    stat_trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
     stat_trainer.fit()
 
     # Store initial parameter values
@@ -279,18 +244,15 @@ def test_lad_trainable_parameters_update():
     assert lad.M.requires_grad
     assert lad.L.requires_grad
 
-    # Gradient training
-    trainer_config = TrainerConfig(
-        max_epochs=2, accelerator="cpu", enable_progress_bar=False, log_every_n_steps=1
-    )
-    optimizer_config = OptimizerConfig(name="adam", lr=1e-2)
+    # Gradient training using config factory
+    training_cfg = training_config_factory(max_epochs=2, lr=1e-2)
 
     grad_trainer = GradientTrainer(
-        canvas=canvas,
+        pipeline=pipeline,
         datamodule=datamodule,
         loss_nodes=[loss_node],
-        trainer_config=trainer_config,
-        optimizer_config=optimizer_config,
+        trainer_config=training_cfg.trainer,
+        optimizer_config=training_cfg.optimizer,
     )
     grad_trainer.fit()
 

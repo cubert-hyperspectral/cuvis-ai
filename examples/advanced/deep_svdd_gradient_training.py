@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import hydra
 from loguru import logger
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from cuvis_ai.anomaly.deep_svdd import DeepSVDDCenterTracker, DeepSVDDEncoder, DeepSVDDScores
 from cuvis_ai.data.lentils_anomaly import SingleCu3sDataModule
@@ -16,45 +18,41 @@ from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.normalization import PerPixelUnitNorm
 from cuvis_ai.node.preprocessors import BandpassByWavelength
 from cuvis_ai.node.visualizations import AnomalyMask, ScoreHeatmapVisualizer
-from cuvis_ai.pipeline.canvas import CuvisCanvas
+from cuvis_ai.pipeline.pipeline import CuvisPipeline
 from cuvis_ai.training import GradientTrainer, StatisticalTrainer
-from cuvis_ai.training.config import OptimizerConfig, TrainerConfig
+from cuvis_ai.training.config import (
+    CallbacksConfig,
+    EarlyStoppingConfig,
+    ExperimentConfig,
+    ModelCheckpointConfig,
+    PipelineMetadata,
+    SchedulerConfig,
+    TrainingConfig,
+)
 
 
-@hydra.main(version_base=None, config_path="../cuvis_ai/conf", config_name="general")
+@hydra.main(config_path="../../configs/", config_name="experiment/default", version_base=None)
 def main(cfg: DictConfig) -> None:
-    dataset_mode = str(getattr(cfg, "mode", "Raw"))
-    normalize_to_unit = bool(getattr(cfg, "normalize_to_unit", False))
-    min_wavelength_nm = float(getattr(cfg, "min_wavelength_nm", 700.0))
-    max_wavelength_nm = getattr(cfg, "max_wavelength_nm", None)
-    if max_wavelength_nm is not None:
-        max_wavelength_nm = float(max_wavelength_nm)
+    """Deep SVDD anomaly detection with gradient training and experiment config saving."""
 
-    logger.info("=== DeepSVDD gradient training demo ===")
-    logger.info("Dataset mode: %s | normalize_to_unit=%s", dataset_mode, normalize_to_unit)
-    max_wl_str = f"{max_wavelength_nm:.1f}" if max_wavelength_nm is not None else "inf"
-    logger.info("Bandpass range: %.1f - %s nm", min_wavelength_nm, max_wl_str)
+    logger.info("=== Deep SVDD Gradient Training ===")
 
-    datamodule = SingleCu3sDataModule(
-        data_dir="C:/Users/anish.raj/projects/gitlab_cuvis_ai_3/cuvis.ai/data/Lentils",
-        batch_size=2,
-        train_ids=[0],
-        val_ids=[3, 4, 6],
-        test_ids=[1, 5],
-        mode=dataset_mode,
-        normalize_to_unit=normalize_to_unit,
-    )
+    output_dir = Path(cfg.output_dir)
+
+    # Stage 1: Setup datamodule
+    datamodule = SingleCu3sDataModule(**cfg.data)
     datamodule.setup(stage="fit")
 
-    wavelengths = datamodule.train_ds.wavelengths
-    canvas = CuvisCanvas(f"DeepSVDD_Gradient_{dataset_mode}")
+    # Stage 2: Build graph
+    pipeline = CuvisPipeline("DeepSVDD_Gradient")
 
-    data_node = LentilsAnomalyDataNode(wavelengths=wavelengths, normal_class_ids=[0, 1])
+    data_node = LentilsAnomalyDataNode(normal_class_ids=[0, 1])
+
     bandpass_node = BandpassByWavelength(
-        min_wavelength_nm=min_wavelength_nm,
-        max_wavelength_nm=max_wavelength_nm,
-        wavelengths=wavelengths,
+        min_wavelength_nm=700.0,
+        max_wavelength_nm=None,
     )
+
     unit_norm_node = PerPixelUnitNorm(eps=1e-8)
 
     encoder = DeepSVDDEncoder(rep_dim=32, hidden=128, sample_n=200_000, seed=0)
@@ -64,15 +62,16 @@ def main(cfg: DictConfig) -> None:
 
     decider_node = QuantileBinaryDecider(quantile=0.995)
     metrics_node = AnomalyDetectionMetrics(name="metrics_anomaly")
-    viz_mask = AnomalyMask(channel=30, up_to=5)
-    score_viz = ScoreHeatmapVisualizer(normalize_scores=True, up_to=5)
+    viz_mask = AnomalyMask(name="mask", channel=30, up_to=5)
+    score_viz = ScoreHeatmapVisualizer(name="score_heatmap", normalize_scores=True, up_to=5)
 
     tensorboard_node = TensorBoardMonitorNode(
-        run_name=f"deep_svdd_gradient_{dataset_mode.lower()}",
-        output_dir="./outputs/",
+        output_dir=str(output_dir / ".." / "tensorboard"),
+        run_name=pipeline.name,
     )
 
-    canvas.connect(
+    # Stage 3: Connect the Nodes
+    pipeline.connect(
         # Preprocessing chain
         (data_node.outputs.cube, bandpass_node.data),
         (data_node.outputs.wavelengths, bandpass_node.wavelengths),
@@ -102,47 +101,139 @@ def main(cfg: DictConfig) -> None:
         (viz_mask.artifacts, tensorboard_node.artifacts),
     )
 
-    logger.info("Visualizing canvas...")
-    canvas.visualize(
+    pipeline.visualize(
         format="render_graphviz",
-        output_path=f"outputs/canvases/{canvas.name}.png",
+        output_path=str(output_dir / "pipeline" / f"{pipeline.name}.png"),
         show_execution_stage=True,
     )
 
-    logger.info("Phase 1: statistical fit of DeepSVDD encoder")
-    stat_trainer = StatisticalTrainer(canvas=canvas, datamodule=datamodule)
+    pipeline.visualize(
+        format="render_mermaid",
+        output_path=str(output_dir / "pipeline" / f"{pipeline.name}.md"),
+        direction="LR",
+        include_node_class=True,
+        wrap_markdown=True,
+        show_execution_stage=True,
+    )
+
+    training_cfg = TrainingConfig.from_dict(OmegaConf.to_container(cfg.training, resolve=True))  # type: ignore[arg-type]
+
+    # Programmatically add extra callbacks if needed
+    if training_cfg.trainer.callbacks is None:
+        training_cfg.trainer.callbacks = CallbacksConfig()
+
+    # Configure early stopping and checkpointing
+    training_cfg.trainer.callbacks.early_stopping.append(
+        EarlyStoppingConfig(monitor="train/deepsvdd_loss", mode="min", patience=15)
+    )
+
+    training_cfg.trainer.callbacks.model_checkpoint = ModelCheckpointConfig(
+        dirpath=str(output_dir / "checkpoints"),
+        monitor="metrics_anomaly/iou",
+        mode="max",
+        save_top_k=3,
+        save_last=True,
+        filename="{epoch:02d}",
+        verbose=True,
+    )
+
+    # Configure learning rate scheduler
+    if training_cfg.optimizer.scheduler is None:
+        training_cfg.optimizer.scheduler = SchedulerConfig(
+            name="reduce_on_plateau",
+            monitor="metrics_anomaly/iou",
+            mode="max",
+            factor=0.5,
+            patience=5,
+        )
+
+    # Stage 4: Statistical initialization
+    logger.info("Phase 1: Statistical fit of DeepSVDD encoder...")
+    stat_trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
     stat_trainer.fit()
 
-    logger.info("Phase 2: unfreezing encoder for gradient optimization")
-    encoder.unfreeze()
+    # Stage 5: Unfreeze encoder for gradient optimization
+    logger.info("Phase 2: Unfreezing encoder for gradient training...")
+    unfreeze_node_names = [encoder.name]
+    pipeline.unfreeze_nodes_by_name(unfreeze_node_names)
+    logger.info(f"Unfrozen nodes: {unfreeze_node_names}")
 
-    trainer_config = TrainerConfig(max_epochs=70, accelerator="auto", enable_progress_bar=True)
-    optimizer_config = OptimizerConfig(name="adam", lr=1e-3)
-
-    logger.info("Phase 3: gradient training with DeepSVDDSoftBoundaryLoss")
+    # Stage 6: Gradient training with DeepSVDDSoftBoundaryLoss
+    logger.info("Phase 3: Gradient training with DeepSVDDSoftBoundaryLoss...")
     grad_trainer = GradientTrainer(
-        canvas=canvas,
+        pipeline=pipeline,
         datamodule=datamodule,
         loss_nodes=[loss_node],
         metric_nodes=[metrics_node],
-        trainer_config=trainer_config,
-        optimizer_config=optimizer_config,
+        trainer_config=training_cfg.trainer,
+        optimizer_config=training_cfg.optimizer,
         monitors=[tensorboard_node],
     )
     grad_trainer.fit()
 
-    logger.info("Validating trained DeepSVDD model...")
-    grad_trainer.validate(ckpt_path=None)
+    logger.info("Running validation evaluation with best checkpoint...")
+    val_results = grad_trainer.validate()
+    logger.info(f"Validation results: {val_results}")
 
-    logger.info("Testing trained DeepSVDD model...")
-    grad_trainer.test(ckpt_path=None)
+    # Identify metric and loss nodes from pipeline
+    loss_node_names = [loss_node.name]
+    metric_node_names = [metrics_node.name]
+    logger.info(f"Loss nodes: {loss_node_names}")
+    logger.info(f"Metric nodes: {metric_node_names}")
 
-    logger.info(
-        "Finished! Launch TensorBoard with: uv run tensorboard --logdir=./outputs/deep_svdd_gradient_%s",
-        dataset_mode.lower(),
+    # Stage 7: Evaluate on test set with best checkpoint
+    logger.info("Running test evaluation with best checkpoint...")
+    test_results = grad_trainer.test()
+    logger.info(f"Test results: {test_results}")
+
+    # Stage 8: Save trained pipeline and experiment config
+    results_dir = output_dir / "trained_models"
+
+    pipeline_output_path = results_dir / f"{pipeline.name}.yaml"
+    logger.info(f"Saving trained pipeline to: {pipeline_output_path}")
+
+    pipeline.save_to_file(
+        str(pipeline_output_path),
+        metadata=PipelineMetadata(
+            name=pipeline.name,
+            description=f"Trained model from {pipeline.name} experiment (statistical + gradient training)",
+            tags=["gradient", "statistical", "deep_svdd", "anomaly_detection"],
+            author="cuvis.ai",
+        ),
     )
+    logger.info(f"  Created: {pipeline_output_path}")
+    logger.info(f"  Weights: {pipeline_output_path.with_suffix('.pt')}")
+
+    # Create and save complete experiment config for reproducibility
+    pipeline_config = pipeline.serialize()
+
+    experiment_config = ExperimentConfig(
+        name=cfg.name,
+        pipeline=pipeline_config,
+        data=cfg.data,
+        training=training_cfg,
+        output_dir=str(output_dir),
+        loss_nodes=loss_node_names,
+        metric_nodes=metric_node_names,
+        freeze_nodes=[],  # All other nodes remain frozen
+        unfreeze_nodes=unfreeze_node_names,
+    )
+
+    experiment_output_path = results_dir / f"{cfg.name}_experiment.yaml"
+    logger.info(f"Saving experiment config to: {experiment_output_path}")
+    experiment_config.save_to_file(str(experiment_output_path))
+
+    # Stage 9: Report results
+    logger.info("=== Training Complete ===")
+    logger.info(f"Trained pipeline saved: {pipeline_output_path}")
+    logger.info(f"Experiment config saved: {experiment_output_path}")
+    logger.info(f"TensorBoard logs: {tensorboard_node.output_dir}")
+    logger.info("To restore this experiment:")
+    logger.info(
+        f"  uv run python examples/serialization/restore_experiment.py --experiment-path {experiment_output_path}"
+    )
+    logger.info(f"View logs: uv run tensorboard --logdir={output_dir}")
 
 
 if __name__ == "__main__":
     main()
-

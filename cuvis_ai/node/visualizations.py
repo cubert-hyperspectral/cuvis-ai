@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import matplotlib
+
+# Use non-interactive backend to avoid GUI/threading issues in tests
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -106,12 +110,6 @@ class CubeRGBVisualizer(Node):
             plt.close(fig)
 
         return {"artifacts": artifacts}
-
-    def serialize(self, serial_dir: str) -> dict:
-        return {**self.hparams}
-
-    def load(self, params: dict, serial_dir: str) -> None:
-        pass
 
 
 class PCAVisualization(Node):
@@ -332,12 +330,6 @@ class PCAVisualization(Node):
         # Return artifacts
         return {"artifacts": artifacts}
 
-    def serialize(self, serial_dir: str) -> dict:
-        return {**self.hparams}
-
-    def load(self, params: dict, serial_dir: str) -> None:
-        pass
-
 
 class AnomalyMask(Node):
     """Visualize anomaly detection with GT and predicted masks.
@@ -421,9 +413,9 @@ class AnomalyMask(Node):
     def forward(
         self,
         decisions: torch.Tensor,
-        mask: torch.Tensor | None,
         cube: torch.Tensor,
         context: Context,
+        mask: torch.Tensor | None = None,
         scores: torch.Tensor | None = None,
     ) -> dict:
         """Create anomaly mask visualizations with GT/pred comparison.
@@ -668,12 +660,6 @@ class AnomalyMask(Node):
         # Return artifacts
         return {"artifacts": artifacts}
 
-    def serialize(self, serial_dir: str) -> dict:
-        return {**self.hparams}
-
-    def load(self, params: dict, serial_dir: str) -> None:
-        pass
-
 
 class ScoreHeatmapVisualizer(Node):
     """Log LAD/RX score heatmaps as TensorBoard artifacts."""
@@ -748,12 +734,6 @@ class ScoreHeatmapVisualizer(Node):
             artifacts.append(artifact)
 
         return {"artifacts": artifacts}
-
-    def serialize(self, serial_dir: str) -> dict:
-        return {**self.hparams}
-
-    def load(self, params: dict, serial_dir: str) -> None:
-        pass
 
 
 __all__ = [

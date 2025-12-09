@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import tempfile
 from pathlib import Path
 
 import torch
@@ -54,21 +53,22 @@ def test_quantile_binary_decider_matches_torch_quantile():
         assert torch.equal(mask, expected_mask)
 
 
-def test_quantile_binary_decider_serialization_roundtrip(tmp_path: Path | None = None):
-    if tmp_path is None:
-        tmp = tempfile.TemporaryDirectory()
-        serial_dir = Path(tmp.name)
-    else:
-        serial_dir = tmp_path
-
+def test_quantile_binary_decider_serialization_roundtrip(tmp_path: Path):
     tensor = _make_linear_map()
     decider = QuantileBinaryDecider(quantile=0.8, reduce_dims=(1, 2, 3))
 
     original = decider.forward(logits=tensor)["decisions"]
-    payload = decider.serialize(directory=str(serial_dir))
 
-    restored = QuantileBinaryDecider()
-    restored.load(payload, filepath=str(serial_dir))
+    # PyTorch handles the module state via state_dict; hparams capture init kwargs
+    state_path = tmp_path / "decider_state.pt"
+    torch.save(decider.state_dict(), state_path)
+
+    assert decider.hparams["quantile"] == decider.quantile
+    assert decider.hparams["reduce_dims"] == decider.reduce_dims
+
+    restored = QuantileBinaryDecider(**decider.hparams)
+    state = torch.load(state_path)
+    restored.load_state_dict(state)
 
     recreated = restored.forward(logits=tensor)["decisions"]
     assert torch.equal(original, recreated)

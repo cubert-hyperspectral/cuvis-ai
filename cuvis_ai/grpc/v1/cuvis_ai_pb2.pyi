@@ -33,6 +33,7 @@ class DType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     D_TYPE_UINT8: _ClassVar[DType]
     D_TYPE_BOOL: _ClassVar[DType]
     D_TYPE_FLOAT16: _ClassVar[DType]
+    D_TYPE_UINT16: _ClassVar[DType]
 
 class TrainerType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -70,6 +71,7 @@ D_TYPE_INT64: DType
 D_TYPE_UINT8: DType
 D_TYPE_BOOL: DType
 D_TYPE_FLOAT16: DType
+D_TYPE_UINT16: DType
 TRAINER_TYPE_UNSPECIFIED: TrainerType
 TRAINER_TYPE_STATISTICAL: TrainerType
 TRAINER_TYPE_GRADIENT: TrainerType
@@ -115,6 +117,12 @@ class Context(_message.Message):
         global_step: int | None = ...,
     ) -> None: ...
 
+class PipelineConfig(_message.Message):
+    __slots__ = ()
+    CONFIG_BYTES_FIELD_NUMBER: _ClassVar[int]
+    config_bytes: bytes
+    def __init__(self, config_bytes: bytes | None = ...) -> None: ...
+
 class DataConfig(_message.Message):
     __slots__ = ()
     CU3S_FILE_PATH_FIELD_NUMBER: _ClassVar[int]
@@ -140,6 +148,75 @@ class DataConfig(_message.Message):
         test_ids: _Iterable[int] | None = ...,
         batch_size: int | None = ...,
         processing_mode: ProcessingMode | str | None = ...,
+    ) -> None: ...
+
+class PipelineMetadata(_message.Message):
+    __slots__ = ()
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
+    CREATED_FIELD_NUMBER: _ClassVar[int]
+    CUVIS_AI_VERSION_FIELD_NUMBER: _ClassVar[int]
+    TAGS_FIELD_NUMBER: _ClassVar[int]
+    AUTHOR_FIELD_NUMBER: _ClassVar[int]
+    name: str
+    description: str
+    created: str
+    cuvis_ai_version: str
+    tags: _containers.RepeatedScalarFieldContainer[str]
+    author: str
+    def __init__(
+        self,
+        name: str | None = ...,
+        description: str | None = ...,
+        created: str | None = ...,
+        cuvis_ai_version: str | None = ...,
+        tags: _Iterable[str] | None = ...,
+        author: str | None = ...,
+    ) -> None: ...
+
+class PipelineInfo(_message.Message):
+    __slots__ = ()
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    PATH_FIELD_NUMBER: _ClassVar[int]
+    METADATA_FIELD_NUMBER: _ClassVar[int]
+    TAGS_FIELD_NUMBER: _ClassVar[int]
+    HAS_WEIGHTS_FIELD_NUMBER: _ClassVar[int]
+    WEIGHTS_PATH_FIELD_NUMBER: _ClassVar[int]
+    YAML_CONTENT_FIELD_NUMBER: _ClassVar[int]
+    name: str
+    path: str
+    metadata: PipelineMetadata
+    tags: _containers.RepeatedScalarFieldContainer[str]
+    has_weights: bool
+    weights_path: str
+    yaml_content: str
+    def __init__(
+        self,
+        name: str | None = ...,
+        path: str | None = ...,
+        metadata: PipelineMetadata | _Mapping | None = ...,
+        tags: _Iterable[str] | None = ...,
+        has_weights: bool | None = ...,
+        weights_path: str | None = ...,
+        yaml_content: str | None = ...,
+    ) -> None: ...
+
+class ExperimentConfig(_message.Message):
+    __slots__ = ()
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    PIPELINE_FIELD_NUMBER: _ClassVar[int]
+    DATA_FIELD_NUMBER: _ClassVar[int]
+    TRAINING_FIELD_NUMBER: _ClassVar[int]
+    name: str
+    pipeline: PipelineConfig
+    data: DataConfig
+    training: TrainingConfig
+    def __init__(
+        self,
+        name: str | None = ...,
+        pipeline: PipelineConfig | _Mapping | None = ...,
+        data: DataConfig | _Mapping | None = ...,
+        training: TrainingConfig | _Mapping | None = ...,
     ) -> None: ...
 
 class BoundingBox(_message.Message):
@@ -287,9 +364,9 @@ class TrainResponse(_message.Message):
 
 class TrainingConfig(_message.Message):
     __slots__ = ()
-    CONFIG_JSON_FIELD_NUMBER: _ClassVar[int]
-    config_json: bytes
-    def __init__(self, config_json: bytes | None = ...) -> None: ...
+    CONFIG_BYTES_FIELD_NUMBER: _ClassVar[int]
+    config_bytes: bytes
+    def __init__(self, config_bytes: bytes | None = ...) -> None: ...
 
 class ParamSpec(_message.Message):
     __slots__ = ()
@@ -342,20 +419,35 @@ class SchedulerParamsSchema(_message.Message):
     parameters: _containers.RepeatedCompositeFieldContainer[ParamSpec]
     def __init__(self, parameters: _Iterable[ParamSpec | _Mapping] | None = ...) -> None: ...
 
+class ListAvailablePipelineesRequest(_message.Message):
+    __slots__ = ()
+    FILTER_TAG_FIELD_NUMBER: _ClassVar[int]
+    filter_tag: str
+    def __init__(self, filter_tag: str | None = ...) -> None: ...
+
+class ListAvailablePipelineesResponse(_message.Message):
+    __slots__ = ()
+    PIPELINEES_FIELD_NUMBER: _ClassVar[int]
+    pipelinees: _containers.RepeatedCompositeFieldContainer[PipelineInfo]
+    def __init__(self, pipelinees: _Iterable[PipelineInfo | _Mapping] | None = ...) -> None: ...
+
+class GetPipelineInfoRequest(_message.Message):
+    __slots__ = ()
+    PIPELINE_NAME_FIELD_NUMBER: _ClassVar[int]
+    pipeline_name: str
+    def __init__(self, pipeline_name: str | None = ...) -> None: ...
+
+class GetPipelineInfoResponse(_message.Message):
+    __slots__ = ()
+    PIPELINE_INFO_FIELD_NUMBER: _ClassVar[int]
+    pipeline_info: PipelineInfo
+    def __init__(self, pipeline_info: PipelineInfo | _Mapping | None = ...) -> None: ...
+
 class CreateSessionRequest(_message.Message):
     __slots__ = ()
-    PIPELINE_TYPE_FIELD_NUMBER: _ClassVar[int]
-    PIPELINE_CONFIG_FIELD_NUMBER: _ClassVar[int]
-    DATA_CONFIG_FIELD_NUMBER: _ClassVar[int]
-    pipeline_type: str
-    pipeline_config: str
-    data_config: DataConfig
-    def __init__(
-        self,
-        pipeline_type: str | None = ...,
-        pipeline_config: str | None = ...,
-        data_config: DataConfig | _Mapping | None = ...,
-    ) -> None: ...
+    PIPELINE_FIELD_NUMBER: _ClassVar[int]
+    pipeline: PipelineConfig
+    def __init__(self, pipeline: PipelineConfig | _Mapping | None = ...) -> None: ...
 
 class CreateSessionResponse(_message.Message):
     __slots__ = ()
@@ -379,15 +471,18 @@ class TrainRequest(_message.Message):
     __slots__ = ()
     SESSION_ID_FIELD_NUMBER: _ClassVar[int]
     TRAINER_TYPE_FIELD_NUMBER: _ClassVar[int]
-    CONFIG_FIELD_NUMBER: _ClassVar[int]
+    DATA_FIELD_NUMBER: _ClassVar[int]
+    TRAINING_FIELD_NUMBER: _ClassVar[int]
     session_id: str
     trainer_type: TrainerType
-    config: TrainingConfig
+    data: DataConfig
+    training: TrainingConfig
     def __init__(
         self,
         session_id: str | None = ...,
         trainer_type: TrainerType | str | None = ...,
-        config: TrainingConfig | _Mapping | None = ...,
+        data: DataConfig | _Mapping | None = ...,
+        training: TrainingConfig | _Mapping | None = ...,
     ) -> None: ...
 
 class GetTrainStatusRequest(_message.Message):
@@ -398,15 +493,9 @@ class GetTrainStatusRequest(_message.Message):
 
 class GetTrainStatusResponse(_message.Message):
     __slots__ = ()
-    STATUS_FIELD_NUMBER: _ClassVar[int]
     LATEST_PROGRESS_FIELD_NUMBER: _ClassVar[int]
-    status: TrainStatus
     latest_progress: TrainResponse
-    def __init__(
-        self,
-        status: TrainStatus | str | None = ...,
-        latest_progress: TrainResponse | _Mapping | None = ...,
-    ) -> None: ...
+    def __init__(self, latest_progress: TrainResponse | _Mapping | None = ...) -> None: ...
 
 class GetTrainingCapabilitiesRequest(_message.Message):
     __slots__ = ()
@@ -452,6 +541,100 @@ class ValidateTrainingConfigResponse(_message.Message):
         valid: bool | None = ...,
         errors: _Iterable[str] | None = ...,
         warnings: _Iterable[str] | None = ...,
+    ) -> None: ...
+
+class SavePipelineRequest(_message.Message):
+    __slots__ = ()
+    SESSION_ID_FIELD_NUMBER: _ClassVar[int]
+    PIPELINE_PATH_FIELD_NUMBER: _ClassVar[int]
+    METADATA_FIELD_NUMBER: _ClassVar[int]
+    session_id: str
+    pipeline_path: str
+    metadata: PipelineMetadata
+    def __init__(
+        self,
+        session_id: str | None = ...,
+        pipeline_path: str | None = ...,
+        metadata: PipelineMetadata | _Mapping | None = ...,
+    ) -> None: ...
+
+class SavePipelineResponse(_message.Message):
+    __slots__ = ()
+    SUCCESS_FIELD_NUMBER: _ClassVar[int]
+    PIPELINE_PATH_FIELD_NUMBER: _ClassVar[int]
+    WEIGHTS_PATH_FIELD_NUMBER: _ClassVar[int]
+    success: bool
+    pipeline_path: str
+    weights_path: str
+    def __init__(
+        self,
+        success: bool | None = ...,
+        pipeline_path: str | None = ...,
+        weights_path: str | None = ...,
+    ) -> None: ...
+
+class LoadPipelineRequest(_message.Message):
+    __slots__ = ()
+    SESSION_ID_FIELD_NUMBER: _ClassVar[int]
+    PIPELINE_PATH_FIELD_NUMBER: _ClassVar[int]
+    WEIGHTS_PATH_FIELD_NUMBER: _ClassVar[int]
+    STRICT_FIELD_NUMBER: _ClassVar[int]
+    session_id: str
+    pipeline_path: str
+    weights_path: str
+    strict: bool
+    def __init__(
+        self,
+        session_id: str | None = ...,
+        pipeline_path: str | None = ...,
+        weights_path: str | None = ...,
+        strict: bool | None = ...,
+    ) -> None: ...
+
+class LoadPipelineResponse(_message.Message):
+    __slots__ = ()
+    SUCCESS_FIELD_NUMBER: _ClassVar[int]
+    METADATA_FIELD_NUMBER: _ClassVar[int]
+    success: bool
+    metadata: PipelineMetadata
+    def __init__(
+        self,
+        success: bool | None = ...,
+        metadata: PipelineMetadata | _Mapping | None = ...,
+    ) -> None: ...
+
+class SaveExperimentRequest(_message.Message):
+    __slots__ = ()
+    SESSION_ID_FIELD_NUMBER: _ClassVar[int]
+    EXPERIMENT_PATH_FIELD_NUMBER: _ClassVar[int]
+    session_id: str
+    experiment_path: str
+    def __init__(self, session_id: str | None = ..., experiment_path: str | None = ...) -> None: ...
+
+class SaveExperimentResponse(_message.Message):
+    __slots__ = ()
+    SUCCESS_FIELD_NUMBER: _ClassVar[int]
+    EXPERIMENT_PATH_FIELD_NUMBER: _ClassVar[int]
+    success: bool
+    experiment_path: str
+    def __init__(self, success: bool | None = ..., experiment_path: str | None = ...) -> None: ...
+
+class RestoreExperimentRequest(_message.Message):
+    __slots__ = ()
+    EXPERIMENT_PATH_FIELD_NUMBER: _ClassVar[int]
+    experiment_path: str
+    def __init__(self, experiment_path: str | None = ...) -> None: ...
+
+class RestoreExperimentResponse(_message.Message):
+    __slots__ = ()
+    SESSION_ID_FIELD_NUMBER: _ClassVar[int]
+    EXPERIMENT_FIELD_NUMBER: _ClassVar[int]
+    session_id: str
+    experiment: ExperimentConfig
+    def __init__(
+        self,
+        session_id: str | None = ...,
+        experiment: ExperimentConfig | _Mapping | None = ...,
     ) -> None: ...
 
 class GetPipelineInputsRequest(_message.Message):
@@ -570,35 +753,3 @@ class InferenceResponse(_message.Message):
         outputs: _Mapping[str, Tensor] | None = ...,
         metrics: _Mapping[str, float] | None = ...,
     ) -> None: ...
-
-class SaveCheckpointRequest(_message.Message):
-    __slots__ = ()
-    SESSION_ID_FIELD_NUMBER: _ClassVar[int]
-    CHECKPOINT_PATH_FIELD_NUMBER: _ClassVar[int]
-    session_id: str
-    checkpoint_path: str
-    def __init__(self, session_id: str | None = ..., checkpoint_path: str | None = ...) -> None: ...
-
-class SaveCheckpointResponse(_message.Message):
-    __slots__ = ()
-    SUCCESS_FIELD_NUMBER: _ClassVar[int]
-    MESSAGE_FIELD_NUMBER: _ClassVar[int]
-    success: bool
-    message: str
-    def __init__(self, success: bool | None = ..., message: str | None = ...) -> None: ...
-
-class LoadCheckpointRequest(_message.Message):
-    __slots__ = ()
-    SESSION_ID_FIELD_NUMBER: _ClassVar[int]
-    CHECKPOINT_PATH_FIELD_NUMBER: _ClassVar[int]
-    session_id: str
-    checkpoint_path: str
-    def __init__(self, session_id: str | None = ..., checkpoint_path: str | None = ...) -> None: ...
-
-class LoadCheckpointResponse(_message.Message):
-    __slots__ = ()
-    SUCCESS_FIELD_NUMBER: _ClassVar[int]
-    MESSAGE_FIELD_NUMBER: _ClassVar[int]
-    success: bool
-    message: str
-    def __init__(self, success: bool | None = ..., message: str | None = ...) -> None: ...

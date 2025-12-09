@@ -29,6 +29,7 @@ enum DType {
   D_TYPE_UINT8 = 5;
   D_TYPE_BOOL = 6;
   D_TYPE_FLOAT16 = 7;
+  D_TYPE_UINT16 = 8;
 }
 
 enum TrainerType {
@@ -68,6 +69,14 @@ message Context {
   int32 global_step = 4;
 }
 
+// ============================================================================
+// Configuration Types
+// ============================================================================
+
+message PipelineConfig {
+  bytes config_bytes = 1;  // Serialized PipelineConfig dataclass (JSON format)
+}
+
 message DataConfig {
   string cu3s_file_path = 1;
   string annotation_json_path = 2;
@@ -76,6 +85,32 @@ message DataConfig {
   repeated int32 test_ids = 5;
   int32 batch_size = 6;
   ProcessingMode processing_mode = 7;
+}
+
+message PipelineMetadata {
+  string name = 1;
+  string description = 2;
+  string created = 3;
+  string cuvis_ai_version = 4;
+  repeated string tags = 5;
+  string author = 6;
+}
+
+message PipelineInfo {
+  string name = 1;                    // Short name
+  string path = 2;                    // Full path on server
+  PipelineMetadata metadata = 3;        // Metadata from pipeline file
+  repeated string tags = 4;           // Tags for categorization
+  bool has_weights = 5;               // Whether .pt file exists
+  string weights_path = 6;            // Path to .pt file if exists
+  string yaml_content = 7;            // Optional: full YAML content
+}
+
+message ExperimentConfig {
+  string name = 1;
+  PipelineConfig pipeline = 2;
+  DataConfig data = 3;
+  TrainingConfig training = 4;
 }
 
 // ============================================================================
@@ -135,7 +170,7 @@ message TrainResponse {
 }
 
 message TrainingConfig {
-  bytes config_json = 1;  // Serialized TrainingConfig dataclass
+  bytes config_bytes = 1;  // Serialized TrainingConfig dataclass (JSON format)
 }
 
 message ParamSpec {
@@ -162,13 +197,31 @@ message SchedulerParamsSchema {
 }
 
 // ============================================================================
+// Pipeline Discovery
+// ============================================================================
+
+message ListAvailablePipelineesRequest {
+  optional string filter_tag = 1;  // Optional: filter by tag (e.g., "anomaly", "segmentation")
+}
+
+message ListAvailablePipelineesResponse {
+  repeated PipelineInfo pipelinees = 1;
+}
+
+message GetPipelineInfoRequest {
+  string pipeline_name = 1;  // Short name (e.g., "rx_statistical")
+}
+
+message GetPipelineInfoResponse {
+  PipelineInfo pipeline_info = 1;
+}
+
+// ============================================================================
 // Session Management
 // ============================================================================
 
 message CreateSessionRequest {
-  string pipeline_type = 1;  // "channel_selector", "statistical", "gradient"
-  string pipeline_config = 2;  // JSON config for pipeline
-  optional DataConfig data_config = 3;  // Optional: only needed for training
+  PipelineConfig pipeline = 1;
 }
 
 message CreateSessionResponse {
@@ -190,7 +243,8 @@ message CloseSessionResponse {
 message TrainRequest {
   string session_id = 1;
   TrainerType trainer_type = 2;
-  TrainingConfig config = 3;  // Only for GRADIENT training
+  DataConfig data = 3;           // What to train on
+  TrainingConfig training = 4;   // How to train
 }
 
 message GetTrainStatusRequest {
@@ -198,8 +252,7 @@ message GetTrainStatusRequest {
 }
 
 message GetTrainStatusResponse {
-  TrainStatus status = 1;
-  TrainResponse latest_progress = 2;
+  TrainResponse latest_progress = 1;
 }
 
 message GetTrainingCapabilitiesRequest {}
@@ -220,6 +273,57 @@ message ValidateTrainingConfigResponse {
   bool valid = 1;
   repeated string errors = 2;
   repeated string warnings = 3;
+}
+
+// ============================================================================
+// Pipeline Management (Model Deployment)
+// ============================================================================
+
+message SavePipelineRequest {
+  string session_id = 1;
+  string pipeline_path = 2;  // Path for .yaml file (.pt will be co-located)
+  PipelineMetadata metadata = 3;  // Optional: metrics, notes
+}
+
+message SavePipelineResponse {
+  bool success = 1;
+  string pipeline_path = 2;   // Created .yaml path
+  string weights_path = 3;  // Created .pt path
+}
+
+message LoadPipelineRequest {
+  string session_id = 1;
+  string pipeline_path = 2;
+  optional string weights_path = 3;  // Optional: path to .pt weights. If omitted, loads structure only
+  optional bool strict = 4;          // Strict weight loading (default: true)
+}
+
+message LoadPipelineResponse {
+  bool success = 1;
+  PipelineMetadata metadata = 2;
+}
+
+// ============================================================================
+// Experiment Management (Reproducibility)
+// ============================================================================
+
+message SaveExperimentRequest {
+  string session_id = 1;
+  string experiment_path = 2;  // Path for experiment .yaml file
+}
+
+message SaveExperimentResponse {
+  bool success = 1;
+  string experiment_path = 2;  // Created experiment .yaml path
+}
+
+message RestoreExperimentRequest {
+  string experiment_path = 1;  // Path to experiment .yaml file
+}
+
+message RestoreExperimentResponse {
+  string session_id = 1;
+  ExperimentConfig experiment = 2;  // Restored experiment config
 }
 
 // ============================================================================
@@ -270,34 +374,14 @@ message InferenceResponse {
 }
 
 // ============================================================================
-// Checkpoint Management
-// ============================================================================
-
-message SaveCheckpointRequest {
-  string session_id = 1;
-  string checkpoint_path = 2;
-}
-
-message SaveCheckpointResponse {
-  bool success = 1;
-  string message = 2;
-}
-
-message LoadCheckpointRequest {
-  string session_id = 1;
-  string checkpoint_path = 2;
-}
-
-message LoadCheckpointResponse {
-  bool success = 1;
-  string message = 2;
-}
-
-// ============================================================================
 // Service Definition
 // ============================================================================
 
 service CuvisAIService {
+  // Pipeline Discovery
+  rpc ListAvailablePipelinees(ListAvailablePipelineesRequest) returns (ListAvailablePipelineesResponse);
+  rpc GetPipelineInfo(GetPipelineInfoRequest) returns (GetPipelineInfoResponse);
+  
   // Session Management
   rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
   rpc CloseSession(CloseSessionRequest) returns (CloseSessionResponse);
@@ -308,6 +392,14 @@ service CuvisAIService {
   rpc GetTrainingCapabilities(GetTrainingCapabilitiesRequest) returns (GetTrainingCapabilitiesResponse);
   rpc ValidateTrainingConfig(ValidateTrainingConfigRequest) returns (ValidateTrainingConfigResponse);
   
+  // Pipeline Management (Model Deployment)
+  rpc SavePipeline(SavePipelineRequest) returns (SavePipelineResponse);
+  rpc LoadPipeline(LoadPipelineRequest) returns (LoadPipelineResponse);
+  
+  // Experiment Management (Reproducibility)
+  rpc SaveExperiment(SaveExperimentRequest) returns (SaveExperimentResponse);
+  rpc RestoreExperiment(RestoreExperimentRequest) returns (RestoreExperimentResponse);
+  
   // Pipeline Introspection
   rpc GetPipelineInputs(GetPipelineInputsRequest) returns (GetPipelineInputsResponse);
   rpc GetPipelineOutputs(GetPipelineOutputsRequest) returns (GetPipelineOutputsResponse);
@@ -315,8 +407,4 @@ service CuvisAIService {
   
   // Inference
   rpc Inference(InferenceRequest) returns (InferenceResponse);
-  
-  // Checkpoint Management
-  rpc SaveCheckpoint(SaveCheckpointRequest) returns (SaveCheckpointResponse);
-  rpc LoadCheckpoint(LoadCheckpointRequest) returns (LoadCheckpointResponse);
 }

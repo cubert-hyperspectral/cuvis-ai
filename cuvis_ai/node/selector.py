@@ -128,14 +128,9 @@ class SoftChannelSelector(Node):
         # Store as buffer initially
         self.register_buffer("channel_logits", logits)
 
-        self._initialized = True
+        self._statistically_initialized = False
 
-    @property
-    def requires_initial_fit(self) -> bool:
-        """Selector does NOT require statistical initialization - it initializes immediately."""
-        return False
-
-    def fit(self, input_stream: InputStream) -> None:
+    def statistical_initialization(self, input_stream: InputStream) -> None:
         """Initialize channel selection weights from data.
 
         Parameters
@@ -186,8 +181,8 @@ class SoftChannelSelector(Node):
             raise ValueError(f"Unknown init_method: {self.init_method}")
 
         # Store as buffer
-        self.channel_logits = logits.clone()
-        self._initialized = True
+        self.channel_logits.data[:] = logits.clone()
+        self._statistically_initialized = True
 
     def unfreeze(self) -> None:
         """Convert channel logits buffer to trainable nn.Parameter.
@@ -283,35 +278,6 @@ class SoftChannelSelector(Node):
 
         return outputs
 
-    @classmethod
-    def load(cls, state: dict) -> SoftChannelSelector:
-        """Load SoftChannelSelector from serialized state.
-
-        Parameters
-        ----------
-        state : dict
-            Serialized state dictionary
-
-        Returns
-        -------
-        SoftChannelSelector
-            Loaded selector instance
-        """
-        # Extract hparams
-        hparams = state.get("hparams", {})
-
-        # Create instance
-        instance = cls(**hparams)
-
-        # Load state dict if present
-        if "state_dict" in state:
-            instance.load_state_dict(state["state_dict"])
-
-        # Mark as initialized
-        instance._initialized = True
-
-        return instance
-
 
 class TopKIndices(Node):
     """Utility node that surfaces the top-k channel indices from selector weights.
@@ -378,9 +344,6 @@ class TopKIndices(Node):
 
         _, indices = torch.topk(weights, top_k)
         return {"indices": indices}
-
-    def load(self, params: dict, serial_dir: str) -> None:  # pragma: no cover - not used yet
-        self.k = int(params.get("k", self.k))
 
 
 __all__ = ["SoftChannelSelector", "TopKIndices"]

@@ -3,26 +3,22 @@ from datetime import datetime
 
 import pytest
 
-from cuvis_ai.grpc import cuvis_ai_pb2
+from cuvis_ai.grpc.helpers import resolve_pipeline_path
 from cuvis_ai.grpc.session_manager import SessionManager, SessionState
-from cuvis_ai.pipeline.canvas import CuvisCanvas
-
-
-def _sample_data_config() -> cuvis_ai_pb2.DataConfig:
-    return cuvis_ai_pb2.DataConfig(
-        cu3s_file_path="/tmp/data.cu3s",
-        batch_size=4,
-        processing_mode=cuvis_ai_pb2.PROCESSING_MODE_REFLECTANCE,
-    )
+from cuvis_ai.pipeline.pipeline import CuvisPipeline
 
 
 class TestSessionManager:
     def test_create_session_returns_unique_id(self):
         manager = SessionManager()
-        data_config = _sample_data_config()
 
-        session_id1 = manager.create_session("channel_selector", {}, data_config)
-        session_id2 = manager.create_session("channel_selector", {}, data_config)
+        # Load pipeline from YAML
+        pipeline_path = resolve_pipeline_path("channel_selector")
+        pipeline1 = CuvisPipeline.load_from_file(str(pipeline_path))
+        pipeline2 = CuvisPipeline.load_from_file(str(pipeline_path))
+
+        session_id1 = manager.create_session(pipeline=pipeline1)
+        session_id2 = manager.create_session(pipeline=pipeline2)
 
         assert session_id1 != session_id2
         assert isinstance(session_id1, str)
@@ -31,16 +27,31 @@ class TestSessionManager:
 
     def test_get_session_returns_state(self):
         manager = SessionManager()
-        data_config = _sample_data_config()
 
-        session_id = manager.create_session("channel_selector", {}, data_config)
+        # Load pipeline from YAML
+        pipeline_path = resolve_pipeline_path("channel_selector")
+        pipeline = CuvisPipeline.load_from_file(str(pipeline_path))
+
+        session_id = manager.create_session(pipeline=pipeline)
         state = manager.get_session(session_id)
 
         assert isinstance(state, SessionState)
-        assert isinstance(state.canvas, CuvisCanvas)
-        assert state.data_config == data_config
+        assert isinstance(state.pipeline, CuvisPipeline)
         assert isinstance(state.created_at, datetime)
         assert isinstance(state.last_accessed, datetime)
+
+    def test_pipeline_config_property_derives_from_pipeline(self):
+        manager = SessionManager()
+
+        pipeline_path = resolve_pipeline_path("channel_selector")
+        pipeline = CuvisPipeline.load_from_file(str(pipeline_path))
+
+        session_id = manager.create_session(pipeline=pipeline)
+        state = manager.get_session(session_id)
+
+        pipeline_config = state.pipeline_config
+        assert pipeline_config.metadata is not None
+        assert pipeline_config.connections is not None
 
     def test_get_session_nonexistent_raises_error(self):
         manager = SessionManager()
@@ -49,8 +60,11 @@ class TestSessionManager:
 
     def test_close_session_removes_state(self):
         manager = SessionManager()
-        data_config = _sample_data_config()
-        session_id = manager.create_session("channel_selector", {}, data_config)
+
+        # Load pipeline from YAML
+        pipeline_path = resolve_pipeline_path("channel_selector")
+        pipeline = CuvisPipeline.load_from_file(str(pipeline_path))
+        session_id = manager.create_session(pipeline=pipeline)
 
         manager.close_session(session_id)
         with pytest.raises(ValueError):
@@ -63,8 +77,11 @@ class TestSessionManager:
 
     def test_get_session_updates_last_accessed(self):
         manager = SessionManager()
-        data_config = _sample_data_config()
-        session_id = manager.create_session("channel_selector", {}, data_config)
+
+        # Load pipeline from YAML
+        pipeline_path = resolve_pipeline_path("channel_selector")
+        pipeline = CuvisPipeline.load_from_file(str(pipeline_path))
+        session_id = manager.create_session(pipeline=pipeline)
 
         first_timestamp = manager.get_session(session_id).last_accessed
         time.sleep(0.05)
@@ -74,8 +91,11 @@ class TestSessionManager:
 
     def test_cleanup_old_sessions(self):
         manager = SessionManager()
-        data_config = _sample_data_config()
-        session_id = manager.create_session("channel_selector", {}, data_config)
+
+        # Load pipeline from YAML
+        pipeline_path = resolve_pipeline_path("channel_selector")
+        pipeline = CuvisPipeline.load_from_file(str(pipeline_path))
+        session_id = manager.create_session(pipeline=pipeline)
 
         # backdate the session
         manager._sessions[session_id].last_accessed = datetime(2000, 1, 1)
@@ -85,29 +105,58 @@ class TestSessionManager:
         assert session_id not in manager.list_sessions()
 
     def test_create_session_without_data_config(self):
-        """Test creating an inference-only session without data_config."""
+        """Test creating an inference-only session (no experiment_config)."""
         manager = SessionManager()
 
-        session_id = manager.create_session("channel_selector", {}, None)
+        # Load pipeline from YAML
+        pipeline_path = resolve_pipeline_path("channel_selector")
+        pipeline = CuvisPipeline.load_from_file(str(pipeline_path))
+        session_id = manager.create_session(pipeline=pipeline)
         state = manager.get_session(session_id)
 
         assert isinstance(state, SessionState)
-        assert isinstance(state.canvas, CuvisCanvas)
-        assert state.data_config is None
+        assert isinstance(state.pipeline, CuvisPipeline)
+        assert state.experiment_config is None
         assert session_id in manager.list_sessions()
 
     def test_session_state_with_optional_data_config(self):
-        """Test that session state properly handles optional data_config."""
+        """Test that session state properly handles optional experiment_config."""
         manager = SessionManager()
-        data_config = _sample_data_config()
+        from cuvis_ai.training.config import (
+            DataConfig,
+            ExperimentConfig,
+            TrainingConfig,
+        )
 
-        # Create session with data_config
-        session_id_with_data = manager.create_session("channel_selector", {}, data_config)
-        state_with_data = manager.get_session(session_id_with_data)
-        assert state_with_data.data_config is not None
-        assert state_with_data.data_config == data_config
+        # Load pipeline from YAML
+        pipeline_path = resolve_pipeline_path("channel_selector")
+        pipeline = CuvisPipeline.load_from_file(str(pipeline_path))
 
-        # Create session without data_config
-        session_id_without_data = manager.create_session("channel_selector", {}, None)
-        state_without_data = manager.get_session(session_id_without_data)
-        assert state_without_data.data_config is None
+        # Create experiment config
+        experiment_config = ExperimentConfig(
+            name="test_experiment",
+            pipeline=pipeline.serialize(),
+            data=DataConfig(
+                cu3s_file_path="/tmp/data.cu3s",
+                annotation_json_path="/tmp/annotations.json",
+                train_ids=[1, 2],
+                val_ids=[3],
+                test_ids=[4],
+                batch_size=4,
+            ),
+            training=TrainingConfig(),
+        )
+
+        # Create session with experiment_config
+        session_id_with_config = manager.create_session(
+            pipeline=pipeline, experiment_config=experiment_config
+        )
+        state_with_config = manager.get_session(session_id_with_config)
+        assert state_with_config.experiment_config is not None
+        assert state_with_config.experiment_config.name == "test_experiment"
+
+        # Create session without experiment_config
+        pipeline2 = CuvisPipeline.load_from_file(str(pipeline_path))
+        session_id_without_config = manager.create_session(pipeline=pipeline2)
+        state_without_config = manager.get_session(session_id_without_config)
+        assert state_without_config.experiment_config is None

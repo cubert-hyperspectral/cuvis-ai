@@ -1,106 +1,20 @@
 import grpc
-import numpy as np
 import pytest
 
 from cuvis_ai.grpc import cuvis_ai_pb2
 from cuvis_ai.training.config import OptimizerConfig, TrainerConfig, TrainingConfig
 
 
-@pytest.fixture
-def trained_session_id(grpc_stub, test_data_path, mock_cuvis_sdk):
-    """Create and fully train a gradient session (statistical + gradient)."""
-    cu3s_file = test_data_path / "Lentils" / "Lentils_000.cu3s"
-    json_file = test_data_path / "Lentils" / "Lentils_000.json"
-
-    if not cu3s_file.exists() or not json_file.exists():
-        pytest.skip(f"Test data not found at {test_data_path}")
-
-    create_request = cuvis_ai_pb2.CreateSessionRequest(
-        pipeline_type="gradient",
-        data_config=cuvis_ai_pb2.DataConfig(
-            cu3s_file_path=str(cu3s_file),
-            annotation_json_path=str(json_file),
-            train_ids=[0, 1, 2],
-            val_ids=[3, 4],
-            batch_size=2,
-            processing_mode=cuvis_ai_pb2.PROCESSING_MODE_REFLECTANCE,
-        ),
-    )
-    session_id = grpc_stub.CreateSession(create_request).session_id
-
-    # Statistical training first
-    stat_request = cuvis_ai_pb2.TrainRequest(
-        session_id=session_id, trainer_type=cuvis_ai_pb2.TRAINER_TYPE_STATISTICAL
-    )
-    for _ in grpc_stub.Train(stat_request):
-        pass
-
-    # Gradient training
-    config = TrainingConfig(
-        trainer=TrainerConfig(max_epochs=2, accelerator="cpu"),
-        optimizer=OptimizerConfig(name="adam", lr=0.001),
-    )
-    grad_request = cuvis_ai_pb2.TrainRequest(
-        session_id=session_id,
-        trainer_type=cuvis_ai_pb2.TRAINER_TYPE_GRADIENT,
-        config=cuvis_ai_pb2.TrainingConfig(config_json=config.to_json().encode()),
-    )
-    for _ in grpc_stub.Train(grad_request):
-        pass
-
-    return session_id
-
-
 class TestCheckpointManagement:
-    """Checkpoint save/load RPCs."""
+    """Checkpoint save/load via SavePipeline/LoadPipeline RPCs."""
 
-    def test_save_checkpoint(self, grpc_stub, trained_session_id, tmp_path):
-        checkpoint_path = tmp_path / "test_checkpoint.ckpt"
-
-        response = grpc_stub.SaveCheckpoint(
-            cuvis_ai_pb2.SaveCheckpointRequest(
-                session_id=trained_session_id,
-                checkpoint_path=str(checkpoint_path),
-            )
-        )
-
-        assert response.success
-        assert checkpoint_path.exists()
-
-    def test_load_checkpoint(self, grpc_stub, trained_session_id, tmp_path):
-        checkpoint_path = tmp_path / "test_checkpoint.ckpt"
-        grpc_stub.SaveCheckpoint(
-            cuvis_ai_pb2.SaveCheckpointRequest(
-                session_id=trained_session_id,
-                checkpoint_path=str(checkpoint_path),
-            )
-        )
-
-        new_session = grpc_stub.CreateSession(
-            cuvis_ai_pb2.CreateSessionRequest(
-                pipeline_type="gradient",
-                data_config=cuvis_ai_pb2.DataConfig(
-                    cu3s_file_path=str(checkpoint_path),  # Placeholder path
-                    batch_size=1,
-                ),
-            )
-        )
-
-        response = grpc_stub.LoadCheckpoint(
-            cuvis_ai_pb2.LoadCheckpointRequest(
-                session_id=new_session.session_id,
-                checkpoint_path=str(checkpoint_path),
-            )
-        )
-
-        assert response.success
-
-    def test_save_checkpoint_invalid_session(self, grpc_stub):
+    def test_save_checkpoint_invalid_session(self, grpc_stub, tmp_path):
+        """Test saving pipeline with invalid session (checkpoint equivalent)."""
         with pytest.raises(grpc.RpcError) as exc_info:
-            grpc_stub.SaveCheckpoint(
-                cuvis_ai_pb2.SaveCheckpointRequest(
+            grpc_stub.SavePipeline(
+                cuvis_ai_pb2.SavePipelineRequest(
                     session_id="invalid",
-                    checkpoint_path="/tmp/test.ckpt",
+                    pipeline_path=str(tmp_path / "test.yaml"),
                 )
             )
 
@@ -140,7 +54,7 @@ class TestConfigValidation:
 
         response = grpc_stub.ValidateTrainingConfig(
             cuvis_ai_pb2.ValidateTrainingConfigRequest(
-                config=cuvis_ai_pb2.TrainingConfig(config_json=config.to_json().encode())
+                config=cuvis_ai_pb2.TrainingConfig(config_bytes=config.to_json().encode())
             )
         )
 
@@ -155,7 +69,7 @@ class TestConfigValidation:
 
         response = grpc_stub.ValidateTrainingConfig(
             cuvis_ai_pb2.ValidateTrainingConfigRequest(
-                config=cuvis_ai_pb2.TrainingConfig(config_json=config.to_json().encode())
+                config=cuvis_ai_pb2.TrainingConfig(config_bytes=config.to_json().encode())
             )
         )
 
@@ -170,7 +84,7 @@ class TestConfigValidation:
 
         response = grpc_stub.ValidateTrainingConfig(
             cuvis_ai_pb2.ValidateTrainingConfigRequest(
-                config=cuvis_ai_pb2.TrainingConfig(config_json=config.to_json().encode())
+                config=cuvis_ai_pb2.TrainingConfig(config_bytes=config.to_json().encode())
             )
         )
 
@@ -181,17 +95,18 @@ class TestConfigValidation:
 class TestComplexInputs:
     """Complex input parsing (bboxes, points, text prompts)."""
 
-    def test_inference_with_bounding_boxes(self, grpc_stub, trained_session_id):
-        cube = np.random.rand(1, 32, 32, 61).astype(np.float32)
+    def test_inference_with_bounding_boxes(self, grpc_stub, trained_session, create_test_cube):
+        cube, wavelengths = create_test_cube(batch_size=1, height=32, width=32, num_channels=61)
+        session_id, _data_config = trained_session()
 
         response = grpc_stub.Inference(
             cuvis_ai_pb2.InferenceRequest(
-                session_id=trained_session_id,
+                session_id=session_id,
                 inputs=cuvis_ai_pb2.InputBatch(
                     cube=cuvis_ai_pb2.Tensor(
                         shape=list(cube.shape),
-                        dtype=cuvis_ai_pb2.D_TYPE_FLOAT32,
-                        raw_data=cube.tobytes(),
+                        dtype=cuvis_ai_pb2.D_TYPE_UINT16,
+                        raw_data=cube.numpy().tobytes(),
                     ),
                     bboxes=cuvis_ai_pb2.BoundingBoxes(
                         boxes=[
@@ -210,17 +125,18 @@ class TestComplexInputs:
 
         assert response.outputs
 
-    def test_inference_with_points(self, grpc_stub, trained_session_id):
-        cube = np.random.rand(1, 32, 32, 61).astype(np.float32)
+    def test_inference_with_points(self, grpc_stub, trained_session, create_test_cube):
+        cube, wavelengths = create_test_cube(batch_size=1, height=32, width=32, num_channels=61)
+        session_id, _data_config = trained_session()
 
         response = grpc_stub.Inference(
             cuvis_ai_pb2.InferenceRequest(
-                session_id=trained_session_id,
+                session_id=session_id,
                 inputs=cuvis_ai_pb2.InputBatch(
                     cube=cuvis_ai_pb2.Tensor(
                         shape=list(cube.shape),
-                        dtype=cuvis_ai_pb2.D_TYPE_FLOAT32,
-                        raw_data=cube.tobytes(),
+                        dtype=cuvis_ai_pb2.D_TYPE_UINT16,
+                        raw_data=cube.numpy().tobytes(),
                     ),
                     points=cuvis_ai_pb2.Points(
                         points=[
@@ -244,17 +160,18 @@ class TestComplexInputs:
 
         assert response.outputs
 
-    def test_inference_with_text_prompt(self, grpc_stub, trained_session_id):
-        cube = np.random.rand(1, 32, 32, 61).astype(np.float32)
+    def test_inference_with_text_prompt(self, grpc_stub, trained_session, create_test_cube):
+        cube, wavelengths = create_test_cube(batch_size=1, height=32, width=32, num_channels=61)
+        session_id, _data_config = trained_session()
 
         response = grpc_stub.Inference(
             cuvis_ai_pb2.InferenceRequest(
-                session_id=trained_session_id,
+                session_id=session_id,
                 inputs=cuvis_ai_pb2.InputBatch(
                     cube=cuvis_ai_pb2.Tensor(
                         shape=list(cube.shape),
-                        dtype=cuvis_ai_pb2.D_TYPE_FLOAT32,
-                        raw_data=cube.tobytes(),
+                        dtype=cuvis_ai_pb2.D_TYPE_UINT16,
+                        raw_data=cube.numpy().tobytes(),
                     ),
                     text_prompt="Find defective items",
                 ),
@@ -263,17 +180,20 @@ class TestComplexInputs:
 
         assert response.outputs
 
-    def test_inference_with_multiple_input_types(self, grpc_stub, trained_session_id):
-        cube = np.random.rand(1, 32, 32, 61).astype(np.float32)
+    def test_inference_with_multiple_input_types(
+        self, grpc_stub, trained_session, create_test_cube
+    ):
+        cube, wavelengths = create_test_cube(batch_size=1, height=32, width=32, num_channels=61)
+        session_id, _data_config = trained_session()
 
         response = grpc_stub.Inference(
             cuvis_ai_pb2.InferenceRequest(
-                session_id=trained_session_id,
+                session_id=session_id,
                 inputs=cuvis_ai_pb2.InputBatch(
                     cube=cuvis_ai_pb2.Tensor(
                         shape=list(cube.shape),
-                        dtype=cuvis_ai_pb2.D_TYPE_FLOAT32,
-                        raw_data=cube.tobytes(),
+                        dtype=cuvis_ai_pb2.D_TYPE_UINT16,
+                        raw_data=cube.numpy().tobytes(),
                     ),
                     bboxes=cuvis_ai_pb2.BoundingBoxes(
                         boxes=[
