@@ -22,7 +22,7 @@ from cuvis_ai.anomaly.rx_logit_head import RXLogitHead
 from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.losses import AnomalyBCEWithLogits
 from cuvis_ai.node.node import Node
-from cuvis_ai.pipeline.canvas import CuvisCanvas
+from cuvis_ai.pipeline.pipeline import CuvisPipeline
 from cuvis_ai.pipeline.ports import PortSpec
 
 
@@ -54,15 +54,15 @@ class BCEwithSigmoidLoss(AnomalyBCEWithLogits):
 class TestRequiredPortValidation:
     """Test validation of required port connections."""
 
-    def test_missing_required_input_raises_runtime_error(self) -> None:
+    def test_missing_required_input_raises_runtime_error(self, create_test_cube) -> None:
         """Missing required input for executing node should raise RuntimeError."""
-        canvas = CuvisCanvas("selector_rx_validation")
+        pipeline = CuvisPipeline("selector_rx_validation")
         data = LentilsAnomalyDataNode(normal_class_ids=[0])  # I: cube, mask, O: cube, mask
         rx_node = RXPerBatch()  # I: data, O: scores
         rx_logits = RXLogitHead()  # I: scores, O: logits
         bce_loss = BCEwithSigmoidLoss(weight=0.3)  # I: predictions, targets, O: loss
 
-        canvas.connect(
+        pipeline.connect(
             (data.outputs.cube, rx_node.data),
             (rx_node.scores, rx_logits.scores),
             (rx_logits.logits, bce_loss.predictions),
@@ -70,23 +70,25 @@ class TestRequiredPortValidation:
 
         # Note: bce_loss.targets is NOT connected and NOT in batch
         # This should fail because bce_loss executes in train stage
+        cube, wavelengths = create_test_cube(batch_size=2, height=4, width=4, num_channels=8)
         bad_batch = {
-            "cube": torch.randn(2, 4, 4, 8),
+            "cube": cube,
             "mask": torch.randint(0, 2, (2, 4, 4, 1), dtype=torch.int32),
+            "wavelengths": wavelengths,
         }
 
         with pytest.raises(RuntimeError, match="missing required inputs"):
-            canvas.forward(stage="train", batch=bad_batch)
+            pipeline.forward(stage="train", batch=bad_batch)
 
-    def test_excluded_node_with_missing_input_only_warns(self, caplog) -> None:
+    def test_excluded_node_with_missing_input_only_warns(self, caplog, create_test_cube) -> None:
         """Excluded node with missing input should only warn, not error."""
-        canvas = CuvisCanvas("selector_rx_validation")
+        pipeline = CuvisPipeline("selector_rx_validation")
         data = LentilsAnomalyDataNode(normal_class_ids=[0])
         rx_node = RXPerBatch()
         rx_logits = RXLogitHead()
         bce_loss = BCEwithSigmoidLoss(weight=0.3)
 
-        canvas.connect(
+        pipeline.connect(
             (data.outputs.cube, rx_node.data),
             (rx_node.scores, rx_logits.scores),
             (rx_logits.logits, bce_loss.predictions),
@@ -94,38 +96,44 @@ class TestRequiredPortValidation:
         )
 
         # Provide all required inputs with correct shape (3D not 4D)
+        cube, wavelengths = create_test_cube(batch_size=2, height=4, width=4, num_channels=8)
         bad_batch = {
-            "cube": torch.randn(2, 4, 4, 8),
+            "cube": cube,
             "mask": torch.randint(0, 2, (2, 4, 4), dtype=torch.int32),
+            "wavelengths": wavelengths,
         }
 
         # Should NOT raise since all inputs are provided
-        outputs = canvas.forward(stage="val", batch=bad_batch)
+        outputs = pipeline.forward(stage="val", batch=bad_batch)
 
         # Execution should succeed up to rx_logits
         assert (rx_logits.name, "logits") in outputs
         # BCE loss executes in val stage for validation metrics
         assert (bce_loss.name, "loss") in outputs
 
-    def test_upto_node_excludes_downstream_validation(self) -> None:
+    def test_upto_node_excludes_downstream_validation(self, create_test_cube) -> None:
         """upto_node parameter should exclude downstream nodes from validation."""
-        canvas = CuvisCanvas("selector_rx_validation")
+        pipeline = CuvisPipeline("selector_rx_validation")
         data = LentilsAnomalyDataNode(normal_class_ids=[0])
         rx_node = RXPerBatch()
         rx_logits = RXLogitHead()
         bce_loss = BCEwithSigmoidLoss(weight=0.3)
 
-        canvas.connect(
+        pipeline.connect(
             (data.outputs.cube, rx_node.data),
             (rx_node.scores, rx_logits.scores),
             (rx_logits.logits, bce_loss.predictions),
         )
 
         # bce_loss is excluded via upto_node, so missing targets should not error
-        bad_batch = {"cube": torch.randn(2, 4, 4, 8)}
+        cube, wavelengths = create_test_cube(batch_size=2, height=4, width=4, num_channels=8)
+        bad_batch = {
+            "cube": cube,
+            "wavelengths": wavelengths,
+        }
 
         # Should succeed - bce_loss is downstream of rx_node and excluded
-        outputs = canvas.forward(
+        outputs = pipeline.forward(
             stage="train",
             batch=bad_batch,
             upto_node=rx_node,
@@ -245,7 +253,7 @@ class TestBatchDataKeyMapping:
             def load(self, params, serial_dir):
                 return None
 
-        canvas = CuvisCanvas("batch_mismatch")
+        pipeline = CuvisPipeline("batch_mismatch")
         consumer = SimpleNode()
 
         # Add node to graph by connecting to itself (dummy connection to ensure it's in graph)
@@ -262,13 +270,13 @@ class TestBatchDataKeyMapping:
                 return None
 
         producer = ProducerNode()
-        canvas.connect(producer.output, consumer.data)
+        pipeline.connect(producer.output, consumer.data)
 
         # Batch has wrong key - producer needs "input_data" but batch only has "wrong_key"
         batch = {"wrong_key": torch.randn(4, 10)}
 
         with pytest.raises(RuntimeError, match="missing required inputs"):
-            canvas.forward(stage="inference", batch=batch)
+            pipeline.forward(stage="inference", batch=batch)
 
     def test_connection_overrides_batch_key(self) -> None:
         """Port connection should take precedence over batch key."""
@@ -293,16 +301,16 @@ class TestBatchDataKeyMapping:
             def load(self, params, serial_dir):
                 return None
 
-        canvas = CuvisCanvas("connection_priority")
+        pipeline = CuvisPipeline("connection_priority")
         producer = ProducerNode()
         consumer = ConsumerNode()
 
-        canvas.connect(producer.data, consumer.data)
+        pipeline.connect(producer.data, consumer.data)
 
         # Batch also has "data" key, but connection should take precedence
         batch = {"data": torch.tensor([1.0, 2.0, 3.0])}
 
-        outputs = canvas.forward(stage="inference", batch=batch)
+        outputs = pipeline.forward(stage="inference", batch=batch)
 
         # Consumer should receive data from producer, not batch
         expected = torch.tensor([20.0, 40.0, 60.0])  # producer output * 2
@@ -312,15 +320,15 @@ class TestBatchDataKeyMapping:
 class TestStageAwareExecution:
     """Test stage-specific execution filtering."""
 
-    def test_train_stage_executes_loss_nodes(self) -> None:
+    def test_train_stage_executes_loss_nodes(self, create_test_cube) -> None:
         """Loss nodes should execute in train stage."""
-        canvas = CuvisCanvas("stage_test")
+        pipeline = CuvisPipeline("stage_test")
         data = LentilsAnomalyDataNode(normal_class_ids=[0])
         rx_node = RXPerBatch()
         rx_logits = RXLogitHead()
         bce_loss = BCEwithSigmoidLoss(weight=0.3)
 
-        canvas.connect(
+        pipeline.connect(
             (data.outputs.cube, rx_node.data),
             (rx_node.scores, rx_logits.scores),
             (rx_logits.logits, bce_loss.predictions),
@@ -328,25 +336,27 @@ class TestStageAwareExecution:
         )
 
         # Provide all required inputs with correct dtype and shape (3D not 4D)
+        cube, wavelengths = create_test_cube(batch_size=2, height=4, width=4, num_channels=8)
         batch = {
-            "cube": torch.randn(2, 4, 4, 8),
+            "cube": cube,
             "mask": torch.randint(0, 2, (2, 4, 4), dtype=torch.int32),
+            "wavelengths": wavelengths,
         }
 
-        outputs = canvas.forward(stage="train", batch=batch)
+        outputs = pipeline.forward(stage="train", batch=batch)
 
         # Loss should execute in train stage
         assert (bce_loss.name, "loss") in outputs
 
-    def test_inference_stage_skips_loss_nodes(self) -> None:
+    def test_inference_stage_skips_loss_nodes(self, create_test_cube) -> None:
         """Loss nodes should not execute in inference stage."""
-        canvas = CuvisCanvas("stage_test")
+        pipeline = CuvisPipeline("stage_test")
         data = LentilsAnomalyDataNode(normal_class_ids=[0])
         rx_node = RXPerBatch()
         rx_logits = RXLogitHead()
         bce_loss = BCEwithSigmoidLoss(weight=0.3)
 
-        canvas.connect(
+        pipeline.connect(
             (data.outputs.cube, rx_node.data),
             (rx_node.scores, rx_logits.scores),
             (rx_logits.logits, bce_loss.predictions),
@@ -354,9 +364,13 @@ class TestStageAwareExecution:
         )
 
         # Provide cube only - loss doesn't execute in inference
-        batch = {"cube": torch.randn(2, 4, 4, 8)}
+        cube, wavelengths = create_test_cube(batch_size=2, height=4, width=4, num_channels=8)
+        batch = {
+            "cube": cube,
+            "wavelengths": wavelengths,
+        }
 
-        outputs = canvas.forward(stage="inference", batch=batch)
+        outputs = pipeline.forward(stage="inference", batch=batch)
 
         # Loss should NOT execute in inference stage
         assert (bce_loss.name, "loss") not in outputs
@@ -403,12 +417,12 @@ class TestMultipleEntryPoints:
             def load(self, params, serial_dir):
                 return None
 
-        canvas = CuvisCanvas("multi_entry")
+        pipeline = CuvisPipeline("multi_entry")
         source_a = SourceA()
         source_b = SourceB()
         combiner = Combiner()
 
-        canvas.connect(
+        pipeline.connect(
             (source_a.out, combiner.a),
             (source_b.out, combiner.b),
         )
@@ -419,7 +433,7 @@ class TestMultipleEntryPoints:
             "y": torch.tensor([2.0]),
         }
 
-        outputs = canvas.forward(stage="inference", batch=batch)
+        outputs = pipeline.forward(stage="inference", batch=batch)
 
         # Result should be (1.0 * 2) + (2.0 * 3) = 8.0
         expected = torch.tensor([8.0])
@@ -461,12 +475,12 @@ class TestMultipleEntryPoints:
             def load(self, params, serial_dir):
                 return None
 
-        canvas = CuvisCanvas("multi_entry")
+        pipeline = CuvisPipeline("multi_entry")
         source_a = SourceA()
         source_b = SourceB()
         combiner = Combiner()
 
-        canvas.connect(
+        pipeline.connect(
             (source_a.out, combiner.a),
             (source_b.out, combiner.b),
         )
@@ -475,4 +489,4 @@ class TestMultipleEntryPoints:
         batch = {"x": torch.tensor([1.0])}
 
         with pytest.raises(RuntimeError, match="missing required inputs"):
-            canvas.forward(stage="inference", batch=batch)
+            pipeline.forward(stage="inference", batch=batch)

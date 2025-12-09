@@ -1,0 +1,123 @@
+metadata:
+  name: model
+  description: ''
+  created: '2025-12-08T12:59:57.508394'
+  tags: []
+  author: ''
+  cuvis_ai_version: 0.1.5
+nodes:
+- name: LentilsAnomalyDataNode
+  class: cuvis_ai.node.data.LentilsAnomalyDataNode
+  params:
+    normal_class_ids:
+    - 0
+    - 1
+- name: BandpassByWavelength
+  class: cuvis_ai.node.preprocessors.BandpassByWavelength
+  params:
+    min_wavelength_nm: 700.0
+    max_wavelength_nm: null
+- name: PerPixelUnitNorm
+  class: cuvis_ai.node.normalization.PerPixelUnitNorm
+  params:
+    eps: 1.0e-08
+- name: DeepSVDDEncoder
+  class: cuvis_ai.anomaly.deep_svdd.DeepSVDDEncoder
+  params:
+    rep_dim: 32
+    hidden: 128
+    sample_n: 200000
+    seed: 0
+    eps: 1.0e-08
+    kernel: linear
+    n_rff: 2048
+    gamma: null
+    use_mlp_after_rff: true
+    mlp_forward_batch_size: 65536
+- name: DeepSVDDCenterTracker
+  class: cuvis_ai.anomaly.deep_svdd.DeepSVDDCenterTracker
+  params:
+    alpha: 0.1
+    update_in_eval: false
+- name: deepsvdd_loss
+  class: cuvis_ai.node.losses.DeepSVDDSoftBoundaryLoss
+  params:
+    nu: 0.05
+    weight: 1.0
+- name: DeepSVDDScores
+  class: cuvis_ai.anomaly.deep_svdd.DeepSVDDScores
+  params:
+    name: null
+    execution_stages: null
+- name: QuantileBinaryDecider
+  class: cuvis_ai.deciders.binary_decider.QuantileBinaryDecider
+  params:
+    quantile: 0.995
+    reduce_dims: null
+- name: metrics_anomaly
+  class: cuvis_ai.node.metrics.AnomalyDetectionMetrics
+  params:
+    execution_stages: null
+- name: score_heatmap
+  class: cuvis_ai.node.visualizations.ScoreHeatmapVisualizer
+  params:
+    normalize_scores: true
+    cmap: inferno
+    up_to: 5
+- name: mask
+  class: cuvis_ai.node.visualizations.AnomalyMask
+  params:
+    channel: 30
+    up_to: 5
+- name: TensorBoardMonitorNode
+  class: cuvis_ai.node.monitor.TensorBoardMonitorNode
+  params:
+    output_dir: outputs/deep_svdd/../tensorboard
+    run_name: DeepSVDD_Gradient
+    comment: ''
+    flush_secs: 120
+connections:
+- from: LentilsAnomalyDataNode.outputs.cube
+  to: BandpassByWavelength.inputs.data
+- from: LentilsAnomalyDataNode.outputs.wavelengths
+  to: BandpassByWavelength.inputs.wavelengths
+- from: LentilsAnomalyDataNode.outputs.mask
+  to: metrics_anomaly.inputs.targets
+- from: LentilsAnomalyDataNode.outputs.mask
+  to: mask.inputs.mask
+- from: LentilsAnomalyDataNode.outputs.cube
+  to: mask.inputs.cube
+- from: BandpassByWavelength.outputs.filtered
+  to: PerPixelUnitNorm.inputs.data
+- from: PerPixelUnitNorm.outputs.normalized
+  to: DeepSVDDEncoder.inputs.data
+- from: DeepSVDDEncoder.outputs.embeddings
+  to: DeepSVDDCenterTracker.inputs.embeddings
+- from: DeepSVDDEncoder.outputs.embeddings
+  to: deepsvdd_loss.inputs.embeddings
+- from: DeepSVDDEncoder.outputs.embeddings
+  to: DeepSVDDScores.inputs.embeddings
+- from: DeepSVDDCenterTracker.outputs.center
+  to: deepsvdd_loss.inputs.center
+- from: DeepSVDDCenterTracker.outputs.center
+  to: DeepSVDDScores.inputs.center
+- from: DeepSVDDCenterTracker.outputs.metrics
+  to: TensorBoardMonitorNode.inputs.metrics
+- from: DeepSVDDScores.outputs.scores
+  to: QuantileBinaryDecider.inputs.logits
+- from: DeepSVDDScores.outputs.scores
+  to: metrics_anomaly.inputs.logits
+- from: DeepSVDDScores.outputs.scores
+  to: score_heatmap.inputs.scores
+- from: DeepSVDDScores.outputs.scores
+  to: mask.inputs.scores
+- from: QuantileBinaryDecider.outputs.decisions
+  to: metrics_anomaly.inputs.decisions
+- from: QuantileBinaryDecider.outputs.decisions
+  to: mask.inputs.decisions
+- from: metrics_anomaly.outputs.metrics
+  to: TensorBoardMonitorNode.inputs.metrics
+- from: score_heatmap.outputs.artifacts
+  to: TensorBoardMonitorNode.inputs.artifacts
+- from: mask.outputs.artifacts
+  to: TensorBoardMonitorNode.inputs.artifacts

@@ -6,23 +6,26 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from cuvis_ai.pipeline.canvas import CuvisCanvas
-
-from .canvas_builder import CanvasBuilder
-from .v1 import cuvis_ai_pb2
+from cuvis_ai.pipeline.pipeline import CuvisPipeline
+from cuvis_ai.training.config import DataConfig, ExperimentConfig, PipelineConfig, TrainingConfig
 
 
 @dataclass
 class SessionState:
     """In-memory state for a single session."""
 
-    canvas: CuvisCanvas
-    data_config: cuvis_ai_pb2.DataConfig | None
+    pipeline: CuvisPipeline
+    data_config: DataConfig | None
+    training_config: TrainingConfig | None
     created_at: datetime
     last_accessed: datetime
-    pipeline_type: str
-    pipeline_config: dict
     trainer: object | None = None
+    experiment_config: ExperimentConfig | None = None
+
+    @property
+    def pipeline_config(self) -> PipelineConfig:
+        """Return the current pipeline configuration derived from the pipeline."""
+        return self.pipeline.serialize()
 
 
 class SessionManager:
@@ -33,24 +36,33 @@ class SessionManager:
 
     def create_session(
         self,
-        pipeline_type: str,
-        pipeline_config: dict | None,
-        data_config: cuvis_ai_pb2.DataConfig | None,
+        pipeline: CuvisPipeline,
+        data_config: DataConfig | None = None,
+        training_config: TrainingConfig | None = None,
+        experiment_config: ExperimentConfig | None = None,
     ) -> str:
-        """Create a new session and return its ID."""
-        config = pipeline_config or {}
-        session_id = str(uuid.uuid4())
+        """Create a new session with a pipeline instance.
 
-        canvas = CanvasBuilder.create_pipeline(pipeline_type, config)
+        Args:
+            pipeline: Pipeline instance
+            data_config: Optional data configuration captured during training
+            training_config: Optional training configuration captured during training
+            experiment_config: Optional experiment configuration (for sessions created via RestoreExperiment)
+
+        Returns:
+            Session ID
+        """
+        session_id = str(uuid.uuid4())
         now = datetime.now()
+
         state = SessionState(
-            canvas=canvas,
+            pipeline=pipeline,
             data_config=data_config,
+            training_config=training_config,
             created_at=now,
             last_accessed=now,
-            pipeline_type=pipeline_type,
-            pipeline_config=config,
             trainer=None,
+            experiment_config=experiment_config,
         )
         self._sessions[session_id] = state
         return session_id

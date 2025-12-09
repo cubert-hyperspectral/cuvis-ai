@@ -187,3 +187,8 @@ lightning_logs/
 
 /examples_torch/outputs/
 cuvis_ai/outputs/
+runs/
+test_outputs/
+tensorboard/
+.clinerules
+experiments/

@@ -14,10 +14,10 @@ class ShapeValidator:
 
 class GraphValidator:
     def __init__(self, graph: nx.DiGraph) -> None:
-        self.canvas = graph
+        self.pipeline = graph
 
     def verify(self) -> bool:
-        if len(list(nx.simple_cycles(self.canvas))) > 0:
+        if len(list(nx.simple_cycles(self.pipeline))) > 0:
             return False
 
         return True

@@ -1,33 +1,11 @@
-import json
-from concurrent import futures
-
 import grpc
 import numpy as np
 import pytest
 
-from cuvis_ai.grpc import (
-    CuvisAIService,
-    cuvis_ai_pb2,
-    cuvis_ai_pb2_grpc,
-    helpers,
-)
+from cuvis_ai.grpc import cuvis_ai_pb2, helpers
+from tests.fixtures import create_pipeline_config_proto
 
-
-@pytest.fixture
-def grpc_stub():
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=2))
-    service = CuvisAIService()
-    cuvis_ai_pb2_grpc.add_CuvisAIServiceServicer_to_server(service, server)
-    port = server.add_insecure_port("localhost:0")
-    server.start()
-
-    channel = grpc.insecure_channel(f"localhost:{port}")
-    stub = cuvis_ai_pb2_grpc.CuvisAIServiceStub(channel)
-    try:
-        yield stub
-    finally:
-        channel.close()
-        server.stop(None)
+DEFAULT_CHANNELS = 61
 
 
 def _data_config() -> cuvis_ai_pb2.DataConfig:
@@ -38,11 +16,10 @@ def _data_config() -> cuvis_ai_pb2.DataConfig:
     )
 
 
-def _create_session(stub, *, channels: int = 8) -> str:
+def _create_session(stub, *, pipeline_path: str = "channel_selector") -> str:
+    """Create a session using the new PipelineConfig pattern."""
     request = cuvis_ai_pb2.CreateSessionRequest(
-        pipeline_type="channel_selector",
-        pipeline_config=json.dumps({"input_channels": channels, "n_select": 3}),
-        data_config=_data_config(),
+        pipeline=create_pipeline_config_proto(pipeline_path)
     )
     response = stub.CreateSession(request)
     assert response.session_id  # Sanity (fails early if session not created)
@@ -51,35 +28,33 @@ def _create_session(stub, *, channels: int = 8) -> str:
 
 class TestCreateAndClose:
     def test_create_session_returns_id(self, grpc_stub):
+        """Test creating a session with new PipelineConfig pattern."""
         response = grpc_stub.CreateSession(
             cuvis_ai_pb2.CreateSessionRequest(
-                pipeline_type="channel_selector",
-                pipeline_config=json.dumps({"input_channels": 4}),
-                data_config=_data_config(),
+                pipeline=create_pipeline_config_proto("channel_selector")
             )
         )
         assert response.session_id
 
-    def test_create_session_without_data_config(self, grpc_stub):
-        """Test creating an inference-only session without data_config."""
+    def test_create_session_with_weights(self, grpc_stub):
+        """Test creating a session with pre-trained weights."""
+        # Weights are automatically loaded if they exist alongside the YAML
         response = grpc_stub.CreateSession(
             cuvis_ai_pb2.CreateSessionRequest(
-                pipeline_type="channel_selector",
-                pipeline_config=json.dumps({"input_channels": 4}),
-                # data_config intentionally omitted
+                pipeline=create_pipeline_config_proto("channel_selector")
             )
         )
         assert response.session_id
 
     def test_create_session_invalid_pipeline(self, grpc_stub):
+        """Test error handling for non-existent pipeline."""
         with pytest.raises(grpc.RpcError) as exc:
             grpc_stub.CreateSession(
                 cuvis_ai_pb2.CreateSessionRequest(
-                    pipeline_type="unknown",
-                    data_config=_data_config(),
+                    pipeline=create_pipeline_config_proto("non_existent_pipeline")
                 )
             )
-        assert exc.value.code() == grpc.StatusCode.INVALID_ARGUMENT
+        assert exc.value.code() == grpc.StatusCode.NOT_FOUND
 
     def test_close_session_success(self, grpc_stub):
         session_id = _create_session(grpc_stub)
@@ -93,39 +68,67 @@ class TestCreateAndClose:
 
 
 class TestInference:
-    def test_inference_returns_outputs(self, grpc_stub):
-        channels = 5
-        session_id = _create_session(grpc_stub, channels=channels)
-        cube = np.random.randn(1, 2, 2, channels).astype(np.float32)
+    def test_inference_returns_outputs(self, grpc_stub, create_test_cube, trained_pipeline_session):
+        # Use fixture to generate cube and wavelengths together
+        cube, wavelengths = create_test_cube(
+            batch_size=1,
+            height=2,
+            width=2,
+            num_channels=DEFAULT_CHANNELS,
+            mode="random",
+        )
+        # Convert wavelengths to 2D format [B, C] as required by LentilsAnomalyDataNode
+        wavelengths_2d = np.tile(wavelengths, (cube.shape[0], 1)).astype(np.int32)
+
+        session_id = trained_pipeline_session(pipeline_path="channel_selector")
 
         response = grpc_stub.Inference(
             cuvis_ai_pb2.InferenceRequest(
                 session_id=session_id,
-                inputs=cuvis_ai_pb2.InputBatch(cube=helpers.numpy_to_proto(cube)),
+                inputs=cuvis_ai_pb2.InputBatch(
+                    cube=helpers.numpy_to_proto(cube.numpy()),
+                    wavelengths=helpers.numpy_to_proto(wavelengths_2d),
+                ),
             )
         )
 
-        assert "selector.selected" in response.outputs
-        selected = helpers.proto_to_numpy(response.outputs["selector.selected"])
+        selected_key = "SoftChannelSelector.selected"
+
+        assert selected_key in response.outputs
+        selected = helpers.proto_to_numpy(response.outputs[selected_key])
         assert selected.shape == cube.shape
 
         # Expect deterministic key formatting (node.port)
         assert all("." in key for key in response.outputs)
 
-    def test_inference_output_filtering(self, grpc_stub):
-        channels = 4
-        session_id = _create_session(grpc_stub, channels=channels)
-        cube = np.random.randn(1, 3, 3, channels).astype(np.float32)
+    def test_inference_output_filtering(
+        self, grpc_stub, create_test_cube, trained_pipeline_session
+    ):
+        # Use fixture to generate cube and wavelengths together
+        cube, wavelengths = create_test_cube(
+            batch_size=1,
+            height=3,
+            width=3,
+            num_channels=DEFAULT_CHANNELS,
+            mode="random",
+        )
+        # Convert wavelengths to 2D format [B, C] as required by LentilsAnomalyDataNode
+        wavelengths_2d = np.tile(wavelengths, (cube.shape[0], 1)).astype(np.int32)
+
+        session_id = trained_pipeline_session(pipeline_path="channel_selector")
 
         response = grpc_stub.Inference(
             cuvis_ai_pb2.InferenceRequest(
                 session_id=session_id,
-                inputs=cuvis_ai_pb2.InputBatch(cube=helpers.numpy_to_proto(cube)),
+                inputs=cuvis_ai_pb2.InputBatch(
+                    cube=helpers.numpy_to_proto(cube.numpy()),
+                    wavelengths=helpers.numpy_to_proto(wavelengths_2d),
+                ),
                 output_specs=["selected"],
             )
         )
 
-        assert set(response.outputs.keys()) == {"selector.selected"}
+        assert set(response.outputs.keys()) == {"SoftChannelSelector.selected"}
 
     def test_inference_invalid_session(self, grpc_stub):
         cube = np.random.randn(1, 1, 1, 3).astype(np.float32)
@@ -139,7 +142,7 @@ class TestInference:
         assert exc.value.code() == grpc.StatusCode.NOT_FOUND
 
     def test_inference_missing_cube(self, grpc_stub):
-        session_id = _create_session(grpc_stub, channels=3)
+        session_id = _create_session(grpc_stub)
         with pytest.raises(grpc.RpcError) as exc:
             grpc_stub.Inference(
                 cuvis_ai_pb2.InferenceRequest(

@@ -1,0 +1,21 @@
+# @package _global_
+
+
+defaults:
+  - /data@data: lentils
+  - /training@training: default
+  - _self_
+
+name: ???
+output_dir: ./outputs/${name}
+
+training:
+  trainer:
+    default_root_dir: ${output_dir}
+
+hydra:
+  run:
+    dir: ${output_dir}
+  output_subdir: .hydra
+
+

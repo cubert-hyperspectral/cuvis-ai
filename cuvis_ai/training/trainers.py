@@ -9,7 +9,7 @@ from loguru import logger
 from torch.optim import Optimizer
 
 from cuvis_ai.node.node import Node
-from cuvis_ai.pipeline.canvas import CuvisCanvas
+from cuvis_ai.pipeline.pipeline import CuvisPipeline
 from cuvis_ai.training.config import OptimizerConfig, TrainerConfig, create_callbacks_from_config
 from cuvis_ai.utils.types import ExecutionStage, InputStream
 
@@ -19,8 +19,8 @@ class GradientTrainer(pl.LightningModule):
 
     Parameters
     ----------
-    canvas : CuvisCanvas
-        Computation canvas
+    pipeline : CuvisPipeline
+        Computation pipeline
     datamodule : LightningDataModule
         Data module
     loss_nodes : list[Node]
@@ -34,7 +34,7 @@ class GradientTrainer(pl.LightningModule):
     optimizer_config : OptimizerConfig, optional
         Optimizer and scheduler configuration
     monitors : list, optional
-        List of monitoring objects (WandB, TensorBoard, etc.)
+        List of monitoring objects (TensorBoard, etc.)
 
     Examples
     --------
@@ -43,8 +43,8 @@ class GradientTrainer(pl.LightningModule):
     >>> entropy_loss = SelectorEntropyRegularizer(name="entropy", weight=0.01)
     >>> iou_metric = AnomalyDetectionMetrics(name="detection")
     >>>
-    >>> # Connect in canvas
-    >>> canvas.connect(
+    >>> # Connect in pipeline
+    >>> pipeline.connect(
     ...     (predictions, bce_loss.predictions),
     ...     (targets, bce_loss.targets),
     ...     (selector_weights, entropy_loss.weights),
@@ -54,7 +54,7 @@ class GradientTrainer(pl.LightningModule):
     >>>
     >>> # Create trainer with explicit node lists
     >>> trainer = GradientTrainer(
-    ...     canvas=canvas,
+    ...     pipeline=pipeline,
     ...     datamodule=datamodule,
     ...     loss_nodes=[bce_loss, entropy_loss],
     ...     metric_nodes=[iou_metric],
@@ -84,7 +84,7 @@ class GradientTrainer(pl.LightningModule):
 
     def __init__(
         self,
-        canvas: CuvisCanvas,
+        pipeline: CuvisPipeline,
         datamodule: pl.LightningDataModule,
         loss_nodes: list[Node],
         metric_nodes: list[Node] | None = None,
@@ -97,8 +97,8 @@ class GradientTrainer(pl.LightningModule):
 
         # Register graph's modules so Lightning can move them to correct device
         # Without this, graph nodes stay on CPU while trainer moves to CUDA
-        self.canvas_modules = canvas.torch_layers
-        self.canvas = canvas
+        self.pipeline_modules = pipeline.torch_layers
+        self.pipeline = pipeline
         self.datamodule = datamodule
         self.loss_nodes = loss_nodes
         self.metric_nodes = metric_nodes or []
@@ -113,6 +113,18 @@ class GradientTrainer(pl.LightningModule):
 
         Unified API - both GradientTrainer and StatisticalTrainer use .fit()
         """
+
+        # === ADD THIS LOGGING BLOCK HERE (right after docstring) ===
+        logger.info("=" * 60)
+        logger.info(
+            f"Training: max_epochs={self.trainer_config.max_epochs}, "
+            f"optimizer={self.optimizer_config.name}(lr={self.optimizer_config.lr})"
+        )
+        if self.trainer_config.callbacks and self.trainer_config.callbacks.early_stopping:
+            es = self.trainer_config.callbacks.early_stopping[0]
+            logger.info(f"EarlyStopping: {es.monitor} (patience={es.patience}, mode={es.mode})")
+        logger.info("=" * 60)
+        # === END OF LOGGING BLOCK ===
 
         # Convert TrainerConfig to kwargs for pl.Trainer
         trainer_kwargs = dict(self.trainer_config.__dict__)
@@ -312,7 +324,7 @@ class GradientTrainer(pl.LightningModule):
         )
 
         # Execute graph
-        outputs = self.canvas.forward(batch=batch, context=context)
+        outputs = self.pipeline.forward(batch=batch, context=context)
 
         # Transform outputs once for efficient access (O(n) operation)
         node_outputs = restructure_output_to_node_dict(outputs)
@@ -339,7 +351,7 @@ class GradientTrainer(pl.LightningModule):
         )
 
         # Execute graph
-        outputs = self.canvas.forward(batch=batch, context=context)
+        outputs = self.pipeline.forward(batch=batch, context=context)
 
         # Transform outputs once for efficient access (O(n) operation)
         node_outputs = restructure_output_to_node_dict(outputs)
@@ -367,7 +379,7 @@ class GradientTrainer(pl.LightningModule):
         )
 
         # Execute graph
-        outputs = self.canvas.forward(batch=batch, context=context)
+        outputs = self.pipeline.forward(batch=batch, context=context)
 
         # Transform outputs once for efficient access (O(n) operation)
         node_outputs = restructure_output_to_node_dict(outputs)
@@ -387,7 +399,7 @@ class GradientTrainer(pl.LightningModule):
             If no scheduler is configured, returns the optimizer.
             If a scheduler is configured, returns a dictionary with optimizer and scheduler config.
         """
-        params = [p for p in self.canvas.parameters() if p.requires_grad]
+        params = [p for p in self.pipeline.parameters() if p.requires_grad]
 
         # Create optimizer based on config
         if self.optimizer_config.name.lower() == "adam":
@@ -458,7 +470,7 @@ class StatisticalTrainer:
 
     This trainer:
     - Finds all nodes with requires_initial_fit=True
-    - Trains them in topological order using node.train()
+    - Initializes them in topological order using node.statistical_initialization()
     - Uses executor with upto_node for clean data transformation
     - No legacy tuple code - pure port-based architecture
 
@@ -473,17 +485,17 @@ class StatisticalTrainer:
     >>> stat_trainer.test()
     """
 
-    def __init__(self, canvas: CuvisCanvas, datamodule: pl.LightningDataModule) -> None:
+    def __init__(self, pipeline: CuvisPipeline, datamodule: pl.LightningDataModule) -> None:
         """Initialize statistical trainer.
 
         Parameters
         ----------
-        canvas : CuvisCanvas
-            The cuvis-ai canvas containing statistical nodes
+        pipeline : CuvisPipeline
+            The cuvis-ai pipeline containing statistical nodes
         datamodule : pl.LightningDataModule
             Data provider for initialization
         """
-        self.canvas = canvas
+        self.pipeline = pipeline
         self.datamodule = datamodule
 
     def fit(self) -> None:
@@ -497,7 +509,7 @@ class StatisticalTrainer:
 
         # Find nodes requiring statistical initialization
         stat_nodes = [
-            node for node in self.canvas.nodes() if getattr(node, "requires_initial_fit", False)
+            node for node in self.pipeline.nodes() if getattr(node, "requires_initial_fit", False)
         ]
 
         if not stat_nodes:
@@ -507,7 +519,7 @@ class StatisticalTrainer:
         logger.info(f"Training {len(stat_nodes)} statistical nodes...")
 
         # Train in topological order
-        for node in self.canvas._sorted_nodes:
+        for node in self.pipeline._sorted_nodes:
             if node not in stat_nodes:
                 continue
 
@@ -517,7 +529,7 @@ class StatisticalTrainer:
             input_stream = self._create_input_stream(node, train_loader)
 
             # Initialize the node from data
-            node.fit(input_stream)
+            node.statistical_initialization(input_stream)
 
     def validate(self) -> None:
         """Run validation on the validation dataset.
@@ -532,7 +544,7 @@ class StatisticalTrainer:
         val_loader = self.datamodule.val_dataloader()
 
         for batch in val_loader:
-            self.canvas.forward(batch=batch, stage=ExecutionStage.VAL)
+            self.pipeline.forward(batch=batch, stage=ExecutionStage.VAL)
 
     def test(self) -> None:
         """Run test on the test dataset.
@@ -547,7 +559,7 @@ class StatisticalTrainer:
         test_loader = self.datamodule.test_dataloader()
 
         for batch in test_loader:
-            self.canvas.forward(batch=batch, stage=ExecutionStage.TEST)
+            self.pipeline.forward(batch=batch, stage=ExecutionStage.TEST)
 
     def _create_input_stream(self, target_node, dataloader) -> InputStream:
         """Create port-based input stream for statistical node.
@@ -569,7 +581,7 @@ class StatisticalTrainer:
         """
         for batch in dataloader:
             # Execute ancestors, stop before target (using upto_node)
-            outputs = self.canvas.forward(
+            outputs = self.pipeline.forward(
                 batch=batch,
                 stage=ExecutionStage.INFERENCE,
                 upto_node=target_node,  # Partial execution
@@ -577,7 +589,7 @@ class StatisticalTrainer:
 
             # Gather inputs for target node from predecessor outputs
             node_inputs = {}
-            predecessors = list(self.canvas._graph.predecessors(target_node))
+            predecessors = list(self.pipeline._graph.predecessors(target_node))
 
             if not predecessors:
                 # Entry node - get directly from batch
@@ -587,7 +599,7 @@ class StatisticalTrainer:
             else:
                 # Get from parent outputs via graph edges
                 for parent_node in predecessors:
-                    for edge_data in self.canvas._graph[parent_node][target_node].values():
+                    for edge_data in self.pipeline._graph[parent_node][target_node].values():
                         from_port = edge_data["from_port"]
                         to_port = edge_data["to_port"]
                         node_inputs[to_port] = outputs[(parent_node.name, from_port)]

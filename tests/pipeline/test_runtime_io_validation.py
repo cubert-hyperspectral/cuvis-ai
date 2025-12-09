@@ -1,5 +1,5 @@
 """
-Test suite for runtime I/O validation in CuvisCanvas.
+Test suite for runtime I/O validation in CuvisPipeline.
 
 Tests that nodes' actual inputs and outputs are validated against their
 INPUT_SPECS and OUTPUT_SPECS at runtime.
@@ -9,7 +9,7 @@ import pytest
 import torch
 
 from cuvis_ai.node import Node
-from cuvis_ai.pipeline.canvas import CuvisCanvas
+from cuvis_ai.pipeline.pipeline import CuvisPipeline
 from cuvis_ai.pipeline.ports import PortSpec
 from cuvis_ai.utils.types import ExecutionStage
 
@@ -39,12 +39,6 @@ class ValidNode(Node):
         result = torch.randn(B, H, W, 5, dtype=torch.float32)
         return {"result": result}
 
-    def serialize(self, directory: str):
-        return {}
-
-    def load(self, params: dict, filepath: str):
-        pass
-
 
 class WrongDtypeOutputNode(Node):
     """Node that returns wrong output dtype."""
@@ -70,12 +64,6 @@ class WrongDtypeOutputNode(Node):
         B, H, W, C = data.shape
         result = torch.randn(B, H, W, 1, dtype=torch.float32)
         return {"result": result}
-
-    def serialize(self, directory: str):
-        return {}
-
-    def load(self, params: dict, filepath: str):
-        pass
 
 
 class WrongShapeOutputNode(Node):
@@ -103,12 +91,6 @@ class WrongShapeOutputNode(Node):
         result = torch.randn(B, H, W, 3, dtype=torch.float32)
         return {"result": result}
 
-    def serialize(self, directory: str):
-        return {}
-
-    def load(self, params: dict, filepath: str):
-        pass
-
 
 class MissingOutputNode(Node):
     """Node that doesn't return a required output."""
@@ -133,12 +115,6 @@ class MissingOutputNode(Node):
         # Returns empty dict instead of required output
         return {}
 
-    def serialize(self, directory: str):
-        return {}
-
-    def load(self, params: dict, filepath: str):
-        pass
-
 
 class DataSourceNode(Node):
     """Node that provides data for testing."""
@@ -158,83 +134,77 @@ class DataSourceNode(Node):
         data = torch.randn(2, 4, 4, 10, dtype=torch.float32)
         return {"data": data}
 
-    def serialize(self, directory: str):
-        return {}
-
-    def load(self, params: dict, filepath: str):
-        pass
-
 
 class TestRuntimeOutputValidation:
     """Test runtime output validation against OUTPUT_SPECS."""
 
     def test_valid_output_passes(self):
         """Test that correct output types pass validation."""
-        canvas = CuvisCanvas("test", strict_runtime_io_validation=True)
+        pipeline = CuvisPipeline("test", strict_runtime_io_validation=True)
 
         source = DataSourceNode()
         node = ValidNode()
 
-        canvas.connect(source.outputs.data, node.data)
+        pipeline.connect(source.outputs.data, node.data)
 
         # Should not raise
-        outputs = canvas.forward(stage=ExecutionStage.INFERENCE)
+        outputs = pipeline.forward(stage=ExecutionStage.INFERENCE)
         assert (node.name, "result") in outputs
 
     def test_wrong_dtype_output_fails(self):
         """Test that wrong output dtype is caught."""
         from cuvis_ai.pipeline.ports import PortCompatibilityError
 
-        canvas = CuvisCanvas("test", strict_runtime_io_validation=True)
+        pipeline = CuvisPipeline("test", strict_runtime_io_validation=True)
 
         source = DataSourceNode()
         node = WrongDtypeOutputNode()
 
-        canvas.connect(source.outputs.data, node.data)
+        pipeline.connect(source.outputs.data, node.data)
 
         # Should raise PortCompatibilityError due to dtype mismatch
         with pytest.raises(PortCompatibilityError, match="[Dd]type"):
-            canvas.forward(stage=ExecutionStage.INFERENCE)
+            pipeline.forward(stage=ExecutionStage.INFERENCE)
 
     def test_wrong_shape_output_fails(self):
         """Test that wrong output shape is caught."""
         from cuvis_ai.pipeline.ports import PortCompatibilityError
 
-        canvas = CuvisCanvas("test", strict_runtime_io_validation=True)
+        pipeline = CuvisPipeline("test", strict_runtime_io_validation=True)
 
         source = DataSourceNode()
         node = WrongShapeOutputNode()
 
-        canvas.connect(source.outputs.data, node.data)
+        pipeline.connect(source.outputs.data, node.data)
 
         # Should raise PortCompatibilityError due to shape mismatch
         with pytest.raises(PortCompatibilityError, match="[Dd]imension"):
-            canvas.forward(stage=ExecutionStage.INFERENCE)
+            pipeline.forward(stage=ExecutionStage.INFERENCE)
 
     def test_missing_output_fails(self):
         """Test that missing required output is caught."""
-        canvas = CuvisCanvas("test", strict_runtime_io_validation=True)
+        pipeline = CuvisPipeline("test", strict_runtime_io_validation=True)
 
         source = DataSourceNode()
         node = MissingOutputNode()
 
-        canvas.connect(source.outputs.data, node.data)
+        pipeline.connect(source.outputs.data, node.data)
 
         # Should raise RuntimeError for missing output
         with pytest.raises(RuntimeError, match="did not produce required output"):
-            canvas.forward(stage=ExecutionStage.INFERENCE)
+            pipeline.forward(stage=ExecutionStage.INFERENCE)
 
     def test_validation_can_be_disabled(self):
         """Test that validation can be disabled."""
-        canvas = CuvisCanvas("test", strict_runtime_io_validation=False)
+        pipeline = CuvisPipeline("test", strict_runtime_io_validation=False)
 
         source = DataSourceNode()
         node = WrongDtypeOutputNode()
 
-        canvas.connect(source.outputs.data, node.data)
+        pipeline.connect(source.outputs.data, node.data)
 
         # Should not raise even with wrong dtype
-        outputs = canvas.forward(stage=ExecutionStage.INFERENCE)
+        outputs = pipeline.forward(stage=ExecutionStage.INFERENCE)
         assert (node.name, "result") in outputs
 
 
@@ -256,12 +226,6 @@ class WrongDtypeSourceNode(Node):
         data = torch.randint(0, 10, (2, 4, 4, 10), dtype=torch.int32)
         return {"data": data}
 
-    def serialize(self, directory: str):
-        return {}
-
-    def load(self, params: dict, filepath: str):
-        pass
-
 
 class WrongShapeSourceNode(Node):
     """Source node that returns wrong shape."""
@@ -281,12 +245,6 @@ class WrongShapeSourceNode(Node):
         data = torch.randn(2, 4, 4, 15, dtype=torch.float32)
         return {"data": data}
 
-    def serialize(self, directory: str):
-        return {}
-
-    def load(self, params: dict, filepath: str):
-        pass
-
 
 class TestRuntimeInputValidation:
     """Test runtime input validation against INPUT_SPECS."""
@@ -295,41 +253,41 @@ class TestRuntimeInputValidation:
         """Test that wrong input dtype from source node is caught."""
         from cuvis_ai.pipeline.ports import PortCompatibilityError
 
-        canvas = CuvisCanvas("test", strict_runtime_io_validation=True)
+        pipeline = CuvisPipeline("test", strict_runtime_io_validation=True)
 
         source = WrongDtypeSourceNode()
         node = ValidNode()
-        canvas.connect(source.outputs.data, node.data)
+        pipeline.connect(source.outputs.data, node.data)
 
         # Should raise PortCompatibilityError when ValidNode receives int32 instead of float32
         with pytest.raises(PortCompatibilityError, match="[Dd]type"):
-            canvas.forward(stage=ExecutionStage.INFERENCE)
+            pipeline.forward(stage=ExecutionStage.INFERENCE)
 
     def test_wrong_shape_input_fails(self):
         """Test that wrong input shape from source node is caught."""
         from cuvis_ai.pipeline.ports import PortCompatibilityError
 
-        canvas = CuvisCanvas("test", strict_runtime_io_validation=True)
+        pipeline = CuvisPipeline("test", strict_runtime_io_validation=True)
 
         source = WrongShapeSourceNode()
         node = ValidNode()
-        canvas.connect(source.outputs.data, node.data)
+        pipeline.connect(source.outputs.data, node.data)
 
         # Should raise PortCompatibilityError when ValidNode receives 15 channels instead of 10
         with pytest.raises(PortCompatibilityError, match="[Dd]imension"):
-            canvas.forward(stage=ExecutionStage.INFERENCE)
+            pipeline.forward(stage=ExecutionStage.INFERENCE)
 
     def test_flexible_dimensions_work(self):
         """Test that flexible dimensions (-1) accept any size."""
-        canvas = CuvisCanvas("test", strict_runtime_io_validation=True)
+        pipeline = CuvisPipeline("test", strict_runtime_io_validation=True)
 
         source = DataSourceNode()
         node = ValidNode()
 
-        canvas.connect(source.outputs.data, node.data)
+        pipeline.connect(source.outputs.data, node.data)
 
         # Different batch sizes should work (first 3 dims are flexible)
-        outputs = canvas.forward(stage=ExecutionStage.INFERENCE)
+        outputs = pipeline.forward(stage=ExecutionStage.INFERENCE)
         assert (node.name, "result") in outputs
 
 
@@ -340,7 +298,7 @@ class TestBinaryDeciderBug:
         """Test that BinaryDecider now returns bool as specified."""
         from cuvis_ai.deciders.binary_decider import BinaryDecider
 
-        CuvisCanvas("test", strict_runtime_io_validation=True)
+        CuvisPipeline("test", strict_runtime_io_validation=True)
 
         DataSourceNode()
         decider = BinaryDecider(threshold=0.5)
@@ -355,8 +313,8 @@ class TestBinaryDeciderBug:
         # Should return bool dtype
         assert outputs["decisions"].dtype == torch.bool
 
-    def test_binary_decider_in_canvas_with_validation(self):
-        """Test that BinaryDecider works in canvas with validation enabled."""
+    def test_binary_decider_in_pipeline_with_validation(self):
+        """Test that BinaryDecider works in pipeline with validation enabled."""
         from cuvis_ai.deciders.binary_decider import BinaryDecider
 
         # Create a simple source that outputs 1-channel data
@@ -372,21 +330,15 @@ class TestBinaryDeciderBug:
             def forward(self, **kwargs):
                 return {"scores": torch.randn(2, 4, 4, 1, dtype=torch.float32)}
 
-            def serialize(self, directory: str):
-                return {}
-
-            def load(self, params: dict, filepath: str):
-                pass
-
-        canvas = CuvisCanvas("test", strict_runtime_io_validation=True)
+        pipeline = CuvisPipeline("test", strict_runtime_io_validation=True)
 
         source = SingleChannelSource()
         decider = BinaryDecider(threshold=0.5)
 
-        canvas.connect(source.scores, decider.logits)
+        pipeline.connect(source.scores, decider.logits)
 
         # Should not raise - BinaryDecider now returns bool correctly
-        outputs = canvas.forward(stage=ExecutionStage.INFERENCE)
+        outputs = pipeline.forward(stage=ExecutionStage.INFERENCE)
 
         # Verify output is bool with correct shape
         decisions = outputs[(decider.name, "decisions")]

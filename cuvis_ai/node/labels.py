@@ -97,8 +97,5 @@ class BinaryAnomalyLabelMapper(Node):
 
         return {"cube": cube, "mask": mapped}
 
-    def load(self, params: dict, serial_dir: str) -> None:
-        pass
-
 
 __all__ = ["BinaryAnomalyLabelMapper"]

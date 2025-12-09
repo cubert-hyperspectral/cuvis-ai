@@ -7,16 +7,24 @@ import queue
 import tempfile
 import threading
 from collections.abc import Iterable, Iterator
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
 import grpc
 import numpy as np
 import torch
+import yaml
 
 from cuvis_ai.data.lentils_anomaly import SingleCu3sDataModule
 from cuvis_ai.grpc.callbacks import ProgressStreamCallback
-from cuvis_ai.training.config import TrainingConfig, create_callbacks_from_config
+from cuvis_ai.training.config import (
+    DataConfig,
+    ExperimentConfig,
+    PipelineConfig,
+    TrainingConfig,
+    create_callbacks_from_config,
+)
 from cuvis_ai.training.trainers import GradientTrainer, StatisticalTrainer
 from cuvis_ai.utils.types import Context, ExecutionStage
 
@@ -39,17 +47,66 @@ class CuvisAIService(cuvis_ai_pb2_grpc.CuvisAIServiceServicer):
         request: cuvis_ai_pb2.CreateSessionRequest,
         context: grpc.ServicerContext,
     ) -> cuvis_ai_pb2.CreateSessionResponse:
-        """Create a new pipeline session."""
+        """Create a new session with pipeline configuration."""
         try:
-            pipeline_config = self._parse_pipeline_config(request.pipeline_config)
-            # data_config is optional - only pass if provided
-            data_config = request.data_config if request.HasField("data_config") else None
-            session_id = self.session_manager.create_session(
-                pipeline_type=request.pipeline_type,
-                pipeline_config=pipeline_config,
-                data_config=data_config,
-            )
-            return cuvis_ai_pb2.CreateSessionResponse(session_id=session_id)
+            from cuvis_ai.pipeline.pipeline import CuvisPipeline
+            from cuvis_ai.pipeline.pipeline_builder import PipelineBuilder
+
+            # Decode config_bytes - could be either a file path or full config JSON
+            config_bytes_str = request.pipeline.config_bytes.decode("utf-8")
+
+            # Try to determine if it's a file path or JSON config
+            try:
+                # Try parsing as JSON first
+                config_dict = json.loads(config_bytes_str)
+
+                # If it's a dict with the expected PipelineConfig structure, build from it
+                if (
+                    isinstance(config_dict, dict)
+                    and "nodes" in config_dict
+                    and "connections" in config_dict
+                ):
+                    # Full pipeline config provided - build pipeline from config
+                    pipeline_config = PipelineConfig.from_dict(config_dict)
+                    builder = PipelineBuilder()
+
+                    # Build pipeline from config structure
+                    pipeline_dict = pipeline_config.to_dict()
+                    pipeline = builder.build_from_config(pipeline_dict)
+
+                    # Create session without file paths (config is self-contained)
+                    session_id = self.session_manager.create_session(pipeline=pipeline)
+
+                    return cuvis_ai_pb2.CreateSessionResponse(session_id=session_id)
+                else:
+                    # Not a valid pipeline config structure
+                    raise ValueError("Invalid pipeline config structure")
+
+            except (json.JSONDecodeError, ValueError):
+                # Not JSON, treat as file path
+                pipeline_path = helpers.resolve_pipeline_path(config_bytes_str)
+                pt_path = pipeline_path.with_suffix(".pt")
+                weights_path = str(pt_path) if pt_path.exists() else None
+
+                try:
+                    pipeline = CuvisPipeline.load_from_file(
+                        str(pipeline_path),
+                        weights_path=weights_path,
+                        strict_weight_loading=False,
+                    )
+                except Exception:
+                    # Fallback to structure-only load if weights cannot be applied
+                    pipeline = CuvisPipeline.load_from_file(str(pipeline_path))
+
+                # Create session with pipeline
+                session_id = self.session_manager.create_session(pipeline=pipeline)
+
+                return cuvis_ai_pb2.CreateSessionResponse(session_id=session_id)
+
+        except FileNotFoundError as exc:
+            context.set_code(grpc.StatusCode.NOT_FOUND)
+            context.set_details(str(exc))
+            return cuvis_ai_pb2.CreateSessionResponse()
         except ValueError as exc:
             context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
             context.set_details(str(exc))
@@ -101,7 +158,7 @@ class CuvisAIService(cuvis_ai_pb2_grpc.CuvisAIServiceServicer):
             return cuvis_ai_pb2.InferenceResponse()
 
         try:
-            outputs = session.canvas.forward(batch=batch, stage=ExecutionStage.INFERENCE)
+            outputs = session.pipeline.forward(batch=batch, stage=ExecutionStage.INFERENCE)
         except Exception as exc:  # pragma: no cover - exercise in tests via validation
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(f"Inference failed: {exc}")
@@ -121,7 +178,11 @@ class CuvisAIService(cuvis_ai_pb2_grpc.CuvisAIServiceServicer):
                 metrics[output_name] = float(value)
                 continue
 
-            tensor = self._to_tensor(value)
+            try:
+                tensor = self._to_tensor(value)
+            except Exception:
+                # Skip non-tensorizable outputs (e.g., artifacts or custom objects)
+                continue
             tensor_outputs[output_name] = helpers.tensor_to_proto(tensor)
 
         return cuvis_ai_pb2.InferenceResponse(outputs=tensor_outputs, metrics=metrics)
@@ -143,7 +204,7 @@ class CuvisAIService(cuvis_ai_pb2_grpc.CuvisAIServiceServicer):
             return cuvis_ai_pb2.GetPipelineInputsResponse()
 
         try:
-            input_specs_dict = session.canvas.get_input_specs()
+            input_specs_dict = session.pipeline.get_input_specs()
             input_specs = {
                 name: cuvis_ai_pb2.TensorSpec(
                     name=spec.get("name", name),
@@ -177,7 +238,7 @@ class CuvisAIService(cuvis_ai_pb2_grpc.CuvisAIServiceServicer):
             return cuvis_ai_pb2.GetPipelineOutputsResponse()
 
         try:
-            output_specs_dict = session.canvas.get_output_specs()
+            output_specs_dict = session.pipeline.get_output_specs()
             output_specs = {
                 name: cuvis_ai_pb2.TensorSpec(
                     name=spec.get("name", name),
@@ -210,15 +271,15 @@ class CuvisAIService(cuvis_ai_pb2_grpc.CuvisAIServiceServicer):
             context.set_details(str(exc))
             return cuvis_ai_pb2.GetPipelineVisualizationResponse()
 
-        from cuvis_ai.pipeline.visualizer import CanvasVisualizer
+        from cuvis_ai.pipeline.visualizer import PipelineVisualizer
 
         format_type = (request.format or "png").lower()
-        visualizer = CanvasVisualizer(session.canvas)
+        visualizer = PipelineVisualizer(session.pipeline)
 
         try:
             if format_type in {"png", "svg"}:
                 with tempfile.TemporaryDirectory() as tmpdir:
-                    output_path = Path(tmpdir) / f"canvas.{format_type}"
+                    output_path = Path(tmpdir) / f"pipeline.{format_type}"
                     rendered = visualizer.render_graphviz(
                         output_path=output_path, format=format_type
                     )
@@ -256,7 +317,7 @@ class CuvisAIService(cuvis_ai_pb2_grpc.CuvisAIServiceServicer):
         """Train the pipeline with statistical or gradient methods.
 
         Args:
-            request: TrainRequest with session ID and trainer type
+            request: TrainRequest with session ID, data config, and training config
             context: gRPC context
 
         Yields:
@@ -269,28 +330,59 @@ class CuvisAIService(cuvis_ai_pb2_grpc.CuvisAIServiceServicer):
             context.set_details(str(exc))
             return
 
-        # Validate that data_config is present for training
-        if session.data_config is None:
-            context.set_code(grpc.StatusCode.FAILED_PRECONDITION)
-            context.set_details("Training requires data_config to be set during session creation")
+        # Get data config - either from request or from session's experiment config
+        data_config_proto = None
+        data_config_py = None
+
+        if request.HasField("data"):
+            # Use data config from request
+            data_config_proto = request.data
+            data_config_py = DataConfig.from_proto(request.data)
+        elif session.data_config is not None:
+            # Use data config from session (loaded via RestoreExperiment)
+            data_config_py = session.data_config
+            data_config_proto = data_config_py.to_proto()
+        else:
+            context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+            context.set_details(
+                "Training requires data config to be provided either in request or loaded via RestoreExperiment"
+            )
             return
 
         try:
-            # Create datamodule from session's data config
-            datamodule = self._create_single_cu3s_data_module(session.data_config)
+            # Create datamodule from data config
+            datamodule = self._create_single_cu3s_data_module(data_config_proto)
+            training_config_py: TrainingConfig | None = None
 
             if request.trainer_type == cuvis_ai_pb2.TRAINER_TYPE_STATISTICAL:
                 # Statistical training - single pass, no streaming
+                # Preserve existing training_config from session (if loaded via RestoreExperiment)
+                # or create default if not present
+                training_config_py = session.training_config or TrainingConfig()
+                self._capture_experiment_context(session, data_config_py, training_config_py)
                 yield from self._train_statistical(session, datamodule)
 
             elif request.trainer_type == cuvis_ai_pb2.TRAINER_TYPE_GRADIENT:
-                # Gradient training - streaming progress (Phase 6)
-                if not request.HasField("config"):
+                # Gradient training - streaming progress
+                # Get training config - either from request or from session
+                if request.HasField("training"):
+                    training_config_py = self._deserialize_training_config(request.training)
+                elif session.training_config is not None:
+                    training_config_py = session.training_config
+                else:
                     context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
-                    context.set_details("Gradient training requires config")
+                    context.set_details(
+                        "Gradient training requires training config either in request or loaded via RestoreExperiment"
+                    )
                     return
 
-                yield from self._train_gradient(session, datamodule, request.config)
+                self._capture_experiment_context(session, data_config_py, training_config_py)
+                yield from self._train_gradient(
+                    session,
+                    datamodule,
+                    data_config_proto,
+                    training_config_py,
+                )
 
             else:
                 context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
@@ -329,7 +421,19 @@ class CuvisAIService(cuvis_ai_pb2_grpc.CuvisAIServiceServicer):
             else:
                 status = cuvis_ai_pb2.TRAIN_STATUS_COMPLETE  # Simplified for Phase 5
 
-            return cuvis_ai_pb2.GetTrainStatusResponse(status=status)
+            # Create a TrainResponse with the status
+            latest_progress = cuvis_ai_pb2.TrainResponse(
+                context=cuvis_ai_pb2.Context(
+                    stage=cuvis_ai_pb2.EXECUTION_STAGE_TRAIN,
+                    epoch=0,
+                    batch_idx=0,
+                    global_step=0,
+                ),
+                status=status,
+                message="Training status query",
+            )
+
+            return cuvis_ai_pb2.GetTrainStatusResponse(latest_progress=latest_progress)
 
         except ValueError as exc:
             context.set_code(grpc.StatusCode.NOT_FOUND)
@@ -341,99 +445,309 @@ class CuvisAIService(cuvis_ai_pb2_grpc.CuvisAIServiceServicer):
             return cuvis_ai_pb2.GetTrainStatusResponse()
 
     # ------------------------------------------------------------------
-    # Checkpoint Management
+    # Pipeline Management (Model Deployment)
     # ------------------------------------------------------------------
-    def SaveCheckpoint(
+    def SavePipeline(
         self,
-        request: cuvis_ai_pb2.SaveCheckpointRequest,
+        request: cuvis_ai_pb2.SavePipelineRequest,
         context: grpc.ServicerContext,
-    ) -> cuvis_ai_pb2.SaveCheckpointResponse:
-        """Persist the current trainer or canvas state to disk."""
+    ) -> cuvis_ai_pb2.SavePipelineResponse:
+        """Save trained pipeline (structure + weights) to disk."""
         try:
             session = self.session_manager.get_session(request.session_id)
         except ValueError as exc:
             context.set_code(grpc.StatusCode.NOT_FOUND)
             context.set_details(str(exc))
-            return cuvis_ai_pb2.SaveCheckpointResponse(success=False)
+            return cuvis_ai_pb2.SavePipelineResponse(success=False)
 
-        if not request.checkpoint_path:
+        if not request.pipeline_path:
             context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
-            context.set_details("checkpoint_path is required")
-            return cuvis_ai_pb2.SaveCheckpointResponse(success=False)
-
-        if session.trainer is None:
-            context.set_code(grpc.StatusCode.FAILED_PRECONDITION)
-            context.set_details("No trainer available. Train the model first.")
-            return cuvis_ai_pb2.SaveCheckpointResponse(success=False)
+            context.set_details("pipeline_path is required")
+            return cuvis_ai_pb2.SavePipelineResponse(success=False)
 
         try:
-            checkpoint_path = Path(request.checkpoint_path)
-            checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+            from datetime import datetime
 
-            if hasattr(session.trainer, "save_checkpoint"):
-                session.trainer.save_checkpoint(str(checkpoint_path))
-            elif hasattr(session.trainer, "trainer") and hasattr(
-                session.trainer.trainer, "save_checkpoint"
-            ):
-                session.trainer.trainer.save_checkpoint(str(checkpoint_path))
-            else:
-                canvas_state_fn = getattr(session.canvas, "state_dict", None)
-                canvas_state = canvas_state_fn() if callable(canvas_state_fn) else {}
-                torch.save(
-                    {
-                        "pipeline_type": session.pipeline_type,
-                        "pipeline_config": session.pipeline_config,
-                        "canvas_state": canvas_state,
-                    },
-                    checkpoint_path,
-                )
+            from cuvis_ai.training.config import PipelineMetadata
 
-            return cuvis_ai_pb2.SaveCheckpointResponse(success=True)
-        except Exception as exc:  # pragma: no cover - safety net
+            # Use resolve_pipeline_save_path for consistent path resolution
+            pipeline_path = helpers.resolve_pipeline_save_path(request.pipeline_path)
+            pipeline_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Build metadata from proto or defaults
+            metadata = PipelineMetadata(
+                name=request.metadata.name if request.metadata.name else pipeline_path.stem,
+                description=request.metadata.description if request.metadata.description else "",
+                created=request.metadata.created
+                if request.metadata.created
+                else datetime.now().isoformat(),
+                cuvis_ai_version=request.metadata.cuvis_ai_version
+                if request.metadata.cuvis_ai_version
+                else "0.1.5",
+                tags=list(request.metadata.tags) if request.metadata.tags else [],
+                author=request.metadata.author if request.metadata.author else "",
+            )
+
+            # Save pipeline using CuvisPipeline.save_to_file
+            session.pipeline.save_to_file(
+                str(pipeline_path),
+                metadata=metadata,
+            )
+
+            # Compute weights path (save_to_file creates it as pipeline_path.with_suffix('.pt'))
+            weights_path = pipeline_path.with_suffix(".pt")
+
+            return cuvis_ai_pb2.SavePipelineResponse(
+                success=True,
+                pipeline_path=str(pipeline_path),
+                weights_path=str(weights_path),
+            )
+        except Exception as exc:
             context.set_code(grpc.StatusCode.INTERNAL)
-            context.set_details(f"Failed to save checkpoint: {exc}")
-            return cuvis_ai_pb2.SaveCheckpointResponse(success=False)
+            context.set_details(f"Failed to save pipeline: {exc}")
+            return cuvis_ai_pb2.SavePipelineResponse(success=False)
 
-    def LoadCheckpoint(
+    def LoadPipeline(
         self,
-        request: cuvis_ai_pb2.LoadCheckpointRequest,
+        request: cuvis_ai_pb2.LoadPipelineRequest,
         context: grpc.ServicerContext,
-    ) -> cuvis_ai_pb2.LoadCheckpointResponse:
-        """Load a checkpoint into an existing session."""
+    ) -> cuvis_ai_pb2.LoadPipelineResponse:
+        """Load pipeline (structure + optionally weights) into existing session."""
         try:
             session = self.session_manager.get_session(request.session_id)
         except ValueError as exc:
             context.set_code(grpc.StatusCode.NOT_FOUND)
             context.set_details(str(exc))
-            return cuvis_ai_pb2.LoadCheckpointResponse(success=False)
+            return cuvis_ai_pb2.LoadPipelineResponse(success=False)
 
-        checkpoint_path = Path(request.checkpoint_path)
-        if not checkpoint_path.exists():
+        # Use resolve_pipeline_path for consistent path resolution
+        try:
+            pipeline_path = helpers.resolve_pipeline_path(request.pipeline_path)
+        except FileNotFoundError as exc:
             context.set_code(grpc.StatusCode.NOT_FOUND)
-            context.set_details(f"Checkpoint not found: {checkpoint_path}")
-            return cuvis_ai_pb2.LoadCheckpointResponse(success=False)
+            context.set_details(str(exc))
+            return cuvis_ai_pb2.LoadPipelineResponse(success=False)
+
+        weights_path = None
+        if request.HasField("weights_path") and request.weights_path:
+            weights_path = request.weights_path
 
         try:
-            checkpoint = torch.load(checkpoint_path, map_location="cpu")
+            from cuvis_ai.pipeline.pipeline import CuvisPipeline
 
-            if hasattr(session.trainer, "load_state_dict") and isinstance(checkpoint, dict):
-                state_dict = checkpoint.get("state_dict") or checkpoint
-                session.trainer.load_state_dict(state_dict, strict=False)  # type: ignore[arg-type]
-            elif hasattr(session.trainer, "trainer") and hasattr(
-                session.trainer.trainer, "strategy"
-            ):
-                # Lightning checkpoints can be restored via strategy helper
-                session.trainer.trainer.strategy.load_checkpoint(checkpoint_path)  # type: ignore[call-arg]
-            elif isinstance(checkpoint, dict) and "canvas_state" in checkpoint:
-                load_fn = getattr(session.canvas, "load_state_dict", None)
-                if callable(load_fn):
-                    load_fn(checkpoint["canvas_state"])
+            # Default strict to True if not specified (proto3 optional field)
+            strict = request.strict if request.HasField("strict") else True
 
-            return cuvis_ai_pb2.LoadCheckpointResponse(success=True)
-        except Exception as exc:  # pragma: no cover - safety net
+            pipeline = CuvisPipeline.load_from_file(
+                str(pipeline_path),
+                weights_path=weights_path,
+                strict_weight_loading=strict,
+            )
+
+            # Update session pipeline
+            session.pipeline = pipeline
+
+            # Use pipeline metadata directly (loaded from YAML during load_from_file)
+            metadata_proto = pipeline.metadata.to_proto()
+
+            return cuvis_ai_pb2.LoadPipelineResponse(
+                success=True,
+                metadata=metadata_proto,
+            )
+        except FileNotFoundError as exc:
+            context.set_code(grpc.StatusCode.NOT_FOUND)
+            context.set_details(str(exc))
+            return cuvis_ai_pb2.LoadPipelineResponse(success=False)
+        except Exception as exc:
             context.set_code(grpc.StatusCode.INTERNAL)
-            context.set_details(f"Failed to load checkpoint: {exc}")
-            return cuvis_ai_pb2.LoadCheckpointResponse(success=False)
+            context.set_details(f"Failed to load pipeline: {exc}")
+            return cuvis_ai_pb2.LoadPipelineResponse(success=False)
+
+    # ------------------------------------------------------------------
+    # Experiment Management (Reproducibility)
+    # ------------------------------------------------------------------
+    def SaveExperiment(
+        self,
+        request: cuvis_ai_pb2.SaveExperimentRequest,
+        context: grpc.ServicerContext,
+    ) -> cuvis_ai_pb2.SaveExperimentResponse:
+        """Save complete experiment specification (pipeline + data + training configs)."""
+        try:
+            session = self.session_manager.get_session(request.session_id)
+        except ValueError as exc:
+            context.set_code(grpc.StatusCode.NOT_FOUND)
+            context.set_details(str(exc))
+            return cuvis_ai_pb2.SaveExperimentResponse(success=False)
+
+        if not request.experiment_path:
+            context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+            context.set_details("experiment_path is required")
+            return cuvis_ai_pb2.SaveExperimentResponse(success=False)
+
+        try:
+            experiment_path = Path(request.experiment_path)
+            experiment_path.parent.mkdir(parents=True, exist_ok=True)
+
+            experiment_config = session.experiment_config
+            if experiment_config is None:
+                pipeline_config = session.pipeline_config
+
+                experiment_dict: dict[str, Any] = {
+                    "name": getattr(
+                        session.pipeline, "name", pipeline_config.metadata.name or "experiment"
+                    ),
+                    "pipeline": pipeline_config.to_dict(),
+                }
+                if session.data_config is not None:
+                    experiment_dict["data"] = session.data_config.to_dict()
+                if session.training_config is not None:
+                    experiment_dict["training"] = asdict(session.training_config)
+
+                with experiment_path.open("w", encoding="utf-8") as f:
+                    yaml.dump(experiment_dict, f, default_flow_style=False, sort_keys=False)
+            else:
+                # Save experiment config to YAML
+                experiment_config.save_to_file(str(experiment_path))
+
+            return cuvis_ai_pb2.SaveExperimentResponse(
+                success=True,
+                experiment_path=str(experiment_path),
+            )
+        except Exception as exc:
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"Failed to save experiment: {exc}")
+            return cuvis_ai_pb2.SaveExperimentResponse(success=False)
+
+    def RestoreExperiment(
+        self,
+        request: cuvis_ai_pb2.RestoreExperimentRequest,
+        context: grpc.ServicerContext,
+    ) -> cuvis_ai_pb2.RestoreExperimentResponse:
+        """Restore experiment from YAML file and create new session."""
+        experiment_path = Path(request.experiment_path)
+        if not experiment_path.exists():
+            context.set_code(grpc.StatusCode.NOT_FOUND)
+            context.set_details(f"Experiment file not found: {experiment_path}")
+            return cuvis_ai_pb2.RestoreExperimentResponse()
+
+        try:
+            from cuvis_ai.pipeline.pipeline_builder import PipelineBuilder
+            from cuvis_ai.training.config import ExperimentConfig
+
+            # Use the same tested code path as the CLI examples
+            experiment_config = ExperimentConfig.load_from_file(str(experiment_path))
+
+            # Build pipeline from experiment config
+            builder = PipelineBuilder()
+            pipeline_dict = experiment_config.pipeline.to_dict()
+            pipeline = builder.build_from_config(pipeline_dict)
+
+            # Create session with components from loaded experiment config
+            session_id = self.session_manager.create_session(
+                pipeline=pipeline,
+                data_config=experiment_config.data,
+                training_config=experiment_config.training,
+                experiment_config=experiment_config,
+            )
+
+            # Build response
+            return cuvis_ai_pb2.RestoreExperimentResponse(
+                session_id=session_id,
+                experiment=experiment_config.to_proto(),
+            )
+
+        except FileNotFoundError as exc:
+            context.set_code(grpc.StatusCode.NOT_FOUND)
+            context.set_details(str(exc))
+            return cuvis_ai_pb2.RestoreExperimentResponse()
+        except Exception as exc:
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"Failed to restore experiment: {exc}")
+            return cuvis_ai_pb2.RestoreExperimentResponse()
+
+    # ------------------------------------------------------------------
+    # Pipeline Discovery
+    # ------------------------------------------------------------------
+    def ListAvailablePipelinees(
+        self,
+        request: cuvis_ai_pb2.ListAvailablePipelineesRequest,
+        context: grpc.ServicerContext,
+    ) -> cuvis_ai_pb2.ListAvailablePipelineesResponse:
+        """List all available pipeline configurations."""
+        try:
+            filter_tag = request.filter_tag if request.HasField("filter_tag") else None
+
+            pipelinees_list = helpers.list_available_pipelinees(filter_tag=filter_tag)
+
+            pipeline_infos = []
+            for pipeline_dict in pipelinees_list:
+                metadata = pipeline_dict["metadata"]
+                pipeline_info = cuvis_ai_pb2.PipelineInfo(
+                    name=pipeline_dict["name"],
+                    path=pipeline_dict["path"],
+                    metadata=cuvis_ai_pb2.PipelineMetadata(
+                        name=metadata["name"],
+                        description=metadata["description"],
+                        created=metadata["created"],
+                        cuvis_ai_version=metadata["cuvis_ai_version"],
+                        tags=metadata["tags"],
+                        author=metadata["author"],
+                    ),
+                    tags=pipeline_dict["tags"],
+                    has_weights=pipeline_dict["has_weights"],
+                    weights_path=pipeline_dict["weights_path"],
+                )
+                pipeline_infos.append(pipeline_info)
+
+            return cuvis_ai_pb2.ListAvailablePipelineesResponse(pipelinees=pipeline_infos)
+        except FileNotFoundError as exc:
+            context.set_code(grpc.StatusCode.NOT_FOUND)
+            context.set_details(str(exc))
+            return cuvis_ai_pb2.ListAvailablePipelineesResponse()
+        except Exception as exc:
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"Failed to list pipelinees: {exc}")
+            return cuvis_ai_pb2.ListAvailablePipelineesResponse()
+
+    def GetPipelineInfo(
+        self,
+        request: cuvis_ai_pb2.GetPipelineInfoRequest,
+        context: grpc.ServicerContext,
+    ) -> cuvis_ai_pb2.GetPipelineInfoResponse:
+        """Get detailed information about a specific pipeline."""
+        try:
+            pipeline_dict = helpers.get_pipeline_info(
+                pipeline_name=request.pipeline_name,
+                include_yaml_content=True,
+            )
+
+            metadata = pipeline_dict["metadata"]
+            pipeline_info = cuvis_ai_pb2.PipelineInfo(
+                name=pipeline_dict["name"],
+                path=pipeline_dict["path"],
+                metadata=cuvis_ai_pb2.PipelineMetadata(
+                    name=metadata["name"],
+                    description=metadata["description"],
+                    created=metadata["created"],
+                    cuvis_ai_version=metadata["cuvis_ai_version"],
+                    tags=metadata["tags"],
+                    author=metadata["author"],
+                ),
+                tags=pipeline_dict["tags"],
+                has_weights=pipeline_dict["has_weights"],
+                weights_path=pipeline_dict["weights_path"],
+                yaml_content=pipeline_dict.get("yaml_content", ""),
+            )
+
+            return cuvis_ai_pb2.GetPipelineInfoResponse(pipeline_info=pipeline_info)
+        except FileNotFoundError as exc:
+            context.set_code(grpc.StatusCode.NOT_FOUND)
+            context.set_details(str(exc))
+            return cuvis_ai_pb2.GetPipelineInfoResponse()
+        except Exception as exc:
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"Failed to get pipeline info: {exc}")
+            return cuvis_ai_pb2.GetPipelineInfoResponse()
 
     # ------------------------------------------------------------------
     # Training Capabilities & Validation
@@ -600,7 +914,7 @@ class CuvisAIService(cuvis_ai_pb2_grpc.CuvisAIServiceServicer):
     ) -> cuvis_ai_pb2.ValidateTrainingConfigResponse:
         """Validate training config payloads before submission."""
         try:
-            config_json = request.config.config_json.decode("utf-8")
+            config_json = request.config.config_bytes.decode("utf-8")
             training_config = TrainingConfig.from_json(config_json)
         except Exception as exc:
             return cuvis_ai_pb2.ValidateTrainingConfigResponse(
@@ -639,6 +953,42 @@ class CuvisAIService(cuvis_ai_pb2_grpc.CuvisAIServiceServicer):
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+    def _capture_experiment_context(
+        self,
+        session: SessionState,
+        data_config: Any,
+        training_config: TrainingConfig,
+    ) -> None:
+        """Persist experiment context on the session for SaveExperiment."""
+        pipeline_config = session.pipeline_config
+
+        pipeline_name = getattr(
+            session.pipeline, "name", pipeline_config.metadata.name or "experiment"
+        )
+
+        session.data_config = data_config
+        session.training_config = training_config
+
+        # Preserve loss_nodes, metric_nodes, and unfreeze_nodes from existing experiment_config if available
+        loss_nodes = []
+        metric_nodes = []
+        unfreeze_nodes = []
+
+        if session.experiment_config is not None:
+            loss_nodes = session.experiment_config.loss_nodes
+            metric_nodes = session.experiment_config.metric_nodes
+            unfreeze_nodes = session.experiment_config.unfreeze_nodes
+
+        session.experiment_config = ExperimentConfig(
+            name=str(pipeline_name),
+            pipeline=pipeline_config,
+            data=data_config,
+            training=training_config,
+            loss_nodes=loss_nodes,
+            metric_nodes=metric_nodes,
+            unfreeze_nodes=unfreeze_nodes,
+        )
+
     def _create_single_cu3s_data_module(
         self,
         data_config: cuvis_ai_pb2.DataConfig,
@@ -659,10 +1009,15 @@ class CuvisAIService(cuvis_ai_pb2_grpc.CuvisAIServiceServicer):
 
         processing_mode = processing_mode_map.get(data_config.processing_mode, "Reflectance")
 
+        # Handle optional annotation_json_path (may be empty string or not set)
+        annotation_json_path = (
+            data_config.annotation_json_path if data_config.annotation_json_path else None
+        )
+
         # Use explicit paths from proto config (takes precedence)
         return SingleCu3sDataModule(
-            cu3s_path=data_config.cu3s_file_path,
-            label_path=data_config.annotation_json_path,
+            cu3s_file_path=data_config.cu3s_file_path,
+            annotation_json_path=annotation_json_path,
             train_ids=list(data_config.train_ids),
             val_ids=list(data_config.val_ids),
             test_ids=list(data_config.test_ids),
@@ -698,11 +1053,11 @@ class CuvisAIService(cuvis_ai_pb2_grpc.CuvisAIServiceServicer):
 
         # Create and run statistical trainer
         trainer = StatisticalTrainer(
-            canvas=session.canvas,
+            pipeline=session.pipeline,
             datamodule=datamodule,
         )
 
-        # Fit the canvas (initializes normalizers, selectors, PCA, RX)
+        # Fit the pipeline (initializes normalizers, selectors, PCA, RX)
         trainer.fit()
 
         # Store trainer in session for potential later use
@@ -724,16 +1079,13 @@ class CuvisAIService(cuvis_ai_pb2_grpc.CuvisAIServiceServicer):
         self,
         session: SessionState,
         datamodule: SingleCu3sDataModule,
-        config_proto: cuvis_ai_pb2.TrainingConfig,
+        data_config: cuvis_ai_pb2.DataConfig,
+        training_config: TrainingConfig,
     ) -> Iterator[cuvis_ai_pb2.TrainResponse]:
         """Train with gradient-based method and stream progress."""
-        training_config = self._deserialize_training_config(config_proto)
-
-        # data_config should be validated by caller, but add safety check
-        if session.data_config is None:
-            raise ValueError("data_config is required for gradient training")
-
-        loss_nodes, metric_nodes = self._configure_gradient_components(session, session.data_config)
+        loss_nodes, metric_nodes = self._configure_gradient_components(
+            session, data_config, training_config
+        )
 
         progress_queue: queue.Queue[cuvis_ai_pb2.TrainResponse] = queue.Queue()
 
@@ -754,7 +1106,7 @@ class CuvisAIService(cuvis_ai_pb2_grpc.CuvisAIServiceServicer):
         callback_list.extend(create_callbacks_from_config(training_config.trainer.callbacks))
 
         trainer = GradientTrainer(
-            canvas=session.canvas,
+            pipeline=session.pipeline,
             datamodule=datamodule,
             trainer_config=training_config.trainer,
             optimizer_config=training_config.optimizer,
@@ -816,14 +1168,24 @@ class CuvisAIService(cuvis_ai_pb2_grpc.CuvisAIServiceServicer):
             raise ValueError(f"Invalid pipeline_config JSON: {exc.msg}") from exc
 
     def _parse_input_batch(self, inputs: cuvis_ai_pb2.InputBatch) -> dict[str, Any]:
-        """Convert InputBatch proto to a dict consumable by CuvisCanvas."""
+        """Convert InputBatch proto to a dict consumable by CuvisPipeline."""
         if not inputs.HasField("cube"):
             raise ValueError("inputs.cube is required for inference")
 
-        batch: dict[str, Any] = {"cube": helpers.proto_to_tensor(inputs.cube)}
+        cube_tensor = helpers.proto_to_tensor(inputs.cube)
+        batch: dict[str, Any] = {"cube": cube_tensor}
 
         if inputs.HasField("wavelengths"):
             batch["wavelengths"] = helpers.proto_to_tensor(inputs.wavelengths)
+        else:
+            # Generate simple wavelength grid if none provided; matches expected [B, C] shape
+            channels = cube_tensor.shape[-1]
+            base_wavelengths = (
+                torch.linspace(400.0, 1000.0, channels, dtype=torch.float32).round().to(torch.int32)
+            )
+            # Ensure batch dimension matches cube batch
+            batch_size = cube_tensor.shape[0] if cube_tensor.dim() > 3 else 1
+            batch["wavelengths"] = base_wavelengths.unsqueeze(0).expand(batch_size, -1)
         if inputs.HasField("mask"):
             batch["mask"] = helpers.proto_to_tensor(inputs.mask)
 
@@ -869,7 +1231,7 @@ class CuvisAIService(cuvis_ai_pb2_grpc.CuvisAIServiceServicer):
         ]
 
     def _format_output_key(self, key: Any) -> str:
-        """Normalize canvas output keys (tuple -> 'node.port')."""
+        """Normalize pipeline output keys (tuple -> 'node.port')."""
         if isinstance(key, tuple) and len(key) == 2:
             node_name, port = key
             return f"{node_name}.{port}"
@@ -893,7 +1255,7 @@ class CuvisAIService(cuvis_ai_pb2_grpc.CuvisAIServiceServicer):
         return torch.tensor(value)
 
     def _dtype_str_to_proto(self, dtype_str: str | None) -> int:
-        """Convert dtype strings produced by canvas introspection to proto enums."""
+        """Convert dtype strings produced by pipeline introspection to proto enums."""
         dtype_map = {
             "float32": cuvis_ai_pb2.D_TYPE_FLOAT32,
             "float64": cuvis_ai_pb2.D_TYPE_FLOAT64,
@@ -913,7 +1275,7 @@ class CuvisAIService(cuvis_ai_pb2_grpc.CuvisAIServiceServicer):
     ) -> TrainingConfig:
         """Decode TrainingConfig from proto bytes."""
         try:
-            config_json = config_proto.config_json.decode("utf-8")
+            config_json = config_proto.config_bytes.decode("utf-8")
         except Exception as exc:
             raise ValueError("Failed to decode training config") from exc
 
@@ -929,79 +1291,76 @@ class CuvisAIService(cuvis_ai_pb2_grpc.CuvisAIServiceServicer):
         self,
         session: SessionState,
         data_config: cuvis_ai_pb2.DataConfig,
+        training_config: TrainingConfig,
     ) -> tuple[list, list]:
-        """Attach default loss/metric nodes for gradient training."""
-        from cuvis_ai.anomaly.rx_logit_head import RXLogitHead
-        from cuvis_ai.deciders.binary_decider import BinaryDecider
-        from cuvis_ai.node.data import LentilsAnomalyDataNode
-        from cuvis_ai.node.losses import AnomalyBCEWithLogits, SelectorEntropyRegularizer
-        from cuvis_ai.node.metrics import AnomalyDetectionMetrics
-        from cuvis_ai.node.selector import SoftChannelSelector
+        """Configure loss and metric nodes from experiment config.
 
-        canvas = session.canvas
-        nodes = list(canvas.nodes())  # type: ignore[arg-type]
+        Uses explicit node names from experiment_config.loss_nodes and
+        experiment_config.metric_nodes. No automatic discovery or hardcoded types.
 
-        def _first_of(cls) -> Any | None:
-            for node in nodes:
-                if isinstance(node, cls):
-                    return node
-            return None
+        Args:
+            session: Session state containing pipeline and experiment config
+            data_config: Data configuration (unused, kept for API compatibility)
+            training_config: Training configuration (unused, kept for API compatibility)
 
-        selector = _first_of(SoftChannelSelector)
-        logit_head = _first_of(RXLogitHead)
-        decider = _first_of(BinaryDecider)
-        data_node = _first_of(LentilsAnomalyDataNode)
+        Returns:
+            Tuple of (loss_nodes, metric_nodes) lists
 
-        if selector is not None:
-            selector.unfreeze()
-        if logit_head is not None:
-            logit_head.unfreeze()
+        Raises:
+            ValueError: If experiment config is missing or invalid
+        """
+        pipeline = session.pipeline
 
-        loss_nodes: list = []
-        metric_nodes: list = []
+        # Require explicit experiment config
+        if session.experiment_config is None:
+            raise ValueError(
+                "Gradient training requires explicit ExperimentConfig with loss_nodes and metric_nodes. "
+                "Please provide experiment configuration via RestoreExperiment or session creation."
+            )
 
-        # Selector regularization
-        if selector is not None:
-            entropy_loss = _first_of(SelectorEntropyRegularizer)
-            if entropy_loss is None:
-                entropy_loss = SelectorEntropyRegularizer(
-                    name="selector_entropy",
-                    execution_stages={ExecutionStage.TRAIN},
+        experiment_config = session.experiment_config
+
+        # Validate required fields
+        if not experiment_config.loss_nodes:
+            raise ValueError(
+                "experiment_config.loss_nodes must specify at least one loss node for gradient training. "
+                "Add loss node names to your experiment config YAML."
+            )
+
+        # Build node lookup map
+        node_map = {node.name: node for node in pipeline.nodes()}
+
+        # Look up loss nodes by name
+        loss_nodes = []
+        for loss_name in experiment_config.loss_nodes:
+            if loss_name not in node_map:
+                raise ValueError(
+                    f"Loss node '{loss_name}' not found in pipeline. "
+                    f"Available nodes: {', '.join(sorted(node_map.keys()))}"
                 )
-                canvas.connect(selector.outputs.weights, entropy_loss.inputs.weights)
-                nodes.append(entropy_loss)
-            loss_nodes.append(entropy_loss)
+            loss_nodes.append(node_map[loss_name])
 
-        # BCE loss if labels are available
-        has_labels = bool(getattr(data_config, "annotation_json_path", ""))
-        if logit_head is not None and data_node is not None and has_labels:
-            bce_loss = _first_of(AnomalyBCEWithLogits)
-            if bce_loss is None:
-                bce_loss = AnomalyBCEWithLogits(
-                    name="bce_loss",
-                    execution_stages={ExecutionStage.TRAIN, ExecutionStage.VAL},
+        # Look up metric nodes by name
+        metric_nodes = []
+        for metric_name in experiment_config.metric_nodes:
+            if metric_name not in node_map:
+                raise ValueError(
+                    f"Metric node '{metric_name}' not found in pipeline. "
+                    f"Available nodes: {', '.join(sorted(node_map.keys()))}"
                 )
-                canvas.connect(
-                    (logit_head.outputs.logits, bce_loss.inputs.predictions),
-                    (data_node.outputs.mask, bce_loss.inputs.targets),
-                )
-                nodes.append(bce_loss)
-            loss_nodes.append(bce_loss)
+            metric_nodes.append(node_map[metric_name])
 
-        # Anomaly detection metrics for val/test
-        if decider is not None and data_node is not None and has_labels:
-            metrics_node = _first_of(AnomalyDetectionMetrics)
-            if metrics_node is None:
-                metrics_node = AnomalyDetectionMetrics(
-                    name="anomaly_metrics",
-                    execution_stages={ExecutionStage.VAL, ExecutionStage.TEST},
-                )
-                canvas.connect(
-                    (decider.outputs.decisions, metrics_node.inputs.decisions),
-                    (data_node.outputs.mask, metrics_node.inputs.targets),
-                )
-                nodes.append(metrics_node)
-            metric_nodes.append(metrics_node)
+        # Handle unfreeze_nodes from experiment config
+        if experiment_config.unfreeze_nodes:
+            pipeline.unfreeze_nodes_by_name(list(experiment_config.unfreeze_nodes))
+
+        # Validate we have trainable parameters
+        has_trainable = any(p.requires_grad for p in pipeline.parameters())
+        if not has_trainable:
+            raise ValueError(
+                "No trainable parameters found after unfreezing. "
+                "Configure unfreeze_nodes in experiment config to include trainable nodes."
+            )
 
         return loss_nodes, metric_nodes
 

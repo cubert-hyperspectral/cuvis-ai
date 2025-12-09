@@ -1,0 +1,10 @@
+# Default data configuration for Lentils dataset
+# Used for standard training runs
+
+cu3s_file_path: data/Lentils/Lentils_000.cu3s
+annotation_json_path: data/Lentils/Lentils_000.json
+train_ids: [0, 1, 2]
+val_ids: [3, 4, 5]
+test_ids: [9, 10, 11, 12, 13]
+batch_size: 4
+processing_mode: Reflectance

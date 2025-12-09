@@ -20,7 +20,7 @@ def _make_stream(tensor: torch.Tensor):
 def test_deep_svdd_fit_and_forward_shapes():
     x = torch.randn(2, 8, 9, 6)
     encoder = DeepSVDDEncoder(rep_dim=4, hidden=16, sample_n=1000, seed=0)
-    encoder.fit(_make_stream(x))
+    encoder.statistical_initialization(_make_stream(x))
     out = encoder.forward(x)["embeddings"]
     assert out.shape == (2, 8, 9, 4)
     assert out.dtype == x.dtype
@@ -32,7 +32,7 @@ def test_deep_svdd_forward_requires_fit():
     try:
         encoder.forward(x)
     except RuntimeError as exc:
-        assert "fit()" in str(exc)
+        assert "statistical_initialization" in str(exc)
     else:
         raise AssertionError("Expected RuntimeError when calling forward before fit()")
 
@@ -59,9 +59,9 @@ def test_deep_svdd_end_to_end_training_loop():
     torch.manual_seed(0)
     x = torch.randn(1, 6, 6, 5)
     encoder = DeepSVDDEncoder(rep_dim=3, hidden=8, sample_n=100, seed=0)
-    encoder.fit(_make_stream(x))
+    encoder.statistical_initialization(_make_stream(x))
     tracker = DeepSVDDCenterTracker(alpha=0.5)
-    tracker.fit(_make_stream(encoder.forward(x)["embeddings"]))
+    tracker.statistical_initialization(_make_stream(encoder.forward(x)["embeddings"]))
     loss_node = DeepSVDDSoftBoundaryLoss(nu=0.05)
 
     # Unfreeze encoder to enable gradient updates
@@ -121,7 +121,7 @@ def test_deep_svdd_loss_rejects_bad_center_shape():
 def test_center_tracker_fit_and_forward_updates_center():
     embeddings = torch.randn(2, 4, 4, 3)
     tracker = DeepSVDDCenterTracker(alpha=0.5)
-    tracker.fit(_make_stream(embeddings))
+    tracker.statistical_initialization(_make_stream(embeddings))
 
     context = Context(stage=ExecutionStage.TRAIN, epoch=0, batch_idx=0)
     out = tracker.forward(embeddings, context=context)
@@ -136,7 +136,7 @@ def test_center_tracker_fit_and_forward_updates_center():
 def test_center_tracker_skips_eval_updates_by_default():
     embeddings = torch.randn(1, 3, 3, 2)
     tracker = DeepSVDDCenterTracker(alpha=1.0)
-    tracker.fit(_make_stream(embeddings))
+    tracker.statistical_initialization(_make_stream(embeddings))
 
     train_ctx = Context(stage=ExecutionStage.TRAIN, epoch=0, batch_idx=0)
     val_ctx = Context(stage=ExecutionStage.VAL, epoch=0, batch_idx=0)

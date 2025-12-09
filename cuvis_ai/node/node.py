@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from abc import ABC, abstractmethod
 from types import SimpleNamespace
 from typing import Any
@@ -14,6 +15,45 @@ from cuvis_ai.utils.types import ExecutionStage, InputStream
 class Node(nn.Module, ABC, Serializable):
     """
     Abstract class for data preprocessing.
+
+    Node Serialization Requirements
+    ================================
+
+    All nodes MUST support serialization for pipeline save/load:
+
+    1. Nodes inheriting from Node (nn.Module):
+       - Already have state_dict() and load_state_dict() from PyTorch
+       - Ensure all learnable parameters are registered properly
+       - Use register_buffer() for non-trainable state
+
+    2. Stateless nodes:
+       - state_dict() returns empty dict {} (default PyTorch behavior)
+       - load_state_dict() is no-op (default PyTorch behavior)
+
+    3. Statistical nodes (requires_initial_fit=True):
+       - Store fitted parameters as buffers (register_buffer())
+       - Unfreeze converts buffers to nn.Parameters
+       - Both states serialize correctly via state_dict()
+
+    4. Custom serialization needs:
+       - Override state_dict() to include custom state
+       - Override load_state_dict() to restore custom state
+       - Must call super().state_dict() / super().load_state_dict()
+
+    Example - Custom State:
+        >>> class CustomNode(Node):
+        ...     def __init__(self):
+        ...         super().__init__()
+        ...         self.custom_data = {"key": "value"}
+        ...
+        ...     def state_dict(self):
+        ...         state = super().state_dict()
+        ...         state["custom_data"] = self.custom_data
+        ...         return state
+        ...
+        ...     def load_state_dict(self, state_dict):
+        ...         self.custom_data = state_dict.pop("custom_data", {})
+        ...         super().load_state_dict(state_dict)
     """
 
     INPUT_SPECS: dict[str, PortSpec | list[PortSpec]] = {}
@@ -57,12 +97,12 @@ class Node(nn.Module, ABC, Serializable):
             name = type(self).__name__
         # Store custom name
         self._name = name
-        self._canvas_counter: int | None = None
+        self._pipeline_counter: int | None = None
 
         # Execution stages
         self.execution_stages = set(execution_stages)
 
-        self._initialized = False
+        self._statistically_initialized = False
         self.freezed = False
         self._input_ports: dict[str, InputPort] = {}
         self._output_ports: dict[str, OutputPort] = {}
@@ -71,11 +111,11 @@ class Node(nn.Module, ABC, Serializable):
     @property
     def name(self) -> str:
         """Get node name (base name with optional counter suffix)."""
-        if self._canvas_counter is None:
+        if self._pipeline_counter is None:
             return self._name
-        if self._canvas_counter == 0:
+        if self._pipeline_counter == 0:
             return self._name
-        return f"{self._name}-{self._canvas_counter}"
+        return f"{self._name}-{self._pipeline_counter}"
 
     @name.setter
     def name(self, value: str) -> None:  # noqa: D401
@@ -84,48 +124,31 @@ class Node(nn.Module, ABC, Serializable):
 
     @property
     def requires_initial_fit(self) -> bool:
-        """Whether this node requires statistical initialization before training.
+        """Auto-detect whether the node implements statistical initialization."""
+        override = getattr(self, "_requires_initial_fit_override", None)
+        if override is not None:
+            return bool(override)
 
-        Returns
-        -------
-        bool
-            True if node needs fit() to be called before gradienttraining
-        """
-        return False
+        impl = getattr(self.__class__, "statistical_initialization", None)
+        return callable(impl) and impl is not Node.statistical_initialization
+
+    def statistical_initialization(self, input_stream: InputStream) -> None:
+        """Statistical initialization from a port-based input stream."""
+        return None
 
     def fit(self, input_stream: InputStream) -> None:
-        """Train node with port-based input stream (for statistical nodes).
-
-        This is the new port-based training API for Phase 4.7. Statistical nodes
-        should implement this method instead of initialize_from_data().
-
-        Parameters
-        ----------
-        input_stream : Iterator[dict[str, Any]]
-            Iterator yielding dicts matching INPUT_SPECS.
-            Keys are port names, values are tensors/data.
-
-        Example
-        -------
-        >>> for inputs in input_stream:
-        ...     features = inputs["features"]  # From INPUT_SPECS
-        ...     self._accumulate_statistics(features)
-
-        Notes
-        -----
-        Statistical nodes (requires_initial_fit=True) can implement this method
-        to use the new port-based training API. After training, node should either
-        unfreeze() or freeze().
-
-        Raises
-        ------
-        NotImplementedError
-            If the node requires training but doesn't implement this method
-        """
-        if self.requires_initial_fit:
+        """Backward-compatible alias for `statistical_initialization`."""
+        warnings.warn(
+            "Node.fit() is deprecated; use statistical_initialization() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        impl = getattr(self.__class__, "statistical_initialization", None)
+        if self.requires_initial_fit and (impl is None or impl is Node.statistical_initialization):
             raise NotImplementedError(
-                f"{self.__class__.__name__} requires training but does not implement train() method"
+                f"{self.__class__.__name__} requires statistical_initialization() implementation"
             )
+        self.statistical_initialization(input_stream)
 
     def unfreeze(self) -> None:
         """Enable gradient computation for this node's parameters.
@@ -187,6 +210,44 @@ class Node(nn.Module, ABC, Serializable):
 
         return ExecutionStage.ALWAYS in self.execution_stages or stage in self.execution_stages
 
+    def validate_serialization_support(self) -> tuple[bool, str]:
+        """Validate that node can be serialized.
+
+        Checks:
+        - Has state_dict() method
+        - Has load_state_dict() method
+        - state_dict() returns a dict
+        - No exceptions during state_dict() call
+
+        Returns
+        -------
+        tuple[bool, str]
+            Tuple of (is_valid, error_message)
+
+        Example
+        -------
+        >>> node = MinMaxNormalizer()
+        >>> is_valid, message = node.validate_serialization_support()
+        >>> assert is_valid, message
+        """
+        # Check if state_dict exists
+        if not hasattr(self, "state_dict"):
+            return False, f"Node {self.name} missing state_dict() method"
+
+        # Check if load_state_dict exists
+        if not hasattr(self, "load_state_dict"):
+            return False, f"Node {self.name} missing load_state_dict() method"
+
+        # Try to call state_dict (should not raise)
+        try:
+            state = self.state_dict()
+            if not isinstance(state, dict):
+                return False, f"Node {self.name} state_dict() must return dict, got {type(state)}"
+        except Exception as e:
+            return False, f"Node {self.name} state_dict() failed: {e}"
+
+        return True, "OK"
+
     @abstractmethod
     def forward(self, **inputs: Any) -> dict[str, Any]:
         """Execute node computation returning a dictionary of named outputs."""
@@ -203,21 +264,6 @@ class Node(nn.Module, ABC, Serializable):
         name = kwargs.pop("name", None)
         execution_stages = kwargs.pop("execution_stages", default_stages)
         return name, execution_stages
-
-    # @abstractmethod
-    def serialize(self, serial_dir: str) -> dict:
-        """
-        Convert the class into a serialized representation
-        """
-        # ...
-        return {**self.hparams}
-
-    @abstractmethod
-    def load(self, params: dict, serial_dir: str) -> None:
-        """
-        Load from serialized format into an object
-        """
-        ...
 
     def _create_ports(self) -> None:
         """Create port proxy objects from class-level specifications."""
@@ -319,3 +365,17 @@ class Node(nn.Module, ABC, Serializable):
         else:
             # Not a port or parameter, let normal AttributeError propagate
             raise AttributeError(f"'{type(self).__name__}' has no attribute '{name}'")
+
+    def load_state_dict(self, state_dict, strict: bool = True) -> Any:
+        result = super().load_state_dict(state_dict, strict=strict)
+        self._infer_fitted_state_from_loaded_weights(state_dict)
+        return result
+
+    def _infer_fitted_state_from_loaded_weights(self, state_dict) -> None:
+        """Infer statistical initialization status from loaded weights."""
+        if not state_dict:
+            return
+
+        if self.requires_initial_fit:
+            if hasattr(self, "_statistically_initialized"):
+                self._statistically_initialized = True

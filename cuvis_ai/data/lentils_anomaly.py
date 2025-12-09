@@ -24,7 +24,7 @@ def _resolve_assets(root: Path, dataset_name: str) -> tuple[Path, Path]:
         dataset_name: Name of the dataset (e.g., "Lentils")
 
     Returns:
-        Tuple of (cu3s_path, label_path)
+        Tuple of (cu3s_file_path, annotation_json_path)
     """
     default_cube = root / f"{dataset_name}.cu3s"
     default_label = root / f"{dataset_name}.json"
@@ -41,8 +41,8 @@ def _resolve_assets(root: Path, dataset_name: str) -> tuple[Path, Path]:
 class SingleCu3sDataModule(pl.LightningDataModule):
     def __init__(
         self,
-        cu3s_path: str | None = None,
-        label_path: str | None = None,
+        cu3s_file_path: str | None = None,
+        annotation_json_path: str | None = None,
         data_dir: str | None = None,
         dataset_name: str | None = None,
         train_ids: list[int] | None = None,
@@ -54,12 +54,12 @@ class SingleCu3sDataModule(pl.LightningDataModule):
         """Initialize SingleCu3sDataModule.
 
         Two modes of operation:
-        1. Explicit paths: Provide both cu3s_path AND label_path
+        1. Explicit paths: Provide both cu3s_file_path AND annotation_json_path
         2. Auto-resolve: Provide both data_dir AND dataset_name
 
         Args:
-            cu3s_path: Direct path to .cu3s file (takes precedence)
-            label_path: Direct path to .json annotation file (takes precedence)
+            cu3s_file_path: Direct path to .cu3s file (takes precedence)
+            annotation_json_path: Direct path to .json annotation file (takes precedence)
             data_dir: Directory containing dataset files
             dataset_name: Name of dataset (e.g., "Lentils")
             train_ids: List of measurement indices for training
@@ -69,20 +69,22 @@ class SingleCu3sDataModule(pl.LightningDataModule):
             processing_mode: Cuvis processing mode string ("Raw", "Reflectance")
 
         Raises:
-            ValueError: If neither (cu3s_path, label_path) nor (data_dir, dataset_name) provided
+            ValueError: If neither (cu3s_file_path, annotation_json_path) nor (data_dir, dataset_name) provided
         """
         super().__init__()
 
         # Priority 1: Explicit paths
-        if cu3s_path and label_path:
-            self.cu3s_path = Path(cu3s_path)
-            self.label_path = Path(label_path)
+        if cu3s_file_path and annotation_json_path:
+            self.cu3s_file_path = Path(cu3s_file_path)
+            self.annotation_json_path = Path(annotation_json_path)
         # Priority 2: Auto-resolve from data_dir + dataset_name
         elif data_dir and dataset_name:
-            self.cu3s_path, self.label_path = _resolve_assets(Path(data_dir), dataset_name)
+            self.cu3s_file_path, self.annotation_json_path = _resolve_assets(
+                Path(data_dir), dataset_name
+            )
         else:
             raise ValueError(
-                "Must provide either (cu3s_path AND label_path) OR (data_dir AND dataset_name)"
+                "Must provide either (cu3s_file_path AND annotation_json_path) OR (data_dir AND dataset_name)"
             )
 
         self.batch_size = batch_size
@@ -90,6 +92,10 @@ class SingleCu3sDataModule(pl.LightningDataModule):
         self.val_ids = val_ids or []
         self.test_ids = test_ids or []
         self.processing_mode = processing_mode
+
+        self.train_ds: SingleCu3sDataset | None
+        self.val_ds: SingleCu3sDataset | None
+        self.test_ds: SingleCu3sDataset | None
 
     def prepare_data(self) -> None:
         # Only download if using auto-resolve mode with Lentils dataset
@@ -99,22 +105,22 @@ class SingleCu3sDataModule(pl.LightningDataModule):
     def setup(self, stage: str | None = None) -> None:
         if stage == "fit" or stage is None:
             self.train_ds = SingleCu3sDataset(
-                cu3s_path=str(self.cu3s_path),
-                label_path=str(self.label_path),
+                cu3s_file_path=str(self.cu3s_file_path),
+                annotation_json_path=str(self.annotation_json_path),
                 processing_mode=self.processing_mode,
                 measurement_indices=self.train_ids,
             )
             self.val_ds = SingleCu3sDataset(
-                cu3s_path=str(self.cu3s_path),
-                label_path=str(self.label_path),
+                cu3s_file_path=str(self.cu3s_file_path),
+                annotation_json_path=str(self.annotation_json_path),
                 processing_mode=self.processing_mode,
                 measurement_indices=self.val_ids,
             )
 
         if stage == "test" or stage is None:
             self.test_ds = SingleCu3sDataset(
-                cu3s_path=str(self.cu3s_path),
-                label_path=str(self.label_path),
+                cu3s_file_path=str(self.cu3s_file_path),
+                annotation_json_path=str(self.annotation_json_path),
                 processing_mode=self.processing_mode,
                 measurement_indices=self.test_ids,
             )

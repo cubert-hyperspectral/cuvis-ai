@@ -89,12 +89,14 @@ class ProductionServer:
         self,
         port: int = 50051,
         max_workers: int = 10,
+        max_msg_size: int | None = None,
         use_tls: bool = False,
         tls_cert_path: str | None = None,
         tls_key_path: str | None = None,
     ) -> None:
         self.port = port
         self.max_workers = max_workers
+        self.max_msg_size = max_msg_size
         self.use_tls = use_tls
         self.tls_cert_path = tls_cert_path
         self.tls_key_path = tls_key_path
@@ -125,7 +127,14 @@ class ProductionServer:
 
         self.logger.info("Starting gRPC server")
 
-        self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=self.max_workers))
+        grpc_srv_opts = []
+        if self.max_msg_size is not None:
+            grpc_srv_opts.append(("grpc.max_send_message_length", self.max_msg_size))
+            grpc_srv_opts.append(("grpc.max_receive_message_length", self.max_msg_size))
+
+        self.server = grpc.server(
+            futures.ThreadPoolExecutor(max_workers=self.max_workers), options=grpc_srv_opts
+        )
 
         cuvis_ai_service = CuvisAIService()
         cuvis_ai_pb2_grpc.add_CuvisAIServiceServicer_to_server(cuvis_ai_service, self.server)
@@ -198,6 +207,7 @@ def serve() -> None:
 
     port = int(os.getenv("GRPC_PORT", "50051"))
     max_workers = int(os.getenv("GRPC_MAX_WORKERS", "10"))
+    max_msg_size = int(os.getenv("GRPC_MAX_MSG_SIZE", 200 * 1024 * 1024))  # 200 MB
     use_tls = os.getenv("GRPC_USE_TLS", "false").lower() == "true"
     tls_cert_path = os.getenv("GRPC_TLS_CERT_PATH")
     tls_key_path = os.getenv("GRPC_TLS_KEY_PATH")
@@ -207,6 +217,7 @@ def serve() -> None:
     server = ProductionServer(
         port=port,
         max_workers=max_workers,
+        max_msg_size=max_msg_size,
         use_tls=use_tls,
         tls_cert_path=tls_cert_path,
         tls_key_path=tls_key_path,

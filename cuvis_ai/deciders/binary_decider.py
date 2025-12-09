@@ -37,9 +37,10 @@ class BinaryDecider(BaseDecider):
         )
     }
 
-    def __init__(self, threshold: float = 0.5) -> None:
+    def __init__(self, threshold: float = 0.5, **kwargs) -> None:
         self.threshold = threshold
-        super().__init__()
+        # Forward threshold to BaseDecider so Serializable captures it in hparams
+        super().__init__(threshold=threshold, **kwargs)
 
     def forward(
         self,
@@ -61,21 +62,6 @@ class BinaryDecider(BaseDecider):
         # Apply threshold to get binary decisions
         decisions = tensor >= self.threshold
         return {"decisions": decisions}
-
-    def serialize(self, directory: str) -> dict[str, float]:
-        """
-        Convert the class into a serialized representation
-        """
-        return {
-            "threshold": self.threshold,
-        }
-
-    def load(self, params: dict, filepath: str) -> None:
-        """Load this node from a serialized graph."""
-        try:
-            self.threshold = float(params["threshold"])
-        except Exception as e:
-            raise ValueError(f"Error loading BinaryDecider from params: {params}") from e
 
 
 class QuantileBinaryDecider(BaseDecider):
@@ -116,13 +102,15 @@ class QuantileBinaryDecider(BaseDecider):
         self,
         quantile: float = 0.995,
         reduce_dims: Sequence[int] | None = None,
+        **kwargs,
     ) -> None:
         self._validate_quantile(quantile)
         self.quantile = float(quantile)
         self.reduce_dims = (
             tuple(int(dim) for dim in reduce_dims) if reduce_dims is not None else None
         )
-        super().__init__()
+        # Forward init params so Serializable records them for config serialization
+        super().__init__(quantile=self.quantile, reduce_dims=self.reduce_dims, **kwargs)
 
     def forward(self, logits: Tensor, **_: Any) -> dict[str, Tensor]:
         tensor = logits
@@ -159,24 +147,6 @@ class QuantileBinaryDecider(BaseDecider):
 
         decisions = (tensor >= threshold).to(torch.bool)
         return {"decisions": decisions}
-
-    def serialize(self, directory: str) -> dict[str, Any]:
-        return {
-            "quantile": self.quantile,
-            "reduce_dims": list(self.reduce_dims) if self.reduce_dims is not None else None,
-        }
-
-    def load(self, params: dict, filepath: str) -> None:
-        try:
-            quantile = float(params["quantile"])
-            self._validate_quantile(quantile)
-            self.quantile = quantile
-            reduce_dims = params.get("reduce_dims")
-            self.reduce_dims = (
-                tuple(int(dim) for dim in reduce_dims) if reduce_dims is not None else None
-            )
-        except Exception as e:
-            raise ValueError(f"Error loading QuantileBinaryDecider from params: {params}") from e
 
     def _resolve_reduce_dims(self, tensor_ndim: int) -> tuple[int, ...]:
         """Resolve reduce_dims, handling negative indices and defaulting to non-batch dims."""

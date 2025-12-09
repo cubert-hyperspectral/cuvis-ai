@@ -1,7 +1,7 @@
 """
-Test suite for CuvisCanvas.forward() port-based routing.
+Test suite for CuvisPipeline.forward() port-based routing.
 
-Converted from test_executor_routing.py to use canvas.forward() instead of
+Converted from test_executor_routing.py to use pipeline.forward() instead of
 deprecated MemoryExecutor. Tests ensure proper data routing through typed
 ports, gradient preservation, and multiple entry inputs.
 """
@@ -11,13 +11,13 @@ from __future__ import annotations
 import torch
 
 from cuvis_ai.node.node import Node
-from cuvis_ai.pipeline.canvas import CuvisCanvas
+from cuvis_ai.pipeline.pipeline import CuvisPipeline
 from cuvis_ai.pipeline.ports import PortSpec
 from cuvis_ai.utils.types import ExecutionStage
 
 
 class TestGraphBasicRouting:
-    """Test basic data routing through ports using canvas.forward()."""
+    """Test basic data routing through ports using pipeline.forward()."""
 
     def test_simple_linear_pipeline(self) -> None:
         """Data should propagate through a simple A -> B pipeline."""
@@ -29,9 +29,6 @@ class TestGraphBasicRouting:
             def forward(self, x, **kwargs):
                 return {"y": x * 2}
 
-            def load(self, params, serial_dir) -> None:
-                return None
-
         class AddOneNode(Node):
             INPUT_SPECS = {"x": PortSpec(dtype=torch.float32, shape=(-1,))}
             OUTPUT_SPECS = {"y": PortSpec(dtype=torch.float32, shape=(-1,))}
@@ -39,18 +36,15 @@ class TestGraphBasicRouting:
             def forward(self, x, **kwargs):
                 return {"y": x + 1}
 
-            def load(self, params, serial_dir) -> None:
-                return None
-
-        canvas = CuvisCanvas("linear")
+        pipeline = CuvisPipeline("linear")
         n1 = DoubleNode()
         n2 = AddOneNode()
 
-        canvas.connect(n1.outputs.y, n2.x)
+        pipeline.connect(n1.outputs.y, n2.x)
 
         input_tensor = torch.tensor([1.0, 2.0, 3.0])
         batch = {"x": input_tensor}
-        outputs = canvas.forward(batch=batch, stage=ExecutionStage.INFERENCE)
+        outputs = pipeline.forward(batch=batch, stage=ExecutionStage.INFERENCE)
 
         expected = (input_tensor * 2) + 1
         torch.testing.assert_close(outputs[(n2.name, "y")], expected)
@@ -83,16 +77,13 @@ class TestGraphBasicRouting:
             def forward(self, inp, meta, **kwargs):
                 return {"out": inp + meta}
 
-            def load(self, params, serial_dir) -> None:
-                return None
-
-        canvas = CuvisCanvas("fanout")
+        pipeline = CuvisPipeline("fanout")
         src = SourceNode()
         dst = ConsumerNode()
 
-        canvas.connect((src.outputs.out, dst.inp), (src.outputs.meta, dst.meta))
+        pipeline.connect((src.outputs.out, dst.inp), (src.outputs.meta, dst.meta))
 
-        outputs = canvas.forward(batch={}, stage=ExecutionStage.INFERENCE)
+        outputs = pipeline.forward(batch={}, stage=ExecutionStage.INFERENCE)
 
         assert outputs[(src.name, "out")].item() == 1.0
         assert outputs[(src.name, "meta")].item() == 5.0
@@ -130,18 +121,15 @@ class TestGraphGradientFlow:
             def forward(self, x, **kwargs):
                 return {"y": x + self.bias}
 
-            def load(self, params, serial_dir) -> None:
-                return None
-
-        canvas = CuvisCanvas("grad")
+        pipeline = CuvisPipeline("grad")
         scale = ScaleNode()
         bias = BiasNode()
 
-        canvas.connect(scale.outputs.y, bias.x)
+        pipeline.connect(scale.outputs.y, bias.x)
 
         entry = torch.tensor([1.5, -0.5], requires_grad=True)
         batch = {"x": entry}
-        outputs = canvas.forward(batch=batch, stage=ExecutionStage.INFERENCE)
+        outputs = pipeline.forward(batch=batch, stage=ExecutionStage.INFERENCE)
         final = outputs[(bias.name, "y")].sum()
         final.backward()
 
@@ -166,9 +154,6 @@ class TestGraphMultipleConnections:
             def forward(self, x, **kwargs):
                 return {"left": x, "right": -x}
 
-            def load(self, params, serial_dir) -> None:
-                return None
-
         class LeftNode(Node):
             INPUT_SPECS = {"x": PortSpec(dtype=torch.float32, shape=(-1,))}
             OUTPUT_SPECS = {"out": PortSpec(dtype=torch.float32, shape=(-1,))}
@@ -176,18 +161,12 @@ class TestGraphMultipleConnections:
             def forward(self, x, **kwargs):
                 return {"out": x * 2}
 
-            def load(self, params, serial_dir) -> None:
-                return None
-
         class RightNode(Node):
             INPUT_SPECS = {"x": PortSpec(dtype=torch.float32, shape=(-1,))}
             OUTPUT_SPECS = {"out": PortSpec(dtype=torch.float32, shape=(-1,))}
 
             def forward(self, x, **kwargs):
                 return {"out": x + 3}
-
-            def load(self, params, serial_dir) -> None:
-                return None
 
         class MergeNode(Node):
             INPUT_SPECS = {
@@ -199,16 +178,13 @@ class TestGraphMultipleConnections:
             def forward(self, left, right, **kwargs):
                 return {"out": left + right}
 
-            def load(self, params, serial_dir) -> None:
-                return None
-
-        canvas = CuvisCanvas("branch")
+        pipeline = CuvisPipeline("branch")
         split = SplitNode()
         left = LeftNode()
         right = RightNode()
         merge = MergeNode()
 
-        canvas.connect(
+        pipeline.connect(
             (split.left, left.x),
             (split.right, right.x),
             (left.outputs.out, merge.left),
@@ -217,7 +193,7 @@ class TestGraphMultipleConnections:
 
         inp = torch.tensor([1.0, 2.0])
         batch = {"x": inp}
-        outputs = canvas.forward(batch=batch, stage=ExecutionStage.INFERENCE)
+        outputs = pipeline.forward(batch=batch, stage=ExecutionStage.INFERENCE)
 
         expected_left = inp * 2
         expected_right = (-inp) + 3
@@ -241,18 +217,12 @@ class TestGraphEntryInputs:
             def forward(self, x, **kwargs):
                 return {"out": x}
 
-            def load(self, params, serial_dir) -> None:
-                return None
-
         class SourceB(Node):
             INPUT_SPECS = {"y": PortSpec(dtype=torch.float32, shape=(-1,))}
             OUTPUT_SPECS = {"out": PortSpec(dtype=torch.float32, shape=(-1,))}
 
             def forward(self, y, **kwargs):
                 return {"out": y * 3}
-
-            def load(self, params, serial_dir) -> None:
-                return None
 
         class Combiner(Node):
             INPUT_SPECS = {
@@ -267,19 +237,19 @@ class TestGraphEntryInputs:
             def load(self, params, serial_dir) -> None:
                 return None
 
-        canvas = CuvisCanvas("multi-entry")
+        pipeline = CuvisPipeline("multi-entry")
         a = SourceA()
         b = SourceB()
         c = Combiner()
 
-        canvas.connect((a.outputs.out, c.a), (b.outputs.out, c.b))
+        pipeline.connect((a.outputs.out, c.a), (b.outputs.out, c.b))
 
         batch = {
             "x": torch.tensor([1.0]),
             "y": torch.tensor([2.0]),
         }
 
-        outputs = canvas.forward(batch=batch, stage=ExecutionStage.INFERENCE)
+        outputs = pipeline.forward(batch=batch, stage=ExecutionStage.INFERENCE)
         torch.testing.assert_close(outputs[(c.name, "out")], torch.tensor([1.0 + (2.0 * 3.0)]))
 
 
@@ -296,18 +266,12 @@ class TestGraphPartialExecution:
             def forward(self, x, **kwargs):
                 return {"y": x * 2}
 
-            def load(self, params, serial_dir) -> None:
-                return None
-
         class Node2(Node):
             INPUT_SPECS = {"x": PortSpec(dtype=torch.float32, shape=(-1,))}
             OUTPUT_SPECS = {"y": PortSpec(dtype=torch.float32, shape=(-1,))}
 
             def forward(self, x, **kwargs):
                 return {"y": x + 1}
-
-            def load(self, params, serial_dir) -> None:
-                return None
 
         class Node3(Node):
             INPUT_SPECS = {"x": PortSpec(dtype=torch.float32, shape=(-1,))}
@@ -316,18 +280,15 @@ class TestGraphPartialExecution:
             def forward(self, x, **kwargs):
                 return {"y": x * 3}
 
-            def load(self, params, serial_dir) -> None:
-                return None
-
-        canvas = CuvisCanvas("partial")
+        pipeline = CuvisPipeline("partial")
         n1 = Node1()
         n2 = Node2()
         n3 = Node3()
 
-        canvas.connect((n1.outputs.y, n2.x), (n2.outputs.y, n3.x))
+        pipeline.connect((n1.outputs.y, n2.x), (n2.outputs.y, n3.x))
 
         batch = {"x": torch.tensor([1.0, 2.0])}
-        outputs = canvas.forward(batch=batch, stage=ExecutionStage.INFERENCE, upto_node=n2)
+        outputs = pipeline.forward(batch=batch, stage=ExecutionStage.INFERENCE, upto_node=n2)
 
         # Only n1 should execute (ancestors of n2)
         assert (n1.name, "y") in outputs
@@ -350,9 +311,6 @@ class TestGraphStageFiltering:
             def forward(self, x, **kwargs):
                 return {"y": x * 2}
 
-            def load(self, params, serial_dir) -> None:
-                return None
-
         class TrainOnlyNode(Node):
             INPUT_SPECS = {"x": PortSpec(dtype=torch.float32, shape=(-1,))}
             OUTPUT_SPECS = {"y": PortSpec(dtype=torch.float32, shape=(-1,))}
@@ -365,23 +323,20 @@ class TestGraphStageFiltering:
             def forward(self, x, **kwargs):
                 return {"y": x + 1}
 
-            def load(self, params, serial_dir) -> None:
-                return None
-
-        canvas = CuvisCanvas("stage_test")
+        pipeline = CuvisPipeline("stage_test")
         always = AlwaysNode()
         train_only = TrainOnlyNode()
 
-        canvas.connect(always.outputs.y, train_only.x)
+        pipeline.connect(always.outputs.y, train_only.x)
 
         batch = {"x": torch.tensor([1.0, 2.0])}
 
         # In inference stage, train_only should not execute
-        outputs_inf = canvas.forward(batch=batch, stage=ExecutionStage.INFERENCE)
+        outputs_inf = pipeline.forward(batch=batch, stage=ExecutionStage.INFERENCE)
         assert (always.name, "y") in outputs_inf
         assert (train_only.name, "y") not in outputs_inf
 
         # In train stage, both should execute
-        outputs_train = canvas.forward(batch=batch, stage=ExecutionStage.TRAIN)
+        outputs_train = pipeline.forward(batch=batch, stage=ExecutionStage.TRAIN)
         assert (always.name, "y") in outputs_train
         assert (train_only.name, "y") in outputs_train

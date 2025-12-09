@@ -80,15 +80,11 @@ class RXLogitHead(Node):
         self.register_buffer("bias", torch.tensor(init_bias, dtype=torch.float32))
 
         # Streaming accumulators for statistics (similar to RXGlobal)
-        self.register_buffer("_mean", None)
-        self.register_buffer("_M2", None)
-        self._n = 0
-        self._fitted = False
-
-    @property
-    def requires_initial_fit(self) -> bool:
-        """RXLogitHead requires statistical initialization from data."""
-        return True
+        self.register_buffer("_mean", torch.tensor(float("nan")))
+        self.register_buffer("_M2", torch.tensor(float("nan")))
+        self.register_buffer("_n", torch.tensor(0, dtype=torch.long))
+        # Allow using the head with the provided init_scale/init_bias without forcing a fit()
+        self._statistically_initialized = True
 
     def unfreeze(self) -> None:
         """Convert scale and bias buffers to trainable nn.Parameters.
@@ -110,7 +106,7 @@ class RXLogitHead(Node):
         # Call parent to enable requires_grad
         super().unfreeze()
 
-    def fit(self, input_stream) -> None:
+    def statistical_initialization(self, input_stream) -> None:
         """Initialize bias from statistics of RX scores using streaming approach.
 
         Uses Welford's algorithm for numerically stable online computation of
@@ -131,7 +127,7 @@ class RXLogitHead(Node):
 
         if self._n > 0:
             self.finalize()
-        self._initialized = True
+        self._statistically_initialized = True
 
     @torch.no_grad()
     def update(self, scores: torch.Tensor) -> None:
@@ -153,21 +149,19 @@ class RXLogitHead(Node):
         mean_b = X.mean()
         M2_b = ((X - mean_b) ** 2).sum()
 
-        if self._n == 0:
-            self._n = m
+        n = int(self._n.item())
+        if n == 0:
+            self._n = torch.tensor(m, dtype=torch.long, device=self.scale.device)
             self._mean = mean_b
             self._M2 = M2_b
         else:
-            # Type guard: these should not be None if _n > 0
-            assert self._mean is not None and self._M2 is not None
-            n = self._n
-            tot = self._n + m
+            tot = n + m
             delta = mean_b - self._mean
             new_mean = self._mean + delta * (m / tot)
             self._M2 = self._M2 + M2_b + (delta**2) * (n * m / tot)
-            self._n = tot
+            self._n = torch.tensor(tot, dtype=torch.long, device=self.scale.device)
             self._mean = new_mean
-        self._fitted = False
+        self._statistically_initialized = False
 
     @torch.no_grad()
     def finalize(self) -> None:
@@ -176,11 +170,8 @@ class RXLogitHead(Node):
         This threshold (mean + 2*std) is a common heuristic for anomaly detection,
         capturing ~95% of normal data under Gaussian assumption.
         """
-        if self._n <= 1:
+        if int(self._n.item()) <= 1:
             raise ValueError("Not enough samples to finalize RXLogitHead statistics.")
-
-        # Type guard: these should not be None if _n > 1
-        assert self._mean is not None and self._M2 is not None
 
         mean = self._mean.clone()
         variance = self._M2 / (self._n - 1)
@@ -188,14 +179,14 @@ class RXLogitHead(Node):
 
         # Set bias to mean + 2*std (threshold for anomalies)
         self.bias = mean + 2.0 * std
-        self._fitted = True
+        self._statistically_initialized = True
 
     def reset(self) -> None:
         """Reset all statistics and accumulators."""
-        self._n = 0
-        self._mean = None
-        self._M2 = None
-        self._fitted = False
+        self._n = torch.tensor(0, dtype=torch.long, device=self.scale.device)
+        self._mean = torch.tensor(float("nan"))
+        self._M2 = torch.tensor(float("nan"))
+        self._statistically_initialized = False
 
     def forward(self, scores: torch.Tensor, **_) -> dict[str, torch.Tensor]:
         """Transform RX scores to logits.
@@ -211,30 +202,14 @@ class RXLogitHead(Node):
             Dictionary with "logits" key containing transformed scores
         """
 
+        if not self._statistically_initialized:
+            raise RuntimeError(
+                "RXLogitHead not initialized. Call statistical_initialization() before forward()."
+            )
         # Apply affine transformation: logit = scale * (score - bias)
         logits = self.scale * (scores - self.bias)
 
         return {"logits": logits}
-
-    def serialize(self, serial_dir: str) -> dict:
-        """Serialize RXLogitHead state."""
-        return {
-            "params": {
-                "init_scale": self.init_scale,
-                "init_bias": self.init_bias,
-            },
-            "state_dict": self.state_dict(),
-        }
-
-    def load(self, params: dict, serial_dir: str) -> None:
-        """Load RXLogitHead state from serialized data."""
-        config = params.get("params", {})
-        self.init_scale = config.get("init_scale", self.init_scale)
-        self.init_bias = config.get("init_bias", self.init_bias)
-
-        state = params.get("state_dict", {})
-        if state:
-            self.load_state_dict(state, strict=False)
 
     def get_threshold(self) -> float:
         """Get the current anomaly threshold (bias value).

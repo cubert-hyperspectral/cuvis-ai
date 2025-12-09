@@ -2,7 +2,6 @@
 
 import pytest
 import torch
-from torch.utils.data import DataLoader, Dataset
 
 from cuvis_ai.anomaly.rx_detector import RXGlobal
 from cuvis_ai.anomaly.rx_logit_head import RXLogitHead
@@ -22,104 +21,14 @@ from cuvis_ai.node.metrics import (
 from cuvis_ai.node.normalization import MinMaxNormalizer
 from cuvis_ai.node.pca import TrainablePCA
 from cuvis_ai.node.selector import SoftChannelSelector
-from cuvis_ai.pipeline.canvas import CuvisCanvas
-from cuvis_ai.training.config import OptimizerConfig, TrainerConfig, TrainingConfig
-from cuvis_ai.training.datamodule import CuvisDataModule
+from cuvis_ai.pipeline.pipeline import CuvisPipeline
 
 
-class _SyntheticDictDataset(Dataset):
-    """Dataset that returns dictionaries compatible with GraphDataModule expectations."""
-
-    def __init__(self, cubes: torch.Tensor, masks: torch.Tensor | None) -> None:
-        self._cubes = cubes
-        self._masks = masks
-
-    def __len__(self) -> int:
-        return self._cubes.shape[0]
-
-    def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
-        sample = {"cube": self._cubes[idx]}
-        if self._masks is not None:
-            sample["mask"] = self._masks[idx]
-        return sample
-
-
-class SyntheticAnomalyDataModule(CuvisDataModule):
-    """Lightweight datamodule that generates deterministic synthetic anomaly data."""
-
-    def __init__(
-        self,
-        *,
-        batch_size: int = 4,
-        num_samples: int = 24,
-        height: int = 8,
-        width: int = 8,
-        channels: int = 20,
-        seed: int = 0,
-        include_labels: bool = True,
-    ) -> None:
-        super().__init__()
-        self.batch_size = batch_size
-
-        generator = torch.Generator().manual_seed(seed)
-        cubes = torch.randn(num_samples, height, width, channels, generator=generator)
-        masks = (
-            torch.randint(
-                0, 2, (num_samples, height, width), generator=generator, dtype=torch.int32
-            )
-            if include_labels
-            else None
-        )
-
-        self._train_dataset = _SyntheticDictDataset(cubes, masks)
-
-        val_count = max(1, num_samples // 4)
-        self._val_dataset = _SyntheticDictDataset(
-            cubes[:val_count],
-            masks[:val_count] if masks is not None else None,
-        )
-
-    def prepare_data(self) -> None:  # pragma: no cover - no external downloads
-        pass
-
-    def setup(self, stage=None) -> None:  # pragma: no cover - nothing to stage
-        pass
-
-    def train_dataloader(self) -> DataLoader:
-        return DataLoader(self._train_dataset, batch_size=self.batch_size, shuffle=True)
-
-    def val_dataloader(self) -> DataLoader:
-        return DataLoader(self._val_dataset, batch_size=self.batch_size, shuffle=False)
-
-
-def make_training_config(max_epochs: int = 2, lr: float = 1e-2) -> TrainingConfig:
-    """Create a TrainingConfig with CPU defaults for fast unit tests."""
-    trainer = TrainerConfig(
-        max_epochs=max_epochs,
-        accelerator="cpu",
-        enable_progress_bar=False,
-        enable_checkpointing=False,
-        log_every_n_steps=1,
-    )
-    optimizer = OptimizerConfig(
-        name="adam",
-        lr=lr,
-        weight_decay=0.0,
-        betas=None,
-    )
-    return TrainingConfig(
-        seed=123,
-        trainer=trainer,
-        optimizer=optimizer,
-        monitor_plugins=["loguru"],
-    )
-
-
-def test_soft_selector_weights_update():
+def test_soft_selector_weights_update(synthetic_anomaly_datamodule, training_config_factory):
     """Test that SoftChannelSelector weights are updated during training."""
     from cuvis_ai.node.data import LentilsAnomalyDataNode
 
-    canvas = CuvisCanvas("test_selector_training")
+    pipeline = CuvisPipeline("test_selector_training")
 
     # Add data node to handle batch dict
     data_node = LentilsAnomalyDataNode(normal_class_ids=[0])
@@ -134,32 +43,32 @@ def test_soft_selector_weights_update():
         hard=False,
         eps=1.0e-6,
     )
-    rx = RXGlobal(eps=1.0e-6, cache_inverse=True)
+    rx = RXGlobal(num_channels=15, eps=1.0e-6, cache_inverse=True)
     logit_head = RXLogitHead(init_scale=1.0, init_bias=5.0)
     decider = BinaryDecider(threshold=0.5)
 
     # Connect nodes
-    canvas.connect(data_node.outputs.cube, normalizer.data)
-    canvas.connect(normalizer.normalized, selector.data)
-    canvas.connect(selector.selected, rx.data)
-    canvas.connect(rx.scores, logit_head.scores)
+    pipeline.connect(data_node.outputs.cube, normalizer.data)
+    pipeline.connect(normalizer.normalized, selector.data)
+    pipeline.connect(selector.selected, rx.data)
+    pipeline.connect(rx.scores, logit_head.scores)
 
     # Add loss nodes
     entropy_reg = SelectorEntropyRegularizer(weight=0.01, target_entropy=None)
     diversity_reg = SelectorDiversityRegularizer(weight=0.01)
     anomaly_bce = AnomalyBCEWithLogits(weight=1.0, pos_weight=None, reduction="mean")
-    canvas.connect(selector.weights, entropy_reg.weights)
-    canvas.connect(selector.weights, diversity_reg.weights)
-    canvas.connect(logit_head.logits, anomaly_bce.predictions)
-    canvas.connect(data_node.outputs.mask, anomaly_bce.targets)
+    pipeline.connect(selector.weights, entropy_reg.weights)
+    pipeline.connect(selector.weights, diversity_reg.weights)
+    pipeline.connect(logit_head.logits, anomaly_bce.predictions)
+    pipeline.connect(data_node.outputs.mask, anomaly_bce.targets)
 
     # Add decider and metrics
-    canvas.connect(logit_head.logits, decider.logits)
+    pipeline.connect(logit_head.logits, decider.logits)
     anomaly_metrics = AnomalyDetectionMetrics(threshold=0.0)
-    canvas.connect(decider.decisions, anomaly_metrics.decisions)
-    canvas.connect(data_node.outputs.mask, anomaly_metrics.targets)
+    pipeline.connect(decider.decisions, anomaly_metrics.decisions)
+    pipeline.connect(data_node.outputs.mask, anomaly_metrics.targets)
 
-    datamodule = SyntheticAnomalyDataModule(
+    datamodule = synthetic_anomaly_datamodule(
         batch_size=4,
         num_samples=24,
         height=8,
@@ -171,7 +80,7 @@ def test_soft_selector_weights_update():
     # Statistical initialization
     from cuvis_ai.training.trainers import GradientTrainer, StatisticalTrainer
 
-    stat_trainer = StatisticalTrainer(canvas=canvas, datamodule=datamodule)
+    stat_trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
     stat_trainer.fit()
 
     # Unfreeze trainable nodes
@@ -180,10 +89,10 @@ def test_soft_selector_weights_update():
     logit_head.unfreeze()
 
     # Gradient training
-    training_cfg = make_training_config(max_epochs=2, lr=1e-2)
-    loss_nodes = [node for node in canvas.nodes() if hasattr(node, "weight")]
+    training_cfg = training_config_factory(max_epochs=2, lr=1e-2)
+    loss_nodes = [node for node in pipeline.nodes() if hasattr(node, "weight")]
     grad_trainer = GradientTrainer(
-        canvas=canvas,
+        pipeline=pipeline,
         datamodule=datamodule,
         loss_nodes=loss_nodes,
         trainer_config=training_cfg.trainer,
@@ -225,9 +134,9 @@ def test_soft_selector_weights_update():
     print("✓ SoftChannelSelector weights updated successfully")
 
 
-def test_pca_weights_update():
+def test_pca_weights_update(synthetic_anomaly_datamodule, training_config_factory):
     """Test that TrainablePCA components are updated during training."""
-    canvas = CuvisCanvas("test_pca_training")
+    pipeline = CuvisPipeline("test_pca_training")
 
     data_node = LentilsAnomalyDataNode(normal_class_ids=[0])
     normalizer = MinMaxNormalizer(eps=1.0e-6, use_running_stats=True)
@@ -249,27 +158,27 @@ def test_pca_weights_update():
     )
 
     # Connect nodes
-    canvas.connect(data_node.outputs.cube, normalizer.data)
-    canvas.connect(normalizer.normalized, selector.data)
-    canvas.connect(selector.selected, pca.data)
+    pipeline.connect(data_node.outputs.cube, normalizer.data)
+    pipeline.connect(normalizer.normalized, selector.data)
+    pipeline.connect(selector.selected, pca.data)
 
     # Add loss nodes
     entropy_reg = SelectorEntropyRegularizer(weight=0.01, target_entropy=None)
     diversity_reg = SelectorDiversityRegularizer(weight=0.01)
     orth_loss = OrthogonalityLoss(weight=1.0)
 
-    canvas.connect(selector.weights, entropy_reg.weights)
-    canvas.connect(selector.weights, diversity_reg.weights)
-    canvas.connect(pca.components, orth_loss.components)
+    pipeline.connect(selector.weights, entropy_reg.weights)
+    pipeline.connect(selector.weights, diversity_reg.weights)
+    pipeline.connect(pca.components, orth_loss.components)
 
     # Add metrics
     explained_var = ExplainedVarianceMetric()
     comp_orth = ComponentOrthogonalityMetric()
 
-    canvas.connect(pca.explained_variance_ratio, explained_var.explained_variance_ratio)
-    canvas.connect(pca.components, comp_orth.components)
+    pipeline.connect(pca.explained_variance_ratio, explained_var.explained_variance_ratio)
+    pipeline.connect(pca.components, comp_orth.components)
 
-    datamodule = SyntheticAnomalyDataModule(
+    datamodule = synthetic_anomaly_datamodule(
         batch_size=4,
         num_samples=24,
         height=8,
@@ -282,7 +191,7 @@ def test_pca_weights_update():
     # Statistical initialization
     from cuvis_ai.training.trainers import GradientTrainer, StatisticalTrainer
 
-    stat_trainer = StatisticalTrainer(canvas=canvas, datamodule=datamodule)
+    stat_trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
     stat_trainer.fit()
 
     # Unfreeze trainable nodes
@@ -290,10 +199,10 @@ def test_pca_weights_update():
     pca.unfreeze()
 
     # Gradient training
-    training_cfg = make_training_config(max_epochs=2, lr=1e-2)
-    loss_nodes = [node for node in canvas.nodes() if hasattr(node, "weight")]
+    training_cfg = training_config_factory(max_epochs=2, lr=1e-2)
+    loss_nodes = [node for node in pipeline.nodes() if hasattr(node, "weight")]
     grad_trainer = GradientTrainer(
-        canvas=canvas,
+        pipeline=pipeline,
         datamodule=datamodule,
         loss_nodes=loss_nodes,
         trainer_config=training_cfg.trainer,
@@ -334,9 +243,9 @@ def test_pca_weights_update():
     print("✓ TrainablePCA components updated successfully")
 
 
-def test_logit_head_weights_update():
+def test_logit_head_weights_update(synthetic_anomaly_datamodule, training_config_factory):
     """Test that RXLogitHead parameters are updated during training."""
-    canvas = CuvisCanvas("test_logit_head_training")
+    pipeline = CuvisPipeline("test_logit_head_training")
     data_node = LentilsAnomalyDataNode(normal_class_ids=[0, 1])
     normalizer = MinMaxNormalizer(eps=1.0e-6, use_running_stats=True)
     selector = SoftChannelSelector(
@@ -349,33 +258,33 @@ def test_logit_head_weights_update():
         hard=False,
         eps=1.0e-6,
     )
-    rx = RXGlobal(eps=1.0e-6, cache_inverse=True)
+    rx = RXGlobal(num_channels=15, eps=1.0e-6, cache_inverse=True)
     logit_head = RXLogitHead(init_scale=1.0, init_bias=5.0)
     decider = BinaryDecider(threshold=0.5)
 
     # Connect nodes
-    canvas.connect(data_node.outputs.cube, normalizer.data)
-    canvas.connect(normalizer.normalized, selector.data)
-    canvas.connect(selector.selected, rx.data)
-    canvas.connect(rx.scores, logit_head.scores)
+    pipeline.connect(data_node.outputs.cube, normalizer.data)
+    pipeline.connect(normalizer.normalized, selector.data)
+    pipeline.connect(selector.selected, rx.data)
+    pipeline.connect(rx.scores, logit_head.scores)
 
     # Add loss nodes
     entropy_reg = SelectorEntropyRegularizer(weight=0.01, target_entropy=None)
     diversity_reg = SelectorDiversityRegularizer(weight=0.01)
     anomaly_bce = AnomalyBCEWithLogits(weight=1.0, pos_weight=None, reduction="mean")
 
-    canvas.connect(logit_head.logits, anomaly_bce.predictions)
-    canvas.connect(data_node.outputs.mask, anomaly_bce.targets)
-    canvas.connect(selector.weights, entropy_reg.weights)
-    canvas.connect(selector.weights, diversity_reg.weights)
+    pipeline.connect(logit_head.logits, anomaly_bce.predictions)
+    pipeline.connect(data_node.outputs.mask, anomaly_bce.targets)
+    pipeline.connect(selector.weights, entropy_reg.weights)
+    pipeline.connect(selector.weights, diversity_reg.weights)
 
     # Add decider and metrics
-    canvas.connect(logit_head.logits, decider.logits)
+    pipeline.connect(logit_head.logits, decider.logits)
     anomaly_metrics = AnomalyDetectionMetrics(threshold=0.0)
-    canvas.connect(decider.decisions, anomaly_metrics.decisions)
-    canvas.connect(data_node.outputs.mask, anomaly_metrics.targets)
+    pipeline.connect(decider.decisions, anomaly_metrics.decisions)
+    pipeline.connect(data_node.outputs.mask, anomaly_metrics.targets)
 
-    datamodule = SyntheticAnomalyDataModule(
+    datamodule = synthetic_anomaly_datamodule(
         batch_size=4,
         num_samples=24,
         height=8,
@@ -396,7 +305,7 @@ def test_logit_head_weights_update():
     # Statistical initialization
     from cuvis_ai.training.trainers import GradientTrainer, StatisticalTrainer
 
-    stat_trainer = StatisticalTrainer(canvas=canvas, datamodule=datamodule)
+    stat_trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
     stat_trainer.fit()
 
     # Unfreeze trainable nodes
@@ -405,10 +314,10 @@ def test_logit_head_weights_update():
     logit_head.unfreeze()
 
     # Gradient training
-    training_cfg = make_training_config(max_epochs=2, lr=1e-2)
-    loss_nodes = [node for node in canvas.nodes() if hasattr(node, "weight")]
+    training_cfg = training_config_factory(max_epochs=2, lr=1e-2)
+    loss_nodes = [node for node in pipeline.nodes() if hasattr(node, "weight")]
     grad_trainer = GradientTrainer(
-        canvas=canvas,
+        pipeline=pipeline,
         datamodule=datamodule,
         loss_nodes=loss_nodes,
         trainer_config=training_cfg.trainer,
