@@ -102,12 +102,6 @@ class ExplainedVarianceMetric(Node):
 
         return {"metrics": metrics}
 
-    def serialize(self, serial_dir: str) -> dict:
-        return {**self.hparams}
-
-    def load(self, params: dict, serial_dir: str) -> None:
-        pass
-
 
 class AnomalyDetectionMetrics(Node):
     """Compute anomaly detection metrics (precision, recall, F1, etc.).
@@ -245,12 +239,6 @@ class AnomalyDetectionMetrics(Node):
 
         return {"metrics": metrics}
 
-    def serialize(self, serial_dir: str) -> dict:
-        return {**self.hparams}
-
-    def load(self, params: dict, serial_dir: str) -> None:
-        pass
-
 
 class ScoreStatisticsMetric(Node):
     """Compute statistical properties of score distributions.
@@ -367,12 +355,6 @@ class ScoreStatisticsMetric(Node):
 
         return {"metrics": metrics}
 
-    def serialize(self, serial_dir: str) -> dict:
-        return {**self.hparams}
-
-    def load(self, params: dict, serial_dir: str) -> None:
-        pass
-
 
 class ComponentOrthogonalityMetric(Node):
     """Track orthogonality of PCA components during training.
@@ -471,12 +453,6 @@ class ComponentOrthogonalityMetric(Node):
 
         return {"metrics": metrics}
 
-    def serialize(self, serial_dir: str) -> dict:
-        return {**self.hparams}
-
-    def load(self, params: dict, serial_dir: str) -> None:
-        pass
-
 
 class SelectorEntropyMetric(Node):
     """Track entropy of channel selection distribution.
@@ -547,12 +523,6 @@ class SelectorEntropyMetric(Node):
         ]
 
         return {"metrics": metrics}
-
-    def serialize(self, serial_dir: str) -> dict:
-        return {**self.hparams}
-
-    def load(self, params: dict, serial_dir: str) -> None:
-        pass
 
 
 class SelectorDiversityMetric(Node):
@@ -632,12 +602,6 @@ class SelectorDiversityMetric(Node):
         ]
 
         return {"metrics": metrics}
-
-    def serialize(self, serial_dir: str) -> dict:
-        return {**self.hparams}
-
-    def load(self, params: dict, serial_dir: str) -> None:
-        pass
 
 
 __all__ = [

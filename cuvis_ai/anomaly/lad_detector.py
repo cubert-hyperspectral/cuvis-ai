@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from cuvis_ai.node import Node
+from cuvis_ai.node.node import Node
 from cuvis_ai.pipeline.ports import PortSpec
 from cuvis_ai.utils.types import InputStream
 
@@ -16,7 +16,7 @@ class LADGlobal(Node):
 
     This is the new cuvis.ai v3 implementation of the LAD detector. It follows the
     same mathematical definition as the legacy v2 `LADGlobal`, but exposes a
-    port-based interface compatible with `CuvisCanvas`, `StatisticalTrainer`,
+    port-based interface compatible with `CuvisPipeline`, `StatisticalTrainer`,
     and `GradientTrainer`.
 
     Ports
@@ -41,17 +41,17 @@ class LADGlobal(Node):
 
     Training
     --------
-    After statistical initialization via `fit()`, the node can be made trainable
+    After statistical initialization via `statistical_initialization()`, the node can be made trainable
     by calling `unfreeze()`. This converts the mean `M` and Laplacian `L` buffers
     to trainable `nn.Parameter` objects, enabling gradient-based fine-tuning.
 
     Example
     -------
-    >>> lad = LADGlobal()
-    >>> stat_trainer = StatisticalTrainer(canvas=canvas, datamodule=datamodule)
+    >>> lad = LADGlobal(num_channels=61)
+    >>> stat_trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
     >>> stat_trainer.fit()  # Statistical initialization
     >>> lad.unfreeze()  # Enable gradient training
-    >>> grad_trainer = GradientTrainer(canvas=canvas, datamodule=datamodule, ...)
+    >>> grad_trainer = GradientTrainer(pipeline=pipeline, datamodule=datamodule, ...)
     >>> grad_trainer.fit()  # Gradient-based fine-tuning
     """
 
@@ -73,16 +73,19 @@ class LADGlobal(Node):
 
     def __init__(
         self,
+        num_channels: int,
         eps: float = 1e-8,
         normalize_laplacian: bool = True,
         use_numpy_laplacian: bool = True,
         **kwargs: Any,
     ) -> None:
+        self.num_channels = int(num_channels)
         self.eps = float(eps)
         self.normalize_laplacian = bool(normalize_laplacian)
         self.use_numpy_laplacian = bool(use_numpy_laplacian)
 
         super().__init__(
+            num_channels=self.num_channels,
             eps=self.eps,
             normalize_laplacian=self.normalize_laplacian,
             use_numpy_laplacian=self.use_numpy_laplacian,
@@ -90,23 +93,21 @@ class LADGlobal(Node):
         )
 
         # Streaming accumulators (float64 for numerical stability)
-        self.register_buffer("_mean_run", None)  # (C,)
+        self.register_buffer(
+            "_mean_run", torch.zeros(self.num_channels, dtype=torch.float64)
+        )  # (C,)
         self._count: int = 0
-
         # Model buffers
-        self.register_buffer("M", None)  # (C,)
-        self.register_buffer("L", None)  # (C, C)
-        self._fitted: bool = False
+        self.register_buffer("M", torch.zeros(self.num_channels, dtype=torch.float64))  # (C,)
+        self.register_buffer(
+            "L", torch.zeros(self.num_channels, self.num_channels, dtype=torch.float64)
+        )  # (C, C)
+        self._statistically_initialized = False
 
     # ------------------------------------------------------------------
     # Statistical initialization API
     # ------------------------------------------------------------------
-    @property
-    def requires_initial_fit(self) -> bool:
-        """LADGlobal always requires statistical initialization."""
-        return True
-
-    def fit(self, input_stream: InputStream) -> None:
+    def statistical_initialization(self, input_stream: InputStream) -> None:
         """Compute global mean M and Laplacian L from a port-based input stream.
 
         Parameters
@@ -123,10 +124,10 @@ class LADGlobal(Node):
                 self.update(x)
 
         if self._count <= 0:
-            raise RuntimeError("No samples provided to LADGlobal.fit()")
+            raise RuntimeError("No samples provided to LADGlobal.statistical_initialization()")
 
         self.finalize()
-        self._initialized = True
+        self._statistically_initialized = True
 
     @torch.no_grad()
     def update(self, batch_bhwc: torch.Tensor) -> None:
@@ -139,7 +140,7 @@ class LADGlobal(Node):
 
         mean_b = X.mean(dim=0)
 
-        if self._count == 0 or self._mean_run is None:
+        if self._count == 0:
             self._mean_run = mean_b
             self._count = m
         else:
@@ -148,12 +149,12 @@ class LADGlobal(Node):
             self._mean_run = self._mean_run + delta * (m / tot)
             self._count = tot
 
-        self._fitted = False
+        self._statistically_initialized = False
 
     @torch.no_grad()
     def finalize(self) -> None:
         """Finalize mean and Laplacian from accumulated statistics."""
-        if self._count <= 0 or self._mean_run is None:
+        if self._count <= 0 or self._mean_run.numel() == 0:
             raise RuntimeError("No samples accumulated for LADGlobal.finalize()")
 
         M = self._mean_run.clone().to(dtype=torch.float64)
@@ -200,34 +201,32 @@ class LADGlobal(Node):
 
         self.M = M
         self.L = L
-        self._fitted = True
+        self._statistically_initialized = True
 
     @torch.no_grad()
     def reset(self) -> None:
         """Reset statistics and accumulators."""
-        self.M = None
-        self.L = None
-        self._mean_run = None
+        self.M = torch.empty(0)
+        self.L = torch.empty(0, 0)
+        self._mean_run = torch.empty(0)
         self._count = 0
-        self._fitted = False
+        self._statistically_initialized = False
 
     def unfreeze(self) -> None:
-        """Convert M and L buffers to trainable nn.Parameters.
+        """Convert M and L buffers to trainable nn.Parameters."""
+        if self.M.numel() > 0 and self.L.numel() > 0:
+            # Store current values
+            M_data = self.M.clone()
+            L_data = self.L.clone()
 
-        Call this method after fit() to enable gradient-based optimization of
-        the mean and Laplacian statistics. They will be converted from buffers
-        to nn.Parameters, allowing gradient updates during training.
+            # Remove buffer registrations
+            delattr(self, "M")
+            delattr(self, "L")
 
-        Example
-        -------
-        >>> lad.fit(input_stream)  # Statistical initialization
-        >>> lad.unfreeze()  # Enable gradient training
-        >>> # Now LAD statistics can be fine-tuned with gradient descent
-        """
-        if self.M is not None and self.L is not None:
-            # Convert buffers to parameters
-            self.M = nn.Parameter(self.M.clone(), requires_grad=True)
-            self.L = nn.Parameter(self.L.clone(), requires_grad=True)
+            # Register as parameters
+            self.M = nn.Parameter(M_data, requires_grad=True)
+            self.L = nn.Parameter(L_data, requires_grad=True)
+
         # Call parent to enable requires_grad
         super().unfreeze()
 
@@ -247,8 +246,10 @@ class LADGlobal(Node):
         dict[str, torch.Tensor]
             Dictionary with key ``"scores"`` containing BHW1 anomaly scores.
         """
-        if self.M is None or self.L is None:
-            raise RuntimeError("LADGlobal not finalized. Call fit() before forward().")
+        if self.M.numel() == 0 or self.L.numel() == 0 or not self._statistically_initialized:
+            raise RuntimeError(
+                "LADGlobal not finalized. Call statistical_initialization() before forward()."
+            )
 
         B, H, W, C = data.shape
         N = H * W
@@ -259,40 +260,6 @@ class LADGlobal(Node):
 
         scores = torch.einsum("bnc,cd,bnd->bn", Xc, L, Xc).view(B, H, W).unsqueeze(-1)
         return {"scores": scores}
-
-    def serialize(self, serial_dir: str) -> dict:
-        """Serialize LADGlobal state for saving."""
-        return {
-            "params": {
-                "eps": self.eps,
-                "normalize_laplacian": self.normalize_laplacian,
-                "use_numpy_laplacian": self.use_numpy_laplacian,
-            },
-            "state_dict": self.state_dict(),
-        }
-
-    def load(self, params: dict, serial_dir: str) -> None:
-        """Load LADGlobal state from serialized data."""
-        cfg = params.get("params", {})
-        self.eps = cfg.get("eps", self.eps)
-        self.normalize_laplacian = cfg.get("normalize_laplacian", self.normalize_laplacian)
-        self.use_numpy_laplacian = cfg.get("use_numpy_laplacian", self.use_numpy_laplacian)
-
-        state = params.get("state_dict", {})
-        if state:
-            # Load via state_dict for all registered buffers/params
-            self.load_state_dict(state, strict=False)
-            # Explicitly check that M and L were loaded
-            if self.M is not None and self.L is not None:
-                self._fitted = True
-                self._initialized = True
-            else:
-                # If buffers weren't loaded, try to restore from state directly
-                if "M" in state and "L" in state:
-                    self.M = state["M"]
-                    self.L = state["L"]
-                    self._fitted = True
-                    self._initialized = True
 
 
 __all__ = ["LADGlobal"]

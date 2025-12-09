@@ -9,7 +9,7 @@ from skimage.draw import polygon2mask
 from torch.utils.data import Dataset
 
 from cuvis_ai.data.coco_labels import Annotation, COCOData, RLE2mask
-from cuvis_ai.utils.general import _resolve_measurement_indices, normalize_per_channel_vectorized
+from cuvis_ai.utils.general import _resolve_measurement_indices
 
 
 class SingleCu3sDataset(Dataset):
@@ -17,18 +17,19 @@ class SingleCu3sDataset(Dataset):
 
     def __init__(
         self,
-        cu3s_path: str,
-        label_path: str | None = None,
+        cu3s_file_path: str,
+        annotation_json_path: str | None = None,
         processing_mode: cuvis.ProcessingMode | str | None = "Raw",
         measurement_indices: Sequence[int] | Iterable[int] | None = None,
+        normalize_to_unit: bool = False,
     ) -> None:
-        self.cu3s_path = cu3s_path
-        assert os.path.exists(cu3s_path), f"Dataset path does not exist: {cu3s_path}"
-        assert Path(cu3s_path).suffix == ".cu3s", (
-            f"Dataset path must point to a .cu3s file: {cu3s_path}"
+        self.cu3s_file_path = cu3s_file_path
+        assert os.path.exists(cu3s_file_path), f"Dataset path does not exist: {cu3s_file_path}"
+        assert Path(cu3s_file_path).suffix == ".cu3s", (
+            f"Dataset path must point to a .cu3s file: {cu3s_file_path}"
         )
 
-        self.session = cuvis.SessionFile(cu3s_path)
+        self.session = cuvis.SessionFile(cu3s_file_path)
         self.pc = cuvis.ProcessingContext(self.session)
 
         has_white_ref = self.session.get_reference(0, cuvis.ReferenceType.White) is not None
@@ -55,24 +56,25 @@ class SingleCu3sDataset(Dataset):
         self.mes_ids = self.measurement_indices
 
         logger.info(
-            f"Loaded cu3s dataset from {cu3s_path} with {len(self.measurement_indices)} "
+            f"Loaded cu3s dataset from {cu3s_file_path} with {len(self.measurement_indices)} "
             f"measurements: {self.measurement_indices}"
         )
         self.has_labels = (
-            label_path is not None
-            and Path(label_path).exists()
-            or Path(cu3s_path).with_suffix(".json").exists()
+            annotation_json_path is not None
+            and Path(annotation_json_path).exists()
+            or Path(cu3s_file_path).with_suffix(".json").exists()
         )
-        if self.has_labels and label_path is None:
+        if self.has_labels and annotation_json_path is None:
             # Sane fallback: label file is named the same as the Session File
-            label_path = Path(cu3s_path).with_suffix(".json")
+            annotation_json_path = Path(cu3s_file_path).with_suffix(".json")
         self._coco: COCOData | None = None
         self.class_labels: dict[int, str] | None = None
+        self.normalize_to_unit = normalize_to_unit
         if self.has_labels:
             try:
-                self._coco = COCOData.from_path(label_path)
+                self._coco = COCOData.from_path(annotation_json_path)
             except Exception as e:
-                logger.warning(f"Could not load annotation for {label_path}:", e)
+                logger.warning(f"Could not load annotation for {annotation_json_path}:", e)
                 self.has_labels = False
             logger.info(f"Category map: {self._coco.category_id_to_name}")
             self.class_labels = self._coco.category_id_to_name
@@ -80,16 +82,26 @@ class SingleCu3sDataset(Dataset):
     def __len__(self) -> int:
         return len(self.measurement_indices)
 
+    @property
+    def wavelengths_nm(self) -> np.ndarray:
+        mesu = self.session.get_measurement(0)  # starts the cound from 0
+        wavelengths = np.array(mesu.cube.wavelength, dtype=np.int32).ravel()
+        return wavelengths
+
     def __getitem__(self, idx: int) -> dict[str, np.ndarray | int]:
         mesu_index = self.measurement_indices[idx]
         mesu = self.session.get_measurement(mesu_index)  # starts the cound from 0
         if "cube" not in mesu.data:
             mesu = self.pc.apply(mesu)
-        cube_array = mesu.cube.array.astype(np.float32)
+        cube_array: np.ndarray = mesu.cube.array
 
-        cube_array_norm = normalize_per_channel_vectorized(cube_array, 0.0, 1.0)
+        wavelengths = np.array(mesu.cube.wavelength, dtype=np.int32).ravel()
 
-        out: dict[str, np.ndarray | int] = {"cube": cube_array_norm, "mesu_index": mesu_index}
+        out: dict[str, np.ndarray | int] = {
+            "cube": cube_array,
+            "mesu_index": mesu_index,
+            "wavelengths": wavelengths,
+        }
 
         if self.has_labels and self._coco is not None:
             # Check if we have a valid COCO image_id for this frame index

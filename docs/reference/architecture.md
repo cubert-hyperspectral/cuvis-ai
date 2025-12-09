@@ -8,7 +8,7 @@ CUVIS.AI now uses a port-based architecture where nodes communicate through type
 
 ```mermaid
 graph TB
-    A[Input Batch] --> B[CuvisCanvas]
+    A[Input Batch] --> B[CuvisPipeline]
     B --> C[Port-Based Routing]
     C --> D[Node Execution]
     D --> E[Port Output Collection]
@@ -30,7 +30,7 @@ The training process flows through three main phases with port-based execution:
 
 ```mermaid
 graph TB
-    A[canvas.train called] --> B{Check Statistical Nodes}
+    A[pipeline.train called] --> B{Check Statistical Nodes}
     B -->|Has Statistical Nodes| C[Phase 1: Initialize Statistical Nodes]
     B -->|No Statistical Nodes| D[Phase 2: Setup Lightning]
     C --> C1[Find nodes with requires_initial_fit=True]
@@ -102,7 +102,7 @@ The new forward pass uses port-based routing and returns a dictionary with port 
 ```mermaid
 %%{init: {'flowchart': {'nodeSpacing': 20, 'rankSpacing': 30}} }%%
 flowchart TD
-    A["canvas.forward(batch=...)"] --> B[Port-Based Batch Distribution]
+    A["pipeline.forward(batch=...)"] --> B[Port-Based Batch Distribution]
     B --> C[Resolve Input Ports]
     C --> D[Topological Sort by Port Connections]
     D --> E[For each node in order]
@@ -131,7 +131,7 @@ flowchart TD
 - Prevention of invalid connections
 
 ### Flexible Pipeline Construction
-- Explicit port-based connections: `canvas.connect(source.port, target.port)`
+- Explicit port-based connections: `pipeline.connect(source.port, target.port)`
 - Variadic ports for fan-in/out (e.g., monitoring nodes that consume multiple inputs)
 - Stage-aware execution filtering
 
@@ -187,7 +187,7 @@ CUVIS.AI uses a two-phase training approach with port-based execution:
 ## Port-Based Leaf Node Attachment
 
 ### Loss Nodes
-- Attach via port connections: `canvas.connect(node.output, loss.input)`
+- Attach via port connections: `pipeline.connect(node.output, loss.input)`
 - Register each node directly with `GradientTrainer(loss_nodes=[...])`; no aggregator needed
 - Examples: OrthogonalityLoss, AnomalyBCEWithLogits, SelectorEntropyRegularizer
 
@@ -212,8 +212,8 @@ output, _, _ = graph(input_data)
 
 **After (Port-based):**
 ```python
-canvas.connect(normalizer.normalized, selector.data)
-outputs = canvas.forward(batch={f"{normalizer.id}.data": input_data})
+pipeline.connect(normalizer.normalized, selector.data)
+outputs = pipeline.forward(batch={f"{normalizer.id}.data": input_data})
 ```
 
 ## Next Steps

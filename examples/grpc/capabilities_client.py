@@ -24,31 +24,29 @@ def main() -> None:
             validation = f" [{param.validation}]" if param.validation else ""
             print(f"    {param.name} ({param.type}, {requirement}){default}{validation}")
 
-    print("\nValidating a good config...")
-    good_config = TrainingConfig(
-        trainer=TrainerConfig(max_epochs=10, accelerator="cpu"),
+    good_cfg = TrainingConfig(
+        trainer=TrainerConfig(max_epochs=10, accelerator="cude"),
         optimizer=OptimizerConfig(name="adam", lr=0.001),
     )
     good_resp = stub.ValidateTrainingConfig(
         cuvis_ai_pb2.ValidateTrainingConfigRequest(
-            config=cuvis_ai_pb2.TrainingConfig(config_json=good_config.to_json().encode())
+            config=cuvis_ai_pb2.TrainingConfig(config_bytes=good_cfg.to_json().encode())
         )
     )
-    print(f"Valid: {good_resp.valid}, errors={list(good_resp.errors)}")
+    print(f"\nValidating good config: valid={good_resp.valid}, errors={list(good_resp.errors)}")
 
-    print("\nValidating a bad config (invalid optimizer)...")
-    bad_config = TrainingConfig(
+    bad_cfg = TrainingConfig(
         trainer=TrainerConfig(max_epochs=10),
         optimizer=OptimizerConfig(name="invalid_opt", lr=-0.001),
     )
     bad_resp = stub.ValidateTrainingConfig(
         cuvis_ai_pb2.ValidateTrainingConfigRequest(
-            config=cuvis_ai_pb2.TrainingConfig(config_json=bad_config.to_json().encode())
+            config=cuvis_ai_pb2.TrainingConfig(config_bytes=bad_cfg.to_json().encode())
         )
     )
-    print(f"Valid: {bad_resp.valid}")
+    print(f"\nValidating bad config: valid={bad_resp.valid}")
     for err in bad_resp.errors:
-        print(f"  - {err}")
+        print(f"  {err}")
     if bad_resp.warnings:
         print("Warnings:")
         for warn in bad_resp.warnings:

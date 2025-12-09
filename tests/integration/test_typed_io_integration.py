@@ -10,7 +10,7 @@ from cuvis_ai.anomaly.rx_detector import RXGlobal
 from cuvis_ai.node.node import Node
 from cuvis_ai.node.normalization import MinMaxNormalizer
 from cuvis_ai.node.selector import SoftChannelSelector
-from cuvis_ai.pipeline.canvas import CuvisCanvas
+from cuvis_ai.pipeline.pipeline import CuvisPipeline
 from cuvis_ai.pipeline.ports import PortSpec
 from cuvis_ai.utils.types import ExecutionStage
 
@@ -20,27 +20,27 @@ class TestLinearPipeline:
 
     def test_normalizer_selector_rx_pipeline(self):
         """Test complete pipeline: normalizer -> selector -> RX."""
-        canvas = CuvisCanvas("test_pipeline")
+        pipeline = CuvisPipeline("test_pipeline")
 
         # Create nodes (selector now accepts input_channels as parameter)
         normalizer = MinMaxNormalizer()
         selector = SoftChannelSelector(n_select=15, input_channels=50)
-        rx = RXGlobal()
+        rx = RXGlobal(num_channels=50)
 
         # Connect (nodes auto-added)
-        canvas.connect(
+        pipeline.connect(
             (normalizer.outputs.normalized, selector.inputs.data),
             (selector.outputs.selected, rx.inputs.data),
         )
 
         # Initialize RXGlobal with training data (must match selector output shape: 50 channels)
         train_data = [{"data": torch.randn(4, 10, 10, 50)} for _ in range(5)]
-        rx.fit(iter(train_data))
+        rx.statistical_initialization(iter(train_data))
 
-        # Execute with canvas.forward()
+        # Execute with pipeline.forward()
         input_cube = torch.randn(2, 10, 10, 50)
         batch = {"data": input_cube}
-        outputs = canvas.forward(batch=batch, stage=ExecutionStage.INFERENCE)
+        outputs = pipeline.forward(batch=batch, stage=ExecutionStage.INFERENCE)
 
         # Verify outputs exist
         assert (rx.name, "scores") in outputs
@@ -50,18 +50,18 @@ class TestLinearPipeline:
 
     def test_executor_reuse_efficiency(self):
         """Test that executor can be reused for multiple batches."""
-        canvas = CuvisCanvas("test_pipeline")
+        pipeline = CuvisPipeline("test_pipeline")
 
         normalizer = MinMaxNormalizer()
         selector = SoftChannelSelector(n_select=10, input_channels=50)
 
-        canvas.connect(normalizer.outputs.normalized, selector.inputs.data)
+        pipeline.connect(normalizer.outputs.normalized, selector.inputs.data)
 
         # Reuse for multiple batches
         for _ in range(3):
             batch_data = torch.randn(2, 10, 10, 50)
             # Use simple port name for entry point
-            outputs = canvas.forward(stage=ExecutionStage.INFERENCE, batch={"data": batch_data})
+            outputs = pipeline.forward(stage=ExecutionStage.INFERENCE, batch={"data": batch_data})
             assert (selector.name, "selected") in outputs
             assert outputs[(selector.name, "selected")].shape == (2, 10, 10, 50)
 
@@ -71,16 +71,16 @@ class TestComplexDAG:
 
     def test_multi_output_connections(self):
         """Test node with multiple outputs feeding different nodes (fan-out)."""
-        canvas = CuvisCanvas("multi_output")
+        pipeline = CuvisPipeline("multi_output")
 
         # Selector output feeds two different RX detectors (fan-out pattern)
         normalizer = MinMaxNormalizer()
         selector = SoftChannelSelector(n_select=15, input_channels=50)
-        rx1 = RXGlobal()
-        rx2 = RXGlobal()
+        rx1 = RXGlobal(num_channels=50)
+        rx2 = RXGlobal(num_channels=50)
 
         # Connect selector output to two different RX detectors
-        canvas.connect(
+        pipeline.connect(
             (normalizer.outputs.normalized, selector.inputs.data),
             (selector.outputs.selected, rx1.inputs.data),
             (selector.outputs.selected, rx2.inputs.data),
@@ -89,11 +89,11 @@ class TestComplexDAG:
         # Initialize both RXGlobal instances with training data
         # (must match selector output shape: 50 channels)
         train_data = [{"data": torch.randn(4, 10, 10, 50)} for _ in range(5)]
-        rx1.fit(iter(train_data))
-        rx2.fit(iter(train_data))
+        rx1.statistical_initialization(iter(train_data))
+        rx2.statistical_initialization(iter(train_data))
 
         input_cube = torch.randn(2, 10, 10, 50)
-        outputs = canvas.forward(stage=ExecutionStage.INFERENCE, batch={"data": input_cube})
+        outputs = pipeline.forward(stage=ExecutionStage.INFERENCE, batch={"data": input_cube})
 
         # Both RX detectors should have outputs
         assert (rx1.name, "scores") in outputs
@@ -108,20 +108,20 @@ class TestGradientFlow:
 
     def test_end_to_end_gradient_flow(self):
         """Test gradients flow through entire pipeline."""
-        canvas = CuvisCanvas("gradient_test")
+        pipeline = CuvisPipeline("gradient_test")
 
         normalizer = MinMaxNormalizer()
         selector = SoftChannelSelector(n_select=15, input_channels=50)
-        rx = RXGlobal()
+        rx = RXGlobal(num_channels=50)
 
-        canvas.connect(
+        pipeline.connect(
             (normalizer.outputs.normalized, selector.inputs.data),
             (selector.outputs.selected, rx.inputs.data),
         )
 
         # Initialize RXGlobal with training data (must match selector output shape: 50 channels)
         train_data = [{"data": torch.randn(4, 10, 10, 50)} for _ in range(5)]
-        rx.fit(iter(train_data))
+        rx.statistical_initialization(iter(train_data))
 
         # Unfreeze both selector and RX to enable gradient flow
         selector.unfreeze()
@@ -129,7 +129,7 @@ class TestGradientFlow:
 
         # Forward pass with gradient tracking
         input_cube = torch.randn(2, 10, 10, 50, requires_grad=True)
-        outputs = canvas.forward(stage=ExecutionStage.TRAIN, batch={"data": input_cube})
+        outputs = pipeline.forward(stage=ExecutionStage.TRAIN, batch={"data": input_cube})
 
         # Backward pass
         loss = outputs[(rx.name, "scores")].sum()
@@ -145,18 +145,18 @@ class TestGradientFlow:
 
     def test_no_gradient_detachment(self):
         """Test that executor doesn't detach tensors."""
-        canvas = CuvisCanvas("detach_test")
+        pipeline = CuvisPipeline("detach_test")
 
         normalizer = MinMaxNormalizer()
         selector = SoftChannelSelector(n_select=2, input_channels=3)
 
         # Connect nodes so they're part of the graph
-        canvas.connect(normalizer.outputs.normalized, selector.inputs.data)
+        pipeline.connect(normalizer.outputs.normalized, selector.inputs.data)
 
         # Use 4D tensor as expected by normalizer (BHWC format)
         input_data = torch.randn(1, 2, 2, 3, requires_grad=True)
         # Use simple port name for entry point
-        outputs = canvas.forward(stage=ExecutionStage.INFERENCE, batch={"data": input_data})
+        outputs = pipeline.forward(stage=ExecutionStage.INFERENCE, batch={"data": input_data})
 
         # Output should still require grad
         output = outputs[(normalizer.name, "normalized")]
@@ -176,12 +176,6 @@ class TestBatchDistribution:
             def forward(self, **kwargs):
                 return {"features": torch.randn(5, 10)}
 
-            def serialize(self, serial_dir):
-                return {}
-
-            def load(self, params, serial_dir):
-                pass
-
         class DataConsumer(Node):
             INPUT_SPECS = {"features": PortSpec(dtype=torch.float32, shape=(-1, 10))}
             OUTPUT_SPECS = {"result": PortSpec(dtype=torch.float32, shape=(-1, 10))}
@@ -189,25 +183,19 @@ class TestBatchDistribution:
             def forward(self, features, **kwargs):
                 return {"result": features * 2}
 
-            def serialize(self, serial_dir):
-                return {}
-
-            def load(self, params, serial_dir):
-                pass
-
-        canvas = CuvisCanvas("batch_dist")
+        pipeline = CuvisPipeline("batch_dist")
         source = DataSource()
         consumer1 = DataConsumer()
         consumer2 = DataConsumer()
 
         # Connect source to both consumers (fan-out pattern)
-        canvas.connect(
+        pipeline.connect(
             (source.outputs.features, consumer1.inputs.features),
             (source.outputs.features, consumer2.inputs.features),
         )
 
         # Execute the graph
-        outputs = canvas.forward(batch={}, stage=ExecutionStage.INFERENCE)
+        outputs = pipeline.forward(batch={}, stage=ExecutionStage.INFERENCE)
 
         # Both consumers should have received the data from source
         assert (consumer1.name, "result") in outputs
@@ -227,12 +215,6 @@ class TestStageAwareExecution:
             def forward(self, **inputs):
                 return {"out": torch.tensor(1.0)}
 
-            def serialize(self, serial_dir):
-                return {}
-
-            def load(self, params, serial_dir):
-                pass
-
         class TrainOnlyNode(Node):
             INPUT_SPECS = {"x": PortSpec(dtype=torch.float32, shape=())}
             OUTPUT_SPECS = {"out": PortSpec(dtype=torch.float32, shape=())}
@@ -243,25 +225,19 @@ class TestStageAwareExecution:
             def forward(self, x, **kwargs):
                 return {"out": x * 2}
 
-            def serialize(self, serial_dir):
-                return {}
-
-            def load(self, params, serial_dir):
-                pass
-
-        canvas = CuvisCanvas("stage_test")
+        pipeline = CuvisPipeline("stage_test")
         always_node = AlwaysNode()
         train_node = TrainOnlyNode()
 
-        canvas.connect(always_node.outputs.out, train_node.inputs.x)
+        pipeline.connect(always_node.outputs.out, train_node.inputs.x)
 
         # Inference stage: only always_node executes
-        outputs_inf = canvas.forward(batch={}, stage=ExecutionStage.INFERENCE)
+        outputs_inf = pipeline.forward(batch={}, stage=ExecutionStage.INFERENCE)
         assert (always_node.name, "out") in outputs_inf
         assert (train_node.name, "out") not in outputs_inf
 
         # Train stage: both execute
-        outputs_train = canvas.forward(batch={}, stage=ExecutionStage.TRAIN)
+        outputs_train = pipeline.forward(batch={}, stage=ExecutionStage.TRAIN)
         assert (always_node.name, "out") in outputs_train
         assert (train_node.name, "out") in outputs_train
 
@@ -280,12 +256,6 @@ class TestPortCompatibility:
             def forward(self, **inputs):
                 return {"out": torch.tensor(1.0)}
 
-            def serialize(self, serial_dir):
-                return {}
-
-            def load(self, params, serial_dir):
-                pass
-
         class IntNode(Node):
             INPUT_SPECS = {"input": PortSpec(dtype=torch.int64, shape=())}
             OUTPUT_SPECS = {}
@@ -293,18 +263,12 @@ class TestPortCompatibility:
             def forward(self, **inputs):
                 return {}
 
-            def serialize(self, serial_dir):
-                return {}
-
-            def load(self, params, serial_dir):
-                pass
-
-        canvas = CuvisCanvas("compat_test")
+        pipeline = CuvisPipeline("compat_test")
         float_node = FloatNode()
         int_node = IntNode()
 
         with pytest.raises(PortCompatibilityError, match="[Dd]type"):
-            canvas.connect(float_node.outputs.out, int_node.inputs.input)
+            pipeline.connect(float_node.outputs.out, int_node.inputs.input)
 
     def test_compatible_flexible_shapes_succeed(self):
         """Test that flexible dimensions allow connection."""
@@ -316,12 +280,6 @@ class TestPortCompatibility:
             def forward(self, **inputs):
                 return {"out": torch.randn(5, 10)}
 
-            def serialize(self, serial_dir):
-                return {}
-
-            def load(self, params, serial_dir):
-                pass
-
         class FlexNode2(Node):
             INPUT_SPECS = {"input": PortSpec(dtype=torch.float32, shape=(-1, -1))}
             OUTPUT_SPECS = {}
@@ -329,15 +287,9 @@ class TestPortCompatibility:
             def forward(self, **inputs):
                 return {}
 
-            def serialize(self, serial_dir):
-                return {}
-
-            def load(self, params, serial_dir):
-                pass
-
-        canvas = CuvisCanvas("flex_test")
+        pipeline = CuvisPipeline("flex_test")
         n1 = FlexNode1()
         n2 = FlexNode2()
 
         # Should not raise
-        canvas.connect(n1.outputs.out, n2.inputs.input)
+        pipeline.connect(n1.outputs.out, n2.inputs.input)

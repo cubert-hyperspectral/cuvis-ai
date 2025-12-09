@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-from cuvis_ai.node import Node
+from cuvis_ai.node.node import Node
 from cuvis_ai.pipeline.ports import PortSpec
 from cuvis_ai.utils.types import InputStream
 
@@ -89,18 +89,13 @@ class TrainablePCA(Node):
         )
 
         # Buffers for statistical initialization (private to avoid conflicts with output ports)
-        self.register_buffer("_mean", None)
-        self.register_buffer("_explained_variance", None)
-        self.register_buffer("_components", None)
+        self.register_buffer("_mean", torch.empty(0))
+        self.register_buffer("_explained_variance", torch.empty(0))
+        self.register_buffer("_components", torch.empty(0, 0))
 
-        self._initialized = False
+        self._statistically_initialized = False
 
-    @property
-    def requires_initial_fit(self) -> bool:
-        """PCA requires statistical initialization."""
-        return True
-
-    def fit(self, input_stream: InputStream) -> None:
+    def statistical_initialization(self, input_stream: InputStream) -> None:
         """Initialize PCA components from data using SVD.
 
         Parameters
@@ -142,7 +137,8 @@ class TrainablePCA(Node):
         variance = (S**2) / (X.shape[0] - 1)
         self._explained_variance = variance[: self.n_components].clone()  # [n_components]
 
-        self._initialized = True
+        self._statistically_initialized = True
+        self._statistically_initialized = True
 
     def unfreeze(self) -> None:
         """Convert components buffer to trainable nn.Parameter.
@@ -153,11 +149,11 @@ class TrainablePCA(Node):
 
         Example
         -------
-        >>> pca.fit(input_stream)  # Statistical initialization
+        >>> pca.statistical_initialization(input_stream)  # Statistical initialization
         >>> pca.unfreeze()  # Enable gradient training
         >>> # Now PCA components can be fine-tuned with gradient descent
         """
-        if self._components is not None:
+        if self._components.numel() > 0:
             # Convert buffer to parameter
             self._components = nn.Parameter(self._components.clone())
         # Call parent to enable requires_grad
@@ -176,8 +172,8 @@ class TrainablePCA(Node):
         dict[str, Tensor]
             Dictionary with "projected" key containing PCA-projected data
         """
-        if not self._initialized:
-            raise RuntimeError("PCA not initialized. Call fit() first.")
+        if not self._statistically_initialized:
+            raise RuntimeError("PCA not initialized. Call statistical_initialization() first.")
 
         B, H, W, C = data.shape
 
@@ -216,45 +212,16 @@ class TrainablePCA(Node):
 
         # Add optional outputs for loss/metric nodes
         # Expose explained variance ratio
-        if self._explained_variance is not None:
+        if self._explained_variance.numel() > 0:
             total_variance = self._explained_variance.sum()
             variance_ratio = self._explained_variance / (total_variance + self.eps)
             outputs["explained_variance_ratio"] = variance_ratio.to(data.device)
 
         # Expose components for loss/metric nodes
-        if self._components is not None:
+        if self._components.numel() > 0:
             outputs["components"] = self._components
 
         return outputs
-
-    @classmethod
-    def load(cls, state: dict) -> TrainablePCA:
-        """Load TrainablePCA from serialized state.
-
-        Parameters
-        ----------
-        state : dict
-            Serialized state dictionary
-
-        Returns
-        -------
-        TrainablePCA
-            Loaded PCA instance
-        """
-        # Extract hparams
-        hparams = state.get("hparams", {})
-
-        # Create instance
-        instance = cls(**hparams)
-
-        # Load state dict if present
-        if "state_dict" in state:
-            instance.load_state_dict(state["state_dict"])
-
-        # Mark as initialized
-        instance._initialized = True
-
-        return instance
 
 
 __all__ = ["TrainablePCA"]

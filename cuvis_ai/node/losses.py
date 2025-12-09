@@ -10,9 +10,32 @@ from torch import Tensor
 
 from cuvis_ai.node.node import Node
 from cuvis_ai.pipeline.ports import PortSpec
+from cuvis_ai.utils.types import ExecutionStage
 
 
-class OrthogonalityLoss(Node):
+class LossNode(Node):
+    """Base class for loss nodes that restricts execution to training stages.
+
+    Loss nodes should not execute during inference - only during train, val, and test.
+    """
+
+    def __init__(self, **kwargs) -> None:
+        # Default to train/val/test stages, but allow override
+        assert "execution_stages" not in kwargs, (
+            "Loss nodes can only execute in train, val, and test stages."
+        )
+
+        super().__init__(
+            execution_stages={
+                ExecutionStage.TRAIN,
+                ExecutionStage.VAL,
+                ExecutionStage.TEST,
+            },
+            **kwargs,
+        )
+
+
+class OrthogonalityLoss(LossNode):
     """Orthogonality regularization loss for TrainablePCA.
 
     Encourages PCA components to remain orthonormal during training.
@@ -39,7 +62,6 @@ class OrthogonalityLoss(Node):
     def __init__(self, weight: float = 1.0, **kwargs) -> None:
         self.weight = weight
 
-        _ = kwargs.pop("execution_stages", None)
         super().__init__(
             weight=weight,
             **kwargs,
@@ -74,14 +96,8 @@ class OrthogonalityLoss(Node):
 
         return {"loss": self.weight * orth_loss}
 
-    def serialize(self, serial_dir: str) -> dict:
-        return {**self.hparams}
 
-    def load(self, params: dict, serial_dir: str) -> None:
-        pass
-
-
-class AnomalyBCEWithLogits(Node):
+class AnomalyBCEWithLogits(LossNode):
     """Binary cross-entropy loss for anomaly detection with logits.
 
     Computes BCE loss between predicted anomaly scores and ground truth masks.
@@ -125,12 +141,7 @@ class AnomalyBCEWithLogits(Node):
         self.pos_weight = pos_weight
         self.reduction = reduction
 
-        # Extract Node base parameters from kwargs to avoid duplication
-        name = kwargs.pop("name", None)
-        execution_stages = kwargs.pop("execution_stages", None)
         super().__init__(
-            name=name,
-            execution_stages=execution_stages,
             weight=weight,
             pos_weight=pos_weight,
             reduction=reduction,
@@ -181,14 +192,8 @@ class AnomalyBCEWithLogits(Node):
 
         return {"loss": weighted_loss}
 
-    def serialize(self, serial_dir: str) -> dict:
-        return {**self.hparams}
 
-    def load(self, params: dict, serial_dir: str) -> None:
-        pass
-
-
-class MSEReconstructionLoss(Node):
+class MSEReconstructionLoss(LossNode):
     """Mean squared error reconstruction loss.
 
     Computes MSE between reconstruction and target.
@@ -221,11 +226,7 @@ class MSEReconstructionLoss(Node):
         self.weight = weight
         self.reduction = reduction
         # Extract Node base parameters from kwargs to avoid duplication
-        name = kwargs.pop("name", None)
-        execution_stages = kwargs.pop("execution_stages", None)
         super().__init__(
-            name=name,
-            execution_stages=execution_stages,
             weight=weight,
             reduction=reduction,
             **kwargs,
@@ -261,14 +262,8 @@ class MSEReconstructionLoss(Node):
         # Apply weight
         return {"loss": self.weight * loss}
 
-    def serialize(self, serial_dir: str) -> dict:
-        return {**self.hparams}
 
-    def load(self, params: dict, serial_dir: str) -> None:
-        pass
-
-
-class SelectorEntropyRegularizer(Node):
+class SelectorEntropyRegularizer(LossNode):
     """Entropy regularization for SoftChannelSelector.
 
     Encourages exploration by penalizing low-entropy (over-confident) selections.
@@ -312,12 +307,8 @@ class SelectorEntropyRegularizer(Node):
         self.weight = weight
         self.target_entropy = target_entropy
         self.eps = eps
-        # Extract Node base parameters from kwargs to avoid duplication
-        name = kwargs.pop("name", None)
-        execution_stages = kwargs.pop("execution_stages", None)
+
         super().__init__(
-            name=name,
-            execution_stages=execution_stages,
             weight=weight,
             target_entropy=target_entropy,
             eps=eps,
@@ -355,14 +346,8 @@ class SelectorEntropyRegularizer(Node):
         # Apply weight
         return {"loss": self.weight * loss}
 
-    def serialize(self, serial_dir: str) -> dict:
-        return {**self.hparams}
 
-    def load(self, params: dict, serial_dir: str) -> None:
-        pass
-
-
-class SelectorDiversityRegularizer(Node):
+class SelectorDiversityRegularizer(LossNode):
     """Diversity regularization for SoftChannelSelector.
 
     Encourages diverse channel selection by penalizing concentration on few channels.
@@ -388,12 +373,7 @@ class SelectorDiversityRegularizer(Node):
 
     def __init__(self, weight: float = 0.01, **kwargs) -> None:
         self.weight = weight
-        # Extract Node base parameters from kwargs to avoid duplication
-        name = kwargs.pop("name", None)
-        execution_stages = kwargs.pop("execution_stages", None)
         super().__init__(
-            name=name,
-            execution_stages=execution_stages,
             weight=weight,
             **kwargs,
         )
@@ -420,14 +400,8 @@ class SelectorDiversityRegularizer(Node):
 
         return {"loss": self.weight * diversity_loss}
 
-    def serialize(self, serial_dir: str) -> dict:
-        return {**self.hparams}
 
-    def load(self, params: dict, serial_dir: str) -> None:
-        pass
-
-
-class DeepSVDDSoftBoundaryLoss(Node):
+class DeepSVDDSoftBoundaryLoss(LossNode):
     """Soft-boundary Deep SVDD objective operating on BHWD embeddings."""
 
     INPUT_SPECS = {
@@ -468,19 +442,9 @@ class DeepSVDDSoftBoundaryLoss(Node):
 
         return {"loss": loss}
 
-    def serialize(self, serial_dir: str) -> dict:
-        return {
-            **self.hparams,
-            "state_dict": self.state_dict(),
-        }
-
-    def load(self, params: dict, serial_dir: str) -> None:
-        state = params.get("state_dict", {})
-        if state:
-            self.load_state_dict(state, strict=False)
-
 
 __all__ = [
+    "LossNode",
     "OrthogonalityLoss",
     "AnomalyBCEWithLogits",
     "MSEReconstructionLoss",

@@ -3,15 +3,15 @@ from typing import Any
 import numpy as np
 import torch
 
-from cuvis_ai.node import Node
 from cuvis_ai.node.labels import BinaryAnomalyLabelMapper
+from cuvis_ai.node.node import Node
 from cuvis_ai.pipeline.ports import PortSpec
 
 
 class LentilsAnomalyDataNode(Node):
     INPUT_SPECS = {
         "cube": PortSpec(
-            dtype=torch.float32,
+            dtype=torch.uint16,
             shape=(-1, -1, -1, -1),
             description="Input hyperspectral cube [B, H, W, C]",
         ),
@@ -20,6 +20,9 @@ class LentilsAnomalyDataNode(Node):
             shape=(-1, -1, -1),
             description="Multi-class segmentation mask [B, H, W]",
             optional=True,
+        ),
+        "wavelengths": PortSpec(
+            dtype=torch.int32, shape=(-1, -1), description="Wavelengths for each channel"
         ),
     }
     OUTPUT_SPECS = {
@@ -34,34 +37,32 @@ class LentilsAnomalyDataNode(Node):
             description="Binary anomaly mask (0=normal, 1=anomaly) [B, H, W, 1]",
             optional=True,
         ),
+        # wavelength must be a required input port and not optional
         "wavelengths": PortSpec(
-            dtype=np.int32, shape=(-1,), description="Wavelengths for each channel"
+            dtype=np.int32, shape=(-1,), description="Wavelengths for each channel", optional=True
         ),
     }
 
-    def __init__(
-        self, normal_class_ids: list[int], wavelengths: np.ndarray | None = None, **kwargs
-    ) -> None:
-        super().__init__(normal_class_ids=normal_class_ids, wavelengths=wavelengths, **kwargs)
-
-        if wavelengths is not None:
-            wavelengths = wavelengths.astype(np.int32)
-        self.wavelengths = wavelengths
+    def __init__(self, normal_class_ids: list[int], **kwargs) -> None:
+        super().__init__(normal_class_ids=normal_class_ids, **kwargs)
 
         self._binary_mapper = BinaryAnomalyLabelMapper(  # could have be used as a node as well
             normal_class_ids=normal_class_ids,
         )
 
     def forward(
-        self, cube: torch.Tensor, mask: torch.Tensor | None = None, **_: Any
+        self,
+        cube: torch.Tensor,
+        mask: torch.Tensor | None = None,
+        wavelengths: torch.Tensor | None = None,
+        **_: Any,
     ) -> dict[str, torch.Tensor | np.ndarray]:
-        result: dict[str, torch.Tensor | np.ndarray] = {"cube": cube}
+        result: dict[str, torch.Tensor | np.ndarray] = {"cube": cube.to(torch.float32)}
 
-        if self.wavelengths is None:
-            # Infer wavelengths from cube shape if not provided
-            num_channels = cube.shape[-1]  # C from BHWC
-            self.wavelengths = np.arange(num_channels, dtype=np.int32)
-        result["wavelengths"] = self.wavelengths
+        # wavelengths passthrough, could check that in all batch elements the same wavelengths are used
+        # input B x C -> output C
+        if wavelengths is not None:
+            result["wavelengths"] = wavelengths[0].cpu().numpy()
 
         if mask is not None:
             # Add channel dimension for mapper: BHW -> BHWC
@@ -76,6 +77,3 @@ class LentilsAnomalyDataNode(Node):
             result["mask"] = mapped["mask"]  # Already BHWC bool
 
         return result
-
-    def load(self, params, serial_dir) -> bool:
-        return True

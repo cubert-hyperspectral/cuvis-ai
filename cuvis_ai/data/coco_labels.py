@@ -135,7 +135,7 @@ class Annotation(SafeWizard):
 
         if self.bbox is not None:
             out.bbox = BoundingBoxes(
-                torch.tensor([self.bbox], dtype=torch.float32), format="XYWH", canvas_size=size
+                torch.tensor([self.bbox], dtype=torch.float32), format="XYWH", pipeline_size=size
             )
 
         if (
@@ -280,11 +280,11 @@ if __name__ == "__main__":
     labelpath = Path(session_file_path).with_suffix(".json")
     assert os.path.exists(labelpath), f"Label file not found: {labelpath}"
 
-    canvas_size = measurement.cube.width, measurement.cube.height
+    pipeline_size = measurement.cube.width, measurement.cube.height
     coco = COCOData.from_path(str(labelpath))
     print("Categories:", coco.category_id_to_name)
 
     anns = coco.annotations.where(image_id=coco.image_ids[0])[0]
-    labels = anns.to_torchvision(canvas_size)
+    labels = anns.to_torchvision(pipeline_size)
 
     print(labels["segmentation"])

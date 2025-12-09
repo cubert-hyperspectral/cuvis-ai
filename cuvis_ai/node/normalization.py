@@ -5,7 +5,7 @@ from typing import Any
 import torch
 from torch import Tensor
 
-from cuvis_ai.node import Node
+from cuvis_ai.node.node import Node
 from cuvis_ai.pipeline.ports import PortSpec
 
 
@@ -55,12 +55,6 @@ class _ScoreNormalizerBase(Node):
     def _normalize(self, tensor: Tensor) -> Tensor:
         raise NotImplementedError
 
-    def load(self, params: dict, serial_dir: str) -> None:
-        config = params.get("config", {})
-        for key, value in config.items():
-            setattr(self, key, value)
-        self._config = dict(config)
-
 
 class IdentityNormalizer(_ScoreNormalizerBase):
     """No-op normalizer; preserves incoming scores."""
@@ -86,16 +80,13 @@ class MinMaxNormalizer(_ScoreNormalizerBase):
         super().__init__(eps=eps, use_running_stats=use_running_stats, **kwargs)
 
         # Running statistics for global normalization
-        self.register_buffer("running_min", None)
-        self.register_buffer("running_max", None)
-        self._stats_initialized = False
+        self.register_buffer("running_min", torch.tensor(float("nan")))
+        self.register_buffer("running_max", torch.tensor(float("nan")))
 
-    @property
-    def requires_initial_fit(self) -> bool:
-        """MinMaxNormalizer can optionally use global statistics."""
-        return self.use_running_stats
+        # Only require initialization when running stats are requested
+        self._requires_initial_fit_override = self.use_running_stats
 
-    def fit(self, input_stream) -> None:
+    def statistical_initialization(self, input_stream) -> None:
         """Compute global min/max from data iterator.
 
         Parameters
@@ -121,15 +112,18 @@ class MinMaxNormalizer(_ScoreNormalizerBase):
         if all_mins:
             self.running_min = torch.stack(all_mins).min()
             self.running_max = torch.stack(all_maxs).max()
-            self._stats_initialized = True
-            self._initialized = True
+            self._statistically_initialized = True
+
+    def _is_initialized(self) -> bool:
+        """Check if running statistics have been initialized."""
+        return not torch.isnan(self.running_min).item()
 
     def _normalize(self, tensor: Tensor) -> Tensor:
         B, H, W, C = tensor.shape
         flat = tensor.view(B, -1, C)
 
         # Use running stats if available and initialized
-        if self.use_running_stats and self._stats_initialized:
+        if self.use_running_stats and self._is_initialized():
             mins = self.running_min
             maxs = self.running_max
             ranges = torch.clamp(maxs - mins, min=self.eps)
@@ -143,14 +137,6 @@ class MinMaxNormalizer(_ScoreNormalizerBase):
 
         return scaled.view(B, H, W, C)
 
-    def load(self, params: dict, serial_dir: str) -> None:
-        super().load(params, serial_dir)
-        cfg_eps = self._config.get("eps", self.eps)
-        self.eps = float(cfg_eps)
-        self.use_running_stats = self._config.get("use_running_stats", True)
-        self._config["eps"] = self.eps
-        self._config["use_running_stats"] = self.use_running_stats
-
 
 class SigmoidNormalizer(_ScoreNormalizerBase):
     """Median-centered sigmoid squashing per sample and channel."""
@@ -158,7 +144,6 @@ class SigmoidNormalizer(_ScoreNormalizerBase):
     def __init__(self, std_floor: float = 1e-6, **kwargs) -> None:
         self.std_floor = float(std_floor)
         super().__init__(std_floor=std_floor, **kwargs)
-        self._config.update({"std_floor": self.std_floor})
 
     def _normalize(self, tensor: Tensor) -> Tensor:
         B, H, W, C = tensor.shape
@@ -168,12 +153,6 @@ class SigmoidNormalizer(_ScoreNormalizerBase):
         stds = torch.clamp(stds, min=self.std_floor)
         normalized = torch.sigmoid((flat - medians) / stds)
         return normalized.view(B, H, W, C)
-
-    def load(self, params: dict, serial_dir: str) -> None:
-        super().load(params, serial_dir)
-        cfg_std = self._config.get("std_floor", self.std_floor)
-        self.std_floor = float(cfg_std)
-        self._config["std_floor"] = self.std_floor
 
 
 class ZScoreNormalizer(_ScoreNormalizerBase):
@@ -229,16 +208,6 @@ class ZScoreNormalizer(_ScoreNormalizerBase):
         normalized = (tensor - mean) / (std + self.eps)
 
         return normalized
-
-    def load(self, params: dict, serial_dir: str) -> None:
-        super().load(params, serial_dir)
-        self.dims = self._config.get("dims", [1, 2])
-        cfg_eps = self._config.get("eps", self.eps)
-        self.eps = float(cfg_eps)
-        self.keepdim = self._config.get("keepdim", True)
-        self._config["dims"] = self.dims
-        self._config["eps"] = self.eps
-        self._config["keepdim"] = self.keepdim
 
 
 class SigmoidTransform(Node):
@@ -299,9 +268,6 @@ class PerPixelUnitNorm(_ScoreNormalizerBase):
     def __init__(self, eps: float = 1e-8, **kwargs) -> None:
         self.eps = float(eps)
         super().__init__(eps=self.eps, **kwargs)
-        if not hasattr(self, "_config"):
-            self._config = {}
-        self._config["eps"] = self.eps
 
     def forward(self, data: Tensor, **_: Any) -> dict[str, Tensor]:
         """Normalize BHWC tensors per pixel."""
@@ -316,11 +282,6 @@ class PerPixelUnitNorm(_ScoreNormalizerBase):
         l2 = centered.norm(p=2, dim=2, keepdim=True).clamp_min(self.eps)
         normalized = (centered / l2).view(B, H, W, C)
         return normalized
-
-    def load(self, params: dict, serial_dir: str) -> None:
-        super().load(params, serial_dir)
-        cfg_eps = getattr(self, "_config", {}).get("eps", self.eps)
-        self.eps = float(cfg_eps)
 
 
 __all__ = [

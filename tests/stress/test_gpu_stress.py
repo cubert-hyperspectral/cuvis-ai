@@ -13,7 +13,7 @@ from cuvis_ai.node.losses import OrthogonalityLoss
 from cuvis_ai.node.metrics import ExplainedVarianceMetric
 from cuvis_ai.node.normalization import MinMaxNormalizer
 from cuvis_ai.node.pca import TrainablePCA
-from cuvis_ai.pipeline.canvas import CuvisCanvas
+from cuvis_ai.pipeline.pipeline import CuvisPipeline
 from cuvis_ai.training.config import OptimizerConfig, TrainerConfig, TrainingConfig
 from cuvis_ai.training.trainers import GradientTrainer, StatisticalTrainer
 
@@ -28,7 +28,7 @@ def create_test_graph(n_channels: int = 10):
     return _create_test_graph(n_channels)
 
 
-def create_realistic_test_graph(n_channels: int = 50) -> tuple[CuvisCanvas, dict]:
+def create_realistic_test_graph(n_channels: int = 50) -> tuple[CuvisPipeline, dict]:
     """Create a more complex test graph for realistic GPU benchmarking.
 
     This graph includes more trainable parameters and computationally
@@ -44,42 +44,42 @@ def create_realistic_test_graph(n_channels: int = 50) -> tuple[CuvisCanvas, dict
     tuple
         (graph, config_dict) where config_dict contains node references
     """
-    canvas = CuvisCanvas("gpu_stress_test")
+    pipeline = CuvisPipeline("gpu_stress_test")
 
     # Data node to extract cube from batch
     data_node = SimpleDataNode()
 
     # Normalizer
     normalizer = MinMaxNormalizer(use_running_stats=True)
-    canvas.connect(data_node.outputs.cube, normalizer.data)
+    pipeline.connect(data_node.outputs.cube, normalizer.data)
 
     # First PCA layer (trainable) - reduce dimensions
     n_components_1 = min(20, n_channels)
     pca1 = TrainablePCA(n_components=n_components_1, trainable=True)
-    canvas.connect(normalizer.normalized, pca1.data)
+    pipeline.connect(normalizer.normalized, pca1.data)
 
     # Second PCA layer (trainable) - further reduction
     n_components_2 = min(10, n_components_1)
     pca2 = TrainablePCA(n_components=n_components_2, trainable=True)
-    canvas.connect(pca1.projected, pca2.data)
+    pipeline.connect(pca1.projected, pca2.data)
 
     # RX detector
-    rx = RXGlobal()
-    canvas.connect(pca2.projected, rx.data)
+    rx = RXGlobal(num_channels=n_components_2)
+    pipeline.connect(pca2.projected, rx.data)
 
     # Multiple loss leaves for more gradient computation
     orth_loss_1 = OrthogonalityLoss(weight=0.1)
-    canvas.connect(pca1.components, orth_loss_1.components)
+    pipeline.connect(pca1.components, orth_loss_1.components)
 
     orth_loss_2 = OrthogonalityLoss(weight=0.1)
-    canvas.connect(pca2.components, orth_loss_2.components)
+    pipeline.connect(pca2.components, orth_loss_2.components)
 
     # Metrics
     var_metric_1 = ExplainedVarianceMetric()
-    canvas.connect(pca1.explained_variance_ratio, var_metric_1.explained_variance_ratio)
+    pipeline.connect(pca1.explained_variance_ratio, var_metric_1.explained_variance_ratio)
 
     var_metric_2 = ExplainedVarianceMetric()
-    canvas.connect(pca2.explained_variance_ratio, var_metric_2.explained_variance_ratio)
+    pipeline.connect(pca2.explained_variance_ratio, var_metric_2.explained_variance_ratio)
 
     config = {
         "data_node": data_node,
@@ -93,9 +93,10 @@ def create_realistic_test_graph(n_channels: int = 50) -> tuple[CuvisCanvas, dict
         "var_metric_2": var_metric_2,
     }
 
-    return canvas, config
+    return pipeline, config
 
 
+@pytest.mark.slow
 @pytest.mark.gpu
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
 def test_gpu_acceleration():
@@ -158,7 +159,7 @@ def test_gpu_acceleration():
     warmup_dm = SyntheticDataModule(warmup_data, batch_size=batch_size)
 
     # Statistical initialization for warmup
-    stat_warmup = StatisticalTrainer(canvas=graph_cpu_warmup, datamodule=warmup_dm)
+    stat_warmup = StatisticalTrainer(pipeline=graph_cpu_warmup, datamodule=warmup_dm)
     stat_warmup.fit()
 
     # Unfreeze PCAs for gradient training
@@ -185,7 +186,7 @@ def test_gpu_acceleration():
     ]
     if loss_nodes_warmup:
         warmup_trainer = GradientTrainer(
-            canvas=graph_cpu_warmup,
+            pipeline=graph_cpu_warmup,
             datamodule=warmup_dm,
             loss_nodes=loss_nodes_warmup,
             metric_nodes=metric_nodes_warmup,
@@ -200,7 +201,7 @@ def test_gpu_acceleration():
     print("Running actual CPU training...")
 
     # Statistical initialization first
-    stat_cpu = StatisticalTrainer(canvas=graph_cpu, datamodule=datamodule)
+    stat_cpu = StatisticalTrainer(pipeline=graph_cpu, datamodule=datamodule)
     stat_cpu.fit()
 
     # Unfreeze PCAs for gradient training
@@ -215,7 +216,7 @@ def test_gpu_acceleration():
     metric_nodes = [node for node in graph_cpu.nodes() if isinstance(node, ExplainedVarianceMetric)]
     if loss_nodes:
         trainer = GradientTrainer(
-            canvas=graph_cpu,
+            pipeline=graph_cpu,
             datamodule=datamodule,
             loss_nodes=loss_nodes,
             metric_nodes=metric_nodes,
@@ -271,7 +272,7 @@ def test_gpu_acceleration():
     warmup_dm_gpu = SyntheticDataModule(warmup_data_gpu, batch_size=batch_size)
 
     # Statistical initialization for warmup
-    stat_warmup_gpu = StatisticalTrainer(canvas=graph_gpu_warmup, datamodule=warmup_dm_gpu)
+    stat_warmup_gpu = StatisticalTrainer(pipeline=graph_gpu_warmup, datamodule=warmup_dm_gpu)
     stat_warmup_gpu.fit()
 
     # Unfreeze PCAs for gradient training
@@ -298,7 +299,7 @@ def test_gpu_acceleration():
     ]
     if loss_nodes_gpu_warmup:
         gpu_warmup_trainer = GradientTrainer(
-            canvas=graph_gpu_warmup,
+            pipeline=graph_gpu_warmup,
             datamodule=warmup_dm_gpu,
             loss_nodes=loss_nodes_gpu_warmup,
             metric_nodes=metric_nodes_gpu_warmup,
@@ -314,7 +315,7 @@ def test_gpu_acceleration():
     print("Running actual GPU training...")
 
     # Statistical initialization first
-    stat_gpu = StatisticalTrainer(canvas=graph_gpu, datamodule=datamodule)
+    stat_gpu = StatisticalTrainer(pipeline=graph_gpu, datamodule=datamodule)
     stat_gpu.fit()
 
     # Unfreeze PCAs for gradient training
@@ -332,7 +333,7 @@ def test_gpu_acceleration():
     ]
     if loss_nodes_gpu:
         gpu_trainer = GradientTrainer(
-            canvas=graph_gpu,
+            pipeline=graph_gpu,
             datamodule=datamodule,
             loss_nodes=loss_nodes_gpu,
             metric_nodes=metric_nodes_gpu,
@@ -451,7 +452,7 @@ def test_gpu_batch_size_scaling():
         warmup_dm = SyntheticDataModule(warmup_data, batch_size=batch_size)
 
         # Statistical initialization for warmup
-        stat_warmup_batch = StatisticalTrainer(canvas=graph_warmup, datamodule=warmup_dm)
+        stat_warmup_batch = StatisticalTrainer(pipeline=graph_warmup, datamodule=warmup_dm)
         stat_warmup_batch.fit()
 
         # Unfreeze PCAs for gradient training
@@ -478,7 +479,7 @@ def test_gpu_batch_size_scaling():
         ]
         if loss_nodes_batch_warmup:
             batch_warmup_trainer = GradientTrainer(
-                canvas=graph_warmup,
+                pipeline=graph_warmup,
                 datamodule=warmup_dm,
                 loss_nodes=loss_nodes_batch_warmup,
                 metric_nodes=metric_nodes_batch_warmup,
@@ -492,7 +493,7 @@ def test_gpu_batch_size_scaling():
 
         # Actual measurement
         # Statistical initialization first
-        stat_batch = StatisticalTrainer(canvas=graph, datamodule=datamodule)
+        stat_batch = StatisticalTrainer(pipeline=graph, datamodule=datamodule)
         stat_batch.fit()
 
         # Unfreeze PCAs for gradient training
@@ -516,7 +517,7 @@ def test_gpu_batch_size_scaling():
         ]
         if loss_nodes_batch:
             batch_trainer = GradientTrainer(
-                canvas=graph,
+                pipeline=graph,
                 datamodule=datamodule,
                 loss_nodes=loss_nodes_batch,
                 metric_nodes=metric_nodes_batch,
@@ -602,7 +603,7 @@ def test_gpu_memory_scaling():
         graph, nodes = create_test_graph(n_channels=10)
 
         # Statistical initialization first
-        stat_trainer = StatisticalTrainer(canvas=graph, datamodule=datamodule)
+        stat_trainer = StatisticalTrainer(pipeline=graph, datamodule=datamodule)
         stat_trainer.fit()
 
         # Unfreeze PCA for gradient training
@@ -627,7 +628,7 @@ def test_gpu_memory_scaling():
         ]
         if loss_nodes_mem:
             mem_trainer = GradientTrainer(
-                canvas=graph,
+                pipeline=graph,
                 datamodule=datamodule,
                 loss_nodes=loss_nodes_mem,
                 metric_nodes=metric_nodes_mem,

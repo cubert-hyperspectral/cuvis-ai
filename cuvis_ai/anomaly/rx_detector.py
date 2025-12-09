@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from cuvis_ai.node import Node
+from cuvis_ai.node.node import Node
 from cuvis_ai.pipeline.ports import PortSpec
 from cuvis_ai.utils.torch import _flatten_bhwc
 from cuvis_ai.utils.types import InputStream
@@ -27,9 +27,9 @@ class RXBase(Node):
         )
     }
 
-    def __init__(self, eps: float = 1e-6) -> None:
+    def __init__(self, eps: float = 1e-6, **kwargs) -> None:
         self.eps = eps
-        super().__init__(eps=eps)
+        super().__init__(eps=eps, **kwargs)
 
     @staticmethod
     def _quad_form_solve(Xc: torch.Tensor, cov: torch.Tensor) -> torch.Tensor:
@@ -50,31 +50,42 @@ class RXGlobal(RXBase):
     """
     Uses global μ, Σ (estimated from train).
 
-    After statistical initialization with fit(), all parameters are stored as
+    After statistical initialization with statistical_initialization(), all parameters are stored as
     buffers (frozen). Call unfreeze() to convert them to trainable nn.Parameters
     for gradient-based optimization.
     """
 
-    def __init__(self, eps: float = 1e-6, cache_inverse: bool = True) -> None:
-        super().__init__(eps)
+    def __init__(
+        self, num_channels: int, eps: float = 1e-6, cache_inverse: bool = True, **kwargs
+    ) -> None:
+        self.num_channels = int(num_channels)
+        self.eps = eps
         self.cache_inverse = cache_inverse
+        # Call Node.__init__ directly with all parameters for proper serialization
+        # We bypass RXBase.__init__ since it only accepts eps
+        # Node.__init__(self, num_channels=self.num_channels, eps=self.eps, cache_inverse=self.cache_inverse)
+
+        super().__init__(
+            num_channels=self.num_channels, eps=self.eps, cache_inverse=self.cache_inverse, **kwargs
+        )
+
         # global stats - all stored as buffers initially
-        self.register_buffer("mu", None)  # (C,)
-
-        self.register_buffer("cov", None)  # (C,C)
-        self.register_buffer("cov_inv", None)  # (C,C)
-        # streaming accumulators
-        self.register_buffer("_mean", None)
-        self.register_buffer("_M2", None)
+        self.register_buffer("mu", torch.zeros(self.num_channels, dtype=torch.float32))  # (C,)
+        self.register_buffer(
+            "cov", torch.zeros(self.num_channels, self.num_channels, dtype=torch.float32)
+        )  # (C,C)
+        self.register_buffer(
+            "cov_inv", torch.zeros(self.num_channels, self.num_channels, dtype=torch.float32)
+        )  # (C,C)
+        # Streaming accumulators (float64 for numerical stability)
+        self.register_buffer("_mean", torch.zeros(self.num_channels, dtype=torch.float64))
+        self.register_buffer(
+            "_M2", torch.zeros(self.num_channels, self.num_channels, dtype=torch.float64)
+        )
         self._n = 0
-        self._fitted = False
+        self._statistically_initialized = False
 
-    @property
-    def requires_initial_fit(self) -> bool:
-        """RXGlobal requires statistical initialization from data."""
-        return True
-
-    def fit(self, input_stream: InputStream) -> None:
+    def statistical_initialization(self, input_stream: InputStream) -> None:
         """Initialize mu and Sigma from data iterator.
 
         Parameters
@@ -92,7 +103,7 @@ class RXGlobal(RXBase):
 
         if self._n > 0:
             self.finalize()
-        self._initialized = True
+        self._statistically_initialized = True
 
     def unfreeze(self) -> None:
         """Convert mu and cov buffers to trainable nn.Parameters.
@@ -107,11 +118,11 @@ class RXGlobal(RXBase):
         >>> rx.unfreeze()  # Enable gradient training
         >>> # Now RX statistics can be fine-tuned with gradient descent
         """
-        if self.mu is not None and self.cov is not None:
+        if self.mu.numel() > 0 and self.cov.numel() > 0:
             # Convert buffers to parameters
             self.mu = nn.Parameter(self.mu.clone(), requires_grad=True)
             self.cov = nn.Parameter(self.cov.clone(), requires_grad=True)
-            if self.cov_inv is not None:
+            if self.cov_inv.numel() > 0:
                 self.cov_inv = nn.Parameter(self.cov_inv.clone(), requires_grad=True)
         # Call parent to enable requires_grad
         super().unfreeze()
@@ -132,7 +143,7 @@ class RXGlobal(RXBase):
             new_mean = self._mean + delta * (m / tot)
             outer = torch.outer(delta, delta) * (n * m / tot)
             self._n, self._mean, self._M2 = tot, new_mean, self._M2 + M2_b + outer
-        self._fitted = False
+        self._statistically_initialized = False
 
     @torch.no_grad()
     def finalize(self) -> "RXGlobal":
@@ -148,38 +159,18 @@ class RXGlobal(RXBase):
         if self.cache_inverse:
             self.cov_inv = torch.linalg.pinv(cov)
         else:
-            self.cov_inv = None
-        self._fitted = True
+            self.cov_inv = torch.empty(0, 0)
+        self._statistically_initialized = True
         return self
 
     def reset(self) -> None:
-        self.mu = None
-        self.cov = None
-        self.cov_inv = None
+        self.mu = torch.empty(0)
+        self.cov = torch.empty(0, 0)
+        self.cov_inv = torch.empty(0, 0)
         self._n = 0
-        self._mean = None
-        self._M2 = None
-        self._fitted = False
-
-    def serialize(self, serial_dir: str) -> dict:
-        """Serialize RXGlobal state for saving."""
-        return {
-            "params": {
-                "eps": self.eps,
-                "cache_inverse": self.cache_inverse,
-            },
-            "state_dict": self.state_dict(),
-        }
-
-    def load(self, params: dict, serial_dir: str) -> None:
-        """Load RXGlobal state from serialized data."""
-        config = params.get("params", {})
-        self.eps = config.get("eps", self.eps)
-        self.cache_inverse = config.get("cache_inverse", self.cache_inverse)
-
-        state = params.get("state_dict", {})
-        if state:
-            self.load_state_dict(state, strict=False)
+        self._mean = torch.empty(0)
+        self._M2 = torch.empty(0, 0)
+        self._statistically_initialized = False
 
     def forward(self, data: torch.Tensor, **_) -> dict[str, torch.Tensor]:
         """Forward pass computing anomaly scores.
@@ -194,14 +185,16 @@ class RXGlobal(RXBase):
         dict[str, torch.Tensor]
             Dictionary with "scores" key containing BHW1 anomaly scores
         """
-        if not self._fitted or self.mu is None:
-            raise RuntimeError("RXGlobal not finalized. Call update()/finalize() or fit().")
+        if not self._statistically_initialized or self.mu.numel() == 0:
+            raise RuntimeError(
+                "RXGlobal not initialized. Call statistical_initialization() before inference."
+            )
         B, H, W, C = data.shape
         N = H * W
         X = data.view(B, N, C)
         # Convert dtype if needed, but don't change device (assumes everything on same device)
         Xc = X - self.mu.to(X.dtype)
-        if self.cov_inv is not None:
+        if self.cov_inv.numel() > 0:
             cov_inv = self.cov_inv.to(X.dtype)
             md2 = torch.einsum("bnc,cd,bnd->bn", Xc, cov_inv, Xc)  # (B,N)
         else:
@@ -240,18 +233,3 @@ class RXPerBatch(RXBase):
         md2 = self._quad_form_solve(Xc, cov)  # (B,N)
         scores = md2.view(B, H, W)
         return {"scores": scores.unsqueeze(-1)}
-
-    def serialize(self, serial_dir: str) -> dict:
-        return {
-            "config": self._config,
-            "state_dict": self.rx.state_dict(),
-        }
-
-    def load(self, params: dict, serial_dir: str) -> None:
-        config = params.get("config", {})
-        if config and config != self._config:
-            self.rx = RXPerBatch(**config)
-            self._config = dict(config)
-        state = params.get("state_dict", {})
-        if state:
-            self.rx.load_state_dict(state, strict=False)

@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from cuvis_ai.node import Node
+from cuvis_ai.node.node import Node
 from cuvis_ai.pipeline.ports import PortSpec
 from cuvis_ai.utils.types import Context, ExecutionStage, InputStream, Metric
 
@@ -51,18 +51,21 @@ class RFFLayer(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        proj = x @ self.W + self.b
-        return self.z_scale * torch.cos(proj)
+        W: torch.Tensor = self.W  # type: ignore[assignment]
+        b: torch.Tensor = self.b  # type: ignore[assignment]
+        z_scale: torch.Tensor = self.z_scale  # type: ignore[assignment]
+        proj = x @ W + b
+        return z_scale * torch.cos(proj)
 
 
-class DeepSVDDEncoder(Node):
-    """Port-based Deep SVDD feature extractor producing BHWD embeddings."""
+class DeepSVDDProjection(Node):
+    """Projection head that maps per-pixel features to Deep SVDD embeddings."""
 
     INPUT_SPECS = {
         "data": PortSpec(
             dtype=torch.float32,
             shape=(-1, -1, -1, -1),
-            description="Input hyperspectral cube [B, H, W, C]",
+            description="Per-pixel feature tensor [B, H, W, C]",
         )
     }
 
@@ -77,57 +80,129 @@ class DeepSVDDEncoder(Node):
     def __init__(
         self,
         *,
+        in_channels: int,
         rep_dim: int = 32,
         hidden: int = 128,
-        sample_n: int = 500_000,
-        seed: int = 0,
-        eps: float = 1e-8,
         kernel: str = "linear",
         n_rff: int = 2048,
         gamma: float | None = None,
-        use_mlp_after_rff: bool = True,
         mlp_forward_batch_size: int = 65_536,
         **kwargs: Any,
     ) -> None:
+        if in_channels <= 0:
+            raise ValueError(f"in_channels must be positive, got {in_channels}")
+        self.in_channels = int(in_channels)
         self.rep_dim = int(rep_dim)
         self.hidden = int(hidden)
-        self.sample_n = int(sample_n)
-        self.seed = int(seed)
-        self.eps = float(eps)
         self.kernel = str(kernel)
         self.n_rff = int(n_rff)
         self.gamma = None if gamma is None else float(gamma)
-        self.use_mlp_after_rff = bool(use_mlp_after_rff)
         self.mlp_forward_batch_size = max(1, int(mlp_forward_batch_size))
 
         super().__init__(
+            in_channels=self.in_channels,
             rep_dim=self.rep_dim,
             hidden=self.hidden,
-            sample_n=self.sample_n,
-            seed=self.seed,
-            eps=self.eps,
             kernel=self.kernel,
             n_rff=self.n_rff,
             gamma=self.gamma,
-            use_mlp_after_rff=self.use_mlp_after_rff,
             mlp_forward_batch_size=self.mlp_forward_batch_size,
             **kwargs,
         )
 
-        self.net: nn.Module | None = None
-        self.register_buffer("zscore_mean", None)  # (C,)
-        self.register_buffer("zscore_std", None)  # (C,)
-        self._num_channels: int | None = None
-        self._fitted: bool = False
+        # Build projection network eagerly with known in_channels
+        self._build_network()
 
-    # ------------------------------------------------------------------
-    # Statistical initialization hooks
-    # ------------------------------------------------------------------
+    def _build_network(self) -> None:
+        """Build the projection network."""
+        if self.kernel == "linear":
+            self.net = SpectralNet(
+                in_dim=self.in_channels,
+                rep_dim=self.rep_dim,
+                hidden=self.hidden,
+            )
+        elif self.kernel == "rbf":
+            eff_gamma = self.gamma if self.gamma is not None else (1.0 / float(self.in_channels))
+            rff = RFFLayer(input_dim=self.in_channels, n_features=self.n_rff, gamma=eff_gamma)
+            head = SpectralNet(in_dim=self.n_rff, rep_dim=self.rep_dim, hidden=self.hidden)
+            self.net = nn.Sequential(rff, head)
+        else:
+            raise ValueError(f"Unknown kernel '{self.kernel}'. Expected 'linear' or 'rbf'.")
+
+    def forward(self, data: torch.Tensor, **_: Any) -> dict[str, torch.Tensor]:
+        """Project BHWC features into a latent embedding space."""
+        B, H, W, C = data.shape
+        if C != self.in_channels:
+            raise ValueError(f"Expected {self.in_channels} channels, got {C}")
+
+        flat = data.contiguous().reshape(B * H * W, C)
+
+        batch_size = self.mlp_forward_batch_size
+        embeddings = []
+        for start in range(0, flat.shape[0], batch_size):
+            chunk = flat[start : start + batch_size]
+            embeddings.append(self.net(chunk))
+        z = torch.cat(embeddings, dim=0).reshape(B, H, W, self.rep_dim)
+
+        return {"embeddings": z}
+
+
+class ZScoreNormalizerGlobal(Node):
+    """Port-based Deep SVDD z-score normalizer for BHWC cubes."""
+
+    INPUT_SPECS = {
+        "data": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, -1),
+            description="Input hyperspectral cube [B, H, W, C]",
+        )
+    }
+
+    OUTPUT_SPECS = {
+        "normalized": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, -1),
+            description="Per-pixel z-score normalized cube [B, H, W, C]",
+        )
+    }
+
+    def __init__(
+        self,
+        *,
+        num_channels: int,
+        sample_n: int = 500_000,
+        seed: int = 0,
+        eps: float = 1e-8,
+        **kwargs: Any,
+    ) -> None:
+        if num_channels <= 0:
+            raise ValueError(f"num_channels must be positive, got {num_channels}")
+        self.num_channels = int(num_channels)
+        self.sample_n = int(sample_n)
+        self.seed = int(seed)
+        self.eps = float(eps)
+
+        super().__init__(
+            num_channels=self.num_channels,
+            sample_n=self.sample_n,
+            seed=self.seed,
+            eps=self.eps,
+            **kwargs,
+        )
+
+        # Pre-allocate buffers with known dimensions
+        self.register_buffer(
+            "zscore_mean", torch.zeros(num_channels, dtype=torch.get_default_dtype())
+        )
+        self.register_buffer(
+            "zscore_std", torch.ones(num_channels, dtype=torch.get_default_dtype())
+        )
+
     @property
     def requires_initial_fit(self) -> bool:
         return True
 
-    def fit(self, input_stream: InputStream) -> None:
+    def statistical_initialization(self, input_stream: InputStream) -> None:
         """Estimate per-band z-score statistics from the provided stream."""
         pixels: list[np.ndarray] = []
         for batch in input_stream:
@@ -137,14 +212,16 @@ class DeepSVDDEncoder(Node):
             data = data.contiguous()
 
             B, H, W, C = data.shape
-            if self._num_channels is None:
-                self._num_channels = C
-            elif self._num_channels != C:
-                raise ValueError(f"Channel mismatch: expected {self._num_channels}, got {C}")
+            if C != self.num_channels:
+                raise ValueError(f"Channel mismatch: expected {self.num_channels}, got {C}")
+            # todo: https://cuvis.atlassian.net/browse/ALL-4971, later this will be in tensor
+            # to avoid converting to numpy and back with streaming stats
             pixels.append(data.reshape(B * H * W, C).detach().cpu().numpy().astype(np.float32))
 
         if not pixels:
-            raise RuntimeError("DeepSVDDEncoder.fit() did not receive any data")
+            raise RuntimeError(
+                "DeepSVDDEncoder.statistical_initialization() did not receive any data"
+            )
 
         X_all = np.concatenate(pixels, axis=0)
         n_stats = min(self.sample_n, X_all.shape[0])
@@ -156,71 +233,27 @@ class DeepSVDDEncoder(Node):
             X_stats = X_all
 
         mean, std = self._zscore_fit(X_stats, eps=self.eps)
-        self.zscore_mean = torch.from_numpy(mean).squeeze(0)
-        self.zscore_std = torch.from_numpy(std).squeeze(0)
-        self._initialized = True
+        self.zscore_mean.copy_(torch.from_numpy(mean).squeeze(0))
+        self.zscore_std.copy_(torch.from_numpy(std).squeeze(0))
+        self._statistically_initialized = True
 
-    # ------------------------------------------------------------------
-    # Forward pass
-    # ------------------------------------------------------------------
     def forward(self, data: torch.Tensor, **_: Any) -> dict[str, torch.Tensor]:
-        if self._num_channels is None or self.zscore_mean is None or self.zscore_std is None:
-            raise RuntimeError("DeepSVDDEncoder requires fit() before forward()")
-        if data.shape[-1] != self._num_channels:
-            raise ValueError(
-                f"Channel mismatch: expected {self._num_channels}, got {data.shape[-1]}"
+        if not self._statistically_initialized:
+            raise RuntimeError(
+                "DeepSVDDEncoder requires statistical_initialization() before forward()"
             )
-
-        self._ensure_network(device=data.device, dtype=data.dtype)
-        assert self.net is not None
 
         B, H, W, C = data.shape
-        flat = data.contiguous().reshape(B * H * W, C)
+        if C != self.num_channels:
+            raise ValueError(f"Channel mismatch: expected {self.num_channels}, got {C}")
 
-        mean = self.zscore_mean.to(device=flat.device, dtype=flat.dtype).unsqueeze(0)
-        std = self.zscore_std.to(device=flat.device, dtype=flat.dtype).unsqueeze(0)
+        flat = data.contiguous().reshape(B * H * W, C)
+        mean = self.zscore_mean.to(dtype=flat.dtype, copy=False).unsqueeze(0)
+        std = self.zscore_std.to(dtype=flat.dtype, copy=False).unsqueeze(0)
         flat = (flat - mean) / std
 
-        batch_size = self.mlp_forward_batch_size
-        embeddings = []
-        for start in range(0, flat.shape[0], batch_size):
-            chunk = flat[start : start + batch_size]
-            embeddings.append(self.net(chunk))
-        z = torch.cat(embeddings, dim=0).reshape(B, H, W, self.rep_dim)
-        return {"embeddings": z}
-
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
-    def _ensure_network(self, device: torch.device, dtype: torch.dtype) -> None:
-        if self.net is not None:
-            return
-        # TODO[ALL-4973]: Replace this manual module instantiation with a dedicated node so we don't
-        # need to construct + .to() the network ourselves. See Jira task ALL-4973.
-        if self._num_channels is None:
-            raise RuntimeError("Number of channels unknown. Call fit() first.")
-
-        if self.kernel == "linear":
-            self.net = SpectralNet(
-                in_dim=self._num_channels,
-                rep_dim=self.rep_dim,
-                hidden=self.hidden,
-            )
-        elif self.kernel == "rbf":
-            eff_gamma = self.gamma if self.gamma is not None else (1.0 / float(self._num_channels))
-            rff = RFFLayer(input_dim=self._num_channels, n_features=self.n_rff, gamma=eff_gamma)
-            if self.use_mlp_after_rff:
-                head = SpectralNet(in_dim=self.n_rff, rep_dim=self.rep_dim, hidden=self.hidden)
-                self.net = nn.Sequential(rff, head)
-            else:
-                linear_head = nn.Linear(self.n_rff, self.rep_dim, bias=False)
-                nn.init.xavier_uniform_(linear_head.weight)
-                self.net = nn.Sequential(rff, linear_head)
-        else:
-            raise ValueError(f"Unknown kernel '{self.kernel}'. Expected 'linear' or 'rbf'.")
-
-        self.net = self.net.to(device=device, dtype=dtype)
-        self._fitted = True
+        normalized = flat.reshape(B, H, W, C)
+        return {"normalized": normalized}
 
     @staticmethod
     def _zscore_fit(X: np.ndarray, eps: float) -> tuple[np.ndarray, np.ndarray]:
@@ -228,68 +261,6 @@ class DeepSVDDEncoder(Node):
         std = X.std(axis=0, keepdims=True).astype(np.float32)
         std = std + eps
         return mean, std
-
-    # ------------------------------------------------------------------
-    # Training control
-    # ------------------------------------------------------------------
-    def unfreeze(self) -> None:
-        self._ensure_network(device=self.zscore_mean.device, dtype=self.zscore_mean.dtype)
-        super().unfreeze()
-
-    # ------------------------------------------------------------------
-    # Serialization
-    # ------------------------------------------------------------------
-    def serialize(self, serial_dir: str) -> dict:
-        if not self._fitted or self.net is None:
-            raise RuntimeError("Cannot serialize DeepSVDDEncoder before fit() and forward()")
-        return {
-            "params": {
-                "rep_dim": self.rep_dim,
-                "hidden": self.hidden,
-                "sample_n": self.sample_n,
-                "seed": self.seed,
-                "eps": self.eps,
-                "kernel": self.kernel,
-                "n_rff": self.n_rff,
-                "gamma": self.gamma,
-                "use_mlp_after_rff": self.use_mlp_after_rff,
-                "mlp_forward_batch_size": self.mlp_forward_batch_size,
-            },
-            "state_dict": self.state_dict(),
-        }
-
-    def load(self, params: dict, serial_dir: str) -> None:
-        config = params.get("params", {})
-        state = params.get("state_dict", {})
-
-        self.rep_dim = int(config.get("rep_dim", self.rep_dim))
-        self.hidden = int(config.get("hidden", self.hidden))
-        self.sample_n = int(config.get("sample_n", self.sample_n))
-        self.seed = int(config.get("seed", self.seed))
-        self.eps = float(config.get("eps", self.eps))
-        self.kernel = str(config.get("kernel", self.kernel))
-        self.n_rff = int(config.get("n_rff", self.n_rff))
-        self.gamma = config.get("gamma", self.gamma)
-        self.gamma = None if self.gamma is None else float(self.gamma)
-        self.use_mlp_after_rff = bool(config.get("use_mlp_after_rff", self.use_mlp_after_rff))
-        self.mlp_forward_batch_size = max(
-            1, int(config.get("mlp_forward_batch_size", self.mlp_forward_batch_size))
-        )
-
-        if state:
-            self.load_state_dict(state, strict=False)
-            # Try to infer number of channels from z-score buffers
-            if self.zscore_mean is not None:
-                self._num_channels = int(self.zscore_mean.shape[0])
-            if self._num_channels is not None:
-                device = (
-                    next(self.parameters()).device
-                    if list(self.parameters())
-                    else torch.device("cpu")
-                )
-                self._ensure_network(device=device, dtype=torch.get_default_dtype())
-            self._initialized = self.zscore_mean is not None and self.zscore_std is not None
-            self._fitted = True
 
 
 class DeepSVDDScores(Node):
@@ -322,12 +293,6 @@ class DeepSVDDScores(Node):
         scores = ((embeddings - center.view(1, 1, 1, -1)) ** 2).sum(dim=-1, keepdim=True)
         return {"scores": scores}
 
-    def serialize(self, serial_dir: str) -> dict:
-        return {**self.hparams}
-
-    def load(self, params: dict, serial_dir: str) -> None:
-        pass
-
 
 class DeepSVDDCenterTracker(Node):
     """Track and expose Deep SVDD center statistics with optional logging."""
@@ -354,19 +319,31 @@ class DeepSVDDCenterTracker(Node):
         ),
     }
 
-    def __init__(self, alpha: float = 0.1, update_in_eval: bool = False, **kwargs) -> None:
+    def __init__(
+        self, *, rep_dim: int, alpha: float = 0.1, update_in_eval: bool = False, **kwargs
+    ) -> None:
+        if rep_dim <= 0:
+            raise ValueError(f"rep_dim must be positive, got {rep_dim}")
         if not (0.0 < alpha <= 1.0):
             raise ValueError("alpha must be in (0, 1]")
+        self.rep_dim = int(rep_dim)
         self.alpha = float(alpha)
         self.update_in_eval = bool(update_in_eval)
-        super().__init__(alpha=self.alpha, update_in_eval=self.update_in_eval, **kwargs)
-        self.register_buffer("_tracked_center", None)
+
+        super().__init__(
+            rep_dim=self.rep_dim, alpha=self.alpha, update_in_eval=self.update_in_eval, **kwargs
+        )
+
+        # Pre-allocate buffer with known dimensions
+        self.register_buffer(
+            "_tracked_center", torch.zeros(rep_dim, dtype=torch.get_default_dtype())
+        )
 
     @property
     def requires_initial_fit(self) -> bool:
         return True
 
-    def fit(self, input_stream: InputStream) -> None:
+    def statistical_initialization(self, input_stream: InputStream) -> None:
         total = None
         count = 0
         for batch in input_stream:
@@ -375,67 +352,69 @@ class DeepSVDDCenterTracker(Node):
                 embeddings = batch.get("data")
             if embeddings is None:
                 continue
+
+            # Validate dimensions
+            if embeddings.shape[-1] != self.rep_dim:
+                raise ValueError(
+                    f"Embedding dimension mismatch: expected {self.rep_dim}, got {embeddings.shape[-1]}"
+                )
+
             flat = embeddings.reshape(-1, embeddings.shape[-1])
             batch_sum = flat.sum(dim=0)
             total = batch_sum if total is None else total + batch_sum
             count += flat.shape[0]
 
         if total is None or count == 0:
-            raise RuntimeError("DeepSVDDCenterTracker.fit() received no embeddings")
+            raise RuntimeError(
+                "DeepSVDDCenterTracker.statistical_initialization() received no embeddings"
+            )
 
-        self._tracked_center = (total / count).detach()
-        self._initialized = True
-        self._fitted = True
+        self._tracked_center.copy_((total / count).detach())
+        self._statistically_initialized = True
 
     def forward(
         self, embeddings: torch.Tensor, context: Context | None = None, **_: Any
     ) -> dict[str, Any]:
+        if not self._statistically_initialized:
+            raise RuntimeError(
+                "DeepSVDDCenterTracker requires statistical_initialization() before forward()"
+            )
+
+        # Validate dimensions
+        if embeddings.shape[-1] != self.rep_dim:
+            raise ValueError(
+                f"Embedding dimension mismatch: expected {self.rep_dim}, got {embeddings.shape[-1]}"
+            )
+
         batch_mean = embeddings.mean(dim=(0, 1, 2)).detach()
         should_update = context is None or context.stage is ExecutionStage.TRAIN
         if not should_update and self.update_in_eval and context is not None:
             should_update = context.stage in {ExecutionStage.VAL, ExecutionStage.TEST}
 
-        if self._tracked_center is None:
-            self._tracked_center = batch_mean.clone()
-        elif should_update:
-            device_batch = batch_mean.device
-            self._tracked_center = self._tracked_center.to(device_batch)
-            self._tracked_center = (
-                1.0 - self.alpha
-            ) * self._tracked_center + self.alpha * batch_mean
-
-        metrics = []
-        if self._tracked_center is not None:
-            center_cpu = self._tracked_center.detach().cpu()
-            metrics.append(
-                Metric(
-                    name="deepsvdd_center/norm",
-                    value=float(center_cpu.norm().item()),
-                    stage=context.stage if context else ExecutionStage.INFERENCE,
-                    epoch=context.epoch if context else 0,
-                    batch_idx=context.batch_idx if context else 0,
-                )
+        if should_update:
+            self._tracked_center.copy_(
+                (1.0 - self.alpha) * self._tracked_center + self.alpha * batch_mean
             )
 
-        center_value = (
-            self._tracked_center.detach().clone()
-            if self._tracked_center is not None
-            else batch_mean.detach().clone()
+        metrics = []
+        center_cpu = self._tracked_center.detach().cpu()
+        metrics.append(
+            Metric(
+                name="deepsvdd_center/norm",
+                value=float(center_cpu.norm().item()),
+                stage=context.stage if context else ExecutionStage.INFERENCE,
+                epoch=context.epoch if context else 0,
+                batch_idx=context.batch_idx if context else 0,
+            )
         )
+
+        center_value = self._tracked_center.detach().clone()
         return {"center": center_value, "metrics": metrics}
 
-    def serialize(self, serial_dir: str) -> dict:
-        payload = {**self.hparams}
-        if self._tracked_center is not None:
-            payload["center"] = self._tracked_center.detach().cpu().tolist()
-        return payload
 
-    def load(self, params: dict, serial_dir: str) -> None:
-        center_list = params.get("center")
-        if center_list is not None:
-            self._tracked_center = torch.tensor(center_list, dtype=torch.float32)
-            self._initialized = True
-            self._fitted = True
-
-
-__all__ = ["DeepSVDDEncoder", "DeepSVDDScores", "DeepSVDDCenterTracker"]
+__all__ = [
+    "ZScoreNormalizerGlobal",
+    "DeepSVDDProjection",
+    "DeepSVDDScores",
+    "DeepSVDDCenterTracker",
+]

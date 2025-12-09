@@ -1,0 +1,43 @@
+# @package _global_
+
+
+defaults:
+  - /pipeline@pipeline: rx_statistical
+  - /data@data: lentils
+  - /training@training: default
+  - _self_
+
+
+name: rx_statistical
+
+training:
+  seed: 42
+  trainer:
+    max_epochs: 10
+    accelerator: auto
+    devices: null
+    default_root_dir: null
+    precision: 32-true
+    accumulate_grad_batches: 1
+    enable_progress_bar: true
+    enable_checkpointing: false
+    log_every_n_steps: 50
+    val_check_interval: 1.0
+    check_val_every_n_epoch: 1
+    gradient_clip_val: null
+    deterministic: false
+    benchmark: false
+    callbacks: null
+  optimizer:
+    name: adamw
+    lr: 0.001
+    weight_decay: 0.0
+    betas: null
+    scheduler: null
+output_dir: outputs\rx_statistical
+unfreeze_nodes: []
+freeze_nodes: []
+metric_nodes:
+- metrics_anomaly
+- sample_metrics
+loss_nodes: []

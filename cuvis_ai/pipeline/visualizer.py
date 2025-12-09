@@ -8,7 +8,7 @@ from typing import Any
 from loguru import logger
 
 from cuvis_ai.node import Node
-from cuvis_ai.pipeline.canvas import CuvisCanvas
+from cuvis_ai.pipeline.pipeline import CuvisPipeline
 from cuvis_ai.pipeline.ports import PortSpec
 from cuvis_ai.utils.types import ExecutionStage
 
@@ -23,12 +23,12 @@ DEFAULT_STAGE_LABELS: dict[str, str] = {
 }
 
 
-class CanvasVisualizer:
-    """Generate Graphviz and Mermaid representations of a CuvisCanvas."""
+class PipelineVisualizer:
+    """Generate Graphviz and Mermaid representations of a CuvisPipeline."""
 
-    def __init__(self, canvas: CuvisCanvas) -> None:
-        self.canvas = canvas
-        self._graph = canvas._graph
+    def __init__(self, pipeline: CuvisPipeline) -> None:
+        self.pipeline = pipeline
+        self._graph = pipeline._graph
 
     def to_graphviz(
         self,
@@ -48,9 +48,9 @@ class CanvasVisualizer:
         node_attributes: Mapping[str, Any] | None = None,
         edge_attributes: Mapping[str, Any] | None = None,
     ) -> str:
-        """Return a DOT string describing the canvas graph."""
+        """Return a DOT string describing the pipeline graph."""
 
-        title = self._sanitize_identifier(graph_name or self.canvas.name or "CuvisCanvas")
+        title = self._sanitize_identifier(graph_name or self.pipeline.name or "CuvisPipeline")
         lines: list[str] = [f"digraph {title} {{"]
 
         # Global graph defaults
@@ -141,7 +141,7 @@ class CanvasVisualizer:
         show_port_types: bool = False,
         show_execution_stage: bool = False,
     ) -> str:
-        """Return Mermaid flowchart syntax describing the canvas graph."""
+        """Return Mermaid flowchart syntax describing the pipeline graph."""
 
         lines = [f"flowchart {direction}"]
         node_type_resolver = node_type_resolver or (lambda node: node.__class__.__name__)
@@ -469,16 +469,16 @@ class CanvasVisualizer:
         return normalized
 
 
-def visualize_canvas(
-    canvas: CuvisCanvas,
+def visualize_pipeline(
+    pipeline: CuvisPipeline,
     *,
     format: str = "graphviz",
     output_path: str | Path | None = None,
     **kwargs,
 ) -> str | Path:
-    """Convenience helper to generate or render canvas visualizations."""
+    """Convenience helper to generate or render pipeline visualizations."""
 
-    visualizer = CanvasVisualizer(canvas)
+    visualizer = PipelineVisualizer(pipeline)
     format_key = format.lower()
 
     if format_key in {"graphviz", "dot", "dot_string"}:

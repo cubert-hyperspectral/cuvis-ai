@@ -14,8 +14,10 @@ class BaseDecider(Node, ABC):
     based on the task that needs to be accomplished.
     """
 
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, *args, **kwargs) -> None:
+        # Accept arbitrary args/kwargs so subclasses can forward their init
+        # parameters to the Serializable base for automatic hparam capture.
+        super().__init__(*args, **kwargs)
 
     def fit(self, x, *args, **kwargs) -> None:
         # TODO refactor the thing with the empty fits
@@ -41,19 +43,5 @@ class BaseDecider(Node, ABC):
         -------
         Any
             Transformed data.
-        """
-        pass
-
-    @abstractmethod
-    def serialize(self) -> dict[str, Any]:
-        """
-        Convert the class into a serialized representation
-        """
-        pass
-
-    @abstractmethod
-    def load(self) -> None:
-        """
-        Load from serialized format into an object
         """
         pass

@@ -1,0 +1,38 @@
+#!/bin/bash
+# Pre-commit hook: Fast quality checks (linting + formatting)
+# Skip with: git commit --no-verify
+
+set -e
+
+echo "Running pre-commit checks..."
+
+# Get list of tracked files before running checks
+TRACKED_FILES=$(git diff --name-only --cached)
+
+# Run Ruff formatting first
+echo "→ Running Ruff formatting..."
+if ! uv run ruff format .; then
+    echo "✗ Ruff formatting failed. Please fix the errors and try again."
+    exit 1
+fi
+
+# Run Ruff linting with auto-fix (on formatted code)
+echo "→ Running Ruff linting (with auto-fix)..."
+if ! uv run ruff check . --fix; then
+    echo "✗ Ruff linting failed. Please fix the errors and try again."
+    exit 1
+fi
+
+# Auto-stage any files that were modified by Ruff
+# Only re-stage files that were originally staged
+if [ -n "$TRACKED_FILES" ]; then
+    echo "→ Auto-staging formatted files..."
+    echo "$TRACKED_FILES" | while read -r file; do
+        if [ -f "$file" ]; then
+            git add "$file"
+        fi
+    done
+fi
+
+echo "✓ Pre-commit checks passed!"
+exit 0

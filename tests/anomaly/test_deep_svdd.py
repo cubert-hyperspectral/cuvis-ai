@@ -3,8 +3,9 @@ import torch
 
 from cuvis_ai.anomaly.deep_svdd import (
     DeepSVDDCenterTracker,
-    DeepSVDDEncoder,
+    DeepSVDDProjection,
     DeepSVDDScores,
+    ZScoreNormalizerGlobal,
 )
 from cuvis_ai.node.losses import DeepSVDDSoftBoundaryLoss
 from cuvis_ai.utils.types import Context, ExecutionStage
@@ -18,23 +19,30 @@ def _make_stream(tensor: torch.Tensor):
 
 
 def test_deep_svdd_fit_and_forward_shapes():
-    x = torch.randn(2, 8, 9, 6)
-    encoder = DeepSVDDEncoder(rep_dim=4, hidden=16, sample_n=1000, seed=0)
-    encoder.fit(_make_stream(x))
-    out = encoder.forward(x)["embeddings"]
+    num_channels = 6
+    x = torch.randn(2, 8, 9, num_channels)
+    encoder = ZScoreNormalizerGlobal(num_channels=num_channels, sample_n=1000, seed=0)
+    encoder.statistical_initialization(_make_stream(x))
+    normalized = encoder.forward(x)["normalized"]
+    # Explicit in_channels path (no statistical fit needed for projection)
+    projector = DeepSVDDProjection(in_channels=normalized.shape[-1], rep_dim=4, hidden=16)
+    out = projector.forward(normalized)["embeddings"]
     assert out.shape == (2, 8, 9, 4)
     assert out.dtype == x.dtype
 
 
 def test_deep_svdd_forward_requires_fit():
-    encoder = DeepSVDDEncoder(rep_dim=2)
-    x = torch.randn(1, 4, 4, 3)
+    num_channels = 3
+    encoder = ZScoreNormalizerGlobal(num_channels=num_channels)
+    x = torch.randn(1, 4, 4, num_channels)
     try:
         encoder.forward(x)
     except RuntimeError as exc:
-        assert "fit()" in str(exc)
+        assert "statistical_initialization()" in str(exc)
     else:
-        raise AssertionError("Expected RuntimeError when calling forward before fit()")
+        raise AssertionError(
+            "Expected RuntimeError when calling forward before statistical_initialization()"
+        )
 
 
 def test_deep_svdd_loss_radius_updates():
@@ -57,21 +65,27 @@ def test_deep_svdd_loss_radius_updates():
 
 def test_deep_svdd_end_to_end_training_loop():
     torch.manual_seed(0)
-    x = torch.randn(1, 6, 6, 5)
-    encoder = DeepSVDDEncoder(rep_dim=3, hidden=8, sample_n=100, seed=0)
-    encoder.fit(_make_stream(x))
-    tracker = DeepSVDDCenterTracker(alpha=0.5)
-    tracker.fit(_make_stream(encoder.forward(x)["embeddings"]))
+    num_channels = 5
+    rep_dim = 3
+    x = torch.randn(1, 6, 6, num_channels)
+    encoder = ZScoreNormalizerGlobal(num_channels=num_channels, sample_n=100, seed=0)
+    encoder.statistical_initialization(_make_stream(x))
+
+    # Use statistical initialization path for projection (infer in_channels in statistical_initialization)
+    projector = DeepSVDDProjection(in_channels=num_channels, rep_dim=rep_dim, hidden=8)
+    tracker = DeepSVDDCenterTracker(rep_dim=rep_dim, alpha=0.5)
+    embeddings_init = projector.forward(encoder.forward(x)["normalized"])["embeddings"]
+    tracker.statistical_initialization(_make_stream(embeddings_init))
     loss_node = DeepSVDDSoftBoundaryLoss(nu=0.05)
 
     # Unfreeze encoder to enable gradient updates
-    encoder.unfreeze()
-    params = list(encoder.parameters()) + list(loss_node.parameters())
+    projector.unfreeze()
+    params = list(projector.parameters()) + list(loss_node.parameters())
     optimizer = torch.optim.Adam(params, lr=1e-3)
 
     losses = []
     for _ in range(5):
-        embeddings = encoder.forward(x)["embeddings"]
+        embeddings = projector.forward(encoder.forward(x)["normalized"])["embeddings"]
         center_out = tracker.forward(embeddings, context=Context(stage=ExecutionStage.TRAIN))
         loss = loss_node.forward(embeddings, center=center_out["center"])["loss"]
 
@@ -119,9 +133,10 @@ def test_deep_svdd_loss_rejects_bad_center_shape():
 
 
 def test_center_tracker_fit_and_forward_updates_center():
-    embeddings = torch.randn(2, 4, 4, 3)
-    tracker = DeepSVDDCenterTracker(alpha=0.5)
-    tracker.fit(_make_stream(embeddings))
+    rep_dim = 3
+    embeddings = torch.randn(2, 4, 4, rep_dim)
+    tracker = DeepSVDDCenterTracker(rep_dim=rep_dim, alpha=0.5)
+    tracker.statistical_initialization(_make_stream(embeddings))
 
     context = Context(stage=ExecutionStage.TRAIN, epoch=0, batch_idx=0)
     out = tracker.forward(embeddings, context=context)
@@ -134,9 +149,10 @@ def test_center_tracker_fit_and_forward_updates_center():
 
 
 def test_center_tracker_skips_eval_updates_by_default():
-    embeddings = torch.randn(1, 3, 3, 2)
-    tracker = DeepSVDDCenterTracker(alpha=1.0)
-    tracker.fit(_make_stream(embeddings))
+    rep_dim = 2
+    embeddings = torch.randn(1, 3, 3, rep_dim)
+    tracker = DeepSVDDCenterTracker(rep_dim=rep_dim, alpha=1.0)
+    tracker.statistical_initialization(_make_stream(embeddings))
 
     train_ctx = Context(stage=ExecutionStage.TRAIN, epoch=0, batch_idx=0)
     val_ctx = Context(stage=ExecutionStage.VAL, epoch=0, batch_idx=0)
@@ -145,3 +161,14 @@ def test_center_tracker_skips_eval_updates_by_default():
     eval_embeddings = embeddings + 10.0
     eval_center = tracker.forward(eval_embeddings, context=val_ctx)["center"]
     assert torch.allclose(base_center, eval_center)
+
+
+def test_deepsvdd_projection_no_fit_required():
+    # With explicit in_channels, projection never requires statistical initialization
+    projection = DeepSVDDProjection(in_channels=5, rep_dim=4, hidden=8)
+    assert projection.requires_initial_fit is False
+
+    # Can immediately use for inference
+    data = torch.randn(1, 3, 3, 5)
+    output = projection.forward(data)
+    assert output["embeddings"].shape == (1, 3, 3, 4)

@@ -1,7 +1,5 @@
 # TODO make yaml serializer
 import inspect
-from abc import ABC, abstractmethod
-from pathlib import Path
 
 
 class Serializable:
@@ -31,16 +29,3 @@ class Serializable:
                 self.hparams[name] = value
         else:
             self.hparams = {}
-
-
-class Serializer(ABC):
-    def __init__(self, data_dir: Path) -> None:
-        self.data_dir = Path(data_dir)
-
-    @abstractmethod
-    def serialize(self, data: dict) -> None:
-        pass
-
-    @abstractmethod
-    def load(self) -> dict:
-        pass
