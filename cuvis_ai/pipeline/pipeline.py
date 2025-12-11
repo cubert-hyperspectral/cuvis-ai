@@ -608,7 +608,7 @@ class CuvisPipeline:
             RuntimeError: If node class not found or instantiation fails
             FileNotFoundError: If weights file missing when weights_path is provided
         """
-        # ===== SECTION 1: BUILD CANVAS =====
+        # ===== SECTION 1: BUILD Pipeline =====
         pipeline = cls._build_pipeline_from_config(
             config_path=config_path,
             config_overrides=config_overrides,

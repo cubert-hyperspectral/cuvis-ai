@@ -21,6 +21,7 @@ class SingleCu3sDataset(Dataset):
         annotation_json_path: str | None = None,
         processing_mode: cuvis.ProcessingMode | str | None = "Raw",
         measurement_indices: Sequence[int] | Iterable[int] | None = None,
+        normalize_to_unit: bool = False,
     ) -> None:
         self.cu3s_file_path = cu3s_file_path
         assert os.path.exists(cu3s_file_path), f"Dataset path does not exist: {cu3s_file_path}"
@@ -68,6 +69,7 @@ class SingleCu3sDataset(Dataset):
             annotation_json_path = Path(cu3s_file_path).with_suffix(".json")
         self._coco: COCOData | None = None
         self.class_labels: dict[int, str] | None = None
+        self.normalize_to_unit = normalize_to_unit
         if self.has_labels:
             try:
                 self._coco = COCOData.from_path(annotation_json_path)
@@ -79,6 +81,12 @@ class SingleCu3sDataset(Dataset):
 
     def __len__(self) -> int:
         return len(self.measurement_indices)
+
+    @property
+    def wavelengths_nm(self) -> np.ndarray:
+        mesu = self.session.get_measurement(0)  # starts the cound from 0
+        wavelengths = np.array(mesu.cube.wavelength, dtype=np.int32).ravel()
+        return wavelengths
 
     def __getitem__(self, idx: int) -> dict[str, np.ndarray | int]:
         mesu_index = self.measurement_indices[idx]

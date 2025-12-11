@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from cuvis_ai.node import Node
+from cuvis_ai.node.node import Node
 from cuvis_ai.pipeline.ports import PortSpec
 from cuvis_ai.utils.types import InputStream
 

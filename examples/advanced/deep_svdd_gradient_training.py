@@ -8,7 +8,12 @@ import hydra
 from loguru import logger
 from omegaconf import DictConfig, OmegaConf
 
-from cuvis_ai.anomaly.deep_svdd import DeepSVDDCenterTracker, DeepSVDDEncoder, DeepSVDDScores
+from cuvis_ai.anomaly.deep_svdd import (
+    DeepSVDDCenterTracker,
+    DeepSVDDProjection,
+    DeepSVDDScores,
+    ZScoreNormalizerGlobal,
+)
 from cuvis_ai.data.lentils_anomaly import SingleCu3sDataModule
 from cuvis_ai.deciders.binary_decider import QuantileBinaryDecider
 from cuvis_ai.node.data import LentilsAnomalyDataNode
@@ -41,7 +46,12 @@ def main(cfg: DictConfig) -> None:
 
     # Stage 1: Setup datamodule
     datamodule = SingleCu3sDataModule(**cfg.data)
+
     datamodule.setup(stage="fit")
+
+    logger.info(
+        f"Wavelengths: min {datamodule.train_ds.wavelengths_nm.min()} nm, max {datamodule.train_ds.wavelengths_nm.max()} nm"
+    )
 
     # Stage 2: Build graph
     pipeline = CuvisPipeline("DeepSVDD_Gradient")
@@ -55,8 +65,9 @@ def main(cfg: DictConfig) -> None:
 
     unit_norm_node = PerPixelUnitNorm(eps=1e-8)
 
-    encoder = DeepSVDDEncoder(rep_dim=32, hidden=128, sample_n=200_000, seed=0)
-    center_tracker = DeepSVDDCenterTracker(alpha=0.1)
+    encoder = ZScoreNormalizerGlobal(num_channels=27, hidden=128, sample_n=200_000, seed=0)
+    projection = DeepSVDDProjection(in_channels=27, rep_dim=32, hidden=128)
+    center_tracker = DeepSVDDCenterTracker(rep_dim=32, alpha=0.1)
     loss_node = DeepSVDDSoftBoundaryLoss(name="deepsvdd_loss", nu=0.05)
     score_node = DeepSVDDScores()
 
@@ -78,9 +89,10 @@ def main(cfg: DictConfig) -> None:
         (bandpass_node.filtered, unit_norm_node.data),
         (unit_norm_node.normalized, encoder.data),
         # Encoder outputs routed to loss + score computation
-        (encoder.embeddings, center_tracker.embeddings),
-        (encoder.embeddings, loss_node.embeddings),
-        (encoder.embeddings, score_node.embeddings),
+        (encoder.normalized, projection.data),
+        (projection.embeddings, center_tracker.embeddings),
+        (projection.embeddings, loss_node.embeddings),
+        (projection.embeddings, score_node.embeddings),
         (center_tracker.center, loss_node.center),
         (center_tracker.center, score_node.center),
         # Scores → decision + metrics + visualizations

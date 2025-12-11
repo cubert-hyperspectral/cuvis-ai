@@ -6,7 +6,10 @@ defaults:
   - /training@training: default
   - _self_
 
-
+data:
+  train_ids: [0]
+  val_ids: [3, 4, 6]
+  test_ids: [1,5]
 
 training:
   seed: 42
@@ -14,7 +17,7 @@ training:
     max_epochs: 20
     accelerator: auto
     devices: 1
-    default_root_dir: ./outputs/deep_svdd
+    default_root_dir: ./outputs/deepsvdd
     precision: 32-true
     accumulate_grad_batches: 1
     enable_progress_bar: true
@@ -27,14 +30,14 @@ training:
     benchmark: false
     callbacks:
       early_stopping:
-      - monitor: val/deepsvdd_loss
-        patience: 5
+      - monitor: train/deepsvdd_loss
+        patience: 15
         mode: min
-        min_delta: 1.0e-03
+        min_delta: 1.0e-07
         stopping_threshold: null
         verbose: true
       model_checkpoint:
-        dirpath: outputs\deep_svdd\checkpoints
+        dirpath: outputs\deepsvdd\checkpoints
         monitor: metrics_anomaly/iou
         filename: '{epoch:02d}'
         mode: max
@@ -47,7 +50,7 @@ training:
         log_momentum: false
   optimizer:
     name: adamw
-    lr: 0.01
+    lr: 0.001
     weight_decay: 0.01
     betas:
     - 0.9
@@ -64,9 +67,9 @@ training:
       min_lr: 1.0e-06
       eps: 1.0e-08
       verbose: false
-output_dir: outputs\deep_svdd
+output_dir: outputs\deepsvdd
 unfreeze_nodes:
-- DeepSVDDEncoder
+- ZScoreNormalizerGlobal
 freeze_nodes: []
 metric_nodes:
 - metrics_anomaly

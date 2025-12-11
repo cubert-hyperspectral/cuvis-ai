@@ -1,7 +1,7 @@
 import grpc
 import pytest
 
-from cuvis_ai.grpc import cuvis_ai_pb2
+from cuvis_ai.grpc import cuvis_ai_pb2, helpers
 from cuvis_ai.training.config import OptimizerConfig, TrainerConfig, TrainingConfig
 
 
@@ -96,18 +96,23 @@ class TestComplexInputs:
     """Complex input parsing (bboxes, points, text prompts)."""
 
     def test_inference_with_bounding_boxes(self, grpc_stub, trained_session, create_test_cube):
-        cube, wavelengths = create_test_cube(batch_size=1, height=32, width=32, num_channels=61)
+        cube, wavelengths = create_test_cube(
+            batch_size=1,
+            height=32,
+            width=32,
+            mode="wavelength_dependent",
+            num_channels=61,
+            wavelength_range=(430.0, 910.0),
+        )
+
         session_id, _data_config = trained_session()
 
         response = grpc_stub.Inference(
             cuvis_ai_pb2.InferenceRequest(
                 session_id=session_id,
                 inputs=cuvis_ai_pb2.InputBatch(
-                    cube=cuvis_ai_pb2.Tensor(
-                        shape=list(cube.shape),
-                        dtype=cuvis_ai_pb2.D_TYPE_UINT16,
-                        raw_data=cube.numpy().tobytes(),
-                    ),
+                    cube=helpers.tensor_to_proto(cube),
+                    wavelengths=helpers.tensor_to_proto(wavelengths),
                     bboxes=cuvis_ai_pb2.BoundingBoxes(
                         boxes=[
                             cuvis_ai_pb2.BoundingBox(
@@ -126,18 +131,22 @@ class TestComplexInputs:
         assert response.outputs
 
     def test_inference_with_points(self, grpc_stub, trained_session, create_test_cube):
-        cube, wavelengths = create_test_cube(batch_size=1, height=32, width=32, num_channels=61)
+        cube, wavelengths = create_test_cube(
+            batch_size=1,
+            height=32,
+            width=32,
+            mode="wavelength_dependent",
+            num_channels=61,
+            wavelength_range=(430.0, 910.0),
+        )
         session_id, _data_config = trained_session()
 
         response = grpc_stub.Inference(
             cuvis_ai_pb2.InferenceRequest(
                 session_id=session_id,
                 inputs=cuvis_ai_pb2.InputBatch(
-                    cube=cuvis_ai_pb2.Tensor(
-                        shape=list(cube.shape),
-                        dtype=cuvis_ai_pb2.D_TYPE_UINT16,
-                        raw_data=cube.numpy().tobytes(),
-                    ),
+                    cube=helpers.tensor_to_proto(cube),
+                    wavelengths=helpers.tensor_to_proto(wavelengths),
                     points=cuvis_ai_pb2.Points(
                         points=[
                             cuvis_ai_pb2.Point(
@@ -161,18 +170,22 @@ class TestComplexInputs:
         assert response.outputs
 
     def test_inference_with_text_prompt(self, grpc_stub, trained_session, create_test_cube):
-        cube, wavelengths = create_test_cube(batch_size=1, height=32, width=32, num_channels=61)
+        cube, wavelengths = create_test_cube(
+            batch_size=1,
+            height=32,
+            width=32,
+            mode="wavelength_dependent",
+            num_channels=61,
+            wavelength_range=(430.0, 910.0),
+        )
         session_id, _data_config = trained_session()
 
         response = grpc_stub.Inference(
             cuvis_ai_pb2.InferenceRequest(
                 session_id=session_id,
                 inputs=cuvis_ai_pb2.InputBatch(
-                    cube=cuvis_ai_pb2.Tensor(
-                        shape=list(cube.shape),
-                        dtype=cuvis_ai_pb2.D_TYPE_UINT16,
-                        raw_data=cube.numpy().tobytes(),
-                    ),
+                    cube=helpers.tensor_to_proto(cube),
+                    wavelengths=helpers.tensor_to_proto(wavelengths),
                     text_prompt="Find defective items",
                 ),
             )
@@ -183,18 +196,24 @@ class TestComplexInputs:
     def test_inference_with_multiple_input_types(
         self, grpc_stub, trained_session, create_test_cube
     ):
-        cube, wavelengths = create_test_cube(batch_size=1, height=32, width=32, num_channels=61)
+        cube, wavelengths = create_test_cube(
+            batch_size=1,
+            height=32,
+            width=32,
+            mode="wavelength_dependent",
+            num_channels=61,
+            wavelength_range=(430.0, 910.0),
+        )
         session_id, _data_config = trained_session()
+
+        from cuvis_ai.grpc import helpers
 
         response = grpc_stub.Inference(
             cuvis_ai_pb2.InferenceRequest(
                 session_id=session_id,
                 inputs=cuvis_ai_pb2.InputBatch(
-                    cube=cuvis_ai_pb2.Tensor(
-                        shape=list(cube.shape),
-                        dtype=cuvis_ai_pb2.D_TYPE_UINT16,
-                        raw_data=cube.numpy().tobytes(),
-                    ),
+                    cube=helpers.tensor_to_proto(cube),
+                    wavelengths=helpers.tensor_to_proto(wavelengths),
                     bboxes=cuvis_ai_pb2.BoundingBoxes(
                         boxes=[
                             cuvis_ai_pb2.BoundingBox(

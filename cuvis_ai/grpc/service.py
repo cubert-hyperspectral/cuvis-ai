@@ -1168,36 +1168,32 @@ class CuvisAIService(cuvis_ai_pb2_grpc.CuvisAIServiceServicer):
             raise ValueError(f"Invalid pipeline_config JSON: {exc.msg}") from exc
 
     def _parse_input_batch(self, inputs: cuvis_ai_pb2.InputBatch) -> dict[str, Any]:
-        """Convert InputBatch proto to a dict consumable by CuvisPipeline."""
-        if not inputs.HasField("cube"):
-            raise ValueError("inputs.cube is required for inference")
+        """Convert InputBatch proto to dict for CuvisPipeline.
 
-        cube_tensor = helpers.proto_to_tensor(inputs.cube)
-        batch: dict[str, Any] = {"cube": cube_tensor}
+        Converts proto messages to Python types. The pipeline determines
+        which inputs are required and validates shapes/types.
+        """
+        batch: dict[str, Any] = {}
+
+        # Parse tensor inputs (if provided)
+        if inputs.HasField("cube"):
+            batch["cube"] = helpers.proto_to_tensor(inputs.cube)
 
         if inputs.HasField("wavelengths"):
             batch["wavelengths"] = helpers.proto_to_tensor(inputs.wavelengths)
-        else:
-            # Generate simple wavelength grid if none provided; matches expected [B, C] shape
-            channels = cube_tensor.shape[-1]
-            base_wavelengths = (
-                torch.linspace(400.0, 1000.0, channels, dtype=torch.float32).round().to(torch.int32)
-            )
-            # Ensure batch dimension matches cube batch
-            batch_size = cube_tensor.shape[0] if cube_tensor.dim() > 3 else 1
-            batch["wavelengths"] = base_wavelengths.unsqueeze(0).expand(batch_size, -1)
+
         if inputs.HasField("mask"):
             batch["mask"] = helpers.proto_to_tensor(inputs.mask)
 
+        # Parse structured inputs (if provided)
         if inputs.HasField("bboxes"):
             batch["bboxes"] = self._parse_bounding_boxes(inputs.bboxes)
+
         if inputs.HasField("points"):
             batch["points"] = self._parse_points(inputs.points)
+
         if inputs.text_prompt:
             batch["text_prompt"] = inputs.text_prompt
-
-        for key, tensor_proto in inputs.extra_inputs.items():
-            batch[key] = helpers.proto_to_tensor(tensor_proto)
 
         return batch
 

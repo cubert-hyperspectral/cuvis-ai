@@ -41,3 +41,4 @@ def test_discovery(pipeline_factory, mock_pipeline_dir, grpc_stub):
 - Replace local `_data_files` helpers with the shared `test_data_files` fixture.
 - Use `mock_pipeline_dir` instead of hand-written monkeypatches for pipeline directories.
 - **Fixture consolidation**: `temp_dir`, `temp_pipeline_dir`, and `temp_experiment_dir` have been removed. Use pytest's built-in `tmp_path` fixture instead for temporary directories.
+

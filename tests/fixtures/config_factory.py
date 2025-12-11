@@ -238,7 +238,7 @@ def mock_experiment_dict(mock_pipeline_dict):
 
 
 @pytest.fixture
-def saved_pipeline(grpc_stub, session, tmp_path, monkeypatch, data_config_factory, mock_cuvis_sdk):
+def saved_pipeline(grpc_stub, session, tmp_path, monkeypatch, data_config_factory):
     """Create and save a pipeline with weights for testing.
 
     This fixture creates a session, saves its pipeline with metadata,

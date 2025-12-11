@@ -18,9 +18,7 @@ from cuvis_ai.training.config import TrainingConfig
 class TestConfigPreservationThroughTraining:
     """Test that configs loaded from experiment files are preserved through training."""
 
-    def test_max_epochs_preserved_through_statistical_training(
-        self, grpc_stub, tmp_path, mock_cuvis_sdk
-    ):
+    def test_max_epochs_preserved_through_statistical_training(self, grpc_stub, tmp_path):
         """
         Regression test: Verify that max_epochs from experiment config is preserved
         when running statistical training.
@@ -127,7 +125,7 @@ class TestConfigPreservationThroughTraining:
         finally:
             grpc_stub.CloseSession(cuvis_ai_pb2.CloseSessionRequest(session_id=session_id))
 
-    def test_all_training_config_fields_preserved(self, grpc_stub, tmp_path, mock_cuvis_sdk):
+    def test_all_training_config_fields_preserved(self, grpc_stub, tmp_path):
         """
         Test that all training config fields (not just max_epochs) are preserved
         through the training workflow.
@@ -272,9 +270,7 @@ class TestTrainingConfigFromDictConfig:
 class TestSessionStateManagement:
     """Test session state management edge cases."""
 
-    def test_session_preserves_experiment_config_after_training(
-        self, grpc_stub, tmp_path, mock_cuvis_sdk
-    ):
+    def test_session_preserves_experiment_config_after_training(self, grpc_stub, tmp_path):
         """
         Test that experiment config (including loss_nodes, metric_nodes) is preserved
         in session state through training operations.

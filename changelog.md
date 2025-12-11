@@ -1,11 +1,11 @@
 # Changelog
 
-### Canvas serialization system (latest)
-- Added YAML-driven Canvas/Pipeline configuration with OmegaConf interpolation and versioned schema compatibility so pipelines are rebuilt directly from config files instead of hardcoded graphs.
+### Pipeline serialization system (latest)
+- Added YAML-driven Pipeline/Pipeline configuration with OmegaConf interpolation and versioned schema compatibility so pipelines are rebuilt directly from config files instead of hardcoded graphs.
 - Introduced a hybrid NodeRegistry: built-in nodes stay O(1) lookup while custom nodes are auto-loaded via `importlib`, removing manual registration steps.
-- Implemented end-to-end canvas serialization: atomic save/load to a single `.pt` bundle, deterministic counter-based artifact naming, and persisted optimizer/scheduler states alongside model weights/metadata.
-- gRPC API breaking changes: `CreateSession` now takes `CanvasConfig` (replacing `pipeline_type`), `Train` requires explicit `DataConfig` + `TrainingConfig`, canvas discovery/management/experiment RPCs were added, and SaveCheckpoint/LoadCheckpoint were removed.
-- Reorganized structure: new `configs/` directory for pipeline/experiment/data configs, core modules renamed from "canvas" to "pipeline", added serialization examples, and enabled git hooks for pre-commit/pre-push.
+- Implemented end-to-end pipeline serialization: atomic save/load to a single `.pt` bundle, deterministic counter-based artifact naming, and persisted optimizer/scheduler states alongside model weights/metadata.
+- gRPC API breaking changes: `CreateSession` now takes `CanvasConfig` (replacing `pipeline_type`), `Train` requires explicit `DataConfig` + `TrainingConfig`, pipeline discovery/management/experiment RPCs were added, and SaveCheckpoint/LoadCheckpoint were removed.
+- Reorganized structure: new `configs/` directory for pipeline/experiment/data configs, core modules renamed from "pipeline" to "pipeline", added serialization examples, and enabled git hooks for pre-commit/pre-push.
 - Expanded tests and docs to cover the new configuration/serialization paths with updated fixtures, helpers, API docs, and examples across workflows.
 
 ## Unreleased (vs `cuvis-ai-v2`)

@@ -196,7 +196,7 @@ class ProductionServer:
 
 def serve() -> None:
     """Start the production gRPC server with configuration from environment."""
-    load_dotenv()
+    load_dotenv(override=True)
 
     log_level = os.getenv("LOG_LEVEL", "INFO")
     log_format = os.getenv("LOG_FORMAT", "json")
