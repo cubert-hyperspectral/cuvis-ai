@@ -1,6 +1,5 @@
 import time
 
-import numpy as np
 import pytest
 
 from cuvis_ai.grpc import cuvis_ai_pb2, helpers
@@ -11,7 +10,7 @@ from tests.fixtures import create_pipeline_config_proto
 class TestPerformance:
     """Lightweight performance smoke tests."""
 
-    def test_session_creation_performance(self, grpc_stub, mock_cuvis_sdk):
+    def test_session_creation_performance(self, grpc_stub):
         """Ensure session creation stays reasonably fast without relying on pytest-benchmark."""
         timings = []
         for _ in range(5):
@@ -27,9 +26,7 @@ class TestPerformance:
         avg_duration = sum(timings) / len(timings)
         assert avg_duration < 1.0
 
-    def test_inference_latency(
-        self, grpc_stub, data_config_factory, mock_cuvis_sdk, create_test_cube
-    ):
+    def test_inference_latency(self, grpc_stub, data_config_factory, create_test_cube):
         data_config = data_config_factory(
             batch_size=2, processing_mode=cuvis_ai_pb2.PROCESSING_MODE_REFLECTANCE
         )
@@ -52,14 +49,12 @@ class TestPerformance:
 
         cube, wavelengths = create_test_cube(batch_size=1, height=16, width=16, num_channels=61)
         # Convert to numpy arrays for proto
-        cube = cube.numpy()
-        wavelengths = wavelengths.cpu().numpy().astype(np.int32).reshape(1, -1)
 
         request = cuvis_ai_pb2.InferenceRequest(
             session_id=session_id,
             inputs=cuvis_ai_pb2.InputBatch(
-                cube=helpers.numpy_to_proto(cube),
-                wavelengths=helpers.numpy_to_proto(wavelengths),
+                cube=helpers.tensor_to_proto(cube),
+                wavelengths=helpers.tensor_to_proto(wavelengths),
             ),
         )
 
@@ -76,7 +71,7 @@ class TestPerformance:
 
         grpc_stub.CloseSession(cuvis_ai_pb2.CloseSessionRequest(session_id=session_id))
 
-    def test_throughput(self, grpc_stub, data_config_factory, mock_cuvis_sdk, create_test_cube):
+    def test_throughput(self, grpc_stub, data_config_factory, create_test_cube):
         data_config = data_config_factory(
             batch_size=2, processing_mode=cuvis_ai_pb2.PROCESSING_MODE_REFLECTANCE
         )
@@ -99,13 +94,12 @@ class TestPerformance:
 
         cube, wavelengths = create_test_cube(batch_size=1, height=16, width=16, num_channels=61)
         # Convert to numpy arrays for proto
-        cube = cube.numpy()
-        wavelengths = wavelengths.cpu().numpy().astype(np.int32).reshape(1, -1)
+
         request = cuvis_ai_pb2.InferenceRequest(
             session_id=session_id,
             inputs=cuvis_ai_pb2.InputBatch(
-                cube=helpers.numpy_to_proto(cube),
-                wavelengths=helpers.numpy_to_proto(wavelengths),
+                cube=helpers.tensor_to_proto(cube),
+                wavelengths=helpers.tensor_to_proto(wavelengths),
             ),
         )
 

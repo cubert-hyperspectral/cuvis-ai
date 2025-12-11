@@ -5,7 +5,7 @@ from typing import Any
 import torch
 from torch import Tensor
 
-from cuvis_ai.node import Node
+from cuvis_ai.node.node import Node
 from cuvis_ai.pipeline.ports import PortSpec
 
 

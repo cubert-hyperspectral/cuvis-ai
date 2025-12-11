@@ -130,13 +130,19 @@ class TestInference:
 
         assert set(response.outputs.keys()) == {"SoftChannelSelector.selected"}
 
-    def test_inference_invalid_session(self, grpc_stub):
-        cube = np.random.randn(1, 1, 1, 3).astype(np.float32)
+    def test_inference_invalid_session(self, grpc_stub, create_test_cube):
+        cube, wavelengths = create_test_cube(
+            batch_size=1, height=2, width=2, num_channels=DEFAULT_CHANNELS, mode="random"
+        )
+
         with pytest.raises(grpc.RpcError) as exc:
             grpc_stub.Inference(
                 cuvis_ai_pb2.InferenceRequest(
                     session_id="invalid",
-                    inputs=cuvis_ai_pb2.InputBatch(cube=helpers.numpy_to_proto(cube)),
+                    inputs=cuvis_ai_pb2.InputBatch(
+                        cube=helpers.tensor_to_proto(cube),
+                        wavelengths=helpers.tensor_to_proto(wavelengths),
+                    ),
                 )
             )
         assert exc.value.code() == grpc.StatusCode.NOT_FOUND
@@ -150,4 +156,5 @@ class TestInference:
                     inputs=cuvis_ai_pb2.InputBatch(),
                 )
             )
-        assert exc.value.code() == grpc.StatusCode.INVALID_ARGUMENT
+        assert exc.value.code() == grpc.StatusCode.INTERNAL
+        assert "missing required inputs" in (exc.value.details() or "").lower()

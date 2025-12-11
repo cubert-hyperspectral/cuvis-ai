@@ -9,7 +9,7 @@ metadata:
   - deep_svdd
   - anomaly_detection
   author: cuvis.ai
-  cuvis_ai_version: 0.1.5.post56+g42f06ebfa
+  cuvis_ai_version: 0.1.5.post32+g4b861897b
 nodes:
 - name: LentilsAnomalyDataNode
   class: cuvis_ai.node.data.LentilsAnomalyDataNode
@@ -26,22 +26,28 @@ nodes:
   class: cuvis_ai.node.normalization.PerPixelUnitNorm
   params:
     eps: 1.0e-08
-- name: DeepSVDDEncoder
-  class: cuvis_ai.anomaly.deep_svdd.DeepSVDDEncoder
+- name: ZScoreNormalizerGlobal
+  class: cuvis_ai.anomaly.deep_svdd.ZScoreNormalizerGlobal
   params:
-    rep_dim: 32
-    hidden: 128
+    num_channels: 27
     sample_n: 200000
     seed: 0
     eps: 1.0e-08
+    hidden: 128
+- name: DeepSVDDProjection
+  class: cuvis_ai.anomaly.deep_svdd.DeepSVDDProjection
+  params:
+    in_channels: 27
+    rep_dim: 32
+    hidden: 128
     kernel: linear
     n_rff: 2048
     gamma: null
-    use_mlp_after_rff: true
     mlp_forward_batch_size: 65536
 - name: DeepSVDDCenterTracker
   class: cuvis_ai.anomaly.deep_svdd.DeepSVDDCenterTracker
   params:
+    rep_dim: 32
     alpha: 0.1
     update_in_eval: false
 - name: deepsvdd_loss
@@ -77,7 +83,7 @@ nodes:
 - name: TensorBoardMonitorNode
   class: cuvis_ai.node.monitor.TensorBoardMonitorNode
   params:
-    output_dir: outputs\deep_svdd\..\tensorboard
+    output_dir: outputs\deepsvdd\..\tensorboard
     run_name: DeepSVDD_Gradient
     comment: ''
     flush_secs: 120
@@ -95,12 +101,14 @@ connections:
 - from: BandpassByWavelength.outputs.filtered
   to: PerPixelUnitNorm.inputs.data
 - from: PerPixelUnitNorm.outputs.normalized
-  to: DeepSVDDEncoder.inputs.data
-- from: DeepSVDDEncoder.outputs.embeddings
+  to: ZScoreNormalizerGlobal.inputs.data
+- from: ZScoreNormalizerGlobal.outputs.normalized
+  to: DeepSVDDProjection.inputs.data
+- from: DeepSVDDProjection.outputs.embeddings
   to: DeepSVDDCenterTracker.inputs.embeddings
-- from: DeepSVDDEncoder.outputs.embeddings
+- from: DeepSVDDProjection.outputs.embeddings
   to: deepsvdd_loss.inputs.embeddings
-- from: DeepSVDDEncoder.outputs.embeddings
+- from: DeepSVDDProjection.outputs.embeddings
   to: DeepSVDDScores.inputs.embeddings
 - from: DeepSVDDCenterTracker.outputs.center
   to: deepsvdd_loss.inputs.center

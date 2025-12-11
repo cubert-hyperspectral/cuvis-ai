@@ -5,7 +5,6 @@ These tests verify complete workflows as described in the Phase 4 documentation.
 
 from pathlib import Path
 
-import numpy as np
 import pytest
 
 from cuvis_ai.grpc import cuvis_ai_pb2, helpers
@@ -26,7 +25,7 @@ class TestWorkflow1_TrainFromScratch:
     """
 
     @pytest.mark.slow
-    def test_complete_workflow(self, grpc_stub, mock_cuvis_sdk, tmp_path, mock_pipeline_dir):
+    def test_complete_workflow(self, grpc_stub, tmp_path):
         """Test the complete train-from-scratch workflow."""
         # Step 1: Create session with pipeline structure (no weights)
         session_response = grpc_stub.CreateSession(
@@ -88,7 +87,7 @@ class TestWorkflow2_InferenceWithPretrained:
     """
 
     def test_complete_workflow(
-        self, grpc_stub, mock_pipeline_dir, create_test_cube, data_config_factory, mock_cuvis_sdk
+        self, grpc_stub, mock_pipeline_dir, create_test_cube, data_config_factory
     ):
         """Test inference with a pre-trained model."""
         # First, create and save a "pretrained" pipeline
@@ -130,15 +129,13 @@ class TestWorkflow2_InferenceWithPretrained:
         cube, wavelengths = create_test_cube(
             batch_size=1, height=3, width=3, num_channels=DEFAULT_CHANNELS, mode="random"
         )
-        # Convert to numpy arrays for proto
-        cube = cube.numpy()
-        wavelengths = wavelengths.cpu().numpy().astype(np.int32).reshape(1, -1)
+
         inference_response = grpc_stub.Inference(
             cuvis_ai_pb2.InferenceRequest(
                 session_id=session_id,
                 inputs=cuvis_ai_pb2.InputBatch(
-                    cube=helpers.numpy_to_proto(cube),
-                    wavelengths=helpers.numpy_to_proto(wavelengths),
+                    cube=helpers.tensor_to_proto(cube),
+                    wavelengths=helpers.tensor_to_proto(wavelengths),
                 ),
             )
         )
@@ -170,7 +167,7 @@ class TestWorkflow3_ResumeTraining:
     """
 
     @pytest.mark.slow
-    def test_complete_workflow(self, grpc_stub, mock_cuvis_sdk, temp_workspace, mock_pipeline_dir):
+    def test_complete_workflow(self, grpc_stub, temp_workspace, mock_pipeline_dir):
         """Test resuming training from a saved experiment."""
         import yaml
 
@@ -359,7 +356,7 @@ class TestWorkflow5_LoadPipelineWeights:
     """
 
     def test_complete_workflow(
-        self, grpc_stub, mock_pipeline_dir, create_test_cube, data_config_factory, mock_cuvis_sdk
+        self, grpc_stub, mock_pipeline_dir, create_test_cube, data_config_factory
     ):
         """Test loading weights into an existing session."""
         # Setup: Create a pipeline with weights
@@ -412,14 +409,13 @@ class TestWorkflow5_LoadPipelineWeights:
             batch_size=1, height=2, width=2, num_channels=DEFAULT_CHANNELS, mode="random"
         )
         # Convert to numpy arrays for proto
-        cube = cube.numpy()
-        wavelengths = wavelengths.cpu().numpy().astype(np.int32).reshape(1, -1)
+
         inference_response = grpc_stub.Inference(
             cuvis_ai_pb2.InferenceRequest(
                 session_id=session_id,
                 inputs=cuvis_ai_pb2.InputBatch(
-                    cube=helpers.numpy_to_proto(cube),
-                    wavelengths=helpers.numpy_to_proto(wavelengths),
+                    cube=helpers.tensor_to_proto(cube),
+                    wavelengths=helpers.tensor_to_proto(wavelengths),
                 ),
             )
         )
@@ -433,9 +429,7 @@ class TestWorkflow5_LoadPipelineWeights:
 class TestWorkflowIntegration:
     """Test combinations and interactions between workflows."""
 
-    def test_multiple_sessions_parallel(
-        self, grpc_stub, create_test_cube, data_config_factory, mock_cuvis_sdk
-    ):
+    def test_multiple_sessions_parallel(self, grpc_stub, create_test_cube, data_config_factory):
         """Test that multiple sessions can coexist."""
         # Create multiple sessions
         session_ids = []
@@ -466,15 +460,14 @@ class TestWorkflowIntegration:
             batch_size=1, height=2, width=2, num_channels=DEFAULT_CHANNELS, mode="random"
         )
         # Convert to numpy arrays for proto
-        cube = cube.numpy()
-        wavelengths = wavelengths.cpu().numpy().astype(np.int32).reshape(1, -1)
+
         for session_id in session_ids:
             response = grpc_stub.Inference(
                 cuvis_ai_pb2.InferenceRequest(
                     session_id=session_id,
                     inputs=cuvis_ai_pb2.InputBatch(
-                        cube=helpers.numpy_to_proto(cube),
-                        wavelengths=helpers.numpy_to_proto(wavelengths),
+                        cube=helpers.tensor_to_proto(cube),
+                        wavelengths=helpers.tensor_to_proto(wavelengths),
                     ),
                 )
             )
@@ -485,7 +478,7 @@ class TestWorkflowIntegration:
             grpc_stub.CloseSession(cuvis_ai_pb2.CloseSessionRequest(session_id=session_id))
 
     def test_session_reuse_after_save_load(
-        self, grpc_stub, mock_pipeline_dir, create_test_cube, data_config_factory, mock_cuvis_sdk
+        self, grpc_stub, mock_pipeline_dir, create_test_cube, data_config_factory
     ):
         """Test that a session can be reused after save/load operations."""
         # Create session
@@ -510,14 +503,12 @@ class TestWorkflowIntegration:
             batch_size=1, height=2, width=2, num_channels=DEFAULT_CHANNELS, mode="random"
         )
         # Convert to numpy arrays for proto
-        cube = cube.numpy()
-        wavelengths = wavelengths.cpu().numpy().astype(np.int32).reshape(1, -1)
         inf1 = grpc_stub.Inference(
             cuvis_ai_pb2.InferenceRequest(
                 session_id=session_id,
                 inputs=cuvis_ai_pb2.InputBatch(
-                    cube=helpers.numpy_to_proto(cube),
-                    wavelengths=helpers.numpy_to_proto(wavelengths),
+                    cube=helpers.tensor_to_proto(cube),
+                    wavelengths=helpers.tensor_to_proto(wavelengths),
                 ),
             )
         )
@@ -546,8 +537,8 @@ class TestWorkflowIntegration:
             cuvis_ai_pb2.InferenceRequest(
                 session_id=session_id,
                 inputs=cuvis_ai_pb2.InputBatch(
-                    cube=helpers.numpy_to_proto(cube),
-                    wavelengths=helpers.numpy_to_proto(wavelengths),
+                    cube=helpers.tensor_to_proto(cube),
+                    wavelengths=helpers.tensor_to_proto(wavelengths),
                 ),
             )
         )

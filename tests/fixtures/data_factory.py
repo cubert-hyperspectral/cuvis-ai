@@ -35,9 +35,9 @@ def create_test_cube():
         batch_size: int = 2,
         height: int = 10,
         width: int = 10,
-        num_channels: int = 100,
+        num_channels: int = 61,
         mode: Literal["wavelength_dependent", "random", "synthetic"] = "wavelength_dependent",
-        wavelength_range: tuple[float, float] = (400.0, 1000.0),
+        wavelength_range: tuple[float, float] = (430.0, 910.0),
         seed: int = 123,
         dtype: torch.dtype = torch.uint16,
     ) -> tuple[torch.Tensor, torch.Tensor]:
@@ -109,6 +109,7 @@ def create_test_cube():
 
         # Convert to specified dtype
         cube = cube.to(dtype)
+        wavelengths = wavelengths.to(torch.int32).reshape(batch_size, -1)
         return cube, wavelengths
 
     return _create
@@ -163,14 +164,14 @@ def data_config_factory(test_data_files):
             cu3s_override: Override default cu3s file path
             json_override: Override default json file path
         """
-        cu3s_path = cu3s_override or cu3s_file
+        cu3s_file_path = cu3s_override or cu3s_file
         json_path = json_override or json_file
 
-        if not cu3s_path.exists() or not json_path.exists():
-            pytest.skip(f"Test data not found under {cu3s_path.parent}")
+        if not cu3s_file_path.exists() or not json_path.exists():
+            pytest.skip(f"Test data not found under {cu3s_file_path.parent}")
 
         return cuvis_ai_pb2.DataConfig(
-            cu3s_file_path=str(cu3s_path),
+            cu3s_file_path=str(cu3s_file_path),
             annotation_json_path=str(json_path),
             train_ids=train_ids or [0, 1, 2],
             val_ids=val_ids or [3, 4],
@@ -227,7 +228,7 @@ class SyntheticAnomalyDataModule(CuvisDataModule):
         seed: int = 0,
         include_labels: bool = True,
         mode: Literal["wavelength_dependent", "random", "synthetic"] = "random",
-        wavelength_range: tuple[float, float] = (400.0, 1000.0),
+        wavelength_range: tuple[float, float] = (430.0, 910.0),
         dtype: torch.dtype = torch.uint16,
     ) -> None:
         super().__init__()
@@ -348,7 +349,7 @@ def create_batch_with_wavelengths():
     def _add_wavelengths(
         batch: dict[str, torch.Tensor],
         num_channels: int | None = None,
-        wavelength_range: tuple[float, float] = (400.0, 1000.0),
+        wavelength_range: tuple[float, float] = (430.0, 910.0),
     ) -> dict[str, torch.Tensor]:
         """Add properly formatted wavelengths to a batch dict.
 

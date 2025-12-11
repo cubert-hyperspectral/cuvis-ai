@@ -7,7 +7,7 @@ from tests.fixtures import create_pipeline_config_proto
 
 
 @pytest.fixture
-def trained_pipeline_session(grpc_stub, test_data_files, mock_cuvis_sdk):
+def trained_pipeline_session(grpc_stub, test_data_files):
     """Factory for creating sessions with pipeline and statistical training.
 
     This is a simpler alternative to trained_session that creates a session
@@ -17,7 +17,6 @@ def trained_pipeline_session(grpc_stub, test_data_files, mock_cuvis_sdk):
     Args:
         grpc_stub: In-process gRPC stub fixture
         test_data_files: Fixture providing validated (cu3s, json) paths
-        mock_cuvis_sdk: Mocked SDK to avoid real hardware access
 
     Yields:
         Callable[[str], str]: Function returning session_id
@@ -98,7 +97,7 @@ def session(grpc_stub):
 
 
 @pytest.fixture
-def trained_session(grpc_stub, test_data_files, mock_cuvis_sdk):
+def trained_session(grpc_stub, test_data_files):
     """Factory for creating sessions with statistical training completed.
 
     Creates a session using RestoreExperiment to load full experiment config
@@ -108,7 +107,6 @@ def trained_session(grpc_stub, test_data_files, mock_cuvis_sdk):
     Args:
         grpc_stub: In-process gRPC stub fixture
         test_data_files: Fixture providing validated (cu3s, json) paths
-        mock_cuvis_sdk: Mocked SDK to avoid real hardware access
 
     Yields:
         Callable[[str], tuple[str, cuvis_ai_pb2.DataConfig]]:

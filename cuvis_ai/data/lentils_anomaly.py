@@ -50,6 +50,7 @@ class SingleCu3sDataModule(pl.LightningDataModule):
         test_ids: list[int] | None = None,
         batch_size: int = 2,
         processing_mode: str = "Reflectance",
+        normalize_to_unit: bool = False,
     ) -> None:
         """Initialize SingleCu3sDataModule.
 
@@ -67,6 +68,8 @@ class SingleCu3sDataModule(pl.LightningDataModule):
             test_ids: List of measurement indices for testing
             batch_size: Batch size for dataloaders
             processing_mode: Cuvis processing mode string ("Raw", "Reflectance")
+            normalize_to_unit: If True, normalize cube per-channel to [0, 1].
+                For band selection workflows, keep False to preserve spectral ratios.
 
         Raises:
             ValueError: If neither (cu3s_file_path, annotation_json_path) nor (data_dir, dataset_name) provided
@@ -92,10 +95,10 @@ class SingleCu3sDataModule(pl.LightningDataModule):
         self.val_ids = val_ids or []
         self.test_ids = test_ids or []
         self.processing_mode = processing_mode
-
-        self.train_ds: SingleCu3sDataset | None
-        self.val_ds: SingleCu3sDataset | None
-        self.test_ds: SingleCu3sDataset | None
+        self.normalize_to_unit = normalize_to_unit
+        self.train_ds: SingleCu3sDataset | None = None
+        self.val_ds: SingleCu3sDataset | None = None
+        self.test_ds: SingleCu3sDataset | None = None
 
     def prepare_data(self) -> None:
         # Only download if using auto-resolve mode with Lentils dataset
@@ -104,32 +107,50 @@ class SingleCu3sDataModule(pl.LightningDataModule):
 
     def setup(self, stage: str | None = None) -> None:
         if stage == "fit" or stage is None:
-            self.train_ds = SingleCu3sDataset(
-                cu3s_file_path=str(self.cu3s_file_path),
-                annotation_json_path=str(self.annotation_json_path),
-                processing_mode=self.processing_mode,
-                measurement_indices=self.train_ids,
-            )
-            self.val_ds = SingleCu3sDataset(
-                cu3s_file_path=str(self.cu3s_file_path),
-                annotation_json_path=str(self.annotation_json_path),
-                processing_mode=self.processing_mode,
-                measurement_indices=self.val_ids,
-            )
+            if self.train_ids:
+                self.train_ds = SingleCu3sDataset(
+                    cu3s_file_path=str(self.cu3s_file_path),
+                    annotation_json_path=str(self.annotation_json_path),
+                    processing_mode=self.processing_mode,
+                    measurement_indices=self.train_ids,
+                    normalize_to_unit=self.normalize_to_unit,
+                )
+            else:
+                self.train_ds = None
+
+            if self.val_ids:
+                self.val_ds = SingleCu3sDataset(
+                    cu3s_file_path=str(self.cu3s_file_path),
+                    annotation_json_path=str(self.annotation_json_path),
+                    processing_mode=self.processing_mode,
+                    measurement_indices=self.val_ids,
+                    normalize_to_unit=self.normalize_to_unit,
+                )
+            else:
+                self.val_ds = None
 
         if stage == "test" or stage is None:
+            if not self.test_ids:
+                raise ValueError("test_ids must be provided to build the test dataset.")
             self.test_ds = SingleCu3sDataset(
                 cu3s_file_path=str(self.cu3s_file_path),
                 annotation_json_path=str(self.annotation_json_path),
                 processing_mode=self.processing_mode,
                 measurement_indices=self.test_ids,
+                normalize_to_unit=self.normalize_to_unit,
             )
 
     def train_dataloader(self) -> DataLoader:
+        if self.train_ds is None:
+            raise RuntimeError("Train dataset is not initialized. Call setup('fit') first.")
         return DataLoader(self.train_ds, shuffle=True, batch_size=self.batch_size)
 
     def val_dataloader(self) -> DataLoader:
+        if self.val_ds is None:
+            raise RuntimeError("Validation dataset is not initialized.")
         return DataLoader(self.val_ds, shuffle=False, batch_size=self.batch_size)
 
     def test_dataloader(self) -> DataLoader:
+        if self.test_ds is None:
+            raise RuntimeError("Test dataset is not initialized. Call setup('test') first.")
         return DataLoader(self.test_ds, shuffle=False, batch_size=self.batch_size)

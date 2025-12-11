@@ -19,7 +19,7 @@ def mock_cuvis_sdk(create_test_cube):
         width=64,
         num_channels=61,
         mode="wavelength_dependent",
-        wavelength_range=(400.0, 1000.0),
+        wavelength_range=(430.0, 910.0),
         seed=42,
     )
 

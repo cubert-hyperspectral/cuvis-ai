@@ -1,8 +1,7 @@
 import grpc
-import numpy as np
 import pytest
 
-from cuvis_ai.grpc import cuvis_ai_pb2
+from cuvis_ai.grpc import cuvis_ai_pb2, helpers
 
 
 class TestStatisticalTraining:
@@ -31,7 +30,9 @@ class TestStatisticalTraining:
         assert final_progress.status == cuvis_ai_pb2.TRAIN_STATUS_COMPLETE
 
     @pytest.mark.slow
-    def test_statistical_training_updates_pipeline(self, grpc_stub, session, data_config_factory):
+    def test_statistical_training_updates_pipeline(
+        self, grpc_stub, session, data_config_factory, create_test_cube
+    ):
         """Test that statistical training updates pipeline nodes"""
         session_id = session()
         data_config = data_config_factory()
@@ -47,16 +48,14 @@ class TestStatisticalTraining:
 
         # Verify pipeline is updated by running inference
         # (Statistical training should initialize normalizers, selectors, etc.)
-        cube = np.random.randint(0, 65535, size=(1, 32, 32, 61), dtype=np.uint16)
+
+        cube, wavelengths = create_test_cube(batch_size=1, height=32, width=32, num_channels=61)
 
         inference_request = cuvis_ai_pb2.InferenceRequest(
             session_id=session_id,
             inputs=cuvis_ai_pb2.InputBatch(
-                cube=cuvis_ai_pb2.Tensor(
-                    shape=[1, 32, 32, 61],
-                    dtype=cuvis_ai_pb2.D_TYPE_UINT16,
-                    raw_data=cube.tobytes(),
-                )
+                cube=helpers.tensor_to_proto(cube),
+                wavelengths=helpers.tensor_to_proto(wavelengths),
             ),
         )
 

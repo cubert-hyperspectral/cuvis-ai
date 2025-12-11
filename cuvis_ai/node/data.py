@@ -3,8 +3,8 @@ from typing import Any
 import numpy as np
 import torch
 
-from cuvis_ai.node import Node
 from cuvis_ai.node.labels import BinaryAnomalyLabelMapper
+from cuvis_ai.node.node import Node
 from cuvis_ai.pipeline.ports import PortSpec
 
 

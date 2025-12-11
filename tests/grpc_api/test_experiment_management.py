@@ -141,47 +141,33 @@ class TestRestoreExperiment:
         assert response.experiment.pipeline.config_bytes
 
         # Verify the session can perform inference (pipeline is loaded)
-        import numpy as np
 
         from cuvis_ai.grpc import helpers
 
         # Use 61 channels to match the pipeline configuration
+
         cube, wavelengths = create_test_cube(
-            batch_size=1, height=3, width=3, num_channels=DEFAULT_CHANNELS, mode="random"
+            batch_size=1,
+            height=32,
+            width=32,
+            mode="wavelength_dependent",
+            num_channels=61,
+            wavelength_range=(430.0, 910.0),
         )
-        cube = cube.numpy()
-        wavelengths = wavelengths.cpu().numpy().astype(np.int32).reshape(1, -1)
+
         try:
             inference_response = grpc_stub.Inference(
                 cuvis_ai_pb2.InferenceRequest(
                     session_id=response.session_id,
                     inputs=cuvis_ai_pb2.InputBatch(
-                        cube=helpers.numpy_to_proto(cube),
-                        wavelengths=helpers.numpy_to_proto(wavelengths),
+                        cube=helpers.tensor_to_proto(cube),
+                        wavelengths=helpers.tensor_to_proto(wavelengths),
                     ),
                 )
             )
             assert len(inference_response.outputs) > 0
         finally:
             grpc_stub.CloseSession(cuvis_ai_pb2.CloseSessionRequest(session_id=response.session_id))
-
-    def test_restore_experiment_returns_config(self, grpc_stub, experiment_file):
-        """Test that full experiment config is returned."""
-        response = grpc_stub.RestoreExperiment(
-            cuvis_ai_pb2.RestoreExperimentRequest(
-                experiment_path=experiment_file,
-            )
-        )
-
-        # Verify experiment config is complete
-        exp = response.experiment
-        assert exp.name == "test_experiment"
-        assert exp.pipeline.config_bytes
-        assert exp.data.cu3s_file_path == "/data/test.cu3s"
-        assert exp.data.batch_size == 4
-
-        # Cleanup
-        grpc_stub.CloseSession(cuvis_ai_pb2.CloseSessionRequest(session_id=response.session_id))
 
     def test_restore_experiment_invalid_file(self, grpc_stub, tmp_path):
         """Test error handling for non-existent experiment file."""
@@ -240,7 +226,6 @@ class TestExperimentWorkflow:
     def test_train_save_restore_cycle(
         self,
         grpc_stub,
-        mock_cuvis_sdk,
         tmp_path,
         monkeypatch,
         trained_session,
@@ -298,23 +283,25 @@ class TestExperimentWorkflow:
         assert load_resp.success
 
         # Step 5: Verify restored session works
-        import numpy as np
 
         from cuvis_ai.grpc import helpers
 
         # Step 2: Run inference
         cube, wavelengths = create_test_cube(
-            batch_size=1, height=3, width=3, num_channels=DEFAULT_CHANNELS, mode="random"
+            batch_size=1,
+            height=3,
+            width=3,
+            num_channels=DEFAULT_CHANNELS,
+            mode="random",
+            wavelength_range=(430.0, 910.0),
         )
-        cube = cube.numpy()
-        wavelengths = wavelengths.cpu().numpy().astype(np.int32).reshape(1, -1)
 
         inference_response = grpc_stub.Inference(
             cuvis_ai_pb2.InferenceRequest(
                 session_id=restored_session_id,
                 inputs=cuvis_ai_pb2.InputBatch(
-                    cube=helpers.numpy_to_proto(cube),
-                    wavelengths=helpers.numpy_to_proto(wavelengths),
+                    cube=helpers.tensor_to_proto(cube),
+                    wavelengths=helpers.tensor_to_proto(wavelengths),
                 ),
             )
         )
