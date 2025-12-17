@@ -201,9 +201,8 @@ def main() -> None:
     pipeline = CuvisCanvas("AdaCLIP_Local_Demo")
 
     data_node = LentilsAnomalyDataNode(
-        wavelengths=wavelengths,
         normal_class_ids=[0, 1],
-        name="data_node",
+        method="wavelength_based",
     )
     rgb_converter = HyperspectralToRGBNode(
         method="wavelength_based",

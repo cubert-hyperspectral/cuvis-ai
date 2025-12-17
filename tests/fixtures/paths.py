@@ -18,7 +18,7 @@ def pipeline_dir(config_dir):
     return config_dir / "pipeline"
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def test_data_path():
     """Path to test data directory."""
     return Path("data")

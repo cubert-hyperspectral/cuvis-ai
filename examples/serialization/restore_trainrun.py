@@ -1,9 +1,9 @@
-"""Restore and reproduce experiments from saved experiment configurations.
+"""Restore and reproduce training runs from saved trainrun configurations.
 
-CLI equivalent of the gRPC RestoreExperiment functionality, for users who want to work
+CLI equivalent of the gRPC RestoreTrainRun functionality, for users who want to work
 directly with the Python API without running a gRPC server.
 
-This script loads a complete experiment configuration (pipeline + data + training settings)
+This script loads a complete trainrun configuration (pipeline + data + training settings)
 and can reproduce training, run validation, or execute tests.
 """
 
@@ -15,24 +15,24 @@ from loguru import logger
 from cuvis_ai.data.lentils_anomaly import SingleCu3sDataModule
 
 # Build pipeline from inline config structure
-from cuvis_ai.pipeline.pipeline_builder import PipelineBuilder
+from cuvis_ai.pipeline.factory import PipelineBuilder
 from cuvis_ai.training import GradientTrainer, StatisticalTrainer
-from cuvis_ai.training.config import ExperimentConfig
+from cuvis_ai.training.config import TrainRunConfig
 
 
-def restore_experiment(
-    experiment_path: str | Path,
+def restore_trainrun(
+    trainrun_path: str | Path,
     mode: Literal["train", "validate", "test", "info"] = "info",
     checkpoint_path: str | Path | None = None,
     device: str = "auto",
     overrides: list[str] | None = None,
 ) -> None:
-    """Restore and reproduce experiment from configuration file.
+    """Restore and reproduce training run from configuration file.
 
     Parameters
     ----------
-    experiment_path : str | Path
-        Path to experiment YAML file
+    trainrun_path : str | Path
+        Path to trainrun YAML file
     mode : str
         Execution mode:
         - 'info': Display experiment information only
@@ -46,17 +46,17 @@ def restore_experiment(
     overrides : list[str] | None
         Hydra-style config overrides (e.g., ["output_dir=outputs/custom", "data.batch_size=16"])
     """
-    experiment_path = Path(experiment_path)
-    if not experiment_path.exists():
-        raise FileNotFoundError(f"Experiment file not found: {experiment_path}")
+    trainrun_path = Path(trainrun_path)
+    if not trainrun_path.exists():
+        raise FileNotFoundError(f"TrainRun file not found: {trainrun_path}")
 
-    logger.info(f"Loading experiment from: {experiment_path}")
-    experiment_config: ExperimentConfig = ExperimentConfig.load_from_file(
-        str(experiment_path), overrides=overrides
-    )
+    logger.info(f"Loading trainrun from: {trainrun_path}")
+    trainrun_config: TrainRunConfig = TrainRunConfig.load_from_file(trainrun_path)
 
     builder = PipelineBuilder()
-    pipeline_dict = experiment_config.pipeline.to_dict()
+    if trainrun_config.pipeline is None:
+        raise ValueError("Pipeline configuration is missing in trainrun config.")
+    pipeline_dict = trainrun_config.pipeline.to_dict()
     pipeline = builder.build_from_config(pipeline_dict)
 
     # Move pipeline to specified device if needed
@@ -72,35 +72,35 @@ def restore_experiment(
 
     # Create datamodule
     datamodule = SingleCu3sDataModule(
-        cu3s_file_path=experiment_config.data.cu3s_file_path,
-        annotation_json_path=experiment_config.data.annotation_json_path,
-        train_ids=experiment_config.data.train_ids,
-        val_ids=experiment_config.data.val_ids,
-        test_ids=experiment_config.data.test_ids,
-        batch_size=experiment_config.data.batch_size,
-        processing_mode=experiment_config.data.processing_mode,
+        cu3s_file_path=trainrun_config.data.cu3s_file_path,
+        annotation_json_path=trainrun_config.data.annotation_json_path,
+        train_ids=trainrun_config.data.train_ids,
+        val_ids=trainrun_config.data.val_ids,
+        test_ids=trainrun_config.data.test_ids,
+        batch_size=trainrun_config.data.batch_size,
+        processing_mode=trainrun_config.data.processing_mode,
     )
     datamodule.setup(stage="fit")
 
-    # Use output directory from experiment config (possibly overridden)
-    output_dir = Path(experiment_config.output_dir)
+    # Use output directory from trainrun config (possibly overridden)
+    output_dir = Path(trainrun_config.output_dir)
 
     # Find loss and metric nodes by name
     loss_nodes = []
     metric_nodes = []
     for node in pipeline.nodes():
-        if node.name in experiment_config.loss_nodes:
+        if node.name in trainrun_config.loss_nodes:
             loss_nodes.append(node)
-        if node.name in experiment_config.metric_nodes:
+        if node.name in trainrun_config.metric_nodes:
             metric_nodes.append(node)
 
     # Update checkpoint directory to output_dir
-    training_config = experiment_config.training
+    training_config = trainrun_config.training
     if training_config is None:
-        raise ValueError("Training configuration is missing in experiment config.")
+        raise ValueError("Training configuration is missing in trainrun config.")
 
-    if training_config.trainer.callbacks and training_config.trainer.callbacks.model_checkpoint:
-        training_config.trainer.callbacks.model_checkpoint.dirpath = str(output_dir / "checkpoints")
+    if training_config.trainer.callbacks and training_config.trainer.callbacks.checkpoint:
+        training_config.trainer.callbacks.checkpoint.dirpath = str(output_dir / "checkpoints")
     grad_trainer = GradientTrainer(
         pipeline=pipeline,
         datamodule=datamodule,
@@ -122,8 +122,8 @@ def restore_experiment(
             stat_trainer.fit()
 
         # Unfreeze nodes for gradient training
-        if experiment_config.unfreeze_nodes:
-            pipeline.unfreeze_nodes_by_name(experiment_config.unfreeze_nodes)
+        if trainrun_config.unfreeze_nodes:
+            pipeline.unfreeze_nodes_by_name(trainrun_config.unfreeze_nodes)
 
         # Note: PyTorch Lightning handles checkpoint resumption via trainer_config
         # The checkpoint_path parameter is preserved for future implementation
@@ -159,35 +159,35 @@ def main() -> None:
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Restore and reproduce experiments from saved configurations",
+        description="Restore and reproduce training runs from saved configurations",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Display experiment info
-  python restore_experiment.py --experiment-path outputs/channel_selector/trained_models/channel_selector_experiment.yaml
+  # Display trainrun info
+  python restore_trainrun.py --trainrun-path outputs/channel_selector/trained_models/channel_selector_trainrun.yaml
 
   # Re-run training
-  python restore_experiment.py --experiment-path outputs/.../experiment.yaml --mode train
+  python restore_trainrun.py --trainrun-path outputs/.../trainrun.yaml --mode train
 
   # Re-run training with custom output directory
-  python restore_experiment.py --experiment-path outputs/.../experiment.yaml --mode train --output-dir outputs/custom
+  python restore_trainrun.py --trainrun-path outputs/.../trainrun.yaml --mode train --output-dir outputs/custom
 
   # Override data and training configs
-  python restore_experiment.py --experiment-path outputs/.../experiment.yaml --mode train --override data.batch_size=16 --override training.optimizer.lr=0.001
+  python restore_trainrun.py --trainrun-path outputs/.../trainrun.yaml --mode train --override data.batch_size=16 --override training.optimizer.lr=0.001
 
   # Run validation only
-  python restore_experiment.py --experiment-path outputs/.../experiment.yaml --mode validate
+  python restore_trainrun.py --trainrun-path outputs/.../trainrun.yaml --mode validate
 
   # Resume training from checkpoint
-  python restore_experiment.py --experiment-path outputs/.../experiment.yaml --mode train --checkpoint checkpoints/epoch=05.ckpt
+  python restore_trainrun.py --trainrun-path outputs/.../trainrun.yaml --mode train --checkpoint checkpoints/epoch=05.ckpt
         """,
     )
 
     parser.add_argument(
-        "--experiment-path",
+        "--trainrun-path",
         type=str,
         required=True,
-        help="Path to experiment YAML file",
+        help="Path to trainrun YAML file",
     )
     parser.add_argument(
         "--mode",
@@ -218,8 +218,8 @@ Examples:
 
     args = parser.parse_args()
 
-    restore_experiment(
-        experiment_path=args.experiment_path,
+    restore_trainrun(
+        trainrun_path=args.trainrun_path,
         mode=args.mode,
         checkpoint_path=args.checkpoint_path,
         device=args.device,

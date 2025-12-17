@@ -1,3 +1,5 @@
+import json
+
 import grpc
 import pytest
 
@@ -52,9 +54,9 @@ class TestConfigValidation:
             optimizer=OptimizerConfig(name="adam", lr=0.001),
         )
 
-        response = grpc_stub.ValidateTrainingConfig(
-            cuvis_ai_pb2.ValidateTrainingConfigRequest(
-                config=cuvis_ai_pb2.TrainingConfig(config_bytes=config.to_json().encode())
+        response = grpc_stub.ValidateConfig(
+            cuvis_ai_pb2.ValidateConfigRequest(
+                config_type="training", config_bytes=config.to_json().encode()
             )
         )
 
@@ -67,9 +69,9 @@ class TestConfigValidation:
             optimizer=OptimizerConfig(name="not_an_optimizer", lr=0.001),
         )
 
-        response = grpc_stub.ValidateTrainingConfig(
-            cuvis_ai_pb2.ValidateTrainingConfigRequest(
-                config=cuvis_ai_pb2.TrainingConfig(config_bytes=config.to_json().encode())
+        response = grpc_stub.ValidateConfig(
+            cuvis_ai_pb2.ValidateConfigRequest(
+                config_type="training", config_bytes=config.to_json().encode()
             )
         )
 
@@ -77,14 +79,14 @@ class TestConfigValidation:
         assert response.errors
 
     def test_validate_invalid_learning_rate(self, grpc_stub):
-        config = TrainingConfig(
-            trainer=TrainerConfig(max_epochs=5),
-            optimizer=OptimizerConfig(name="adam", lr=-0.5),
+        # Test validation with invalid learning rate via raw JSON
+        invalid_config_json = json.dumps(
+            {"optimizer": {"name": "adam", "lr": -0.5}, "trainer": {"max_epochs": 5}}
         )
 
-        response = grpc_stub.ValidateTrainingConfig(
-            cuvis_ai_pb2.ValidateTrainingConfigRequest(
-                config=cuvis_ai_pb2.TrainingConfig(config_bytes=config.to_json().encode())
+        response = grpc_stub.ValidateConfig(
+            cuvis_ai_pb2.ValidateConfigRequest(
+                config_type="training", config_bytes=invalid_config_json.encode()
             )
         )
 

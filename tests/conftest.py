@@ -10,6 +10,7 @@ Core Fixtures:
 - config_factory.py: Pipeline/experiment config helpers (pipeline_factory, minimal_pipeline_dict, saved_pipeline)
 - mock_sdk.py: Mock CUVIS SDK
 - mock_nodes.py: Mock node implementations
+- workflow_fixtures.py: Workflow helpers (pretrained_pipeline, shared_workflow_setup)
 
 For detailed documentation and usage examples, see tests/README.md
 
@@ -29,6 +30,7 @@ pytest_plugins = [
     "tests.fixtures.grpc",
     "tests.fixtures.sessions",
     "tests.fixtures.mock_nodes",
+    "tests.fixtures.workflow_fixtures",
 ]
 
 

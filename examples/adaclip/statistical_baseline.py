@@ -38,7 +38,7 @@ from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.visualizations import AnomalyMask, ScoreHeatmapVisualizer
-from cuvis_ai.pipeline.pipeline import CuvisCanvas
+from cuvis_ai.pipeline.pipeline import CuvisPipeline
 from cuvis_ai.training import StatisticalTrainer
 
 # Ensure project root on sys.path when run as a script
@@ -136,10 +136,9 @@ def main(cfg: DictConfig) -> None:
     # Build pipeline
     # ----------------------------
     canvas_name = f"{experiment_name}_{model_name}_{Path(weight_name).stem}".replace("-", "_")
-    pipeline = CuvisCanvas(canvas_name)
+    pipeline = CuvisPipeline(canvas_name)
 
     data_node = LentilsAnomalyDataNode(
-        wavelengths=wavelengths,
         normal_class_ids=[0, 1],
     )
     band_selector = BaselineFalseRGBSelector(target_wavelengths=(650.0, 550.0, 450.0))

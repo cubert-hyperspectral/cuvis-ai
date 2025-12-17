@@ -1,22 +1,44 @@
 """Example client demonstrating pipeline introspection RPCs."""
 
+from __future__ import annotations
+
 from pathlib import Path
 
-import grpc
+from workflow_utils import (
+    CONFIG_ROOT,
+    build_stub,
+    config_search_paths,
+    create_session_with_search_paths,
+)
 
-from cuvis_ai.grpc import cuvis_ai_pb2, cuvis_ai_pb2_grpc
+from cuvis_ai.grpc import cuvis_ai_pb2
 
 
 def main() -> None:
-    channel = grpc.insecure_channel("localhost:50051")
-    stub = cuvis_ai_pb2_grpc.CuvisAIServiceStub(channel)
+    stub = build_stub()
+    session_id = create_session_with_search_paths(stub, config_search_paths())
 
-    session_id = stub.CreateSession(
-        cuvis_ai_pb2.CreateSessionRequest(
-            pipeline=cuvis_ai_pb2.PipelineConfig(config_bytes=b"rx_statistical")
+    # Build pipeline from resolved config and load weights for accurate shapes
+    pipeline_config = stub.ResolveConfig(
+        cuvis_ai_pb2.ResolveConfigRequest(
+            session_id=session_id,
+            config_type="pipeline",
+            path="pipeline/rx_statistical",
         )
-    ).session_id
-    print(f"Session: {session_id}")
+    )
+    stub.LoadPipeline(
+        cuvis_ai_pb2.LoadPipelineRequest(
+            session_id=session_id,
+            pipeline=cuvis_ai_pb2.PipelineConfig(config_bytes=pipeline_config.config_bytes),
+        )
+    )
+    stub.LoadPipelineWeights(
+        cuvis_ai_pb2.LoadPipelineWeightsRequest(
+            session_id=session_id,
+            weights_path=str((CONFIG_ROOT / "pipeline" / "rx_statistical.pt").resolve()),
+        )
+    )
+    print(f"Session ready for introspection: {session_id}")
 
     inputs_resp = stub.GetPipelineInputs(
         cuvis_ai_pb2.GetPipelineInputsRequest(session_id=session_id)

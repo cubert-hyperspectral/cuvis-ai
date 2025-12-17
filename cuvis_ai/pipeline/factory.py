@@ -1,4 +1,6 @@
-"""Pipeline builder for constructing pipelinees from YAML configuration."""
+"""Factory helpers for constructing pipelines from configuration."""
+
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
@@ -12,7 +14,7 @@ from cuvis_ai.utils.node_registry import NodeRegistry
 
 class PipelineBuilder:
     """
-    Build CuvisPipeline from YAML configuration files.
+    Build ``CuvisPipeline`` instances from YAML configuration files or dictionaries.
 
     Supports:
     - NodeRegistry for node instantiation

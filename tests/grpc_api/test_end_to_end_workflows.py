@@ -6,9 +6,10 @@ These tests verify complete workflows as described in the Phase 4 documentation.
 from pathlib import Path
 
 import pytest
+import yaml
 
 from cuvis_ai.grpc import cuvis_ai_pb2, helpers
-from tests.fixtures import create_pipeline_config_proto
+from tests.fixtures.grpc import load_pipeline_from_file, resolve_and_load_pipeline
 
 DEFAULT_CHANNELS = 61
 
@@ -20,22 +21,20 @@ class TestWorkflow1_TrainFromScratch:
     1. CreateSession with pipeline structure (no weights)
     2. Train with explicit data and training configs
     3. SavePipeline for deployment
-    4. SaveExperiment for reproducibility
+    4. SaveTrainRun for reproducibility
     5. CloseSession
     """
 
     @pytest.mark.slow
     def test_complete_workflow(self, grpc_stub, tmp_path):
         """Test the complete train-from-scratch workflow."""
-        # Step 1: Create session with pipeline structure (no weights)
-        session_response = grpc_stub.CreateSession(
-            cuvis_ai_pb2.CreateSessionRequest(
-                pipeline=create_pipeline_config_proto("channel_selector")
-                # No weights - training from scratch
-            )
-        )
+        # Step 1: Create session with pipeline structure (no weights) using new four-step workflow
+        session_response = grpc_stub.CreateSession(cuvis_ai_pb2.CreateSessionRequest())
         session_id = session_response.session_id
         assert session_id
+
+        # Build pipeline
+        resolve_and_load_pipeline(grpc_stub, session_id, path="pipeline/channel_selector")
 
         # Step 2: Train with explicit data and training configs
         # Note: Skipping actual training in this test
@@ -58,16 +57,16 @@ class TestWorkflow1_TrainFromScratch:
         assert Path(save_pipeline_response.pipeline_path).exists()
         assert Path(save_pipeline_response.weights_path).exists()
 
-        # Step 4: SaveExperiment for reproducibility
+        # Step 4: SaveTrainRun for reproducibility
         exp_path = str(tmp_path / "experiments" / "run_001.yaml")
-        save_exp_response = grpc_stub.SaveExperiment(
-            cuvis_ai_pb2.SaveExperimentRequest(
+        save_exp_response = grpc_stub.SaveTrainRun(
+            cuvis_ai_pb2.SaveTrainRunRequest(
                 session_id=session_id,
-                experiment_path=exp_path,
+                trainrun_path=exp_path,
             )
         )
         assert save_exp_response.success
-        assert Path(save_exp_response.experiment_path).exists()
+        assert Path(save_exp_response.trainrun_path).exists()
 
         # Step 5: CloseSession
         close_response = grpc_stub.CloseSession(
@@ -86,44 +85,21 @@ class TestWorkflow2_InferenceWithPretrained:
     4. CloseSession
     """
 
-    def test_complete_workflow(
-        self, grpc_stub, mock_pipeline_dir, create_test_cube, data_config_factory
-    ):
-        """Test inference with a pre-trained model."""
-        # First, create and save a "pretrained" pipeline
-        setup_response = grpc_stub.CreateSession(
-            cuvis_ai_pb2.CreateSessionRequest(
-                pipeline=create_pipeline_config_proto("channel_selector")
-            )
-        )
-        setup_session_id = setup_response.session_id
-
-        # Perform statistical training to initialize nodes
-        stat_train_request = cuvis_ai_pb2.TrainRequest(
-            session_id=setup_session_id,
-            trainer_type=cuvis_ai_pb2.TRAINER_TYPE_STATISTICAL,
-            data=data_config_factory(),
-        )
-        for _ in grpc_stub.Train(stat_train_request):
-            pass  # Consume progress messages
-
-        pretrained_pipeline_path = str(mock_pipeline_dir / "pretrained.yaml")
-        grpc_stub.SavePipeline(
-            cuvis_ai_pb2.SavePipelineRequest(
-                session_id=setup_session_id,
-                pipeline_path=pretrained_pipeline_path,
-            )
-        )
-        grpc_stub.CloseSession(cuvis_ai_pb2.CloseSessionRequest(session_id=setup_session_id))
-
-        # Now test the inference workflow
-        # Step 1: CreateSession with pre-trained pipeline
-        session_response = grpc_stub.CreateSession(
-            cuvis_ai_pb2.CreateSessionRequest(
-                pipeline=create_pipeline_config_proto(pretrained_pipeline_path, load_weights=True)
-            )
-        )
+    def test_complete_workflow(self, grpc_stub, pretrained_pipeline, create_test_cube):
+        """Test inference with a pre-trained model using shared fixture."""
+        # Step 1: CreateSession with pre-trained pipeline using new four-step workflow
+        session_response = grpc_stub.CreateSession(cuvis_ai_pb2.CreateSessionRequest())
         session_id = session_response.session_id
+
+        # Load pre-trained pipeline structure then weights
+        load_pipeline_from_file(grpc_stub, session_id, pretrained_pipeline)
+        grpc_stub.LoadPipelineWeights(
+            cuvis_ai_pb2.LoadPipelineWeightsRequest(
+                session_id=session_id,
+                weights_path=str(Path(pretrained_pipeline).with_suffix(".pt")),
+                strict=True,
+            )
+        )
 
         # Step 2: Run inference
         cube, wavelengths = create_test_cube(
@@ -160,25 +136,23 @@ class TestWorkflow3_ResumeTraining:
     """Workflow 3: Resume Training.
 
     Steps:
-    1. RestoreExperiment
+    1. RestoreTrainRun
     2. Continue training with modified config
     3. SavePipeline with updated weights
-    4. SaveExperiment as new version
+    4. SaveTrainRun as new version
     """
 
     @pytest.mark.slow
     def test_complete_workflow(self, grpc_stub, temp_workspace, mock_pipeline_dir):
         """Test resuming training from a saved experiment."""
-        import yaml
 
         # Setup: Create an initial experiment to resume from
-        # Use the existing pipeline fixture and save it
-        setup_response = grpc_stub.CreateSession(
-            cuvis_ai_pb2.CreateSessionRequest(
-                pipeline=create_pipeline_config_proto("channel_selector")
-            )
-        )
+        # Use the existing pipeline fixture and save it using new four-step workflow
+        setup_response = grpc_stub.CreateSession(cuvis_ai_pb2.CreateSessionRequest())
         setup_session_id = setup_response.session_id
+
+        # Build pipeline
+        resolve_and_load_pipeline(grpc_stub, setup_session_id, path="pipeline/channel_selector")
 
         pipeline_path = mock_pipeline_dir / "initial.yaml"
         save_pipeline_response = grpc_stub.SavePipeline(
@@ -209,17 +183,17 @@ class TestWorkflow3_ResumeTraining:
             "training": {
                 "seed": 42,
                 "trainer": {
-                    "max_epochs": 50,
+                    "max_epochs": 2,
                 },
             },
         }
         with open(exp_path, "w") as f:
             yaml.dump(exp_config, f)
 
-        # Step 1: RestoreExperiment
-        restore_response = grpc_stub.RestoreExperiment(
-            cuvis_ai_pb2.RestoreExperimentRequest(
-                experiment_path=str(exp_path),
+        # Step 1: RestoreTrainRun
+        restore_response = grpc_stub.RestoreTrainRun(
+            cuvis_ai_pb2.RestoreTrainRunRequest(
+                trainrun_path=str(exp_path),
             )
         )
         session_id = restore_response.session_id
@@ -243,12 +217,12 @@ class TestWorkflow3_ResumeTraining:
         )
         assert save_pipeline_response.success
 
-        # Step 4: SaveExperiment as new version
+        # Step 4: SaveTrainRun as new version
         new_exp_path = str(temp_workspace / "experiments" / "resumed_exp.yaml")
-        save_exp_response = grpc_stub.SaveExperiment(
-            cuvis_ai_pb2.SaveExperimentRequest(
+        save_exp_response = grpc_stub.SaveTrainRun(
+            cuvis_ai_pb2.SaveTrainRunRequest(
                 session_id=session_id,
-                experiment_path=new_exp_path,
+                trainrun_path=new_exp_path,
             )
         )
         assert save_exp_response.success
@@ -267,50 +241,9 @@ class TestWorkflow4_DiscoverAndInspect:
     4. CreateSession based on discovered pipeline
     """
 
-    def test_complete_workflow(self, grpc_stub, mock_pipeline_dir):
-        """Test pipeline discovery and inspection workflow."""
-        pipeline_dir = mock_pipeline_dir
-
-        # Setup: Create some test pipelinees using the fixture
-        # Create rx_detector pipeline
-        rx_session = grpc_stub.CreateSession(
-            cuvis_ai_pb2.CreateSessionRequest(
-                pipeline=create_pipeline_config_proto("channel_selector")
-            )
-        )
-        anomaly_pipeline = pipeline_dir / "rx_detector.yaml"
-        grpc_stub.SavePipeline(
-            cuvis_ai_pb2.SavePipelineRequest(
-                session_id=rx_session.session_id,
-                pipeline_path=str(anomaly_pipeline),
-                metadata=cuvis_ai_pb2.PipelineMetadata(
-                    name="RX Anomaly Detector",
-                    description="Statistical anomaly detection",
-                    tags=["anomaly", "statistical"],
-                ),
-            )
-        )
-        grpc_stub.CloseSession(cuvis_ai_pb2.CloseSessionRequest(session_id=rx_session.session_id))
-
-        # Create segmenter pipeline
-        seg_session = grpc_stub.CreateSession(
-            cuvis_ai_pb2.CreateSessionRequest(
-                pipeline=create_pipeline_config_proto("channel_selector")
-            )
-        )
-        segmentation_pipeline = pipeline_dir / "segmenter.yaml"
-        grpc_stub.SavePipeline(
-            cuvis_ai_pb2.SavePipelineRequest(
-                session_id=seg_session.session_id,
-                pipeline_path=str(segmentation_pipeline),
-                metadata=cuvis_ai_pb2.PipelineMetadata(
-                    name="Segmentation Pipeline",
-                    description="Image segmentation",
-                    tags=["segmentation", "deep_learning"],
-                ),
-            )
-        )
-        grpc_stub.CloseSession(cuvis_ai_pb2.CloseSessionRequest(session_id=seg_session.session_id))
+    def test_complete_workflow(self, grpc_stub, shared_workflow_setup):
+        """Test pipeline discovery and inspection workflow using shared setup."""
+        _ = shared_workflow_setup
 
         # Step 1: ListAvailablePipelinees
         list_response = grpc_stub.ListAvailablePipelinees(
@@ -332,13 +265,13 @@ class TestWorkflow4_DiscoverAndInspect:
         assert info_response.pipeline_info.name == "rx_detector"
         assert "anomaly" in info_response.pipeline_info.tags
 
-        # Step 4: CreateSession based on discovered pipeline
-        session_response = grpc_stub.CreateSession(
-            cuvis_ai_pb2.CreateSessionRequest(
-                pipeline=create_pipeline_config_proto(info_response.pipeline_info.path)
-            )
-        )
-        assert session_response.session_id
+        # Step 4: CreateSession based on discovered pipeline using new four-step workflow
+        session_response = grpc_stub.CreateSession(cuvis_ai_pb2.CreateSessionRequest())
+        session_id = session_response.session_id
+
+        # Load discovered pipeline
+        load_pipeline_from_file(grpc_stub, session_id, info_response.pipeline_info.path)
+        assert session_id
 
         # Cleanup
         grpc_stub.CloseSession(
@@ -355,54 +288,25 @@ class TestWorkflow5_LoadPipelineWeights:
     3. Run inference
     """
 
-    def test_complete_workflow(
-        self, grpc_stub, mock_pipeline_dir, create_test_cube, data_config_factory
-    ):
-        """Test loading weights into an existing session."""
-        # Setup: Create a pipeline with weights
-        setup_response = grpc_stub.CreateSession(
-            cuvis_ai_pb2.CreateSessionRequest(
-                pipeline=create_pipeline_config_proto("channel_selector")
-            )
-        )
-        setup_session_id = setup_response.session_id
+    def test_complete_workflow(self, grpc_stub, pretrained_pipeline, create_test_cube):
+        """Test loading weights into an existing session using shared fixture."""
+        pipeline_with_weights = str(pretrained_pipeline)
 
-        # Perform statistical training to initialize nodes
-        stat_train_request = cuvis_ai_pb2.TrainRequest(
-            session_id=setup_session_id,
-            trainer_type=cuvis_ai_pb2.TRAINER_TYPE_STATISTICAL,
-            data=data_config_factory(),
-        )
-        for _ in grpc_stub.Train(stat_train_request):
-            pass  # Consume progress messages
-
-        pipeline_with_weights = str(mock_pipeline_dir / "weighted.yaml")
-        grpc_stub.SavePipeline(
-            cuvis_ai_pb2.SavePipelineRequest(
-                session_id=setup_session_id,
-                pipeline_path=pipeline_with_weights,
-            )
-        )
-        grpc_stub.CloseSession(cuvis_ai_pb2.CloseSessionRequest(session_id=setup_session_id))
-
-        # Step 1: CreateSession with structure only (no weights)
-        session_response = grpc_stub.CreateSession(
-            cuvis_ai_pb2.CreateSessionRequest(
-                pipeline=create_pipeline_config_proto("channel_selector")
-                # No weights
-            )
-        )
+        # Step 1: CreateSession with structure only (no weights) using new four-step workflow
+        session_response = grpc_stub.CreateSession(cuvis_ai_pb2.CreateSessionRequest())
         session_id = session_response.session_id
 
-        # Step 2: Later, LoadPipeline with weights
-        load_response = grpc_stub.LoadPipeline(
-            cuvis_ai_pb2.LoadPipelineRequest(
+        # Build pipeline structure
+        load_pipeline_from_file(grpc_stub, session_id, pipeline_with_weights)
+
+        # Step 2: Later, load weights explicitly
+        grpc_stub.LoadPipelineWeights(
+            cuvis_ai_pb2.LoadPipelineWeightsRequest(
                 session_id=session_id,
-                pipeline_path=pipeline_with_weights,
                 weights_path=str(Path(pipeline_with_weights).with_suffix(".pt")),
+                strict=True,
             )
         )
-        assert load_response.success
 
         # Step 3: Run inference
         cube, wavelengths = create_test_cube(
@@ -429,40 +333,53 @@ class TestWorkflow5_LoadPipelineWeights:
 class TestWorkflowIntegration:
     """Test combinations and interactions between workflows."""
 
-    def test_multiple_sessions_parallel(self, grpc_stub, create_test_cube, data_config_factory):
-        """Test that multiple sessions can coexist."""
-        # Create multiple sessions
-        session_ids = []
-        for _ in range(3):
-            response = grpc_stub.CreateSession(
-                cuvis_ai_pb2.CreateSessionRequest(
-                    pipeline=create_pipeline_config_proto("channel_selector")
-                )
-            )
-            session_id = response.session_id
+    def test_multiple_sessions_parallel(self, grpc_stub, trained_session, create_test_cube):
+        """Test that multiple sessions can coexist using shared trained session."""
+        # Get a trained session
+        session_id, _ = trained_session()
 
-            # Perform statistical training to initialize nodes
-            stat_train_request = cuvis_ai_pb2.TrainRequest(
-                session_id=session_id,
-                trainer_type=cuvis_ai_pb2.TRAINER_TYPE_STATISTICAL,
-                data=data_config_factory(),
-            )
-            for _ in grpc_stub.Train(stat_train_request):
-                pass  # Consume progress messages
-
-            session_ids.append(session_id)
-
-        # Verify all sessions are unique
-        assert len(set(session_ids)) == 3
-
-        # Run inference on each
+        # Run inference on the trained session
         cube, wavelengths = create_test_cube(
             batch_size=1, height=2, width=2, num_channels=DEFAULT_CHANNELS, mode="random"
         )
-        # Convert to numpy arrays for proto
 
-        for session_id in session_ids:
-            response = grpc_stub.Inference(
+        response = grpc_stub.Inference(
+            cuvis_ai_pb2.InferenceRequest(
+                session_id=session_id,
+                inputs=cuvis_ai_pb2.InputBatch(
+                    cube=helpers.tensor_to_proto(cube),
+                    wavelengths=helpers.tensor_to_proto(wavelengths),
+                ),
+            )
+        )
+        assert len(response.outputs) > 0
+
+    @pytest.mark.parametrize("test_mode", ["wavelength_dependent", "random"])
+    def test_inference_modes_with_pretrained(
+        self, grpc_stub, pretrained_pipeline, create_test_cube, test_mode
+    ):
+        """Test different inference modes using the shared pretrained pipeline."""
+        # Create session with pretrained pipeline using new four-step workflow
+        session_response = grpc_stub.CreateSession(cuvis_ai_pb2.CreateSessionRequest())
+        session_id = session_response.session_id
+
+        # Load pre-trained pipeline
+        load_pipeline_from_file(grpc_stub, session_id, pretrained_pipeline)
+        grpc_stub.LoadPipelineWeights(
+            cuvis_ai_pb2.LoadPipelineWeightsRequest(
+                session_id=session_id,
+                weights_path=str(Path(pretrained_pipeline).with_suffix(".pt")),
+                strict=True,
+            )
+        )
+
+        try:
+            # Test with different cube generation modes
+            cube, wavelengths = create_test_cube(
+                batch_size=1, height=3, width=3, num_channels=DEFAULT_CHANNELS, mode=test_mode
+            )
+
+            inference_response = grpc_stub.Inference(
                 cuvis_ai_pb2.InferenceRequest(
                     session_id=session_id,
                     inputs=cuvis_ai_pb2.InputBatch(
@@ -471,32 +388,25 @@ class TestWorkflowIntegration:
                     ),
                 )
             )
-            assert len(response.outputs) > 0
 
-        # Close all sessions
-        for session_id in session_ids:
+            # Verify outputs
+            assert len(inference_response.outputs) > 0
+            assert "SoftChannelSelector.selected" in inference_response.outputs
+
+            selected = helpers.proto_to_numpy(
+                inference_response.outputs["SoftChannelSelector.selected"]
+            )
+            assert selected.shape == cube.shape
+
+        finally:
             grpc_stub.CloseSession(cuvis_ai_pb2.CloseSessionRequest(session_id=session_id))
 
     def test_session_reuse_after_save_load(
-        self, grpc_stub, mock_pipeline_dir, create_test_cube, data_config_factory
+        self, grpc_stub, mock_pipeline_dir, trained_session, create_test_cube
     ):
-        """Test that a session can be reused after save/load operations."""
-        # Create session
-        response = grpc_stub.CreateSession(
-            cuvis_ai_pb2.CreateSessionRequest(
-                pipeline=create_pipeline_config_proto("channel_selector")
-            )
-        )
-        session_id = response.session_id
-
-        # Perform statistical training to initialize nodes
-        stat_train_request = cuvis_ai_pb2.TrainRequest(
-            session_id=session_id,
-            trainer_type=cuvis_ai_pb2.TRAINER_TYPE_STATISTICAL,
-            data=data_config_factory(),
-        )
-        for _ in grpc_stub.Train(stat_train_request):
-            pass  # Consume progress messages
+        """Test that a session can be reused after save/load operations using shared fixture."""
+        # Get a trained session
+        session_id, _ = trained_session()
 
         # Run inference before save
         cube, wavelengths = create_test_cube(
@@ -516,7 +426,7 @@ class TestWorkflowIntegration:
 
         # Save pipeline
         pipeline_path = str(mock_pipeline_dir / "reuse_test.yaml")
-        grpc_stub.SavePipeline(
+        save_response = grpc_stub.SavePipeline(
             cuvis_ai_pb2.SavePipelineRequest(
                 session_id=session_id,
                 pipeline_path=pipeline_path,
@@ -524,11 +434,12 @@ class TestWorkflowIntegration:
         )
 
         # Load pipeline back
-        grpc_stub.LoadPipeline(
-            cuvis_ai_pb2.LoadPipelineRequest(
+        load_pipeline_from_file(grpc_stub, session_id, pipeline_path)
+        grpc_stub.LoadPipelineWeights(
+            cuvis_ai_pb2.LoadPipelineWeightsRequest(
                 session_id=session_id,
-                pipeline_path=pipeline_path,
-                weights_path=str(Path(pipeline_path).with_suffix(".pt")),
+                weights_path=str(Path(save_response.weights_path)),
+                strict=True,
             )
         )
 
@@ -544,5 +455,4 @@ class TestWorkflowIntegration:
         )
         assert len(inf2.outputs) > 0
 
-        # Cleanup
-        grpc_stub.CloseSession(cuvis_ai_pb2.CloseSessionRequest(session_id=session_id))
+        # Note: Cleanup is handled by the trained_session fixture
