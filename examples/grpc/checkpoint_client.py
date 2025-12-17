@@ -1,72 +1,78 @@
-"""Example client demonstrating pipeline save/load over gRPC.
+"""Demonstrate SavePipeline/LoadPipeline with the Phase 5 workflow."""
 
-Note: SaveCheckpoint/LoadCheckpoint RPCs were removed in Phase 5.
-Use SavePipeline/LoadPipeline or SaveExperiment/RestoreExperiment instead.
-"""
+from __future__ import annotations
 
-import grpc
+import json
+from pathlib import Path
 
-from cuvis_ai.grpc import cuvis_ai_pb2, cuvis_ai_pb2_grpc
-from cuvis_ai.training.config import OptimizerConfig, TrainerConfig, TrainingConfig
+import yaml
+from workflow_utils import (
+    build_stub,
+    config_search_paths,
+    create_session_with_search_paths,
+    format_progress,
+)
+
+from cuvis_ai.grpc import cuvis_ai_pb2
 
 
 def main() -> None:
-    channel = grpc.insecure_channel("localhost:50051")
-    stub = cuvis_ai_pb2_grpc.CuvisAIServiceStub(channel)
+    stub = build_stub()
+    search_paths = config_search_paths()
 
-    print("Creating and training session...")
-    session_resp = stub.CreateSession(
-        cuvis_ai_pb2.CreateSessionRequest(
-            pipeline=cuvis_ai_pb2.PipelineConfig(config_bytes=b"channel_selector")
+    # Train a pipeline (quick pass) using resolved trainrun
+    session_id = create_session_with_search_paths(stub, search_paths)
+
+    # Direct gRPC call to resolve trainrun config (alternative: workflow_utils.resolve_trainrun_config)
+    config_path = (
+        "channel_selector"
+        if "channel_selector".startswith("trainrun/")
+        else "trainrun/channel_selector"
+    )
+    resolve_response = stub.ResolveConfig(
+        cuvis_ai_pb2.ResolveConfigRequest(
+            session_id=session_id,
+            config_type="trainrun",
+            path=config_path,
+            overrides=["training.trainer.max_epochs=1"],
         )
     )
-    session_id = session_resp.session_id
 
-    data_cfg = cuvis_ai_pb2.DataConfig(
-        cu3s_file_path="data/Lentils/Lentils_000.cu3s",
-        annotation_json_path="data/Lentils/Lentils_000.json",
-        train_ids=[0, 1, 2],
-        val_ids=[3, 4],
-        batch_size=2,
-        processing_mode=cuvis_ai_pb2.PROCESSING_MODE_REFLECTANCE,
+    # Direct gRPC call to apply trainrun config (alternative: workflow_utils.apply_trainrun_config)
+    stub.SetTrainRunConfig(
+        cuvis_ai_pb2.SetTrainRunConfigRequest(
+            session_id=session_id,
+            config=cuvis_ai_pb2.TrainRunConfig(config_bytes=resolve_response.config_bytes),
+        )
     )
 
-    train_cfg = TrainingConfig(
-        trainer=TrainerConfig(max_epochs=2, accelerator="cuda"),
-        optimizer=OptimizerConfig(name="adam", lr=0.001),
-    )
+    # Run statistical initialization first (required for RXGlobal)
+    for progress in stub.Train(
+        cuvis_ai_pb2.TrainRequest(
+            session_id=session_id,
+            trainer_type=cuvis_ai_pb2.TRAINER_TYPE_STATISTICAL,
+        )
+    ):
+        print(f"[statistical init] {format_progress(progress)}")
 
-    print("Training...")
+    # Now run gradient training
     for progress in stub.Train(
         cuvis_ai_pb2.TrainRequest(
             session_id=session_id,
             trainer_type=cuvis_ai_pb2.TRAINER_TYPE_GRADIENT,
-            data=data_cfg,
-            training=cuvis_ai_pb2.TrainingConfig(config_bytes=train_cfg.to_json().encode()),
         )
     ):
-        stage_name = cuvis_ai_pb2.ExecutionStage.Name(progress.context.stage)
-        status_name = cuvis_ai_pb2.TrainStatus.Name(progress.status)
-        loss_str = f"losses={dict(progress.losses)}" if progress.losses else ""
-        metric_str = f"metrics={dict(progress.metrics)}" if progress.metrics else ""
+        print(format_progress(progress))
 
-        print(
-            f"[{stage_name}] epoch={progress.context.epoch} {status_name} {loss_str} {metric_str}"
-        )
-
-        if progress.status == cuvis_ai_pb2.TRAIN_STATUS_COMPLETE:
-            print("Training complete.")
-
-    pipeline_path = "models/trained_pipeline.yaml"
-    print(f"Saving pipeline to {pipeline_path}...")
+    # Save the trained pipeline
+    pipeline_path = str(Path("outputs/checkpoint_pipeline.yaml").resolve())
     save_resp = stub.SavePipeline(
         cuvis_ai_pb2.SavePipelineRequest(
             session_id=session_id,
             pipeline_path=pipeline_path,
             metadata=cuvis_ai_pb2.PipelineMetadata(
-                name="Trained Pipeline",
-                description="Pipeline with trained weights",
-                created="2024-12-08",
+                name="Checkpoint Demo",
+                description="Example trained pipeline saved via gRPC",
             ),
         )
     )
@@ -75,16 +81,27 @@ def main() -> None:
 
     stub.CloseSession(cuvis_ai_pb2.CloseSessionRequest(session_id=session_id))
 
-    print("\nCreating new session from saved pipeline...")
-    new_session = stub.CreateSession(
-        cuvis_ai_pb2.CreateSessionRequest(
-            pipeline=cuvis_ai_pb2.PipelineConfig(config_bytes=pipeline_path.encode("utf-8"))
+    # Load pipeline into a fresh session
+    new_session = create_session_with_search_paths(stub, search_paths)
+    pipeline_bytes = json.dumps(yaml.safe_load(Path(save_resp.pipeline_path).read_text())).encode(
+        "utf-8"
+    )
+    stub.LoadPipeline(
+        cuvis_ai_pb2.LoadPipelineRequest(
+            session_id=new_session,
+            pipeline=cuvis_ai_pb2.PipelineConfig(config_bytes=pipeline_bytes),
         )
     )
-    print(f"New session created: {new_session.session_id}")
-    print("Pipeline and weights automatically loaded!")
+    stub.LoadPipelineWeights(
+        cuvis_ai_pb2.LoadPipelineWeightsRequest(
+            session_id=new_session,
+            weights_path=save_resp.weights_path,
+            strict=True,
+        )
+    )
+    print(f"Reloaded pipeline into session {new_session}")
 
-    stub.CloseSession(cuvis_ai_pb2.CloseSessionRequest(session_id=new_session.session_id))
+    stub.CloseSession(cuvis_ai_pb2.CloseSessionRequest(session_id=new_session))
 
 
 if __name__ == "__main__":

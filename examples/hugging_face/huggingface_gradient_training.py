@@ -418,7 +418,6 @@ def main() -> None:
     # Data node
     data_node = LentilsAnomalyDataNode(
         normal_class_ids=[0, 1],
-        wavelengths=wavelengths,
         name="data",
     )
 

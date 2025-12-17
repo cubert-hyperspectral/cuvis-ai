@@ -1,22 +1,25 @@
 # @package _global_
 
+name: deep_svdd
 
 defaults:
-  - /pipeline@pipeline: channel_selector
+  - /pipeline@pipeline: deep_svdd
   - /data@data: lentils
   - /training@training: default
   - _self_
 
-
-name: channel_selector
+data:
+  train_ids: [0]
+  val_ids: [3, 4, 6]
+  test_ids: [1, 5]
 
 training:
   seed: 42
   trainer:
-    max_epochs: 10
+    max_epochs: 20
     accelerator: auto
     devices: 1
-    default_root_dir: ./outputs/channel_selector
+    default_root_dir: ./outputs/deepsvdd
     precision: 32-true
     accumulate_grad_batches: 1
     enable_progress_bar: true
@@ -29,16 +32,16 @@ training:
     benchmark: false
     callbacks:
       early_stopping:
-      - monitor: val/bce
-        patience: 10
-        mode: min
-        min_delta: 1.0e-06
-        stopping_threshold: null
-        verbose: true
+        - monitor: train/deepsvdd_loss
+          patience: 15
+          mode: min
+          min_delta: 1.0e-07
+          stopping_threshold: null
+          verbose: true
       model_checkpoint:
-        dirpath: outputs\channel_selector\checkpoints
+        dirpath: outputs\deepsvdd\checkpoints
         monitor: metrics_anomaly/iou
-        filename: '{epoch:02d}'
+        filename: "{epoch:02d}"
         mode: max
         save_top_k: 3
         save_last: true
@@ -51,28 +54,24 @@ training:
     name: adamw
     lr: 0.001
     weight_decay: 0.01
-    betas:
-    - 0.9
-    - 0.999
-    scheduler:
-      name: reduce_on_plateau
-      monitor: metrics_anomaly/iou
-      mode: max
-      factor: 0.5
-      patience: 5
-      threshold: 0.0001
-      threshold_mode: rel
-      cooldown: 0
-      min_lr: 1.0e-06
-      eps: 1.0e-08
-      verbose: false
-output_dir: outputs\channel_selector
+    betas: [0.9, 0.999]
+  scheduler:
+    name: reduce_on_plateau
+    monitor: metrics_anomaly/iou
+    mode: max
+    factor: 0.5
+    patience: 5
+    threshold: 0.0001
+    threshold_mode: rel
+    cooldown: 0
+    min_lr: 1.0e-06
+    eps: 1.0e-08
+    verbose: false
+output_dir: outputs\deepsvdd
 unfreeze_nodes:
-- SoftChannelSelector
-- RXGlobal
-- RXLogitHead
+  - ZScoreNormalizerGlobal
 freeze_nodes: []
 metric_nodes:
-- metrics_anomaly
+  - metrics_anomaly
 loss_nodes:
-- bce
+  - deepsvdd_loss

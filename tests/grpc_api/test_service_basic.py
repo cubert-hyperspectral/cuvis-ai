@@ -1,63 +1,64 @@
+from pathlib import Path
+
 import grpc
 import numpy as np
 import pytest
 
 from cuvis_ai.grpc import cuvis_ai_pb2, helpers
-from tests.fixtures import create_pipeline_config_proto
+from tests.fixtures.grpc import resolve_and_load_pipeline
 
 DEFAULT_CHANNELS = 61
 
 
-def _data_config() -> cuvis_ai_pb2.DataConfig:
-    return cuvis_ai_pb2.DataConfig(
-        cu3s_file_path="/tmp/data.cu3s",
-        batch_size=1,
-        processing_mode=cuvis_ai_pb2.PROCESSING_MODE_REFLECTANCE,
-    )
-
-
-def _create_session(stub, *, pipeline_path: str = "channel_selector") -> str:
-    """Create a session using the new PipelineConfig pattern."""
-    request = cuvis_ai_pb2.CreateSessionRequest(
-        pipeline=create_pipeline_config_proto(pipeline_path)
-    )
-    response = stub.CreateSession(request)
-    assert response.session_id  # Sanity (fails early if session not created)
-    return response.session_id
-
-
 class TestCreateAndClose:
     def test_create_session_returns_id(self, grpc_stub):
-        """Test creating a session with new PipelineConfig pattern."""
-        response = grpc_stub.CreateSession(
-            cuvis_ai_pb2.CreateSessionRequest(
-                pipeline=create_pipeline_config_proto("channel_selector")
-            )
-        )
-        assert response.session_id
+        """Test creating a session with new four-step workflow."""
+        # Step 1: Create empty session
+        response = grpc_stub.CreateSession(cuvis_ai_pb2.CreateSessionRequest())
+        session_id = response.session_id
+        assert session_id
+
+        # Step 2: Load pipeline using new API
+        resolve_and_load_pipeline(grpc_stub, session_id)
 
     def test_create_session_with_weights(self, grpc_stub):
-        """Test creating a session with pre-trained weights."""
-        # Weights are automatically loaded if they exist alongside the YAML
-        response = grpc_stub.CreateSession(
-            cuvis_ai_pb2.CreateSessionRequest(
-                pipeline=create_pipeline_config_proto("channel_selector")
+        """Test creating a session with pre-trained weights using four-step workflow."""
+        # Step 1: Create empty session
+        response = grpc_stub.CreateSession(cuvis_ai_pb2.CreateSessionRequest())
+        session_id = response.session_id
+        assert session_id
+
+        # Step 2: Load pipeline, then weights explicitly
+        resolve_and_load_pipeline(grpc_stub, session_id)
+        grpc_stub.LoadPipelineWeights(
+            cuvis_ai_pb2.LoadPipelineWeightsRequest(
+                session_id=session_id,
+                weights_path=str(Path("configs/pipeline/channel_selector.pt").resolve()),
+                strict=True,
             )
         )
-        assert response.session_id
 
     def test_create_session_invalid_pipeline(self, grpc_stub):
-        """Test error handling for non-existent pipeline."""
+        """Test error handling for non-existent pipeline in four-step workflow."""
+        # Step 1: Create empty session
+        response = grpc_stub.CreateSession(cuvis_ai_pb2.CreateSessionRequest())
+        session_id = response.session_id
+        assert session_id
+
+        # Step 2: Try to load invalid pipeline
         with pytest.raises(grpc.RpcError) as exc:
-            grpc_stub.CreateSession(
-                cuvis_ai_pb2.CreateSessionRequest(
-                    pipeline=create_pipeline_config_proto("non_existent_pipeline")
+            grpc_stub.ResolveConfig(
+                cuvis_ai_pb2.ResolveConfigRequest(
+                    session_id=session_id,
+                    config_type="pipeline",
+                    path="configs/pipeline/non_existent_pipeline.yaml",
                 )
             )
         assert exc.value.code() == grpc.StatusCode.NOT_FOUND
 
-    def test_close_session_success(self, grpc_stub):
-        session_id = _create_session(grpc_stub)
+    def test_close_session_success(self, grpc_stub, session):
+        """Test closing a session successfully using session fixture."""
+        session_id = session(pipeline_type="channel_selector")
         result = grpc_stub.CloseSession(cuvis_ai_pb2.CloseSessionRequest(session_id=session_id))
         assert result.success
 
@@ -147,8 +148,9 @@ class TestInference:
             )
         assert exc.value.code() == grpc.StatusCode.NOT_FOUND
 
-    def test_inference_missing_cube(self, grpc_stub):
-        session_id = _create_session(grpc_stub)
+    def test_inference_missing_cube(self, grpc_stub, session):
+        """Test inference with missing cube using session fixture."""
+        session_id = session(pipeline_type="channel_selector")
         with pytest.raises(grpc.RpcError) as exc:
             grpc_stub.Inference(
                 cuvis_ai_pb2.InferenceRequest(

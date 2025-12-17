@@ -16,6 +16,7 @@ dependencies = [
     "cuvis",
     "dataclass-wizard",
     "gdown",
+    "pydantic>=2.0.0,<3.0.0",
     "imantics",
     "ftfy>=6.1.1",
     "markupsafe!=3.0.2",

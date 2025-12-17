@@ -1,77 +1,125 @@
-"""Resume Training Client Example - Workflow 3: Resuming training from a saved experiment."""
+"""Resume training by saving then restoring a composed trainrun.
 
-import grpc
+This example demonstrates two approaches for resuming training:
 
-from cuvis_ai.grpc import cuvis_ai_pb2, cuvis_ai_pb2_grpc
+1. Basic approach: Save/Restore trainrun config only (requires statistical initialization)
+2. Enhanced approach: Save/Restore trainrun with pipeline weights (no statistical init needed)
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from workflow_utils import (
+    apply_trainrun_config,
+    build_stub,
+    config_search_paths,
+    create_session_with_search_paths,
+    format_progress,
+    resolve_trainrun_config,
+)
+
+from cuvis_ai.grpc import cuvis_ai_pb2
 
 
 def main() -> None:
-    channel = grpc.insecure_channel("localhost:50051")
-    stub = cuvis_ai_pb2_grpc.CuvisAIServiceStub(channel)
+    stub = build_stub()
 
-    # Restore experiment with all configs (pipeline + data + training + loss/metric nodes)
-    restore_response = stub.RestoreExperiment(
-        cuvis_ai_pb2.RestoreExperimentRequest(
-            experiment_path="configs/experiment/deep_svdd.yaml",
+    # Stage 1: Resolve + save a trainrun snapshot
+    session_id = create_session_with_search_paths(stub, config_search_paths())
+    resolved, _ = resolve_trainrun_config(
+        stub,
+        session_id,
+        "deep_svdd",
+        overrides=["training.trainer.max_epochs=1"],
+    )
+    apply_trainrun_config(stub, session_id, resolved.config_bytes)
+
+    snapshot_path = str(Path("outputs/deep_svdd_snapshot.yaml").resolve())
+
+    # Simplified SaveTrainRun: Only saves trainrun config, optionally saves weights
+    save_response = stub.SaveTrainRun(
+        cuvis_ai_pb2.SaveTrainRunRequest(
+            session_id=session_id,
+            trainrun_path=snapshot_path,
+            save_weights=True,  # Explicitly request to save weights
+        )
+    )
+    print(f"Saved trainrun snapshot to {save_response.trainrun_path}")
+
+    if save_response.weights_path:
+        print(f"Saved weights to {save_response.weights_path}")
+    else:
+        print("No weights saved (save_weights was False or no pipeline)")
+
+    stub.CloseSession(cuvis_ai_pb2.CloseSessionRequest(session_id=session_id))
+
+    # Stage 2: Restore and resume training using enhanced approach
+    # Enhanced RestoreTrainRun: Now can load weights automatically
+    print("\n=== Enhanced Approach: Restoring with weights ===")
+
+    # Use the weights that were saved with the trainrun
+    if not save_response.weights_path:
+        expected_weights_path = str(Path(snapshot_path).with_suffix(".pt"))
+        raise RuntimeError(
+            f"No weights were saved with the trainrun. Expected weights at {expected_weights_path}"
+        )
+
+    weights_path = save_response.weights_path
+    print(f"Restoring trainrun with weights from {weights_path}")
+
+    restored = stub.RestoreTrainRun(
+        cuvis_ai_pb2.RestoreTrainRunRequest(
+            trainrun_path=snapshot_path, weights_path=weights_path, strict=True
+        )
+    )
+    session_id = restored.session_id
+    print(f"Restored session: {session_id} from {snapshot_path} with weights")
+
+    # With weights loaded, statistical nodes are already initialized
+    # No need for statistical initialization step!
+
+    # Optional: adjust search paths (keeps configs root first)
+    stub.SetSessionSearchPaths(
+        cuvis_ai_pb2.SetSessionSearchPathsRequest(
+            session_id=session_id,
+            search_paths=config_search_paths(),
+            append=False,
         )
     )
 
-    session_id = restore_response.session_id
-    experiment = restore_response.experiment
+    # Directly start gradient training - no statistical init needed!
+    print("Starting gradient training (statistical nodes already initialized from weights)...")
+    for progress in stub.Train(
+        cuvis_ai_pb2.TrainRequest(
+            session_id=session_id,
+            trainer_type=cuvis_ai_pb2.TRAINER_TYPE_GRADIENT,
+        )
+    ):
+        print(format_progress(progress))
 
-    print(f"Experiment restored: {experiment.name}")
-    print(f"Session: {session_id}")
-    print("Pipeline config loaded from experiment")
+    # Save updated pipeline + trainrun
+    pipeline_path = str(Path("outputs/resumed_pipeline.yaml").resolve())
+    trainrun_path = str(Path("outputs/resumed_trainrun.yaml").resolve())
 
-    print(f"Data: {experiment.data.cu3s_file_path}")
-    print(f"Batch size: {experiment.data.batch_size}")
-
-    try:
-        epoch_count = 0
-        # Resume training with configs already loaded from experiment
-        # Note: If you need to modify training params (lr, epochs, etc.),
-        # you should create a new experiment YAML file with the desired changes
-        for progress in stub.Train(
-            cuvis_ai_pb2.TrainRequest(
-                session_id=session_id,
-                trainer_type=cuvis_ai_pb2.TRAINER_TYPE_GRADIENT,
-            )
-        ):
-            epoch = progress.context.epoch
-            losses = ", ".join([f"{k}={v:.4f}" for k, v in progress.losses.items()])
-
-            if epoch != epoch_count:
-                print(f"Epoch {epoch}: {losses}")
-                epoch_count = epoch
-
-        print("Training complete")
-    except grpc.RpcError as e:
-        print(f"Training failed: {e.details()}")
-        return
-
-    save_pipeline_response = stub.SavePipeline(
+    stub.SavePipeline(
         cuvis_ai_pb2.SavePipelineRequest(
             session_id=session_id,
-            pipeline_path="configs/pipeline/resumed_model.yaml",
+            pipeline_path=pipeline_path,
             metadata=cuvis_ai_pb2.PipelineMetadata(
                 name="Resumed Training Model",
-                description="Continued training from deep_svdd experiment",
-                created="2024-11-27",
+                description="Continued training from snapshot",
             ),
         )
     )
-    print(f"Pipeline saved: {save_pipeline_response.pipeline_path}")
-    print(f"Weights saved: {save_pipeline_response.weights_path}")
-
-    save_exp_response = stub.SaveExperiment(
-        cuvis_ai_pb2.SaveExperimentRequest(
-            session_id=session_id,
-            experiment_path="experiments/resumed_training.yaml",
-        )
+    stub.SaveTrainRun(
+        cuvis_ai_pb2.SaveTrainRunRequest(session_id=session_id, trainrun_path=trainrun_path)
     )
-    print(f"Experiment saved: {save_exp_response.experiment_path}")
+    print(f"Pipeline saved to {pipeline_path}")
+    print(f"Trainrun saved to {trainrun_path}")
 
     stub.CloseSession(cuvis_ai_pb2.CloseSessionRequest(session_id=session_id))
+    print("Session closed.")
 
 
 if __name__ == "__main__":

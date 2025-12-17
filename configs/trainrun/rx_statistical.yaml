@@ -33,7 +33,6 @@ training:
     lr: 0.001
     weight_decay: 0.0
     betas: null
-    scheduler: null
 output_dir: outputs\rx_statistical
 unfreeze_nodes: []
 freeze_nodes: []

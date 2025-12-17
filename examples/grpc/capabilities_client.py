@@ -1,14 +1,17 @@
-"""Example client for training capability discovery and validation."""
+"""Discover and validate training capabilities using ConfigService."""
 
-import grpc
+from __future__ import annotations
 
-from cuvis_ai.grpc import cuvis_ai_pb2, cuvis_ai_pb2_grpc
-from cuvis_ai.training.config import OptimizerConfig, TrainerConfig, TrainingConfig
+import json
+
+from workflow_utils import build_stub, config_search_paths, create_session_with_search_paths
+
+from cuvis_ai.grpc import cuvis_ai_pb2
 
 
 def main() -> None:
-    channel = grpc.insecure_channel("localhost:50051")
-    stub = cuvis_ai_pb2_grpc.CuvisAIServiceStub(channel)
+    stub = build_stub()
+    session_id = create_session_with_search_paths(stub, config_search_paths())
 
     print("Fetching training capabilities...")
     caps = stub.GetTrainingCapabilities(cuvis_ai_pb2.GetTrainingCapabilitiesRequest())
@@ -24,24 +27,29 @@ def main() -> None:
             validation = f" [{param.validation}]" if param.validation else ""
             print(f"    {param.name} ({param.type}, {requirement}){default}{validation}")
 
-    good_cfg = TrainingConfig(
-        trainer=TrainerConfig(max_epochs=10, accelerator="cude"),
-        optimizer=OptimizerConfig(name="adam", lr=0.001),
-    )
-    good_resp = stub.ValidateTrainingConfig(
-        cuvis_ai_pb2.ValidateTrainingConfigRequest(
-            config=cuvis_ai_pb2.TrainingConfig(config_bytes=good_cfg.to_json().encode())
+    # Resolve a baseline training config via Hydra
+    base_training = stub.ResolveConfig(
+        cuvis_ai_pb2.ResolveConfigRequest(
+            session_id=session_id,
+            config_type="training",
+            path="training/default",
         )
     )
-    print(f"\nValidating good config: valid={good_resp.valid}, errors={list(good_resp.errors)}")
+    base_dict = json.loads(base_training.config_bytes.decode("utf-8"))
 
-    bad_cfg = TrainingConfig(
-        trainer=TrainerConfig(max_epochs=10),
-        optimizer=OptimizerConfig(name="invalid_opt", lr=-0.001),
+    good_resp = stub.ValidateConfig(
+        cuvis_ai_pb2.ValidateConfigRequest(
+            config_type="training", config_bytes=json.dumps(base_dict).encode("utf-8")
+        )
     )
-    bad_resp = stub.ValidateTrainingConfig(
-        cuvis_ai_pb2.ValidateTrainingConfigRequest(
-            config=cuvis_ai_pb2.TrainingConfig(config_bytes=bad_cfg.to_json().encode())
+    print(f"\nValidating baseline config: valid={good_resp.valid}, errors={list(good_resp.errors)}")
+
+    # Create an invalid variant for demonstration
+    bad_dict = dict(base_dict)
+    bad_dict["optimizer"] = {"name": "invalid_opt", "lr": -0.001}
+    bad_resp = stub.ValidateConfig(
+        cuvis_ai_pb2.ValidateConfigRequest(
+            config_type="training", config_bytes=json.dumps(bad_dict).encode("utf-8")
         )
     )
     print(f"\nValidating bad config: valid={bad_resp.valid}")
@@ -51,6 +59,8 @@ def main() -> None:
         print("Warnings:")
         for warn in bad_resp.warnings:
             print(f"  - {warn}")
+
+    stub.CloseSession(cuvis_ai_pb2.CloseSessionRequest(session_id=session_id))
 
 
 if __name__ == "__main__":

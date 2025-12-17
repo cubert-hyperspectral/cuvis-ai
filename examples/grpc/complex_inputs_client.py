@@ -1,33 +1,53 @@
 """Example client showing bounding boxes, points, and text prompts."""
 
-import grpc
-import numpy as np
+from __future__ import annotations
 
-from cuvis_ai.grpc import cuvis_ai_pb2, cuvis_ai_pb2_grpc
+import numpy as np
+from workflow_utils import (
+    CONFIG_ROOT,
+    build_stub,
+    config_search_paths,
+    create_session_with_search_paths,
+)
+
+from cuvis_ai.grpc import cuvis_ai_pb2, helpers
 
 
 def main() -> None:
-    channel = grpc.insecure_channel("localhost:50051")
-    stub = cuvis_ai_pb2_grpc.CuvisAIServiceStub(channel)
+    stub = build_stub()
+    session_id = create_session_with_search_paths(stub, config_search_paths())
 
-    session = stub.CreateSession(
-        cuvis_ai_pb2.CreateSessionRequest(
-            pipeline=cuvis_ai_pb2.PipelineConfig(config_bytes=b"channel_selector")
+    # Build pipeline + load weights via resolved config
+    pipeline_config = stub.ResolveConfig(
+        cuvis_ai_pb2.ResolveConfigRequest(
+            session_id=session_id,
+            config_type="pipeline",
+            path="pipeline/channel_selector",
         )
     )
-    session_id = session.session_id
+    stub.LoadPipeline(
+        cuvis_ai_pb2.LoadPipelineRequest(
+            session_id=session_id,
+            pipeline=cuvis_ai_pb2.PipelineConfig(config_bytes=pipeline_config.config_bytes),
+        )
+    )
+    stub.LoadPipelineWeights(
+        cuvis_ai_pb2.LoadPipelineWeightsRequest(
+            session_id=session_id,
+            weights_path=str((CONFIG_ROOT / "pipeline" / "channel_selector.pt").resolve()),
+        )
+    )
+
     cube = np.random.rand(1, 32, 32, 61).astype(np.uint16)
+    wavelengths = np.linspace(430, 910, 61).reshape(1, -1).astype(np.int32)
 
     print("1) Inference with bounding boxes")
     bbox_resp = stub.Inference(
         cuvis_ai_pb2.InferenceRequest(
             session_id=session_id,
             inputs=cuvis_ai_pb2.InputBatch(
-                cube=cuvis_ai_pb2.Tensor(
-                    shape=list(cube.shape),
-                    dtype=cuvis_ai_pb2.D_TYPE_UINT16,
-                    raw_data=cube.tobytes(),
-                ),
+                cube=helpers.numpy_to_proto(cube),
+                wavelengths=helpers.numpy_to_proto(wavelengths),
                 bboxes=cuvis_ai_pb2.BoundingBoxes(
                     boxes=[
                         cuvis_ai_pb2.BoundingBox(
@@ -49,11 +69,8 @@ def main() -> None:
         cuvis_ai_pb2.InferenceRequest(
             session_id=session_id,
             inputs=cuvis_ai_pb2.InputBatch(
-                cube=cuvis_ai_pb2.Tensor(
-                    shape=list(cube.shape),
-                    dtype=cuvis_ai_pb2.D_TYPE_UINT16,
-                    raw_data=cube.tobytes(),
-                ),
+                cube=helpers.numpy_to_proto(cube),
+                wavelengths=helpers.numpy_to_proto(wavelengths),
                 points=cuvis_ai_pb2.Points(
                     points=[
                         cuvis_ai_pb2.Point(
@@ -80,11 +97,8 @@ def main() -> None:
         cuvis_ai_pb2.InferenceRequest(
             session_id=session_id,
             inputs=cuvis_ai_pb2.InputBatch(
-                cube=cuvis_ai_pb2.Tensor(
-                    shape=list(cube.shape),
-                    dtype=cuvis_ai_pb2.D_TYPE_UINT16,
-                    raw_data=cube.tobytes(),
-                ),
+                cube=helpers.numpy_to_proto(cube),
+                wavelengths=helpers.numpy_to_proto(wavelengths),
                 text_prompt="Find anomalies",
             ),
         )
@@ -96,11 +110,8 @@ def main() -> None:
         cuvis_ai_pb2.InferenceRequest(
             session_id=session_id,
             inputs=cuvis_ai_pb2.InputBatch(
-                cube=cuvis_ai_pb2.Tensor(
-                    shape=list(cube.shape),
-                    dtype=cuvis_ai_pb2.D_TYPE_UINT16,
-                    raw_data=cube.tobytes(),
-                ),
+                cube=helpers.numpy_to_proto(cube),
+                wavelengths=helpers.numpy_to_proto(wavelengths),
                 bboxes=cuvis_ai_pb2.BoundingBoxes(
                     boxes=[
                         cuvis_ai_pb2.BoundingBox(

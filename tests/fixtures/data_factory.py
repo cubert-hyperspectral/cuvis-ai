@@ -1,5 +1,7 @@
 """Test data factory fixtures for creating hyperspectral cubes."""
 
+import functools
+from collections.abc import Generator
 from pathlib import Path
 from typing import Literal
 
@@ -9,8 +11,119 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 
 from cuvis_ai.grpc.v1 import cuvis_ai_pb2
-from cuvis_ai.training.config import OptimizerConfig, TrainerConfig, TrainingConfig
+from cuvis_ai.training.config import DataConfig, OptimizerConfig, TrainerConfig, TrainingConfig
 from cuvis_ai.training.datamodule import CuvisDataModule
+
+# Session-scoped cache for test data files to avoid repeated file system operations
+_test_data_cache = {}
+
+
+@pytest.fixture(scope="session")
+def test_data_files_cached(test_data_path: Path) -> Generator[tuple[Path, Path], None, None]:
+    """Session-scoped cached version of test data files.
+
+    Caches the test data file paths to avoid repeated file existence checks
+    and path resolution across multiple tests.
+
+    Args:
+        test_data_path: Base path for test data
+
+    Yields:
+        tuple[Path, Path]: (cu3s_file, json_file) paths
+
+    Raises:
+        pytest.skip: If test data files not found
+    """
+    cache_key = str(test_data_path)
+    if cache_key not in _test_data_cache:
+        cu3s_file = test_data_path / "Lentils" / "Lentils_000.cu3s"
+        json_file = test_data_path / "Lentils" / "Lentils_000.json"
+
+        if not cu3s_file.exists() or not json_file.exists():
+            pytest.skip(f"Test data not found under {test_data_path}")
+
+        _test_data_cache[cache_key] = (cu3s_file, json_file)
+
+    yield _test_data_cache[cache_key]
+
+
+# Memoize data config creation to avoid redundant proto serialization
+@functools.lru_cache(maxsize=32)
+def _create_cached_data_config(
+    cu3s_file_path: str,
+    json_file_path: str,
+    batch_size: int,
+    processing_mode: str,
+    train_ids: tuple[int, ...],
+    val_ids: tuple[int, ...],
+    test_ids: tuple[int, ...],
+) -> cuvis_ai_pb2.DataConfig:
+    """Cached version of DataConfig creation."""
+    return DataConfig(
+        cu3s_file_path=cu3s_file_path,
+        annotation_json_path=json_file_path,
+        train_ids=list(train_ids),
+        val_ids=list(val_ids),
+        test_ids=list(test_ids),
+        batch_size=batch_size,
+        processing_mode=processing_mode,
+    ).to_proto()
+
+
+@pytest.fixture
+def data_config_factory(test_data_files_cached: tuple[Path, Path]):
+    """Factory for creating DataConfig proto objects using cached files.
+
+    Provides convenient creation of DataConfig with sensible defaults
+    for test data files, using cached file paths and memoized configuration.
+
+    Returns:
+        Callable: Function that builds and returns a DataConfig proto
+    """
+    cu3s_file, json_file = test_data_files_cached
+
+    def _create_config(
+        batch_size: int = 2,
+        processing_mode: cuvis_ai_pb2.ProcessingMode = cuvis_ai_pb2.PROCESSING_MODE_RAW,
+        train_ids: list[int] | None = None,
+        val_ids: list[int] | None = None,
+        test_ids: list[int] | None = None,
+        cu3s_override: Path | None = None,
+        json_override: Path | None = None,
+    ) -> cuvis_ai_pb2.DataConfig:
+        """Create DataConfig with defaults using cached files.
+
+        Args:
+            batch_size: Batch size (default: 2)
+            processing_mode: Processing mode (default: RAW)
+            train_ids: Training IDs (default: [0, 1, 2])
+            val_ids: Validation IDs (default: [3, 4])
+            test_ids: Test IDs (default: [5, 6])
+            cu3s_override: Override default cu3s file path
+            json_override: Override default json file path
+        """
+        cu3s_file_path = cu3s_override or cu3s_file
+        json_path = json_override or json_file
+
+        if not cu3s_file_path.exists() or not json_path.exists():
+            pytest.skip(f"Test data not found under {cu3s_file_path.parent}")
+
+        processing_mode_str = (
+            "Raw" if processing_mode == cuvis_ai_pb2.PROCESSING_MODE_RAW else "Reflectance"
+        )
+
+        # Use memoized function for caching
+        return _create_cached_data_config(
+            str(cu3s_file_path),
+            str(json_path),
+            batch_size,
+            processing_mode_str,
+            tuple(train_ids or [0, 1, 2]),
+            tuple(val_ids or [3, 4]),
+            tuple(test_ids or [5, 6]),
+        )
+
+    return _create_config
 
 
 @pytest.fixture
@@ -115,74 +228,7 @@ def create_test_cube():
     return _create
 
 
-@pytest.fixture
-def test_data_files(test_data_path: Path):
-    """Get test cu3s and json file paths with validation.
-
-    Returns:
-        tuple[Path, Path]: (cu3s_file, json_file) paths
-
-    Raises:
-        pytest.skip: If test data files not found
-    """
-    cu3s_file = test_data_path / "Lentils" / "Lentils_000.cu3s"
-    json_file = test_data_path / "Lentils" / "Lentils_000.json"
-    if not cu3s_file.exists() or not json_file.exists():
-        pytest.skip(f"Test data not found under {test_data_path}")
-    return cu3s_file, json_file
-
-
-@pytest.fixture
-def data_config_factory(test_data_files):
-    """Factory for creating DataConfig proto objects.
-
-    Provides convenient creation of DataConfig with sensible defaults
-    for test data files.
-
-    Returns:
-        Callable: Function that builds and returns a DataConfig proto
-    """
-    cu3s_file, json_file = test_data_files
-
-    def _create_config(
-        batch_size: int = 2,
-        processing_mode: cuvis_ai_pb2.ProcessingMode = cuvis_ai_pb2.PROCESSING_MODE_RAW,
-        train_ids: list[int] | None = None,
-        val_ids: list[int] | None = None,
-        test_ids: list[int] | None = None,
-        cu3s_override: Path | None = None,
-        json_override: Path | None = None,
-    ) -> cuvis_ai_pb2.DataConfig:
-        """Create DataConfig with defaults.
-
-        Args:
-            batch_size: Batch size (default: 2)
-            processing_mode: Processing mode (default: RAW)
-            train_ids: Training IDs (default: [0, 1, 2])
-            val_ids: Validation IDs (default: [3, 4])
-            test_ids: Test IDs (default: [5, 6])
-            cu3s_override: Override default cu3s file path
-            json_override: Override default json file path
-        """
-        cu3s_file_path = cu3s_override or cu3s_file
-        json_path = json_override or json_file
-
-        if not cu3s_file_path.exists() or not json_path.exists():
-            pytest.skip(f"Test data not found under {cu3s_file_path.parent}")
-
-        return cuvis_ai_pb2.DataConfig(
-            cu3s_file_path=str(cu3s_file_path),
-            annotation_json_path=str(json_path),
-            train_ids=train_ids or [0, 1, 2],
-            val_ids=val_ids or [3, 4],
-            test_ids=test_ids or [5, 6],
-            batch_size=batch_size,
-            processing_mode=processing_mode,
-        )
-
-    return _create_config
-
-
+# Rest of the file remains unchanged (SyntheticAnomalyDataModule, etc.)
 class _SyntheticDictDataset(Dataset):
     """Dataset that returns batch dicts with cube, mask, and wavelengths.
 
@@ -334,8 +380,7 @@ def create_batch_with_wavelengths():
 
     Wavelengths must be 2D [Batch, Channels] for LentilsAnomalyDataNode.
     When using DataLoader, the loader automatically stacks 1D wavelengths from
-    individual samples into 2D batches. But for manual batch creation in tests,
-    we need to create 2D wavelengths explicitly.
+    individual samples into 2D batches. But for manual batch creation in tests, we need to create 2D wavelengths explicitly.
 
     Returns:
         Callable that adds wavelengths to a batch dict

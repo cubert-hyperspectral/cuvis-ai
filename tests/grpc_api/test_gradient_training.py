@@ -7,69 +7,59 @@ class TestGradientTraining:
     """Gradient training workflow tests."""
 
     @pytest.mark.slow
-    def test_streams_progress(self, grpc_stub, trained_session):
-        # trained_session now loads full experiment config via RestoreExperiment
+    def test_gradient_training_comprehensive(self, grpc_stub, trained_session):
+        """Comprehensive test that validates all aspects of gradient training in a single run.
+
+        This test combines multiple validation checks that were previously in separate tests
+        to avoid running training multiple times. It validates:
+        - Training completion and progress updates
+        - Loss reporting
+        - Metrics reporting
+        - Stage reporting
+        - Epoch progression
+        """
+        # trained_session now loads full experiment config via RestoreTrainRun
         session_id, data_config = trained_session()
         request = cuvis_ai_pb2.TrainRequest(
             session_id=session_id,
             trainer_type=cuvis_ai_pb2.TRAINER_TYPE_GRADIENT,
         )
 
-        progress = list(grpc_stub.Train(request))
-        assert len(progress) > 1
-        assert progress[-1].status == cuvis_ai_pb2.TRAIN_STATUS_COMPLETE
+        # Collect all training updates in a single run
+        updates = list(grpc_stub.Train(request))
 
-    @pytest.mark.slow
-    def test_reports_losses(self, grpc_stub, trained_session):
-        session_id, data_config = trained_session()
-        request = cuvis_ai_pb2.TrainRequest(
-            session_id=session_id,
-            trainer_type=cuvis_ai_pb2.TRAINER_TYPE_GRADIENT,
+        # Validate training completion and progress
+        assert len(updates) > 1, "Training should produce multiple progress updates"
+        assert updates[-1].status == cuvis_ai_pb2.TRAIN_STATUS_COMPLETE, (
+            "Training should complete successfully"
         )
 
+        # Validate loss reporting
         saw_loss = False
-        for update in grpc_stub.Train(request):
+        for update in updates:
             if update.losses:
                 saw_loss = True
                 # Loss keys can be "total" or have "loss" in them
                 assert any(
                     key in ["total"] or "loss" in key.lower() for key in update.losses.keys()
-                )
-        assert saw_loss
+                ), "Loss keys should contain 'total' or 'loss'"
+                break
 
-    @pytest.mark.slow
-    def test_reports_metrics(self, grpc_stub, trained_session):
-        session_id, data_config = trained_session()
-        request = cuvis_ai_pb2.TrainRequest(
-            session_id=session_id,
-            trainer_type=cuvis_ai_pb2.TRAINER_TYPE_GRADIENT,
-        )
+        assert saw_loss, "Training should report losses"
 
+        # Validate metrics reporting
         saw_metrics = False
-        for update in grpc_stub.Train(request):
+        for update in updates:
             if update.metrics:
                 saw_metrics = True
                 break
-        assert saw_metrics
 
-    @pytest.mark.slow
-    def test_reports_stages(self, grpc_stub, trained_session):
-        session_id, data_config = trained_session()
-        request = cuvis_ai_pb2.TrainRequest(
-            session_id=session_id,
-            trainer_type=cuvis_ai_pb2.TRAINER_TYPE_GRADIENT,
-        )
+        assert saw_metrics, "Training should report metrics"
 
-        stages = {update.context.stage for update in grpc_stub.Train(request)}
-        assert cuvis_ai_pb2.EXECUTION_STAGE_TRAIN in stages
+        # Validate stage reporting
+        stages = {update.context.stage for update in updates}
+        assert cuvis_ai_pb2.EXECUTION_STAGE_TRAIN in stages, "Training should include TRAIN stage"
 
-    @pytest.mark.slow
-    def test_epoch_progression(self, grpc_stub, trained_session):
-        session_id, data_config = trained_session()
-        request = cuvis_ai_pb2.TrainRequest(
-            session_id=session_id,
-            trainer_type=cuvis_ai_pb2.TRAINER_TYPE_GRADIENT,
-        )
-
-        epochs = [update.context.epoch for update in grpc_stub.Train(request)]
-        assert max(epochs) >= 0
+        # Validate epoch progression
+        epochs = [update.context.epoch for update in updates]
+        assert max(epochs) >= 0, "Training should progress through epochs"

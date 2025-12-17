@@ -24,17 +24,17 @@ from cuvis_ai.training import GradientTrainer, StatisticalTrainer
 from cuvis_ai.training.config import (
     CallbacksConfig,
     EarlyStoppingConfig,
-    ExperimentConfig,
     ModelCheckpointConfig,
     PipelineMetadata,
     SchedulerConfig,
     TrainingConfig,
+    TrainRunConfig,
 )
 
 
-@hydra.main(config_path="../configs/", config_name="experiment/default", version_base=None)
+@hydra.main(config_path="../configs/", config_name="trainrun/default", version_base=None)
 def main(cfg: DictConfig) -> None:
-    """Channel Selector with gradient training and experiment config saving."""
+    """Channel Selector with gradient training and trainrun config saving."""
 
     logger.info("=== Channel Selector for Anomaly Detection ===")
 
@@ -137,7 +137,7 @@ def main(cfg: DictConfig) -> None:
         EarlyStoppingConfig(monitor="train/bce", mode="min", patience=20)
     )
 
-    training_cfg.optimizer.scheduler = SchedulerConfig(
+    training_cfg.scheduler = SchedulerConfig(
         name="reduce_on_plateau",
         monitor="metrics_anomaly/iou",
         mode="max",
@@ -145,7 +145,7 @@ def main(cfg: DictConfig) -> None:
         patience=5,
     )
 
-    training_cfg.trainer.callbacks.model_checkpoint = ModelCheckpointConfig(
+    training_cfg.trainer.callbacks.checkpoint = ModelCheckpointConfig(
         dirpath=str(output_dir / "checkpoints"),
         monitor="metrics_anomaly/iou",
         mode="max",
@@ -204,7 +204,7 @@ def main(cfg: DictConfig) -> None:
         str(pipeline_output_path),
         metadata=PipelineMetadata(
             name=pipeline.name,
-            description=f"Trained model from {pipeline.name} experiment (statistical + gradient training)",
+            description=f"Trained model from {pipeline.name} trainrun (statistical + gradient training)",
             tags=["gradient", "statistical", "channel_selector", "rx"],
             author="cuvis.ai",
         ),
@@ -212,11 +212,11 @@ def main(cfg: DictConfig) -> None:
     logger.info(f"  Created: {pipeline_output_path}")
     logger.info(f"  Weights: {pipeline_output_path.with_suffix('.pt')}")
 
-    # Create and save complete experiment config for reproducibility
+    # Create and save complete trainrun config for reproducibility
     # Get pipeline config from serialize (contains full structure inline)
     pipeline_config = pipeline.serialize()
 
-    experiment_config = ExperimentConfig(
+    trainrun_config = TrainRunConfig(
         name=cfg.name,
         pipeline=pipeline_config,
         data=cfg.data,
@@ -228,18 +228,18 @@ def main(cfg: DictConfig) -> None:
         unfreeze_nodes=unfreeze_node_names,
     )
 
-    experiment_output_path = results_dir / f"{cfg.name}_experiment.yaml"
-    logger.info(f"Saving experiment config to: {experiment_output_path}")
-    experiment_config.save_to_file(str(experiment_output_path))
+    trainrun_output_path = results_dir / f"{cfg.name}_trainrun.yaml"
+    logger.info(f"Saving trainrun config to: {trainrun_output_path}")
+    trainrun_config.save_to_file(str(trainrun_output_path))
 
     # Stage 10: Report results
     logger.info("=== Training Complete ===")
     logger.info(f"Trained pipeline saved: {pipeline_output_path}")
-    logger.info(f"Experiment config saved: {experiment_output_path}")
+    logger.info(f"TrainRun config saved: {trainrun_output_path}")
     logger.info(f"TensorBoard logs: {tensorboard_node.output_dir}")
-    logger.info("To restore this experiment:")
+    logger.info("To restore this trainrun:")
     logger.info(
-        f"  uv run python examples/serlization/restore_experiment.py --experiment-path {experiment_output_path}"
+        f"  uv run python examples/serialization/restore_trainrun.py --trainrun-path {trainrun_output_path}"
     )
     logger.info(f"View logs: uv run tensorboard --logdir={output_dir}")
 

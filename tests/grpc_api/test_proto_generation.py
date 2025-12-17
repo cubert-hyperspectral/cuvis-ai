@@ -14,13 +14,7 @@ class TestProtoDefinitions:
     def test_data_config_message_exists(self):
         """Verify DataConfig message structure"""
         config = cuvis_ai_pb2.DataConfig()
-        assert hasattr(config, "cu3s_file_path")
-        assert hasattr(config, "annotation_json_path")
-        assert hasattr(config, "train_ids")
-        assert hasattr(config, "val_ids")
-        assert hasattr(config, "test_ids")
-        assert hasattr(config, "batch_size")
-        assert hasattr(config, "processing_mode")
+        assert hasattr(config, "config_bytes")
 
     def test_context_message_exists(self):
         """Verify Context message structure"""

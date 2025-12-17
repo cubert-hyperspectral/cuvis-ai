@@ -2,25 +2,24 @@
 
 These tests were added to catch bugs where training configs were being overwritten
 or not properly preserved through training workflows, particularly when using
-RestoreExperiment followed by sequential statistical and gradient training.
+RestoreTrainRun followed by sequential statistical and gradient training.
 """
-
-import json
 
 import pytest
 import yaml
 from omegaconf import OmegaConf
 
 from cuvis_ai.grpc import cuvis_ai_pb2
-from cuvis_ai.training.config import TrainingConfig
+from cuvis_ai.training.config import TrainingConfig, TrainRunConfig
+from tests.fixtures.sessions import materialize_trainrun_config
 
 
 class TestConfigPreservationThroughTraining:
-    """Test that configs loaded from experiment files are preserved through training."""
+    """Test that configs loaded from train run files are preserved through training."""
 
     def test_max_epochs_preserved_through_statistical_training(self, grpc_stub, tmp_path):
         """
-        Regression test: Verify that max_epochs from experiment config is preserved
+        Regression test: Verify that max_epochs from train run config is preserved
         when running statistical training.
 
         Bug: Statistical training was creating new TrainingConfig() with default
@@ -30,27 +29,26 @@ class TestConfigPreservationThroughTraining:
         `training_config_py = session.training_config or TrainingConfig()`
         in the Train method's statistical training branch.
         """
-        # Use existing deep_svdd experiment which has max_epochs=20
-        experiment_path = "configs/experiment/deep_svdd.yaml"
+        # Use existing deep_svdd train run which has max_epochs=20
+        trainrun_path = "configs/trainrun/deep_svdd.yaml"
+        resolved_path = materialize_trainrun_config(trainrun_path)
 
-        # Verify the experiment file has max_epochs=20
-        with open(experiment_path) as f:
-            exp_config = yaml.safe_load(f)
-        assert exp_config["training"]["trainer"]["max_epochs"] == 20
+        # Verify the trainrun file has max_epochs=20
+        with open(trainrun_path) as f:
+            trainrun_config_dict = yaml.safe_load(f)
+        assert trainrun_config_dict["training"]["trainer"]["max_epochs"] == 20
 
-        # Restore experiment (loads config with max_epochs=20)
-        restore_response = grpc_stub.RestoreExperiment(
-            cuvis_ai_pb2.RestoreExperimentRequest(experiment_path=experiment_path)
+        # Restore train run (loads config with max_epochs=20)
+        restore_response = grpc_stub.RestoreTrainRun(
+            cuvis_ai_pb2.RestoreTrainRunRequest(trainrun_path=resolved_path)
         )
         session_id = restore_response.session_id
 
         try:
             # Verify the loaded config has max_epochs=20
-            assert restore_response.experiment.training.config_bytes
-            training_config_dict = json.loads(
-                restore_response.experiment.training.config_bytes.decode("utf-8")
-            )
-            assert training_config_dict["trainer"]["max_epochs"] == 20
+            trainrun = TrainRunConfig.from_proto(restore_response.trainrun)
+            training_config_dict = trainrun.training.model_dump()
+            assert training_config_dict["max_epochs"] == 20
 
             # Run statistical training
             # Before the fix, this would overwrite training_config with defaults
@@ -61,18 +59,18 @@ class TestConfigPreservationThroughTraining:
             stat_responses = list(grpc_stub.Train(stat_request))
             assert stat_responses[-1].status == cuvis_ai_pb2.TRAIN_STATUS_COMPLETE
 
-            # Save experiment and verify max_epochs is still 20
-            saved_exp_path = tmp_path / "saved_after_stat_training.yaml"
-            save_response = grpc_stub.SaveExperiment(
-                cuvis_ai_pb2.SaveExperimentRequest(
+            # Save train run and verify max_epochs is still 20
+            saved_trainrun_path = tmp_path / "saved_after_stat_training.yaml"
+            save_response = grpc_stub.SaveTrainRun(
+                cuvis_ai_pb2.SaveTrainRunRequest(
                     session_id=session_id,
-                    experiment_path=str(saved_exp_path),
+                    trainrun_path=str(saved_trainrun_path),
                 )
             )
             assert save_response.success
 
-            # Read back the saved experiment
-            with open(saved_exp_path) as f:
+            # Read back the saved trainrun
+            with open(saved_trainrun_path) as f:
                 saved_config = yaml.safe_load(f)
 
             # BUG CHECK: max_epochs should still be 20, not reverted to 100
@@ -91,7 +89,7 @@ class TestConfigPreservationThroughTraining:
         Bug: After statistical training overwrote the config, gradient training would
         train for 100 epochs instead of the configured 20 epochs.
 
-        This test verifies the complete workflow: RestoreExperiment -> Statistical
+        This test verifies the complete workflow: RestoreTrainRun -> Statistical
         Training -> Gradient Training uses correct max_epochs throughout.
         """
         # Use trained_session which restores experiment and runs statistical training
@@ -130,15 +128,16 @@ class TestConfigPreservationThroughTraining:
         Test that all training config fields (not just max_epochs) are preserved
         through the training workflow.
         """
-        experiment_path = "configs/experiment/deep_svdd.yaml"
+        trainrun_path = "configs/trainrun/deep_svdd.yaml"
 
         # Load original config
-        with open(experiment_path) as f:
+        with open(trainrun_path) as f:
             original_config = yaml.safe_load(f)
 
-        # Restore and train
-        restore_response = grpc_stub.RestoreExperiment(
-            cuvis_ai_pb2.RestoreExperimentRequest(experiment_path=experiment_path)
+        # Resolve and restore
+        resolved_path = materialize_trainrun_config(trainrun_path)
+        restore_response = grpc_stub.RestoreTrainRun(
+            cuvis_ai_pb2.RestoreTrainRunRequest(trainrun_path=resolved_path)
         )
         session_id = restore_response.session_id
 
@@ -151,15 +150,15 @@ class TestConfigPreservationThroughTraining:
             list(grpc_stub.Train(stat_request))
 
             # Save and compare
-            saved_exp_path = tmp_path / "saved_config.yaml"
-            grpc_stub.SaveExperiment(
-                cuvis_ai_pb2.SaveExperimentRequest(
+            saved_trainrun_path = tmp_path / "saved_config.yaml"
+            grpc_stub.SaveTrainRun(
+                cuvis_ai_pb2.SaveTrainRunRequest(
                     session_id=session_id,
-                    experiment_path=str(saved_exp_path),
+                    trainrun_path=str(saved_trainrun_path),
                 )
             )
 
-            with open(saved_exp_path) as f:
+            with open(saved_trainrun_path) as f:
                 saved_config = yaml.safe_load(f)
 
             # Verify key training config fields are preserved
@@ -270,20 +269,21 @@ class TestTrainingConfigFromDictConfig:
 class TestSessionStateManagement:
     """Test session state management edge cases."""
 
-    def test_session_preserves_experiment_config_after_training(self, grpc_stub, tmp_path):
+    def test_session_preserves_trainrun_config_after_training(self, grpc_stub, tmp_path):
         """
-        Test that experiment config (including loss_nodes, metric_nodes) is preserved
+        Test that trainrun config (including loss_nodes, metric_nodes) is preserved
         in session state through training operations.
         """
-        experiment_path = "configs/experiment/deep_svdd.yaml"
+        trainrun_path = "configs/trainrun/deep_svdd.yaml"
+        resolved_path = materialize_trainrun_config(trainrun_path)
 
-        # Load original experiment config
-        with open(experiment_path) as f:
-            original_exp = yaml.safe_load(f)
+        # Load original trainrun config
+        with open(trainrun_path) as f:
+            original_trainrun = yaml.safe_load(f)
 
-        # Restore experiment
-        restore_response = grpc_stub.RestoreExperiment(
-            cuvis_ai_pb2.RestoreExperimentRequest(experiment_path=experiment_path)
+        # Restore train run
+        restore_response = grpc_stub.RestoreTrainRun(
+            cuvis_ai_pb2.RestoreTrainRunRequest(trainrun_path=resolved_path)
         )
         session_id = restore_response.session_id
 
@@ -295,26 +295,26 @@ class TestSessionStateManagement:
             )
             list(grpc_stub.Train(stat_request))
 
-            # Save experiment
-            saved_exp_path = tmp_path / "preserved_exp.yaml"
-            grpc_stub.SaveExperiment(
-                cuvis_ai_pb2.SaveExperimentRequest(
+            # Save train run
+            saved_trainrun_path = tmp_path / "preserved_trainrun.yaml"
+            grpc_stub.SaveTrainRun(
+                cuvis_ai_pb2.SaveTrainRunRequest(
                     session_id=session_id,
-                    experiment_path=str(saved_exp_path),
+                    trainrun_path=str(saved_trainrun_path),
                 )
             )
 
-            # Verify experiment config is preserved
-            with open(saved_exp_path) as f:
-                saved_exp = yaml.safe_load(f)
+            # Verify trainrun config is preserved
+            with open(saved_trainrun_path) as f:
+                saved_trainrun = yaml.safe_load(f)
 
-            # Check that critical experiment fields are preserved
-            if "loss_nodes" in original_exp:
-                assert saved_exp.get("loss_nodes") == original_exp["loss_nodes"]
-            if "metric_nodes" in original_exp:
-                assert saved_exp.get("metric_nodes") == original_exp["metric_nodes"]
-            if "unfreeze_nodes" in original_exp:
-                assert saved_exp.get("unfreeze_nodes") == original_exp["unfreeze_nodes"]
+            # Check that critical trainrun fields are preserved
+            if "loss_nodes" in original_trainrun:
+                assert saved_trainrun.get("loss_nodes") == original_trainrun["loss_nodes"]
+            if "metric_nodes" in original_trainrun:
+                assert saved_trainrun.get("metric_nodes") == original_trainrun["metric_nodes"]
+            if "unfreeze_nodes" in original_trainrun:
+                assert saved_trainrun.get("unfreeze_nodes") == original_trainrun["unfreeze_nodes"]
 
         finally:
             grpc_stub.CloseSession(cuvis_ai_pb2.CloseSessionRequest(session_id=session_id))
@@ -325,26 +325,27 @@ class TestSessionStateManagement:
 
         Ensures that config changes in one session don't affect other sessions.
         """
-        experiment_path = "configs/experiment/deep_svdd.yaml"
+        trainrun_path = "configs/trainrun/deep_svdd.yaml"
+        resolved_path = materialize_trainrun_config(trainrun_path)
 
         # Create two sessions
-        response1 = grpc_stub.RestoreExperiment(
-            cuvis_ai_pb2.RestoreExperimentRequest(experiment_path=experiment_path)
+        response1 = grpc_stub.RestoreTrainRun(
+            cuvis_ai_pb2.RestoreTrainRunRequest(trainrun_path=resolved_path)
         )
         session_id1 = response1.session_id
 
-        response2 = grpc_stub.RestoreExperiment(
-            cuvis_ai_pb2.RestoreExperimentRequest(experiment_path=experiment_path)
+        response2 = grpc_stub.RestoreTrainRun(
+            cuvis_ai_pb2.RestoreTrainRunRequest(trainrun_path=resolved_path)
         )
         session_id2 = response2.session_id
 
         try:
-            # Both should have max_epochs=20 from the experiment file
-            config1 = json.loads(response1.experiment.training.config_bytes.decode("utf-8"))
-            config2 = json.loads(response2.experiment.training.config_bytes.decode("utf-8"))
+            # Both should have max_epochs=20 from the trainrun file
+            config1 = TrainRunConfig.from_proto(response1.trainrun).training.model_dump()
+            config2 = TrainRunConfig.from_proto(response2.trainrun).training.model_dump()
 
-            assert config1["trainer"]["max_epochs"] == 20
-            assert config2["trainer"]["max_epochs"] == 20
+            assert config1["max_epochs"] == 20
+            assert config2["max_epochs"] == 20
 
             # Run statistical training on session1
             stat_request = cuvis_ai_pb2.TrainRequest(

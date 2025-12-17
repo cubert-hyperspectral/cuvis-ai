@@ -10,6 +10,8 @@ enum ProcessingMode {
   PROCESSING_MODE_UNSPECIFIED = 0;
   PROCESSING_MODE_RAW = 1;
   PROCESSING_MODE_REFLECTANCE = 2;
+  PROCESSING_MODE_DARKSUBTRACT = 3;
+  PROCESSING_MODE_SPECTRAL_RADIANCE = 4;
 }
 
 enum ExecutionStage {
@@ -73,18 +75,34 @@ message Context {
 // Configuration Types
 // ============================================================================
 
+// Configuration message using JSON transport.
+// The config_bytes field contains JSON-serialized configuration that matches the Pydantic schema for this config type.
 message PipelineConfig {
-  bytes config_bytes = 1;  // Serialized PipelineConfig dataclass (JSON format)
+  bytes config_bytes = 1;
 }
 
+// Configuration message using JSON transport.
+// The config_bytes field contains JSON-serialized configuration that matches the Pydantic schema for this config type.
 message DataConfig {
-  string cu3s_file_path = 1;
-  string annotation_json_path = 2;
-  repeated int32 train_ids = 3;
-  repeated int32 val_ids = 4;
-  repeated int32 test_ids = 5;
-  int32 batch_size = 6;
-  ProcessingMode processing_mode = 7;
+  bytes config_bytes = 1;
+}
+
+// Configuration message using JSON transport.
+// The config_bytes field contains JSON-serialized configuration that matches the Pydantic schema for this config type.
+message OptimizerConfig {
+  bytes config_bytes = 1;
+}
+
+// Configuration message using JSON transport.
+// The config_bytes field contains JSON-serialized configuration that matches the Pydantic schema for this config type.
+message SchedulerConfig {
+  bytes config_bytes = 1;
+}
+
+// Configuration message using JSON transport.
+// The config_bytes field contains JSON-serialized configuration that matches the Pydantic schema for this config type.
+message CallbacksConfig {
+  bytes config_bytes = 1;
 }
 
 message PipelineMetadata {
@@ -99,18 +117,23 @@ message PipelineMetadata {
 message PipelineInfo {
   string name = 1;                    // Short name
   string path = 2;                    // Full path on server
-  PipelineMetadata metadata = 3;        // Metadata from pipeline file
+  PipelineMetadata metadata = 3;      // Metadata from pipeline file
   repeated string tags = 4;           // Tags for categorization
   bool has_weights = 5;               // Whether .pt file exists
   string weights_path = 6;            // Path to .pt file if exists
   string yaml_content = 7;            // Optional: full YAML content
 }
 
-message ExperimentConfig {
-  string name = 1;
-  PipelineConfig pipeline = 2;
-  DataConfig data = 3;
-  TrainingConfig training = 4;
+// Configuration message using JSON transport.
+// The config_bytes field contains JSON-serialized configuration that matches the Pydantic schema for this config type.
+message TrainingConfig {
+  bytes config_bytes = 1;
+}
+
+// Configuration message using JSON transport.
+// The config_bytes field contains JSON-serialized configuration that matches the Pydantic schema for this config type.
+message TrainRunConfig {
+  bytes config_bytes = 1;
 }
 
 // ============================================================================
@@ -169,10 +192,6 @@ message TrainResponse {
   string message = 5;
 }
 
-message TrainingConfig {
-  bytes config_bytes = 1;  // Serialized TrainingConfig dataclass (JSON format)
-}
-
 message ParamSpec {
   string name = 1;
   string type = 2;
@@ -221,11 +240,22 @@ message GetPipelineInfoResponse {
 // ============================================================================
 
 message CreateSessionRequest {
-  PipelineConfig pipeline = 1;
 }
 
 message CreateSessionResponse {
   string session_id = 1;
+}
+
+message SetSessionSearchPathsRequest {
+  string session_id = 1;
+  repeated string search_paths = 2;
+  optional bool append = 3;  // true=extend default, false=replace (default: true)
+}
+
+message SetSessionSearchPathsResponse {
+  bool success = 1;
+  repeated string current_paths = 2;      // All active search paths
+  repeated string rejected_paths = 3;     // Paths that failed validation
 }
 
 message CloseSessionRequest {
@@ -237,14 +267,83 @@ message CloseSessionResponse {
 }
 
 // ============================================================================
-// Training
+// Config Resolution (Hydra Composition)
 // ============================================================================
+
+message ResolveConfigRequest {
+  string session_id = 1;
+  string config_type = 2;  // "pipeline" | "trainrun" | "data" | "training"
+  string path = 3;         // Relative or absolute path to config file
+  repeated string overrides = 4;  // Hydra overrides: ["optimizer.lr=0.001"]
+}
+
+message ResolveConfigResponse {
+  bytes config_bytes = 1;  // Fully resolved JSON config
+}
+
+// ============================================================================
+// Schema Introspection and Validation
+// ============================================================================
+
+message GetParameterSchemaRequest {
+  string config_type = 1;  // "training" | "optimizer" | "data" | etc.
+}
+
+message GetParameterSchemaResponse {
+  string json_schema = 1;  // Pydantic-generated JSON Schema
+}
+
+message ValidateConfigRequest {
+  string config_type = 1;
+  bytes config_bytes = 2;  // JSON to validate
+}
+
+message ValidateConfigResponse {
+  bool valid = 1;
+  repeated string errors = 2;
+  repeated string warnings = 3;
+}
+
+// ============================================================================
+// Pipeline Building and Weight Loading
+// ============================================================================
+
+message LoadPipelineWeightsRequest {
+  string session_id = 1;
+
+  // Flexible weight source
+  oneof weights_source {
+    string weights_path = 2;    // Server-side path (searches session paths)
+    bytes weights_bytes = 3;    // Client-side bytes
+  }
+
+  optional bool strict = 4;  // Strict weight loading (default: true)
+}
+
+message LoadPipelineWeightsResponse {
+  bool success = 1;
+  string resolved_path = 2;  // Shows actual path used (if weights_path)
+}
+
+// ============================================================================
+// Training Configuration and Execution
+// ============================================================================
+
+message SetTrainRunConfigRequest {
+  string session_id = 1;
+  TrainRunConfig config = 2;
+}
+
+message SetTrainRunConfigResponse {
+  bool success = 1;
+  bool pipeline_from_config = 2;  // true if pipeline built from config
+}
 
 message TrainRequest {
   string session_id = 1;
-  TrainerType trainer_type = 2;
-  DataConfig data = 3;           // What to train on
-  TrainingConfig training = 4;   // How to train
+  TrainerType trainer_type = 2;  // STATISTICAL | GRADIENT
+  DataConfig data = 3;           // Optional: data configuration
+  TrainingConfig training = 4;   // Optional: training configuration
 }
 
 message GetTrainStatusRequest {
@@ -265,16 +364,6 @@ message GetTrainingCapabilitiesResponse {
   SchedulerParamsSchema scheduler_params = 5;
 }
 
-message ValidateTrainingConfigRequest {
-  TrainingConfig config = 1;
-}
-
-message ValidateTrainingConfigResponse {
-  bool valid = 1;
-  repeated string errors = 2;
-  repeated string warnings = 3;
-}
-
 // ============================================================================
 // Pipeline Management (Model Deployment)
 // ============================================================================
@@ -293,9 +382,7 @@ message SavePipelineResponse {
 
 message LoadPipelineRequest {
   string session_id = 1;
-  string pipeline_path = 2;
-  optional string weights_path = 3;  // Optional: path to .pt weights. If omitted, loads structure only
-  optional bool strict = 4;          // Strict weight loading (default: true)
+  PipelineConfig pipeline = 2;  // JSON-serialized pipeline config (from ResolveConfig)
 }
 
 message LoadPipelineResponse {
@@ -304,26 +391,31 @@ message LoadPipelineResponse {
 }
 
 // ============================================================================
-// Experiment Management (Reproducibility)
+// Train Run Management (Reproducibility)
 // ============================================================================
 
-message SaveExperimentRequest {
+message SaveTrainRunRequest {
   string session_id = 1;
-  string experiment_path = 2;  // Path for experiment .yaml file
+  string trainrun_path = 2;  // Path for train run .yaml file
+  bool save_weights = 3;     // Whether to also save .pt weights file
 }
 
-message SaveExperimentResponse {
+message SaveTrainRunResponse {
   bool success = 1;
-  string experiment_path = 2;  // Created experiment .yaml path
+  string trainrun_path = 2;  // Created train run .yaml path
+  string pipeline_path = 3;  // Created pipeline .yaml path (if pipeline saved)
+  string weights_path = 4;  // Created .pt weights path (if pipeline saved)
 }
 
-message RestoreExperimentRequest {
-  string experiment_path = 1;  // Path to experiment .yaml file
+message RestoreTrainRunRequest {
+  string trainrun_path = 1;  // Path to train run .yaml file
+  optional string weights_path = 2;  // Optional: path to .pt weights. If omitted, loads config only
+  optional bool strict = 3;          // Strict weight loading (default: true)
 }
 
-message RestoreExperimentResponse {
+message RestoreTrainRunResponse {
   string session_id = 1;
-  ExperimentConfig experiment = 2;  // Restored experiment config
+  TrainRunConfig trainrun = 2;  // Restored train run config
 }
 
 // ============================================================================
@@ -381,30 +473,38 @@ service CuvisAIService {
   // Pipeline Discovery
   rpc ListAvailablePipelinees(ListAvailablePipelineesRequest) returns (ListAvailablePipelineesResponse);
   rpc GetPipelineInfo(GetPipelineInfoRequest) returns (GetPipelineInfoResponse);
-  
+
   // Session Management
   rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
+  rpc SetSessionSearchPaths(SetSessionSearchPathsRequest) returns (SetSessionSearchPathsResponse);
   rpc CloseSession(CloseSessionRequest) returns (CloseSessionResponse);
-  
-  // Training
+
+  // Config resolution and validation
+  rpc ResolveConfig(ResolveConfigRequest) returns (ResolveConfigResponse);
+  rpc GetParameterSchema(GetParameterSchemaRequest) returns (GetParameterSchemaResponse);
+  rpc ValidateConfig(ValidateConfigRequest) returns (ValidateConfigResponse);
+
+  rpc LoadPipelineWeights(LoadPipelineWeightsRequest) returns (LoadPipelineWeightsResponse);
+
+  // Training workflow
+  rpc SetTrainRunConfig(SetTrainRunConfigRequest) returns (SetTrainRunConfigResponse);
   rpc Train(TrainRequest) returns (stream TrainResponse);
   rpc GetTrainStatus(GetTrainStatusRequest) returns (GetTrainStatusResponse);
   rpc GetTrainingCapabilities(GetTrainingCapabilitiesRequest) returns (GetTrainingCapabilitiesResponse);
-  rpc ValidateTrainingConfig(ValidateTrainingConfigRequest) returns (ValidateTrainingConfigResponse);
-  
+
   // Pipeline Management (Model Deployment)
   rpc SavePipeline(SavePipelineRequest) returns (SavePipelineResponse);
   rpc LoadPipeline(LoadPipelineRequest) returns (LoadPipelineResponse);
-  
-  // Experiment Management (Reproducibility)
-  rpc SaveExperiment(SaveExperimentRequest) returns (SaveExperimentResponse);
-  rpc RestoreExperiment(RestoreExperimentRequest) returns (RestoreExperimentResponse);
-  
+
+  // Train Run Management (Reproducibility)
+  rpc SaveTrainRun(SaveTrainRunRequest) returns (SaveTrainRunResponse);
+  rpc RestoreTrainRun(RestoreTrainRunRequest) returns (RestoreTrainRunResponse);
+
   // Pipeline Introspection
   rpc GetPipelineInputs(GetPipelineInputsRequest) returns (GetPipelineInputsResponse);
   rpc GetPipelineOutputs(GetPipelineOutputsRequest) returns (GetPipelineOutputsResponse);
   rpc GetPipelineVisualization(GetPipelineVisualizationRequest) returns (GetPipelineVisualizationResponse);
-  
+
   // Inference
   rpc Inference(InferenceRequest) returns (InferenceResponse);
 }

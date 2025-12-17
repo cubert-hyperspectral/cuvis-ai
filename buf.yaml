@@ -7,3 +7,5 @@ breaking:
 lint:
   use:
     - STANDARD
+  except:
+    - PACKAGE_DIRECTORY_MATCH

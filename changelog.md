@@ -1,6 +1,15 @@
 # Changelog
+## V0.2.1
+- Refactored monolithic `service.py` (1,775 lines) into 8 modular service components with delegation pattern
+- SessionService, ConfigService, PipelineService, TrainingService, TrainRunService, InferenceService, IntrospectionService, DiscoveryService
+- Chnages in the RPCs: `ResolveConfig`, `GetParameterSchema`, `ValidateConfig`, `BuildPipeline`, `LoadPipelineWeights`, `SetTrainRunConfig`, `GetTrainingCapabilities`, `ValidateTrainingConfig`, `SetSessionSearchPaths`
+- Introduced explicit 4-step workflow (CreateSession → BuildPipeline → SetTrainRunConfig → Train)
+- Server-side Hydra composition with `@package _global_` structure, dynamic schema validation
+- Change of Terminology: `Experiment` → `TrainRun` (SaveTrainRun/RestoreTrainRun replace SaveExperiment/RestoreExperiment)
+- 596 tests passing, 65% coverage, comprehensive performance benchmarks
+- All 13 gRPC examples updated to new ResolveConfig pattern with proper Hydra composition
 
-### Pipeline serialization system (latest)
+### V0.2.0
 - Added YAML-driven Pipeline/Pipeline configuration with OmegaConf interpolation and versioned schema compatibility so pipelines are rebuilt directly from config files instead of hardcoded graphs.
 - Introduced a hybrid NodeRegistry: built-in nodes stay O(1) lookup while custom nodes are auto-loaded via `importlib`, removing manual registration steps.
 - Implemented end-to-end pipeline serialization: atomic save/load to a single `.pt` bundle, deterministic counter-based artifact naming, and persisted optimizer/scheduler states alongside model weights/metadata.
@@ -8,7 +17,7 @@
 - Reorganized structure: new `configs/` directory for pipeline/experiment/data configs, core modules renamed from "pipeline" to "pipeline", added serialization examples, and enabled git hooks for pre-commit/pre-push.
 - Expanded tests and docs to cover the new configuration/serialization paths with updated fixtures, helpers, API docs, and examples across workflows.
 
-## Unreleased (vs `cuvis-ai-v2`)
+## V0.1.5
 - Introduced the gRPC service stack (`cuvis_ai/grpc/*`) with proto definitions, session management, callbacks, helpers, and the production server wiring.
 - Added generated protobuf stubs plus Buf config, containerization assets (`Dockerfile`, `docker-compose.yml`, `.env.example`), and onboarding updates in `README.md`/`CONTRIBUTING.md`.
 - Documented the gRPC surface and deployment (`docs/api/grpc_api.md`, `docs/deployment/grpc_deployment.md`) alongside the detailed blueprint/implementation notes under `docs_dev/cubert/ALL_4917/*`.
