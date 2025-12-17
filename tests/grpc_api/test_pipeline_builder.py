@@ -1,4 +1,4 @@
-"""Tests for YAML-based PipelineBuilder from cuvis_ai.pipeline.pipeline_builder."""
+"""Tests for YAML-based PipelineBuilder from cuvis_ai.pipeline.factory."""
 
 from pathlib import Path
 
@@ -8,8 +8,8 @@ import yaml
 from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.normalization import MinMaxNormalizer
 from cuvis_ai.node.selector import SoftChannelSelector
+from cuvis_ai.pipeline.factory import PipelineBuilder
 from cuvis_ai.pipeline.pipeline import CuvisPipeline
-from cuvis_ai.pipeline.pipeline_builder import PipelineBuilder
 
 
 @pytest.fixture

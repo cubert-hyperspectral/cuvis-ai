@@ -120,15 +120,17 @@ Return the last known training status (`TRAIN_STATUS_*`).
 ### GetTrainingCapabilities
 Discover supported optimizers, schedulers, callbacks, and parameter schemas.
 
-### ValidateTrainingConfig
-Validate a `TrainingConfig` before submitting it.
+### ValidateConfig (training)
+Validate a training config via the generic `ValidateConfig` RPC.
 
+- Request: `config_type="training"`, `config_bytes` (JSON payload)
 - Response: `valid` (bool), `errors`, `warnings`
 
 ```python
-validation = stub.ValidateTrainingConfig(
-    cuvis_ai_pb2.ValidateTrainingConfigRequest(
-        config=cuvis_ai_pb2.TrainingConfig(config_json=cfg.to_json().encode())
+validation = stub.ValidateConfig(
+    cuvis_ai_pb2.ValidateConfigRequest(
+        config_type="training",
+        config_bytes=cfg.to_json().encode(),
     )
 )
 if not validation.valid:
@@ -212,8 +214,7 @@ except grpc.RpcError as exc:
 
 ## Best Practices
 - Always call `CloseSession` after training/inference to release resources.
-- Use `ValidateTrainingConfig` before gradient training.
+- Use `ValidateConfig` with `config_type="training"` before gradient training.
 - Provide `output_specs` to limit payload sizes.
 - Save checkpoints periodically and before shutdown.
 - Reuse gRPC channels; set `grpc.max_send_message_length` / `grpc.max_receive_message_length` when sending large cubes.
-

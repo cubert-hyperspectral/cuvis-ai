@@ -1,175 +1,563 @@
-"""Training configuration infrastructure with Hydra support for full reproducibility."""
+"""Training configuration models using Pydantic with proto helpers."""
 
 from __future__ import annotations
 
-import json
-from collections.abc import Mapping
-from dataclasses import asdict, dataclass, field
+from datetime import timedelta
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import yaml
-from omegaconf import DictConfig, OmegaConf
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from cuvis_ai import __version__
 
-
-@dataclass
-class EarlyStoppingConfig:
-    """Configuration for PyTorch Lightning EarlyStopping callback.
-
-    Parameters
-    ----------
-    monitor : str
-        Metric name to monitor (e.g., 'train/bce', 'metrics_anomaly/iou')
-    patience : int
-        Number of epochs with no improvement after which training will be stopped
-    mode : str
-        One of 'min' or 'max'. In 'min' mode, training stops when monitored metric stops decreasing.
-        In 'max' mode, training stops when monitored metric stops increasing.
-    min_delta : float
-        Minimum change in the monitored quantity to qualify as an improvement
-    stopping_threshold : float | None
-        Stop training immediately once the monitored quantity reaches this threshold
-    verbose : bool
-        Whether to print messages when stopping
-    """
-
-    monitor: str
-    patience: int = 10
-    mode: str = "min"
-    min_delta: float = 1e-7
-    stopping_threshold: float | None = None
-    verbose: bool = True
+if TYPE_CHECKING:
+    from cuvis_ai.grpc.v1 import cuvis_ai_pb2
 
 
-@dataclass
-class ModelCheckpointConfig:
-    """Configuration for PyTorch Lightning ModelCheckpoint callback.
+class _BaseConfig(BaseModel):
+    """Base model with strict validation."""
 
-    Parameters
-    ----------
-    dirpath : str
-        Directory to save checkpoints
-    filename : str | None
-        Checkpoint filename pattern (e.g., 'best-{epoch:02d}-{val_loss:.4f}')
-    monitor : str
-        Metric name to monitor for best checkpoint
-    mode : str
-        One of 'min' or 'max'
-    save_top_k : int
-        Save top k models. -1 saves all, 0 disables saving
-    save_last : bool
-        Save a checkpoint with name 'last.ckpt' in addition to top k
-    verbose : bool
-        Whether to print messages when saving checkpoints
-    auto_insert_metric_name : bool
-        Whether to automatically insert metric name in filename
-    """
-
-    dirpath: str
-    monitor: str
-    filename: str | None = None
-    mode: str = "max"
-    save_top_k: int = 1
-    save_last: bool = False
-    verbose: bool = True
-    auto_insert_metric_name: bool = True
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, populate_by_name=True)
 
 
-@dataclass
-class LearningRateMonitorConfig:
-    """Configuration for PyTorch Lightning LearningRateMonitor callback.
+class EarlyStoppingConfig(_BaseConfig):
+    """Early stopping callback configuration."""
 
-    Parameters
-    ----------
-    logging_interval : str
-        Set to 'epoch' or 'step' to log lr at epoch or batch level
-    log_momentum : bool
-        Whether to log momentum alongside learning rate
-    """
-
-    logging_interval: str = (
-        "epoch"  # Note: Could be Literal['step', 'epoch'] but keeping as str for flexibility
+    monitor: str = Field(description="Metric to monitor")
+    patience: int = Field(default=10, ge=1, description="Number of epochs to wait")
+    mode: str = Field(default="min", description="min or max")
+    min_delta: float = Field(default=0.0, ge=0.0, description="Minimum change to qualify")
+    stopping_threshold: float | None = Field(
+        default=None, description="Stop once monitored metric reaches this threshold"
     )
-    log_momentum: bool = False
+    verbose: bool = Field(default=True, description="Whether to log state changes")
+    strict: bool = Field(default=True, description="Whether to crash if monitor is not found")
+    check_finite: bool = Field(
+        default=True, description="Stop when monitor becomes NaN or infinite"
+    )
+    divergence_threshold: float | None = Field(
+        default=None, description="Stop training when monitor becomes worse than this threshold"
+    )
+    check_on_train_epoch_end: bool | None = Field(
+        default=None, description="Whether to run early stopping at end of training epoch"
+    )
+    log_rank_zero_only: bool = Field(
+        default=False, description="Log status only for rank 0 process"
+    )
 
 
-@dataclass
-class CallbacksConfig:
-    """Container for all callback configurations.
+class ModelCheckpointConfig(_BaseConfig):
+    """Model checkpoint callback configuration."""
 
-    Parameters
-    ----------
-    early_stopping : list[EarlyStoppingConfig]
-        List of early stopping configurations. Multiple early stopping callbacks
-        can be used to monitor different metrics simultaneously.
-    model_checkpoint : ModelCheckpointConfig | None
-        Model checkpoint configuration
-    learning_rate_monitor : LearningRateMonitorConfig | None
-        Learning rate monitor configuration
-    """
+    dirpath: str = Field(default="checkpoints", description="Directory to save checkpoints")
+    filename: str | None = Field(default=None, description="Checkpoint filename pattern")
+    monitor: str = Field(default="val_loss", description="Metric to monitor")
+    mode: str = Field(default="min", description="min or max")
+    save_top_k: int = Field(default=3, ge=-1, description="Save top k checkpoints (-1 for all)")
+    every_n_epochs: int = Field(default=1, ge=1, description="Save every n epochs")
+    save_last: bool | Literal["link"] | None = Field(
+        default=False, description="Also save last checkpoint (or 'link' for symlink)"
+    )
+    auto_insert_metric_name: bool = Field(
+        default=True, description="Automatically insert metric name into filename"
+    )
+    verbose: bool = Field(default=False, description="Verbosity mode")
+    save_on_exception: bool = Field(
+        default=False, description="Whether to save checkpoint when exception is raised"
+    )
+    save_weights_only: bool = Field(
+        default=False, description="If True, only save model weights, not optimizer states"
+    )
+    every_n_train_steps: int | None = Field(
+        default=None, description="How many training steps to wait before saving checkpoint"
+    )
+    train_time_interval: timedelta | None = Field(
+        default=None, description="Checkpoints monitored at specified time interval"
+    )
+    save_on_train_epoch_end: bool | None = Field(
+        default=None, description="Whether to run checkpointing at end of training epoch"
+    )
+    enable_version_counter: bool = Field(
+        default=True, description="Whether to append version to existing file name"
+    )
 
-    early_stopping: list[EarlyStoppingConfig] = field(default_factory=list)
-    model_checkpoint: ModelCheckpointConfig | None = None
-    learning_rate_monitor: LearningRateMonitorConfig | None = None
+
+class LearningRateMonitorConfig(_BaseConfig):
+    """Learning rate monitor callback configuration."""
+
+    logging_interval: Literal["step", "epoch"] | None = Field(
+        default="epoch", description="Log lr at 'epoch' or 'step'"
+    )
+    log_momentum: bool = Field(default=False, description="Log momentum values as well")
+    log_weight_decay: bool = Field(default=False, description="Log weight decay values as well")
+
+
+class CallbacksConfig(_BaseConfig):
+    """Callbacks configuration."""
+
+    checkpoint: ModelCheckpointConfig | None = Field(
+        default=None, description="Model checkpoint configuration", alias="model_checkpoint"
+    )
+    early_stopping: list[EarlyStoppingConfig] = Field(
+        default_factory=list, description="Early stopping configuration(s)"
+    )
+    learning_rate_monitor: LearningRateMonitorConfig | None = Field(
+        default=None, description="Learning rate monitor configuration"
+    )
+
+    def to_proto(self) -> cuvis_ai_pb2.CallbacksConfig:
+        from cuvis_ai.grpc.v1 import cuvis_ai_pb2
+
+        return cuvis_ai_pb2.CallbacksConfig(config_bytes=self.model_dump_json().encode("utf-8"))
+
+    @classmethod
+    def from_proto(cls, proto_config):
+        return cls.model_validate_json(proto_config.config_bytes.decode("utf-8"))
+
+
+class TrainerConfig(_BaseConfig):
+    """Lightning Trainer configuration."""
+
+    max_epochs: int = Field(default=100, ge=1, description="Maximum number of epochs")
+    accelerator: str = Field(default="auto", description="Accelerator type")
+    devices: int | str | None = Field(default=None, description="Number of devices or IDs")
+    default_root_dir: str | None = Field(default=None, description="Root directory for outputs")
+    precision: str | int = Field(default="32-true", description="Precision mode")
+    accumulate_grad_batches: int = Field(default=1, ge=1, description="Accumulate gradients")
+    enable_progress_bar: bool = Field(default=True, description="Show progress bar")
+    enable_checkpointing: bool = Field(default=False, description="Enable checkpointing")
+    log_every_n_steps: int = Field(default=50, ge=1, description="Log frequency in steps")
+    val_check_interval: float | int | None = Field(
+        default=1.0, ge=0.0, description="Validation interval"
+    )
+    check_val_every_n_epoch: int | None = Field(
+        default=1, ge=1, description="Validate every n epochs"
+    )
+    gradient_clip_val: float | None = Field(
+        default=None, ge=0.0, description="Gradient clipping value"
+    )
+    deterministic: bool = Field(default=False, description="Deterministic training")
+    benchmark: bool = Field(default=False, description="Enable cudnn benchmark")
+    callbacks: CallbacksConfig | None = Field(
+        default=None, description="Callback configurations for trainer"
+    )
+
+
+class SchedulerConfig(_BaseConfig):
+    """Learning rate scheduler configuration."""
+
+    name: str | None = Field(
+        default=None, description="Scheduler type: cosine, step, exponential, plateau"
+    )
+    warmup_epochs: int = Field(default=0, ge=0, description="Number of warmup epochs")
+    min_lr: float = Field(default=1e-6, ge=0.0, description="Minimum learning rate")
+    t_max: int | None = Field(
+        default=None, ge=1, description="Maximum iterations (for cosine annealing)"
+    )
+    step_size: int | None = Field(
+        default=None, ge=1, description="Period of LR decay (for step scheduler)"
+    )
+    gamma: float | None = Field(
+        default=None, ge=0.0, le=1.0, description="Multiplicative factor of LR decay"
+    )
+    monitor: str | None = Field(
+        default=None, description="Metric to monitor (for plateau/reduce_on_plateau)"
+    )
+    mode: str = Field(default="min", description="min or max for monitored metrics")
+    factor: float = Field(
+        default=0.1,
+        ge=0.0,
+        le=1.0,
+        description="LR reduction factor for ReduceLROnPlateau",
+    )
+    patience: int = Field(default=10, ge=0, description="Patience for plateau scheduler")
+    threshold: float = Field(default=1e-4, ge=0.0, description="Plateau threshold")
+    threshold_mode: str = Field(default="rel", description="Plateau threshold mode")
+    cooldown: int = Field(default=0, ge=0, description="Cooldown epochs for plateau")
+    eps: float = Field(default=1e-8, ge=0.0, description="Minimum change in LR for plateau")
+    verbose: bool = Field(default=False, description="Verbose scheduler logging")
+
+    def to_proto(self) -> cuvis_ai_pb2.SchedulerConfig:
+        from cuvis_ai.grpc.v1 import cuvis_ai_pb2
+
+        return cuvis_ai_pb2.SchedulerConfig(config_bytes=self.model_dump_json().encode("utf-8"))
+
+    @classmethod
+    def from_proto(cls, proto_config):
+        return cls.model_validate_json(proto_config.config_bytes.decode("utf-8"))
+
+
+class OptimizerConfig(_BaseConfig):
+    """Optimizer configuration with constraints and documentation."""
+
+    name: str = Field(
+        default="adamw",
+        description="Optimizer type: adamw, sgd, adam",
+    )
+    lr: float = Field(
+        default=1e-3,
+        gt=0.0,
+        le=1.0,
+        description="Learning rate",
+        json_schema_extra={"minimum": 1e-6},
+    )
+    weight_decay: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description="L2 regularization coefficient",
+    )
+    momentum: float | None = Field(
+        default=0.9,
+        ge=0.0,
+        le=1.0,
+        description="Momentum factor (for SGD)",
+    )
+    betas: tuple[float, float] | None = Field(default=None, description="Adam betas (beta1, beta2)")
+
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_assignment=True,
+        populate_by_name=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "name": "adamw",
+                    "lr": 0.001,
+                    "weight_decay": 0.01,
+                }
+            ]
+        },
+    )
+
+    @field_validator("betas")
+    @classmethod
+    def _validate_betas(cls, value: tuple[float, float] | None) -> tuple[float, float] | None:
+        if value is None:
+            return value
+        if len(value) != 2:
+            raise ValueError("betas must be a tuple of length 2")
+        return value
+
+    @field_validator("lr")
+    @classmethod
+    def _validate_lr(cls, value: float) -> float:
+        if value == 0:
+            raise ValueError("Learning rate must be non-zero")
+        return value
+
+    def to_proto(self) -> cuvis_ai_pb2.OptimizerConfig:
+        from cuvis_ai.grpc.v1 import cuvis_ai_pb2
+
+        return cuvis_ai_pb2.OptimizerConfig(config_bytes=self.model_dump_json().encode("utf-8"))
+
+    @classmethod
+    def from_proto(cls, proto_config):
+        return cls.model_validate_json(proto_config.config_bytes.decode("utf-8"))
+
+
+class TrainingConfig(_BaseConfig):
+    """Complete training configuration."""
+
+    seed: int = Field(default=42, ge=0, description="Random seed for reproducibility")
+    optimizer: OptimizerConfig = Field(
+        default_factory=OptimizerConfig, description="Optimizer configuration"
+    )
+    scheduler: SchedulerConfig | None = Field(
+        default=None, description="Learning rate scheduler (optional)"
+    )
+    callbacks: CallbacksConfig | None = Field(
+        default=None, description="Training callbacks (optional)"
+    )
+    trainer: TrainerConfig = Field(
+        default_factory=TrainerConfig, description="Lightning Trainer configuration"
+    )
+    max_epochs: int = Field(default=100, ge=1, le=10000, description="Maximum training epochs")
+    batch_size: int = Field(default=32, ge=1, description="Batch size")
+    num_workers: int = Field(default=4, ge=0, description="Number of data loading workers")
+    gradient_clip_val: float | None = Field(
+        default=None, ge=0.0, description="Gradient clipping value (optional)"
+    )
+    accumulate_grad_batches: int = Field(
+        default=1, ge=1, description="Accumulate gradients over n batches"
+    )
+
+    @model_validator(mode="after")
+    def _sync_trainer_fields(self) -> TrainingConfig:
+        """Keep top-level hyperparameters in sync with trainer config."""
+        fields_set = getattr(self, "model_fields_set", set())
+
+        # max_epochs: prefer explicit trainer value when top-level not provided
+        if "max_epochs" not in fields_set and self.trainer.max_epochs is not None:
+            self.max_epochs = self.trainer.max_epochs
+        else:
+            self.trainer.max_epochs = self.max_epochs
+
+        # gradient_clip_val
+        if "gradient_clip_val" not in fields_set and self.trainer.gradient_clip_val is not None:
+            self.gradient_clip_val = self.trainer.gradient_clip_val
+        elif self.gradient_clip_val is not None:
+            self.trainer.gradient_clip_val = self.gradient_clip_val
+
+        # accumulate_grad_batches
+        if (
+            "accumulate_grad_batches" not in fields_set
+            and self.trainer.accumulate_grad_batches is not None
+        ):
+            self.accumulate_grad_batches = self.trainer.accumulate_grad_batches
+        else:
+            self.trainer.accumulate_grad_batches = self.accumulate_grad_batches
+
+        # callbacks
+        if self.callbacks is not None:
+            self.trainer.callbacks = self.callbacks
+        return self
+
+    def to_proto(self) -> cuvis_ai_pb2.TrainingConfig:
+        from cuvis_ai.grpc.v1 import cuvis_ai_pb2
+
+        return cuvis_ai_pb2.TrainingConfig(config_bytes=self.model_dump_json().encode("utf-8"))
+
+    @classmethod
+    def from_proto(cls, proto_config):
+        return cls.model_validate_json(proto_config.config_bytes.decode("utf-8"))
+
+    def to_json(self) -> str:
+        """JSON serialization helper for legacy callers."""
+        return self.model_dump_json()
+
+    @classmethod
+    def from_json(cls, payload: str) -> TrainingConfig:
+        return cls.model_validate_json(payload)
+
+    def to_dict(self) -> dict[str, Any]:
+        return self.model_dump()
+
+    def to_dict_config(self) -> dict[str, Any]:
+        """Compatibility shim for legacy OmegaConf usage."""
+        try:
+            from omegaconf import OmegaConf
+        except Exception:
+            return self.model_dump()
+
+        return OmegaConf.create(self.model_dump())  # type: ignore[return-value]
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> TrainingConfig:
+        return cls.model_validate(data)
+
+    @classmethod
+    def from_dict_config(cls, config: dict[str, Any]) -> TrainingConfig:
+        if config.__class__.__name__ == "DictConfig":  # Avoid hard dependency in type hints
+            from omegaconf import OmegaConf
+
+            config = OmegaConf.to_container(config, resolve=True)  # type: ignore[assignment]
+        elif not isinstance(config, dict):
+            config = dict(config)
+        return cls.model_validate(config)
+
+
+class PipelineMetadata(_BaseConfig):
+    """Pipeline metadata for documentation and discovery."""
+
+    name: str
+    description: str = ""
+    created: str = ""
+    tags: list[str] = Field(default_factory=list)
+    author: str = ""
+    cuvis_ai_version: str = Field(default_factory=lambda: __version__)
+
+    def to_dict(self) -> dict[str, Any]:
+        return self.model_dump()
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> PipelineMetadata:
+        return cls.model_validate(data)
+
+    def to_proto(self) -> cuvis_ai_pb2.PipelineMetadata:
+        from cuvis_ai.grpc.v1 import cuvis_ai_pb2
+
+        return cuvis_ai_pb2.PipelineMetadata(
+            name=self.name,
+            description=self.description,
+            created=self.created,
+            tags=list(self.tags),
+            author=self.author,
+            cuvis_ai_version=self.cuvis_ai_version,
+        )
+
+
+class PipelineConfig(_BaseConfig):
+    """Pipeline structure configuration."""
+
+    name: str = Field(default="", description="Pipeline name")
+    nodes: list[dict[str, Any]] = Field(description="Node definitions")
+    connections: list[dict[str, Any]] = Field(description="Node connections")
+    frozen_nodes: list[str] = Field(
+        default_factory=list, description="Node names to keep frozen during training"
+    )
+    metadata: PipelineMetadata | None = Field(
+        default=None, description="Optional pipeline metadata"
+    )
+
+    def to_proto(self) -> cuvis_ai_pb2.PipelineConfig:
+        from cuvis_ai.grpc.v1 import cuvis_ai_pb2
+
+        return cuvis_ai_pb2.PipelineConfig(config_bytes=self.model_dump_json().encode("utf-8"))
+
+    @classmethod
+    def from_proto(cls, proto_config):
+        return cls.model_validate_json(proto_config.config_bytes.decode("utf-8"))
+
+    def to_json(self) -> str:
+        return self.model_dump_json()
+
+    @classmethod
+    def from_json(cls, payload: str) -> PipelineConfig:
+        return cls.model_validate_json(payload)
+
+    def to_dict(self) -> dict[str, Any]:
+        return self.model_dump()
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> PipelineConfig:
+        return cls.model_validate(data)
+
+
+class DataConfig(_BaseConfig):
+    """Data loading configuration."""
+
+    cu3s_file_path: str = Field(description="Path to .cu3s file")
+    annotation_json_path: str | None = Field(
+        default=None, description="Path to annotation JSON (optional)"
+    )
+    train_ids: list[int] = Field(default_factory=list, description="Training sample IDs")
+    val_ids: list[int] = Field(default_factory=list, description="Validation sample IDs")
+    test_ids: list[int] = Field(default_factory=list, description="Test sample IDs")
+    train_split: float | None = Field(
+        default=None, ge=0.0, le=1.0, description="Training split ratio"
+    )
+    val_split: float | None = Field(
+        default=None, ge=0.0, le=1.0, description="Validation split ratio"
+    )
+    shuffle: bool = Field(default=True, description="Shuffle dataset")
+    batch_size: int = Field(default=1, ge=1, description="Batch size")
+    processing_mode: str = Field(default="Reflectance", description="Raw or Reflectance mode")
+
+    def to_proto(self) -> cuvis_ai_pb2.DataConfig:
+        from cuvis_ai.grpc.v1 import cuvis_ai_pb2
+
+        return cuvis_ai_pb2.DataConfig(config_bytes=self.model_dump_json().encode("utf-8"))
+
+    @classmethod
+    def from_proto(cls, proto_config):
+        return cls.model_validate_json(proto_config.config_bytes.decode("utf-8"))
+
+    def to_json(self) -> str:
+        return self.model_dump_json()
+
+    @classmethod
+    def from_json(cls, payload: str) -> DataConfig:
+        return cls.model_validate_json(payload)
+
+    def to_dict(self) -> dict[str, Any]:
+        return self.model_dump()
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> DataConfig:
+        return cls.model_validate(data)
+
+
+class TrainRunConfig(_BaseConfig):
+    """Complete reproducible training configuration."""
+
+    name: str = Field(description="Train run identifier")
+    pipeline: PipelineConfig | None = Field(
+        default=None, description="Pipeline configuration (optional if already built)"
+    )
+    data: DataConfig = Field(description="Data configuration")
+    training: TrainingConfig = Field(description="Training configuration")
+    loss_nodes: list[str] = Field(
+        default_factory=list, description="Loss node names for gradient training"
+    )
+    metric_nodes: list[str] = Field(
+        default_factory=list, description="Metric node names for monitoring"
+    )
+    freeze_nodes: list[str] = Field(
+        default_factory=list, description="Node names to keep frozen during training"
+    )
+    unfreeze_nodes: list[str] = Field(
+        default_factory=list, description="Node names to unfreeze during training"
+    )
+    output_dir: str = Field(default="./outputs", description="Output directory for artifacts")
+    tags: dict[str, str] = Field(default_factory=dict, description="Metadata tags for tracking")
+
+    def to_proto(self) -> cuvis_ai_pb2.TrainRunConfig:
+        from cuvis_ai.grpc.v1 import cuvis_ai_pb2
+
+        return cuvis_ai_pb2.TrainRunConfig(config_bytes=self.model_dump_json().encode("utf-8"))
+
+    @classmethod
+    def from_proto(cls, proto_config):
+        return cls.model_validate_json(proto_config.config_bytes.decode("utf-8"))
+
+    def to_json(self) -> str:
+        return self.model_dump_json()
+
+    @classmethod
+    def from_json(cls, payload: str) -> TrainRunConfig:
+        return cls.model_validate_json(payload)
+
+    def to_dict(self) -> dict[str, Any]:
+        return self.model_dump()
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> TrainRunConfig:
+        return cls.model_validate(data)
+
+    def save_to_file(self, path: str | Path) -> None:
+        output_path = Path(path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with output_path.open("w", encoding="utf-8") as f:
+            yaml.safe_dump(self.model_dump(), f, sort_keys=False)
+
+    @classmethod
+    def load_from_file(cls, path: str | Path) -> TrainRunConfig:
+        with Path(path).open("r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+        return cls.from_dict(data)
 
 
 def create_callbacks_from_config(config: CallbacksConfig | None) -> list:
-    """Create PyTorch Lightning callback instances from configuration.
-
-    Parameters
-    ----------
-    config : CallbacksConfig | None
-        Callback configuration. If None, returns empty list.
-
-    Returns
-    -------
-    list
-        List of instantiated PyTorch Lightning callback objects
-
-    Examples
-    --------
-    >>> config = CallbacksConfig(
-    ...     early_stopping=[
-    ...         EarlyStoppingConfig(monitor="train/bce", patience=10, mode="min"),
-    ...         EarlyStoppingConfig(monitor="val/iou", patience=10, mode="max"),
-    ...     ],
-    ...     model_checkpoint=ModelCheckpointConfig(
-    ...         dirpath="./checkpoints",
-    ...         monitor="val/iou",
-    ...         mode="max",
-    ...     ),
-    ... )
-    >>> callbacks = create_callbacks_from_config(config)
-    """
+    """Create PyTorch Lightning callback instances from configuration."""
     if config is None:
         return []
 
-    from pytorch_lightning.callbacks import (
-        EarlyStopping,
-        LearningRateMonitor,
-        ModelCheckpoint,
-    )
+    from pytorch_lightning.callbacks import EarlyStopping, LearningRateMonitor, ModelCheckpoint
 
     callbacks = []
 
-    # Create EarlyStopping callbacks
-    for es_config in config.early_stopping:
-        callbacks.append(
-            EarlyStopping(
-                monitor=es_config.monitor,
-                patience=es_config.patience,
-                mode=es_config.mode,
-                min_delta=es_config.min_delta,
-                stopping_threshold=es_config.stopping_threshold,
-                verbose=es_config.verbose,
+    if config.early_stopping:
+        for es_config in config.early_stopping:
+            callbacks.append(
+                EarlyStopping(
+                    monitor=es_config.monitor,
+                    patience=es_config.patience,
+                    mode=es_config.mode,
+                    min_delta=es_config.min_delta,
+                    stopping_threshold=es_config.stopping_threshold,
+                    verbose=es_config.verbose,
+                    strict=es_config.strict,
+                    check_finite=es_config.check_finite,
+                    divergence_threshold=es_config.divergence_threshold,
+                    check_on_train_epoch_end=es_config.check_on_train_epoch_end,
+                    log_rank_zero_only=es_config.log_rank_zero_only,
+                )
             )
-        )
 
-    # Create ModelCheckpoint callback
-    if config.model_checkpoint is not None:
-        mc_config = config.model_checkpoint
+    if config.checkpoint is not None:
+        mc_config = config.checkpoint
         callbacks.append(
             ModelCheckpoint(
                 dirpath=mc_config.dirpath,
@@ -180,913 +568,27 @@ def create_callbacks_from_config(config: CallbacksConfig | None) -> list:
                 save_last=mc_config.save_last,
                 verbose=mc_config.verbose,
                 auto_insert_metric_name=mc_config.auto_insert_metric_name,
+                every_n_epochs=mc_config.every_n_epochs,
+                save_on_exception=mc_config.save_on_exception,
+                save_weights_only=mc_config.save_weights_only,
+                every_n_train_steps=mc_config.every_n_train_steps,
+                train_time_interval=mc_config.train_time_interval,
+                save_on_train_epoch_end=mc_config.save_on_train_epoch_end,
+                enable_version_counter=mc_config.enable_version_counter,
             )
         )
 
-    # Create LearningRateMonitor callback
     if config.learning_rate_monitor is not None:
         lr_config = config.learning_rate_monitor
         callbacks.append(
             LearningRateMonitor(
                 logging_interval=lr_config.logging_interval,
                 log_momentum=lr_config.log_momentum,
+                log_weight_decay=lr_config.log_weight_decay,
             )
         )
 
     return callbacks
-
-
-@dataclass
-class TrainerConfig:
-    """Hydra-serializable configuration for the Lightning Trainer.
-
-    Parameters
-    ----------
-    max_epochs : int
-        Maximum number of training epochs
-    accelerator : str
-        Device accelerator ('cpu', 'gpu', 'tpu', 'auto')
-    devices : int | str | None
-        Number of devices or device IDs to use
-    default_root_dir : str | None
-        Default path for logs and weights. If None, uses current working directory.
-    precision : str | int
-        Precision mode ('32-true', '16-mixed', 'bf16-mixed', etc.)
-    accumulate_grad_batches : int
-        Accumulate gradients over N batches
-    enable_progress_bar : bool
-        Show training progress bar
-    enable_checkpointing : bool
-        Enable model checkpointing
-    log_every_n_steps : int
-        Log metrics every N steps
-    val_check_interval : float | int | None
-        How often to check validation set (fraction of epoch or num batches)
-    check_val_every_n_epoch : int | None
-        Check validation every N epochs
-    gradient_clip_val : float | None
-        Gradient clipping value (None to disable)
-    deterministic : bool
-        Use deterministic algorithms for reproducibility
-    benchmark : bool
-        Enable cudnn.benchmark for performance
-    callbacks : CallbacksConfig | None
-        Callback configurations (early stopping, checkpointing, LR monitoring, etc.)
-    """
-
-    max_epochs: int = 100
-    accelerator: str = "auto"
-    devices: int | str | None = None
-    default_root_dir: str | None = None
-    precision: str | int = "32-true"
-    accumulate_grad_batches: int = 1
-    enable_progress_bar: bool = True
-    enable_checkpointing: bool = False
-    log_every_n_steps: int = 50
-    val_check_interval: float | int | None = 1.0
-    check_val_every_n_epoch: int | None = 1
-    gradient_clip_val: float | None = None
-    deterministic: bool = False
-    benchmark: bool = False
-    callbacks: CallbacksConfig | None = None
-
-
-@dataclass
-class SchedulerConfig:
-    """Learning rate scheduler configuration.
-
-    Parameters
-    ----------
-    name : str
-        Scheduler name ('reduce_on_plateau', 'step', 'cosine', etc.)
-    monitor : str | None
-        Metric name to monitor for ReduceLROnPlateau (e.g., 'metrics_anomaly/iou')
-    mode : str
-        One of 'min' or 'max'. In 'min' mode, lr will be reduced when the quantity
-        monitored has stopped decreasing; in 'max' mode it will be reduced when the
-        quantity monitored has stopped increasing.
-    factor : float
-        Factor by which the learning rate will be reduced. new_lr = lr * factor
-    patience : int
-        Number of epochs with no improvement after which learning rate will be reduced
-    threshold : float
-        Threshold for measuring the new optimum, to only focus on significant changes
-    threshold_mode : str
-        One of 'rel', 'abs'. In 'rel' mode, dynamic_threshold = best * (1 + threshold)
-        in 'max' mode or best * (1 - threshold) in 'min' mode
-    cooldown : int
-        Number of epochs to wait before resuming normal operation after lr has been reduced
-    min_lr : float
-        A lower bound on the learning rate
-    eps : float
-        Minimal decay applied to lr. If the difference between new and old lr is smaller
-        than eps, the update is ignored
-    verbose : bool
-        If True, prints a message to stdout for each update
-    """
-
-    name: str = "reduce_on_plateau"
-    monitor: str | None = None
-    mode: str = "min"
-    factor: float = 0.1
-    patience: int = 10
-    threshold: float = 1e-4
-    threshold_mode: str = "rel"
-    cooldown: int = 0
-    min_lr: float = 1e-6
-    eps: float = 1e-8
-    verbose: bool = False
-
-
-@dataclass
-class OptimizerConfig:
-    """Optimizer settings consumed by the Trainer.
-
-    Parameters
-    ----------
-    name : str
-        Optimizer name ('adam', 'sgd', 'adamw')
-    lr : float
-        Learning rate
-    weight_decay : float
-        Weight decay (L2 regularization)
-    betas : tuple[float, float] | None
-        Adam beta parameters (beta1, beta2)
-    scheduler : SchedulerConfig | None
-        Learning rate scheduler configuration
-    """
-
-    name: str = "adamw"
-    lr: float = 1e-3
-    weight_decay: float = 0.0
-    betas: tuple[float, float] | None = None
-    scheduler: SchedulerConfig | None = None
-
-
-@dataclass
-class TrainingConfig:
-    """Top-level training configuration bundle.
-
-    Parameters
-    ----------
-    seed : int
-        Random seed for reproducibility
-    trainer : TrainerConfig
-        Lightning Trainer configuration
-    optimizer : OptimizerConfig
-        Optimizer configuration
-    """
-
-    seed: int = 42
-    trainer: TrainerConfig = field(default_factory=TrainerConfig)
-    optimizer: OptimizerConfig = field(default_factory=OptimizerConfig)
-
-    # ------------------------------------------------------------------
-    # Serialization methods (consistent with other config classes)
-    # ------------------------------------------------------------------
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary (consistent with other config classes).
-
-        Returns
-        -------
-        dict[str, Any]
-            Dictionary representation of the training config
-        """
-        return {
-            "seed": self.seed,
-            "trainer": asdict(self.trainer),
-            "optimizer": asdict(self.optimizer),
-        }
-
-    def to_dict_config(self) -> DictConfig:
-        """Convert to OmegaConf DictConfig with schema validation.
-
-        Returns
-        -------
-        DictConfig
-            OmegaConf DictConfig representation
-        """
-        base = OmegaConf.structured(TrainingConfig)
-        payload = OmegaConf.create(asdict(self))
-        merged = OmegaConf.merge(base, payload)
-        assert isinstance(merged, DictConfig)
-        return merged
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> TrainingConfig:
-        """Create TrainingConfig from dictionary.
-
-        Parameters
-        ----------
-        data : dict[str, Any]
-            Dictionary containing training config data
-
-        Returns
-        -------
-        TrainingConfig
-            Parsed training configuration
-        """
-        return cls.from_dict_config(data)
-
-    @classmethod
-    def from_dict_config(cls, config: DictConfig | Mapping[str, Any]) -> TrainingConfig:
-        """Create TrainingConfig from DictConfig or plain mapping.
-
-        Uses OmegaConf's structured config instantiation to properly handle
-        nested configs and default value overrides without manual construction.
-
-        Parameters
-        ----------
-        config : DictConfig | Mapping[str, Any]
-            Configuration dict to parse
-
-        Returns
-        -------
-        TrainingConfig
-            Parsed configuration object
-
-        Raises
-        ------
-        TypeError
-            If the result is not a TrainingConfig instance
-        """
-        cfg = config if isinstance(config, DictConfig) else OmegaConf.create(dict(config))
-        merged = OmegaConf.merge(OmegaConf.structured(TrainingConfig), cfg)
-        assert isinstance(merged, DictConfig)
-
-        # Use OmegaConf's native structured config instantiation
-        # This properly handles nested configs and default values automatically
-        instantiated = OmegaConf.to_object(merged)
-        if not isinstance(instantiated, TrainingConfig):
-            raise TypeError(f"Expected TrainingConfig, got {type(instantiated)}")
-        return instantiated
-
-    # ------------------------------------------------------------------
-    # JSON helpers for RPC serialization
-    # ------------------------------------------------------------------
-    def to_json(self) -> str:
-        """Serialize the training config to JSON (for gRPC transport).
-
-        Returns
-        -------
-        str
-            JSON string representation
-        """
-        return json.dumps(self.to_dict())
-
-    @classmethod
-    def from_json(cls, payload: str) -> TrainingConfig:
-        """Deserialize a TrainingConfig from a JSON string (for gRPC transport).
-
-        Parameters
-        ----------
-        payload : str
-            JSON string to deserialize
-
-        Returns
-        -------
-        TrainingConfig
-            Parsed training configuration
-        """
-        return cls.from_dict(json.loads(payload))
-
-
-@dataclass
-class PipelineMetadata:
-    """Pipeline metadata for documentation and discovery.
-
-    Parameters
-    ----------
-    name : str
-        Pipeline name
-    description : str
-        Pipeline description
-    created : str
-        Creation timestamp (ISO format)
-    tags : list[str]
-        Tags for categorization and discovery
-    author : str
-        Pipeline author
-    cuvis_ai_version : str
-        Version of cuvis_ai used to create the pipeline
-    """
-
-    name: str
-    description: str = ""
-    created: str = ""
-    tags: list[str] = field(default_factory=list)
-    author: str = ""
-    cuvis_ai_version: str = field(default_factory=lambda: __version__)
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary."""
-        return asdict(self)
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> PipelineMetadata:
-        """Create from dictionary."""
-        return cls(
-            name=data.get("name", ""),
-            description=data.get("description", ""),
-            created=data.get("created", ""),
-            tags=list(data.get("tags", [])),
-            author=data.get("author", ""),
-            cuvis_ai_version=data.get("cuvis_ai_version", __version__),
-        )
-
-    def to_proto(self) -> Any:
-        """Convert to proto PipelineMetadata.
-
-        Returns
-        -------
-        Any
-            Proto PipelineMetadata message
-        """
-        from cuvis_ai.grpc.v1 import cuvis_ai_pb2
-
-        return cuvis_ai_pb2.PipelineMetadata(
-            name=self.name,
-            description=self.description,
-            created=self.created,
-            cuvis_ai_version="",
-            tags=self.tags,
-            author=self.author,
-        )
-
-    @classmethod
-    def from_proto(cls, proto_metadata: Any) -> PipelineMetadata:
-        """Convert from proto PipelineMetadata.
-
-        Parameters
-        ----------
-        proto_metadata : Any
-            Proto PipelineMetadata message
-
-        Returns
-        -------
-        PipelineMetadata
-            Python pipeline metadata
-        """
-        return cls(
-            name=proto_metadata.name,
-            description=proto_metadata.description,
-            created=proto_metadata.created,
-            tags=list(proto_metadata.tags),
-            author=proto_metadata.author,
-        )
-
-
-@dataclass
-class PipelineConfig:
-    """Typed schema for pipeline structure and metadata.
-
-    This represents the complete pipeline configuration including structure,
-    metadata, nodes, and connections. Similar to TrainingConfig and DataConfig,
-    this can be serialized/deserialized and passed via gRPC.
-
-    Parameters
-    ----------
-    metadata : PipelineMetadata
-        Pipeline metadata (name, description, tags, etc.)
-    nodes : list[dict[str, Any]]
-        List of node configurations with class, params, etc.
-    connections : list[dict[str, str]]
-        List of connection specifications (from/to port references)
-    """
-
-    metadata: PipelineMetadata
-    nodes: list[dict[str, Any]]
-    connections: list[dict[str, str]]
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary.
-
-        Returns
-        -------
-        dict[str, Any]
-            Dictionary representation suitable for YAML serialization
-        """
-        return {
-            "metadata": self.metadata.to_dict(),
-            "nodes": self.nodes,
-            "connections": self.connections,
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> PipelineConfig:
-        """Create from dictionary.
-
-        Parameters
-        ----------
-        data : dict[str, Any]
-            Dictionary containing pipeline config data
-
-        Returns
-        -------
-        PipelineConfig
-            Parsed pipeline configuration
-        """
-        return cls(
-            metadata=PipelineMetadata.from_dict(data.get("metadata", {})),
-            nodes=list(data.get("nodes", [])),
-            connections=list(data.get("connections", [])),
-        )
-
-    def to_proto(self) -> Any:
-        """Convert to proto PipelineConfig.
-
-        For gRPC transport, we serialize the full config as JSON bytes.
-
-        Returns
-        -------
-        Any
-            Proto PipelineConfig message with config_bytes field
-        """
-        from cuvis_ai.grpc.v1 import cuvis_ai_pb2
-
-        config_json = json.dumps(self.to_dict())
-        return cuvis_ai_pb2.PipelineConfig(
-            config_bytes=config_json.encode("utf-8"),
-        )
-
-    @classmethod
-    def from_proto(cls, proto_config: Any) -> PipelineConfig:
-        """Convert from proto PipelineConfig.
-
-        Parameters
-        ----------
-        proto_config : Any
-            Proto PipelineConfig message
-
-        Returns
-        -------
-        PipelineConfig
-            Python pipeline configuration
-        """
-        config_json = proto_config.config_bytes.decode("utf-8")
-        config_dict = json.loads(config_json)
-        return cls.from_dict(config_dict)
-
-    def to_json(self) -> str:
-        """Serialize to JSON string.
-
-        Returns
-        -------
-        str
-            JSON representation
-        """
-        return json.dumps(self.to_dict())
-
-    @classmethod
-    def from_json(cls, payload: str) -> PipelineConfig:
-        """Deserialize from JSON string.
-
-        Parameters
-        ----------
-        payload : str
-            JSON string to deserialize
-
-        Returns
-        -------
-        PipelineConfig
-            Parsed pipeline configuration
-        """
-        return cls.from_dict(json.loads(payload))
-
-
-@dataclass
-class DataConfig:
-    """Data configuration for training.
-
-    Parameters
-    ----------
-    cu3s_file_path : str
-        Path to .cu3s file
-    annotation_json_path : str | None
-        Path to annotation JSON file (optional for unsupervised training)
-    train_ids : list[int]
-        Training sample IDs
-    val_ids : list[int]
-        Validation sample IDs
-    test_ids : list[int]
-        Test sample IDs
-    batch_size : int
-        Batch size for data loading
-    processing_mode : str
-        Processing mode ('Raw' or 'Reflectance')
-    """
-
-    cu3s_file_path: str
-    annotation_json_path: str | None = None
-    train_ids: list[int] = field(default_factory=list)
-    val_ids: list[int] = field(default_factory=list)
-    test_ids: list[int] = field(default_factory=list)
-    batch_size: int = 1
-    processing_mode: str = "Reflectance"
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary."""
-        return asdict(self)
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> DataConfig:
-        """Create from dictionary."""
-        return cls(
-            cu3s_file_path=data["cu3s_file_path"],
-            annotation_json_path=data.get("annotation_json_path"),
-            train_ids=list(data.get("train_ids", [])),
-            val_ids=list(data.get("val_ids", [])),
-            test_ids=list(data.get("test_ids", [])),
-            batch_size=data.get("batch_size", 1),
-            processing_mode=data.get("processing_mode", "Reflectance"),
-        )
-
-    def to_proto(self) -> Any:
-        """Convert to proto DataConfig.
-
-        Returns
-        -------
-        Any
-            Proto DataConfig message
-        """
-        from cuvis_ai.grpc.v1 import cuvis_ai_pb2
-
-        # Map processing mode string to proto enum
-        processing_mode_map = {
-            "Raw": cuvis_ai_pb2.PROCESSING_MODE_RAW,
-            "Reflectance": cuvis_ai_pb2.PROCESSING_MODE_REFLECTANCE,
-        }
-        processing_mode = processing_mode_map.get(
-            self.processing_mode, cuvis_ai_pb2.PROCESSING_MODE_REFLECTANCE
-        )
-
-        return cuvis_ai_pb2.DataConfig(
-            cu3s_file_path=self.cu3s_file_path,
-            annotation_json_path=self.annotation_json_path,
-            train_ids=self.train_ids,
-            val_ids=self.val_ids,
-            test_ids=self.test_ids,
-            batch_size=self.batch_size,
-            processing_mode=processing_mode,
-        )
-
-    @classmethod
-    def from_proto(cls, proto_config: Any) -> DataConfig:
-        """Convert from proto DataConfig.
-
-        Parameters
-        ----------
-        proto_config : Any
-            Proto DataConfig message
-
-        Returns
-        -------
-        DataConfig
-            Python data configuration
-        """
-        from cuvis_ai.grpc.v1 import cuvis_ai_pb2
-
-        # Map proto enum to processing mode string
-        processing_mode_map = {
-            cuvis_ai_pb2.PROCESSING_MODE_RAW: "Raw",
-            cuvis_ai_pb2.PROCESSING_MODE_REFLECTANCE: "Reflectance",
-        }
-        processing_mode = processing_mode_map.get(proto_config.processing_mode, "Reflectance")
-
-        return cls(
-            cu3s_file_path=proto_config.cu3s_file_path,
-            annotation_json_path=proto_config.annotation_json_path,
-            train_ids=list(proto_config.train_ids),
-            val_ids=list(proto_config.val_ids),
-            test_ids=list(proto_config.test_ids),
-            batch_size=proto_config.batch_size,
-            processing_mode=processing_mode,
-        )
-
-
-@dataclass
-class ExperimentConfig:
-    """Complete experiment configuration for reproducibility.
-
-    Parameters
-    ----------
-    name : str
-        Experiment name
-    pipeline : PipelineConfig
-        Pipeline configuration
-    data : DataConfig
-        Data configuration
-    training : TrainingConfig
-        Training configuration
-    output_dir : str
-        Root directory for outputs (models, logs, etc.)
-    unfreeze_nodes : list[str]
-        List of node names to unfreeze for gradient training
-    freeze_nodes : list[str]
-        List of node names to keep frozen during training
-    metric_nodes : list[str]
-        List of metric node names used in the experiment
-    loss_nodes : list[str]
-        List of loss node names used in the experiment
-
-    """
-
-    name: str
-    pipeline: PipelineConfig
-    data: DataConfig
-    training: TrainingConfig
-    output_dir: str = "./outputs"
-    unfreeze_nodes: list[str] = field(default_factory=list)
-    freeze_nodes: list[str] = field(default_factory=list)
-    metric_nodes: list[str] = field(default_factory=list)
-    loss_nodes: list[str] = field(default_factory=list)
-
-    def __post_init__(self) -> None:
-        """Convert DictConfig/dict to proper config objects if needed."""
-        # Convert data to DataConfig if it's a dict/DictConfig
-        if not isinstance(self.data, DataConfig):
-            if isinstance(self.data, DictConfig):
-                data_container = OmegaConf.to_container(self.data, resolve=True)
-                assert isinstance(data_container, dict), "Expected dict from OmegaConf.to_container"
-                data_dict: dict[str, Any] = data_container  # type: ignore[assignment]
-                self.data = DataConfig.from_dict(data_dict)
-            elif isinstance(self.data, dict):
-                self.data = DataConfig.from_dict(self.data)
-
-        # Convert pipeline to PipelineConfig if it's a dict/DictConfig
-        if not isinstance(self.pipeline, PipelineConfig):
-            if isinstance(self.pipeline, DictConfig):
-                pipeline_container = OmegaConf.to_container(self.pipeline, resolve=True)
-                assert isinstance(pipeline_container, dict), (
-                    "Expected dict from OmegaConf.to_container"
-                )
-                pipeline_dict: dict[str, Any] = pipeline_container  # type: ignore[assignment]
-                self.pipeline = PipelineConfig.from_dict(pipeline_dict)
-            elif isinstance(self.pipeline, dict):
-                self.pipeline = PipelineConfig.from_dict(self.pipeline)
-
-        # Convert training to TrainingConfig if it's a dict/DictConfig
-        if not isinstance(self.training, TrainingConfig):
-            if isinstance(self.training, DictConfig):
-                self.training = TrainingConfig.from_dict_config(self.training)
-            elif isinstance(self.training, dict):
-                self.training = TrainingConfig.from_dict_config(self.training)
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary."""
-        return {
-            "name": self.name,
-            "pipeline": self.pipeline.to_dict(),
-            "data": self.data.to_dict(),
-            "training": self.training.to_dict(),
-            "output_dir": self.output_dir,
-            "unfreeze_nodes": self.unfreeze_nodes,
-            "freeze_nodes": self.freeze_nodes,
-            "metric_nodes": self.metric_nodes,
-            "loss_nodes": self.loss_nodes,
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> ExperimentConfig:
-        """Create from dictionary."""
-        return cls(
-            name=data["name"],
-            pipeline=PipelineConfig.from_dict(data["pipeline"]),
-            data=DataConfig.from_dict(data["data"]),
-            training=TrainingConfig.from_dict_config(data["training"]),
-            output_dir=data.get("output_dir", "./outputs"),
-            unfreeze_nodes=list(data.get("unfreeze_nodes", [])),
-            freeze_nodes=list(data.get("freeze_nodes", [])),
-            metric_nodes=list(data.get("metric_nodes", [])),
-            loss_nodes=list(data.get("loss_nodes", [])),
-        )
-
-    @classmethod
-    def from_config(cls, cfg: DictConfig) -> ExperimentConfig:
-        """Create from OmegaConf DictConfig.
-
-        Parameters
-        ----------
-        cfg : DictConfig
-            OmegaConf configuration object
-
-        Returns
-        -------
-        ExperimentConfig
-            Experiment configuration instance
-        """
-        # Convert to plain dict for existing from_dict infrastructure
-        config_dict = OmegaConf.to_container(cfg, resolve=True)
-        return cls.from_dict(config_dict)  # type: ignore
-
-    def save_to_file(self, path: str) -> None:
-        """Save experiment config to YAML file.
-
-        Parameters
-        ----------
-        path : str
-            Path to save YAML file
-        """
-        from pathlib import Path
-
-        import yaml
-
-        output_path = Path(path)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-
-        with output_path.open("w") as f:
-            yaml.dump(self.to_dict(), f, default_flow_style=False, sort_keys=False)
-
-    @classmethod
-    def load_from_file(cls, path: str, overrides: list[str] | None = None) -> ExperimentConfig:
-        """Load experiment config from YAML file with Hydra composition support.
-
-        Automatically locates the repo's config root directory and uses
-        Hydra's composition system to resolve nested configs (e.g., defaults).
-        If no 'configs' directory is found (e.g., in test scenarios), falls back
-        to simple YAML loading without Hydra composition.
-
-        Parameters
-        ----------
-        path : str
-            Path to YAML config file
-        overrides : list[str] | None
-            Hydra-style config overrides in dot notation.
-            Examples: ["output_dir=outputs/custom", "data.batch_size=16"]
-
-        Returns
-        -------
-        ExperimentConfig
-            Loaded experiment configuration
-
-        Examples
-        --------
-        >>> config = ExperimentConfig.load_from_file(
-        ...     "configs/experiment/deep_svdd.yaml",
-        ...     overrides=["output_dir=outputs/custom", "training.optimizer.lr=0.001"]
-        ... )
-        """
-        from hydra import compose, initialize_config_dir
-        from hydra.core.global_hydra import GlobalHydra
-
-        config_path = Path(path).resolve()
-
-        # Check if file exists
-        if not config_path.exists():
-            raise FileNotFoundError(f"Experiment file not found: {config_path}")
-
-        # Find the repo's config root directory
-        # Traverse up from the config file to find the 'configs' directory
-        config_root = config_path.parent
-        while config_root.name != "configs" and config_root.parent != config_root:
-            config_root = config_root.parent
-
-        # If no configs directory found, fall back to simple YAML loading
-        if config_root.name != "configs":
-            # Fallback: Load YAML directly without Hydra composition
-            with config_path.open() as f:
-                data: dict[str, Any] = yaml.safe_load(f)
-
-            # Apply overrides manually if provided
-            if overrides:
-                data = cls._apply_overrides(data, overrides)
-
-            return cls.from_dict(data)
-
-        # Hydra-based loading for configs in the standard directory structure
-        # Get relative path from config root (e.g., "experiment/deep_svdd")
-        relative_path = config_path.relative_to(config_root)
-        config_name = str(relative_path.with_suffix("")).replace("\\", "/")
-
-        # Clean up any existing Hydra instance
-        GlobalHydra.instance().clear()
-
-        try:
-            with initialize_config_dir(config_dir=str(config_root.absolute()), version_base=None):
-                cfg = compose(config_name=config_name, overrides=overrides or [])
-
-            # Convert OmegaConf to dict and create ExperimentConfig
-            data = OmegaConf.to_container(cfg, resolve=True)  # type: ignore[assignment]
-            assert isinstance(data, dict), "Expected dict from OmegaConf.to_container"
-
-            # Hydra may nest the config under a group name (e.g., {'experiment': {...}})
-            # Only unwrap if we have exactly one key and that key is NOT an expected experiment field
-            # This ensures we don't unwrap valid experiment configs that happen to have one top-level field
-            if len(data) == 1:
-                single_key = list(data.keys())[0]
-                # Only unwrap if the single key is a group name (not an experiment config field)
-                if single_key not in [
-                    "name",
-                    "pipeline",
-                    "data",
-                    "training",
-                    "output_dir",
-                    "unfreeze_nodes",
-                    "freeze_nodes",
-                    "metric_nodes",
-                    "loss_nodes",
-                    "defaults",
-                ]:
-                    nested_data = data[single_key]
-                    if isinstance(nested_data, dict) and "name" in nested_data:
-                        # This looks like a wrapped experiment config
-                        data = nested_data
-
-            return cls.from_dict(data)
-        finally:
-            # Always clean up Hydra singleton
-            GlobalHydra.instance().clear()
-
-    @staticmethod
-    def _apply_overrides(data: dict[str, Any], overrides: list[str]) -> dict[str, Any]:
-        """Apply Hydra-style overrides to a config dict.
-
-        Parameters
-        ----------
-        data : dict[str, Any]
-            Configuration dictionary
-        overrides : list[str]
-            List of overrides in dot notation (e.g., "data.batch_size=16")
-
-        Returns
-        -------
-        dict[str, Any]
-            Configuration dictionary with overrides applied
-        """
-        for override in overrides:
-            if "=" not in override:
-                continue
-
-            key_path, value_str = override.split("=", 1)
-            keys = key_path.split(".")
-
-            # Navigate to the nested dict
-            current = data
-            for key in keys[:-1]:
-                if key not in current:
-                    current[key] = {}
-                current = current[key]
-
-            # Try to parse the value as the appropriate type
-            final_key = keys[-1]
-            try:
-                # Try parsing as number
-                if "." in value_str:
-                    current[final_key] = float(value_str)
-                else:
-                    current[final_key] = int(value_str)
-            except ValueError:
-                # Try parsing as boolean
-                if value_str.lower() in {"true", "false"}:
-                    current[final_key] = value_str.lower() == "true"
-                else:
-                    # Keep as string
-                    current[final_key] = value_str
-
-        return data
-
-    def to_proto(self) -> Any:
-        """Convert to proto ExperimentConfig.
-
-        Returns
-        -------
-        Any
-            Proto ExperimentConfig message
-        """
-        from cuvis_ai.grpc.v1 import cuvis_ai_pb2
-
-        training_json = self.training.to_json()
-
-        return cuvis_ai_pb2.ExperimentConfig(
-            name=self.name,
-            pipeline=self.pipeline.to_proto(),
-            data=self.data.to_proto(),
-            training=cuvis_ai_pb2.TrainingConfig(config_bytes=training_json.encode("utf-8")),
-        )
-
-    @classmethod
-    def from_proto(cls, proto_config: Any) -> ExperimentConfig:
-        """Convert from proto ExperimentConfig.
-
-        Parameters
-        ----------
-        proto_config : Any
-            Proto ExperimentConfig message
-
-        Returns
-        -------
-        ExperimentConfig
-            Python experiment configuration
-        """
-        training_json = proto_config.training.config_bytes.decode("utf-8")
-        training_config = TrainingConfig.from_json(training_json)
-
-        return cls(
-            name=proto_config.name,
-            pipeline=PipelineConfig.from_proto(proto_config.pipeline),
-            data=DataConfig.from_proto(proto_config.data),
-            training=training_config,
-        )
 
 
 __all__ = [
@@ -1094,7 +596,6 @@ __all__ = [
     "ModelCheckpointConfig",
     "LearningRateMonitorConfig",
     "CallbacksConfig",
-    "create_callbacks_from_config",
     "TrainerConfig",
     "SchedulerConfig",
     "OptimizerConfig",
@@ -1102,5 +603,6 @@ __all__ = [
     "PipelineMetadata",
     "PipelineConfig",
     "DataConfig",
-    "ExperimentConfig",
+    "TrainRunConfig",
+    "create_callbacks_from_config",
 ]

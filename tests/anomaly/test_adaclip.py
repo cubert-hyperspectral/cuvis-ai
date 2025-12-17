@@ -815,10 +815,7 @@ class TestStatisticalScripts:
             sys.path.insert(0, str(project_root))
 
         # Just test that the module can be imported
-        try:
-            from examples.adaclip import statistical_baseline  # noqa: F401
-        except ImportError as e:
-            pytest.skip(f"statistical_baseline.py not available: {e}")
+        from examples.adaclip import statistical_baseline  # noqa: F401
 
     def test_statistical_cir_false_color_imports(self):
         """Test that statistical_cir_false_color.py can be imported."""

@@ -1,65 +1,96 @@
-"""Train from Scratch Client Example - Workflow 1: Training a pipeline from scratch."""
+"""Train a pipeline from scratch using explicit config composition."""
 
-import grpc
+from __future__ import annotations
 
-from cuvis_ai.grpc import cuvis_ai_pb2, cuvis_ai_pb2_grpc
+import json
+from pathlib import Path
+
+from workflow_utils import (
+    apply_trainrun_config,
+    build_stub,
+    config_search_paths,
+    create_session_with_search_paths,
+    format_progress,
+    resolve_trainrun_config,
+)
+
+from cuvis_ai.grpc import cuvis_ai_pb2
 
 
 def main() -> None:
-    channel = grpc.insecure_channel("localhost:50051")
-    stub = cuvis_ai_pb2_grpc.CuvisAIServiceStub(channel)
+    stub = build_stub()
+    session_id = create_session_with_search_paths(stub, config_search_paths())
+    print(f"Session created: {session_id}")
 
-    # Use RestoreExperiment to load full config (pipeline + data + training + loss/metric nodes)
-    response = stub.RestoreExperiment(
-        cuvis_ai_pb2.RestoreExperimentRequest(
-            experiment_path="configs/experiment/channel_selector.yaml"
-        )
+    # Resolve the channel_selector trainrun and tweak it client-side
+    resolved, config_dict = resolve_trainrun_config(
+        stub,
+        session_id,
+        "channel_selector",
+        overrides=[],
     )
-    session_id = response.session_id
-    print(f"Session: {session_id}")
 
-    try:
-        # Train with gradient trainer (config already loaded from experiment)
-        for progress in stub.Train(
-            cuvis_ai_pb2.TrainRequest(
-                session_id=session_id,
-                trainer_type=cuvis_ai_pb2.TRAINER_TYPE_GRADIENT,
-            )
-        ):
-            epoch = progress.context.epoch
-            losses = ", ".join([f"{k}={v:.4f}" for k, v in progress.losses.items()])
-            metrics = ", ".join([f"{k}={v:.4f}" for k, v in progress.metrics.items()])
-            print(f"Epoch {epoch}: {losses} {metrics}")
-
-        print("Training complete")
-    except grpc.RpcError as e:
-        print(f"Training failed: {e.details()}")
-        return
-
-    save_response = stub.SavePipeline(
-        cuvis_ai_pb2.SavePipelineRequest(
+    # (Optional) Build the pipeline explicitly before applying the trainrun
+    stub.LoadPipeline(
+        cuvis_ai_pb2.LoadPipelineRequest(
             session_id=session_id,
-            pipeline_path="models/trained_selector.yaml",
-            metadata=cuvis_ai_pb2.PipelineMetadata(
-                name="Trained Channel Selector",
-                description="Channel selector trained on lentils dataset",
-                created="2024-11-27",
-                cuvis_ai_version="0.1.5",
+            pipeline=cuvis_ai_pb2.PipelineConfig(
+                config_bytes=json.dumps(config_dict["pipeline"]).encode("utf-8")
             ),
         )
     )
-    print(f"Pipeline saved: {save_response.pipeline_path}")
-    print(f"Weights saved: {save_response.weights_path}")
 
-    exp_response = stub.SaveExperiment(
-        cuvis_ai_pb2.SaveExperimentRequest(
+    # Customize a few training hyperparameters before applying
+    config_dict["training"]["trainer"]["max_epochs"] = 2
+    config_dict["training"]["optimizer"]["lr"] = 5e-4
+
+    trainrun_bytes = json.dumps(config_dict).encode("utf-8")
+    apply_trainrun_config(stub, session_id, trainrun_bytes)
+    print(f"Applied custom trainrun '{config_dict['name']}' with manual tweaks")
+
+    # Statistical training (server streams progress)
+    print("Starting statistical training...")
+    for progress in stub.Train(
+        cuvis_ai_pb2.TrainRequest(
             session_id=session_id,
-            experiment_path="experiments/run_001.yaml",
+            trainer_type=cuvis_ai_pb2.TRAINER_TYPE_STATISTICAL,
+        )
+    ):
+        print(format_progress(progress))
+
+    # Gradient training
+    for progress in stub.Train(
+        cuvis_ai_pb2.TrainRequest(
+            session_id=session_id,
+            trainer_type=cuvis_ai_pb2.TRAINER_TYPE_GRADIENT,
+        )
+    ):
+        print(format_progress(progress))
+
+    # Save artifacts
+    pipeline_path = str(Path("outputs/train_from_scratch.yaml").resolve())
+    trainrun_path = str(Path("outputs/train_from_scratch_trainrun.yaml").resolve())
+
+    save_pipeline = stub.SavePipeline(
+        cuvis_ai_pb2.SavePipelineRequest(
+            session_id=session_id,
+            pipeline_path=pipeline_path,
+            metadata=cuvis_ai_pb2.PipelineMetadata(
+                name="Trained Channel Selector",
+                description="Channel selector trained from scratch",
+            ),
         )
     )
-    print(f"Experiment saved: {exp_response.experiment_path}")
+    print(f"Pipeline saved: {save_pipeline.pipeline_path}")
+    print(f"Weights saved: {save_pipeline.weights_path}")
+
+    save_trainrun = stub.SaveTrainRun(
+        cuvis_ai_pb2.SaveTrainRunRequest(session_id=session_id, trainrun_path=trainrun_path)
+    )
+    print(f"Trainrun saved: {save_trainrun.trainrun_path}")
 
     stub.CloseSession(cuvis_ai_pb2.CloseSessionRequest(session_id=session_id))
+    print("Session closed.")
 
 
 if __name__ == "__main__":

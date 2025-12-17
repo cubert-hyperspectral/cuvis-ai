@@ -152,7 +152,6 @@ def main(cfg: DictConfig) -> None:
     pipeline = CuvisPipeline(canvas_name)
 
     data_node = LentilsAnomalyDataNode(
-        wavelengths=wavelengths,
         normal_class_ids=[0, 1],
     )
     band_selector = SupervisedCIRBandSelector(

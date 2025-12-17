@@ -421,110 +421,6 @@ class CuvisPipeline:
 
         logger.info(f"Pipeline saved: Config={config_path}, Weights={weights_path}")
 
-    @classmethod
-    def _build_pipeline_from_config(
-        cls,
-        config_path: str | Path,
-        config_overrides: list[str] | dict[str, Any] | None = None,
-        device: str | None = None,
-    ) -> CuvisPipeline:
-        """Build pipeline structure from YAML configuration.
-
-        This method loads the YAML config, applies any overrides, and uses PipelineBuilder
-        to reconstruct the pipeline structure.
-
-        Args:
-            config_path: Path to YAML config file
-            config_overrides: Optional config overrides (list of strings or dict)
-            device: Device to move pipeline to
-
-        Returns:
-            CuvisPipeline: Reconstructed pipeline with structure only (no weights)
-
-        Raises:
-            RuntimeError: If node class not found or instantiation fails
-        """
-        from omegaconf import OmegaConf
-
-        from cuvis_ai.pipeline.pipeline_builder import PipelineBuilder
-
-        config_path = Path(config_path)
-
-        with open(config_path, encoding="utf-8") as f:
-            config = yaml.safe_load(f)
-
-        # Apply config overrides if provided
-        if config_overrides:
-            # Convert config to OmegaConf DictConfig
-            config_omega = OmegaConf.create(config)
-
-            # Apply overrides based on input type
-            if isinstance(config_overrides, list):
-                # Process each override string manually to handle list indices
-                for override in config_overrides:
-                    if "=" not in override:
-                        raise ValueError(
-                            f"Invalid override format: {override}. Expected format: key=value"
-                        )
-
-                    key, value = override.split("=", 1)
-
-                    # Use OmegaConf.update() which handles list indices in bracket notation
-                    # Convert dot notation with numeric indices to bracket notation
-                    # e.g., "nodes.10.params.output_dir" -> "nodes[10].params.output_dir"
-                    key_parts = key.split(".")
-                    formatted_key = ""
-                    for i, part in enumerate(key_parts):
-                        if part.isdigit():
-                            # Add bracket notation for numeric indices
-                            formatted_key += f"[{part}]"
-                        else:
-                            # Add dot before non-numeric parts (except at the start)
-                            if i > 0:
-                                formatted_key += "."
-                            formatted_key += part
-
-                    OmegaConf.update(config_omega, formatted_key, value)
-            elif isinstance(config_overrides, dict):
-                # Merge dict directly
-                override_omega = OmegaConf.create(config_overrides)
-                config_omega = OmegaConf.merge(config_omega, override_omega)
-
-            # Convert back to plain dict for builder
-            config = OmegaConf.to_container(config_omega, resolve=True)  # type: ignore[assignment]
-
-        # Build pipeline structure with error handling
-        try:
-            builder = PipelineBuilder()
-            # Config should be dict[str, Any] at this point
-            pipeline = builder.build_from_config(config)  # type: ignore[arg-type]
-        except (ImportError, KeyError) as e:
-            raise RuntimeError(
-                f"Failed to load pipeline: Node class not found.\n"
-                f"This likely indicates the node was removed or renamed.\n"
-                f"Original error: {e}"
-            ) from e
-        except TypeError as e:
-            raise RuntimeError(
-                f"Failed to instantiate node: Parameter mismatch.\n"
-                f"This likely indicates the node's __init__ signature has changed.\n"
-                f"Original error: {e}"
-            ) from e
-        except Exception as e:
-            raise RuntimeError(f"Failed to build pipeline from config.\nError: {e}") from e
-
-        # Load metadata from config and set it on pipeline
-        from cuvis_ai.training.config import PipelineMetadata
-
-        metadata_dict = config.get("metadata", {})  # type: ignore[union-attr]
-        if metadata_dict:
-            pipeline._metadata = PipelineMetadata.from_dict(metadata_dict)
-
-        if device:
-            pipeline.to(device)
-
-        return pipeline
-
     def _restore_weights_from_checkpoint(
         self,
         weights_path: str | Path,
@@ -578,7 +474,7 @@ class CuvisPipeline:
             )
 
     @classmethod
-    def load_from_file(
+    def load_pipeline(
         cls,
         config_path: str | Path,
         weights_path: str | Path | None = None,
@@ -586,36 +482,51 @@ class CuvisPipeline:
         device: str | None = None,
         config_overrides: list[str] | dict[str, Any] | None = None,
     ) -> CuvisPipeline:
-        """Load pipeline from configuration and optionally restore weights.
+        """Load pipeline from YAML configuration and optionally restore weights."""
+        config_path = Path(config_path)
 
-        The method is divided into two sections:
-        1. Build Pipeline: Reconstruct pipeline structure from YAML
-        2. Restore Weights: Optionally load trained weights (if weights_path is provided)
+        with config_path.open(encoding="utf-8") as f:
+            raw_config = yaml.safe_load(f)
 
-        Args:
-            config_path: Path to YAML config file
-            weights_path: Path to .pt weights file (optional, if None weights are not loaded)
-            strict_weight_loading: If True, raise error on state_dict key mismatch
-            device: Device to load weights to
-            config_overrides: Optional config overrides. Can be either:
-                - List of strings in dot notation (e.g., ["nodes.10.params.output_dir=outputs/my_tb"])
-                - Dictionary with override values
+        raw_config = raw_config or {}
 
-        Returns:
-            CuvisPipeline: Loaded pipeline instance
+        try:
+            from cuvis_ai.utils.config_helpers import apply_config_overrides
 
-        Raises:
-            RuntimeError: If node class not found or instantiation fails
-            FileNotFoundError: If weights file missing when weights_path is provided
-        """
-        # ===== SECTION 1: BUILD Pipeline =====
-        pipeline = cls._build_pipeline_from_config(
-            config_path=config_path,
-            config_overrides=config_overrides,
-            device=device,
-        )
+            config = apply_config_overrides(raw_config, config_overrides)
+        except Exception as exc:
+            raise RuntimeError(f"Failed to apply config overrides: {exc}") from exc
 
-        # ===== SECTION 2: RESTORE WEIGHTS (OPTIONAL) =====
+        # Build pipeline structure with error handling
+        try:
+            from cuvis_ai.pipeline.factory import PipelineBuilder
+
+            builder = PipelineBuilder()
+            pipeline = builder.build_from_config(config)
+        except (ImportError, KeyError) as e:
+            raise RuntimeError(
+                f"Failed to load pipeline: Node class not found.\n"
+                f"This likely indicates the node was removed or renamed.\n"
+                f"Original error: {e}"
+            ) from e
+        except TypeError as e:
+            raise RuntimeError(
+                f"Failed to instantiate node: Parameter mismatch.\n"
+                f"This likely indicates the node's __init__ signature has changed.\n"
+                f"Original error: {e}"
+            ) from e
+        except Exception as e:
+            raise RuntimeError(f"Failed to build pipeline from config.\nError: {e}") from e
+
+        from cuvis_ai.training.config import PipelineMetadata
+
+        metadata_dict = config.get("metadata", {})
+        if metadata_dict:
+            pipeline._metadata = PipelineMetadata.from_dict(metadata_dict)
+
+        if device:
+            pipeline.to(device)
+
         if weights_path is not None:
             pipeline._restore_weights_from_checkpoint(
                 weights_path=weights_path,

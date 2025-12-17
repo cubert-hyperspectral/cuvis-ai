@@ -10,7 +10,12 @@ from torch.optim import Optimizer
 
 from cuvis_ai.node.node import Node
 from cuvis_ai.pipeline.pipeline import CuvisPipeline
-from cuvis_ai.training.config import OptimizerConfig, TrainerConfig, create_callbacks_from_config
+from cuvis_ai.training.config import (
+    OptimizerConfig,
+    SchedulerConfig,
+    TrainerConfig,
+    create_callbacks_from_config,
+)
 from cuvis_ai.utils.types import ExecutionStage, InputStream
 
 
@@ -90,6 +95,7 @@ class GradientTrainer(pl.LightningModule):
         metric_nodes: list[Node] | None = None,
         trainer_config: TrainerConfig | None = None,
         optimizer_config: OptimizerConfig | None = None,
+        scheduler_config: SchedulerConfig | None = None,
         monitors: list | None = None,
         callbacks: list | None = None,
     ) -> None:
@@ -104,6 +110,10 @@ class GradientTrainer(pl.LightningModule):
         self.metric_nodes = metric_nodes or []
         self.trainer_config = trainer_config or TrainerConfig()
         self.optimizer_config = optimizer_config or OptimizerConfig()
+        self.scheduler_config = scheduler_config
+        if self.scheduler_config is None and hasattr(self.optimizer_config, "scheduler"):
+            # Backward compatibility: allow scheduler attached to optimizer config
+            self.scheduler_config = self.optimizer_config.scheduler
         self.monitors = monitors or []
         self.callbacks = callbacks or []
         self.trainer = None  # Store trainer instance for reuse in test()
@@ -127,12 +137,8 @@ class GradientTrainer(pl.LightningModule):
         # === END OF LOGGING BLOCK ===
 
         # Convert TrainerConfig to kwargs for pl.Trainer
-        trainer_kwargs = dict(self.trainer_config.__dict__)
-
-        # Filter out None values and callbacks field (handled separately)
-        trainer_kwargs = {
-            k: v for k, v in trainer_kwargs.items() if v is not None and k != "callbacks"
-        }
+        trainer_kwargs = self.trainer_config.model_dump(exclude_none=True)
+        trainer_kwargs.pop("callbacks", None)
 
         # Determine which callbacks to use:
         # 1. If explicit callbacks passed to __init__, use those (backward compatibility)
@@ -145,7 +151,7 @@ class GradientTrainer(pl.LightningModule):
             )
 
             # Automatic checkpointing: enable if ModelCheckpoint callback is configured
-            if self.trainer_config.callbacks.model_checkpoint is not None:
+            if self.trainer_config.callbacks.checkpoint is not None:
                 trainer_kwargs["enable_checkpointing"] = True
 
         self.trainer = pl.Trainer(**trainer_kwargs)
@@ -399,67 +405,27 @@ class GradientTrainer(pl.LightningModule):
             If no scheduler is configured, returns the optimizer.
             If a scheduler is configured, returns a dictionary with optimizer and scheduler config.
         """
+        from cuvis_ai.training.optimizer_registry import (
+            create_optimizer,
+            create_scheduler,
+            wrap_scheduler_for_lightning,
+        )
+
         params = [p for p in self.pipeline.parameters() if p.requires_grad]
+        optimizer = create_optimizer(self.optimizer_config, params)
 
-        # Create optimizer based on config
-        if self.optimizer_config.name.lower() == "adam":
-            optimizer = torch.optim.Adam(
-                params,
-                lr=self.optimizer_config.lr,
-                weight_decay=self.optimizer_config.weight_decay,
-                betas=self.optimizer_config.betas or (0.9, 0.999),
-            )
-        elif self.optimizer_config.name.lower() == "adamw":
-            optimizer = torch.optim.AdamW(
-                params,
-                lr=self.optimizer_config.lr,
-                weight_decay=self.optimizer_config.weight_decay,
-                betas=self.optimizer_config.betas or (0.9, 0.999),
-            )
-        elif self.optimizer_config.name.lower() == "sgd":
-            optimizer = torch.optim.SGD(
-                params,
-                lr=self.optimizer_config.lr,
-                weight_decay=self.optimizer_config.weight_decay,
-            )
-        else:
-            raise ValueError(f"Unsupported optimizer: {self.optimizer_config.name}")
+        scheduler = create_scheduler(
+            self.scheduler_config,
+            optimizer,
+            self.trainer_config.max_epochs,
+        )
+        if scheduler is None:
+            return optimizer
 
-        # Create scheduler if configured
-        if self.optimizer_config.scheduler is not None:
-            scheduler_config = self.optimizer_config.scheduler
+        monitor = self.scheduler_config.monitor if self.scheduler_config else None
+        wrapped_scheduler = wrap_scheduler_for_lightning(scheduler, monitor)
 
-            if scheduler_config.name.lower() == "reduce_on_plateau":
-                if scheduler_config.monitor is None:
-                    raise ValueError(
-                        "ReduceLROnPlateau scheduler requires 'monitor' to be specified in SchedulerConfig"
-                    )
-
-                scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-                    optimizer,
-                    mode=scheduler_config.mode,
-                    factor=scheduler_config.factor,
-                    patience=scheduler_config.patience,
-                    threshold=scheduler_config.threshold,
-                    threshold_mode=scheduler_config.threshold_mode,
-                    cooldown=scheduler_config.cooldown,
-                    min_lr=scheduler_config.min_lr,
-                    eps=scheduler_config.eps,
-                )
-
-                return {
-                    "optimizer": optimizer,
-                    "lr_scheduler": {
-                        "scheduler": scheduler,
-                        "monitor": scheduler_config.monitor,
-                        "interval": "epoch",
-                        "frequency": 1,
-                    },
-                }
-            else:
-                raise ValueError(f"Unsupported scheduler: {scheduler_config.name}")
-
-        return optimizer
+        return {"optimizer": optimizer, "lr_scheduler": wrapped_scheduler}
 
 
 class StatisticalTrainer:

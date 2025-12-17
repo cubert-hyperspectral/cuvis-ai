@@ -1,13 +1,21 @@
 """Integration tests for pipeline management functionality (Task 5.3)."""
 
+import json
 from pathlib import Path
 
 import grpc
 import pytest
+import yaml
 
 from cuvis_ai.grpc import cuvis_ai_pb2
 
 DEFAULT_CHANNELS = 61
+
+
+def _pipeline_bytes_from_path(pipeline_path: str | Path) -> bytes:
+    """Convert a pipeline YAML into JSON bytes for the LoadPipeline RPC."""
+    pipeline_dict = yaml.safe_load(Path(pipeline_path).read_text())
+    return json.dumps(pipeline_dict).encode("utf-8")
 
 
 class TestSavePipeline:
@@ -122,8 +130,16 @@ class TestLoadPipeline:
         response = grpc_stub.LoadPipeline(
             cuvis_ai_pb2.LoadPipelineRequest(
                 session_id=session_id,
-                pipeline_path=saved_pipeline["pipeline_path"],
+                pipeline=cuvis_ai_pb2.PipelineConfig(
+                    config_bytes=_pipeline_bytes_from_path(saved_pipeline["pipeline_path"])
+                ),
+            )
+        )
+        grpc_stub.LoadPipelineWeights(
+            cuvis_ai_pb2.LoadPipelineWeightsRequest(
+                session_id=session_id,
                 weights_path=saved_pipeline["weights_path"],
+                strict=True,
             )
         )
 
@@ -141,7 +157,9 @@ class TestLoadPipeline:
         response = grpc_stub.LoadPipeline(
             cuvis_ai_pb2.LoadPipelineRequest(
                 session_id=session_id,
-                pipeline_path=pipeline_yaml_only,
+                pipeline=cuvis_ai_pb2.PipelineConfig(
+                    config_bytes=_pipeline_bytes_from_path(pipeline_yaml_only)
+                ),
             )
         )
 
@@ -156,11 +174,19 @@ class TestLoadPipeline:
         session_id = session()
         missing_weights = str(Path(pipeline_yaml_only).with_suffix(".pt"))
 
+        grpc_stub.LoadPipeline(
+            cuvis_ai_pb2.LoadPipelineRequest(
+                session_id=session_id,
+                pipeline=cuvis_ai_pb2.PipelineConfig(
+                    config_bytes=_pipeline_bytes_from_path(pipeline_yaml_only)
+                ),
+            )
+        )
+
         with pytest.raises(grpc.RpcError) as exc:
-            grpc_stub.LoadPipeline(
-                cuvis_ai_pb2.LoadPipelineRequest(
+            grpc_stub.LoadPipelineWeights(
+                cuvis_ai_pb2.LoadPipelineWeightsRequest(
                     session_id=session_id,
-                    pipeline_path=pipeline_yaml_only,
                     weights_path=missing_weights,
                 )
             )
@@ -174,9 +200,16 @@ class TestLoadPipeline:
         response = grpc_stub.LoadPipeline(
             cuvis_ai_pb2.LoadPipelineRequest(
                 session_id=session_id,
-                pipeline_path=saved_pipeline["pipeline_path"],
+                pipeline=cuvis_ai_pb2.PipelineConfig(
+                    config_bytes=_pipeline_bytes_from_path(saved_pipeline["pipeline_path"])
+                ),
+            )
+        )
+        grpc_stub.LoadPipelineWeights(
+            cuvis_ai_pb2.LoadPipelineWeightsRequest(
+                session_id=session_id,
                 weights_path=saved_pipeline["weights_path"],
-                strict=True,  # Strict mode
+                strict=True,
             )
         )
 
@@ -190,9 +223,16 @@ class TestLoadPipeline:
         response = grpc_stub.LoadPipeline(
             cuvis_ai_pb2.LoadPipelineRequest(
                 session_id=session_id,
-                pipeline_path=saved_pipeline["pipeline_path"],
+                pipeline=cuvis_ai_pb2.PipelineConfig(
+                    config_bytes=_pipeline_bytes_from_path(saved_pipeline["pipeline_path"])
+                ),
+            )
+        )
+        grpc_stub.LoadPipelineWeights(
+            cuvis_ai_pb2.LoadPipelineWeightsRequest(
+                session_id=session_id,
                 weights_path=saved_pipeline["weights_path"],
-                strict=False,  # Non-strict mode
+                strict=False,
             )
         )
 
@@ -207,12 +247,20 @@ class TestLoadPipeline:
         load_response = grpc_stub.LoadPipeline(
             cuvis_ai_pb2.LoadPipelineRequest(
                 session_id=session_id,
-                pipeline_path=saved_pipeline["pipeline_path"],
-                weights_path=saved_pipeline["weights_path"],
+                pipeline=cuvis_ai_pb2.PipelineConfig(
+                    config_bytes=_pipeline_bytes_from_path(saved_pipeline["pipeline_path"])
+                ),
             )
         )
 
         assert load_response.success
+        grpc_stub.LoadPipelineWeights(
+            cuvis_ai_pb2.LoadPipelineWeightsRequest(
+                session_id=session_id,
+                weights_path=saved_pipeline["weights_path"],
+                strict=True,
+            )
+        )
 
         # Verify the session reports pipeline inputs after loading the pipeline
         pipeline_response = grpc_stub.GetPipelineInputs(
@@ -244,17 +292,28 @@ class TestPipelineRoundTrip:
 
         assert save_response.success
 
-        # Create a new session and load the saved pipeline directly
-        # Pass the saved pipeline path as config_bytes (service.py handles path strings)
-        new_session_response = grpc_stub.CreateSession(
-            cuvis_ai_pb2.CreateSessionRequest(
-                pipeline=cuvis_ai_pb2.PipelineConfig(
-                    config_bytes=save_response.pipeline_path.encode("utf-8")
-                )
-            )
-        )
+        # Create a new session and load the saved pipeline using the new four-step workflow
+        new_session_response = grpc_stub.CreateSession(cuvis_ai_pb2.CreateSessionRequest())
         new_session_id = new_session_response.session_id
         assert new_session_id  # Verify session was created successfully
+
+        # Load the saved pipeline
+        load_response = grpc_stub.LoadPipeline(
+            cuvis_ai_pb2.LoadPipelineRequest(
+                session_id=new_session_id,
+                pipeline=cuvis_ai_pb2.PipelineConfig(
+                    config_bytes=_pipeline_bytes_from_path(save_response.pipeline_path)
+                ),
+            )
+        )
+        assert load_response.success
+        grpc_stub.LoadPipelineWeights(
+            cuvis_ai_pb2.LoadPipelineWeightsRequest(
+                session_id=new_session_id,
+                weights_path=save_response.weights_path,
+                strict=True,
+            )
+        )
 
         # Verify the pipeline is usable by inspecting its expected inputs
         pipeline_response = grpc_stub.GetPipelineInputs(

@@ -50,7 +50,7 @@ def restore_pipeline(
     logger.info(f"Loading pipeline from {pipeline_path}")
 
     load_device = device if device != "auto" else None
-    pipeline = CuvisPipeline.load_from_file(
+    pipeline = CuvisPipeline.load_pipeline(
         str(pipeline_path),
         weights_path=str(weights_path) if weights_path.exists() else None,
         device=load_device,

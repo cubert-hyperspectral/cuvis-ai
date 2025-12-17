@@ -188,7 +188,7 @@ class TestNodeStateSerialization:
         assert config_path.with_suffix(".pt").exists()
 
         # Load pipeline (use non-strict loading for nodes with fitted state)
-        loaded_pipeline = CuvisPipeline.load_from_file(
+        loaded_pipeline = CuvisPipeline.load_pipeline(
             config_path,
             weights_path=config_path.with_suffix(".pt"),
             strict_weight_loading=False,

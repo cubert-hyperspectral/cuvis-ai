@@ -30,9 +30,9 @@ from cuvis_ai.pipeline.pipeline import CuvisPipeline
 from cuvis_ai.pipeline.ports import PortSpec
 from cuvis_ai.training import StatisticalTrainer
 from cuvis_ai.training.config import (
-    ExperimentConfig,
     PipelineMetadata,
     TrainingConfig,
+    TrainRunConfig,
 )
 from cuvis_ai.utils.types import Context, ExecutionStage, Metric
 
@@ -85,9 +85,9 @@ class SampleCustomMetrics(Node):
         return {"metrics": metrics}
 
 
-@hydra.main(config_path="../../configs/", config_name="experiment/default", version_base=None)
+@hydra.main(config_path="../../configs/", config_name="trainrun/default", version_base=None)
 def main(cfg: DictConfig) -> None:
-    """LAD Statistical with Preprocessing and experiment config saving."""
+    """LAD Statistical with Preprocessing and trainrun config saving."""
 
     logger.info("=== LAD with Bandpass + Per-Pixel Unit Norm Preprocessing ===")
 
@@ -105,7 +105,6 @@ def main(cfg: DictConfig) -> None:
 
     data_node = LentilsAnomalyDataNode(
         normal_class_ids=[0, 1],
-        # {0: 'Unlabeled', 1: 'Lentils_black', 2: 'Lentils_brown', 3: 'Stone', 4: 'Background'}
     )
 
     # Preprocessing nodes
@@ -213,7 +212,7 @@ def main(cfg: DictConfig) -> None:
         str(pipeline_output_path),
         metadata=PipelineMetadata(
             name=pipeline.name,
-            description=f"Trained model from {pipeline.name} experiment (statistical training with preprocessing)",
+            description=f"Trained model from {pipeline.name} trainrun (statistical training with preprocessing)",
             tags=["statistical", "lad", "preprocessing", "bandpass", "unit_norm"],
             author="cuvis.ai",
         ),
@@ -221,10 +220,10 @@ def main(cfg: DictConfig) -> None:
     logger.info(f"  Created: {pipeline_output_path}")
     logger.info(f"  Weights: {pipeline_output_path.with_suffix('.pt')}")
 
-    # Create and save complete experiment config for reproducibility
+    # Create and save complete trainrun config for reproducibility
     pipeline_config = pipeline.serialize()
 
-    experiment_config = ExperimentConfig(
+    trainrun_config = TrainRunConfig(
         name=cfg.name,
         pipeline=pipeline_config,
         data=cfg.data,
@@ -236,18 +235,18 @@ def main(cfg: DictConfig) -> None:
         unfreeze_nodes=[],
     )
 
-    experiment_output_path = results_dir / f"{cfg.name}_experiment.yaml"
-    logger.info(f"Saving experiment config to: {experiment_output_path}")
-    experiment_config.save_to_file(str(experiment_output_path))
+    trainrun_output_path = results_dir / f"{cfg.name}_trainrun.yaml"
+    logger.info(f"Saving trainrun config to: {trainrun_output_path}")
+    trainrun_config.save_to_file(str(trainrun_output_path))
 
     # Stage 8: Report results
     logger.info("=== Training Complete ===")
     logger.info(f"Trained pipeline saved: {pipeline_output_path}")
-    logger.info(f"Experiment config saved: {experiment_output_path}")
+    logger.info(f"TrainRun config saved: {trainrun_output_path}")
     logger.info(f"TensorBoard logs: {tensorboard_node.output_dir}")
-    logger.info("To restore this experiment:")
+    logger.info("To restore this trainrun:")
     logger.info(
-        f"  uv run python examples/serialization/restore_experiment.py --experiment-path {experiment_output_path}"
+        f"  uv run python examples/serialization/restore_trainrun.py --trainrun-path {trainrun_output_path}"
     )
     logger.info(f"View logs: uv run tensorboard --logdir={output_dir}")
 

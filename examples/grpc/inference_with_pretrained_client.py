@@ -1,69 +1,70 @@
-"""Inference with Pre-trained Model Client Example - Workflow 2."""
+"""Inference with a pre-trained pipeline using explicit config resolution."""
 
-import grpc
+from __future__ import annotations
+
 import numpy as np
+from workflow_utils import (
+    CONFIG_ROOT,
+    build_stub,
+    config_search_paths,
+    create_session_with_search_paths,
+)
 
-from cuvis_ai.grpc import cuvis_ai_pb2, cuvis_ai_pb2_grpc, helpers
+from cuvis_ai.grpc import cuvis_ai_pb2, helpers
 
 
 def main() -> None:
-    channel = grpc.insecure_channel("localhost:50051")
-    stub = cuvis_ai_pb2_grpc.CuvisAIServiceStub(channel)
-
-    response = stub.CreateSession(
-        cuvis_ai_pb2.CreateSessionRequest(
-            pipeline=cuvis_ai_pb2.PipelineConfig(config_bytes=b"rx_statistical")
-        )
-    )
-    session_id = response.session_id
+    stub = build_stub()
+    session_id = create_session_with_search_paths(stub, config_search_paths())
     print(f"Session: {session_id}")
 
-    batch_size = 1
-    height, width = 64, 64
-    channels = 61
+    # Resolve pipeline config and build pipeline
+    pipeline_config = stub.ResolveConfig(
+        cuvis_ai_pb2.ResolveConfigRequest(
+            session_id=session_id,
+            config_type="pipeline",
+            path="pipeline/rx_statistical",
+        )
+    )
+    stub.LoadPipeline(
+        cuvis_ai_pb2.LoadPipelineRequest(
+            session_id=session_id,
+            pipeline=cuvis_ai_pb2.PipelineConfig(config_bytes=pipeline_config.config_bytes),
+        )
+    )
 
+    # Load pretrained weights colocated with the pipeline YAML
+    weights_path = str((CONFIG_ROOT / "pipeline" / "rx_statistical.pt").resolve())
+    stub.LoadPipelineWeights(
+        cuvis_ai_pb2.LoadPipelineWeightsRequest(
+            session_id=session_id, weights_path=weights_path, strict=True
+        )
+    )
+    print(f"Loaded weights from {weights_path}")
+
+    # Run inference
+    batch_size, height, width, channels = 1, 64, 64, 61
     cube = np.random.randn(batch_size, height, width, channels).astype(np.uint16)
-    print(f"Input shape: {cube.shape}")
-
-    try:
-        inference_response = stub.Inference(
-            cuvis_ai_pb2.InferenceRequest(
-                session_id=session_id,
-                inputs=cuvis_ai_pb2.InputBatch(cube=helpers.numpy_to_proto(cube)),
-            )
+    wavelengths = np.linspace(430, 910, 61).reshape(1, -1).astype(np.int32)
+    inference_response = stub.Inference(
+        cuvis_ai_pb2.InferenceRequest(
+            session_id=session_id,
+            inputs=cuvis_ai_pb2.InputBatch(
+                cube=helpers.numpy_to_proto(cube), wavelengths=helpers.numpy_to_proto(wavelengths)
+            ),
         )
+    )
 
-        print(f"Outputs: {len(inference_response.outputs)}")
-
-        for output_name, output_tensor in inference_response.outputs.items():
-            output_array = helpers.proto_to_numpy(output_tensor)
-            print(
-                f"  {output_name}: shape={output_array.shape}, "
-                f"dtype={output_array.dtype}, "
-                f"min={output_array.min():.4f}, max={output_array.max():.4f}"
-            )
-
-        if inference_response.metrics:
-            print("Metrics:")
-            for metric_name, metric_value in inference_response.metrics.items():
-                print(f"  {metric_name}: {metric_value:.4f}")
-
-    except grpc.RpcError as e:
-        print(f"Inference failed: {e.details()}")
-        return
-
-    num_samples = 5
-    for i in range(num_samples):
-        cube_i = np.random.randn(1, height, width, channels).astype(np.uint16)
-        stub.Inference(
-            cuvis_ai_pb2.InferenceRequest(
-                session_id=session_id,
-                inputs=cuvis_ai_pb2.InputBatch(cube=helpers.numpy_to_proto(cube_i)),
-            )
+    print(f"Outputs: {len(inference_response.outputs)} tensors")
+    for output_name, output_tensor in inference_response.outputs.items():
+        output_array = helpers.proto_to_numpy(output_tensor)
+        print(
+            f"  {output_name}: shape={output_array.shape}, dtype={output_array.dtype}, "
+            f"min={output_array.min():.4f}, max={output_array.max():.4f}"
         )
-        print(f"Batch {i + 1}/{num_samples} processed")
 
     stub.CloseSession(cuvis_ai_pb2.CloseSessionRequest(session_id=session_id))
+    print("Session closed.")
 
 
 if __name__ == "__main__":

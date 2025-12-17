@@ -2,11 +2,12 @@
 
 
 defaults:
+  - /pipeline@pipeline: rx_statistical
   - /data@data: lentils
   - /training@training: default
   - _self_
 
-name: ???
+name: base_trainrun
 output_dir: ./outputs/${name}
 
 training:
@@ -17,5 +18,4 @@ hydra:
   run:
     dir: ${output_dir}
   output_subdir: .hydra
-
 

@@ -180,3 +180,30 @@ class TestProcessingModeMapping:
         """Test error handling for invalid processing mode"""
         with pytest.raises(ValueError, match="Unsupported ProcessingMode"):
             helpers.proto_to_processing_mode(999)
+
+    def test_processing_mode_new_values(self):
+        """Test new ProcessingMode enum values (DarkSubtract, SpectralRadiance)"""
+        import cuvis
+
+        # Test DarkSubtract mapping
+        proto_darksubtract = cuvis_ai_pb2.PROCESSING_MODE_DARKSUBTRACT
+        assert (
+            helpers.proto_to_processing_mode(proto_darksubtract)
+            == cuvis.ProcessingMode.DarkSubtract
+        )
+
+        # Test SpectralRadiance mapping
+        proto_spectral_radiance = cuvis_ai_pb2.PROCESSING_MODE_SPECTRAL_RADIANCE
+        assert (
+            helpers.proto_to_processing_mode(proto_spectral_radiance)
+            == cuvis.ProcessingMode.SpectralRadiance
+        )
+
+    def test_processing_mode_enum_values(self):
+        """Test that all ProcessingMode enum values are correctly defined"""
+        # Verify the enum values match expected numbers
+        assert cuvis_ai_pb2.PROCESSING_MODE_UNSPECIFIED == 0
+        assert cuvis_ai_pb2.PROCESSING_MODE_RAW == 1
+        assert cuvis_ai_pb2.PROCESSING_MODE_REFLECTANCE == 2
+        assert cuvis_ai_pb2.PROCESSING_MODE_DARKSUBTRACT == 3
+        assert cuvis_ai_pb2.PROCESSING_MODE_SPECTRAL_RADIANCE == 4

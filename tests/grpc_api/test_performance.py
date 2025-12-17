@@ -3,7 +3,25 @@ import time
 import pytest
 
 from cuvis_ai.grpc import cuvis_ai_pb2, helpers
-from tests.fixtures import create_pipeline_config_proto
+
+
+def _load_pipeline(grpc_stub, session_id: str, pipeline_name: str = "rx_statistical"):
+    """Helper to load pipeline using bytes-based RPC."""
+    config_response = grpc_stub.ResolveConfig(
+        cuvis_ai_pb2.ResolveConfigRequest(
+            session_id=session_id,
+            config_type="pipeline",
+            path=f"pipeline/{pipeline_name}",
+        )
+    )
+    response = grpc_stub.LoadPipeline(
+        cuvis_ai_pb2.LoadPipelineRequest(
+            session_id=session_id,
+            pipeline=cuvis_ai_pb2.PipelineConfig(config_bytes=config_response.config_bytes),
+        )
+    )
+    assert response.success
+    return response
 
 
 @pytest.mark.slow
@@ -15,11 +33,10 @@ class TestPerformance:
         timings = []
         for _ in range(5):
             start = time.perf_counter()
-            resp = grpc_stub.CreateSession(
-                cuvis_ai_pb2.CreateSessionRequest(
-                    pipeline=create_pipeline_config_proto("rx_statistical"),
-                )
-            )
+            # Step 1: Create empty session
+            resp = grpc_stub.CreateSession(cuvis_ai_pb2.CreateSessionRequest())
+            # Step 2: Load pipeline using ResolveConfig + LoadPipeline
+            _load_pipeline(grpc_stub, resp.session_id)
             grpc_stub.CloseSession(cuvis_ai_pb2.CloseSessionRequest(session_id=resp.session_id))
             timings.append(time.perf_counter() - start)
 
@@ -31,12 +48,12 @@ class TestPerformance:
             batch_size=2, processing_mode=cuvis_ai_pb2.PROCESSING_MODE_REFLECTANCE
         )
 
-        session_resp = grpc_stub.CreateSession(
-            cuvis_ai_pb2.CreateSessionRequest(
-                pipeline=create_pipeline_config_proto("rx_statistical"),
-            )
-        )
+        # Step 1: Create empty session
+        session_resp = grpc_stub.CreateSession(cuvis_ai_pb2.CreateSessionRequest())
         session_id = session_resp.session_id
+
+        # Step 2: Load pipeline using four-step workflow
+        _load_pipeline(grpc_stub, session_id)
 
         for _ in grpc_stub.Train(
             cuvis_ai_pb2.TrainRequest(
@@ -76,12 +93,12 @@ class TestPerformance:
             batch_size=2, processing_mode=cuvis_ai_pb2.PROCESSING_MODE_REFLECTANCE
         )
 
-        session_resp = grpc_stub.CreateSession(
-            cuvis_ai_pb2.CreateSessionRequest(
-                pipeline=create_pipeline_config_proto("rx_statistical"),
-            )
-        )
+        # Step 1: Create empty session
+        session_resp = grpc_stub.CreateSession(cuvis_ai_pb2.CreateSessionRequest())
         session_id = session_resp.session_id
+
+        # Step 2: Load pipeline using four-step workflow
+        _load_pipeline(grpc_stub, session_id)
 
         for _ in grpc_stub.Train(
             cuvis_ai_pb2.TrainRequest(
