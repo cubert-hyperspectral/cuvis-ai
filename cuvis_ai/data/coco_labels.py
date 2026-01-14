@@ -1,4 +1,5 @@
 import json
+from collections.abc import Iterator
 from copy import copy
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -12,16 +13,16 @@ from skimage.draw import polygon2mask
 from torchvision.tv_tensors import BoundingBoxes, Mask
 
 
-def RLE2mask(rle: list, mask_size: tuple) -> np.ndarray:
-    mask = np.zeros(mask_size, np.uint8).reshape(-1)
+def RLE2mask(rle: list, mask_width: int, mask_height: int) -> np.ndarray:
+    mask = np.zeros(mask_width * mask_height, np.uint8)
     ids = 0
     value = 0
     for c in rle:
         mask[ids : ids + c] = value
         value = not value
         ids += c
-    mask = mask.reshape(mask_size, order="F")
-    return mask
+    mask = mask.reshape((mask_height, mask_width), order="F")
+    return mask.astype(bool, copy=False)
 
 
 class SafeWizard(JSONWizard):
@@ -31,7 +32,7 @@ class SafeWizard(JSONWizard):
     as-is instead of falling back to string representations.
     """
 
-    def to_dict_safe(self):
+    def to_dict_safe(self) -> dict[str, Any]:
         """
         Like `to_dict()`, but leaves unsupported types untouched.
         """
@@ -40,7 +41,8 @@ class SafeWizard(JSONWizard):
 
         for key, value in vars(self).items():
             if not self._is_json_serializable(value):
-                final_dict[key] = value  # keep original object (Mask, Tensor, etc.)
+                # keep original object (Mask, Tensor, etc.)
+                final_dict[key] = value
                 continue
             val = base_dict.get(key, value)
             final_dict[key] = val
@@ -103,7 +105,7 @@ class Annotation(SafeWizard):
     iscrowd: int | None = 0
     auxiliary: dict[str, Any] | None = field(default_factory=dict)
 
-    def to_dict_safe(self):
+    def to_dict_safe(self) -> dict[str, Any]:
         """
         Like `to_dict()`, but leaves unsupported types untouched.
         """
@@ -112,7 +114,8 @@ class Annotation(SafeWizard):
 
         for key, value in vars(self).items():
             if not self._is_json_serializable(value):
-                final_dict[key] = value  # keep original object (Mask, Tensor, etc.)
+                # keep original object (Mask, Tensor, etc.)
+                final_dict[key] = value
                 continue
             val = base_dict.get(key, value)
             final_dict[key] = val
@@ -126,13 +129,13 @@ class Annotation(SafeWizard):
         except Exception:
             return False
 
-    def to_torchvision(self, size):
+    def to_torchvision(self, size: tuple[int, int]) -> dict[str, Any]:
         """Convert COCO-style bbox/segmentation/mask into torchvision tensors."""
         out = copy(self)
 
         if self.bbox is not None:
             out.bbox = BoundingBoxes(
-                torch.tensor([self.bbox], dtype=torch.float32), format="XYWH", canvas_size=size
+                torch.tensor([self.bbox], dtype=torch.float32), format="XYWH", pipeline_size=size
             )
 
         if (
@@ -153,10 +156,10 @@ class Annotation(SafeWizard):
 
 
 class QueryableList:
-    def __init__(self, items: list[Any]):
+    def __init__(self, items: list[Any]) -> None:
         self._items = items
 
-    def where(self, **conditions):
+    def where(self, **conditions) -> list[Any]:
         """
         Filter items based on conditions.
         :param conditions: Keyword arguments representing field=value filters.
@@ -167,18 +170,18 @@ class QueryableList:
             filtered_items = [item for item in filtered_items if getattr(item, key) == value]
         return list(filtered_items)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Any]:
         return iter(self._items)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._items)
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int) -> Any:
         return self._items[index]
 
 
 class COCOData:
-    def __init__(self, coco: COCO):
+    def __init__(self, coco: COCO) -> None:
         self._coco = coco
         self._image_ids = None
         self._categories = None
@@ -187,8 +190,8 @@ class COCOData:
         self._images = None
 
     @classmethod
-    def from_path(cls, path):
-        return cls(COCO(str(path)))
+    def from_path(cls, path: Path | str):
+        return cls(COCO(path))
 
     @property
     def image_ids(self) -> list[int]:
@@ -230,7 +233,7 @@ class COCOData:
             self._images = [Image.from_dict(v) for v in self._coco.imgs.values()]
         return self._images
 
-    def save(self, path: str | Path):
+    def save(self, path: str | Path) -> None:
         """
         Save the current COCOData object (images, annotations, categories, etc.)
         back into a COCO-style JSON file.
@@ -277,11 +280,11 @@ if __name__ == "__main__":
     labelpath = Path(session_file_path).with_suffix(".json")
     assert os.path.exists(labelpath), f"Label file not found: {labelpath}"
 
-    canvas_size = measurement.cube.width, measurement.cube.height
+    pipeline_size = measurement.cube.width, measurement.cube.height
     coco = COCOData.from_path(str(labelpath))
     print("Categories:", coco.category_id_to_name)
 
     anns = coco.annotations.where(image_id=coco.image_ids[0])[0]
-    labels = anns.to_torchvision(canvas_size)
+    labels = anns.to_torchvision(pipeline_size)
 
     print(labels["segmentation"])

@@ -1,10 +1,12 @@
 from abc import ABC, abstractmethod
+from typing import Any
+
+from torch import Tensor
 
 from cuvis_ai.node import Node
-from cuvis_ai.node.consumers import *
 
 
-class BaseDecider(Node, CubeConsumer, ABC):
+class BaseDecider(Node, ABC):
     """
     Abstract class for Decision Making Nodes.
 
@@ -12,40 +14,34 @@ class BaseDecider(Node, CubeConsumer, ABC):
     based on the task that needs to be accomplished.
     """
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, *args, **kwargs) -> None:
+        # Accept arbitrary args/kwargs so subclasses can forward their init
+        # parameters to the Serializable base for automatic hparam capture.
+        super().__init__(*args, **kwargs)
 
-    def fit(self, X, *args, **kwargs):
+    def fit(self, x, *args, **kwargs) -> None:
         # TODO refactor the thing with the empty fits
         pass
 
     @abstractmethod
-    def forward(self, X):
+    def forward(
+        self,
+        x: Tensor,
+        y: Tensor | None = None,
+        m: Any = None,
+        **kwargs: Any,
+    ) -> Tensor:
         """
         Predict labels based on the input labels.
 
         Parameters
         ----------
-        X : array-like
+        x : array-like
             Input data.
 
         Returns
         -------
         Any
             Transformed data.
-        """
-        pass
-
-    @abstractmethod
-    def serialize(self):
-        """
-        Convert the class into a serialized representation
-        """
-        pass
-
-    @abstractmethod
-    def load(self) -> None:
-        """
-        Load from serialized format into an object
         """
         pass

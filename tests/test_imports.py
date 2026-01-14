@@ -25,6 +25,7 @@ def test_module_is_importable(module_name: str) -> None:
         missing_root = (exc.name or "").split(".")[0]
         if missing_root != "cuvis_ai":
             pytest.skip(
-                f"Optional dependency '{missing_root}' required for '{module_name}' is not installed."
+                f"Optional dependency '{missing_root}' required for "
+                f"'{module_name}' is not installed."
             )
         raise

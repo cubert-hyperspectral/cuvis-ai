@@ -1,0 +1,31 @@
+#!/bin/bash
+# Pre-push hook: Comprehensive quality checks (linting + formatting + tests)
+# Skip with: git push --no-verify
+
+set -e
+
+echo "Running pre-push checks..."
+
+# Run Ruff formatting first
+echo "→ Running Ruff formatting..."
+if ! uv run ruff format .; then
+    echo "✗ Ruff formatting failed. Please fix the errors and try again."
+    exit 1
+fi
+
+# Run Ruff linting with auto-fix (on formatted code)
+echo "→ Running Ruff linting (with auto-fix)..."
+if ! uv run ruff check . --fix; then
+    echo "✗ Ruff linting failed. Please fix the errors and try again."
+    exit 1
+fi
+
+# Run pytest with non-GPU tests
+echo "→ Running pytest (excluding GPU tests)..."
+if ! uv run python -m pytest tests/ -v --tb=line -m "not gpu"; then
+    echo "✗ Tests failed. Please fix the failing tests and try again."
+    exit 1
+fi
+
+echo "✓ All pre-push checks passed!"
+exit 0

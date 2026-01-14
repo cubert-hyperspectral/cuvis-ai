@@ -1,0 +1,24 @@
+# @package _global_
+
+name: adaclip_supervised_windowed_false_rgb
+
+defaults:
+  - /pipeline@pipeline: adaclip_supervised_windowed_false_rgb
+  - /data@data: lentils
+  - _self_
+
+data:
+  # Override splits for this example
+  train_ids: [0, 2]
+  val_ids: [2, 4]
+  test_ids: [1, 3, 5]
+  batch_size: 1
+
+
+output_dir: outputs\adaclip_supervised_windowed_false_rgb
+
+metric_nodes:
+- detection_metrics
+
+loss_nodes: []
+

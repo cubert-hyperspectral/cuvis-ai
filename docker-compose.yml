@@ -1,0 +1,34 @@
+version: "3.8"
+
+services:
+  grpc-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cuvis-ai-grpc
+    ports:
+      - "${GRPC_PORT:-50051}:50051"
+    environment:
+      - GRPC_PORT=${GRPC_PORT:-50051}
+      - GRPC_MAX_WORKERS=${GRPC_MAX_WORKERS:-10}
+      - GRPC_USE_TLS=${GRPC_USE_TLS:-false}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=${LOG_FORMAT:-json}
+      - DATA_DIR=/app/data
+    volumes:
+      - ./data:/app/data:ro
+      - ./logs:/app/logs
+      - ./.env:/app/.env:ro
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import grpc; from grpc_health.v1 import health_pb2, health_pb2_grpc; channel = grpc.insecure_channel('localhost:50051'); stub = health_pb2_grpc.HealthStub(channel); response = stub.Check(health_pb2.HealthCheckRequest()); exit(0 if response.status == 1 else 1)",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s

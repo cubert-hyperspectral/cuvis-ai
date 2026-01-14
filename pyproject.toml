@@ -16,7 +16,9 @@ dependencies = [
     "cuvis",
     "dataclass-wizard",
     "gdown",
+    "pydantic>=2.0.0,<3.0.0",
     "imantics",
+    "ftfy>=6.1.1",
     "markupsafe!=3.0.2",
     "matplotlib",
     "networkx",
@@ -32,6 +34,22 @@ dependencies = [
     "torchvision",
     "pytorch-lightning",
     "tzdata; sys_platform == 'win32'",
+    "loguru>=0.7.3",
+    "sf-hamilton[visualization]>=1.89.0",
+    "graphviz>=0.21",
+    "packaging>=23.0",
+    "omegaconf>=2.3.0",
+    "hydra-core",
+    "dotenv>=0.9.9",
+    "grpcio>=1.60.0",
+    "grpcio-tools>=1.60.0",
+    "protobuf>=6.33.2",
+    "grpcio-health-checking>=1.75.1",
+    "gradio-client>=0.8.0",
+    "regex>=2023.12.25",
+    "huggingface-hub>=0.20.0",
+    "transformers>=4.36.0",
+    "hf-xet>=1.2.0",
 ]
 classifiers = [
     "Intended Audience :: Developers",
@@ -44,21 +62,33 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Image Processing",
 ]
 
+[project.scripts]
+create-stubs = "tools.generate_node_port_stubs:main"
+restore-pipeline = "cuvis_ai.utils.restore:restore_pipeline_cli"
+restore-trainrun = "cuvis_ai.utils.restore:restore_trainrun_cli"
+
 [project.optional-dependencies]
 docs = [
-    "sphinx",
-    "sphinx-rtd-theme",
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.5.0",
+    "mkdocstrings[python]>=0.24.0",
+    "mkdocs-gen-files>=0.5.0",
+    "mkdocs-literate-nav>=0.6.0",
     "opencv-python-headless",
+]
+adaclip = [
+    "cuvis-ai-adaclip @ git+https://github.com/cubert-hyperspectral/cuvis-ai-adaclip.git@staging",
 ]
 
 dev = [
     "ipykernel",
     "jupyterlab",
-    "tensorboard",
     "ruff",
     "pytest",
     "pytest-cov",
     "ipympl>=0.9.8",
+    "ipdb>=0.13.13",
+    "psutil",
 ]
 
 
@@ -70,12 +100,12 @@ Changelog = "https://github.com/cubert-hyperspectral/cuvis.ai/releases"
 Issues = "https://github.com/cubert-hyperspectral/cuvis.ai/issues"
 
 [tool.setuptools.packages.find]
-include = ["cuvis_ai*"]
+include = ["cuvis_ai*", "tools*"]
 
 
 [tool.uv.sources]
-torch = { index = "pytorch-cu124" }
-torchvision = { index = "pytorch-cu124" }
+torch = { index = "pytorch-cu128" }
+torchvision = { index = "pytorch-cu128" }
 
 [tool.setuptools_scm]
 version_scheme = "post-release"
@@ -88,6 +118,12 @@ xfail_strict = true
 filterwarnings = [
     "ignore::DeprecationWarning",
     "ignore::PendingDeprecationWarning",
+    "ignore::UserWarning: pkg_resources is deprecated as an API.*",
+    "ignore:Module already imported so cannot be rewritten",
+]
+markers = [
+    "stress: marks tests as stress tests (deselect with '-m \"not stress\"')",
+    "gpu: marks tests as GPU tests (deselect with '-m \"not gpu\"')",
 ]
 
 [tool.ruff]
@@ -117,6 +153,7 @@ extend-select = [
 ]
 ignore = [
     "ANN401",
+    "E501"
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -130,9 +167,13 @@ ignore = [
     "ANN202",
     "ANN204",
 ]
+"cuvis_ai/grpc/v1/*.py" = [
+    "ANN201",
+    "ANN204",
+]
 
-# PyTorch CUDA 12.4 configuration
+# PyTorch CUDA 12.8 configuration
 [[tool.uv.index]]
-name = "pytorch-cu124"
-url = "https://download.pytorch.org/whl/cu124"
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
 explicit = true

@@ -40,7 +40,6 @@ class PublicDatasets:
             for entry in to_download:
                 items.extend(entry)
             total_items = len(items)
-            current_idx = 1
             print(f"Downloading {total_items} files from dataset '{dataset_name}'")
             for i in items:
                 try:
@@ -51,7 +50,6 @@ class PublicDatasets:
         else:
             items = to_download
             total_items = len(items)
-            current_idx = 1
             print(f"Downloading {total_items} folders from dataset '{dataset_name}'")
             for i in items:
                 try:

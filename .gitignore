@@ -180,4 +180,20 @@ pyrightconfig.json
 .history/
 /data/
 docs_dev/
-examples/
+/outputs/
+/wandb/
+lightning_logs/
+.vscode/
+
+/tools/*csv.py
+>>>>>>> 0517224 (updated dataset.py, added band selection strategies and adaclip implementation with examples and tests)
+/examples_torch/outputs/
+cuvis_ai/outputs/
+/tools/*csv.py
+runs/
+test_outputs/
+tensorboard/
+.clinerules
+experiments/
+*.pt
+/.venv-adaclip-test/
