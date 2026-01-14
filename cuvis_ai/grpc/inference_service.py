@@ -43,6 +43,8 @@ class InferenceService:
 
         try:
             batch = self._parse_input_batch(request.inputs)
+            # Ensure all tensor inputs are on the same device as the pipeline
+            batch = self._move_batch_to_pipeline_device(batch, session.pipeline)
         except ValueError as exc:
             context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
             context.set_details(str(exc))
@@ -107,6 +109,56 @@ class InferenceService:
             batch["text_prompt"] = inputs.text_prompt
 
         return batch
+
+    def _move_batch_to_pipeline_device(
+        self,
+        batch: dict[str, Any],
+        pipeline,
+    ) -> dict[str, Any]:
+        """Move tensor inputs to the same device as the pipeline.
+
+        This mirrors the Python API pattern where the pipeline is moved to a device
+        (e.g., via ``pipeline.to('cuda')``) and dataloader batches are produced on
+        that device. Here, gRPC deserialization always yields CPU tensors, so we
+        align them with the pipeline device before forwarding.
+
+        Uses the same robust device detection pattern as StatisticalTrainer,
+        iterating through all nodes to find one with parameters or buffers.
+        """
+        if pipeline is None:
+            return batch
+
+        device = self._get_pipeline_device(pipeline)
+
+        moved: dict[str, Any] = {}
+        for key, value in batch.items():
+            if isinstance(value, torch.Tensor):
+                moved[key] = value.to(device)
+            else:
+                moved[key] = value
+
+        return moved
+
+    def _get_pipeline_device(self, pipeline) -> torch.device:
+        """Get the device of the pipeline from its parameters/buffers.
+
+        Iterates through all nodes in the pipeline to find one with
+        parameters or buffers, returning its device. Falls back to CPU
+        if no device information is found.
+
+        This follows the same pattern as StatisticalTrainer._get_pipeline_device
+        to ensure consistent device detection across the codebase.
+        """
+        # Iterate through all torch-backed layers (not just the first one)
+        for layer in pipeline.torch_layers:
+            # Check parameters first (preferred for device detection)
+            for param in layer.parameters():
+                return param.device
+            # Fall back to buffers if no parameters
+            for buf in layer.buffers():
+                return buf.device
+        # Explicit fallback to CPU if no device information found
+        return torch.device("cpu")
 
     def _parse_bounding_boxes(self, bboxes_proto: cuvis_ai_pb2.BoundingBoxes) -> list[dict]:
         """Parse bounding boxes from proto into dictionaries."""

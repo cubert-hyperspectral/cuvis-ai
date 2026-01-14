@@ -460,11 +460,25 @@ class CuvisPipeline:
 
             result = node.load_state_dict(state_dict[node.name], strict=strict_weight_loading)
 
-            # Log any key mismatches
+            # Log any key mismatches (suppress verbose output for long lists)
             if hasattr(result, "missing_keys") and result.missing_keys:
-                logger.warning(f"Node '{node.name}' missing keys: {result.missing_keys}")
+                missing_keys_list = list(result.missing_keys)
+                if len(missing_keys_list) > 10:
+                    logger.warning(
+                        f"Node '{node.name}' missing {len(missing_keys_list)} keys "
+                        f"(showing first 5): {missing_keys_list[:5]}..."
+                    )
+                else:
+                    logger.warning(f"Node '{node.name}' missing keys: {missing_keys_list}")
             if hasattr(result, "unexpected_keys") and result.unexpected_keys:
-                logger.warning(f"Node '{node.name}' unexpected keys: {result.unexpected_keys}")
+                unexpected_keys_list = list(result.unexpected_keys)
+                if len(unexpected_keys_list) > 10:
+                    logger.warning(
+                        f"Node '{node.name}' unexpected {len(unexpected_keys_list)} keys "
+                        f"(showing first 5): {unexpected_keys_list[:5]}..."
+                    )
+                else:
+                    logger.warning(f"Node '{node.name}' unexpected keys: {unexpected_keys_list}")
 
         # Report nodes without saved weights
         if missing_keys:

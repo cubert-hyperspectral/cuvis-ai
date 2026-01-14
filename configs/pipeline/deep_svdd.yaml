@@ -1,15 +1,4 @@
-metadata:
-  name: DeepSVDD_Gradient
-  description: Trained model from DeepSVDD_Gradient experiment (statistical + gradient
-    training)
-  created: ''
-  tags:
-  - gradient
-  - statistical
-  - deep_svdd
-  - anomaly_detection
-  author: cuvis.ai
-  cuvis_ai_version: 0.1.5.post32+g4b861897b
+name: ''
 nodes:
 - name: LentilsAnomalyDataNode
   class: cuvis_ai.node.data.LentilsAnomalyDataNode
@@ -134,3 +123,16 @@ connections:
   to: TensorBoardMonitorNode.inputs.artifacts
 - from: mask.outputs.artifacts
   to: TensorBoardMonitorNode.inputs.artifacts
+frozen_nodes: []
+metadata:
+  name: DeepSVDD_Gradient
+  description: Trained model from DeepSVDD_Gradient trainrun (statistical + gradient
+    training)
+  created: ''
+  tags:
+  - gradient
+  - statistical
+  - deep_svdd
+  - anomaly_detection
+  author: cuvis.ai
+  cuvis_ai_version: 0.1.5.post30+g6d28af5c2.d20251217

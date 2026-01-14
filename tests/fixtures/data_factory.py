@@ -118,9 +118,12 @@ def data_config_factory(test_data_files_cached: tuple[Path, Path]):
             str(json_path),
             batch_size,
             processing_mode_str,
-            tuple(train_ids or [0, 1, 2]),
-            tuple(val_ids or [3, 4]),
-            tuple(test_ids or [5, 6]),
+            # tuple(train_ids or [0, 1, 2]),
+            # tuple(val_ids or [3, 4]),
+            # tuple(test_ids or [5, 6]),
+            tuple(train_ids or [0]),
+            tuple(val_ids or [1]),
+            tuple(test_ids or [1]),
         )
 
     return _create_config

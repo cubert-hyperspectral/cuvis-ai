@@ -630,21 +630,38 @@ class SupervisedBandSelectorBase(BandSelectorBase):
 
     def __init__(
         self,
+        num_spectral_bands: int,
         score_weights: tuple[float, float, float] = (1.0, 1.0, 1.0),
         lambda_penalty: float = 0.5,
         **kwargs: Any,
     ) -> None:
         # Call super().__init__ FIRST so Serializable captures hparams correctly
-        super().__init__(score_weights=score_weights, lambda_penalty=lambda_penalty, **kwargs)
+        super().__init__(
+            num_spectral_bands=num_spectral_bands,
+            score_weights=score_weights,
+            lambda_penalty=lambda_penalty,
+            **kwargs,
+        )
         # Then set instance attributes
+        self.num_spectral_bands = num_spectral_bands
         self.score_weights = score_weights
         self.lambda_penalty = lambda_penalty
-        # Buffers populated during fit()
-        self.register_buffer("selected_indices", torch.empty(0, dtype=torch.long), persistent=True)
-        self.register_buffer("band_scores", torch.empty(0, dtype=torch.float32), persistent=True)
-        self.register_buffer("fisher_scores", torch.empty(0, dtype=torch.float32), persistent=True)
-        self.register_buffer("auc_scores", torch.empty(0, dtype=torch.float32), persistent=True)
-        self.register_buffer("mi_scores", torch.empty(0, dtype=torch.float32), persistent=True)
+        # Initialize buffers with correct shapes (not empty)
+        # selected_indices: always 3 for RGB
+        # score buffers: num_spectral_bands
+        self.register_buffer("selected_indices", torch.zeros(3, dtype=torch.long), persistent=True)
+        self.register_buffer(
+            "band_scores", torch.zeros(num_spectral_bands, dtype=torch.float32), persistent=True
+        )
+        self.register_buffer(
+            "fisher_scores", torch.zeros(num_spectral_bands, dtype=torch.float32), persistent=True
+        )
+        self.register_buffer(
+            "auc_scores", torch.zeros(num_spectral_bands, dtype=torch.float32), persistent=True
+        )
+        self.register_buffer(
+            "mi_scores", torch.zeros(num_spectral_bands, dtype=torch.float32), persistent=True
+        )
         # Use standard instance attribute for initialization tracking
         self._statistically_initialized = False
 
@@ -700,25 +717,29 @@ class SupervisedBandSelectorBase(BandSelectorBase):
     ) -> None:
         """Store scores and selected indices into buffers.
 
-        Note: We re-register buffers because the tensors may have different sizes
-        than the initial empty tensors. This is the correct way to update buffers
-        with new data that may have different shapes.
+        Buffers are already initialized with correct shapes in __init__,
+        so we just update their values using copy_.
         """
-        self.register_buffer(
-            "band_scores", torch.from_numpy(band_scores.astype(np.float32)), persistent=True
+        # Verify shapes match
+        if len(band_scores) != self.num_spectral_bands:
+            raise ValueError(
+                f"band_scores length {len(band_scores)} != num_spectral_bands {self.num_spectral_bands}"
+            )
+        if len(selected_indices) != 3:
+            raise ValueError(f"selected_indices must have 3 elements, got {len(selected_indices)}")
+
+        # Get device from existing buffers
+        device = self.band_scores.device
+
+        # Update buffer values (buffers already exist with correct shapes)
+        self.band_scores.copy_(torch.from_numpy(band_scores.astype(np.float32)).to(device))
+        self.fisher_scores.copy_(torch.from_numpy(fisher_scores.astype(np.float32)).to(device))
+        self.auc_scores.copy_(torch.from_numpy(auc_scores.astype(np.float32)).to(device))
+        self.mi_scores.copy_(torch.from_numpy(mi_scores.astype(np.float32)).to(device))
+        self.selected_indices.copy_(
+            torch.as_tensor(selected_indices, dtype=torch.long, device=device)
         )
-        self.register_buffer(
-            "fisher_scores", torch.from_numpy(fisher_scores.astype(np.float32)), persistent=True
-        )
-        self.register_buffer(
-            "auc_scores", torch.from_numpy(auc_scores.astype(np.float32)), persistent=True
-        )
-        self.register_buffer(
-            "mi_scores", torch.from_numpy(mi_scores.astype(np.float32)), persistent=True
-        )
-        self.register_buffer(
-            "selected_indices", torch.as_tensor(selected_indices, dtype=torch.long), persistent=True
-        )
+
         self._statistically_initialized = True
 
 

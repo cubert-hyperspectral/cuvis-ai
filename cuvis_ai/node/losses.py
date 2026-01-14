@@ -6,6 +6,7 @@ from typing import Any
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch import Tensor
 
 from cuvis_ai.node.node import Node
@@ -263,6 +264,92 @@ class MSEReconstructionLoss(LossNode):
         return {"loss": self.weight * loss}
 
 
+class DistinctnessLoss(LossNode):
+    """Repulsion loss encouraging different selectors to choose different bands.
+
+    This loss is designed for band/channel selector nodes that output a
+    2D weight matrix ``[output_channels, input_channels]``. It computes the
+    mean pairwise cosine similarity between all pairs of selector weight
+    vectors and penalizes high similarity:
+
+    .. math::
+
+        L_\\text{repel} = \\frac{1}{N_\\text{pairs}} \\sum_{i < j}
+            \\cos(\\mathbf{w}_i, \\mathbf{w}_j)
+
+    Minimizing this loss encourages selectors to focus on different bands,
+    preventing the common failure mode where all channels collapse onto
+    the same band.
+
+    Parameters
+    ----------
+    weight : float, optional
+        Overall weight for this loss component (default: 0.1).
+    eps : float, optional
+        Small constant for numerical stability when normalizing (default: 1e-6).
+    """
+
+    INPUT_SPECS = {
+        "selection_weights": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1),
+            description=(
+                "Selector weight matrix [output_channels, input_channels] "
+                "from a band/channel selector node."
+            ),
+        )
+    }
+
+    OUTPUT_SPECS = {
+        "loss": PortSpec(
+            dtype=torch.float32,
+            shape=(),
+            description="Scalar distinctness (repulsion) loss",
+        )
+    }
+
+    def __init__(self, weight: float = 0.1, eps: float = 1e-6, **kwargs) -> None:
+        self.weight = float(weight)
+        self.eps = float(eps)
+
+        super().__init__(weight=self.weight, eps=self.eps, **kwargs)
+
+    def forward(self, selection_weights: Tensor, **_: Any) -> dict[str, Tensor]:
+        """Compute mean pairwise cosine similarity penalty.
+
+        Parameters
+        ----------
+        selection_weights : Tensor
+            Weight matrix of shape [output_channels, input_channels].
+
+        Returns
+        -------
+        dict[str, Tensor]
+            Dictionary with a single key ``"loss"`` containing the scalar loss.
+        """
+        # Normalize each selector vector to unit length
+        w = selection_weights
+        w_norm = F.normalize(w, p=2, dim=-1, eps=self.eps)  # [C, T]
+
+        num_channels = w_norm.shape[0]
+        if num_channels < 2:
+            # Nothing to compare - no repulsion needed
+            return {"loss": torch.zeros((), device=w_norm.device, dtype=w_norm.dtype)}
+
+        # Compute all pairwise cosine similarities using matrix multiplication (optimized)
+        similarity_matrix = w_norm @ w_norm.T  # [C, C] matrix of cosine similarities
+
+        # Extract upper triangular part (i < j pairs), excluding diagonal
+        upper_tri = torch.triu(similarity_matrix, diagonal=1)
+
+        # Compute mean of non-zero elements (i < j pairs)
+        mean_cos = upper_tri[upper_tri != 0].mean()
+
+        # Minimize mean cosine similarity (repulsion)
+        loss = self.weight * mean_cos
+        return {"loss": loss}
+
+
 class SelectorEntropyRegularizer(LossNode):
     """Entropy regularization for SoftChannelSelector.
 
@@ -443,6 +530,129 @@ class DeepSVDDSoftBoundaryLoss(LossNode):
         return {"loss": loss}
 
 
+class IoULoss(LossNode):
+    """Differentiable IoU (Intersection over Union) loss.
+
+    Computes: 1 - (|A ∩ B| + smooth) / (|A U B| + smooth)
+    Works directly on continuous scores (not binary decisions), preserving gradients.
+
+    The scores are normalized to [0, 1] range using sigmoid or clamp
+    before computing IoU, ensuring differentiability.
+
+    Parameters
+    ----------
+    weight : float, optional
+        Overall weight for this loss component (default: 1.0)
+    smooth : float, optional
+        Small constant for numerical stability (default: 1e-6)
+    normalize_method : {"sigmoid", "clamp", "minmax"}, optional
+        Method to normalize predictions to [0, 1] range (default: "sigmoid")
+        - "sigmoid": Apply sigmoid activation (good for unbounded scores)
+        - "clamp": Clamp to [0, 1] (good for scores already in reasonable range)
+        - "minmax": Min-max normalization per batch (good for varying score ranges)
+
+    Examples
+    --------
+    >>> iou_loss = IoULoss(weight=1.0, smooth=1e-6)
+    >>> # Use with AdaClip scores directly (no thresholding needed)
+    >>> loss = iou_loss.forward(predictions=adaclip_scores, targets=ground_truth_mask)
+    """
+
+    INPUT_SPECS = {
+        "predictions": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 1),
+            description="Predicted anomaly scores [B, H, W, 1] (continuous values)",
+        ),
+        "targets": PortSpec(
+            dtype=torch.bool,
+            shape=(-1, -1, -1, 1),
+            description="Ground truth binary masks [B, H, W, 1]",
+        ),
+    }
+
+    OUTPUT_SPECS = {
+        "loss": PortSpec(dtype=torch.float32, shape=(), description="Scalar IoU loss value")
+    }
+
+    def __init__(
+        self,
+        weight: float = 1.0,
+        smooth: float = 1e-6,
+        normalize_method: str = "sigmoid",
+        **kwargs,
+    ) -> None:
+        self.weight = weight
+        self.smooth = smooth
+        self.normalize_method = normalize_method
+
+        if normalize_method not in ["sigmoid", "clamp", "minmax"]:
+            raise ValueError(
+                f"normalize_method must be one of ['sigmoid', 'clamp', 'minmax'], got {normalize_method}"
+            )
+
+        super().__init__(
+            weight=weight,
+            smooth=smooth,
+            normalize_method=normalize_method,
+            **kwargs,
+        )
+
+    def forward(self, predictions: Tensor, targets: Tensor, **_: Any) -> dict[str, Tensor]:
+        """Compute differentiable IoU loss.
+
+        Parameters
+        ----------
+        predictions : Tensor
+            Predicted anomaly scores [B, H, W, 1] (any real values)
+        targets : Tensor
+            Ground truth binary masks [B, H, W, 1]
+
+        Returns
+        -------
+        dict[str, Tensor]
+            Dictionary with "loss" key containing scalar IoU loss
+        """
+        # Normalize predictions to [0, 1] range based on method
+        if self.normalize_method == "sigmoid":
+            # Sigmoid: good for unbounded scores (e.g., logits)
+            pred = torch.sigmoid(predictions)
+        elif self.normalize_method == "clamp":
+            # Clamp: good for scores already in reasonable range
+            pred = torch.clamp(predictions, 0.0, 1.0)
+        elif self.normalize_method == "minmax":
+            # Min-max normalization per batch
+            pred_min = predictions.min()
+            pred_max = predictions.max()
+            if pred_max > pred_min:
+                pred = (predictions - pred_min) / (pred_max - pred_min + self.smooth)
+            else:
+                pred = torch.ones_like(predictions) * 0.5
+        else:
+            raise ValueError(f"Unknown normalize_method: {self.normalize_method}")
+
+        # Convert targets to float
+        target = targets.float()
+
+        # Flatten for computation
+        pred_flat = pred.view(-1)  # [B*H*W]
+        target_flat = target.view(-1)  # [B*H*W]
+
+        # Compute IoU: intersection / union
+        # intersection = |A ∩ B| = sum(pred * target)
+        # union = |A ∪ B| = sum(pred) + sum(target) - intersection
+        intersection = (pred_flat * target_flat).sum()
+        union = pred_flat.sum() + target_flat.sum() - intersection
+
+        # IoU coefficient
+        iou = (intersection + self.smooth) / (union + self.smooth)
+
+        # IoU loss: 1 - IoU (minimize loss = maximize IoU)
+        loss = 1.0 - iou
+
+        return {"loss": self.weight * loss}
+
+
 __all__ = [
     "LossNode",
     "OrthogonalityLoss",
@@ -451,4 +661,5 @@ __all__ = [
     "SelectorEntropyRegularizer",
     "SelectorDiversityRegularizer",
     "DeepSVDDSoftBoundaryLoss",
+    "IoULoss",
 ]

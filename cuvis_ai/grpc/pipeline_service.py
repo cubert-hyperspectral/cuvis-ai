@@ -7,6 +7,7 @@ import tempfile
 from pathlib import Path
 
 import grpc
+import torch
 from pydantic import ValidationError
 
 from cuvis_ai.training.config import TrainRunConfig
@@ -127,6 +128,9 @@ class PipelineService:
                 pipeline = PipelineBuilder().build_from_config(
                     trainrun_config.pipeline.model_dump()
                 )
+                # Move pipeline to GPU if available
+                if torch.cuda.is_available():
+                    pipeline = pipeline.to("cuda")
                 session.pipeline = pipeline
                 session.pipeline_config = trainrun_config.pipeline
 
@@ -239,6 +243,9 @@ class PipelineService:
             pipeline_config = PipelineConfig(**config_dict)
 
             pipeline = PipelineBuilder().build_from_config(pipeline_config.model_dump())
+            # Move pipeline to GPU if available
+            if torch.cuda.is_available():
+                pipeline = pipeline.to("cuda")
 
             session.pipeline = pipeline
             session.pipeline_config = pipeline_config

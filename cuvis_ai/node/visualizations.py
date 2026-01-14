@@ -15,7 +15,7 @@ from torchmetrics.functional.classification import binary_average_precision
 from cuvis_ai.node.node import Node
 from cuvis_ai.pipeline.ports import PortSpec
 from cuvis_ai.utils.types import Artifact, ArtifactType, Context, ExecutionStage
-from cuvis_ai.utils.vis_helpers import fig_to_array
+from cuvis_ai.utils.vis_helpers import fig_to_array, tensor_to_numpy
 
 
 class CubeRGBVisualizer(Node):
@@ -736,8 +736,297 @@ class ScoreHeatmapVisualizer(Node):
         return {"artifacts": artifacts}
 
 
+class RGBAnomalyMask(Node):
+    """Visualize anomaly detection with GT and predicted masks on RGB images.
+
+    Similar to AnomalyMask but designed for RGB images (e.g., from band selectors).
+    Creates side-by-side visualizations showing ground truth masks, predicted masks,
+    and overlay comparisons on RGB images. The overlay shows:
+    - Green: True Positives (correct anomaly detection)
+    - Red: False Positives (false alarms)
+    - Yellow: False Negatives (missed anomalies)
+
+    Also displays IoU and other metrics. Returns a list of Artifact objects for
+    logging to monitoring systems.
+
+    Executes during validation and inference stages.
+
+    Parameters
+    ----------
+    up_to : int, optional
+        Maximum number of images to visualize. If None, visualizes all (default: None)
+
+    Examples
+    --------
+    >>> decider = BinaryDecider(threshold=0.2)
+    >>> viz_mask = RGBAnomalyMask(up_to=5)
+    >>> tensorboard_node = TensorBoardMonitorNode(output_dir="./runs")
+    >>> graph.connect(
+    ...     (decider.decisions, viz_mask.decisions),
+    ...     (data_node.mask, viz_mask.mask),
+    ...     (band_selector.rgb_image, viz_mask.rgb_image),
+    ...     (viz_mask.artifacts, tensorboard_node.artifacts),
+    ... )
+    """
+
+    INPUT_SPECS = {
+        "decisions": PortSpec(
+            dtype=torch.bool,
+            shape=(-1, -1, -1, 1),
+            description="Binary anomaly decisions [B, H, W, 1]",
+        ),
+        "mask": PortSpec(
+            dtype=torch.bool,
+            shape=(-1, -1, -1, 1),
+            description="Ground truth anomaly mask [B, H, W, 1] (optional)",
+            optional=True,
+        ),
+        "rgb_image": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 3),
+            description="RGB image [B, H, W, 3] for visualization",
+        ),
+        "scores": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 1),
+            description="Optional anomaly logits/scores [B, H, W, 1]",
+            optional=True,
+        ),
+    }
+
+    OUTPUT_SPECS = {
+        "artifacts": PortSpec(
+            dtype=list,
+            shape=(),
+            description="List of Artifact objects with RGB visualization artifacts",
+        )
+    }
+
+    def __init__(self, up_to: int | None = None, **kwargs) -> None:
+        """Initialize RGBAnomalyMask visualizer.
+
+        Parameters
+        ----------
+        up_to : int | None, optional
+            Maximum number of images to visualize. If None, visualizes all (default: None)
+        """
+        self.up_to = up_to
+        super().__init__(
+            execution_stages={ExecutionStage.VAL, ExecutionStage.TEST, ExecutionStage.INFERENCE},
+            up_to=up_to,
+            **kwargs,
+        )
+
+    def _compute_metrics(self, pred: np.ndarray, gt: np.ndarray) -> dict:
+        """Compute IoU, precision, recall from boolean masks."""
+        tp = np.logical_and(pred, gt).sum()
+        fp = np.logical_and(pred, ~gt).sum()
+        fn = np.logical_and(~pred, gt).sum()
+        denom = tp + fp + fn + 1e-8
+        return {
+            "tp": tp,
+            "fp": fp,
+            "fn": fn,
+            "iou": tp / denom,
+            "precision": tp / (tp + fp + 1e-8),
+            "recall": tp / (tp + fn + 1e-8),
+        }
+
+    def _create_overlay(self, pred: np.ndarray, gt: np.ndarray | None) -> np.ndarray:
+        """Create RGBA overlay: Green=TP, Red=FP, Yellow=FN."""
+        overlay = np.zeros((*pred.shape, 4))
+        if gt is not None:
+            tp, fp, fn = (
+                np.logical_and(pred, gt),
+                np.logical_and(pred, ~gt),
+                np.logical_and(~pred, gt),
+            )
+            overlay[tp] = [0, 1, 0, 0.6]  # Green
+            overlay[fp] = [1, 0, 0, 0.6]  # Red
+            overlay[fn] = [1, 1, 0, 0.6]  # Yellow
+        else:
+            overlay[pred] = [0, 1, 1, 0.6]  # Cyan for prediction-only
+        return overlay
+
+    def _plot_with_gt(
+        self,
+        axes,
+        rgb: np.ndarray,
+        pred: np.ndarray,
+        gt: np.ndarray,
+        metrics: dict,
+        batch_iou: float,
+        batch_size: int,
+        per_image_ap: float | None,
+    ) -> None:
+        """Plot 3 subplots: RGB, GT mask, overlay with metrics."""
+        axes[0].imshow(rgb, aspect="auto")
+        axes[0].set_title("RGB Input")
+        axes[0].set_xlabel("Width")
+        axes[0].set_ylabel("Height")
+
+        axes[1].imshow(gt, cmap="gray", aspect="auto")
+        axes[1].set_title("Ground Truth Mask")
+        axes[1].set_xlabel("Width")
+        axes[1].set_ylabel("Height")
+
+        overlay = self._create_overlay(pred, gt)
+        axes[2].imshow(rgb, aspect="auto")
+        axes[2].imshow(overlay, aspect="auto")
+
+        title = f"Overlay (RGB) - IoU: {metrics['iou']:.3f}"
+        if per_image_ap is not None:
+            title += f" | AP: {per_image_ap:.3f}"
+        title += "\nGreen=TP, Red=FP, Yellow=FN"
+        axes[2].set_title(title, fontsize=9)
+        axes[2].set_xlabel("Width")
+        axes[2].set_ylabel("Height")
+
+    def _plot_no_gt(self, axes, rgb: np.ndarray, pred: np.ndarray) -> None:
+        """Plot 2 subplots: RGB, RGB with overlay; add stats box."""
+        axes[0].imshow(rgb, aspect="auto")
+        axes[0].set_title("RGB Input")
+        axes[0].set_xlabel("Width")
+        axes[0].set_ylabel("Height")
+
+        overlay = self._create_overlay(pred, None)
+        axes[1].imshow(rgb, aspect="auto")
+        axes[1].imshow(overlay, aspect="auto")
+        axes[1].set_title("Prediction Overlay (RGB)\nCyan=Predicted Anomalies")
+        axes[1].set_xlabel("Width")
+        axes[1].set_ylabel("Height")
+
+    def forward(
+        self,
+        decisions: torch.Tensor,
+        rgb_image: torch.Tensor,
+        mask: torch.Tensor | None = None,
+        context: Context | None = None,
+        scores: torch.Tensor | None = None,
+    ) -> dict:
+        """Create anomaly mask visualizations with GT/pred comparison on RGB images.
+
+        Parameters
+        ----------
+        decisions : torch.Tensor
+            Binary anomaly decisions [B, H, W, 1]
+        rgb_image : torch.Tensor
+            RGB image [B, H, W, 3] for visualization
+        mask : torch.Tensor | None
+            Ground truth anomaly mask [B, H, W, 1] (optional)
+        context : Context | None
+            Execution context with stage, epoch, batch_idx
+        scores : torch.Tensor | None
+            Optional anomaly logits/scores [B, H, W, 1]
+
+        Returns
+        -------
+        dict
+            Dictionary with "artifacts" key containing list of Artifact objects
+        """
+        if context is None:
+            raise ValueError("RGBAnomalyMask.forward() requires a Context object")
+
+        # Convert to numpy only at this point (keep on device until last moment)
+        pred_mask_np: np.ndarray = tensor_to_numpy(decisions.float().squeeze(-1))  # [B, H, W]
+        rgb_np: np.ndarray = tensor_to_numpy(rgb_image)  # [B, H, W, 3]
+
+        # Normalize RGB to [0, 1]
+        if rgb_np.max() > 1.0:
+            rgb_np = rgb_np / 255.0
+        rgb_np = np.clip(rgb_np, 0.0, 1.0)
+
+        # Check if GT available and valid
+        use_gt = (
+            mask is not None and context.stage != ExecutionStage.INFERENCE and mask.any().item()
+        )
+
+        # Validate and convert GT if available
+        gt_mask_np: np.ndarray | None = None
+        batch_iou: float | None = None
+        if use_gt:
+            assert mask is not None
+            gt_mask_np = tensor_to_numpy(mask.squeeze(-1))  # [B, H, W]
+            unique_values = np.unique(gt_mask_np)
+            if not np.all(np.isin(unique_values, [0, 1, True, False])):
+                raise ValueError(f"RGBAnomalyMask expects binary masks, found: {unique_values}")
+            # Compute batch IoU
+            batch_pred = pred_mask_np > 0.5
+            batch_gt = gt_mask_np > 0.5
+            tp = np.logical_and(batch_pred, batch_gt).sum()
+            batch_iou = float(
+                tp
+                / (
+                    tp
+                    + np.logical_and(batch_pred, ~batch_gt).sum()
+                    + np.logical_and(~batch_pred, batch_gt).sum()
+                    + 1e-8
+                )
+            )
+
+        batch_size = pred_mask_np.shape[0]
+        up_to_batch = min(batch_size, self.up_to or batch_size)
+        artifacts = []
+
+        # Loop through images and visualize
+        for i in range(up_to_batch):
+            pred = pred_mask_np[i] > 0.5
+            rgb_img = rgb_np[i]
+            gt = gt_mask_np[i] > 0.5 if gt_mask_np is not None else None
+
+            # Compute metrics and AP if GT available
+            metrics: dict | None = None
+            per_image_ap: float | None = None
+            if gt is not None:
+                metrics = self._compute_metrics(pred, gt)
+                if scores is not None and mask is not None:
+                    raw_scores = scores[i, ..., 0]
+                    probs = torch.sigmoid(raw_scores).flatten()
+                    target_tensor = mask[i, ..., 0].flatten().to(dtype=torch.long)
+                    if probs.device != target_tensor.device:
+                        target_tensor = target_tensor.to(probs.device)
+                    if probs.numel() == target_tensor.numel():
+                        per_image_ap = binary_average_precision(probs, target_tensor).item()
+
+            # Create figure and plot
+            ncols = 3 if gt is not None else 2
+            fig, axes = plt.subplots(1, ncols, figsize=(6 * ncols, 6))
+            if ncols == 1:
+                axes = [axes]
+
+            if gt is not None and metrics is not None and batch_iou is not None:
+                self._plot_with_gt(
+                    axes, rgb_img, pred, gt, metrics, batch_iou, batch_size, per_image_ap
+                )
+                log_msg = (
+                    f"Created RGB anomaly mask ({i + 1}/{up_to_batch}): IoU={metrics['iou']:.3f}"
+                )
+            else:
+                self._plot_no_gt(axes, rgb_img, pred)
+                log_msg = f"Created RGB anomaly mask ({i + 1}/{up_to_batch}) (no GT)"
+
+            plt.tight_layout()
+            img_array = fig_to_array(fig, dpi=150)
+            plt.close(fig)
+
+            artifact = Artifact(
+                name=f"rgb_anomaly_mask_img{i:02d}",
+                value=img_array,
+                el_id=i,
+                desc=log_msg,
+                type=ArtifactType.IMAGE,
+                stage=context.stage,
+                epoch=context.epoch,
+                batch_idx=context.batch_idx,
+            )
+            artifacts.append(artifact)
+
+        return {"artifacts": artifacts}
+
+
 __all__ = [
     "PCAVisualization",
     "AnomalyMask",
+    "RGBAnomalyMask",
     "ScoreHeatmapVisualizer",
 ]

@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import grpc
+import torch
 import yaml
 
 from cuvis_ai.training.config import DataConfig, TrainingConfig, TrainRunConfig
@@ -208,6 +209,7 @@ class TrainRunService:
                     if weights_path_from_request
                     else None,
                     strict_weight_loading=request.strict if request.HasField("strict") else True,
+                    device="cuda" if torch.cuda.is_available() else None,
                 )
             else:
                 # Build pipeline from trainrun config (no weights)
@@ -223,6 +225,10 @@ class TrainRunService:
                         if request.HasField("strict")
                         else True,
                     )
+
+            # Move pipeline to GPU if available (for PipelineBuilder path)
+            if torch.cuda.is_available():
+                pipeline = pipeline.to("cuda")
 
             session_id = self.session_manager.create_session(
                 pipeline=pipeline,

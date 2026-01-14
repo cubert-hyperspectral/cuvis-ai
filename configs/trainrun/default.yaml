@@ -18,4 +18,3 @@ hydra:
   run:
     dir: ${output_dir}
   output_subdir: .hydra
-

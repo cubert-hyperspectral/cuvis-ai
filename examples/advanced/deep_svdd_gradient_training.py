@@ -34,9 +34,10 @@ from cuvis_ai.training.config import (
     TrainingConfig,
     TrainRunConfig,
 )
+from cuvis_ai.utils.deep_svdd_factory import infer_channels_after_bandpass
 
 
-@hydra.main(config_path="../../configs/", config_name="trainrun/default", version_base=None)
+@hydra.main(config_path="../../configs/", config_name="trainrun/deep_svdd", version_base=None)
 def main(cfg: DictConfig) -> None:
     """Deep SVDD anomaly detection with gradient training and trainrun config saving."""
 
@@ -49,6 +50,16 @@ def main(cfg: DictConfig) -> None:
 
     datamodule.setup(stage="fit")
 
+    # Access node parameters from cfg.pipeline if available, otherwise from cfg (for backward compatibility)
+    pipeline_cfg = cfg.pipeline if hasattr(cfg, "pipeline") and cfg.pipeline else cfg
+
+    # Infer post-bandpass channel count if not provided
+    if pipeline_cfg.encoder.num_channels is None or pipeline_cfg.projection.in_channels is None:
+        ch_cfg = infer_channels_after_bandpass(datamodule, pipeline_cfg.bandpass)
+        if pipeline_cfg.encoder.num_channels is None:
+            pipeline_cfg.encoder.num_channels = ch_cfg.num_channels
+        if pipeline_cfg.projection.in_channels is None:
+            pipeline_cfg.projection.in_channels = ch_cfg.in_channels
     logger.info(
         f"Wavelengths: min {datamodule.train_ds.wavelengths_nm.min()} nm, max {datamodule.train_ds.wavelengths_nm.max()} nm"
     )
@@ -59,22 +70,41 @@ def main(cfg: DictConfig) -> None:
     data_node = LentilsAnomalyDataNode(normal_class_ids=[0, 1])
 
     bandpass_node = BandpassByWavelength(
-        min_wavelength_nm=700.0,
-        max_wavelength_nm=None,
+        min_wavelength_nm=pipeline_cfg.bandpass.min_wavelength_nm,
+        max_wavelength_nm=pipeline_cfg.bandpass.max_wavelength_nm,
     )
 
     unit_norm_node = PerPixelUnitNorm(eps=1e-8)
 
-    encoder = ZScoreNormalizerGlobal(num_channels=27, hidden=128, sample_n=200_000, seed=0)
-    projection = DeepSVDDProjection(in_channels=27, rep_dim=32, hidden=128)
-    center_tracker = DeepSVDDCenterTracker(rep_dim=32, alpha=0.1)
-    loss_node = DeepSVDDSoftBoundaryLoss(name="deepsvdd_loss", nu=0.05)
+    encoder = ZScoreNormalizerGlobal(
+        num_channels=pipeline_cfg.encoder.num_channels,
+        hidden=pipeline_cfg.encoder.hidden,
+        sample_n=pipeline_cfg.encoder.sample_n,
+        seed=pipeline_cfg.encoder.seed,
+    )
+    projection = DeepSVDDProjection(
+        in_channels=pipeline_cfg.projection.in_channels,
+        rep_dim=pipeline_cfg.projection.rep_dim,
+        hidden=pipeline_cfg.projection.hidden,
+    )
+    center_tracker = DeepSVDDCenterTracker(
+        rep_dim=pipeline_cfg.center_tracker.rep_dim, alpha=pipeline_cfg.center_tracker.alpha
+    )
+    loss_node = DeepSVDDSoftBoundaryLoss(name="deepsvdd_loss", nu=pipeline_cfg.loss.nu)
     score_node = DeepSVDDScores()
 
-    decider_node = QuantileBinaryDecider(quantile=0.995)
+    decider_node = QuantileBinaryDecider(quantile=pipeline_cfg.decider.quantile)
     metrics_node = AnomalyDetectionMetrics(name="metrics_anomaly")
-    viz_mask = AnomalyMask(name="mask", channel=30, up_to=5)
-    score_viz = ScoreHeatmapVisualizer(name="score_heatmap", normalize_scores=True, up_to=5)
+    viz_mask = AnomalyMask(
+        name="mask",
+        channel=pipeline_cfg.viz.mask_channel,
+        up_to=pipeline_cfg.viz.up_to,
+    )
+    score_viz = ScoreHeatmapVisualizer(
+        name="score_heatmap",
+        normalize_scores=True,
+        up_to=pipeline_cfg.viz.up_to,
+    )
 
     tensorboard_node = TensorBoardMonitorNode(
         output_dir=str(output_dir / ".." / "tensorboard"),
@@ -166,7 +196,7 @@ def main(cfg: DictConfig) -> None:
 
     # Stage 5: Unfreeze encoder for gradient optimization
     logger.info("Phase 2: Unfreezing encoder for gradient training...")
-    unfreeze_node_names = [encoder.name]
+    unfreeze_node_names = list(cfg.unfreeze_nodes) if "unfreeze_nodes" in cfg else [encoder.name]
     pipeline.unfreeze_nodes_by_name(unfreeze_node_names)
     logger.info(f"Unfrozen nodes: {unfreeze_node_names}")
 
@@ -183,8 +213,8 @@ def main(cfg: DictConfig) -> None:
     )
     grad_trainer.fit()
 
-    logger.info("Running validation evaluation with best checkpoint...")
-    val_results = grad_trainer.validate()
+    logger.info("Running validation evaluation with last checkpoint...")
+    val_results = grad_trainer.validate(ckpt_path="last")
     logger.info(f"Validation results: {val_results}")
 
     # Identify metric and loss nodes from pipeline
@@ -194,8 +224,8 @@ def main(cfg: DictConfig) -> None:
     logger.info(f"Metric nodes: {metric_node_names}")
 
     # Stage 7: Evaluate on test set with best checkpoint
-    logger.info("Running test evaluation with best checkpoint...")
-    test_results = grad_trainer.test()
+    logger.info("Running test evaluation with last checkpoint...")
+    test_results = grad_trainer.test(ckpt_path="last")
     logger.info(f"Test results: {test_results}")
 
     # Stage 8: Save trained pipeline and experiment config

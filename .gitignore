@@ -195,3 +195,5 @@ test_outputs/
 tensorboard/
 .clinerules
 experiments/
+*.pt
+/.venv-adaclip-test/

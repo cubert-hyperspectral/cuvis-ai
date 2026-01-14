@@ -1,0 +1,23 @@
+# @package _global_
+
+name: adaclip_cir_false_color
+
+defaults:
+  - /pipeline@pipeline: adaclip_cir_false_color
+  - /data@data: lentils
+  - _self_
+
+data:
+  # Override splits for this example
+  train_ids: [0, 2]
+  val_ids: [2, 4]
+  test_ids: [1, 3, 5]
+  batch_size: 1
+
+output_dir: outputs\adaclip_cir_false_color
+
+metric_nodes:
+- detection_metrics
+
+loss_nodes: []
+

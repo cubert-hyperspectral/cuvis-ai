@@ -1,4 +1,4 @@
-"""Visualization helper utilities for converting matplotlib figures."""
+"""Visualization helper utilities for converting figures and tensors to arrays."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ from io import BytesIO
 from typing import TYPE_CHECKING
 
 import numpy as np
+import torch
 from PIL import Image
 
 if TYPE_CHECKING:
@@ -55,4 +56,36 @@ def fig_to_array(fig: matplotlib.figure.Figure, dpi: int = 150) -> np.ndarray:
     return img_array
 
 
-__all__ = ["fig_to_array"]
+def tensor_to_uint8(tensor: torch.Tensor) -> torch.Tensor:
+    """Convert float tensor [0, 1] to uint8 [0, 255].
+
+    Parameters
+    ----------
+    tensor : torch.Tensor
+        Input tensor with values in [0, 1]
+
+    Returns
+    -------
+    torch.Tensor
+        Tensor converted to uint8 in range [0, 255], stays on original device
+    """
+    return (tensor.clamp(0, 1) * 255).to(torch.uint8)
+
+
+def tensor_to_numpy(tensor: torch.Tensor) -> np.ndarray:
+    """Convert torch tensor to numpy array on CPU.
+
+    Parameters
+    ----------
+    tensor : torch.Tensor
+        Input tensor (can be on any device)
+
+    Returns
+    -------
+    np.ndarray
+        Numpy array representation
+    """
+    return tensor.detach().cpu().numpy()
+
+
+__all__ = ["fig_to_array", "tensor_to_uint8", "tensor_to_numpy"]
