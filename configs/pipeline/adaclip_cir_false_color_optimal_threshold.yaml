@@ -1,0 +1,100 @@
+name: ''
+nodes:
+- name: LentilsAnomalyDataNode
+  class: cuvis_ai.node.data.LentilsAnomalyDataNode
+  params:
+    normal_class_ids:
+    - 0
+    - 1
+- name: CIRFalseColorSelector
+  class: cuvis_ai.node.band_selection.CIRFalseColorSelector
+  params:
+    nir_nm: 860.0
+    red_nm: 670.0
+    green_nm: 560.0
+- name: AdaCLIPDetector
+  class: cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
+  params:
+    weight_name: pretrained_all
+    backbone: ViT-L-14-336
+    prompt_text: ''
+    image_size: 518
+    prompting_depth: 4
+    prompting_length: 5
+    gaussian_sigma: 4.0
+    use_half_precision: false
+    enable_warmup: false
+    enable_gradients: false
+    use_torch_preprocess: true
+- name: TwoStageBinaryDecider
+  class: cuvis_ai.deciders.two_stage_decider.TwoStageBinaryDecider
+  params:
+    image_threshold: 0.0847439244389534
+    top_k_fraction: 0.001
+    quantile: 0.995
+    reduce_dims: null
+- name: ScoreHeatmapVisualizer
+  class: cuvis_ai.node.visualizations.ScoreHeatmapVisualizer
+  params:
+    normalize_scores: true
+    cmap: inferno
+    up_to: 3
+- name: RGBAnomalyMask
+  class: cuvis_ai.node.visualizations.RGBAnomalyMask
+  params:
+    up_to: 3
+- name: detection_metrics
+  class: cuvis_ai.node.metrics.AnomalyDetectionMetrics
+  params:
+    execution_stages: null
+- name: TensorBoardMonitorNode
+  class: cuvis_ai.node.monitor.TensorBoardMonitorNode
+  params:
+    output_dir: outputs\tensorboard
+    run_name: AdaCLIP_CIR_FalseColor_OptimalThreshold
+    comment: ''
+    flush_secs: 120
+connections:
+- from: LentilsAnomalyDataNode.outputs.cube
+  to: CIRFalseColorSelector.inputs.cube
+- from: LentilsAnomalyDataNode.outputs.wavelengths
+  to: CIRFalseColorSelector.inputs.wavelengths
+- from: LentilsAnomalyDataNode.outputs.mask
+  to: detection_metrics.inputs.targets
+- from: LentilsAnomalyDataNode.outputs.mask
+  to: RGBAnomalyMask.inputs.mask
+- from: CIRFalseColorSelector.outputs.rgb_image
+  to: AdaCLIPDetector.inputs.rgb_image
+- from: CIRFalseColorSelector.outputs.rgb_image
+  to: RGBAnomalyMask.inputs.rgb_image
+- from: AdaCLIPDetector.outputs.scores
+  to: TwoStageBinaryDecider.inputs.logits
+- from: AdaCLIPDetector.outputs.scores
+  to: ScoreHeatmapVisualizer.inputs.scores
+- from: AdaCLIPDetector.outputs.scores
+  to: RGBAnomalyMask.inputs.scores
+- from: TwoStageBinaryDecider.outputs.decisions
+  to: detection_metrics.inputs.decisions
+- from: TwoStageBinaryDecider.outputs.decisions
+  to: RGBAnomalyMask.inputs.decisions
+- from: ScoreHeatmapVisualizer.outputs.artifacts
+  to: TensorBoardMonitorNode.inputs.artifacts
+- from: RGBAnomalyMask.outputs.artifacts
+  to: TensorBoardMonitorNode.inputs.artifacts
+- from: detection_metrics.outputs.metrics
+  to: TensorBoardMonitorNode.inputs.metrics
+frozen_nodes: []
+metadata:
+  name: AdaCLIP_CIR_FalseColor_OptimalThreshold
+  description: "Statistical AdaCLIP CIR false-color pipeline with optimal threshold\
+    \ (LentilsAnomalyDataNode \u2192 CIRFalseColorSelector \u2192 AdaCLIPDetector\
+    \ \u2192 TwoStageBinaryDecider)"
+  created: ''
+  tags:
+  - statistical
+  - adaclip
+  - cir_false_color
+  - optimal_threshold
+  - two_stage
+  author: cuvis.ai
+  cuvis_ai_version: 0.1.5.post40+g5d4ea80af.d20260105

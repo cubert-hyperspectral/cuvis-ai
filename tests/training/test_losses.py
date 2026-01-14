@@ -2,10 +2,12 @@
 
 import pytest
 import torch
+import torch.nn.functional as F
 
 from cuvis_ai.node import Node
 from cuvis_ai.node.losses import (
     AnomalyBCEWithLogits,
+    DistinctnessLoss,
     MSEReconstructionLoss,
     OrthogonalityLoss,
 )
@@ -23,6 +25,29 @@ def trainable_pca():
     pca.unfreeze()  # Convert buffers to parameters for gradient training
 
     return pca
+
+
+@pytest.fixture
+def distinctness_loss_node():
+    """Create a DistinctnessLoss node for testing."""
+    return DistinctnessLoss(weight=1.0, eps=1e-6)
+
+
+@pytest.fixture
+def selection_weights_3x5():
+    """Create 3x5 selection weights for testing."""
+    return torch.randn(3, 5, requires_grad=True)
+
+
+@pytest.fixture
+def selection_weights_various():
+    """Create selection weights with various channel counts."""
+    return {
+        "2_channels": torch.randn(2, 10, requires_grad=True),
+        "3_channels": torch.randn(3, 15, requires_grad=True),
+        "5_channels": torch.randn(5, 20, requires_grad=True),
+        "10_channels": torch.randn(10, 30, requires_grad=True),
+    }
 
 
 class TestOrthogonalityLoss:
@@ -247,6 +272,83 @@ class TestMSEReconstructionLoss:
         assert loss.item() < 1e-10
 
 
+class TestDistinctnessLoss:
+    """Tests for DistinctnessLoss with matrix vs loop comparison."""
+
+    def test_matrix_vs_loop_computation(self, distinctness_loss_node, selection_weights_various):
+        """Test that matrix computation produces identical results to loop computation."""
+        for name, weights in selection_weights_various.items():
+            # Compute loss using the optimized node (matrix-based)
+            node_output = distinctness_loss_node.forward(selection_weights=weights)
+            matrix_loss = node_output["loss"]
+
+            # Compute loss using loop-based approach for comparison
+            w_norm = F.normalize(weights, p=2, dim=-1, eps=1e-6)
+            num_channels = w_norm.shape[0]
+
+            if num_channels < 2:
+                expected_loss = torch.zeros((), device=weights.device, dtype=weights.dtype)
+            else:
+                cos_sum = torch.zeros((), device=w_norm.device, dtype=w_norm.dtype)
+                num_pairs = 0
+
+                for i in range(num_channels):
+                    for j in range(i + 1, num_channels):
+                        cos_ij = F.cosine_similarity(w_norm[i], w_norm[j], dim=0, eps=1e-6)
+                        cos_sum = cos_sum + cos_ij
+                        num_pairs += 1
+
+                expected_loss = (
+                    cos_sum / float(num_pairs)
+                    if num_pairs > 0
+                    else torch.zeros((), device=w_norm.device, dtype=w_norm.dtype)
+                )
+
+            # Compare results
+            assert torch.allclose(matrix_loss, expected_loss, rtol=1e-5, atol=1e-7), (
+                f"Failed for {name}"
+            )
+
+    def test_edge_cases(self, distinctness_loss_node):
+        """Test edge cases like single channel."""
+        # Single channel - should return zero loss
+        single_channel = torch.randn(1, 10, requires_grad=True)
+        output = distinctness_loss_node.forward(selection_weights=single_channel)
+        assert output["loss"].item() == 0.0
+
+        # Zero channels - should return zero loss
+        zero_channels = torch.randn(0, 10, requires_grad=True)
+        output = distinctness_loss_node.forward(selection_weights=zero_channels)
+        assert output["loss"].item() == 0.0
+
+    def test_gradient_flow(self, distinctness_loss_node, selection_weights_3x5):
+        """Test that gradients flow correctly through the loss."""
+        weights = selection_weights_3x5
+        output = distinctness_loss_node.forward(selection_weights=weights)
+        loss = output["loss"]
+
+        # Should be able to compute gradients
+        loss.backward()
+        assert weights.grad is not None
+        assert torch.any(weights.grad != 0)
+
+    def test_weight_parameter(self, distinctness_loss_node, selection_weights_3x5):
+        """Test that weight parameter scales loss correctly."""
+        weights = selection_weights_3x5
+
+        # Test with weight=1.0
+        output_1x = distinctness_loss_node.forward(selection_weights=weights)
+        loss_1x = output_1x["loss"]
+
+        # Test with weight=2.0
+        loss_node_2x = DistinctnessLoss(weight=2.0, eps=1e-6)
+        output_2x = loss_node_2x.forward(selection_weights=weights)
+        loss_2x = output_2x["loss"]
+
+        # 2x weight should give exactly 2x loss
+        assert torch.allclose(loss_2x, loss_1x * 2.0, rtol=1e-6)
+
+
 class TestLossNodeProtocol:
     """Tests for loss node protocol compliance."""
 
@@ -256,6 +358,7 @@ class TestLossNodeProtocol:
             OrthogonalityLoss,
             AnomalyBCEWithLogits,
             MSEReconstructionLoss,
+            DistinctnessLoss,
         ]
 
         for loss_class in loss_classes:
@@ -267,6 +370,7 @@ class TestLossNodeProtocol:
             OrthogonalityLoss(weight=1.0),
             AnomalyBCEWithLogits(),
             MSEReconstructionLoss(),
+            DistinctnessLoss(),
         ]
 
         for loss_node in loss_classes:

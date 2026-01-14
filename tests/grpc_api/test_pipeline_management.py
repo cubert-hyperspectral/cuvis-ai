@@ -120,6 +120,9 @@ class TestSavePipeline:
 class TestLoadPipeline:
     """Test the LoadPipeline RPC method."""
 
+    # @pytest.mark.skip(
+    #     reason="Native cuvis library has thread-safety issues causing crashes during weight loading"
+    # )
     def test_load_pipeline_with_weights_default(
         self, grpc_stub, session, saved_pipeline, monkeypatch
     ):

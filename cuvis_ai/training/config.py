@@ -477,7 +477,11 @@ class TrainRunConfig(_BaseConfig):
         default=None, description="Pipeline configuration (optional if already built)"
     )
     data: DataConfig = Field(description="Data configuration")
-    training: TrainingConfig = Field(description="Training configuration")
+
+    training: TrainingConfig | None = Field(
+        default=None, description="Training configuration (required if gradient training)"
+    )
+
     loss_nodes: list[str] = Field(
         default_factory=list, description="Loss node names for gradient training"
     )
@@ -527,6 +531,13 @@ class TrainRunConfig(_BaseConfig):
         with Path(path).open("r", encoding="utf-8") as f:
             data = yaml.safe_load(f)
         return cls.from_dict(data)
+
+    @model_validator(mode="after")
+    def _validate_training_config(self) -> TrainRunConfig:
+        """Ensure training config has optimizer if provided."""
+        if self.training is not None and self.training.optimizer is None:
+            raise ValueError("Training configuration must include optimizer when provided")
+        return self
 
 
 def create_callbacks_from_config(config: CallbacksConfig | None) -> list:

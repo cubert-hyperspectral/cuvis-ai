@@ -438,7 +438,6 @@ class StatisticalTrainer:
     - Finds all nodes with requires_initial_fit=True
     - Initializes them in topological order using node.statistical_initialization()
     - Uses executor with upto_node for clean data transformation
-    - No legacy tuple code - pure port-based architecture
 
     Examples
     --------
@@ -506,11 +505,20 @@ class StatisticalTrainer:
             List of output dictionaries (one per batch), where each dict maps
             (node_id, port_name) tuples to output tensors
         """
+        from cuvis_ai.utils.types import Context
+
         self.datamodule.setup(stage="val")
         val_loader = self.datamodule.val_dataloader()
 
-        for batch in val_loader:
-            self.pipeline.forward(batch=batch, stage=ExecutionStage.VAL)
+        for batch_idx, batch in enumerate(val_loader):
+            batch = self._move_batch_to_device(batch)
+            context = Context(
+                stage=ExecutionStage.VAL,
+                epoch=0,
+                batch_idx=batch_idx,
+                global_step=batch_idx,
+            )
+            self.pipeline.forward(batch=batch, context=context)
 
     def test(self) -> None:
         """Run test on the test dataset.
@@ -521,11 +529,51 @@ class StatisticalTrainer:
             List of output dictionaries (one per batch), where each dict maps
             (node_id, port_name) tuples to output tensors
         """
+        from cuvis_ai.utils.types import Context
+
         self.datamodule.setup(stage="test")
         test_loader = self.datamodule.test_dataloader()
 
-        for batch in test_loader:
-            self.pipeline.forward(batch=batch, stage=ExecutionStage.TEST)
+        for batch_idx, batch in enumerate(test_loader):
+            batch = self._move_batch_to_device(batch)
+            context = Context(
+                stage=ExecutionStage.TEST,
+                epoch=0,
+                batch_idx=batch_idx,
+                global_step=batch_idx,
+            )
+            self.pipeline.forward(batch=batch, context=context)
+
+    def _get_pipeline_device(self) -> torch.device:
+        """Get the device of the pipeline from its parameters/buffers."""
+        for node in self.pipeline._sorted_nodes:
+            for param in node.parameters():
+                return param.device
+            for buf in node.buffers():
+                return buf.device
+        return torch.device("cpu")
+
+    def _move_batch_to_device(self, batch: dict) -> dict:
+        """Move batch tensors to the pipeline's device.
+
+        Parameters
+        ----------
+        batch : dict
+            Input batch dictionary with tensor values
+
+        Returns
+        -------
+        dict
+            Batch with all tensors moved to pipeline's device
+        """
+        device = self._get_pipeline_device()
+        moved_batch = {}
+        for key, value in batch.items():
+            if isinstance(value, torch.Tensor):
+                moved_batch[key] = value.to(device)
+            else:
+                moved_batch[key] = value
+        return moved_batch
 
     def _create_input_stream(self, target_node, dataloader) -> InputStream:
         """Create port-based input stream for statistical node.
@@ -546,6 +594,9 @@ class StatisticalTrainer:
             Input dict with keys from target_node.INPUT_SPECS
         """
         for batch in dataloader:
+            # Move batch to pipeline device BEFORE calling forward
+            batch = self._move_batch_to_device(batch)
+
             # Execute ancestors, stop before target (using upto_node)
             outputs = self.pipeline.forward(
                 batch=batch,

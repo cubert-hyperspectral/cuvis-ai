@@ -1,0 +1,70 @@
+# @package _global_
+
+defaults:
+  - /data@data: lentils
+  - /training@training: default
+  - _self_
+
+name: concrete_adaclip
+
+output_dir: ./outputs/${name}
+
+# Debug settings - save intermediate tensors for inspection
+debug:
+  save_intermediates: False  # Set to false to disable debug saving
+  save_dir: ${output_dir}/debug_intermediates
+
+# Pipeline configuration is hardcoded in the script to avoid YAML serialization issues.
+
+training:
+  seed: 42
+  trainer:
+    max_epochs: 20
+    accelerator: auto
+    devices: 1
+    default_root_dir: ${output_dir}
+    precision: 32-true
+    accumulate_grad_batches: 1
+    enable_progress_bar: true
+    enable_checkpointing: true
+    log_every_n_steps: 10
+    val_check_interval: 1.0
+    check_val_every_n_epoch: 1
+    gradient_clip_val: 1.0
+    deterministic: false
+    benchmark: false
+  optimizer:
+    name: adamw
+    lr: 0.001  # Match DRCNN experiment for fair comparison
+    weight_decay: 0.01
+    betas: [0.9, 0.999]
+  scheduler:
+    name: reduce_on_plateau
+    monitor: metrics_anomaly/iou
+    mode: max
+    factor: 0.5
+    patience: 5
+    threshold: 0.0001
+    threshold_mode: rel
+    cooldown: 0
+    min_lr: 1e-6
+    eps: 1e-8
+    verbose: false
+
+# Nodes to unfreeze for gradient training
+unfreeze_nodes:
+  - concrete_selector
+
+# Loss and metric nodes
+loss_nodes:
+  - iou_loss       # main supervision on AdaClip scores
+  - distinctness_loss  # repulsion penalty on selector weights
+
+metric_nodes:
+  - metrics_anomaly
+
+freeze_nodes: []  # All other nodes remain frozen (AdaClip stays frozen)
+
+
+
+

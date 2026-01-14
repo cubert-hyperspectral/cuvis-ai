@@ -1,4 +1,12 @@
 # Changelog
+## V0.2.2
+- **Restoration Utilities Refactoring**: Consolidated `restore_pipeline()` and `restore_trainrun()` functionality into `cuvis_ai.utils.restore` module for better discoverability and reusability
+- **Smart TrainRun Restoration**: Single `restore_trainrun()` function auto-detects and handles both gradient and statistical training workflows
+- **CLI Scripts**: Added `uv run restore-pipeline` and `uv run restore-trainrun` commands to `pyproject.toml` for direct CLI usage
+- **Removed Duplication**: Eliminated separate example scripts (`restore_pipeline.py`, `restore_trainrun.py`, `restore_trainrun_statistical.py`) in favor of library utilities
+- **Updated Documentation**: Created consolidated `restore_pipeline.md` guide in root directory with examples using new CLI commands and Python API
+- **Python API**: Functions available via `from cuvis_ai.utils import restore_pipeline, restore_trainrun`
+
 ## V0.2.1
 - Refactored monolithic `service.py` (1,775 lines) into 8 modular service components with delegation pattern
 - SessionService, ConfigService, PipelineService, TrainingService, TrainRunService, InferenceService, IntrospectionService, DiscoveryService
