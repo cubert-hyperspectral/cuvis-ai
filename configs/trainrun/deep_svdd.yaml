@@ -31,13 +31,6 @@ training:
     deterministic: false
     benchmark: false
     callbacks:
-      early_stopping:
-        - monitor: train/deepsvdd_loss
-          patience: 15
-          mode: min
-          min_delta: 1.0e-07
-          stopping_threshold: null
-          verbose: true
       model_checkpoint:
         dirpath: outputs\deepsvdd\checkpoints
         monitor: metrics_anomaly/iou
@@ -75,3 +68,34 @@ metric_nodes:
   - metrics_anomaly
 loss_nodes:
   - deepsvdd_loss
+
+# Node & preprocessing parameters
+# pipeline:
+#   bandpass:
+#     min_wavelength_nm: 700.0
+#     max_wavelength_nm: null
+
+#   encoder:
+#     num_channels: 27
+#     hidden: 128
+#     sample_n: 200000
+#     seed: 0
+
+#   projection:
+#     in_channels: 27
+#     rep_dim: 32
+#     hidden: 128
+
+#   center_tracker:
+#     rep_dim: 32
+#     alpha: 0.1
+
+#   loss:
+#     nu: 0.05
+
+#   decider:
+#     quantile: 0.995
+
+#   viz:
+#     mask_channel: 30
+#     up_to: 5

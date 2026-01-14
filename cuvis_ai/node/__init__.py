@@ -1,6 +1,5 @@
 """Convenience exports for node base classes and marker mixins."""
 
-from cuvis_ai.node.adaclip_node import AdaCLIPDetector
 from cuvis_ai.node.band_selection import (
     BandSelectorBase,
     BaselineFalseRGBSelector,
@@ -19,7 +18,6 @@ from cuvis_ai.node.selector import SoftChannelSelector, TopKIndices
 from cuvis_ai.utils.types import ExecutionStage
 
 __all__ = [
-    "AdaCLIPDetector",
     "BandSelectorBase",
     "BaselineFalseRGBSelector",
     "BinaryAnomalyLabelMapper",

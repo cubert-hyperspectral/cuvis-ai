@@ -38,9 +38,23 @@ def config_search_paths(extra_paths: Iterable[str | Path] | None = None) -> list
     return paths
 
 
-def build_stub(server_address: str = "localhost:50051") -> cuvis_ai_pb2_grpc.CuvisAIServiceStub:
-    """Create a gRPC stub for the CuvisAI service."""
-    channel = grpc.insecure_channel(server_address)
+def build_stub(
+    server_address: str = "localhost:50051", max_msg_size: int = 300 * 1024 * 1024
+) -> cuvis_ai_pb2_grpc.CuvisAIServiceStub:
+    """Create a gRPC stub for the CuvisAI service.
+
+    Parameters
+    ----------
+    server_address : str
+        Server address (default: localhost:50051)
+    max_msg_size : int
+        Maximum message size in bytes (default: 300MB)
+    """
+    options = [
+        ("grpc.max_send_message_length", max_msg_size),
+        ("grpc.max_receive_message_length", max_msg_size),
+    ]
+    channel = grpc.insecure_channel(server_address, options=options)
     return cuvis_ai_pb2_grpc.CuvisAIServiceStub(channel)
 
 

@@ -1,0 +1,95 @@
+# @package _global_
+
+defaults:
+  - /data@data: lentils
+  - /training@training: default
+  - _self_
+
+name: pca_adaclip_baseline
+
+output_dir: ./outputs/${name}
+
+# Debug settings - save intermediate tensors for inspection
+debug:
+  save_intermediates: false  # Set to true to enable debug saving
+  save_dir: ${output_dir}/debug_intermediates
+
+# Pipeline configuration
+pipeline:
+  data_node:
+    normal_class_ids: [0, 1]
+  
+  normalizer:
+    eps: 1e-6
+    use_running_stats: true
+  
+  # PCA configuration (for baseline)
+  pca:
+    eps: 1e-6
+  
+  adaclip:
+    weight_name: pretrained_all
+    backbone: ViT-L-14-336
+    prompt_text: "normal: lentils, anomaly: stones"
+    image_size: 518
+    prompting_depth: 4
+    prompting_length: 5
+    gaussian_sigma: 4.0
+    use_half_precision: false
+    enable_warmup: false
+    enable_gradients: false  # No gradients needed for baseline
+  
+  decider:
+    quantile: 0.995
+  
+  viz:
+    mask_channel: 30
+    up_to: 5
+
+training:
+  seed: 42
+  trainer:
+    max_epochs: 1  # Minimum allowed (1 epoch, but no loss nodes = no training)
+    accelerator: auto
+    devices: 1
+    default_root_dir: ${output_dir}
+    precision: 32-true
+    accumulate_grad_batches: 1
+    enable_progress_bar: true
+    enable_checkpointing: false  # No checkpoints needed for baseline
+    log_every_n_steps: 10
+    val_check_interval: 1.0
+    check_val_every_n_epoch: 1
+    gradient_clip_val: 1.0
+    deterministic: false
+    benchmark: false
+  optimizer:
+    name: adamw
+    lr: 0.001  # Not used (no training)
+    weight_decay: 0.01
+    betas: [0.9, 0.999]
+  scheduler:
+    name: reduce_on_plateau
+    monitor: metrics_anomaly/iou
+    mode: max
+    factor: 0.5
+    patience: 5
+    threshold: 0.0001
+    threshold_mode: rel
+    cooldown: 0
+    min_lr: 1e-6
+    eps: 1e-8
+    verbose: false
+
+# No nodes to unfreeze - everything stays frozen for baseline
+unfreeze_nodes: []
+
+# No loss nodes - just evaluation
+loss_nodes: []
+
+# Metric nodes for evaluation
+metric_nodes:
+  - metrics_anomaly
+
+freeze_nodes: []  # All nodes remain frozen (PCA baseline)
+

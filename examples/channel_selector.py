@@ -32,7 +32,7 @@ from cuvis_ai.training.config import (
 )
 
 
-@hydra.main(config_path="../configs/", config_name="trainrun/default", version_base=None)
+@hydra.main(config_path="../configs/", config_name="trainrun/channel_selector", version_base=None)
 def main(cfg: DictConfig) -> None:
     """Channel Selector with gradient training and trainrun config saving."""
 

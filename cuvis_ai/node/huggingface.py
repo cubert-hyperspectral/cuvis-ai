@@ -597,16 +597,6 @@ class AdaCLIPLocalNode(HuggingFaceLocalNode):
                 f"Text prompt: {text_prompt}"
             ) from exc
 
-    def serialize(self, serial_dir: str) -> dict:
-        """Serialize node configuration."""
-        return {**self.hparams}
-
-    def load(self, params: dict, serial_dir: str) -> None:
-        """Load node configuration."""
-        self.model_name = params.get("model_name", self.model_name)
-        self.cache_dir = params.get("cache_dir", self.cache_dir)
-        self.text_prompt = params.get("text_prompt", self.text_prompt)
-
 
 __all__ = [
     "HuggingFaceAPINode",

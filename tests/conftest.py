@@ -3,7 +3,7 @@
 All fixtures have been organized into separate modules in tests/fixtures/:
 
 Core Fixtures:
-- paths.py: Path and directory fixtures (temp dirs, mock_pipeline_dir, etc.)
+- paths.py: Path and configuration fixtures (temp dirs, mock_pipeline_dir, etc.)
 - sessions.py: Session factories (session, trained_session)
 - grpc.py: gRPC testing utilities
 - data_factory.py: Test data creation (test_data_files, data_config_factory, create_test_cube)

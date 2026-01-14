@@ -1,0 +1,241 @@
+name: deep_svdd
+pipeline:
+  name: ''
+  nodes:
+  - name: LentilsAnomalyDataNode
+    class: cuvis_ai.node.data.LentilsAnomalyDataNode
+    params:
+      normal_class_ids:
+      - 0
+      - 1
+  - name: BandpassByWavelength
+    class: cuvis_ai.node.preprocessors.BandpassByWavelength
+    params:
+      min_wavelength_nm: 700.0
+      max_wavelength_nm: null
+  - name: PerPixelUnitNorm
+    class: cuvis_ai.node.normalization.PerPixelUnitNorm
+    params:
+      eps: 1.0e-08
+  - name: ZScoreNormalizerGlobal
+    class: cuvis_ai.anomaly.deep_svdd.ZScoreNormalizerGlobal
+    params:
+      num_channels: 27
+      sample_n: 200000
+      seed: 0
+      eps: 1.0e-08
+      hidden: 128
+  - name: DeepSVDDProjection
+    class: cuvis_ai.anomaly.deep_svdd.DeepSVDDProjection
+    params:
+      in_channels: 27
+      rep_dim: 32
+      hidden: 128
+      kernel: linear
+      n_rff: 2048
+      gamma: null
+      mlp_forward_batch_size: 65536
+  - name: DeepSVDDCenterTracker
+    class: cuvis_ai.anomaly.deep_svdd.DeepSVDDCenterTracker
+    params:
+      rep_dim: 32
+      alpha: 0.1
+      update_in_eval: false
+  - name: deepsvdd_loss
+    class: cuvis_ai.node.losses.DeepSVDDSoftBoundaryLoss
+    params:
+      nu: 0.05
+      weight: 1.0
+  - name: DeepSVDDScores
+    class: cuvis_ai.anomaly.deep_svdd.DeepSVDDScores
+    params:
+      name: null
+      execution_stages: null
+  - name: QuantileBinaryDecider
+    class: cuvis_ai.deciders.binary_decider.QuantileBinaryDecider
+    params:
+      quantile: 0.995
+      reduce_dims: null
+  - name: metrics_anomaly
+    class: cuvis_ai.node.metrics.AnomalyDetectionMetrics
+    params:
+      execution_stages: null
+  - name: score_heatmap
+    class: cuvis_ai.node.visualizations.ScoreHeatmapVisualizer
+    params:
+      normalize_scores: true
+      cmap: inferno
+      up_to: 5
+  - name: mask
+    class: cuvis_ai.node.visualizations.AnomalyMask
+    params:
+      channel: 30
+      up_to: 5
+  - name: TensorBoardMonitorNode
+    class: cuvis_ai.node.monitor.TensorBoardMonitorNode
+    params:
+      output_dir: outputs\deepsvdd\..\tensorboard
+      run_name: DeepSVDD_Gradient
+      comment: ''
+      flush_secs: 120
+  connections:
+  - from: LentilsAnomalyDataNode.outputs.cube
+    to: BandpassByWavelength.inputs.data
+  - from: LentilsAnomalyDataNode.outputs.wavelengths
+    to: BandpassByWavelength.inputs.wavelengths
+  - from: LentilsAnomalyDataNode.outputs.mask
+    to: metrics_anomaly.inputs.targets
+  - from: LentilsAnomalyDataNode.outputs.mask
+    to: mask.inputs.mask
+  - from: LentilsAnomalyDataNode.outputs.cube
+    to: mask.inputs.cube
+  - from: BandpassByWavelength.outputs.filtered
+    to: PerPixelUnitNorm.inputs.data
+  - from: PerPixelUnitNorm.outputs.normalized
+    to: ZScoreNormalizerGlobal.inputs.data
+  - from: ZScoreNormalizerGlobal.outputs.normalized
+    to: DeepSVDDProjection.inputs.data
+  - from: DeepSVDDProjection.outputs.embeddings
+    to: DeepSVDDCenterTracker.inputs.embeddings
+  - from: DeepSVDDProjection.outputs.embeddings
+    to: deepsvdd_loss.inputs.embeddings
+  - from: DeepSVDDProjection.outputs.embeddings
+    to: DeepSVDDScores.inputs.embeddings
+  - from: DeepSVDDCenterTracker.outputs.center
+    to: deepsvdd_loss.inputs.center
+  - from: DeepSVDDCenterTracker.outputs.center
+    to: DeepSVDDScores.inputs.center
+  - from: DeepSVDDCenterTracker.outputs.metrics
+    to: TensorBoardMonitorNode.inputs.metrics
+  - from: DeepSVDDScores.outputs.scores
+    to: QuantileBinaryDecider.inputs.logits
+  - from: DeepSVDDScores.outputs.scores
+    to: metrics_anomaly.inputs.logits
+  - from: DeepSVDDScores.outputs.scores
+    to: score_heatmap.inputs.scores
+  - from: DeepSVDDScores.outputs.scores
+    to: mask.inputs.scores
+  - from: QuantileBinaryDecider.outputs.decisions
+    to: metrics_anomaly.inputs.decisions
+  - from: QuantileBinaryDecider.outputs.decisions
+    to: mask.inputs.decisions
+  - from: metrics_anomaly.outputs.metrics
+    to: TensorBoardMonitorNode.inputs.metrics
+  - from: score_heatmap.outputs.artifacts
+    to: TensorBoardMonitorNode.inputs.artifacts
+  - from: mask.outputs.artifacts
+    to: TensorBoardMonitorNode.inputs.artifacts
+  frozen_nodes: []
+  metadata:
+    name: DeepSVDD_Gradient
+    description: ''
+    created: '2025-12-17T16:03:31.364526'
+    tags: []
+    author: ''
+    cuvis_ai_version: 0.1.5.post30+g6d28af5c2.d20251217
+data:
+  cu3s_file_path: data/Lentils/Lentils_000.cu3s
+  annotation_json_path: data/Lentils/Lentils_000.json
+  train_ids:
+  - 0
+  val_ids:
+  - 3
+  - 4
+  - 6
+  test_ids:
+  - 1
+  - 5
+  train_split: null
+  val_split: null
+  shuffle: true
+  batch_size: 4
+  processing_mode: Reflectance
+training:
+  seed: 42
+  optimizer:
+    name: adamw
+    lr: 0.001
+    weight_decay: 0.01
+    momentum: 0.9
+    betas:
+    - 0.9
+    - 0.999
+  scheduler:
+    name: reduce_on_plateau
+    warmup_epochs: 0
+    min_lr: 1.0e-06
+    t_max: null
+    step_size: null
+    gamma: null
+    monitor: metrics_anomaly/iou
+    mode: max
+    factor: 0.5
+    patience: 5
+    threshold: 0.0001
+    threshold_mode: rel
+    cooldown: 0
+    eps: 1.0e-08
+    verbose: false
+  callbacks: null
+  trainer:
+    max_epochs: 20
+    accelerator: auto
+    devices: 1
+    default_root_dir: ./outputs/deepsvdd
+    precision: 32-true
+    accumulate_grad_batches: 1
+    enable_progress_bar: true
+    enable_checkpointing: true
+    log_every_n_steps: 10
+    val_check_interval: 1.0
+    check_val_every_n_epoch: 1
+    gradient_clip_val: 1.0
+    deterministic: false
+    benchmark: false
+    callbacks:
+      checkpoint:
+        dirpath: outputs\deepsvdd\checkpoints
+        filename: '{epoch:02d}'
+        monitor: metrics_anomaly/iou
+        mode: max
+        save_top_k: 3
+        every_n_epochs: 1
+        save_last: true
+        auto_insert_metric_name: true
+        verbose: true
+        save_on_exception: false
+        save_weights_only: false
+        every_n_train_steps: null
+        train_time_interval: null
+        save_on_train_epoch_end: null
+        enable_version_counter: true
+      early_stopping:
+      - monitor: train/deepsvdd_loss
+        patience: 15
+        mode: min
+        min_delta: 0.0
+        stopping_threshold: null
+        verbose: true
+        strict: true
+        check_finite: true
+        divergence_threshold: null
+        check_on_train_epoch_end: null
+        log_rank_zero_only: false
+      learning_rate_monitor:
+        logging_interval: epoch
+        log_momentum: false
+        log_weight_decay: false
+  max_epochs: 20
+  batch_size: 32
+  num_workers: 4
+  gradient_clip_val: 1.0
+  accumulate_grad_batches: 1
+loss_nodes:
+- deepsvdd_loss
+metric_nodes:
+- metrics_anomaly
+freeze_nodes: []
+unfreeze_nodes:
+- ZScoreNormalizerGlobal
+output_dir: outputs\deepsvdd
+tags: {}

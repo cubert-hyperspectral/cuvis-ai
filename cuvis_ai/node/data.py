@@ -43,11 +43,16 @@ class LentilsAnomalyDataNode(Node):
         ),
     }
 
-    def __init__(self, normal_class_ids: list[int], **kwargs) -> None:
-        super().__init__(normal_class_ids=normal_class_ids, **kwargs)
+    def __init__(
+        self, normal_class_ids: list[int], anomaly_class_ids: list[int] | None = None, **kwargs
+    ) -> None:
+        super().__init__(
+            normal_class_ids=normal_class_ids, anomaly_class_ids=anomaly_class_ids, **kwargs
+        )
 
         self._binary_mapper = BinaryAnomalyLabelMapper(  # could have be used as a node as well
             normal_class_ids=normal_class_ids,
+            anomaly_class_ids=anomaly_class_ids,
         )
 
     def forward(

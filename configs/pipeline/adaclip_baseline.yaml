@@ -1,0 +1,95 @@
+name: ''
+nodes:
+- name: lentils_data_node
+  class: cuvis_ai.node.data.LentilsAnomalyDataNode
+  params:
+    normal_class_ids:
+    - 0
+    - 1
+- name: baseline_rgb_selector
+  class: cuvis_ai.node.band_selection.BaselineFalseRGBSelector
+  params:
+    target_wavelengths:
+    - 650.0
+    - 550.0
+    - 450.0
+- name: adaclip_detector
+  class: cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
+  params:
+    weight_name: pretrained_all
+    backbone: ViT-L-14-336
+    prompt_text: anomaly
+    image_size: 518
+    prompting_depth: 4
+    prompting_length: 5
+    gaussian_sigma: 4.0
+    use_half_precision: false
+    enable_warmup: false
+    enable_gradients: false
+- name: quantile_decider
+  class: cuvis_ai.deciders.binary_decider.QuantileBinaryDecider
+  params:
+    quantile: 0.995
+    reduce_dims: null
+- name: score_heatmap_viz
+  class: cuvis_ai.node.visualizations.ScoreHeatmapVisualizer
+  params:
+    normalize_scores: true
+    cmap: inferno
+    up_to: 3
+- name: rgb_anomaly_mask_viz
+  class: cuvis_ai.node.visualizations.RGBAnomalyMask
+  params:
+    up_to: 3
+- name: anomaly_metrics
+  class: cuvis_ai.node.metrics.AnomalyDetectionMetrics
+  params:
+    execution_stages: null
+- name: tensorboard_monitor
+  class: cuvis_ai.node.monitor.TensorBoardMonitorNode
+  params:
+    output_dir: outputs\tensorboard
+    run_name: AdaCLIP_Baseline
+    comment: ''
+    flush_secs: 120
+connections:
+- from: lentils_data_node.outputs.cube
+  to: baseline_rgb_selector.inputs.cube
+- from: lentils_data_node.outputs.wavelengths
+  to: baseline_rgb_selector.inputs.wavelengths
+- from: lentils_data_node.outputs.mask
+  to: anomaly_metrics.inputs.targets
+- from: lentils_data_node.outputs.mask
+  to: rgb_anomaly_mask_viz.inputs.mask
+- from: baseline_rgb_selector.outputs.rgb_image
+  to: adaclip_detector.inputs.rgb_image
+- from: baseline_rgb_selector.outputs.rgb_image
+  to: rgb_anomaly_mask_viz.inputs.rgb_image
+- from: adaclip_detector.outputs.scores
+  to: quantile_decider.inputs.logits
+- from: adaclip_detector.outputs.scores
+  to: score_heatmap_viz.inputs.scores
+- from: adaclip_detector.outputs.scores
+  to: rgb_anomaly_mask_viz.inputs.scores
+- from: quantile_decider.outputs.decisions
+  to: anomaly_metrics.inputs.decisions
+- from: quantile_decider.outputs.decisions
+  to: rgb_anomaly_mask_viz.inputs.decisions
+- from: score_heatmap_viz.outputs.artifacts
+  to: tensorboard_monitor.inputs.artifacts
+- from: rgb_anomaly_mask_viz.outputs.artifacts
+  to: tensorboard_monitor.inputs.artifacts
+- from: anomaly_metrics.outputs.metrics
+  to: tensorboard_monitor.inputs.metrics
+frozen_nodes: []
+metadata:
+  name: AdaCLIP_Baseline
+  description: "Statistical AdaCLIP baseline pipeline (LentilsAnomalyDataNode \u2192\
+    \ BaselineFalseRGBSelector \u2192 AdaCLIPDetector)"
+  created: ''
+  tags:
+  - statistical
+  - adaclip
+  - baseline
+  author: cuvis.ai
+  cuvis_ai_version: 0.1.5.post30+g6d28af5c2.d20251217
