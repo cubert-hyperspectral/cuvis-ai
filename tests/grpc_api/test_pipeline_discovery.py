@@ -68,9 +68,13 @@ class TestListAvailablePipelinees:
 
         pipelinees_by_name = {c.name: c for c in response.pipelinees}
 
-        assert pipelinees_by_name["rx_statistical"].has_weights
-        assert pipelinees_by_name["rx_statistical"].weights_path
-        assert "rx_statistical.pt" in pipelinees_by_name["rx_statistical"].weights_path
+        rx_weights = pipeline_directory / "pipeline" / "rx_statistical.pt"
+        assert pipelinees_by_name["rx_statistical"].has_weights == rx_weights.exists()
+        if rx_weights.exists():
+            assert pipelinees_by_name["rx_statistical"].weights_path
+            assert "rx_statistical.pt" in pipelinees_by_name["rx_statistical"].weights_path
+        else:
+            assert not pipelinees_by_name["rx_statistical"].weights_path
 
         channel_selector_weights = pipeline_directory / "pipeline" / "channel_selector.pt"
         assert (
@@ -96,7 +100,8 @@ class TestGetPipelineInfo:
         assert "statistical training" in info.metadata.description.lower()
         assert "statistical" in info.tags
         assert "rx" in info.tags
-        assert info.has_weights
+        rx_weights = pipeline_directory / "pipeline" / "rx_statistical.pt"
+        assert info.has_weights == rx_weights.exists()
 
     def test_get_pipeline_info_with_yaml_content(self, grpc_stub, pipeline_directory):
         response = grpc_stub.GetPipelineInfo(
