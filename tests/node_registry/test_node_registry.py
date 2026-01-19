@@ -3,7 +3,7 @@
 import pytest
 
 from cuvis_ai_core.node import Node
-from cuvis_ai.utils.node_registry import NodeRegistry
+from cuvis_ai_core.utils.node_registry import NodeRegistry
 
 
 class TestNodeRegistry:
