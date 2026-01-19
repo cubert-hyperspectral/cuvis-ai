@@ -4,9 +4,9 @@ import pytest
 import torch
 import torch.nn as nn
 
-from cuvis_ai.node import Node
-from cuvis_ai.pipeline.ports import PortSpec
-from cuvis_ai.utils.types import InputStream
+from cuvis_ai_core.node.node import Node
+from cuvis_ai_core.pipeline.ports import PortSpec
+from cuvis_ai_core.utils.types import InputStream
 
 
 class MockStatisticalTrainableNode(Node):

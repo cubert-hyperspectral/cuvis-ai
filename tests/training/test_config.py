@@ -6,8 +6,8 @@ from omegaconf import DictConfig, OmegaConf
 
 from cuvis_ai.anomaly.rx_logit_head import RXLogitHead
 from cuvis_ai.node.selector import SoftChannelSelector
-from cuvis_ai.pipeline.pipeline import CuvisPipeline
-from cuvis_ai.training.config import (
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.training.config import (
     OptimizerConfig,
     TrainerConfig,
     TrainingConfig,

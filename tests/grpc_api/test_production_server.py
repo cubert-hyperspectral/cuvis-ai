@@ -3,7 +3,7 @@ import logging
 import pytest
 from grpc_health.v1 import health_pb2
 
-from cuvis_ai.grpc.production_server import (
+from cuvis_ai_core.grpc.production_server import (
     JSONFormatter,
     ProductionServer,
     load_tls_credentials,

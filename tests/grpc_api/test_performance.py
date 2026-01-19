@@ -2,7 +2,7 @@ import time
 
 import pytest
 
-from cuvis_ai.grpc import cuvis_ai_pb2, helpers
+from cuvis_ai_core.grpc import cuvis_ai_pb2, helpers
 
 
 def _load_pipeline(grpc_stub, session_id: str, pipeline_name: str = "rx_statistical"):

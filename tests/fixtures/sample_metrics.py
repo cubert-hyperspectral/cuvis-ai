@@ -6,9 +6,9 @@ import sys
 
 import torch
 
-from cuvis_ai.node import Node
-from cuvis_ai.pipeline.ports import PortSpec
-from cuvis_ai.utils.types import Context, ExecutionStage, Metric
+from cuvis_ai_core.node.node import Node
+from cuvis_ai_core.pipeline.ports import PortSpec
+from cuvis_ai_core.utils.types import Context, ExecutionStage, Metric
 
 
 class SampleCustomMetrics(Node):

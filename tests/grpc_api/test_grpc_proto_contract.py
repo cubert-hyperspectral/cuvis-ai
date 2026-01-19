@@ -1,4 +1,4 @@
-from cuvis_ai.grpc.v1 import cuvis_ai_pb2
+from cuvis_ai_core.grpc.v1 import cuvis_ai_pb2
 
 
 def test_config_messages_use_bytes():

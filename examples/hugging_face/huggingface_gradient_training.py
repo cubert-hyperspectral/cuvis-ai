@@ -32,22 +32,24 @@ from loguru import logger
 from torch import Tensor
 from torch.utils.tensorboard import SummaryWriter
 
-from cuvis_ai.data.lentils_anomaly import SingleCu3sDataModule
+from cuvis_ai.data.datasets import SingleCu3sDataModule
+
+
 from cuvis_ai.node.data import LentilsAnomalyDataNode
-from cuvis_ai.node.huggingface import AdaCLIPLocalNode
+from cuvis_ai.node.adaclip import AdaCLIPLocalNode
 from cuvis_ai.node.metrics import SelectorDiversityMetric, SelectorEntropyMetric
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
-from cuvis_ai.node.node import Node
+from cuvis_ai_core.node import Node
 from cuvis_ai.node.selector import SoftChannelSelector
 from cuvis_ai.node.visualizations import (
     AnomalyMask,
     CubeRGBVisualizer,
     ScoreHeatmapVisualizer,
 )
-from cuvis_ai.pipeline.pipeline import CuvisCanvas
-from cuvis_ai.pipeline.ports import PortSpec
-from cuvis_ai.training import GradientTrainer
-from cuvis_ai.training.config import (
+from cuvis_ai_core.pipeline.pipeline import CuvisCanvas
+from cuvis_ai_core.pipeline.ports import PortSpec
+from cuvis_ai_core.training import GradientTrainer
+from cuvis_ai_core.training.config import (
     CallbacksConfig,
     EarlyStoppingConfig,
     LearningRateMonitorConfig,

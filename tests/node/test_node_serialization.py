@@ -2,7 +2,7 @@
 
 import torch
 
-from cuvis_ai.utils.node_registry import NodeRegistry
+from cuvis_ai_core.utils.node_registry import NodeRegistry
 
 
 def test_all_nodes_use_state_dict_only():

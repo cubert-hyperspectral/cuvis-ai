@@ -4,7 +4,7 @@ import pytest
 import torch
 import torch.nn as nn
 
-from cuvis_ai.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
 
 class TestNodeStateSerialization:

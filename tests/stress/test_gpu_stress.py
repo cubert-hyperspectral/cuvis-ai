@@ -13,9 +13,9 @@ from cuvis_ai.node.losses import OrthogonalityLoss
 from cuvis_ai.node.metrics import ExplainedVarianceMetric
 from cuvis_ai.node.normalization import MinMaxNormalizer
 from cuvis_ai.node.pca import TrainablePCA
-from cuvis_ai.pipeline.pipeline import CuvisPipeline
-from cuvis_ai.training.config import OptimizerConfig, TrainerConfig, TrainingConfig
-from cuvis_ai.training.trainers import GradientTrainer, StatisticalTrainer
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.training.config import OptimizerConfig, TrainerConfig, TrainingConfig
+from cuvis_ai_core.training.trainers import GradientTrainer, StatisticalTrainer
 
 from .synthetic_data import create_small_scale_dataset
 from .test_pipeline_stress import SimpleDataNode, SyntheticDataModule, get_memory_usage

@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import torch
 
-from cuvis_ai.grpc import cuvis_ai_pb2, helpers
+from cuvis_ai_core.grpc import cuvis_ai_pb2, helpers
 
 
 class TestProtoToNumpy:

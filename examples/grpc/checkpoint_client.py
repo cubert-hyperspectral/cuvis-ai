@@ -13,7 +13,7 @@ from workflow_utils import (
     format_progress,
 )
 
-from cuvis_ai.grpc import cuvis_ai_pb2
+from cuvis_ai_core.grpc import cuvis_ai_pb2
 
 
 def main() -> None:

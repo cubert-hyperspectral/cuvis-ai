@@ -7,12 +7,12 @@ import pytest
 import torch
 
 from cuvis_ai.anomaly.rx_detector import RXGlobal
-from cuvis_ai.node.node import Node
+from cuvis_ai_core.node import Node
 from cuvis_ai.node.normalization import MinMaxNormalizer
 from cuvis_ai.node.selector import SoftChannelSelector
-from cuvis_ai.pipeline.pipeline import CuvisPipeline
-from cuvis_ai.pipeline.ports import PortSpec
-from cuvis_ai.utils.types import ExecutionStage
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.pipeline.ports import PortSpec
+from cuvis_ai_core.utils.types import ExecutionStage
 
 
 class TestLinearPipeline:
@@ -247,7 +247,7 @@ class TestPortCompatibility:
 
     def test_incompatible_dtype_raises_error(self):
         """Test that connecting incompatible dtypes raises error."""
-        from cuvis_ai.pipeline.ports import PortCompatibilityError
+        from cuvis_ai_core.pipeline.ports import PortCompatibilityError
 
         class FloatNode(Node):
             INPUT_SPECS = {}

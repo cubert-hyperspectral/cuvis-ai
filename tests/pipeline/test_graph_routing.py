@@ -10,10 +10,10 @@ from __future__ import annotations
 
 import torch
 
-from cuvis_ai.node.node import Node
-from cuvis_ai.pipeline.pipeline import CuvisPipeline
-from cuvis_ai.pipeline.ports import PortSpec
-from cuvis_ai.utils.types import ExecutionStage
+from cuvis_ai_core.node import Node
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.pipeline.ports import PortSpec
+from cuvis_ai_core.utils.types import ExecutionStage
 
 
 class TestGraphBasicRouting:

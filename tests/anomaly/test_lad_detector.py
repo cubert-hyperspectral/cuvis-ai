@@ -196,8 +196,8 @@ def test_lad_trainable_parameters_update(synthetic_anomaly_datamodule, training_
     from cuvis_ai.node.data import LentilsAnomalyDataNode
     from cuvis_ai.node.losses import AnomalyBCEWithLogits
     from cuvis_ai.node.normalization import MinMaxNormalizer
-    from cuvis_ai.pipeline.pipeline import CuvisPipeline
-    from cuvis_ai.training.trainers import GradientTrainer, StatisticalTrainer
+    from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+    from cuvis_ai_core.training.trainers import GradientTrainer, StatisticalTrainer
 
     # Create datamodule using fixture (includes wavelengths automatically)
     datamodule = synthetic_anomaly_datamodule(

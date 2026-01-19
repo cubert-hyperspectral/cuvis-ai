@@ -5,9 +5,9 @@ from pydantic import BaseModel
 
 def test_existing_code_still_imports():
     """Verify existing code can still import (with deprecations)."""
-    from cuvis_ai.grpc.service import CuvisAIService  # noqa: F401
-    from cuvis_ai.pipeline.pipeline import CuvisPipeline  # noqa: F401
-    from cuvis_ai.training.config import TrainingConfig  # noqa: F401
+    from cuvis_ai_core.grpc.service import CuvisAIService  # noqa: F401
+    from cuvis_ai_core.pipeline.pipeline import CuvisPipeline  # noqa: F401
+    from cuvis_ai_core.training.config import TrainingConfig  # noqa: F401
 
 
 def test_pydantic_hydra_integration(tmp_path):

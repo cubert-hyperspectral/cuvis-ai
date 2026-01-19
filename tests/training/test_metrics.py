@@ -3,7 +3,7 @@
 import pytest
 import torch
 
-from cuvis_ai.node import Node
+from cuvis_ai_core.node.node import Node
 from cuvis_ai.node.metrics import (
     AnomalyDetectionMetrics,
     ComponentOrthogonalityMetric,
@@ -11,7 +11,7 @@ from cuvis_ai.node.metrics import (
     ScoreStatisticsMetric,
 )
 from cuvis_ai.node.pca import TrainablePCA
-from cuvis_ai.utils.types import Context, ExecutionStage
+from cuvis_ai_core.utils.types import Context, ExecutionStage
 
 
 @pytest.fixture

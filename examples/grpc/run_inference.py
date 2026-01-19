@@ -18,7 +18,7 @@ from workflow_utils import (
 )
 
 from cuvis_ai.data.datasets import SingleCu3sDataset
-from cuvis_ai.grpc import cuvis_ai_pb2, helpers
+from cuvis_ai_core.grpc import cuvis_ai_pb2, helpers
 
 
 def run_inference(

@@ -10,9 +10,9 @@ import pytest
 import torch
 from torch.utils.data import DataLoader, Dataset
 
-from cuvis_ai.grpc.v1 import cuvis_ai_pb2
-from cuvis_ai.training.config import DataConfig, OptimizerConfig, TrainerConfig, TrainingConfig
-from cuvis_ai.training.datamodule import CuvisDataModule
+from cuvis_ai_core.grpc.v1 import cuvis_ai_pb2
+from cuvis_ai_core.training.config import DataConfig, OptimizerConfig, TrainerConfig, TrainingConfig
+from cuvis_ai_core.training.datamodule import CuvisDataModule
 
 # Session-scoped cache for test data files to avoid repeated file system operations
 _test_data_cache = {}

@@ -3,7 +3,7 @@
 import grpc
 import pytest
 
-from cuvis_ai.grpc import cuvis_ai_pb2
+from cuvis_ai_core.grpc import cuvis_ai_pb2
 
 
 @pytest.fixture
@@ -13,7 +13,7 @@ def pipeline_directory(monkeypatch):
 
     # Use the real configs/pipeline directory
     pipeline_dir = Path(__file__).parent.parent.parent / "configs"  # / "pipeline"
-    monkeypatch.setattr("cuvis_ai.grpc.helpers.get_server_base_dir", lambda: pipeline_dir)
+    monkeypatch.setattr("cuvis_ai_core.grpc.helpers.get_server_base_dir", lambda: pipeline_dir)
     return pipeline_dir
 
 

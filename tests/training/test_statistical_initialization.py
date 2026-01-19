@@ -4,7 +4,7 @@ import torch
 
 from cuvis_ai.anomaly.rx_detector import RXGlobal
 from cuvis_ai.node.normalization import MinMaxNormalizer
-from cuvis_ai.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
 
 def test_rxglobal_requires_initial_fit():

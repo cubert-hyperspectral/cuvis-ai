@@ -2,7 +2,7 @@
 
 import pytest
 
-from cuvis_ai.pipeline.factory import PipelineBuilder
+from cuvis_ai_core.pipeline.factory import PipelineBuilder
 
 
 @pytest.fixture

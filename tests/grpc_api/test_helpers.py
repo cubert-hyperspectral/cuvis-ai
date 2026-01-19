@@ -3,9 +3,9 @@
 import pytest
 from pydantic import ValidationError
 
-from cuvis_ai.grpc.helpers import find_weights_file, resolve_pipeline_path
-from cuvis_ai.training.config import DataConfig, TrainingConfig, TrainRunConfig
-from cuvis_ai.utils.config_helpers import (
+from cuvis_ai_core.grpc.helpers import find_weights_file, resolve_pipeline_path
+from cuvis_ai_core.training.config import DataConfig, TrainingConfig, TrainRunConfig
+from cuvis_ai_core.utils.config_helpers import (
     apply_config_overrides,
     generate_json_schema,
     get_config_class,

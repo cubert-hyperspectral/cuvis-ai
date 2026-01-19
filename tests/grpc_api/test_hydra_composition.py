@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from cuvis_ai.utils.config_helpers import resolve_config_with_hydra
+from cuvis_ai_core.utils.config_helpers import resolve_config_with_hydra
 
 
 def test_basic_config_resolution(pipeline_factory):

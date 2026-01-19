@@ -4,9 +4,9 @@ from pathlib import Path
 from loguru import logger
 from torch.utils.tensorboard import SummaryWriter
 
-from cuvis_ai.node.node import Node
-from cuvis_ai.pipeline.ports import PortSpec
-from cuvis_ai.utils.types import Artifact, ArtifactType, Context, ExecutionStage, Metric
+from cuvis_ai_core.node import Node
+from cuvis_ai_core.pipeline.ports import PortSpec
+from cuvis_ai_core.utils.types import Artifact, ArtifactType, Context, ExecutionStage, Metric
 
 
 class TensorBoardMonitorNode(Node):

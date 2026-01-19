@@ -15,9 +15,9 @@ import torch
 from scipy.ndimage import laplace
 from sklearn.metrics import roc_auc_score
 
-from cuvis_ai.node.node import Node
-from cuvis_ai.pipeline.ports import PortSpec
-from cuvis_ai.utils.types import Context, InputStream
+from cuvis_ai_core.node import Node
+from cuvis_ai_core.pipeline.ports import PortSpec
+from cuvis_ai_core.utils.types import Context, InputStream
 
 
 class BandSelectorBase(Node):

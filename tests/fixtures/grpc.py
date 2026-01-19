@@ -10,8 +10,8 @@ import grpc
 import pytest
 import yaml
 
-from cuvis_ai.grpc import CuvisAIService, cuvis_ai_pb2, cuvis_ai_pb2_grpc
-from cuvis_ai.grpc.session_manager import SessionManager
+from cuvis_ai_core.grpc import CuvisAIService, cuvis_ai_pb2, cuvis_ai_pb2_grpc
+from cuvis_ai_core.grpc.session_manager import SessionManager
 
 # Keep a handle on the service so tests can introspect the live SessionManager
 SERVICE_INSTANCE: CuvisAIService | None = None

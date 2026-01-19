@@ -1,6 +1,6 @@
 import pytest
 
-from cuvis_ai.grpc.session_manager import SessionManager
+from cuvis_ai_core.grpc.session_manager import SessionManager
 
 
 def test_multiple_sessions_independent():

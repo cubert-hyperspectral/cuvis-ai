@@ -29,7 +29,9 @@ except ImportError:
     )
     raise
 
-from cuvis_ai.data.lentils_anomaly import SingleCu3sDataModule
+from cuvis_ai.data.datasets import SingleCu3sDataModule
+
+
 from cuvis_ai.deciders.two_stage_decider import TwoStageBinaryDecider
 from cuvis_ai.node.concrete_selector import ConcreteBandSelector
 from cuvis_ai.node.data import LentilsAnomalyDataNode
@@ -39,9 +41,9 @@ from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.normalization import MinMaxNormalizer
 from cuvis_ai.node.visualizations import AnomalyMask, ScoreHeatmapVisualizer
-from cuvis_ai.pipeline.pipeline import CuvisPipeline
-from cuvis_ai.training import GradientTrainer
-from cuvis_ai.training.config import (
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.training import GradientTrainer
+from cuvis_ai_core.training.config import (
     CallbacksConfig,
     ModelCheckpointConfig,
     PipelineMetadata,
@@ -347,7 +349,7 @@ def main(cfg: DictConfig) -> None:
     test_cube = first_batch["cube"][:1].float()  # Single sample [1, H, W, C], convert to float
     test_normalized = normalizer.forward(data=test_cube)["normalized"]
 
-    from cuvis_ai.utils.types import Context, ExecutionStage
+    from cuvis_ai_core.utils.types import Context, ExecutionStage
 
     test_context = Context(stage=ExecutionStage.TRAIN, epoch=0, batch_idx=0, global_step=0)
 

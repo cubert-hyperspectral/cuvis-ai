@@ -2,9 +2,9 @@ import time
 
 import pytest
 
-from cuvis_ai.grpc.helpers import resolve_pipeline_path
-from cuvis_ai.grpc.session_manager import SessionManager, SessionState
-from cuvis_ai.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.grpc.helpers import resolve_pipeline_path
+from cuvis_ai_core.grpc.session_manager import SessionManager, SessionState
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
 
 class TestSessionManager:
@@ -123,7 +123,7 @@ class TestSessionManager:
     def test_session_state_with_optional_data_config(self):
         """Test that session state properly handles optional trainrun_config."""
         manager = SessionManager()
-        from cuvis_ai.training.config import (
+        from cuvis_ai_core.training.config import (
             DataConfig,
             TrainingConfig,
             TrainRunConfig,

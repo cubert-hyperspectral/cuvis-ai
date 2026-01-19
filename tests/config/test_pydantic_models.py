@@ -3,7 +3,7 @@ import json
 import pytest
 from pydantic import ValidationError
 
-from cuvis_ai.training.config import (
+from cuvis_ai_core.training.config import (
     CallbacksConfig,
     DataConfig,
     EarlyStoppingConfig,

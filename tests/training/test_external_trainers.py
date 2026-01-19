@@ -6,14 +6,14 @@ import torch
 from torch.utils.data import DataLoader, Dataset, TensorDataset
 
 from cuvis_ai.anomaly.rx_detector import RXGlobal
-from cuvis_ai.node.node import Node
+from cuvis_ai_core.node import Node
 from cuvis_ai.node.selector import SoftChannelSelector
-from cuvis_ai.pipeline.pipeline import CuvisPipeline
-from cuvis_ai.pipeline.ports import PortSpec
-from cuvis_ai.training import CuvisDataModule, MSEReconstructionLoss
-from cuvis_ai.training.config import OptimizerConfig, TrainerConfig
-from cuvis_ai.training.trainers import GradientTrainer, StatisticalTrainer
-from cuvis_ai.utils.types import Context, ExecutionStage
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.pipeline.ports import PortSpec
+from cuvis_ai_core.training import CuvisDataModule, MSEReconstructionLoss
+from cuvis_ai_core.training.config import OptimizerConfig, TrainerConfig
+from cuvis_ai_core.training.trainers import GradientTrainer, StatisticalTrainer
+from cuvis_ai_core.utils.types import Context, ExecutionStage
 
 
 class TestGradientTrainer:

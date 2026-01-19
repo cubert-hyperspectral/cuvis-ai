@@ -7,7 +7,7 @@ import grpc
 import pytest
 import yaml
 
-from cuvis_ai.grpc import cuvis_ai_pb2
+from cuvis_ai_core.grpc import cuvis_ai_pb2
 
 DEFAULT_CHANNELS = 61
 

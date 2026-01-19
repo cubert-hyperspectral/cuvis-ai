@@ -8,9 +8,9 @@ import networkx as nx
 import pytest
 import torch
 
-from cuvis_ai.node.node import Node
-from cuvis_ai.pipeline.pipeline import CuvisPipeline
-from cuvis_ai.pipeline.ports import PortCompatibilityError, PortSpec
+from cuvis_ai_core.node import Node
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.pipeline.ports import PortCompatibilityError, PortSpec
 
 
 class TestGraphConnectionBasics:

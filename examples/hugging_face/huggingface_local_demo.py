@@ -18,15 +18,17 @@ import torch
 from loguru import logger
 from torch import Tensor
 
-from cuvis_ai.data.lentils_anomaly import SingleCu3sDataModule
+from cuvis_ai.data.datasets import SingleCu3sDataModule
+
+
 from cuvis_ai.node.data import LentilsAnomalyDataNode
-from cuvis_ai.node.huggingface import AdaCLIPLocalNode
+from cuvis_ai.node.adaclip import AdaCLIPLocalNode
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
-from cuvis_ai.node.node import Node
+from cuvis_ai_core.node import Node
 from cuvis_ai.node.visualizations import AnomalyMask
-from cuvis_ai.pipeline.pipeline import CuvisCanvas
-from cuvis_ai.pipeline.ports import PortSpec
-from cuvis_ai.utils.types import Context, ExecutionStage
+from cuvis_ai_core.pipeline.pipeline import CuvisCanvas
+from cuvis_ai_core.pipeline.ports import PortSpec
+from cuvis_ai_core.utils.types import Context, ExecutionStage
 
 
 class HyperspectralToRGBNode(Node):

@@ -17,9 +17,9 @@ import time
 
 import pytest
 
-from cuvis_ai.grpc.service import CuvisAIService
-from cuvis_ai.grpc.v1 import cuvis_ai_pb2
-from cuvis_ai.utils.config_helpers import resolve_config_with_hydra
+from cuvis_ai_core.grpc.service import CuvisAIService
+from cuvis_ai_core.grpc.v1 import cuvis_ai_pb2
+from cuvis_ai_core.utils.config_helpers import resolve_config_with_hydra
 
 
 class PerformanceBenchmark:

@@ -8,10 +8,10 @@ INPUT_SPECS and OUTPUT_SPECS at runtime.
 import pytest
 import torch
 
-from cuvis_ai.node import Node
-from cuvis_ai.pipeline.pipeline import CuvisPipeline
-from cuvis_ai.pipeline.ports import PortSpec
-from cuvis_ai.utils.types import ExecutionStage
+from cuvis_ai_core.node.node import Node
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.pipeline.ports import PortSpec
+from cuvis_ai_core.utils.types import ExecutionStage
 
 
 class ValidNode(Node):
@@ -153,7 +153,7 @@ class TestRuntimeOutputValidation:
 
     def test_wrong_dtype_output_fails(self):
         """Test that wrong output dtype is caught."""
-        from cuvis_ai.pipeline.ports import PortCompatibilityError
+        from cuvis_ai_core.pipeline.ports import PortCompatibilityError
 
         pipeline = CuvisPipeline("test", strict_runtime_io_validation=True)
 
@@ -168,7 +168,7 @@ class TestRuntimeOutputValidation:
 
     def test_wrong_shape_output_fails(self):
         """Test that wrong output shape is caught."""
-        from cuvis_ai.pipeline.ports import PortCompatibilityError
+        from cuvis_ai_core.pipeline.ports import PortCompatibilityError
 
         pipeline = CuvisPipeline("test", strict_runtime_io_validation=True)
 
@@ -251,7 +251,7 @@ class TestRuntimeInputValidation:
 
     def test_wrong_dtype_input_fails(self):
         """Test that wrong input dtype from source node is caught."""
-        from cuvis_ai.pipeline.ports import PortCompatibilityError
+        from cuvis_ai_core.pipeline.ports import PortCompatibilityError
 
         pipeline = CuvisPipeline("test", strict_runtime_io_validation=True)
 
@@ -265,7 +265,7 @@ class TestRuntimeInputValidation:
 
     def test_wrong_shape_input_fails(self):
         """Test that wrong input shape from source node is caught."""
-        from cuvis_ai.pipeline.ports import PortCompatibilityError
+        from cuvis_ai_core.pipeline.ports import PortCompatibilityError
 
         pipeline = CuvisPipeline("test", strict_runtime_io_validation=True)
 

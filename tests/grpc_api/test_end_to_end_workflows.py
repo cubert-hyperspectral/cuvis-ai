@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from cuvis_ai.grpc import cuvis_ai_pb2, helpers
+from cuvis_ai_core.grpc import cuvis_ai_pb2, helpers
 from tests.fixtures.grpc import load_pipeline_from_file, resolve_and_load_pipeline
 
 DEFAULT_CHANNELS = 61

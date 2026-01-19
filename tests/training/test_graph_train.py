@@ -6,10 +6,10 @@ from torch.utils.data import DataLoader
 from cuvis_ai.anomaly.rx_detector import RXGlobal
 from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.normalization import MinMaxNormalizer
-from cuvis_ai.pipeline.pipeline import CuvisPipeline
-from cuvis_ai.training.datamodule import CuvisDataModule
-from cuvis_ai.training.trainers import StatisticalTrainer
-from cuvis_ai.utils.types import ExecutionStage
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.training.datamodule import CuvisDataModule
+from cuvis_ai_core.training.trainers import StatisticalTrainer
+from cuvis_ai_core.utils.types import ExecutionStage
 
 
 class MockDataModule(CuvisDataModule):

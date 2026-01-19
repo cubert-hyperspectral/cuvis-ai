@@ -3,8 +3,8 @@ import json
 import grpc
 import pytest
 
-from cuvis_ai.grpc import cuvis_ai_pb2, helpers
-from cuvis_ai.training.config import OptimizerConfig, TrainerConfig, TrainingConfig
+from cuvis_ai_core.grpc import cuvis_ai_pb2, helpers
+from cuvis_ai_core.training.config import OptimizerConfig, TrainerConfig, TrainingConfig
 
 
 class TestCheckpointManagement:
@@ -208,7 +208,7 @@ class TestComplexInputs:
         )
         session_id, _data_config = trained_session()
 
-        from cuvis_ai.grpc import helpers
+        from cuvis_ai_core.grpc import helpers
 
         response = grpc_stub.Inference(
             cuvis_ai_pb2.InferenceRequest(

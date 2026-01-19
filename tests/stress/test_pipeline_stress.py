@@ -14,13 +14,13 @@ from torch.utils.data import DataLoader
 from cuvis_ai.anomaly.rx_detector import RXGlobal
 from cuvis_ai.node.losses import OrthogonalityLoss
 from cuvis_ai.node.metrics import ExplainedVarianceMetric
-from cuvis_ai.node.node import Node
+from cuvis_ai_core.node import Node
 from cuvis_ai.node.normalization import MinMaxNormalizer
 from cuvis_ai.node.pca import TrainablePCA
-from cuvis_ai.pipeline.pipeline import CuvisPipeline
-from cuvis_ai.pipeline.ports import PortSpec
-from cuvis_ai.training.datamodule import CuvisDataModule
-from cuvis_ai.training.trainers import StatisticalTrainer
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.pipeline.ports import PortSpec
+from cuvis_ai_core.training.datamodule import CuvisDataModule
+from cuvis_ai_core.training.trainers import StatisticalTrainer
 
 from .synthetic_data import (
     create_medium_scale_dataset,

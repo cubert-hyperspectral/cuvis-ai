@@ -1,6 +1,6 @@
 import pytest
 
-from cuvis_ai.grpc import helpers
+from cuvis_ai_core.grpc import helpers
 
 
 def test_find_config_file_relative(tmp_path):

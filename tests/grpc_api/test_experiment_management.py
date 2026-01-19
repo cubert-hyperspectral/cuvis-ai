@@ -12,8 +12,8 @@ import pytest
 import torch
 import yaml
 
-from cuvis_ai.grpc import cuvis_ai_pb2
-from cuvis_ai.training.config import TrainRunConfig
+from cuvis_ai_core.grpc import cuvis_ai_pb2
+from cuvis_ai_core.training.config import TrainRunConfig
 
 DEFAULT_CHANNELS = 61
 
@@ -39,8 +39,8 @@ def shared_trained_session(grpc_server, test_data_files_cached):
 
     Uses grpc_server directly and creates its own stub to match session scope.
     """
-    from cuvis_ai.grpc import cuvis_ai_pb2_grpc
-    from cuvis_ai.training.config import TrainRunConfig
+    from cuvis_ai_core.grpc import cuvis_ai_pb2_grpc
+    from cuvis_ai_core.training.config import TrainRunConfig
     from tests.fixtures.sessions import materialize_trainrun_config
 
     cu3s_file, json_file = test_data_files_cached
@@ -88,7 +88,7 @@ def shared_saved_trainrun_with_weights(grpc_server, shared_trained_session, tmp_
 
     Uses grpc_server directly and creates its own stub to match session scope.
     """
-    from cuvis_ai.grpc import cuvis_ai_pb2_grpc
+    from cuvis_ai_core.grpc import cuvis_ai_pb2_grpc
 
     session_id, _ = shared_trained_session
     tmp_path = tmp_path_factory.mktemp("saved_trainruns")
@@ -250,7 +250,7 @@ class TestRestoreTrainRun:
         assert trainrun_config.pipeline is not None
 
         # Verify the session can perform inference
-        from cuvis_ai.grpc import helpers
+        from cuvis_ai_core.grpc import helpers
 
         cube, wavelengths = create_test_cube(
             batch_size=1,
@@ -391,7 +391,7 @@ class TestWeightTransfer:
         self, grpc_stub, shared_saved_trainrun_with_weights, create_test_cube
     ):
         """Test that restored weights produce consistent outputs."""
-        from cuvis_ai.grpc import helpers
+        from cuvis_ai_core.grpc import helpers
 
         saved_data = shared_saved_trainrun_with_weights
 
@@ -459,7 +459,7 @@ class TestWeightTransfer:
         self, grpc_stub, shared_saved_trainrun_with_weights, create_test_cube, grpc_session_manager
     ):
         """Test that statistical nodes work after weight restore without re-fitting."""
-        from cuvis_ai.grpc import helpers
+        from cuvis_ai_core.grpc import helpers
 
         saved_data = shared_saved_trainrun_with_weights
 
@@ -586,7 +586,7 @@ class TestExperimentWorkflow:
         )
 
         # Verify restored session works with inference
-        from cuvis_ai.grpc import helpers
+        from cuvis_ai_core.grpc import helpers
 
         cube, wavelengths = create_test_cube(
             batch_size=1,

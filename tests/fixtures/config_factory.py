@@ -5,7 +5,7 @@ import json
 import pytest
 import yaml
 
-from cuvis_ai.grpc.v1 import cuvis_ai_pb2
+from cuvis_ai_core.grpc.v1 import cuvis_ai_pb2
 
 
 def create_pipeline_config_proto(
@@ -28,8 +28,8 @@ def create_pipeline_config_proto(
         >>> config = create_pipeline_config_proto("channel_selector")
         >>> config = create_pipeline_config_proto("channel_selector", load_weights=True)
     """
-    from cuvis_ai.grpc.helpers import resolve_pipeline_path
-    from cuvis_ai.training.config import PipelineConfig
+    from cuvis_ai_core.grpc.helpers import resolve_pipeline_path
+    from cuvis_ai_core.training.config import PipelineConfig
 
     # When loading weights, provide the identifier directly without validation
     # This allows the service to handle path resolution and error handling
@@ -254,7 +254,7 @@ def saved_pipeline(grpc_stub, session, tmp_path, monkeypatch, data_config_factor
     Returns:
         dict: Contains 'pipeline_path', 'weights_path', and 'session_id'
     """
-    from cuvis_ai.grpc.v1 import cuvis_ai_pb2
+    from cuvis_ai_core.grpc.v1 import cuvis_ai_pb2
 
     monkeypatch.setenv("CUVIS_CONFIGS_DIR", str(tmp_path))
     session_id = session()

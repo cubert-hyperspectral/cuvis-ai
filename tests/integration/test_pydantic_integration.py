@@ -1,6 +1,6 @@
 import json
 
-from cuvis_ai.training.config import DataConfig, PipelineConfig, TrainingConfig, TrainRunConfig
+from cuvis_ai_core.training.config import DataConfig, PipelineConfig, TrainingConfig, TrainRunConfig
 
 
 def test_complete_trainrun_serialization():
@@ -39,7 +39,7 @@ def test_yaml_to_pydantic():
         "weight_decay": 0.01,
     }
 
-    from cuvis_ai.training.config import OptimizerConfig
+    from cuvis_ai_core.training.config import OptimizerConfig
 
     config = OptimizerConfig(**yaml_dict)
 

@@ -4,7 +4,7 @@ import grpc
 import numpy as np
 import pytest
 
-from cuvis_ai.grpc import cuvis_ai_pb2, helpers
+from cuvis_ai_core.grpc import cuvis_ai_pb2, helpers
 from tests.fixtures.grpc import resolve_and_load_pipeline
 
 DEFAULT_CHANNELS = 61

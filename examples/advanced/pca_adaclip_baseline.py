@@ -30,7 +30,9 @@ except ImportError:
     )
     raise
 
-from cuvis_ai.data.lentils_anomaly import SingleCu3sDataModule
+from cuvis_ai.data.datasets import SingleCu3sDataModule
+
+
 from cuvis_ai.deciders.binary_decider import QuantileBinaryDecider
 from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.drcnn_tensorboard_viz import DRCNNTensorBoardViz
@@ -39,9 +41,9 @@ from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.normalization import MinMaxNormalizer
 from cuvis_ai.node.pca import TrainablePCA
 from cuvis_ai.node.visualizations import AnomalyMask, ScoreHeatmapVisualizer
-from cuvis_ai.pipeline.pipeline import CuvisPipeline
-from cuvis_ai.training import StatisticalTrainer
-from cuvis_ai.training.config import (
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.training import StatisticalTrainer
+from cuvis_ai_core.training.config import (
     PipelineMetadata,
     TrainingConfig,
     TrainRunConfig,

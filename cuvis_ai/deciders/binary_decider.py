@@ -4,8 +4,8 @@ from typing import Any
 import torch
 from torch import Tensor
 
-from cuvis_ai.deciders.base_decider import BaseDecider
-from cuvis_ai.pipeline.ports import PortSpec
+from cuvis_ai_core.deciders.base_decider import BaseDecider
+from cuvis_ai_core.pipeline.ports import PortSpec
 
 
 class BinaryDecider(BaseDecider):
