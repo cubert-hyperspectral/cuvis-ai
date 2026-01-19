@@ -32,7 +32,7 @@ from loguru import logger
 from torch import Tensor
 from torch.utils.tensorboard import SummaryWriter
 
-from cuvis_ai.data.datasets import SingleCu3sDataModule
+from cuvis_ai_core.data.datasets import SingleCu3sDataModule
 
 
 from cuvis_ai.node.data import LentilsAnomalyDataNode

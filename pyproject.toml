@@ -7,13 +7,13 @@ name = "cuvis_ai"
 dynamic = ["version"]
 description = "The CUVIS.AI Toolset"
 readme = "README.md"
-requires-python = ">=3.10,<3.14"
+requires-python = ">=3.10,<3.11"
 license = { text = "Apache License 2.0" }
 authors = [
     { name = "Cubert GmbH, Ulm, Germany", email = "SDK@cubert-gmbh.com" },
 ]
 dependencies = [
-    "cuvis",
+    "cuvis==3.5.0",
     "cuvis-ai-core",
     "pydantic>=2.0.0,<3.0.0",
     "imantics",

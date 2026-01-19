@@ -14,7 +14,7 @@ from omegaconf import DictConfig
 from torch import Tensor
 
 from cuvis_ai.anomaly.lad_detector import LADGlobal
-from cuvis_ai.data.datasets import SingleCu3sDataModule
+from cuvis_ai_core.data.datasets import SingleCu3sDataModule
 
 
 from cuvis_ai.deciders.binary_decider import QuantileBinaryDecider

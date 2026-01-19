@@ -6,7 +6,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from cuvis_ai.anomaly.rx_detector import RXGlobal
 from cuvis_ai.anomaly.rx_logit_head import RXLogitHead
-from cuvis_ai.data.datasets import SingleCu3sDataModule
+from cuvis_ai_core.data.datasets import SingleCu3sDataModule
 
 
 from cuvis_ai.deciders.binary_decider import BinaryDecider
