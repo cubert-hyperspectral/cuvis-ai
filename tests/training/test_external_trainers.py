@@ -10,7 +10,7 @@ from cuvis_ai_core.node import Node
 from cuvis_ai.node.selector import SoftChannelSelector
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_core.pipeline.ports import PortSpec
-from cuvis_ai.training import MSEReconstructionLoss
+from cuvis_ai.node.losses import MSEReconstructionLoss
 from cuvis_ai_core.training import CuvisDataModule
 
 from cuvis_ai_core.training.config import OptimizerConfig, TrainerConfig
