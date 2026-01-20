@@ -1,0 +1,40 @@
+# Example plugin manifest for cuvis-ai-core
+#
+# This file demonstrates how to configure plugins for the NodeRegistry plugin system.
+# Plugins can be loaded from Git repositories or local filesystem paths.
+
+plugins:
+  # Example 1: Git plugin with tagged release
+  adaclip:
+    repo: "git@gitlab.cubert.local:cubert/cuvis-ai-adaclip.git"
+    ref: "v1.2.3"  # Tagged release for production stability
+    provides:
+      - cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
+
+  # Example 2: Git plugin with branch (for development)
+  adaclip_dev:
+    repo: "git@gitlab.cubert.local:cubert/cuvis-ai-adaclip.git"
+    ref: "develop"  # Development branch
+    provides:
+      - cuvis_ai_adaclip.experimental.ExperimentalDetector
+
+  # Example 3: Local plugin for development
+  local_plugin:
+    path: "../my-custom-plugin"  # Relative path to plugin directory
+    provides:
+      - my_plugin.custom.CustomNode
+      - my_plugin.utils.HelperNode
+
+  # Example 4: Git plugin from GitHub
+  github_plugin:
+    repo: "https://github.com/company/custom-models.git"
+    ref: "abc123def"  # Specific commit hash
+    provides:
+      - custom_models.segmentation.SegmentationNode
+      - custom_models.classification.ClassifierNode
+
+  # Example 5: Another local plugin with absolute path
+  absolute_plugin:
+    path: "/absolute/path/to/plugin"
+    provides:
+      - absolute_plugin.MainNode
