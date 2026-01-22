@@ -21,7 +21,7 @@ def trainable_pca():
 
     # Initialize with dummy data (using port-based dict format)
     data_iterator = ({"data": torch.randn(2, 10, 10, 5)} for _ in range(3))
-    pca.fit(data_iterator)
+    pca.statistical_initialization(data_iterator)
     pca.unfreeze()  # Convert buffers to parameters for gradient training
 
     return pca

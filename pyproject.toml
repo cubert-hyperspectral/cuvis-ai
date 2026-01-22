@@ -7,7 +7,7 @@ name = "cuvis_ai"
 dynamic = ["version"]
 description = "The CUVIS.AI Toolset"
 readme = "README.md"
-requires-python = ">=3.10,<3.11"
+requires-python = ">=3.11,<3.12"
 license = { text = "Apache License 2.0" }
 authors = [
     { name = "Cubert GmbH, Ulm, Germany", email = "SDK@cubert-gmbh.com" },
@@ -26,9 +26,11 @@ dependencies = [
     "scikit-image",
     "scikit-learn",
     "tensorboard",
-    "torch",
-    "torchmetrics",
+    # Core framework dependencies
+    "torch>=2.9.1",
     "torchvision",
+    
+    "torchmetrics",
     "pytorch-lightning",
     "tzdata; sys_platform == 'win32'",
     "loguru>=0.7.3",
@@ -99,6 +101,7 @@ torch = { index = "pytorch-cu128" }
 torchvision = { index = "pytorch-cu128" }
 cuvis-ai-core = { path = "../cuvis-ai-core", editable = true }
 
+
 [tool.setuptools_scm]
 version_scheme = "post-release"
 local_scheme = "node-and-date"
@@ -164,8 +167,10 @@ ignore = [
     "ANN204",
 ]
 
-# PyTorch CUDA 12.8 configuration
 [[tool.uv.index]]
 name = "pytorch-cu128"
 url = "https://download.pytorch.org/whl/cu128"
 explicit = true
+
+
+
