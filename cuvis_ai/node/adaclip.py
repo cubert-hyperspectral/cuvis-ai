@@ -1,17 +1,15 @@
+import os
+from typing import Any
+
 import numpy as np
-from PIL import Image
-from gradio_client import handle_file
-from cuvis_ai.node.huggingface import HuggingFaceAPINode, HuggingFaceLocalNode
-
-
 import torch
+from gradio_client import handle_file
 from loguru import logger
+from PIL import Image
 from torch import Tensor
 from transformers import CLIPVisionModel
 
-
-import os
-from typing import Any
+from cuvis_ai_core.node.huggingface import HuggingFaceAPINode, HuggingFaceLocalNode
 
 
 class AdaCLIPLocalNode(HuggingFaceLocalNode):

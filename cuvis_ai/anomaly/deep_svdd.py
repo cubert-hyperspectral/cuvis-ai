@@ -9,7 +9,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 from cuvis_ai_core.node.node import Node
 from cuvis_ai_core.pipeline.ports import PortSpec
 from cuvis_ai_core.utils.types import Context, ExecutionStage, InputStream, Metric

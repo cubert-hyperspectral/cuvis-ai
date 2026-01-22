@@ -5,6 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 import torch
+from cuvis_ai_core.node.node import Node
+from cuvis_ai_core.pipeline.ports import PortSpec
+from cuvis_ai_core.utils.types import Context, ExecutionStage, Metric
 from torch import Tensor
 from torchmetrics.classification import (
     BinaryAveragePrecision,
@@ -13,10 +16,6 @@ from torchmetrics.classification import (
     BinaryPrecision,
     BinaryRecall,
 )
-
-from cuvis_ai_core.node.node import Node
-from cuvis_ai_core.pipeline.ports import PortSpec
-from cuvis_ai_core.utils.types import Context, ExecutionStage, Metric
 
 
 class ExplainedVarianceMetric(Node):

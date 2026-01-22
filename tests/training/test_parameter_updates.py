@@ -2,6 +2,7 @@
 
 import pytest
 import torch
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
 from cuvis_ai.anomaly.rx_detector import RXGlobal
 from cuvis_ai.anomaly.rx_logit_head import RXLogitHead
@@ -21,7 +22,6 @@ from cuvis_ai.node.metrics import (
 from cuvis_ai.node.normalization import MinMaxNormalizer
 from cuvis_ai.node.pca import TrainablePCA
 from cuvis_ai.node.selector import SoftChannelSelector
-from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
 
 def test_soft_selector_weights_update(synthetic_anomaly_datamodule, training_config_factory):

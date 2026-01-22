@@ -28,24 +28,8 @@ from typing import Any
 import numpy as np
 import torch
 import torch.nn as nn
-from loguru import logger
-from torch import Tensor
-from torch.utils.tensorboard import SummaryWriter
-
 from cuvis_ai_core.data.datasets import SingleCu3sDataModule
-
-
-from cuvis_ai.node.data import LentilsAnomalyDataNode
-from cuvis_ai.node.adaclip import AdaCLIPLocalNode
-from cuvis_ai.node.metrics import SelectorDiversityMetric, SelectorEntropyMetric
-from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai_core.node import Node
-from cuvis_ai.node.selector import SoftChannelSelector
-from cuvis_ai.node.visualizations import (
-    AnomalyMask,
-    CubeRGBVisualizer,
-    ScoreHeatmapVisualizer,
-)
 from cuvis_ai_core.pipeline.pipeline import CuvisCanvas
 from cuvis_ai_core.pipeline.ports import PortSpec
 from cuvis_ai_core.training import GradientTrainer
@@ -58,6 +42,20 @@ from cuvis_ai_core.training.config import (
     SchedulerConfig,
     TrainerConfig,
     TrainingConfig,
+)
+from loguru import logger
+from torch import Tensor
+from torch.utils.tensorboard import SummaryWriter
+
+from cuvis_ai.node.adaclip import AdaCLIPLocalNode
+from cuvis_ai.node.data import LentilsAnomalyDataNode
+from cuvis_ai.node.metrics import SelectorDiversityMetric, SelectorEntropyMetric
+from cuvis_ai.node.monitor import TensorBoardMonitorNode
+from cuvis_ai.node.selector import SoftChannelSelector
+from cuvis_ai.node.visualizations import (
+    AnomalyMask,
+    CubeRGBVisualizer,
+    ScoreHeatmapVisualizer,
 )
 
 # ============================================================================

@@ -15,11 +15,10 @@ from typing import Any, Literal
 
 import torch
 import torch.nn as nn
-from torch import Tensor
-
 from cuvis_ai_core.node import Node
 from cuvis_ai_core.pipeline.ports import PortSpec
 from cuvis_ai_core.utils.types import Context, InputStream
+from torch import Tensor
 
 
 class LearnableChannelMixer(Node):

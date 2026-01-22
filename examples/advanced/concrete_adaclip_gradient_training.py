@@ -30,17 +30,6 @@ except ImportError:
     raise
 
 from cuvis_ai_core.data.datasets import SingleCu3sDataModule
-
-
-from cuvis_ai.deciders.two_stage_decider import TwoStageBinaryDecider
-from cuvis_ai.node.concrete_selector import ConcreteBandSelector
-from cuvis_ai.node.data import LentilsAnomalyDataNode
-from cuvis_ai.node.drcnn_tensorboard_viz import DRCNNTensorBoardViz
-from cuvis_ai.node.losses import AnomalyBCEWithLogits, DistinctnessLoss, IoULoss
-from cuvis_ai.node.metrics import AnomalyDetectionMetrics
-from cuvis_ai.node.monitor import TensorBoardMonitorNode
-from cuvis_ai.node.normalization import MinMaxNormalizer
-from cuvis_ai.node.visualizations import AnomalyMask, ScoreHeatmapVisualizer
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_core.training import GradientTrainer
 from cuvis_ai_core.training.config import (
@@ -51,6 +40,16 @@ from cuvis_ai_core.training.config import (
     TrainingConfig,
     TrainRunConfig,
 )
+
+from cuvis_ai.deciders.two_stage_decider import TwoStageBinaryDecider
+from cuvis_ai.node.concrete_selector import ConcreteBandSelector
+from cuvis_ai.node.data import LentilsAnomalyDataNode
+from cuvis_ai.node.drcnn_tensorboard_viz import DRCNNTensorBoardViz
+from cuvis_ai.node.losses import AnomalyBCEWithLogits, DistinctnessLoss, IoULoss
+from cuvis_ai.node.metrics import AnomalyDetectionMetrics
+from cuvis_ai.node.monitor import TensorBoardMonitorNode
+from cuvis_ai.node.normalization import MinMaxNormalizer
+from cuvis_ai.node.visualizations import AnomalyMask, ScoreHeatmapVisualizer
 
 
 @hydra.main(

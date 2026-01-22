@@ -6,9 +6,8 @@ import json
 from pathlib import Path
 
 import yaml
-from workflow_utils import build_stub, config_search_paths, create_session_with_search_paths
-
 from cuvis_ai_core.grpc import cuvis_ai_pb2
+from workflow_utils import build_stub, config_search_paths, create_session_with_search_paths
 
 
 def main() -> None:

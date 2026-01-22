@@ -33,11 +33,10 @@ from typing import Any
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch import Tensor
-
 from cuvis_ai_core.node import Node
 from cuvis_ai_core.pipeline.ports import PortSpec
 from cuvis_ai_core.utils.types import Context, ExecutionStage
+from torch import Tensor
 
 
 def _sample_gumbel(shape: tuple[int, ...], device: torch.device, eps: float = 1e-10) -> Tensor:

@@ -3,6 +3,7 @@
 from cuvis_ai_core.utils.node_registry import NodeRegistry
 from cuvis_ai_core.utils.plugin_config import PluginManifest
 
+
 def main():
     """Demonstrate plugin loading and usage."""
     print("=== NodeRegistry Plugin System Example ===\n")

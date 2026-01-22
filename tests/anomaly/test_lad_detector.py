@@ -193,11 +193,12 @@ def test_lad_unfreeze_converts_buffers_to_parameters():
 
 def test_lad_trainable_parameters_update(synthetic_anomaly_datamodule, training_config_factory):
     """Test that LAD parameters can be updated during gradient training."""
+    from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+    from cuvis_ai_core.training.trainers import GradientTrainer, StatisticalTrainer
+
     from cuvis_ai.node.data import LentilsAnomalyDataNode
     from cuvis_ai.node.losses import AnomalyBCEWithLogits
     from cuvis_ai.node.normalization import MinMaxNormalizer
-    from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
-    from cuvis_ai_core.training.trainers import GradientTrainer, StatisticalTrainer
 
     # Create datamodule using fixture (includes wavelengths automatically)
     datamodule = synthetic_anomaly_datamodule(

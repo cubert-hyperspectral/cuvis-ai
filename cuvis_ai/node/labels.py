@@ -5,10 +5,9 @@ from collections.abc import Iterable, Sequence
 from typing import Any
 
 import torch
-from torch import Tensor
-
 from cuvis_ai_core.node.node import Node
 from cuvis_ai_core.pipeline.ports import PortSpec
+from torch import Tensor
 
 
 class BinaryAnomalyLabelMapper(Node):

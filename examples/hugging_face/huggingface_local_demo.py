@@ -15,20 +15,18 @@ from pathlib import Path
 from typing import Any
 
 import torch
-from loguru import logger
-from torch import Tensor
-
 from cuvis_ai_core.data.datasets import SingleCu3sDataModule
-
-
-from cuvis_ai.node.data import LentilsAnomalyDataNode
-from cuvis_ai.node.adaclip import AdaCLIPLocalNode
-from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai_core.node import Node
-from cuvis_ai.node.visualizations import AnomalyMask
 from cuvis_ai_core.pipeline.pipeline import CuvisCanvas
 from cuvis_ai_core.pipeline.ports import PortSpec
 from cuvis_ai_core.utils.types import Context, ExecutionStage
+from loguru import logger
+from torch import Tensor
+
+from cuvis_ai.node.adaclip import AdaCLIPLocalNode
+from cuvis_ai.node.data import LentilsAnomalyDataNode
+from cuvis_ai.node.monitor import TensorBoardMonitorNode
+from cuvis_ai.node.visualizations import AnomalyMask
 
 
 class HyperspectralToRGBNode(Node):

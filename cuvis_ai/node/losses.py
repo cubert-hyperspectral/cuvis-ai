@@ -7,11 +7,10 @@ from typing import Any
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch import Tensor
-
 from cuvis_ai_core.node import Node
 from cuvis_ai_core.pipeline.ports import PortSpec
 from cuvis_ai_core.utils.types import ExecutionStage
+from torch import Tensor
 
 
 class LossNode(Node):
