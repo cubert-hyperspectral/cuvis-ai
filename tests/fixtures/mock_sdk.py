@@ -50,11 +50,11 @@ def mock_cuvis_sdk(create_test_cube):
 
     # Patch cuvis module imports
     with (
-        patch("cuvis_ai.data.datasets.cuvis.SessionFile", return_value=mock_session),
-        patch("cuvis_ai.data.datasets.cuvis.ProcessingContext", return_value=mock_pc),
-        patch("cuvis_ai.data.datasets.cuvis.ProcessingMode") as mock_pm,
-        patch("cuvis_ai.data.datasets.cuvis.ReferenceType") as mock_rt,
-        patch("cuvis_ai.data.datasets.COCOData.from_path", return_value=mock_coco),
+        patch("cuvis_ai_core.data.datasets.cuvis.SessionFile", return_value=mock_session),
+        patch("cuvis_ai_core.data.datasets.cuvis.ProcessingContext", return_value=mock_pc),
+        patch("cuvis_ai_core.data.datasets.cuvis.ProcessingMode") as mock_pm,
+        patch("cuvis_ai_core.data.datasets.cuvis.ReferenceType") as mock_rt,
+        patch("cuvis_ai_core.data.datasets.COCOData.from_path", return_value=mock_coco),
     ):
         # Setup ProcessingMode enum
         mock_pm.Raw = "Raw"

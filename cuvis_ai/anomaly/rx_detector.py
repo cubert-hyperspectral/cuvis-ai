@@ -1,11 +1,13 @@
 import torch
 import torch.nn as nn
+from cuvis_ai_core.node import Node
+from cuvis_ai_core.pipeline.ports import PortSpec
+from cuvis_ai_core.utils.types import InputStream
 
-from cuvis_ai.node.node import Node
-from cuvis_ai.pipeline.ports import PortSpec
-from cuvis_ai.utils.torch import _flatten_bhwc
-from cuvis_ai.utils.types import InputStream
 
+def _flatten_bhwc(x: torch.Tensor) -> torch.Tensor:
+    B, H, W, C = x.shape
+    return x.view(B, H * W, C)
 
 # ---------- Shared base ----------
 class RXBase(Node):

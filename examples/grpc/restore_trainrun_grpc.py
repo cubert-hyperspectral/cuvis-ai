@@ -10,14 +10,13 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal
 
+from cuvis_ai_core.grpc import cuvis_ai_pb2
 from loguru import logger
 from workflow_utils import (
     build_stub,
     config_search_paths,
     create_session_with_search_paths,
 )
-
-from cuvis_ai.grpc import cuvis_ai_pb2
 
 
 def restore_trainrun_grpc(

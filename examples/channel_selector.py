@@ -1,12 +1,23 @@
 from pathlib import Path
 
 import hydra
+from cuvis_ai_core.data.datasets import SingleCu3sDataModule
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.training import GradientTrainer, StatisticalTrainer
+from cuvis_ai_core.training.config import (
+    CallbacksConfig,
+    EarlyStoppingConfig,
+    ModelCheckpointConfig,
+    PipelineMetadata,
+    SchedulerConfig,
+    TrainingConfig,
+    TrainRunConfig,
+)
 from loguru import logger
 from omegaconf import DictConfig, OmegaConf
 
 from cuvis_ai.anomaly.rx_detector import RXGlobal
 from cuvis_ai.anomaly.rx_logit_head import RXLogitHead
-from cuvis_ai.data.lentils_anomaly import SingleCu3sDataModule
 from cuvis_ai.deciders.binary_decider import BinaryDecider
 from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.losses import (
@@ -19,17 +30,6 @@ from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.normalization import MinMaxNormalizer
 from cuvis_ai.node.selector import SoftChannelSelector
 from cuvis_ai.node.visualizations import AnomalyMask, CubeRGBVisualizer
-from cuvis_ai.pipeline.pipeline import CuvisPipeline
-from cuvis_ai.training import GradientTrainer, StatisticalTrainer
-from cuvis_ai.training.config import (
-    CallbacksConfig,
-    EarlyStoppingConfig,
-    ModelCheckpointConfig,
-    PipelineMetadata,
-    SchedulerConfig,
-    TrainingConfig,
-    TrainRunConfig,
-)
 
 
 @hydra.main(config_path="../configs/", config_name="trainrun/channel_selector", version_base=None)

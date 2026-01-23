@@ -22,7 +22,7 @@ fi
 
 # Run pytest with non-GPU tests
 echo "→ Running pytest (excluding GPU tests)..."
-if ! uv run python -m pytest tests/ -v --tb=line -m "not gpu"; then
+if ! uv run python -m pytest tests/ -v --tb=line -m "not slow and not gpu"; then
     echo "✗ Tests failed. Please fix the failing tests and try again."
     exit 1
 fi
