@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "cuvis_ai"
 dynamic = ["version"]
-description = "The CUVIS.AI Toolset"
+description = "Collaborative Framework for Hyperspectral Intelligence"
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
 license = { text = "Apache License 2.0" }

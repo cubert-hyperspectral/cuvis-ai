@@ -2,8 +2,6 @@
 
 # cuvis.ai
 
-*The project is still maturing. We will make occasional breaking changes and add missing features on our way to v1.*
-
 cuvis.ai is a software toolkit designed to facilitate the development of artificial intelligence (AI) and machine 
 learning applications for hyperspectral measurements.
 
@@ -34,7 +32,7 @@ If `uv` is not already available on your system you can install it following the
 Create or refresh a development environment at the repository root with:
 
 ```bash
-uv sync
+uv sync --all-extras --dev
 ```
 
 This installs the runtime dependencies declared in `pyproject.toml`. `uv` automatically provisions the Python version declared in the project metadata, so no manual interpreter management is required.
@@ -93,55 +91,6 @@ uv sync --locked --extra docs
 
 Combine extras as needed (e.g. `uv sync --locked --extra dev --extra docs`). Whenever the `pyproject.toml` or `uv.lock` changes, rerun `uv sync --locked` with the extras you need to stay up to date.
 
-## gRPC API
-
-cuvis.ai provides a gRPC API for remote inference and training, enabling integration with C++ clients (cuvis-next) and other language implementations.
-
-### Using the gRPC API
-
-The gRPC API is included in the standard installation. For client usage examples, see the [gRPC examples](examples/grpc/).
-
-Key features:
-- Remote inference with hyperspectral data
-- Training pipeline management (statistical & gradient-based)
-- Pipeline introspection and visualization
-- Serialization and restoration management
-
-### Developing the gRPC API
-
-If you're modifying `.proto` files or working on the gRPC implementation:
-
-1. **Proto Code Generation**: Use grpcio-tools (already installed) to generate Python code:
-   ```bash
-   python -m grpc_tools.protoc -I=proto \
-     --python_out=cuvis_ai/grpc \
-     --pyi_out=cuvis_ai/grpc \
-     --grpc_python_out=cuvis_ai/grpc \
-     proto/cuvis_ai.proto
-   ```
-
-2. **Buf CLI (Optional)**: For advanced features like linting and BSR publishing:
-   - Install from [GitHub releases](https://github.com/bufbuild/buf/releases)
-   - **Do not** use `pip install buf` - that's a different package
-
-3. **Full Development Guide**: See [docs_dev/grpc_development_guide.md](docs_dev/grpc_development_guide.md) for:
-   - Proto modification workflow
-   - Publishing to Buf Schema Registry
-   - Troubleshooting common issues
-   - Best practices
-
-**Note:** Generated proto files are committed to the repository, so end users don't need any proto tooling.
-
-### Via pip
-
-If you wish to use cuvis.ai within another project, from within your 
-project environment, run 
-
-```
-pip install cuvis-ai
-```
-
-or add `cuvis-ai` to your project `requirements.txt` or `setup.py`.
 
 ## Release Notes
 
