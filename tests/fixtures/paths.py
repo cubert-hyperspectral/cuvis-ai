@@ -52,7 +52,9 @@ def mock_pipeline_dir(tmp_path, monkeypatch):
     pipeline_dir = tmp_path / "pipeline"
     pipeline_dir.mkdir()
 
+    print(pipeline_dir)
+
     monkeypatch.setenv("CUVIS_CONFIGS_DIR", str(pipeline_dir.parent))
-    monkeypatch.setattr("cuvis_ai.grpc.helpers.get_server_base_dir", lambda: pipeline_dir.parent)
+    monkeypatch.setattr("cuvis_ai_core.grpc.helpers.get_server_base_dir", lambda: pipeline_dir.parent)
 
     yield pipeline_dir

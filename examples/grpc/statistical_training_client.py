@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+from cuvis_ai_core.grpc import cuvis_ai_pb2, helpers
 from workflow_utils import (
     apply_trainrun_config,
     build_stub,
@@ -11,8 +12,6 @@ from workflow_utils import (
     format_progress,
     resolve_trainrun_config,
 )
-
-from cuvis_ai.grpc import cuvis_ai_pb2, helpers
 
 
 def main(server_address: str = "localhost:50051") -> None:

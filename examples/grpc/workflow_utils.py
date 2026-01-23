@@ -7,8 +7,7 @@ from collections.abc import Iterable
 from pathlib import Path
 
 import grpc
-
-from cuvis_ai.grpc import cuvis_ai_pb2, cuvis_ai_pb2_grpc
+from cuvis_ai_core.grpc import cuvis_ai_pb2, cuvis_ai_pb2_grpc
 
 CONFIG_ROOT = Path(__file__).resolve().parents[2] / "configs"
 

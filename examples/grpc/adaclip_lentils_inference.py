@@ -10,15 +10,14 @@ This client demonstrates running AdaCLIP anomaly detection on lentils dataset vi
 from __future__ import annotations
 
 import numpy as np
+from cuvis_ai.data.datasets import SingleCu3sDataset
+from cuvis_ai_core.grpc import cuvis_ai_pb2, helpers
 from torch.utils.data import DataLoader
 from workflow_utils import (
     build_stub,
     config_search_paths,
     create_session_with_search_paths,
 )
-
-from cuvis_ai.data.datasets import SingleCu3sDataset
-from cuvis_ai.grpc import cuvis_ai_pb2, helpers
 
 
 def main(

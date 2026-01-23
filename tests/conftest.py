@@ -4,13 +4,9 @@ All fixtures have been organized into separate modules in tests/fixtures/:
 
 Core Fixtures:
 - paths.py: Path and configuration fixtures (temp dirs, mock_pipeline_dir, etc.)
-- sessions.py: Session factories (session, trained_session)
-- grpc.py: gRPC testing utilities
-- data_factory.py: Test data creation (test_data_files, data_config_factory, create_test_cube)
-- config_factory.py: Pipeline/experiment config helpers (pipeline_factory, minimal_pipeline_dict, saved_pipeline)
+- data_factory.py: Test data creation (test_data_files, data_config_factory, create_test_cube, training_config_factory)
 - mock_sdk.py: Mock CUVIS SDK
 - mock_nodes.py: Mock node implementations
-- workflow_fixtures.py: Workflow helpers (pretrained_pipeline, shared_workflow_setup)
 
 For detailed documentation and usage examples, see tests/README.md
 
@@ -25,12 +21,8 @@ import pytest
 pytest_plugins = [
     "tests.fixtures.paths",
     "tests.fixtures.data_factory",
-    "tests.fixtures.config_factory",
     "tests.fixtures.mock_sdk",
-    "tests.fixtures.grpc",
-    "tests.fixtures.sessions",
     "tests.fixtures.mock_nodes",
-    "tests.fixtures.workflow_fixtures",
 ]
 
 

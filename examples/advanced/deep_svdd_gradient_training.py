@@ -5,6 +5,18 @@ from __future__ import annotations
 from pathlib import Path
 
 import hydra
+from cuvis_ai_core.data.datasets import SingleCu3sDataModule
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.training import GradientTrainer, StatisticalTrainer
+from cuvis_ai_core.training.config import (
+    CallbacksConfig,
+    EarlyStoppingConfig,
+    ModelCheckpointConfig,
+    PipelineMetadata,
+    SchedulerConfig,
+    TrainingConfig,
+    TrainRunConfig,
+)
 from loguru import logger
 from omegaconf import DictConfig, OmegaConf
 
@@ -14,7 +26,6 @@ from cuvis_ai.anomaly.deep_svdd import (
     DeepSVDDScores,
     ZScoreNormalizerGlobal,
 )
-from cuvis_ai.data.lentils_anomaly import SingleCu3sDataModule
 from cuvis_ai.deciders.binary_decider import QuantileBinaryDecider
 from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.losses import DeepSVDDSoftBoundaryLoss
@@ -23,17 +34,6 @@ from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.normalization import PerPixelUnitNorm
 from cuvis_ai.node.preprocessors import BandpassByWavelength
 from cuvis_ai.node.visualizations import AnomalyMask, ScoreHeatmapVisualizer
-from cuvis_ai.pipeline.pipeline import CuvisPipeline
-from cuvis_ai.training import GradientTrainer, StatisticalTrainer
-from cuvis_ai.training.config import (
-    CallbacksConfig,
-    EarlyStoppingConfig,
-    ModelCheckpointConfig,
-    PipelineMetadata,
-    SchedulerConfig,
-    TrainingConfig,
-    TrainRunConfig,
-)
 from cuvis_ai.utils.deep_svdd_factory import infer_channels_after_bandpass
 
 

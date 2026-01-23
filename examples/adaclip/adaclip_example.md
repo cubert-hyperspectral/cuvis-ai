@@ -4,36 +4,114 @@ This guide documents the complete workflow for contributing AdaCLIP examples to 
 
 ## Overview
 
-The AdaCLIP workflow follows a **train → copy → restore → use** pattern:
+**Important:** Starting with Phase 5, AdaCLIP examples now use the **plugin system** instead of direct package installation. This aligns with the repository split architecture and eliminates the need for manual package installation.
 
-1. **Train in AdaCLIP-cuvis**: Run training scripts in the `AdaCLIP-cuvis` repository to generate pipeline artifacts
-2. **Copy artifacts**: Copy the generated pipeline YAMLs and weights to `cuvis.ai/configs/pipeline/`
-3. **Create trainrun configs**: Create Hydra-based trainrun configs in `cuvis.ai/configs/trainrun/` that compose pipeline + data + training configs
-4. **Use in cuvis.ai**: Use `restore_trainrun` for training/validation/test or `restore_pipeline` for inference
+The AdaCLIP workflow follows a **plugin → train → copy → restore → use** pattern:
+
+1. **Load plugin**: Load AdaCLIP plugin from local repository using the NodeRegistry plugin system
+2. **Train**: Run training scripts that use the plugin to generate pipeline artifacts
+3. **Copy artifacts**: Copy the generated pipeline YAMLs and weights to `cuvis.ai/configs/pipeline/`
+4. **Create trainrun configs**: Create Hydra-based trainrun configs in `cuvis.ai/configs/trainrun/` that compose pipeline + data + training configs
+5. **Use in cuvis.ai**: Use `restore_trainrun` for training/validation/test or `restore_pipeline` for inference
 
 This workflow ensures that:
-- Training happens in the plugin repository (AdaCLIP-cuvis) where the plugin-specific code lives
+- No manual package installation required (plugin system handles loading)
+- Training happens using plugin-loaded nodes
 - Trained artifacts are version-controlled in cuvis.ai for reproducibility
 - Users can restore and use pipelines without needing the plugin repository
 - Hydra configs provide flexible composition and overrides
 
+## Plugin System Usage
+
+### Loading AdaCLIP Plugin
+
+All three AdaCLIP examples now use the plugin system. There are two approaches:
+
+#### Approach 1: Programmatic Loading (Used in Examples)
+
+```python
+from cuvis_ai_core.utils.node_registry import NodeRegistry
+
+# IMPORTANT: Create a NodeRegistry instance first - load_plugin() is an instance method!
+registry = NodeRegistry()
+
+# Load AdaCLIP plugin from local development clone
+registry.load_plugin(
+    name="adaclip",
+    config={
+        "path": r"D:\code-repos\cuvis-ai-adaclip",
+        "provides": ["cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector"]
+    }
+)
+
+# Get the AdaCLIPDetector class from the registry (get() works as both class and instance method)
+AdaCLIPDetector = NodeRegistry.get("cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector")
+```
+
+**Key Point:** `load_plugin()` is an **instance method** (requires creating a `NodeRegistry` instance first), while `get()` works as both a class and instance method. This is by design from Phase 4's hybrid architecture:
+- Built-in nodes: accessed via class method `NodeRegistry.get("MinMaxNormalizer")`
+- Plugin nodes: require instance-based loading first, then can be accessed via class method `NodeRegistry.get("plugin.node.Class")`
+
+#### Approach 2: Manifest-Based Loading
+
+Create a `plugins.yaml` file (see `examples/adaclip/plugins.yaml`):
+
+```yaml
+plugins:
+  adaclip:
+    path: "D:/code-repos/cuvis-ai-adaclip"
+    provides:
+      - cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
+```
+
+Then load it in your script:
+
+```python
+from cuvis_ai_core.utils.node_registry import NodeRegistry
+
+# Load plugins from manifest
+NodeRegistry.load_plugins("examples/adaclip/plugins.yaml")
+
+# Get the AdaCLIPDetector class
+AdaCLIPDetector = NodeRegistry.get("cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector")
+```
+
+### Prerequisites
+
+**Before running AdaCLIP examples:**
+
+1. Clone the cuvis-ai-adaclip repository:
+   ```bash
+   cd D:\code-repos
+   git clone https://github.com/cubert-hyperspectral/cuvis-ai-adaclip.git
+   ```
+
+2. Ensure the path in the examples matches your local clone location. If your clone is elsewhere, update the `path` parameter in the plugin loading code.
+
+3. No manual installation needed - the plugin system handles everything!
+
 ## Step-by-Step Workflow
 
-### Step 1: Train in AdaCLIP-cuvis
+### Step 1: Run Training Examples
 
-Run the training scripts in `AdaCLIP-cuvis/cuvis_ai_adaclip/examples_cuvis/`:
+Run the training scripts in `cuvis-ai/examples/adaclip/`:
 
 ```bash
-# Example: Run baseline training
-cd AdaCLIP-cuvis
-uv run python cuvis_ai_adaclip/examples_cuvis/statistical_baseline.py \
-  --cu3s-file-path /path/to/data/Lentils/Lentils_000.cu3s \
-  --annotation-json-path /path/to/data/Lentils/annotations.json \
-  --train-ids 0 2 \
-  --val-ids 2 4 \
-  --test-ids 1 3 5 \
-  --batch-size 1 \
-  --output-dir ./outputs/adaclip_baseline
+# Example 1: DRCNN + AdaCLIP gradient training
+cd cuvis-ai
+uv run python examples/adaclip/drcnn_adaclip_gradient_training.py
+
+# Example 2: Concrete selector + AdaCLIP gradient training
+uv run python examples/adaclip/concrete_adaclip_gradient_training.py
+
+# Example 3: PCA + AdaCLIP baseline (no gradient training)
+uv run python examples/adaclip/pca_adaclip_baseline.py
+```
+
+**Note:** The plugin loading happens automatically at the start of each script. You'll see:
+```
+Loading AdaCLIP plugin from local repository...
+✓ AdaCLIP plugin loaded successfully
 ```
 
 **What this generates:**
@@ -316,6 +394,10 @@ For practical examples, see:
 
 **Solution**: Ensure the trainrun config has a `defaults` entry that references the pipeline config, or explicitly includes the pipeline config.
 
+### Issue: "Failed to load AdaCLIP plugin"
+
+**Solution**: Ensure the cuvis-ai-adaclip repository is cloned at the correct path. Update the `path` parameter in the plugin loading code if your clone is in a different location.
+
 ### Issue: "SupervisedCIRBandSelector not fitted"
 
 **Solution**: For statistical-only pipelines, ensure `stat_trainer.fit()` is called before validation/test. The `restore_trainrun_statistical.py` script handles this automatically.
@@ -339,9 +421,10 @@ For practical examples, see:
 
 The AdaCLIP workflow follows a clear separation of concerns:
 
-1. **Training** happens in `AdaCLIP-cuvis` (plugin repository)
-2. **Artifacts** (pipeline YAMLs + weights) are copied to `cuvis.ai/configs/pipeline/`
-3. **Trainrun configs** in `cuvis.ai/configs/trainrun/` use Hydra to compose pipeline + data + training
-4. **Usage** in cuvis.ai via `restore_trainrun` (full workflow) or `restore_pipeline` (inference only)
+1. **Plugin Loading**: AdaCLIP is loaded dynamically via the plugin system (no manual installation)
+2. **Training**: Examples use plugin-loaded nodes to train pipelines
+3. **Artifacts**: Pipeline YAMLs + weights are copied to `cuvis.ai/configs/pipeline/`
+4. **Trainrun configs**: In `cuvis.ai/configs/trainrun/` use Hydra to compose pipeline + data + training
+5. **Usage**: In cuvis.ai via `restore_trainrun` (full workflow) or `restore_pipeline` (inference only)
 
-This workflow ensures reproducibility, maintainability, and clear separation between plugin-specific code and the core cuvis.ai framework.
+This workflow ensures reproducibility, maintainability, and clear separation between plugin-specific code and the core cuvis.ai framework, while demonstrating proper plugin system usage established in Phase 2.

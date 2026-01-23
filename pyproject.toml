@@ -5,47 +5,40 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "cuvis_ai"
 dynamic = ["version"]
-description = "The CUVIS.AI Toolset"
+description = "Collaborative Framework for Hyperspectral Intelligence"
 readme = "README.md"
-requires-python = ">=3.10,<3.14"
+requires-python = ">=3.11,<3.12"
 license = { text = "Apache License 2.0" }
 authors = [
     { name = "Cubert GmbH, Ulm, Germany", email = "SDK@cubert-gmbh.com" },
 ]
 dependencies = [
-    "cuvis",
-    "dataclass-wizard",
-    "gdown",
+    "cuvis==3.5.0",
+    "cuvis-ai-core",
     "pydantic>=2.0.0,<3.0.0",
     "imantics",
     "ftfy>=6.1.1",
     "markupsafe!=3.0.2",
     "matplotlib",
-    "networkx",
     "opencv-python",
-    "pycocotools",
+    "gitpython>=3.1.40",
     "pyyaml",
     "scikit-image",
     "scikit-learn",
-    "skorch",
     "tensorboard",
-    "torch",
-    "torchmetrics",
+    # Core framework dependencies
+    "torch>=2.9.1",
     "torchvision",
+    
+    "torchmetrics",
     "pytorch-lightning",
     "tzdata; sys_platform == 'win32'",
     "loguru>=0.7.3",
-    "sf-hamilton[visualization]>=1.89.0",
     "graphviz>=0.21",
     "packaging>=23.0",
     "omegaconf>=2.3.0",
     "hydra-core",
     "dotenv>=0.9.9",
-    "grpcio>=1.60.0",
-    "grpcio-tools>=1.60.0",
-    "protobuf>=6.33.2",
-    "grpcio-health-checking>=1.75.1",
-    "gradio-client>=0.8.0",
     "regex>=2023.12.25",
     "huggingface-hub>=0.20.0",
     "transformers>=4.36.0",
@@ -76,9 +69,6 @@ docs = [
     "mkdocs-literate-nav>=0.6.0",
     "opencv-python-headless",
 ]
-adaclip = [
-    "cuvis-ai-adaclip @ git+https://github.com/cubert-hyperspectral/cuvis-ai-adaclip.git@staging",
-]
 
 dev = [
     "ipykernel",
@@ -106,6 +96,9 @@ include = ["cuvis_ai*", "tools*"]
 [tool.uv.sources]
 torch = { index = "pytorch-cu128" }
 torchvision = { index = "pytorch-cu128" }
+#cuvis-ai-core = { path = "../cuvis-ai-core", editable = true }
+cuvis-ai-core = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-core.git", tag = "v0.1.0" }
+
 
 [tool.setuptools_scm]
 version_scheme = "post-release"
@@ -172,7 +165,6 @@ ignore = [
     "ANN204",
 ]
 
-# PyTorch CUDA 12.8 configuration
 [[tool.uv.index]]
 name = "pytorch-cu128"
 url = "https://download.pytorch.org/whl/cu128"

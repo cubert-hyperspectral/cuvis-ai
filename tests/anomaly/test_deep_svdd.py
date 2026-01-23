@@ -1,5 +1,6 @@
 import pytest
 import torch
+from cuvis_ai_core.utils.types import Context, ExecutionStage
 
 from cuvis_ai.anomaly.deep_svdd import (
     DeepSVDDCenterTracker,
@@ -8,7 +9,6 @@ from cuvis_ai.anomaly.deep_svdd import (
     ZScoreNormalizerGlobal,
 )
 from cuvis_ai.node.losses import DeepSVDDSoftBoundaryLoss
-from cuvis_ai.utils.types import Context, ExecutionStage
 
 
 def _make_stream(tensor: torch.Tensor):

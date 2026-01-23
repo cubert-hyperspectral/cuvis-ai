@@ -4,10 +4,9 @@ from typing import Any
 
 import numpy as np
 import torch
+from cuvis_ai_core.node import Node
+from cuvis_ai_core.pipeline.ports import PortSpec
 from torch import Tensor
-
-from cuvis_ai.node.node import Node
-from cuvis_ai.pipeline.ports import PortSpec
 
 
 class BandpassByWavelength(Node):

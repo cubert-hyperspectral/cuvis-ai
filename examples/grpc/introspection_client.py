@@ -4,14 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from cuvis_ai_core.grpc import cuvis_ai_pb2
 from workflow_utils import (
     CONFIG_ROOT,
     build_stub,
     config_search_paths,
     create_session_with_search_paths,
 )
-
-from cuvis_ai.grpc import cuvis_ai_pb2
 
 
 def main() -> None:

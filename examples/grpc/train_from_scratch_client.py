@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from cuvis_ai_core.grpc import cuvis_ai_pb2
 from workflow_utils import (
     apply_trainrun_config,
     build_stub,
@@ -13,8 +14,6 @@ from workflow_utils import (
     format_progress,
     resolve_trainrun_config,
 )
-
-from cuvis_ai.grpc import cuvis_ai_pb2
 
 
 def main() -> None:

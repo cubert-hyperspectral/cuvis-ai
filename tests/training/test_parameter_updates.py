@@ -2,6 +2,7 @@
 
 import pytest
 import torch
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
 from cuvis_ai.anomaly.rx_detector import RXGlobal
 from cuvis_ai.anomaly.rx_logit_head import RXLogitHead
@@ -21,7 +22,6 @@ from cuvis_ai.node.metrics import (
 from cuvis_ai.node.normalization import MinMaxNormalizer
 from cuvis_ai.node.pca import TrainablePCA
 from cuvis_ai.node.selector import SoftChannelSelector
-from cuvis_ai.pipeline.pipeline import CuvisPipeline
 
 
 def test_soft_selector_weights_update(synthetic_anomaly_datamodule, training_config_factory):
@@ -78,7 +78,7 @@ def test_soft_selector_weights_update(synthetic_anomaly_datamodule, training_con
     )
 
     # Statistical initialization
-    from cuvis_ai.training.trainers import GradientTrainer, StatisticalTrainer
+    from cuvis_ai_core.training.trainers import GradientTrainer, StatisticalTrainer
 
     stat_trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
     stat_trainer.fit()
@@ -189,7 +189,7 @@ def test_pca_weights_update(synthetic_anomaly_datamodule, training_config_factor
     )
 
     # Statistical initialization
-    from cuvis_ai.training.trainers import GradientTrainer, StatisticalTrainer
+    from cuvis_ai_core.training.trainers import GradientTrainer, StatisticalTrainer
 
     stat_trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
     stat_trainer.fit()
@@ -303,7 +303,7 @@ def test_logit_head_weights_update(synthetic_anomaly_datamodule, training_config
     print(f"  Threshold: {logit_head.get_threshold():.6f}")
 
     # Statistical initialization
-    from cuvis_ai.training.trainers import GradientTrainer, StatisticalTrainer
+    from cuvis_ai_core.training.trainers import GradientTrainer, StatisticalTrainer
 
     stat_trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
     stat_trainer.fit()

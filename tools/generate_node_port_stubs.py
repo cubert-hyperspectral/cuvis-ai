@@ -12,7 +12,7 @@ import inspect
 from dataclasses import dataclass
 from pathlib import Path
 
-from cuvis_ai.node import Node
+from cuvis_ai_core.node.node import Node
 
 # For now we explicitly list node modules that should receive generated stubs.
 # Extend this list whenever new modules under cuvis_ai.node define Node subclasses.
@@ -47,8 +47,8 @@ def _ensure_package_inits(target: Path) -> None:
 STUB_HEADER = """\
 from __future__ import annotations
 
-from cuvis_ai.node.node import Node
-from cuvis_ai.pipeline.ports import InputPort, OutputPort
+from cuvis_ai_core.node import Node
+from cuvis_ai_core.pipeline.ports import InputPort, OutputPort
 """
 
 

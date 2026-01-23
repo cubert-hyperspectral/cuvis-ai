@@ -15,7 +15,7 @@ import time
 import torch
 from loguru import logger
 
-from cuvis_ai.node.huggingface import AdaCLIPLocalNode
+from cuvis_ai.node.adaclip import AdaCLIPLocalNode
 
 
 def test_model_loading() -> AdaCLIPLocalNode:
