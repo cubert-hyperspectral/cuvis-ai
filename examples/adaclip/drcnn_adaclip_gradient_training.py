@@ -23,16 +23,8 @@ import torch
 from loguru import logger
 from omegaconf import DictConfig, OmegaConf
 
-try:
-    from cuvis_ai_adaclip.node.adaclip_node import AdaCLIPDetector
-except ImportError:
-    logger.error(
-        "cuvis_ai_adaclip package not found. Please install it:\n"
-        "  cd AdaCLIP-cuvis && uv pip install -e ."
-    )
-    raise
-
 from cuvis_ai_core.data.datasets import SingleCu3sDataModule
+from cuvis_ai_core.utils.node_registry import NodeRegistry
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_core.training import GradientTrainer, StatisticalTrainer
 from cuvis_ai_core.training.config import (
@@ -60,6 +52,31 @@ def main(cfg: DictConfig) -> None:
     """DRCNN channel mixer + AdaClip training with gradient optimization."""
 
     logger.info("=== DRCNN Channel Mixer + AdaClip Gradient Training ===")
+
+    # Load AdaCLIP plugin from local development clone
+    logger.info("Loading AdaCLIP plugin from local repository...")
+    try:
+        # Create a NodeRegistry instance for plugin loading
+        registry = NodeRegistry()
+        registry.load_plugin(
+            name="adaclip",
+            config={
+                "path": r"D:\code-repos\cuvis-ai-adaclip",
+                "provides": ["cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector"]
+            }
+        )
+        
+        # Get the AdaCLIPDetector class from the registry
+        AdaCLIPDetector = NodeRegistry.get("cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector")
+        logger.info("✓ AdaCLIP plugin loaded successfully")
+    except Exception as e:
+        logger.error(f"Failed to load AdaCLIP plugin: {e}")
+        logger.error(
+            "Make sure the cuvis-ai-adaclip repository is cloned at:\n"
+            "  D:\\code-repos\\cuvis-ai-adaclip\n"
+            "Or update the path in this script to match your local setup."
+        )
+        raise
 
     output_dir = Path(cfg.output_dir)
 
