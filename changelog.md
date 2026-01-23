@@ -1,6 +1,6 @@
 # Changelog
 ## V0.2.3
-- Repository split into `cuvis-ai-core` (framework) and `cuvis-ai` (catalog) with clear API boundaries and independent versioning
+- Repository split into `cuvis-ai-core` (framework) and `cuvis-ai` (catalog at https://github.com/cubert-hyperspectral/cuvis-ai) with clear API boundaries and independent versioning
 - Framework extraction: base `Node` class, port system, `Pipeline`, training infrastructure, gRPC services, `NodeRegistry`, data infrastructure moved to cuvis-ai-core
 - Plugin system with Git repository and local filesystem support via extended `NodeRegistry`
 - Pydantic plugin configuration models: `GitPluginConfig`, `LocalPluginConfig`, `PluginManifest` with strict validation

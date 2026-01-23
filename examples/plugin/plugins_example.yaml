@@ -7,16 +7,9 @@ plugins:
   # Example 1: Git plugin with tagged release
   adaclip:
     repo: "git@gitlab.cubert.local:cubert/cuvis-ai-adaclip.git"
-    ref: "v1.2.3"  # Tagged release for production stability
+    ref: "v0.1.0"  # Tagged release for production stability
     provides:
       - cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
-
-  # Example 2: Git plugin with branch (for development)
-  adaclip_dev:
-    repo: "git@gitlab.cubert.local:cubert/cuvis-ai-adaclip.git"
-    ref: "develop"  # Development branch
-    provides:
-      - cuvis_ai_adaclip.experimental.ExperimentalDetector
 
   # Example 3: Local plugin for development
   local_plugin:

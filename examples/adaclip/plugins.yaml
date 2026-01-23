@@ -13,8 +13,8 @@
 ## For production deployment from Git repository:
 plugins:
   adaclip:
-    repo: "https://github.com/cubert-hyperspectral/cuvis-ai-adaclip.git"
-    ref: "anish/features/ALL-5049-adaclip-grpc"
+    repo: "git@gitlab.cubert.local:cubert/cuvis-ai-adaclip.git"
+    ref: "v0.1.0"  # Tagged release for production stability
     provides:
       - cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
 

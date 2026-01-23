@@ -54,30 +54,33 @@ def main(cfg: DictConfig) -> None:
 
     logger.info("=== Concrete Band Selector + AdaClip Gradient Training ===")
 
-    # Load AdaCLIP plugin from local development clone
-    logger.info("Loading AdaCLIP plugin from local repository...")
-    try:
-        # Create a NodeRegistry instance for plugin loading
-        registry = NodeRegistry()
-        registry.load_plugin(
-            name="adaclip",
-            config={
-                "path": r"D:\code-repos\cuvis-ai-adaclip",
-                "provides": ["cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector"]
-            }
-        )
-        
-        # Get the AdaCLIPDetector class from the registry (class method works for both built-ins and plugins)
-        AdaCLIPDetector = NodeRegistry.get("cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector")
-        logger.info("✓ AdaCLIP plugin loaded successfully")
-    except Exception as e:
-        logger.error(f"Failed to load AdaCLIP plugin: {e}")
-        logger.error(
-            "Make sure the cuvis-ai-adaclip repository is cloned at:\n"
-            "  D:\\code-repos\\cuvis-ai-adaclip\n"
-            "Or update the path in this script to match your local setup."
-        )
-        raise
+    # Load AdaCLIP plugin from GitLab repository
+    logger.info("Loading AdaCLIP plugin from GitLab repository...")
+    
+    # Create a NodeRegistry instance for plugin loading
+    registry = NodeRegistry()
+    registry.load_plugin(
+        name="adaclip",
+        config={
+            "repo": "git@gitlab.cubert.local:cubert/cuvis-ai-adaclip.git",
+            "ref": "v0.1.0",  # Tagged release for production stability
+            "provides": ["cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector"]
+        }
+    )
+    
+    # For local development, comment out above and use:
+    # registry.load_plugin(
+    #     name="adaclip",
+    #     config={
+    #         "path": r"D:\code-repos\cuvis-ai-adaclip",
+    #         "provides": ["cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector"]
+    #     }
+    # )
+    
+    # Get the AdaCLIPDetector class from the registry (class method works for both built-ins and plugins)
+    AdaCLIPDetector = NodeRegistry.get("cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector")
+    logger.info("✓ AdaCLIP plugin loaded successfully")
+
 
     output_dir = Path(cfg.output_dir)
 

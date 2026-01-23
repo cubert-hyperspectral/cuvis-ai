@@ -49,7 +49,7 @@ def main():
         "plugins": {
             "adaclip": {
                 "repo": "git@gitlab.cubert.local:cubert/cuvis-ai-adaclip.git",
-                "ref": "v1.2.3",
+                "ref": "v0.1.0",
                 "provides": ["cuvis_ai_adaclip.node.AdaCLIPDetector"]
             },
             "local_dev": {
