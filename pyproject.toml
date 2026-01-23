@@ -97,7 +97,7 @@ include = ["cuvis_ai*", "tools*"]
 torch = { index = "pytorch-cu128" }
 torchvision = { index = "pytorch-cu128" }
 #cuvis-ai-core = { path = "../cuvis-ai-core", editable = true }
-cuvis-ai-core = { git = "ssh://git@gitlab.cubert.local/nghorbani/cuvis-ai-core.git", branch = "nima/features/ALL-4976-repository-split-and-extension-mechanism-for-cuvis-ai" }
+cuvis-ai-core = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-core.git", tag = "v0.1.0" }
 
 
 [tool.setuptools_scm]

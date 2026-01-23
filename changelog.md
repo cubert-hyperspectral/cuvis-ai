@@ -1,4 +1,18 @@
 # Changelog
+## V0.2.3
+- Repository split into `cuvis-ai-core` (framework) and `cuvis-ai` (catalog) with clear API boundaries and independent versioning
+- Framework extraction: base `Node` class, port system, `Pipeline`, training infrastructure, gRPC services, `NodeRegistry`, data infrastructure moved to cuvis-ai-core
+- Plugin system with Git repository and local filesystem support via extended `NodeRegistry`
+- Pydantic plugin configuration models: `GitPluginConfig`, `LocalPluginConfig`, `PluginManifest` with strict validation
+- Plugin caching in `~/.cuvis_plugins/` with intelligent cache reuse and version verification
+- Session-scoped plugin isolation: each gRPC session has independent plugin namespaces
+- New gRPC RPCs: `LoadPlugins`, `ListLoadedPlugins`, `GetPluginInfo`, `ListAvailableNodes`, `ClearPluginCache`
+- JSON transport pattern for plugin manifests via `config_bytes` field matching existing conventions
+- Test migration: 426 tests moved to cuvis-ai-core with reusable fixtures in `tests/fixtures/`
+- Bug fixes: DataLoader access violation resolved with `num_workers=0`, single-threaded gRPC servers for cuvis SDK compatibility
+- 421 tests passing in cuvis-ai-core, independent CI/CD capability established
+- Import pattern change: `from cuvis_ai_core.* import ...` for framework components
+
 ## V0.2.2
 - **Restoration Utilities Refactoring**: Consolidated `restore_pipeline()` and `restore_trainrun()` functionality into `cuvis_ai.utils.restore` module for better discoverability and reusability
 - **Smart TrainRun Restoration**: Single `restore_trainrun()` function auto-detects and handles both gradient and statistical training workflows
