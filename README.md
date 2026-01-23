@@ -16,6 +16,14 @@ development of AI capabilities for hyperspectral images.
 This repository is aimed at companies, universities and private enthusiasts alike. Its objective is to provide a 
 foundation for the development of cutting-edge hyperspectral AI applications.
 
+## Architecture
+
+cuvis.ai has been architected as a modular system comprising a core framework and domain-specific catalog:
+
+- **[cuvis-ai-core](https://github.com/cubert-hyperspectral/cuvis-ai-core)**: Framework repository providing base `Node` class, pipeline orchestration, training infrastructure, gRPC services, and `NodeRegistry` with plugin loading capabilities
+- **cuvis-ai** (this repository): Catalog repository with domain-specific nodes for anomaly detection, preprocessing, band selection, and hyperspectral-specific algorithms
+
+The plugin system enables external nodes to be loaded dynamically from Git repositories or local filesystem paths via `NodeRegistry.load_plugins()`. This allows teams to develop custom nodes independently without modifying the catalog repository. Implementation includes repository split, plugin extension, test migration, and gRPC plugin management (Phases 1-4 complete).
 
 ## Installation
 
@@ -91,6 +99,119 @@ uv sync --locked --extra docs
 
 Combine extras as needed (e.g. `uv sync --locked --extra dev --extra docs`). Whenever the `pyproject.toml` or `uv.lock` changes, rerun `uv sync --locked` with the extras you need to stay up to date.
 
+## Available Built-in Nodes
+
+<details>
+<summary>Click to expand the full list of built-in nodes in cuvis-ai</summary>
+
+### Data Nodes
+- `LentilsAnomalyDataNode` - Lentils dataset data loader
+
+### Preprocessing Nodes
+- `BandpassByWavelength` - Spectral band filtering by wavelength range
+
+### Band Selection
+- `BaselineFalseRGBSelector` - RGB composite from predefined bands
+- `HighContrastBandSelector` - High-contrast band selection
+- `CIRFalseColorSelector` - Color infrared (CIR) false color composite
+- `SupervisedCIRBandSelector` - Supervised CIR band selection using Fisher scores and mRMR
+- `SupervisedWindowedFalseRGBSelector` - Supervised RGB selection with windowed band constraints
+- `SupervisedFullSpectrumBandSelector` - Supervised full-spectrum band selection
+
+### Channel Processing
+- `LearnableChannelMixer` - Trainable channel mixing with statistical initialization
+- `ConcreteBandSelector` - Differentiable band selection using Gumbel-Softmax (Concrete distribution)
+- `SoftChannelSelector` - Soft attention-based channel selection with temperature annealing
+- `TopKIndices` - Select top-k channel indices from weights
+
+### Dimensionality Reduction
+- `TrainablePCA` - Trainable PCA with statistical initialization and gradient-based updates
+
+### Anomaly Detection
+- `AdaCLIPLocalNode` - Local AdaCLIP model for anomaly detection
+- `AdaCLIPAPINode` - HuggingFace API-based AdaCLIP
+
+### Labels & Targets
+- `BinaryAnomalyLabelMapper` - Map class IDs to binary anomaly labels
+
+### Loss Nodes
+- `AnomalyBCEWithLogits` - Binary cross-entropy loss for anomaly detection
+- `MSEReconstructionLoss` - Mean squared error reconstruction loss
+- `OrthogonalityLoss` - Component orthogonality regularization
+- `DistinctnessLoss` - Band selection distinctness regularization
+- `SelectorEntropyRegularizer` - Entropy regularization for soft selectors
+- `SelectorDiversityRegularizer` - Diversity regularization for band selection
+- `DeepSVDDSoftBoundaryLoss` - Deep SVDD soft-boundary loss
+- `IoULoss` - Intersection over Union loss
+
+### Normalization Nodes
+- `IdentityNormalizer` - Pass-through (no normalization)
+- `MinMaxNormalizer` - Min-max normalization with optional running statistics
+- `SigmoidNormalizer` - Sigmoid-based normalization
+- `ZScoreNormalizer` - Z-score (standardization) normalization
+- `SigmoidTransform` - Sigmoid activation transform
+- `PerPixelUnitNorm` - Per-pixel L2 normalization
+
+### Metrics Nodes
+- `ExplainedVarianceMetric` - Track explained variance ratio (for PCA)
+- `AnomalyDetectionMetrics` - Precision, Recall, F1, IoU, AUC-ROC for anomaly detection
+- `ScoreStatisticsMetric` - Mean, std, min, max of anomaly scores
+- `ComponentOrthogonalityMetric` - Measure orthogonality of learned components
+- `SelectorEntropyMetric` - Entropy of channel selection weights
+- `SelectorDiversityMetric` - Diversity of selected channels
+
+### Visualization Nodes
+- `CubeRGBVisualizer` - RGB visualization from hyperspectral cube
+- `PCAVisualization` - Visualize PCA components
+- `AnomalyMask` - Binary anomaly mask visualization
+- `ScoreHeatmapVisualizer` - Anomaly score heatmap
+- `RGBAnomalyMask` - RGB overlay with predicted/ground-truth anomaly masks
+- `DRCNNTensorBoardViz` - DRCNN-specific TensorBoard visualizations
+
+### Monitoring
+- `TensorBoardMonitorNode` - Log metrics and artifacts to TensorBoard
+
+</details>
+
+## Contributed Nodes
+
+<details>
+<summary>Click to expand community-contributed plugin nodes</summary>
+
+### cuvis-ai-adaclip
+**Repository**: [cubert-hyperspectral/cuvis-ai-adaclip](https://github.com/cubert-hyperspectral/cuvis-ai-adaclip)
+
+AdaCLIP-based anomaly detection nodes with advanced band selection strategies for hyperspectral imaging. Provides nodes for baseline detection, supervised band selection using Fisher scores and mRMR, and various false-color composite generators (CIR, RGB, high-contrast).
+
+</details>
+
+## Contributing Custom Nodes via Plugins
+
+External teams can develop custom nodes without modifying this catalog repository:
+
+1. **Create a plugin repository** with your custom nodes (inherit from `cuvis_ai_core.node.Node`)
+2. **Configure plugin manifest** (`configs/plugins.yaml`) specifying Git repo/local path and provided node classes
+3. **Load plugins** via `NodeRegistry.load_plugins("plugins.yaml")` before pipeline building
+4. **Use in pipelines** by referencing plugin node class paths in your pipeline YAML configurations
+
+**Example plugin manifest:**
+```yaml
+plugins:
+  my_custom_nodes:
+    repo: "git@github.com:myorg/cuvis-custom-nodes.git"
+    ref: "v1.0.0"
+    provides:
+      - my_custom_nodes.MyCustomDetector
+      - my_custom_nodes.MyPreprocessor
+```
+
+See [cuvis-ai-core plugin documentation](https://github.com/cubert-hyperspectral/cuvis-ai-core) for detailed plugin development guide.
+
+## Documentation
+
+- **[tests/README.md](tests/README.md)** - Test fixtures guide and pytest patterns
+- **[examples/grpc/readme.md](examples/grpc/readme.md)** - gRPC client examples and workflow guide
+- **[cuvis-ai-core](https://github.com/cubert-hyperspectral/cuvis-ai-core)** - Framework repository with plugin system documentation
 
 ## Release Notes
 
