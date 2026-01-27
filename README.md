@@ -23,7 +23,7 @@ cuvis.ai has been architected as a modular system comprising a core framework an
 - **[cuvis-ai-core](https://github.com/cubert-hyperspectral/cuvis-ai-core)**: Framework repository providing base `Node` class, pipeline orchestration, training infrastructure, gRPC services, and `NodeRegistry` with plugin loading capabilities
 - **cuvis-ai** (this repository): Catalog repository with domain-specific nodes for anomaly detection, preprocessing, band selection, and hyperspectral-specific algorithms
 
-The plugin system enables external nodes to be loaded dynamically from Git repositories or local filesystem paths via `NodeRegistry.load_plugins()`. This allows teams to develop custom nodes independently without modifying the catalog repository. Implementation includes repository split, plugin extension, test migration, and gRPC plugin management (Phases 1-4 complete).
+The plugin system enables external nodes to be loaded dynamically from Git repositories or local filesystem paths via `NodeRegistry.load_plugins()`. This allows teams to develop custom nodes independently without modifying the catalog repository.
 
 ## Installation
 

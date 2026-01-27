@@ -14,35 +14,48 @@
 - Import pattern change: `from cuvis_ai_core.* import ...` for framework components
 
 ## V0.2.2
-- **Restoration Utilities Refactoring**: Consolidated `restore_pipeline()` and `restore_trainrun()` functionality into `cuvis_ai.utils.restore` module for better discoverability and reusability
-- **Smart TrainRun Restoration**: Single `restore_trainrun()` function auto-detects and handles both gradient and statistical training workflows
-- **CLI Scripts**: Added `uv run restore-pipeline` and `uv run restore-trainrun` commands to `pyproject.toml` for direct CLI usage
-- **Removed Duplication**: Eliminated separate example scripts (`restore_pipeline.py`, `restore_trainrun.py`, `restore_trainrun_statistical.py`) in favor of library utilities
-- **Updated Documentation**: Created consolidated `restore_pipeline.md` guide in root directory with examples using new CLI commands and Python API
-- **Python API**: Functions available via `from cuvis_ai.utils import restore_pipeline, restore_trainrun`
+- Restoration utilities consolidated into `cuvis_ai.utils.restore` for pipeline and trainrun recovery
+- `restore_trainrun()` auto-detects statistical vs gradient workflows and restores the appropriate trainer state
+- CLI entry points added: `uv run restore-pipeline` and `uv run restore-trainrun`
+- Removed duplicate example scripts in favor of library utilities
+- New `restore_pipeline.md` guide with CLI and Python API examples
+- Python API surface standardized: `from cuvis_ai.utils import restore_pipeline, restore_trainrun`
 
 ## V0.2.1
-- Refactored monolithic `service.py` (1,775 lines) into 8 modular service components with delegation pattern
-- SessionService, ConfigService, PipelineService, TrainingService, TrainRunService, InferenceService, IntrospectionService, DiscoveryService
-- Chnages in the RPCs: `ResolveConfig`, `GetParameterSchema`, `ValidateConfig`, `BuildPipeline`, `LoadPipelineWeights`, `SetTrainRunConfig`, `GetTrainingCapabilities`, `ValidateTrainingConfig`, `SetSessionSearchPaths`
-- Introduced explicit 4-step workflow (CreateSession → BuildPipeline → SetTrainRunConfig → Train)
-- Server-side Hydra composition with `@package _global_` structure, dynamic schema validation
-- Change of Terminology: `Experiment` → `TrainRun` (SaveTrainRun/RestoreTrainRun replace SaveExperiment/RestoreExperiment)
-- 596 tests passing, 65% coverage, comprehensive performance benchmarks
-- All 13 gRPC examples updated to new ResolveConfig pattern with proper Hydra composition
+- Pydantic v2 config models as the single source of truth with validation, JSON Schema introspection, and JSON/proto serialization
+- Standardized config transport across pipeline/data/training/trainrun via `config_bytes` and a central config registry
+- Server-side Hydra composition with session-scoped search paths and overrides (`ResolveConfig`, `ValidateConfig`, `GetParameterSchema`, `SetSessionSearchPaths`)
+- Explicit 4-step workflow: CreateSession → (ResolveConfig/Build or Load) Pipeline → SetTrainRunConfig → Train
+- Terminology update: Experiment → TrainRun across configs, RPCs, paths, and examples
+- gRPC service refactor into modular components (Session/Config/Pipeline/Training/TrainRun/Inference/Introspection/Discovery)
+- RPC surface updated for the new workflow: `ResolveConfig`, `GetParameterSchema`, `ValidateConfig`, `BuildPipeline`, `LoadPipelineWeights`, `SetTrainRunConfig`, `GetTrainingCapabilities`
+- Tests and examples updated for the new config resolution flow (596 tests passing, 65% coverage, performance benchmarks)
 
-### V0.2.0
-- Added YAML-driven Pipeline/Pipeline configuration with OmegaConf interpolation and versioned schema compatibility so pipelines are rebuilt directly from config files instead of hardcoded graphs.
-- Introduced a hybrid NodeRegistry: built-in nodes stay O(1) lookup while custom nodes are auto-loaded via `importlib`, removing manual registration steps.
-- Implemented end-to-end pipeline serialization: atomic save/load to a single `.pt` bundle, deterministic counter-based artifact naming, and persisted optimizer/scheduler states alongside model weights/metadata.
-- gRPC API breaking changes: `CreateSession` now takes `CanvasConfig` (replacing `pipeline_type`), `Train` requires explicit `DataConfig` + `TrainingConfig`, pipeline discovery/management/experiment RPCs were added, and SaveCheckpoint/LoadCheckpoint were removed.
-- Reorganized structure: new `configs/` directory for pipeline/experiment/data configs, core modules renamed from "pipeline" to "pipeline", added serialization examples, and enabled git hooks for pre-commit/pre-push.
-- Expanded tests and docs to cover the new configuration/serialization paths with updated fixtures, helpers, API docs, and examples across workflows.
+## V0.2.0
+- YAML-driven canvas configuration with OmegaConf interpolation; CanvasBuilder builds pipelines from config files
+- Hybrid NodeRegistry (built-ins + importlib) for custom nodes and pluggable pipelines
+- End-to-end canvas serialization: YAML structure + single `.pt` weights file, atomic save/load, counter-based naming
+- Version/schema compatibility guards on load, with optional strict checks and clear mismatch errors
+- gRPC API changes: CreateSession uses CanvasConfig (`config_bytes`), Train requires DataConfig + TrainingConfig
+- Canvas management and discovery RPCs added; SaveCanvas/LoadCanvas replace SaveCheckpoint/LoadCheckpoint
+- Canvas path resolution helpers (short names, auto `.yaml`, `CUVIS_CANVAS_DIR` base directory)
+- Node state management simplified to `state_dict()` + buffers/parameters; avoid custom serialize/load patterns
+- Usage guides added for node serialization and canvas/experiment lifecycle with optimizer/scheduler state and metadata
 
 ## V0.1.5
-- Introduced the gRPC service stack (`cuvis_ai/grpc/*`) with proto definitions, session management, callbacks, helpers, and the production server wiring.
-- Added generated protobuf stubs plus Buf config, containerization assets (`Dockerfile`, `docker-compose.yml`, `.env.example`), and onboarding updates in `README.md`/`CONTRIBUTING.md`.
-- Documented the gRPC surface and deployment (`docs/api/grpc_api.md`, `docs/deployment/grpc_deployment.md`) alongside the detailed blueprint/implementation notes under `docs_dev/cubert/ALL_4917/*`.
-- Expanded automated coverage with comprehensive gRPC and pipeline tests (`tests/grpc_api/*`, updated pipeline/training tests) and supporting fixtures.
-- Refined pipeline/node logic (selector, losses, metrics, pipeline, dataset handling, training config) and removed outdated torch example scripts in favor of the new API flows.
-- Consolidated pytest fixtures: standardized on `channel_selector`, introduced `session`/`trained_session` factories, added reusable helpers (`pipeline_factory`, `data_config_factory`, `mock_pipeline_dir`, `test_data_files`), and reduced duplicate fixture definitions across gRPC tests.
+- Introduced the gRPC service stack with proto definitions and Buf Schema Registry for cross-language codegen
+- Generated Python stubs, Buf configs, and proto conversion helpers (numpy/tensor <-> proto)
+- Session management and CanvasBuilder with hardcoded pipelines for channel selector, statistical, and gradient workflows
+- File-based data access via DataConfig and two-phase training (statistical init → gradient fine-tuning)
+- Output selection via `output_specs` and streaming training progress; inference and training RPCs wired end-to-end
+- Pipeline introspection RPCs (inputs/outputs/visualization) plus deterministic counter-based node naming
+- Examples and test suites for gRPC inference/training/introspection; deployment assets and docs updated
+
+## V0.1.3
+- Release date: 2025-11-06
+- Port-based typed I/O system with `PortSpec`, `InputPort`, `OutputPort`, and dimension resolution
+- Nodes declare `INPUT_SPECS`/`OUTPUT_SPECS` with auto-created ports and multi-input/output support
+- Graph connection API uses port objects, a MultiDiGraph source of truth, auto-add nodes, and connection-time validation
+- Executor refactor for port-based routing, stage-aware execution, batch distribution, and variadic ports
+- Training integration with Lightning, context-aware execution, and preserved gradients across the graph
+- Core and training nodes migrated to typed I/O with updated examples and tests

@@ -9,6 +9,7 @@ def _flatten_bhwc(x: torch.Tensor) -> torch.Tensor:
     B, H, W, C = x.shape
     return x.view(B, H * W, C)
 
+
 # ---------- Shared base ----------
 class RXBase(Node):
     """Base class for RX anomaly detectors."""

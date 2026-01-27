@@ -4,7 +4,7 @@ from cuvis_ai_core.utils.node_registry import NodeRegistry
 from cuvis_ai_core.utils.plugin_config import PluginManifest
 
 
-def main():
+def main() -> None:
     """Demonstrate plugin loading and usage."""
     print("=== NodeRegistry Plugin System Example ===\n")
 
@@ -13,10 +13,10 @@ def main():
 
     # Load a local plugin (assuming it exists)
     try:
-        NodeRegistry.load_plugin("example_plugin", {
-            "path": "../examples/test_plugin",
-            "provides": ["test_plugin.ExampleNode"]
-        })
+        NodeRegistry.load_plugin(
+            "example_plugin",
+            {"path": "../examples/test_plugin", "provides": ["test_plugin.ExampleNode"]},
+        )
         print("✓ Plugin loaded successfully")
     except Exception as e:
         print(f"✗ Plugin loading failed: {e}")
@@ -48,14 +48,11 @@ def main():
     manifest_data = {
         "plugins": {
             "adaclip": {
-                "repo": "git@gitlab.cubert.local:cubert/cuvis-ai-adaclip.git",
+                "repo": "git@github.com:cubert-hyperspectral/cuvis-ai-adaclip.git",
                 "ref": "v0.1.0",
-                "provides": ["cuvis_ai_adaclip.node.AdaCLIPDetector"]
+                "provides": ["cuvis_ai_adaclip.node.AdaCLIPDetector"],
             },
-            "local_dev": {
-                "path": "../my-plugin",
-                "provides": ["my_plugin.MyNode"]
-            }
+            "local_dev": {"path": "../my-plugin", "provides": ["my_plugin.MyNode"]},
         }
     }
 
@@ -72,6 +69,7 @@ def main():
     print("✓ All plugins cleared")
 
     print("\n=== Example Complete ===")
+
 
 if __name__ == "__main__":
     main()
