@@ -457,7 +457,7 @@ docs = [
 [package.metadata]
 requires-dist = [
     { name = "cuvis", specifier = "==3.5.0" },
-    { name = "cuvis-ai-core", editable = "../cuvis-ai-core" },
+    { name = "cuvis-ai-core", git = "https://github.com/cubert-hyperspectral/cuvis-ai-core.git?tag=v0.1.1" },
     { name = "dotenv", specifier = ">=0.9.9" },
     { name = "ftfy", specifier = ">=6.1.1" },
     { name = "gitpython", specifier = ">=3.1.40" },
@@ -502,7 +502,8 @@ provides-extras = ["docs", "dev"]
 
 [[package]]
 name = "cuvis-ai-core"
-source = { editable = "../cuvis-ai-core" }
+version = "0.1.1"
+source = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-core.git?tag=v0.1.1#d8b37361cb5ffdde8e4879203dd2682053139ea6" }
 dependencies = [
     { name = "cuvis" },
     { name = "dataclass-wizard" },
@@ -528,46 +529,6 @@ dependencies = [
     { name = "torchvision" },
     { name = "typing-extensions" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "cuvis", specifier = "==3.5.0" },
-    { name = "dataclass-wizard" },
-    { name = "dotenv", specifier = ">=0.9.9" },
-    { name = "gdown", specifier = ">=5.2.1" },
-    { name = "gitpython", specifier = ">=3.1.40" },
-    { name = "graphviz", specifier = ">=0.21" },
-    { name = "grpcio", specifier = ">=1.56.0" },
-    { name = "grpcio-health-checking", specifier = ">=1.56.0" },
-    { name = "hydra-core", specifier = ">=1.3.0" },
-    { name = "ipdb", marker = "extra == 'dev'", specifier = ">=0.13.13" },
-    { name = "ipykernel", marker = "extra == 'dev'" },
-    { name = "ipympl", marker = "extra == 'dev'", specifier = ">=0.9.8" },
-    { name = "jupyterlab", marker = "extra == 'dev'" },
-    { name = "loguru", specifier = ">=0.7.0" },
-    { name = "numpy", specifier = ">=1.21.0" },
-    { name = "omegaconf", specifier = ">=2.3.0" },
-    { name = "pillow", specifier = ">=9.0.0" },
-    { name = "protobuf", specifier = ">=6.33.4" },
-    { name = "psutil", marker = "extra == 'dev'" },
-    { name = "pycocotools", specifier = ">=2.0.11" },
-    { name = "pydantic", specifier = ">=2.12.5" },
-    { name = "pytest", marker = "extra == 'dev'" },
-    { name = "pytest", marker = "extra == 'test'", specifier = ">=7.0.0" },
-    { name = "pytest-asyncio", marker = "extra == 'test'", specifier = ">=0.21.0" },
-    { name = "pytest-cov", marker = "extra == 'dev'" },
-    { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=4.0.0" },
-    { name = "pytest-mock", marker = "extra == 'test'", specifier = ">=3.10.0" },
-    { name = "pytorch-lightning", specifier = ">=2.6.0" },
-    { name = "pyyaml", specifier = ">=6.0" },
-    { name = "ruff", specifier = ">=0.14.11" },
-    { name = "ruff", marker = "extra == 'dev'" },
-    { name = "scikit-image", specifier = ">=0.25.2" },
-    { name = "torch", specifier = ">=2.9.1", index = "https://download.pytorch.org/whl/cu128" },
-    { name = "torchvision", index = "https://download.pytorch.org/whl/cu128" },
-    { name = "typing-extensions", specifier = ">=4.0.0" },
-]
-provides-extras = ["dev", "test"]
 
 [[package]]
 name = "cuvis-il"
