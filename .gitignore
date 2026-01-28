@@ -198,3 +198,5 @@ experiments/
 *.pt
 /.venv-adaclip-test/
 !configs/pipeline/channel_selector.pt
+configs/**/*.png
+.claude/

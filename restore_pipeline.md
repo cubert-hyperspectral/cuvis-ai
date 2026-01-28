@@ -137,6 +137,7 @@ uv run restore-pipeline \
 
 ```python
 from cuvis_ai.utils import restore_pipeline
+from cuvis_ai_core.utils.restore import PipelineVisFormat
 
 # Load pipeline and display specs
 pipeline = restore_pipeline(
@@ -149,6 +150,12 @@ pipeline = restore_pipeline(
     cu3s_file_path="data/lentils/test_measurements.cu3s",
     processing_mode="Reflectance"
 )
+
+# Load pipeline and export visualization
+pipeline = restore_pipeline(
+    pipeline_path="outputs/channel_selector/trained_models/Channel_Selector.yaml",
+    pipeline_vis_ext=PipelineVisFormat.PNG
+)
 ```
 
 ### Parameters
@@ -158,6 +165,7 @@ pipeline = restore_pipeline(
 - `--device` (optional): Device to use (`auto`, `cpu`, `cuda`)
 - `--cu3s-file-path` (optional): Path to .cu3s file for inference
 - `--processing-mode` (optional): Processing mode (`Raw`, `Reflectance`)
+- `--pipeline-vis-ext` (optional): Export pipeline visualization (`png` for rendered image, `md` for Mermaid markdown)
 - `--override` (optional): Override config values (can be used multiple times)
 
 ### Config Overrides Example
@@ -169,6 +177,188 @@ uv run restore-pipeline \
   --pipeline-path outputs/channel_selector/trained_models/Channel_Selector.yaml \
   --override nodes.10.params.output_dir=outputs/custom_tb
 ```
+
+### Pipeline Visualization
+
+Export pipeline visualizations alongside the YAML file:
+
+**Export as PNG (Graphviz rendered image):**
+
+```bash
+uv run restore-pipeline \
+  --pipeline-path outputs/channel_selector/trained_models/Channel_Selector.yaml \
+  --pipeline-vis-ext png
+```
+
+This creates `Channel_Selector.png` next to the YAML file.
+
+**Export as Markdown (Mermaid diagram):**
+
+```bash
+uv run restore-pipeline \
+  --pipeline-path outputs/channel_selector/trained_models/Channel_Selector.yaml \
+  --pipeline-vis-ext md
+```
+
+This creates `Channel_Selector.md` next to the YAML file.
+
+**Note:** PNG generation requires Graphviz to be installed on your system.
+
+---
+
+## Loading External Plugins
+
+The cuvis.ai framework supports loading external plugin nodes that extend pipeline capabilities. When loading plugins, **dependencies are automatically installed** to ensure plugins work out of the box.
+
+### Plugin Configuration
+
+Plugins are specified in a YAML manifest file (e.g., `plugins.yaml`):
+
+```yaml
+plugins:
+  adaclip:
+    # For local development
+    path: "D:/code-repos/cuvis-ai-adaclip"
+    provides:
+      - cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
+  
+  # Or for production (Git repository)
+  # adaclip:
+  #   repo: "https://github.com/cubert-hyperspectral/cuvis-ai-adaclip.git"
+  #   ref: "v1.2.3"
+  #   provides:
+  #     - cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
+```
+
+### Automatic Dependency Management
+
+When a plugin is loaded:
+
+1. **Dependency Detection**: Reads `pyproject.toml` from plugin directory (PEP 621 compliant)
+2. **Automatic Installation**: Installs missing dependencies via `uv pip install`
+3. **Conflict Resolution**: Delegates version conflict resolution to `uv`
+4. **Transparent Process**: Logs what dependencies are being installed
+
+**Requirements:**
+- Plugin **must** have a `pyproject.toml` file following [PEP 621](https://peps.python.org/pep-0621/)
+- Plugin dependencies specified in `project.dependencies` section
+
+### Using Plugins with CLI
+
+Load external plugins when restoring pipelines:
+
+```bash
+uv run restore-pipeline \
+  --pipeline-path configs/pipeline/adaclip_baseline.yaml \
+  --plugins-path examples/adaclip/plugins_local.yaml
+```
+
+With inference:
+
+```bash
+uv run restore-pipeline \
+  --pipeline-path configs/pipeline/adaclip_baseline.yaml \
+  --plugins-path examples/adaclip/plugins.yaml \
+  --cu3s-file-path data/Lentils/Lentils_000.cu3s
+```
+
+### Using Plugins with Python API
+
+```python
+from cuvis_ai_core.utils import restore_pipeline
+
+# Load pipeline with plugins
+pipeline = restore_pipeline(
+    pipeline_path="configs/pipeline/adaclip_baseline.yaml",
+    plugins_path="examples/adaclip/plugins.yaml"
+)
+
+# Or with inference
+pipeline = restore_pipeline(
+    pipeline_path="configs/pipeline/adaclip_baseline.yaml",
+    plugins_path="examples/adaclip/plugins.yaml",
+    cu3s_file_path="data/Lentils/Lentils_000.cu3s"
+)
+```
+
+### Manual Plugin Loading (Advanced)
+
+For more control, load plugins manually with NodeRegistry:
+
+```python
+from cuvis_ai_core.utils.node_registry import NodeRegistry
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+
+# Create registry instance
+registry = NodeRegistry()
+
+# Load plugins (automatically installs dependencies)
+registry.load_plugins("examples/adaclip/plugins.yaml")
+
+# Load pipeline with plugin-aware registry
+pipeline = CuvisPipeline.load_pipeline(
+    "configs/pipeline/adaclip_baseline.yaml",
+    node_registry=registry
+)
+```
+
+### Example Output
+
+When loading a plugin with dependencies:
+
+```
+INFO | Using local plugin 'adaclip' at D:\code-repos\cuvis-ai-adaclip
+DEBUG | Extracted 6 dependencies from pyproject.toml
+INFO | Installing 6 dependencies for plugin 'adaclip'...
+INFO | Dependencies to install: cuvis==3.5.0, cuvis-ai, cuvis-ai-core, ftfy, seaborn, click
+INFO | ✓ Plugin 'adaclip' dependencies installed successfully
+DEBUG | Registered plugin node 'AdaCLIPDetector' from 'adaclip'
+INFO | Loaded plugin 'adaclip' with 1 nodes
+```
+
+### Plugin Development Guidelines
+
+For your plugin to work with automatic dependency management:
+
+1. **Include `pyproject.toml`** in plugin root directory
+2. **Specify dependencies** in `project.dependencies`:
+   ```toml
+   [project]
+   name = "my-plugin"
+   dependencies = [
+       "numpy>=1.20.0",
+       "pandas>=1.5.0",
+       "scikit-learn>=1.0.0",
+   ]
+   ```
+3. **Follow PEP 621** standard for project metadata
+4. **Test locally** before deploying to Git
+
+### Troubleshooting Plugins
+
+**Missing pyproject.toml:**
+```
+FileNotFoundError: Plugin 'my-plugin' must have a pyproject.toml file.
+PEP 621 (https://peps.python.org/pep-0621/) specifies pyproject.toml 
+as the standard for Python project metadata and dependencies.
+```
+→ Add a `pyproject.toml` file to your plugin root directory
+
+**Dependency Conflicts:**
+```
+RuntimeError: Failed to install dependencies for plugin 'my-plugin'.
+This may indicate version conflicts or missing packages.
+uv could not resolve the dependency tree.
+```
+→ Review dependency version constraints in your `pyproject.toml`
+→ Check for conflicts with main environment dependencies
+
+**Plugin Import Errors:**
+```
+ImportError: Failed to import module for 'my_plugin.node.MyNode': No module named 'some_package'
+```
+→ Ensure the package is listed in your plugin's `pyproject.toml` dependencies
+→ Check that `uv pip install` completed successfully
 
 ---
 
@@ -357,7 +547,27 @@ uv run restore-pipeline \
   --cu3s-file-path data/production/sample_001.cu3s
 ```
 
-### Example 4: Evaluation on Different Splits
+### Example 4: Pipeline Visualization and Documentation
+
+```bash
+# Generate PNG visualization for documentation
+uv run restore-pipeline \
+  --pipeline-path outputs/channel_selector/trained_models/Channel_Selector.yaml \
+  --pipeline-vis-ext png
+
+# Generate Markdown diagram for README
+uv run restore-pipeline \
+  --pipeline-path configs/pipeline/adaclip_baseline.yaml \
+  --pipeline-vis-ext md
+
+# Combine with inference
+uv run restore-pipeline \
+  --pipeline-path outputs/channel_selector/trained_models/Channel_Selector.yaml \
+  --cu3s-file-path data/production/sample_001.cu3s \
+  --pipeline-vis-ext png
+```
+
+### Example 5: Evaluation on Different Splits
 
 ```bash
 # Validate on validation set
@@ -371,7 +581,7 @@ uv run restore-trainrun \
   --mode test
 ```
 
-### Example 5: Cross-Device Training
+### Example 6: Cross-Device Training
 
 ```bash
 # Train on GPU
@@ -387,7 +597,7 @@ uv run restore-pipeline \
   --cu3s-file-path data/test.cu3s
 ```
 
-### Example 6: Statistical-Only TrainRun
+### Example 7: Statistical-Only TrainRun
 
 ```bash
 # Train a statistical-only pipeline

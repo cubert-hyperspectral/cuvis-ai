@@ -17,11 +17,7 @@ from pathlib import Path
 
 import hydra
 import torch
-from loguru import logger
-from omegaconf import DictConfig, OmegaConf
-
 from cuvis_ai_core.data.datasets import SingleCu3sDataModule
-from cuvis_ai_core.utils.node_registry import NodeRegistry
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_core.training import GradientTrainer
 from cuvis_ai_core.training.config import (
@@ -32,6 +28,9 @@ from cuvis_ai_core.training.config import (
     TrainingConfig,
     TrainRunConfig,
 )
+from cuvis_ai_core.utils.node_registry import NodeRegistry
+from loguru import logger
+from omegaconf import DictConfig, OmegaConf
 
 from cuvis_ai.deciders.two_stage_decider import TwoStageBinaryDecider
 from cuvis_ai.node.concrete_selector import ConcreteBandSelector
@@ -56,18 +55,18 @@ def main(cfg: DictConfig) -> None:
 
     # Load AdaCLIP plugin from GitLab repository
     logger.info("Loading AdaCLIP plugin from GitLab repository...")
-    
+
     # Create a NodeRegistry instance for plugin loading
     registry = NodeRegistry()
     registry.load_plugin(
         name="adaclip",
         config={
-            "repo": "git@gitlab.cubert.local:cubert/cuvis-ai-adaclip.git",
-            "ref": "v0.1.0",  # Tagged release for production stability
-            "provides": ["cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector"]
-        }
+            "repo": "https://github.com/cubert-hyperspectral/cuvis-ai-adaclip.git",
+            "tag": "v0.1.0",  # Tagged release for production stability
+            "provides": ["cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector"],
+        },
     )
-    
+
     # For local development, comment out above and use:
     # registry.load_plugin(
     #     name="adaclip",
@@ -76,11 +75,10 @@ def main(cfg: DictConfig) -> None:
     #         "provides": ["cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector"]
     #     }
     # )
-    
+
     # Get the AdaCLIPDetector class from the registry (class method works for both built-ins and plugins)
     AdaCLIPDetector = NodeRegistry.get("cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector")
     logger.info("✓ AdaCLIP plugin loaded successfully")
-
 
     output_dir = Path(cfg.output_dir)
 

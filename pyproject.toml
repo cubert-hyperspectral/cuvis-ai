@@ -29,12 +29,10 @@ dependencies = [
     # Core framework dependencies
     "torch>=2.9.1",
     "torchvision",
-    
     "torchmetrics",
     "pytorch-lightning",
     "tzdata; sys_platform == 'win32'",
     "loguru>=0.7.3",
-    "graphviz>=0.21",
     "packaging>=23.0",
     "omegaconf>=2.3.0",
     "hydra-core",
@@ -57,8 +55,8 @@ classifiers = [
 
 [project.scripts]
 create-stubs = "tools.generate_node_port_stubs:main"
-restore-pipeline = "cuvis_ai.utils.restore:restore_pipeline_cli"
-restore-trainrun = "cuvis_ai.utils.restore:restore_trainrun_cli"
+restore-pipeline = "cuvis_ai_core.utils.restore:restore_pipeline_cli"
+restore-trainrun = "cuvis_ai_core.utils.restore:restore_trainrun_cli"
 
 [project.optional-dependencies]
 docs = [
@@ -96,8 +94,8 @@ include = ["cuvis_ai*", "tools*"]
 [tool.uv.sources]
 torch = { index = "pytorch-cu128" }
 torchvision = { index = "pytorch-cu128" }
-#cuvis-ai-core = { path = "../cuvis-ai-core", editable = true }
-cuvis-ai-core = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-core.git", tag = "v0.1.0" }
+# cuvis-ai-core = { path = "../cuvis-ai-core", editable = true }
+cuvis-ai-core = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-core.git", tag = "v0.1.1" }
 
 
 [tool.setuptools_scm]

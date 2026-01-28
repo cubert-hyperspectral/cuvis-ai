@@ -1,15 +1,16 @@
 import os
+import tempfile
 from typing import Any
 
 import numpy as np
 import torch
+from cuvis_ai_core.node.huggingface import HuggingFaceAPINode, HuggingFaceLocalNode
+from cuvis_ai_core.pipeline.ports import PortSpec
 from gradio_client import handle_file
 from loguru import logger
 from PIL import Image
 from torch import Tensor
 from transformers import CLIPVisionModel
-
-from cuvis_ai_core.node.huggingface import HuggingFaceAPINode, HuggingFaceLocalNode
 
 
 class AdaCLIPLocalNode(HuggingFaceLocalNode):
