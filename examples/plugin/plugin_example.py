@@ -48,8 +48,8 @@ def main() -> None:
     manifest_data = {
         "plugins": {
             "adaclip": {
-                "repo": "git@github.com:cubert-hyperspectral/cuvis-ai-adaclip.git",
-                "ref": "v0.1.0",
+                "repo": "https://github.com/cubert-hyperspectral/cuvis-ai-adaclip.git",
+                "tag": "v0.1.0",
                 "provides": ["cuvis_ai_adaclip.node.AdaCLIPDetector"],
             },
             "local_dev": {"path": "../my-plugin", "provides": ["my_plugin.MyNode"]},

@@ -13,8 +13,9 @@
 ## For production deployment from Git repository:
 plugins:
   adaclip:
-    repo: "git@github.com:cubert-hyperspectral/cuvis-ai-adaclip.git"
-    ref: "v0.1.0"  # Tagged release for production stability
+    repo: "https://github.com/cubert-hyperspectral/cuvis-ai-adaclip.git"
+    tag: "v0.1.1"  
+    # path: "D:/code-repos/cuvis-ai-adaclip"  # Local path for development"
     provides:
       - cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
 
@@ -22,7 +23,7 @@ plugins:
 # plugins:
 #   adaclip:
 #     repo: "https://github.com/cubert-hyperspectral/cuvis-ai-adaclip.git"
-#     ref: "v1.0.0"  # Use version tag for production
+#     tag: "v1.0.0"  # Use version tag for production
 #     provides:
 #       - cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
 

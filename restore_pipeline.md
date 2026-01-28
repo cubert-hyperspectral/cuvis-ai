@@ -224,7 +224,7 @@ plugins:
   
   # Or for production (Git repository)
   # adaclip:
-  #   repo: "git@github.com:cubert-hyperspectral/cuvis-ai-adaclip.git"
+  #   repo: "https://github.com/cubert-hyperspectral/cuvis-ai-adaclip.git"
   #   ref: "v1.2.3"
   #   provides:
   #     - cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector

@@ -60,8 +60,8 @@ def main(cfg: DictConfig) -> None:
         registry.load_plugin(
             name="adaclip",
             config={
-                "repo": "git@github.com:cubert-hyperspectral/cuvis-ai-adaclip.git",
-                "ref": "v0.1.0",  # Tagged release for production stability
+                "repo": "https://github.com/cubert-hyperspectral/cuvis-ai-adaclip.git",
+                "tag": "v0.1.0",  # Tagged release for production stability
                 "provides": ["cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector"],
             },
         )
