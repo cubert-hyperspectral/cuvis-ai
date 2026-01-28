@@ -137,7 +137,7 @@ uv run restore-pipeline \
 
 ```python
 from cuvis_ai.utils import restore_pipeline
-from cuvis_ai.utils.restore import PipelineVisFormat
+from cuvis_ai_core.utils.restore import PipelineVisFormat
 
 # Load pipeline and display specs
 pipeline = restore_pipeline(
