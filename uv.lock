@@ -565,7 +565,7 @@ docs = [
 [package.metadata]
 requires-dist = [
     { name = "bandit", extras = ["toml"], marker = "extra == 'dev'", specifier = ">=1.7.0" },
-    { name = "cuvis", specifier = "==3.5.0" },
+    { name = "cuvis", specifier = ">=3.5.0" },
     { name = "cuvis-ai-core", specifier = ">=0.1.2" },
     { name = "cuvis-ai-schemas", extras = ["full"], specifier = ">=0.1.0" },
     { name = "cyclonedx-bom", marker = "extra == 'dev'", specifier = ">=4.0.0" },
