@@ -8,8 +8,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from cuvis_ai_core.node import Node
-from cuvis_ai_core.pipeline.ports import PortSpec
-from cuvis_ai_core.utils.types import ExecutionStage
+from cuvis_ai_schemas.enums import ExecutionStage
+from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
 
 
@@ -242,7 +242,7 @@ class MSEReconstructionLoss(LossNode):
             Reconstructed data
         target : Tensor
             Target for reconstruction
-        **kwargs
+        **_ : Any
             Additional arguments (e.g., context) - ignored but accepted for compatibility
 
         Returns
@@ -518,6 +518,31 @@ class DeepSVDDSoftBoundaryLoss(LossNode):
         self.r_unconstrained = nn.Parameter(torch.tensor(0.0))
 
     def forward(self, embeddings: Tensor, center: Tensor, **_: Any) -> dict[str, Tensor]:
+        """Compute Deep SVDD soft-boundary loss.
+
+        The loss consists of the hypersphere radius R² plus a slack penalty
+        for points outside the hypersphere. The radius R is learned via
+        an unconstrained parameter with softplus activation.
+
+        Parameters
+        ----------
+        embeddings : Tensor
+            Embedded feature representations [B, H, W, D] from the network.
+        center : Tensor
+            Center of the hypersphere [D] computed during initialization.
+        **_ : Any
+            Additional unused keyword arguments.
+
+        Returns
+        -------
+        dict[str, Tensor]
+            Dictionary with "loss" key containing the scalar loss value.
+
+        Notes
+        -----
+        The loss formula is: loss = weight * (R² + (1/ν) * mean(ReLU(dist - R²)))
+        where dist is the squared distance from embeddings to the center.
+        """
         B, H, W, D = embeddings.shape
         z = embeddings.reshape(B * H * W, D)
         R = torch.nn.functional.softplus(self.r_unconstrained, beta=10.0)

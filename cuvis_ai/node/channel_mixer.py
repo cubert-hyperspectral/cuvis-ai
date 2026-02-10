@@ -16,8 +16,8 @@ from typing import Any, Literal
 import torch
 import torch.nn as nn
 from cuvis_ai_core.node import Node
-from cuvis_ai_core.pipeline.ports import PortSpec
-from cuvis_ai_core.utils.types import Context, InputStream
+from cuvis_ai_schemas.execution import Context, InputStream
+from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
 
 

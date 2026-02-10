@@ -1,0 +1,53 @@
+version: 2
+updates:
+  # GitHub Actions updates
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+
+  # Python dependencies updates
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "python"
+    groups:
+      # Group minor and patch updates to reduce noise
+      development-dependencies:
+        patterns:
+          - "ruff"
+          - "pytest*"
+          - "interrogate"
+          - "twine"
+          - "pip-audit"
+          - "bandit"
+          - "detect-secrets"
+        update-types:
+          - "minor"
+          - "patch"
+
+      documentation-dependencies:
+        patterns:
+          - "mkdocs*"
+          - "mike"
+        update-types:
+          - "minor"
+          - "patch"
+
+    # Ignore specific dependencies
+    ignore:
+      # PyTorch needs manual updates due to CUDA compatibility
+      - dependency-name: "torch"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "torchvision"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]

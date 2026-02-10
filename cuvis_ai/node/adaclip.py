@@ -1,15 +1,33 @@
+"""
+AdaCLIP Anomaly Detection Nodes.
+
+This module provides nodes for zero-shot anomaly detection using the AdaCLIP
+(Adaptive CLIP) model. Two implementations are available:
+
+- AdaCLIPLocalNode: Loads and runs the CLIP vision model locally for inference
+- AdaCLIPAPINode: Calls the AdaCLIP HuggingFace Space API for inference
+
+AdaCLIP uses CLIP's vision features to detect anomalies based on text prompts,
+enabling zero-shot anomaly detection without training data.
+
+See Also
+--------
+cuvis_ai_core.node.huggingface : Base classes for HuggingFace model nodes
+"""
+
 import os
+import tempfile
 from typing import Any
 
 import numpy as np
 import torch
+from cuvis_ai_core.node.huggingface import HuggingFaceAPINode, HuggingFaceLocalNode
+from cuvis_ai_schemas.pipeline import PortSpec
 from gradio_client import handle_file
 from loguru import logger
 from PIL import Image
 from torch import Tensor
 from transformers import CLIPVisionModel
-
-from cuvis_ai_core.node.huggingface import HuggingFaceAPINode, HuggingFaceLocalNode
 
 
 class AdaCLIPLocalNode(HuggingFaceLocalNode):
@@ -111,6 +129,37 @@ class AdaCLIPLocalNode(HuggingFaceLocalNode):
         context: Any | None = None,  # context captured for pipeline compatibility
         **kwargs: Any,
     ) -> dict[str, Tensor]:
+        """Run AdaCLIP anomaly detection with local CLIP model.
+
+        Processes images through CLIP vision encoder and generates anomaly
+        scores based on feature norms. Supports gradient passthrough for
+        training pipelines.
+
+        Parameters
+        ----------
+        image : Tensor
+            RGB image [B, H, W, 3] in range [0, 1] or [0, 255].
+        text_prompt : str, optional
+            Text description for anomaly detection. If None, uses self.text_prompt.
+            Note: Current implementation uses feature norms; text prompts will be
+            integrated in future versions.
+        context : Any, optional
+            Pipeline execution context (unused, for compatibility).
+        **kwargs : Any
+            Additional keyword arguments (unused).
+
+        Returns
+        -------
+        dict[str, Tensor]
+            Dictionary containing:
+            - "anomaly_mask" : Tensor [B, 1, 1, 1] - Binary anomaly predictions
+            - "anomaly_scores" : Tensor [B, 1, 1, 1] - Normalized anomaly scores [0, 1]
+
+        Raises
+        ------
+        RuntimeError
+            If CLIP inference fails or model is not properly loaded.
+        """
         # Use instance variable if text_prompt not provided
         if text_prompt is None:
             text_prompt = self.text_prompt
@@ -177,8 +226,10 @@ class AdaCLIPAPINode(HuggingFaceAPINode):
     ----------
     space_url : str, optional
         AdaCLIP Space URL (default: "Caoyunkang/AdaCLIP")
-    use_hf_token : bool, optional
-        Whether to use HF_TOKEN from environment (default: True)
+    dataset_option : str, optional
+        Dataset selection option (default: "All")
+    text_prompt : str, optional
+        Text prompt for anomaly detection (default: "normal: lentils, anomaly: stones")
     **kwargs
         Additional arguments passed to HuggingFaceAPINode
 

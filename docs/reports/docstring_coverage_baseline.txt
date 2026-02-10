@@ -1,0 +1,36 @@
+== Coverage for D:\code-repos\cuvis-ai\cuvis-ai-ALL-4916-document\cuvis_ai\ ===
+----------------------------------- Summary -----------------------------------
+| Name                                |   Total |   Miss |   Cover |   Cover% |
+|-------------------------------------|---------|--------|---------|----------|
+| __init__.py                         |       1 |      1 |       0 |       0% |
+| anomaly\__init__.py                 |       1 |      1 |       0 |       0% |
+| anomaly\deep_svdd.py                |      19 |      9 |      10 |      53% |
+| anomaly\lad_detector.py             |       8 |      0 |       8 |     100% |
+| anomaly\rx_detector.py              |      13 |      0 |      13 |     100% |
+| deciders\__init__.py                |       1 |      1 |       0 |       0% |
+| deciders\binary_decider.py          |       7 |      0 |       7 |     100% |
+| deciders\two_stage_decider.py       |       5 |      4 |       1 |      20% |
+| node\__init__.py                    |       1 |      0 |       1 |     100% |
+| node\adaclip.py                     |       7 |      2 |       5 |      71% |
+| node\band_selection.py              |      31 |      8 |      23 |      74% |
+| node\channel_mixer.py               |       7 |      0 |       7 |     100% |
+| node\concrete_selector.py           |       8 |      0 |       8 |     100% |
+| node\conversion.py                  |      11 |      0 |      11 |     100% |
+| node\data.py                        |       3 |      0 |       3 |     100% |
+| node\drcnn_tensorboard_viz.py       |       7 |      0 |       7 |     100% |
+| node\labels.py                      |       4 |      1 |       3 |      75% |
+| node\losses.py                      |      18 |      1 |      17 |      94% |
+| node\metrics.py                     |      13 |      0 |      13 |     100% |
+| node\monitor.py                     |      10 |      1 |       9 |      90% |
+| node\normalization.py               |      19 |      0 |      19 |     100% |
+| node\pca.py                         |       5 |      0 |       5 |     100% |
+| node\preprocessors.py               |       3 |      1 |       2 |      67% |
+| node\selector.py                    |       9 |      0 |       9 |     100% |
+| node\visualizations.py              |      15 |      2 |      13 |      87% |
+| utils\__init__.py                   |       1 |      0 |       1 |     100% |
+| utils\deep_svdd_factory.py          |       3 |      2 |       1 |      33% |
+| utils\vis_helpers.py                |       4 |      0 |       4 |     100% |
+|-------------------------------------|---------|--------|---------|----------|
+| TOTAL                               |     234 |     34 |     200 |    85.5% |
+--------------- RESULT: FAILED (minimum: 95.0%, actual: 85.5%) ----------------
+Generated badge to D:\code-repos\cuvis-ai\cuvis-ai-ALL-4916-document\docs\assets

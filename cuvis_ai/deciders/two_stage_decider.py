@@ -1,11 +1,26 @@
+"""
+Two-Stage Binary Decision Module.
+
+This module provides a two-stage binary decision node that first applies
+an image-level anomaly gate based on top-k statistics, then applies
+pixel-level quantile thresholding only for images that pass the gate.
+
+This approach reduces false positives by filtering out images with low
+overall anomaly scores before applying pixel-level decisions.
+
+See Also
+--------
+cuvis_ai.deciders.binary_decider : Simple threshold-based binary decisions
+"""
+
 from __future__ import annotations
 
 from collections.abc import Sequence
 from typing import Any
 
 import torch
-from cuvis_ai_core.deciders.base_decider import BaseDecider
-from cuvis_ai_core.pipeline.ports import PortSpec
+from cuvis_ai_core.deciders.base_decider import BinaryDecider as BaseDecider
+from cuvis_ai_schemas.pipeline import PortSpec
 from loguru import logger
 from torch import Tensor
 
@@ -58,6 +73,32 @@ class TwoStageBinaryDecider(BaseDecider):
         )
 
     def forward(self, logits: Tensor, **_: Any) -> dict[str, Tensor]:
+        """Apply two-stage binary decision: image-level gate + pixel quantile.
+
+        Stage 1: Compute image-level anomaly score from top-k pixel scores.
+        If below threshold, return blank mask (no anomalies).
+
+        Stage 2: For images passing the gate, apply pixel-level quantile
+        thresholding to create binary anomaly mask.
+
+        Parameters
+        ----------
+        logits : Tensor
+            Anomaly scores [B, H, W, C] or [B, H, W, 1].
+        **_ : Any
+            Additional unused keyword arguments.
+
+        Returns
+        -------
+        dict[str, Tensor]
+            Dictionary with "decisions" key containing binary masks [B, H, W, 1].
+
+        Notes
+        -----
+        The image-level score is computed as the mean of the top-k% highest
+        pixel scores. For multi-channel inputs, the max across channels is
+        used for each pixel.
+        """
         tensor = logits
         bsz = tensor.shape[0]
 
@@ -129,6 +170,23 @@ class TwoStageBinaryDecider(BaseDecider):
         return {"decisions": torch.stack(decisions, dim=0)}
 
     def _quantile_threshold(self, scores: Tensor) -> Tensor:
+        """Compute quantile threshold over specified dimensions.
+
+        Parameters
+        ----------
+        scores : Tensor
+            Input scores tensor of any shape.
+
+        Returns
+        -------
+        Tensor
+            Threshold values with reduced dimensions set to size 1.
+
+        Notes
+        -----
+        For multi-dimensional reduction, the tensor is permuted and flattened
+        to compute quantiles efficiently, then reshaped back to original layout.
+        """
         reduce_dims = self._resolve_reduce_dims(scores.dim())
         if len(reduce_dims) == 1:
             return torch.quantile(scores, self.quantile, dim=reduce_dims[0], keepdim=True)
@@ -155,6 +213,24 @@ class TwoStageBinaryDecider(BaseDecider):
         return threshold_permuted.permute(*inverse_order)
 
     def _resolve_reduce_dims(self, tensor_ndim: int) -> tuple[int, ...]:
+        """Resolve reduction dimensions, handling negative indices.
+
+        Parameters
+        ----------
+        tensor_ndim : int
+            Number of dimensions in the tensor.
+
+        Returns
+        -------
+        tuple[int, ...]
+            Tuple of dimension indices to reduce over (all non-negative).
+            If reduce_dims is None, returns all dimensions except batch (dim 0).
+
+        Notes
+        -----
+        Negative dimensions are converted to positive indices relative to
+        tensor_ndim. Duplicate dimensions are removed.
+        """
         if self.reduce_dims is None:
             return tuple(range(1, tensor_ndim))
 

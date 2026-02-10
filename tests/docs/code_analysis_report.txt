@@ -1,0 +1,327 @@
+======================================================================
+PYTHON CODE BLOCK ANALYSIS
+======================================================================
+
+Total files with Python code: 43
+Total Python code blocks: 761
+
+Breakdown by category:
+  Runnable examples:        173 ( 22.7%)
+  Code fragments:           314 ( 41.3%)
+  Requires data/setup:      220 ( 28.9%)
+  Configuration examples:    54 (  7.1%)
+
+======================================================================
+FILES WITH MOST CODE BLOCKS
+======================================================================
+
+docs\concepts\port-system-deep-dive.md (49 blocks)
+  - fragment: 34
+  - requires_data: 3
+  - runnable: 12
+
+docs\concepts\execution-stages.md (48 blocks)
+  - fragment: 11
+  - requires_data: 13
+  - runnable: 24
+
+docs\concepts\pipeline-lifecycle.md (45 blocks)
+  - config: 15
+  - fragment: 17
+  - requires_data: 7
+  - runnable: 6
+
+docs\concepts\node-system-deep-dive.md (40 blocks)
+  - config: 2
+  - fragment: 17
+  - requires_data: 11
+  - runnable: 10
+
+docs\grpc\api-reference.md (39 blocks)
+  - config: 2
+  - fragment: 9
+  - requires_data: 9
+  - runnable: 19
+
+docs\how-to\remote-grpc.md (39 blocks)
+  - config: 3
+  - fragment: 20
+  - requires_data: 3
+  - runnable: 13
+
+docs\plugin-system\usage.md (32 blocks)
+  - config: 8
+  - fragment: 18
+  - requires_data: 6
+
+docs\concepts\two-phase-training.md (30 blocks)
+  - config: 3
+  - fragment: 5
+  - requires_data: 14
+  - runnable: 8
+
+docs\how-to\add-builtin-node.md (30 blocks)
+  - config: 1
+  - fragment: 12
+  - requires_data: 5
+  - runnable: 12
+
+docs\tutorials\adaclip-workflow.md (30 blocks)
+  - fragment: 22
+  - requires_data: 7
+  - runnable: 1
+
+
+======================================================================
+DETAILED FILE BREAKDOWN
+======================================================================
+
+docs\api\grpc_api.md
+  Total blocks: 9
+    fragment: 3
+    requires_data: 3
+    runnable: 3
+
+docs\api\ports.md
+  Total blocks: 18
+    fragment: 8
+    requires_data: 3
+    runnable: 7
+
+docs\concepts\execution-stages.md
+  Total blocks: 48
+    fragment: 11
+    requires_data: 13
+    runnable: 24
+
+docs\concepts\node-system-deep-dive.md
+  Total blocks: 40
+    config: 2
+    fragment: 17
+    requires_data: 11
+    runnable: 10
+
+docs\concepts\pipeline-lifecycle.md
+  Total blocks: 45
+    config: 15
+    fragment: 17
+    requires_data: 7
+    runnable: 6
+
+docs\concepts\port-system-deep-dive.md
+  Total blocks: 49
+    fragment: 34
+    requires_data: 3
+    runnable: 12
+
+docs\concepts\two-phase-training.md
+  Total blocks: 30
+    config: 3
+    fragment: 5
+    requires_data: 14
+    runnable: 8
+
+docs\config\config-groups.md
+  Total blocks: 1
+    fragment: 1
+
+docs\config\hydra-composition.md
+  Total blocks: 3
+    fragment: 1
+    runnable: 2
+
+docs\config\trainrun-schema.md
+  Total blocks: 2
+    config: 2
+
+docs\deployment\grpc_deployment.md
+  Total blocks: 2
+    fragment: 2
+
+docs\development\contributing.md
+  Total blocks: 3
+    fragment: 2
+    requires_data: 1
+
+docs\development\docstrings.md
+  Total blocks: 19
+    fragment: 9
+    requires_data: 4
+    runnable: 6
+
+docs\grpc\api-reference.md
+  Total blocks: 39
+    config: 2
+    fragment: 9
+    requires_data: 9
+    runnable: 19
+
+docs\grpc\client-patterns.md
+  Total blocks: 19
+    fragment: 6
+    requires_data: 5
+    runnable: 8
+
+docs\grpc\overview.md
+  Total blocks: 9
+    fragment: 4
+    requires_data: 2
+    runnable: 3
+
+docs\grpc\sequence-diagrams.md
+  Total blocks: 5
+    fragment: 3
+    runnable: 2
+
+docs\how-to\add-builtin-node.md
+  Total blocks: 30
+    config: 1
+    fragment: 12
+    requires_data: 5
+    runnable: 12
+
+docs\how-to\build-pipeline-python.md
+  Total blocks: 10
+    config: 1
+    fragment: 2
+    requires_data: 4
+    runnable: 3
+
+docs\how-to\build-pipeline-yaml.md
+  Total blocks: 7
+    config: 2
+    fragment: 2
+    requires_data: 3
+
+docs\how-to\monitoring-and-viz.md
+  Total blocks: 29
+    fragment: 12
+    requires_data: 15
+    runnable: 2
+
+docs\how-to\remote-grpc.md
+  Total blocks: 39
+    config: 3
+    fragment: 20
+    requires_data: 3
+    runnable: 13
+
+docs\how-to\restore-pipeline-trainrun.md
+  Total blocks: 15
+    config: 8
+    fragment: 3
+    requires_data: 4
+
+docs\node-catalog\data-nodes.md
+  Total blocks: 7
+    fragment: 1
+    requires_data: 5
+    runnable: 1
+
+docs\node-catalog\deep-learning.md
+  Total blocks: 9
+    fragment: 2
+    requires_data: 7
+
+docs\node-catalog\loss-metrics.md
+  Total blocks: 7
+    requires_data: 7
+
+docs\node-catalog\preprocessing.md
+  Total blocks: 19
+    fragment: 8
+    requires_data: 10
+    runnable: 1
+
+docs\node-catalog\selectors.md
+  Total blocks: 14
+    fragment: 8
+    requires_data: 6
+
+docs\node-catalog\statistical.md
+  Total blocks: 9
+    fragment: 5
+    requires_data: 2
+    runnable: 2
+
+docs\node-catalog\utility.md
+  Total blocks: 9
+    fragment: 3
+    requires_data: 5
+    runnable: 1
+
+docs\node-catalog\visualization.md
+  Total blocks: 9
+    fragment: 3
+    requires_data: 6
+
+docs\plugin-system\development.md
+  Total blocks: 22
+    config: 2
+    fragment: 3
+    requires_data: 8
+    runnable: 9
+
+docs\plugin-system\index.md
+  Total blocks: 2
+    fragment: 1
+    requires_data: 1
+
+docs\plugin-system\overview.md
+  Total blocks: 15
+    config: 2
+    fragment: 8
+    requires_data: 2
+    runnable: 3
+
+docs\plugin-system\usage.md
+  Total blocks: 32
+    config: 8
+    fragment: 18
+    requires_data: 6
+
+docs\reference\architecture.md
+  Total blocks: 2
+    fragment: 2
+
+docs\tutorials\adaclip-workflow.md
+  Total blocks: 30
+    fragment: 22
+    requires_data: 7
+    runnable: 1
+
+docs\tutorials\channel-selector.md
+  Total blocks: 30
+    config: 1
+    fragment: 14
+    requires_data: 13
+    runnable: 2
+
+docs\tutorials\deep-svdd-gradient.md
+  Total blocks: 26
+    fragment: 12
+    requires_data: 12
+    runnable: 2
+
+docs\tutorials\grpc-workflow.md
+  Total blocks: 22
+    fragment: 13
+    requires_data: 2
+    runnable: 7
+
+docs\tutorials\rx-statistical.md
+  Total blocks: 21
+    config: 2
+    fragment: 8
+    requires_data: 9
+    runnable: 2
+
+docs\user-guide\configuration.md
+  Total blocks: 3
+    requires_data: 2
+    runnable: 1
+
+docs\user-guide\installation.md
+  Total blocks: 2
+    requires_data: 1
+    runnable: 1

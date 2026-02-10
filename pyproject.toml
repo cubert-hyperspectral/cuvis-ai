@@ -3,18 +3,19 @@ requires = ["setuptools>=64", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "cuvis_ai"
+name = "cuvis-ai"
 dynamic = ["version"]
 description = "Collaborative Framework for Hyperspectral Intelligence"
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
-license = { text = "Apache License 2.0" }
+license = { text = "Apache-2.0" }
 authors = [
-    { name = "Cubert GmbH, Ulm, Germany", email = "SDK@cubert-gmbh.com" },
+    { name = "Cubert GmbH, Ulm, Germany", email = "cuvis.ai@cubert-gmbh.com" },
 ]
 dependencies = [
     "cuvis==3.5.0",
-    "cuvis-ai-core",
+    "cuvis-ai-core>=0.1.2",  # Resolved from PyPI when available, or local path via [tool.uv.sources]
+    "cuvis-ai-schemas[full]>=0.1.0",
     "pydantic>=2.0.0,<3.0.0",
     "imantics",
     "ftfy>=6.1.1",
@@ -29,12 +30,10 @@ dependencies = [
     # Core framework dependencies
     "torch>=2.9.1",
     "torchvision",
-    
     "torchmetrics",
     "pytorch-lightning",
     "tzdata; sys_platform == 'win32'",
     "loguru>=0.7.3",
-    "graphviz>=0.21",
     "packaging>=23.0",
     "omegaconf>=2.3.0",
     "hydra-core",
@@ -45,20 +44,26 @@ dependencies = [
     "hf-xet>=1.2.0",
 ]
 classifiers = [
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Scientific/Engineering :: Image Processing",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+    "Operating System :: OS Independent",
 ]
 
 [project.scripts]
 create-stubs = "tools.generate_node_port_stubs:main"
-restore-pipeline = "cuvis_ai.utils.restore:restore_pipeline_cli"
-restore-trainrun = "cuvis_ai.utils.restore:restore_trainrun_cli"
+download-data = "scripts.download_data:main"
+restore-pipeline = "cuvis_ai_core.utils.restore:restore_pipeline_cli"
+restore-trainrun = "cuvis_ai_core.utils.restore:restore_trainrun_cli"
 
 [project.optional-dependencies]
 docs = [
@@ -68,6 +73,10 @@ docs = [
     "mkdocs-gen-files>=0.5.0",
     "mkdocs-literate-nav>=0.6.0",
     "opencv-python-headless",
+    "pytest-check-links>=0.9.0",
+    "pytest-md-report>=0.3.0",
+    # --- Documentation versioning ---
+    "mike>=1.1.0",
 ]
 
 dev = [
@@ -79,26 +88,37 @@ dev = [
     "ipympl>=0.9.8",
     "ipdb>=0.13.13",
     "psutil",
+    "interrogate>=1.5.0",
+    # --- Release automation dependencies ---
+    "twine>=6.2.0",
+    "pip-audit>=2.7.0",
+    "bandit[toml]>=1.7.0",
+    "detect-secrets>=1.4.0",
+    "pip-licenses>=4.0.0",
+    "cyclonedx-bom>=4.0.0",
 ]
 
 
 [project.urls]
 Homepage = "https://www.cubert-hyperspectral.com/"
-Repository = "https://github.com/cubert-hyperspectral/cuvis.ai"
+Repository = "https://github.com/cubert-hyperspectral/cuvis-ai"
 Documentation = "https://cubert-hyperspectral.github.io/cuvis.ai/"
-Changelog = "https://github.com/cubert-hyperspectral/cuvis.ai/releases"
-Issues = "https://github.com/cubert-hyperspectral/cuvis.ai/issues"
+Changelog = "https://github.com/cubert-hyperspectral/cuvis-ai/releases"
+Issues = "https://github.com/cubert-hyperspectral/cuvis-ai/issues"
 
 [tool.setuptools.packages.find]
-include = ["cuvis_ai*", "tools*"]
+include = ["cuvis_ai*", "tools*", "scripts*"]
 
 
 [tool.uv.sources]
 torch = { index = "pytorch-cu128" }
 torchvision = { index = "pytorch-cu128" }
-#cuvis-ai-core = { path = "../cuvis-ai-core", editable = true }
-cuvis-ai-core = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-core.git", tag = "v0.1.0" }
-
+# cuvis-ai-core = { path = "../cuvis-ai-core", editable = true }
+# DEVELOPMENT: Keep uncommented for local development
+# cuvis-ai-core = { path = "../../cuvis-ai-core/cuvis-ai-core", editable = true }
+# RELEASE: Uncomment above line for local development - resolves from PyPI for release
+# cuvis-ai-schemas = { path = "../../cuvis-ai-schemas", editable = true }
+# cuvis-ai-core = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-core.git", tag = "v0.1.1" }
 
 [tool.setuptools_scm]
 version_scheme = "post-release"
@@ -120,7 +140,7 @@ markers = [
 ]
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py311"
 line-length = 100
 
 [tool.ruff.format]
@@ -164,6 +184,40 @@ ignore = [
     "ANN201",
     "ANN204",
 ]
+
+[tool.interrogate]
+ignore-init-method = true
+ignore-init-module = false
+ignore-magic = false
+ignore-module = false
+ignore-nested-functions = false
+ignore-nested-classes = false
+ignore-private = false
+ignore-property-decorators = false
+ignore-semiprivate = false
+ignore-setters = false
+fail-under = 95.0
+exclude = ["setup.py", "docs", "build", "tests"]
+ignore-regex = ["^get$", "^set$", "^main$"]
+verbose = 2
+quiet = false
+whitelist-regex = []
+color = true
+omit-covered-files = false
+generate-badge = "docs/assets/"
+badge-format = "svg"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+exclude = ["tests", "build", "dist"]
+
+[tool.bandit]
+exclude_dirs = ["tests", "cuvis_ai/grpc"]
+skips = ["B101"]  # Skip assert_used check
 
 [[tool.uv.index]]
 name = "pytorch-cu128"

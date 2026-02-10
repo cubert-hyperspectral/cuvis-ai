@@ -41,8 +41,8 @@ import torch
 from cuvis_ai_core.data.datasets import SingleCu3sDataModule
 from cuvis_ai_core.node import Node
 from cuvis_ai_core.pipeline.pipeline import CuvisCanvas
-from cuvis_ai_core.pipeline.ports import PortSpec
-from cuvis_ai_core.utils.types import Context
+from cuvis_ai_schemas.execution import Context
+from cuvis_ai_schemas.pipeline import PortSpec
 from loguru import logger
 from torch import Tensor
 
@@ -222,7 +222,7 @@ def main() -> None:
 
     # Execute pipeline with proper context
     logger.info("Calling AdaCLIP API via pipeline (this may take a few seconds)...")
-    from cuvis_ai_core.utils.types import ExecutionStage
+    from cuvis_ai_schemas.enums import ExecutionStage
 
     context = Context(
         stage=ExecutionStage.VAL,

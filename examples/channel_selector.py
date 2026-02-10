@@ -4,11 +4,11 @@ import hydra
 from cuvis_ai_core.data.datasets import SingleCu3sDataModule
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_core.training import GradientTrainer, StatisticalTrainer
-from cuvis_ai_core.training.config import (
+from cuvis_ai_schemas.pipeline import PipelineMetadata
+from cuvis_ai_schemas.training import (
     CallbacksConfig,
     EarlyStoppingConfig,
     ModelCheckpointConfig,
-    PipelineMetadata,
     SchedulerConfig,
     TrainingConfig,
     TrainRunConfig,
@@ -17,8 +17,8 @@ from loguru import logger
 from omegaconf import DictConfig, OmegaConf
 
 from cuvis_ai.anomaly.rx_detector import RXGlobal
-from cuvis_ai.anomaly.rx_logit_head import RXLogitHead
 from cuvis_ai.deciders.binary_decider import BinaryDecider
+from cuvis_ai.node.conversion import ScoreToLogit
 from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.losses import (
     AnomalyBCEWithLogits,
@@ -63,7 +63,7 @@ def main(cfg: DictConfig) -> None:
         eps=1.0e-6,
     )
     rx = RXGlobal(num_channels=15, eps=1.0e-6)
-    logit_head = RXLogitHead(init_scale=1.0, init_bias=0.0)
+    logit_head = ScoreToLogit(init_scale=1.0, init_bias=0.0)
     # zscore_norm = ZScoreNormalizer(dims=[1, 2], eps=1.0e-6, keepdim=True)
 
     # Single threshold for binary decisions

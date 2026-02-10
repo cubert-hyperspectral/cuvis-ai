@@ -10,8 +10,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from cuvis_ai_core.node import Node
-from cuvis_ai_core.pipeline.ports import PortSpec
-from cuvis_ai_core.utils.types import Artifact, ArtifactType, Context, ExecutionStage
+from cuvis_ai_schemas.enums import ArtifactType, ExecutionStage
+from cuvis_ai_schemas.execution import Artifact, Context
+from cuvis_ai_schemas.pipeline import PortSpec
 from loguru import logger
 from torchmetrics.functional.classification import binary_average_precision
 
@@ -50,6 +51,28 @@ class CubeRGBVisualizer(Node):
         self.up_to = up_to
 
     def forward(self, cube, weights, wavelengths, context) -> dict[str, list[Artifact]]:
+        """Generate false-color RGB visualizations from hyperspectral cube.
+
+        Selects the 3 channels with highest weights and creates RGB images
+        with wavelength annotations. Also generates a bar chart showing
+        channel weights with the selected channels highlighted.
+
+        Parameters
+        ----------
+        cube : Tensor
+            Hyperspectral cube [B, H, W, C].
+        weights : Tensor
+            Channel selection weights [C] indicating importance of each channel.
+        wavelengths : Tensor
+            Wavelengths for each channel [C] in nanometers.
+        context : Context
+            Execution context with stage, epoch, batch_idx information.
+
+        Returns
+        -------
+        dict[str, list[Artifact]]
+            Dictionary with "artifacts" key containing list of visualization artifacts.
+        """
         top3_indices = torch.topk(weights, k=3).indices.cpu().numpy()
         top3_wavelengths = wavelengths[top3_indices]
 
@@ -699,6 +722,24 @@ class ScoreHeatmapVisualizer(Node):
         )
 
     def forward(self, scores: torch.Tensor, context: Context) -> dict[str, list[Artifact]]:
+        """Generate heatmap visualizations of anomaly scores.
+
+        Creates color-mapped heatmaps of anomaly scores for visualization
+        in TensorBoard. Optionally normalizes scores to [0, 1] range for
+        consistent visualization across batches.
+
+        Parameters
+        ----------
+        scores : Tensor
+            Anomaly scores [B, H, W, 1] from detection nodes (e.g., RX, LAD).
+        context : Context
+            Execution context with stage, epoch, batch_idx information.
+
+        Returns
+        -------
+        dict[str, list[Artifact]]
+            Dictionary with "artifacts" key containing list of heatmap artifacts.
+        """
         artifacts: list[Artifact] = []
         batch_limit = scores.shape[0] if self.up_to is None else min(scores.shape[0], self.up_to)
 

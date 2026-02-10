@@ -1,3 +1,18 @@
+"""
+Label Mapping Nodes.
+
+This module provides nodes for converting multi-class segmentation masks
+to binary anomaly labels. These nodes are useful when training with datasets
+that have multi-class annotations but the task requires binary anomaly detection.
+
+The main node remaps class IDs to binary labels (0=normal, 1=anomaly) based
+on configurable normal and anomaly class ID lists.
+
+See Also
+--------
+cuvis_ai.deciders : Binary decision nodes for threshold-based classification
+"""
+
 from __future__ import annotations
 
 import warnings
@@ -6,7 +21,7 @@ from typing import Any
 
 import torch
 from cuvis_ai_core.node.node import Node
-from cuvis_ai_core.pipeline.ports import PortSpec
+from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
 
 

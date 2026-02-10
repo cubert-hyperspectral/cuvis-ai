@@ -1,3 +1,8 @@
+!!! warning "Status: Needs Review"
+    This page has not been reviewed for accuracy and completeness. Content may be outdated or contain errors.
+
+---
+
 # Git Hooks
 
 This project uses Git hooks to enforce code quality standards before commits and pushes.
@@ -26,13 +31,14 @@ This tells Git to use the version-controlled hooks in `.githooks/` instead of th
 **Performance**: Fast (~few seconds), skips test execution
 
 ### Pre-push Hook
-**Purpose**: Comprehensive validation before pushing to remote  
+**Purpose**: Comprehensive validation before pushing to remote
 **Actions**:
 - Runs `uv run ruff format .` (formatting first)
 - Runs `uv run ruff check . --fix` (linting on formatted code)
+- Runs `interrogate -v cuvis_ai/ --fail-under 95` (docstring coverage check)
 - Runs `uv run pytest tests/ -v --tb=line -m "not gpu"` (all non-GPU tests)
 
-**Performance**: Slower (~depends on test suite), ensures code quality
+**Performance**: Slower (~depends on test suite), ensures code quality and documentation
 
 ## Usage
 
@@ -76,6 +82,12 @@ git push --no-verify
 - Double quotes for strings
 - 4-space indentation
 
+### Docstring Coverage (interrogate)
+- Checks all modules in `cuvis_ai/` package
+- Requires ≥95% docstring coverage
+- Blocks push if coverage is below threshold
+- Only runs on pre-push (not pre-commit)
+
 ### Testing (pytest)
 - All tests in `tests/` directory
 - Excludes GPU-marked tests (`-m "not gpu"`)
@@ -118,11 +130,11 @@ If pre-push is too slow:
 ## Maintenance
 
 ### Updating Hook Scripts
-Hooks are located in `.git/hooks/`:
-- `.git/hooks/pre-commit` - Pre-commit checks
-- `.git/hooks/pre-push` - Pre-push checks
+Hooks are located in `.githooks/`:
+- `.githooks/pre-commit` - Pre-commit checks (formatting + linting)
+- `.githooks/pre-push` - Pre-push checks (formatting + linting + docstrings + tests)
 
-After modifying hooks, they take effect immediately (no installation needed).
+After modifying hooks, they take effect immediately (no installation needed). Ensure hooks are executable with `chmod +x .githooks/*`.
 
 ### Disabling Hooks Permanently (Not Recommended)
 To disable hooks project-wide:

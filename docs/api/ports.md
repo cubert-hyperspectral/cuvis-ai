@@ -1,3 +1,8 @@
+!!! warning "Status: Needs Review"
+    This page has not been reviewed for accuracy and completeness. Content may be outdated or contain errors.
+
+---
+
 # Ports API Reference
 
 Complete API reference for the Typed I/O port system in CUVIS.AI.
@@ -22,7 +27,7 @@ The `PortSpec` class defines the specification for a port, including its type, s
 
 **Example:**
 ```python
-from cuvis_ai.pipeline.ports import PortSpec
+from cuvis_ai_schemas.pipeline import PortSpec
 
 # Define an input port for hyperspectral data
 data_port = PortSpec(
@@ -47,7 +52,7 @@ Port instances that are attached to nodes and used for connections.
 
 **Creating Ports:**
 ```python
-from cuvis_ai.pipeline.ports import InputPort, OutputPort
+from cuvis_ai_schemas.pipeline import InputPort, OutputPort
 
 # Create port instances
 input_port = InputPort(spec=data_port, node=normalizer)
@@ -84,8 +89,8 @@ Nodes declare their ports using `INPUT_SPECS` and `OUTPUT_SPECS` class attribute
 ### Example Node Implementation
 
 ```python
-from cuvis_ai.node.node import Node
-from cuvis_ai.pipeline.ports import PortSpec
+from cuvis_ai_core.node.node import Node
+from cuvis_ai_schemas.pipeline import PortSpec
 
 class MinMaxNormalizer(Node):
     """Min-max normalization node."""
@@ -154,12 +159,12 @@ pipeline.connect(selector.selected, pca.features, stage="both")
 `LossAggregator` has been removed—the trainer now collects individual loss nodes directly.
 Register every loss/regularizer node with the `GradientTrainer` (or any custom trainer) and
 feed their inputs through standard port connections, as shown in
-`examples_torch/03_channel_selector.py`.
+`examples//03_channel_selector.py`.
 
 ```python
 pipeline.connect(
     (logit_head.logits, bce_loss.predictions),
-    (data_node.outputs.mask, bce_loss.targets),
+    (data_node.mask, bce_loss.targets),
     (selector.weights, entropy_loss.weights),
     (selector.weights, diversity_loss.weights),
 )
@@ -344,11 +349,11 @@ for source, target in connections:
 
 ## API Reference
 
-::: cuvis_ai.pipeline.ports
+::: cuvis_ai_schemas.pipeline
 
 ## See Also
 
 - **[Nodes API](nodes.md)**: Node implementations with port specifications
 - **[Pipeline API](pipeline.md)**: Pipeline and connection management
-- **[Migration Guide](../user-guide/typed-io-migration.md)**: Transition from legacy API
+- **[Core Concepts](../concepts/overview.md)**: Understand the architecture
 - **[Quickstart](../user-guide/quickstart.md)**: Practical port usage examples

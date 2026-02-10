@@ -1,0 +1,302 @@
+================ Coverage for D:\code-repos\cuvis-ai\cuvis_ai\ ================
+------------------------------ Detailed Coverage ------------------------------
+| Name                                                                     |  Status |
+|--------------------------------------------------------------------------|---------|
+| __init__.py (module)                                                     |  MISSED |
+|--------------------------------------------------------------------------|---------|
+| anomaly\__init__.py (module)                                             |  MISSED |
+|--------------------------------------------------------------------------|---------|
+| anomaly\deep_svdd.py (module)                                            | COVERED |
+|   SpectralNet (L17)                                                      | COVERED |
+|     SpectralNet.forward (L32)                                            |  MISSED |
+|   RFFLayer (L37)                                                         | COVERED |
+|     RFFLayer.forward (L52)                                               |  MISSED |
+|   DeepSVDDProjection (L60)                                               | COVERED |
+|     DeepSVDDProjection._build_network (L115)                             | COVERED |
+|     DeepSVDDProjection.forward (L131)                                    | COVERED |
+|   ZScoreNormalizerGlobal (L149)                                          | COVERED |
+|     ZScoreNormalizerGlobal.requires_initial_fit (L201)                   |  MISSED |
+|     ZScoreNormalizerGlobal.statistical_initialization (L204)             | COVERED |
+|     ZScoreNormalizerGlobal.forward (L239)                                |  MISSED |
+|     ZScoreNormalizerGlobal._zscore_fit (L258)                            |  MISSED |
+|   DeepSVDDScores (L265)                                                  | COVERED |
+|     DeepSVDDScores.forward (L289)                                        |  MISSED |
+|   DeepSVDDCenterTracker (L296)                                           | COVERED |
+|     DeepSVDDCenterTracker.requires_initial_fit (L342)                    |  MISSED |
+|     DeepSVDDCenterTracker.statistical_initialization (L345)              |  MISSED |
+|     DeepSVDDCenterTracker.forward (L374)                                 |  MISSED |
+|--------------------------------------------------------------------------|---------|
+| anomaly\lad_detector.py (module)                                         |  MISSED |
+|   LADGlobal (L13)                                                        | COVERED |
+|     LADGlobal.statistical_initialization (L109)                          | COVERED |
+|     LADGlobal.update (L132)                                              | COVERED |
+|     LADGlobal.finalize (L154)                                            | COVERED |
+|     LADGlobal.reset (L206)                                               |  MISSED |
+|     LADGlobal.unfreeze (L218)                                            | COVERED |
+|     LADGlobal.forward (L242)                                             | COVERED |
+|--------------------------------------------------------------------------|---------|
+| anomaly\rx_detector.py (module)                                          |  MISSED |
+|   _flatten_bhwc (L8)                                                     |  MISSED |
+|   RXBase (L14)                                                           | COVERED |
+|     RXBase._quad_form_solve (L38)                                        | COVERED |
+|   RXGlobal (L52)                                                         | COVERED |
+|     RXGlobal.statistical_initialization (L91)                            | COVERED |
+|     RXGlobal.unfreeze (L111)                                             | COVERED |
+|     RXGlobal.update (L134)                                               |  MISSED |
+|     RXGlobal.finalize (L152)                                             |  MISSED |
+|     RXGlobal.reset (L169)                                                |  MISSED |
+|     RXGlobal.forward (L178)                                              | COVERED |
+|   RXPerBatch (L210)                                                      | COVERED |
+|     RXPerBatch.forward (L215)                                            | COVERED |
+|--------------------------------------------------------------------------|---------|
+| deciders\__init__.py (module)                                            |  MISSED |
+|--------------------------------------------------------------------------|---------|
+| deciders\binary_decider.py (module)                                      |  MISSED |
+|   BinaryDecider (L10)                                                    | COVERED |
+|     BinaryDecider.forward (L44)                                          | COVERED |
+|   QuantileBinaryDecider (L66)                                            | COVERED |
+|     QuantileBinaryDecider.forward (L114)                                 |  MISSED |
+|     QuantileBinaryDecider._resolve_reduce_dims (L150)                    | COVERED |
+|     QuantileBinaryDecider._validate_quantile (L164)                      |  MISSED |
+|--------------------------------------------------------------------------|---------|
+| deciders\two_stage_decider.py (module)                                   |  MISSED |
+|   TwoStageBinaryDecider (L13)                                            | COVERED |
+|     TwoStageBinaryDecider.forward (L60)                                  |  MISSED |
+|     TwoStageBinaryDecider._quantile_threshold (L131)                     |  MISSED |
+|     TwoStageBinaryDecider._resolve_reduce_dims (L157)                    |  MISSED |
+|--------------------------------------------------------------------------|---------|
+| node\__init__.py (module)                                                | COVERED |
+|--------------------------------------------------------------------------|---------|
+| node\adaclip.py (module)                                                 |  MISSED |
+|   AdaCLIPLocalNode (L16)                                                 | COVERED |
+|     AdaCLIPLocalNode._load_model (L63)                                   | COVERED |
+|     AdaCLIPLocalNode._preprocess_image (L90)                             | COVERED |
+|     AdaCLIPLocalNode.forward (L108)                                      |  MISSED |
+|   AdaCLIPAPINode (L171)                                                  | COVERED |
+|     AdaCLIPAPINode.forward (L254)                                        | COVERED |
+|--------------------------------------------------------------------------|---------|
+| node\band_selection.py (module)                                          | COVERED |
+|   BandSelectorBase (L22)                                                 | COVERED |
+|     BandSelectorBase._nearest_band_index (L70)                           | COVERED |
+|     BandSelectorBase._compose_rgb (L74)                                  | COVERED |
+|   BaselineFalseRGBSelector (L104)                                        | COVERED |
+|     BaselineFalseRGBSelector.forward (L125)                              | COVERED |
+|   HighContrastBandSelector (L164)                                        | COVERED |
+|     HighContrastBandSelector.forward (L192)                              | COVERED |
+|   CIRFalseColorSelector (L251)                                           | COVERED |
+|     CIRFalseColorSelector.forward (L279)                                 | COVERED |
+|   _compute_fisher_score (L326)                                           | COVERED |
+|   _compute_band_auc (L338)                                               | COVERED |
+|   _compute_mutual_information (L348)                                     | COVERED |
+|   _compute_band_scores_supervised (L382)                                 | COVERED |
+|     _compute_band_scores_supervised.normalize_scores (L449)              |  MISSED |
+|   _compute_band_correlation_matrix (L465)                                | COVERED |
+|   _mrmr_band_selection (L542)                                            | COVERED |
+|   _select_top_k_bands (L580)                                             | COVERED |
+|   SupervisedBandSelectorBase (L610)                                      | COVERED |
+|     SupervisedBandSelectorBase.requires_initial_fit (L668)               |  MISSED |
+|     SupervisedBandSelectorBase._collect_training_data (L671)             | COVERED |
+|     SupervisedBandSelectorBase._store_scores_and_indices (L709)          | COVERED |
+|   SupervisedCIRBandSelector (L745)                                       | COVERED |
+|     SupervisedCIRBandSelector.statistical_initialization (L774)          |  MISSED |
+|     SupervisedCIRBandSelector.forward (L798)                             |  MISSED |
+|   SupervisedWindowedFalseRGBSelector (L824)                              | COVERED |
+|     SupervisedWindowedFalseRGBSelector.statistical_initialization (L851) |  MISSED |
+|     SupervisedWindowedFalseRGBSelector.forward (L875)                    |  MISSED |
+|   SupervisedFullSpectrumBandSelector (L901)                              | COVERED |
+|     SupervisedFullSpectrumBandSelector.statistical_initialization (L916) |  MISSED |
+|     SupervisedFullSpectrumBandSelector.forward (L939)                    |  MISSED |
+|--------------------------------------------------------------------------|---------|
+| node\channel_mixer.py (module)                                           | COVERED |
+|   LearnableChannelMixer (L24)                                            | COVERED |
+|     LearnableChannelMixer._initialize_weights (L215)                     | COVERED |
+|     LearnableChannelMixer.requires_initial_fit (L236)                    | COVERED |
+|     LearnableChannelMixer.statistical_initialization (L240)              | COVERED |
+|     LearnableChannelMixer.unfreeze (L312)                                | COVERED |
+|     LearnableChannelMixer.forward (L360)                                 | COVERED |
+|--------------------------------------------------------------------------|---------|
+| node\concrete_selector.py (module)                                       | COVERED |
+|   _sample_gumbel (L42)                                                   | COVERED |
+|   ConcreteBandSelector (L48)                                             | COVERED |
+|     ConcreteBandSelector._current_tau (L142)                             | COVERED |
+|     ConcreteBandSelector._get_tau (L153)                                 | COVERED |
+|     ConcreteBandSelector.get_selection_weights (L178)                    | COVERED |
+|     ConcreteBandSelector.get_selected_bands (L195)                       | COVERED |
+|     ConcreteBandSelector.forward (L200)                                  | COVERED |
+|--------------------------------------------------------------------------|---------|
+| node\conversion.py (module)                                              | COVERED |
+|   ScoreToLogit (L14)                                                     | COVERED |
+|     ScoreToLogit.unfreeze (L88)                                          | COVERED |
+|     ScoreToLogit.statistical_initialization (L108)                       | COVERED |
+|     ScoreToLogit.update (L132)                                           | COVERED |
+|     ScoreToLogit.finalize (L166)                                         | COVERED |
+|     ScoreToLogit.reset (L183)                                            | COVERED |
+|     ScoreToLogit.forward (L190)                                          | COVERED |
+|     ScoreToLogit.get_threshold (L213)                                    | COVERED |
+|     ScoreToLogit.set_threshold (L223)                                    | COVERED |
+|     ScoreToLogit.predict_anomalies (L234)                                | COVERED |
+|--------------------------------------------------------------------------|---------|
+| node\data.py (module)                                                    |  MISSED |
+|   LentilsAnomalyDataNode (L11)                                           |  MISSED |
+|     LentilsAnomalyDataNode.forward (L58)                                 |  MISSED |
+|--------------------------------------------------------------------------|---------|
+| node\drcnn_tensorboard_viz.py (module)                                   | COVERED |
+|   DRCNNTensorBoardViz (L22)                                              | COVERED |
+|     DRCNNTensorBoardViz.forward (L95)                                    | COVERED |
+|     DRCNNTensorBoardViz._create_hsi_visualization (L201)                 | COVERED |
+|     DRCNNTensorBoardViz._normalize_image (L229)                          | COVERED |
+|     DRCNNTensorBoardViz._create_mask_visualization (L250)                | COVERED |
+|     DRCNNTensorBoardViz._create_scores_heatmap (L271)                    | COVERED |
+|--------------------------------------------------------------------------|---------|
+| node\labels.py (module)                                                  |  MISSED |
+|   BinaryAnomalyLabelMapper (L13)                                         | COVERED |
+|     BinaryAnomalyLabelMapper._membership_mask (L105)                     | COVERED |
+|     BinaryAnomalyLabelMapper.forward (L113)                              | COVERED |
+|--------------------------------------------------------------------------|---------|
+| node\losses.py (module)                                                  | COVERED |
+|   LossNode (L16)                                                         | COVERED |
+|   OrthogonalityLoss (L38)                                                | COVERED |
+|     OrthogonalityLoss.forward (L70)                                      | COVERED |
+|   AnomalyBCEWithLogits (L100)                                            | COVERED |
+|     AnomalyBCEWithLogits.forward (L162)                                  | COVERED |
+|   MSEReconstructionLoss (L196)                                           | COVERED |
+|     MSEReconstructionLoss.forward (L236)                                 | COVERED |
+|   DistinctnessLoss (L266)                                                | COVERED |
+|     DistinctnessLoss.forward (L316)                                      | COVERED |
+|   SelectorEntropyRegularizer (L352)                                      | COVERED |
+|     SelectorEntropyRegularizer.forward (L404)                            | COVERED |
+|   SelectorDiversityRegularizer (L436)                                    | COVERED |
+|     SelectorDiversityRegularizer.forward (L467)                          | COVERED |
+|   DeepSVDDSoftBoundaryLoss (L490)                                        | COVERED |
+|     DeepSVDDSoftBoundaryLoss.forward (L520)                              |  MISSED |
+|   IoULoss (L532)                                                         | COVERED |
+|     IoULoss.forward (L600)                                               | COVERED |
+|--------------------------------------------------------------------------|---------|
+| node\metrics.py (module)                                                 | COVERED |
+|   ExplainedVarianceMetric (L21)                                          | COVERED |
+|     ExplainedVarianceMetric.forward (L49)                                | COVERED |
+|   AnomalyDetectionMetrics (L105)                                         | COVERED |
+|     AnomalyDetectionMetrics.forward (L156)                               | COVERED |
+|   ScoreStatisticsMetric (L242)                                           | COVERED |
+|     ScoreStatisticsMetric.forward (L271)                                 | COVERED |
+|   ComponentOrthogonalityMetric (L358)                                    | COVERED |
+|     ComponentOrthogonalityMetric.forward (L389)                          | COVERED |
+|   SelectorEntropyMetric (L456)                                           | COVERED |
+|     SelectorEntropyMetric.forward (L493)                                 | COVERED |
+|   SelectorDiversityMetric (L527)                                         | COVERED |
+|     SelectorDiversityMetric.forward (L560)                               | COVERED |
+|--------------------------------------------------------------------------|---------|
+| node\monitor.py (module)                                                 |  MISSED |
+|   TensorBoardMonitorNode (L11)                                           | COVERED |
+|     TensorBoardMonitorNode._resolve_log_dir (L100)                       | COVERED |
+|     TensorBoardMonitorNode._get_next_run_dir (L128)                      | COVERED |
+|     TensorBoardMonitorNode.forward (L151)                                | COVERED |
+|     TensorBoardMonitorNode.log (L211)                                    | COVERED |
+|     TensorBoardMonitorNode._log_artifact (L236)                          | COVERED |
+|     TensorBoardMonitorNode._log_metric (L267)                            | COVERED |
+|     TensorBoardMonitorNode._validate_image_artifact (L284)               | COVERED |
+|     TensorBoardMonitorNode.__del__ (L310)                                | COVERED |
+|--------------------------------------------------------------------------|---------|
+| node\normalization.py (module)                                           |  MISSED |
+|   _ScoreNormalizerBase (L11)                                             | COVERED |
+|     _ScoreNormalizerBase.forward (L38)                                   | COVERED |
+|     _ScoreNormalizerBase._normalize (L54)                                |  MISSED |
+|   IdentityNormalizer (L58)                                               | COVERED |
+|     IdentityNormalizer._normalize (L64)                                  |  MISSED |
+|   MinMaxNormalizer (L68)                                                 | COVERED |
+|     MinMaxNormalizer.statistical_initialization (L88)                    | COVERED |
+|     MinMaxNormalizer._is_initialized (L116)                              | COVERED |
+|     MinMaxNormalizer._normalize (L120)                                   |  MISSED |
+|   SigmoidNormalizer (L140)                                               | COVERED |
+|     SigmoidNormalizer._normalize (L147)                                  |  MISSED |
+|   ZScoreNormalizer (L157)                                                | COVERED |
+|     ZScoreNormalizer._normalize (L189)                                   | COVERED |
+|   SigmoidTransform (L212)                                                | COVERED |
+|     SigmoidTransform.forward (L248)                                      | COVERED |
+|   PerPixelUnitNorm (L264)                                                | COVERED |
+|     PerPixelUnitNorm.forward (L271)                                      | COVERED |
+|     PerPixelUnitNorm._normalize (L276)                                   |  MISSED |
+|--------------------------------------------------------------------------|---------|
+| node\pca.py (module)                                                     | COVERED |
+|   TrainablePCA (L15)                                                     | COVERED |
+|     TrainablePCA.statistical_initialization (L98)                        | COVERED |
+|     TrainablePCA.unfreeze (L143)                                         | COVERED |
+|     TrainablePCA.forward (L162)                                          | COVERED |
+|--------------------------------------------------------------------------|---------|
+| node\preprocessors.py (module)                                           |  MISSED |
+|   BandpassByWavelength (L12)                                             | COVERED |
+|     BandpassByWavelength.forward (L83)                                   | COVERED |
+|--------------------------------------------------------------------------|---------|
+| node\selector.py (module)                                                | COVERED |
+|   SoftChannelSelector (L16)                                              | COVERED |
+|     SoftChannelSelector.statistical_initialization (L132)                | COVERED |
+|     SoftChannelSelector.unfreeze (L186)                                  | COVERED |
+|     SoftChannelSelector.update_temperature (L205)                        | COVERED |
+|     SoftChannelSelector.get_selection_weights (L221)                     | COVERED |
+|     SoftChannelSelector.forward (L252)                                   | COVERED |
+|   TopKIndices (L281)                                                     | COVERED |
+|     TopKIndices.forward (L327)                                           | COVERED |
+|--------------------------------------------------------------------------|---------|
+| node\visualizations.py (module)                                          | COVERED |
+|   CubeRGBVisualizer (L21)                                                | COVERED |
+|     CubeRGBVisualizer.forward (L52)                                      |  MISSED |
+|   PCAVisualization (L115)                                                | COVERED |
+|     PCAVisualization.forward (L163)                                      | COVERED |
+|   AnomalyMask (L334)                                                     | COVERED |
+|     AnomalyMask.forward (L413)                                           | COVERED |
+|   ScoreHeatmapVisualizer (L664)                                          | COVERED |
+|     ScoreHeatmapVisualizer.forward (L701)                                |  MISSED |
+|   RGBAnomalyMask (L739)                                                  | COVERED |
+|     RGBAnomalyMask._compute_metrics (L820)                               | COVERED |
+|     RGBAnomalyMask._create_overlay (L835)                                | COVERED |
+|     RGBAnomalyMask._plot_with_gt (L851)                                  | COVERED |
+|     RGBAnomalyMask._plot_no_gt (L885)                                    | COVERED |
+|     RGBAnomalyMask.forward (L899)                                        | COVERED |
+|--------------------------------------------------------------------------|---------|
+| utils\__init__.py (module)                                               | COVERED |
+|--------------------------------------------------------------------------|---------|
+| utils\deep_svdd_factory.py (module)                                      |  MISSED |
+|   ChannelConfig (L5)                                                     |  MISSED |
+|   infer_channels_after_bandpass (L10)                                    | COVERED |
+|--------------------------------------------------------------------------|---------|
+| utils\vis_helpers.py (module)                                            | COVERED |
+|   fig_to_array (L16)                                                     | COVERED |
+|   tensor_to_uint8 (L59)                                                  | COVERED |
+|   tensor_to_numpy (L75)                                                  | COVERED |
+|--------------------------------------------------------------------------|---------|
+
+----------------------------------- Summary -----------------------------------
+| Name                                |   Total |   Miss |   Cover |   Cover% |
+|-------------------------------------|---------|--------|---------|----------|
+| __init__.py                         |       1 |      1 |       0 |       0% |
+| anomaly\__init__.py                 |       1 |      1 |       0 |       0% |
+| anomaly\deep_svdd.py                |      19 |      9 |      10 |      53% |
+| anomaly\lad_detector.py             |       8 |      2 |       6 |      75% |
+| anomaly\rx_detector.py              |      13 |      5 |       8 |      62% |
+| deciders\__init__.py                |       1 |      1 |       0 |       0% |
+| deciders\binary_decider.py          |       7 |      3 |       4 |      57% |
+| deciders\two_stage_decider.py       |       5 |      4 |       1 |      20% |
+| node\__init__.py                    |       1 |      0 |       1 |     100% |
+| node\adaclip.py                     |       7 |      2 |       5 |      71% |
+| node\band_selection.py              |      31 |      8 |      23 |      74% |
+| node\channel_mixer.py               |       7 |      0 |       7 |     100% |
+| node\concrete_selector.py           |       8 |      0 |       8 |     100% |
+| node\conversion.py                  |      11 |      0 |      11 |     100% |
+| node\data.py                        |       3 |      3 |       0 |       0% |
+| node\drcnn_tensorboard_viz.py       |       7 |      0 |       7 |     100% |
+| node\labels.py                      |       4 |      1 |       3 |      75% |
+| node\losses.py                      |      18 |      1 |      17 |      94% |
+| node\metrics.py                     |      13 |      0 |      13 |     100% |
+| node\monitor.py                     |      10 |      1 |       9 |      90% |
+| node\normalization.py               |      19 |      6 |      13 |      68% |
+| node\pca.py                         |       5 |      0 |       5 |     100% |
+| node\preprocessors.py               |       3 |      1 |       2 |      67% |
+| node\selector.py                    |       9 |      0 |       9 |     100% |
+| node\visualizations.py              |      15 |      2 |      13 |      87% |
+| utils\__init__.py                   |       1 |      0 |       1 |     100% |
+| utils\deep_svdd_factory.py          |       3 |      2 |       1 |      33% |
+| utils\vis_helpers.py                |       4 |      0 |       4 |     100% |
+|-------------------------------------|---------|--------|---------|----------|
+| TOTAL                               |     234 |     53 |     181 |    77.4% |
+--------------- RESULT: FAILED (minimum: 95.0%, actual: 77.4%) ----------------
+Generated badge to D:\code-repos\cuvis-ai\docs\assets

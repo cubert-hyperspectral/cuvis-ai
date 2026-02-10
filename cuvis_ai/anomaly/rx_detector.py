@@ -1,13 +1,48 @@
+"""RX anomaly detection nodes for hyperspectral imaging.
+
+This module implements the Reed-Xiaoli (RX) anomaly detection algorithm, a widely used
+statistical method for detecting anomalies in hyperspectral images. The RX algorithm
+computes squared Mahalanobis distance from the background distribution, treating
+pixels with large distances as potential anomalies.
+
+The module provides two variants:
+
+- **RXGlobal**: Uses global statistics (mean, covariance) estimated from training data.
+  Supports two-phase training: statistical initialization followed by optional gradient-based
+  fine-tuning via unfreeze().
+
+- **RXPerBatch**: Computes statistics independently for each batch on-the-fly without
+  requiring initialization. Useful for real-time processing or when training data is unavailable.
+
+Reference:
+    Reed, I. S., & Yu, X. (1990). "Adaptive multiple-band CFAR detection of an optical
+    pattern with unknown spectral distribution." IEEE Transactions on Acoustics, Speech,
+    and Signal Processing, 38(10), 1760-1770.
+"""
+
 import torch
 import torch.nn as nn
 from cuvis_ai_core.node import Node
-from cuvis_ai_core.pipeline.ports import PortSpec
-from cuvis_ai_core.utils.types import InputStream
+from cuvis_ai_schemas.execution import InputStream
+from cuvis_ai_schemas.pipeline import PortSpec
 
 
 def _flatten_bhwc(x: torch.Tensor) -> torch.Tensor:
+    """Flatten spatial dimensions of BHWC tensor to BNC format.
+
+    Parameters
+    ----------
+    x : torch.Tensor
+        Input tensor with shape (B, H, W, C)
+
+    Returns
+    -------
+    torch.Tensor
+        Flattened tensor with shape (B, H*W, C)
+    """
     B, H, W, C = x.shape
     return x.view(B, H * W, C)
+
 
 # ---------- Shared base ----------
 class RXBase(Node):
@@ -49,12 +84,71 @@ class RXBase(Node):
 
 # ---------- Trained/global variant ----------
 class RXGlobal(RXBase):
-    """
-    Uses global μ, Σ (estimated from train).
+    """RX anomaly detector with global background statistics.
 
-    After statistical initialization with statistical_initialization(), all parameters are stored as
-    buffers (frozen). Call unfreeze() to convert them to trainable nn.Parameters
-    for gradient-based optimization.
+    Uses global mean (μ) and covariance (Σ) estimated from training data to compute
+    Mahalanobis distance scores. Supports two-phase training: statistical initialization
+    followed by optional gradient-based fine-tuning.
+
+    The detector computes anomaly scores as:
+
+        RX(x) = (x - μ)ᵀ Σ⁻¹ (x - μ)
+
+    where x is a pixel spectrum, μ is the background mean, and Σ is the covariance matrix.
+
+    Parameters
+    ----------
+    num_channels : int
+        Number of spectral channels in input data
+    eps : float, optional
+        Small constant added to covariance diagonal for numerical stability (default: 1e-6)
+    cache_inverse : bool, optional
+        If True, precompute and cache Σ⁻¹ for faster inference (default: True)
+    **kwargs : dict
+        Additional arguments passed to Node base class
+
+    Attributes
+    ----------
+    mu : Tensor or nn.Parameter
+        Background mean spectrum, shape (C,). Initially a buffer, becomes Parameter after unfreeze()
+    cov : Tensor or nn.Parameter
+        Background covariance matrix, shape (C, C)
+    cov_inv : Tensor or nn.Parameter
+        Cached pseudo-inverse of covariance (if cache_inverse=True)
+    _statistically_initialized : bool
+        Flag indicating whether statistical_initialization() has been called
+
+    Examples
+    --------
+    >>> from cuvis_ai.anomaly.rx_detector import RXGlobal
+    >>> from cuvis_ai_core.training import StatisticalTrainer
+    >>>
+    >>> # Create RX detector
+    >>> rx = RXGlobal(num_channels=61, eps=1.0e-6)
+    >>>
+    >>> # Phase 1: Statistical initialization
+    >>> stat_trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
+    >>> stat_trainer.fit()  # Computes μ and Σ from training data
+    >>>
+    >>> # Inference with frozen statistics
+    >>> output = rx.forward(data=hyperspectral_cube)
+    >>> scores = output["scores"]  # [B, H, W, 1]
+    >>>
+    >>> # Phase 2: Optional gradient-based fine-tuning
+    >>> rx.unfreeze()  # Convert buffers to nn.Parameters
+    >>> # Now μ and Σ can be updated with gradient descent
+
+    See Also
+    --------
+    RXPerBatch : Per-batch RX variant without training
+    MinMaxNormalizer : Recommended preprocessing before RX
+    ScoreToLogit : Convert scores to logits for classification
+    docs/tutorials/rx-statistical.md : Complete RX pipeline tutorial
+
+    Notes
+    -----
+    After statistical_initialization(), mu and cov are stored as buffers (frozen by default).
+    Call unfreeze() to convert them to trainable nn.Parameters for gradient-based optimization.
     """
 
     def __init__(
@@ -131,6 +225,23 @@ class RXGlobal(RXBase):
 
     @torch.no_grad()
     def update(self, batch_bhwc: torch.Tensor) -> None:
+        """Update streaming statistics with a new batch using Welford's algorithm.
+
+        This method incrementally computes mean and covariance from batches of data
+        using Welford's numerically stable online algorithm. Multiple batches can be
+        processed sequentially before calling finalize() to compute final statistics.
+
+        Parameters
+        ----------
+        batch_bhwc : torch.Tensor
+            Input batch in BHWC format, shape (B, H, W, C)
+
+        Notes
+        -----
+        The algorithm maintains running accumulators (_mean, _M2, _n) in float64
+        for numerical stability. Batches with ≤1 samples are ignored. After update(),
+        call finalize() to compute mu and cov from the accumulated statistics.
+        """
         X = _flatten_bhwc(batch_bhwc).reshape(-1, batch_bhwc.shape[-1])  # (M,C)
         m = X.shape[0]
         if m <= 1:
@@ -149,6 +260,27 @@ class RXGlobal(RXBase):
 
     @torch.no_grad()
     def finalize(self) -> "RXGlobal":
+        """Compute final mean and covariance from accumulated streaming statistics.
+
+        This method converts the running accumulators (_mean, _M2) into the final
+        mean (mu) and covariance (cov) matrices. The covariance is regularized with
+        eps * I for numerical stability, and optionally caches the pseudo-inverse.
+
+        Returns
+        -------
+        RXGlobal
+            Returns self for method chaining
+
+        Raises
+        ------
+        ValueError
+            If fewer than 2 samples were accumulated (insufficient for covariance estimation)
+
+        Notes
+        -----
+        After finalization, mu and cov are stored as buffers (frozen by default).
+        Call unfreeze() to convert them to nn.Parameters for gradient-based training.
+        """
         if self._n <= 1:
             raise ValueError("Not enough samples to finalize.")
         mu = self._mean.clone()
@@ -166,6 +298,17 @@ class RXGlobal(RXBase):
         return self
 
     def reset(self) -> None:
+        """Reset all statistics and accumulators to empty state.
+
+        Clears mu, cov, cov_inv, and all streaming accumulators (_mean, _M2, _n).
+        After reset, the detector must be re-initialized via statistical_initialization()
+        before it can be used for inference.
+
+        Notes
+        -----
+        Use this method when you need to re-initialize the detector with different
+        training data or when switching between different dataset distributions.
+        """
         self.mu = torch.empty(0)
         self.cov = torch.empty(0, 0)
         self.cov_inv = torch.empty(0, 0)

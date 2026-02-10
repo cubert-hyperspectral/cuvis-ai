@@ -1,9 +1,21 @@
+"""Binary decision nodes for thresholding anomaly scores and logits.
+
+This module provides threshold-based decision nodes that convert continuous anomaly
+scores or logits into binary decisions (anomaly/normal). Two strategies are available:
+
+- **BinaryDecider**: Fixed threshold applied globally to sigmoid-transformed logits
+- **QuantileBinaryDecider**: Adaptive per-batch thresholding using quantile statistics
+
+Decision nodes are typically placed at the end of anomaly detection pipelines to
+convert detector outputs into actionable binary masks for visualization or evaluation.
+"""
+
 from collections.abc import Sequence
 from typing import Any
 
 import torch
-from cuvis_ai_core.deciders.base_decider import BaseDecider
-from cuvis_ai_core.pipeline.ports import PortSpec
+from cuvis_ai_core.deciders.base_decider import BinaryDecider as BaseDecider
+from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
 
 
@@ -16,8 +28,33 @@ class BinaryDecider(BaseDecider):
     Parameters
     ----------
     threshold : float
-        The threshold to use for classification after sigmoid:
-        result = (sigmoid(input) >= threshold)
+        The threshold to use for classification after sigmoid.
+        Values >= threshold are classified as anomalies (True).
+        Default: 0.5
+
+    Examples
+    --------
+    >>> from cuvis_ai.deciders.binary_decider import BinaryDecider
+    >>> import torch
+    >>>
+    >>> # Create decider with default threshold
+    >>> decider = BinaryDecider(threshold=0.5)
+    >>>
+    >>> # Apply to RX anomaly logits
+    >>> logits = torch.randn(4, 256, 256, 1)  # [B, H, W, C]
+    >>> output = decider.forward(logits=logits)
+    >>> decisions = output["decisions"]  # [4, 256, 256, 1] boolean mask
+    >>>
+    >>> # Use in pipeline
+    >>> pipeline.connect(
+    ...     (logit_head.logits, decider.logits),
+    ...     (decider.decisions, visualizer.mask),
+    ... )
+
+    See Also
+    --------
+    QuantileBinaryDecider : Adaptive per-batch thresholding
+    ScoreToLogit : Convert scores to logits before decisioning
     """
 
     INPUT_SPECS = {
@@ -69,16 +106,42 @@ class QuantileBinaryDecider(BaseDecider):
     This decider computes a tensor-valued threshold per batch item using the
     requested quantile over one or more non-batch dimensions, then produces a
     binary mask where values greater than or equal to that threshold are marked
-    as anomalies.
+    as anomalies. Useful for adaptive thresholding when score distributions vary
+    across batches.
 
     Parameters
     ----------
     quantile : float, optional
         Quantile in the closed interval [0, 1] used for the threshold
-        computation (default: 0.995).
+        computation (default: 0.995). Higher values (e.g., 0.99, 0.995) are
+        typical for anomaly detection to capture rare events.
     reduce_dims : Sequence[int] | None, optional
         Axes (relative to the input tensor) over which to compute the quantile.
-        When ``None`` (default), all non-batch dimensions are reduced.
+        When ``None`` (default), all non-batch dimensions (H, W, C) are reduced.
+        For per-channel thresholds, use reduce_dims=[1, 2] (reduce H, W only).
+
+    Examples
+    --------
+    >>> from cuvis_ai.deciders.binary_decider import QuantileBinaryDecider
+    >>> import torch
+    >>>
+    >>> # Create quantile-based decider (99.5th percentile)
+    >>> decider = QuantileBinaryDecider(quantile=0.995)
+    >>>
+    >>> # Apply to anomaly scores
+    >>> scores = torch.randn(4, 256, 256, 1)  # [B, H, W, C]
+    >>> output = decider.forward(logits=scores)
+    >>> decisions = output["decisions"]  # [4, 256, 256, 1] boolean mask
+    >>>
+    >>> # Per-channel thresholding (reduce H, W only)
+    >>> decider_perchannel = QuantileBinaryDecider(
+    ...     quantile=0.99,
+    ...     reduce_dims=[1, 2],  # Compute threshold per channel
+    ... )
+
+    See Also
+    --------
+    BinaryDecider : Fixed threshold decisioning
     """
 
     INPUT_SPECS = {
@@ -112,6 +175,23 @@ class QuantileBinaryDecider(BaseDecider):
         super().__init__(quantile=self.quantile, reduce_dims=self.reduce_dims, **kwargs)
 
     def forward(self, logits: Tensor, **_: Any) -> dict[str, Tensor]:
+        """Apply quantile-based thresholding to produce binary decisions.
+
+        Computes per-batch thresholds using the specified quantile over reduce_dims,
+        then classifies values >= threshold as anomalies.
+
+        Parameters
+        ----------
+        logits : Tensor
+            Input logits or anomaly scores, shape (B, H, W, C)
+
+        Returns
+        -------
+        dict[str, Tensor]
+            Dictionary containing:
+            - "decisions" : Tensor
+                Binary decision mask, shape (B, H, W, 1)
+        """
         tensor = logits
         reduce_dims = self._resolve_reduce_dims(tensor.dim())
 
@@ -162,5 +242,17 @@ class QuantileBinaryDecider(BaseDecider):
 
     @staticmethod
     def _validate_quantile(quantile: float) -> None:
+        """Validate that quantile is in the valid range [0, 1].
+
+        Parameters
+        ----------
+        quantile : float
+            Quantile value to validate
+
+        Raises
+        ------
+        ValueError
+            If quantile is outside the valid range [0, 1]
+        """
         if not 0.0 <= quantile <= 1.0:
             raise ValueError(f"Quantile must be within [0.0, 1.0]; received quantile={quantile}")

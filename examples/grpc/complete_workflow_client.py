@@ -6,7 +6,8 @@ import argparse
 from pathlib import Path
 
 import numpy as np
-from cuvis_ai_core.grpc import cuvis_ai_pb2, helpers
+from cuvis_ai_core.grpc import helpers
+from cuvis_ai_schemas.grpc.v1 import cuvis_ai_pb2
 from workflow_utils import (
     apply_trainrun_config,
     build_stub,

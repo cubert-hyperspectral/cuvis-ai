@@ -1,3 +1,20 @@
+"""Laplacian Anomaly Detector (LAD) for hyperspectral anomaly detection.
+
+This module implements the Laplacian Anomaly Detector, a graph-based approach for
+detecting spectral anomalies in hyperspectral images. LAD constructs a spectral graph
+using Cauchy similarity weights and computes anomaly scores based on the graph Laplacian.
+
+The LAD algorithm identifies anomalies by measuring how unusual a pixel's spectral
+signature is within the spectral manifold learned from background data. Unlike RX
+detectors that assume Gaussian distributions, LAD captures nonlinear manifold structures
+through graph construction.
+
+Reference:
+    Gu, Y., Liu, Y., & Zhang, Y. (2008). "A selective KPCA algorithm based on high-order
+    statistics for anomaly detection in hyperspectral imagery." IEEE Geoscience and
+    Remote Sensing Letters, 5(1), 43-47.
+"""
+
 from __future__ import annotations
 
 from typing import Any
@@ -6,8 +23,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 from cuvis_ai_core.node import Node
-from cuvis_ai_core.pipeline.ports import PortSpec
-from cuvis_ai_core.utils.types import InputStream
+from cuvis_ai_schemas.execution import InputStream
+from cuvis_ai_schemas.pipeline import PortSpec
 
 
 class LADGlobal(Node):
@@ -204,16 +221,32 @@ class LADGlobal(Node):
 
     @torch.no_grad()
     def reset(self) -> None:
-        """Reset statistics and accumulators."""
-        self.M = torch.empty(0)
-        self.L = torch.empty(0, 0)
-        self._mean_run = torch.empty(0)
-        self._count = 0
+        """Reset all statistics and model parameters to initial state.
+
+        Clears the streaming mean accumulator (_mean_run), sample count (_count),
+        global mean (M), and Laplacian matrix (L). After reset, the detector must
+        be re-initialized via statistical_initialization() before inference.
+
+        Notes
+        -----
+        Use this method to re-initialize the detector with different training data
+        or when switching between different spectral distributions.
+        """
+        self.register_buffer(
+            "_mean_run", torch.zeros(self.num_channels, dtype=torch.float64)
+        )  # (C,)
+        self._count: int = 0
+        # Model buffers
+        self.register_buffer("M", torch.zeros(self.num_channels, dtype=torch.float64))  # (C,)
+        self.register_buffer(
+            "L", torch.zeros(self.num_channels, self.num_channels, dtype=torch.float64)
+        )  # (C, C)
         self._statistically_initialized = False
 
     def unfreeze(self) -> None:
         """Convert M and L buffers to trainable nn.Parameters."""
         if self.M.numel() > 0 and self.L.numel() > 0:
+            device = self.M.device
             # Store current values
             M_data = self.M.clone()
             L_data = self.L.clone()
@@ -225,6 +258,8 @@ class LADGlobal(Node):
             # Register as parameters
             self.M = nn.Parameter(M_data, requires_grad=True)
             self.L = nn.Parameter(L_data, requires_grad=True)
+            self.M.to(device=device)
+            self.L.to(device=device)
 
         # Call parent to enable requires_grad
         super().unfreeze()
@@ -254,6 +289,7 @@ class LADGlobal(Node):
         N = H * W
 
         X = data.view(B, N, C)
+
         Xc = X - self.M.to(dtype=X.dtype)
         L = self.L.to(dtype=X.dtype)
 

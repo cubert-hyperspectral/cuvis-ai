@@ -13,8 +13,8 @@ from typing import Any
 import numpy as np
 import torch
 from cuvis_ai_core.node import Node
-from cuvis_ai_core.pipeline.ports import PortSpec
-from cuvis_ai_core.utils.types import Context, InputStream
+from cuvis_ai_schemas.execution import Context, InputStream
+from cuvis_ai_schemas.pipeline import PortSpec
 from scipy.ndimage import laplace
 from sklearn.metrics import roc_auc_score
 
@@ -447,6 +447,18 @@ def _compute_band_scores_supervised(
 
     # Normalize scores (z-score) to comparable scales
     def normalize_scores(scores: np.ndarray) -> np.ndarray:
+        """Z-score normalize scores to zero mean and unit variance.
+
+        Parameters
+        ----------
+        scores : np.ndarray
+            Input scores to normalize.
+
+        Returns
+        -------
+        np.ndarray
+            Normalized scores. If std is near zero, only centers the scores.
+        """
         mean = np.mean(scores)
         std = np.std(scores)
         if std < 1e-10:
@@ -666,6 +678,13 @@ class SupervisedBandSelectorBase(BandSelectorBase):
 
     @property
     def requires_initial_fit(self) -> bool:
+        """Whether this node requires statistical initialization from training data.
+
+        Returns
+        -------
+        bool
+            Always True for supervised band selectors.
+        """
         return True
 
     def _collect_training_data(
@@ -772,6 +791,21 @@ class SupervisedCIRBandSelector(SupervisedBandSelectorBase):
         self.windows = list(windows)
 
     def statistical_initialization(self, input_stream: InputStream) -> None:
+        """Initialize band selection using supervised scoring with CIR windows.
+
+        Computes Fisher, AUC, and MI scores for each band, applies mRMR selection
+        within CIR-specific wavelength windows, and stores the 3 selected bands.
+
+        Parameters
+        ----------
+        input_stream : InputStream
+            Training data stream with cube, mask, and wavelengths.
+
+        Raises
+        ------
+        ValueError
+            If the mRMR selection doesn't return exactly 3 bands.
+        """
         cubes, masks, wavelengths = self._collect_training_data(input_stream)
         band_scores, fisher_scores, auc_scores, mi_scores = _compute_band_scores_supervised(
             cubes,
@@ -803,6 +837,31 @@ class SupervisedCIRBandSelector(SupervisedBandSelectorBase):
         context: Context | None = None,  # noqa: ARG002
         **_: Any,
     ) -> dict[str, Any]:
+        """Generate false-color RGB from selected CIR bands.
+
+        Parameters
+        ----------
+        cube : torch.Tensor
+            Hyperspectral cube [B, H, W, C].
+        wavelengths : np.ndarray
+            Wavelengths for each channel [C].
+        mask : torch.Tensor, optional
+            Ground truth mask (unused in forward, required for initialization).
+        context : Context, optional
+            Pipeline execution context (unused).
+        **_ : Any
+            Additional unused keyword arguments.
+
+        Returns
+        -------
+        dict[str, Any]
+            Dictionary with "rgb_image" [B, H, W, 3] and "band_info" metadata.
+
+        Raises
+        ------
+        RuntimeError
+            If the node has not been statistically initialized.
+        """
         if not self._statistically_initialized or self.selected_indices.numel() != 3:
             raise RuntimeError("SupervisedCIRBandSelector not fitted")
 
@@ -849,6 +908,21 @@ class SupervisedWindowedFalseRGBSelector(SupervisedBandSelectorBase):
         self.windows = list(windows)
 
     def statistical_initialization(self, input_stream: InputStream) -> None:
+        """Initialize band selection using supervised scoring with RGB windows.
+
+        Computes Fisher, AUC, and MI scores for each band, applies mRMR selection
+        within RGB wavelength windows (blue/green/red), and stores the 3 selected bands.
+
+        Parameters
+        ----------
+        input_stream : InputStream
+            Training data stream with cube, mask, and wavelengths.
+
+        Raises
+        ------
+        ValueError
+            If the mRMR selection doesn't return exactly 3 bands.
+        """
         cubes, masks, wavelengths = self._collect_training_data(input_stream)
         band_scores, fisher_scores, auc_scores, mi_scores = _compute_band_scores_supervised(
             cubes,
@@ -880,6 +954,31 @@ class SupervisedWindowedFalseRGBSelector(SupervisedBandSelectorBase):
         context: Context | None = None,  # noqa: ARG002
         **_: Any,
     ) -> dict[str, Any]:
+        """Generate false-color RGB from selected windowed bands.
+
+        Parameters
+        ----------
+        cube : torch.Tensor
+            Hyperspectral cube [B, H, W, C].
+        wavelengths : np.ndarray
+            Wavelengths for each channel [C].
+        mask : torch.Tensor, optional
+            Ground truth mask (unused in forward, required for initialization).
+        context : Context, optional
+            Pipeline execution context (unused).
+        **_ : Any
+            Additional unused keyword arguments.
+
+        Returns
+        -------
+        dict[str, Any]
+            Dictionary with "rgb_image" [B, H, W, 3] and "band_info" metadata.
+
+        Raises
+        ------
+        RuntimeError
+            If the node has not been statistically initialized.
+        """
         if not self._statistically_initialized or self.selected_indices.numel() != 3:
             raise RuntimeError("SupervisedWindowedFalseRGBSelector not fitted")
 
@@ -914,6 +1013,21 @@ class SupervisedFullSpectrumBandSelector(SupervisedBandSelectorBase):
         super().__init__(score_weights=score_weights, lambda_penalty=lambda_penalty, **kwargs)
 
     def statistical_initialization(self, input_stream: InputStream) -> None:
+        """Initialize band selection using supervised scoring across full spectrum.
+
+        Computes Fisher, AUC, and MI scores for each band, applies mRMR selection
+        globally without wavelength window constraints, and stores the 3 selected bands.
+
+        Parameters
+        ----------
+        input_stream : InputStream
+            Training data stream with cube, mask, and wavelengths.
+
+        Raises
+        ------
+        ValueError
+            If the mRMR selection doesn't return exactly 3 bands.
+        """
         cubes, masks, wavelengths = self._collect_training_data(input_stream)
         band_scores, fisher_scores, auc_scores, mi_scores = _compute_band_scores_supervised(
             cubes,
@@ -944,6 +1058,31 @@ class SupervisedFullSpectrumBandSelector(SupervisedBandSelectorBase):
         context: Context | None = None,  # noqa: ARG002
         **_: Any,
     ) -> dict[str, Any]:
+        """Generate false-color RGB from globally selected bands.
+
+        Parameters
+        ----------
+        cube : torch.Tensor
+            Hyperspectral cube [B, H, W, C].
+        wavelengths : np.ndarray
+            Wavelengths for each channel [C].
+        mask : torch.Tensor, optional
+            Ground truth mask (unused in forward, required for initialization).
+        context : Context, optional
+            Pipeline execution context (unused).
+        **_ : Any
+            Additional unused keyword arguments.
+
+        Returns
+        -------
+        dict[str, Any]
+            Dictionary with "rgb_image" [B, H, W, 3] and "band_info" metadata.
+
+        Raises
+        ------
+        RuntimeError
+            If the node has not been statistically initialized.
+        """
         if not self._statistically_initialized or self.selected_indices.numel() != 3:
             raise RuntimeError("SupervisedFullSpectrumBandSelector not fitted")
 

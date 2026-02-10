@@ -1,27 +1,247 @@
-/* Custom CSS for CUVIS.AI Documentation */
+/* Custom CSS for CUVIS.AI Documentation - PyTorch-inspired */
 
-/* Improve code block styling */
-.highlight {
-    margin: 1em 0;
+/* Root variables - PyTorch color scheme */
+:root {
+    --pytorch-orange: #ee4c2c;
+    --pytorch-dark: #262626;
+    --code-bg: #f8f8f8;
+    --border-color: #e8e8e8;
 }
 
-/* Add some spacing for admonitions */
+/* Clean, readable typography */
+.md-typeset {
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: #333;
+}
+
+/* Headings - PyTorch style */
+.md-typeset h1 {
+    font-weight: 300;
+    font-size: 2rem;
+    margin: 0 0 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.3rem;
+}
+
+.md-typeset h2 {
+    font-weight: 400;
+    font-size: 1.5rem;
+    margin: 1.2rem 0 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.2rem;
+}
+
+.md-typeset h3 {
+    font-weight: 500;
+    font-size: 1.15rem;
+    margin: 1rem 0 0.4rem;
+}
+
+.md-typeset h4 {
+    font-weight: 600;
+    font-size: 1rem;
+    margin: 0.8rem 0 0.4rem;
+}
+
+/* Paragraphs and text */
+.md-typeset p {
+    margin: 0.5rem 0;
+}
+
+/* Lists - cleaner spacing */
+.md-typeset ul, .md-typeset ol {
+    margin: 0.5rem 0;
+    padding-left: 1.6rem;
+}
+
+.md-typeset li {
+    margin: 0.2rem 0;
+    line-height: 1.4;
+}
+
+/* Code blocks - PyTorch style */
+.md-typeset pre {
+    background-color: var(--code-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 0.3rem;
+    margin: 0.65rem 0;
+    font-size: 0.8rem;
+    line-height: 1.25;
+    max-width: 73%;
+    overflow-x: auto;
+}
+
+.md-typeset code {
+    background-color: var(--code-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    padding: 0.1rem 0.35rem;
+    font-size: 0.85em;
+}
+
+.md-typeset pre > code {
+    background-color: transparent;
+    border: none;
+    padding: 0;
+    font-size: 0.8rem;
+}
+
+/* Inline code in headers */
+.md-typeset h1 code,
+.md-typeset h2 code,
+.md-typeset h3 code {
+    font-size: 0.85em;
+}
+
+/* Tables - cleaner PyTorch style */
+.md-typeset table:not([class]) {
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    margin: 0.75rem 0;
+    font-size: 0.85rem;
+}
+
+.md-typeset table:not([class]) th {
+    background-color: #f6f6f6;
+    font-weight: 600;
+    padding: 0.5rem 0.7rem;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.md-typeset table:not([class]) td {
+    padding: 0.5rem 0.7rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* Admonitions - cleaner style */
 .admonition {
-    margin: 1.5em 0;
+    margin: 0.75rem 0;
+    padding: 0.6rem 0.8rem;
+    border-radius: 4px;
+    border-left: 4px solid;
 }
 
-/* Improve table readability */
-table {
-    font-size: 0.9em;
+.admonition.note {
+    border-left-color: #5890ff;
+    background-color: #f0f5ff;
 }
 
-/* Style for feature badges */
+.admonition.tip {
+    border-left-color: #00c853;
+    background-color: #f1f8f4;
+}
+
+.admonition.warning {
+    border-left-color: var(--pytorch-orange);
+    background-color: #fff8f0;
+}
+
+.admonition.danger {
+    border-left-color: #ff1744;
+    background-color: #fff0f3;
+}
+
+/* Links - PyTorch orange */
+.md-typeset a {
+    color: var(--pytorch-orange);
+    text-decoration: none;
+}
+
+.md-typeset a:hover {
+    color: #d43f27;
+    text-decoration: underline;
+}
+
+/* Horizontal rules */
+.md-typeset hr {
+    border-top: 1px solid var(--border-color);
+    margin: 1.5rem 0;
+}
+
+/* Dark theme adjustments */
+[data-md-color-scheme="slate"] .md-typeset {
+    color: #e0e0e0;
+}
+
+[data-md-color-scheme="slate"] .md-typeset h1,
+[data-md-color-scheme="slate"] .md-typeset h2,
+[data-md-color-scheme="slate"] .md-typeset h3,
+[data-md-color-scheme="slate"] .md-typeset h4 {
+    color: #ffffff;
+    border-bottom-color: #404040;
+}
+
+[data-md-color-scheme="slate"] .md-typeset code {
+    background-color: #2d2d2d;
+    border-color: #404040;
+    color: #e0e0e0;
+}
+
+[data-md-color-scheme="slate"] .md-typeset pre {
+    background-color: #2d2d2d;
+    border-color: #404040;
+}
+
+[data-md-color-scheme="slate"] .md-typeset table:not([class]) {
+    border-color: #404040;
+}
+
+[data-md-color-scheme="slate"] .md-typeset table:not([class]) th {
+    background-color: #2d2d2d;
+    border-bottom-color: #404040;
+    color: #ffffff;
+}
+
+[data-md-color-scheme="slate"] .md-typeset table:not([class]) td {
+    border-bottom-color: #404040;
+    color: #e0e0e0;
+}
+
+[data-md-color-scheme="slate"] .admonition {
+    background-color: #2d2d2d;
+}
+
+[data-md-color-scheme="slate"] .md-typeset a {
+    color: #ff6e40;
+}
+
+[data-md-color-scheme="slate"] .md-typeset a:hover {
+    color: #ff9e80;
+}
+
+/* Content area - wider like PyTorch */
+.md-grid {
+    max-width: 80rem;
+}
+
+.md-main__inner {
+    margin-top: 1rem;
+}
+
+/* Code block syntax highlighting improvements */
+.highlight .hll { background-color: #ffc; }
+.highlight .c { color: #408080; font-style: italic; }
+.highlight .k { color: #008000; font-weight: bold; }
+.highlight .o { color: #666666; }
+.highlight .cm { color: #408080; font-style: italic; }
+.highlight .cp { color: #bc7a00; }
+.highlight .kd { color: #008000; font-weight: bold; }
+.highlight .kn { color: #008000; font-weight: bold; }
+.highlight .kr { color: #008000; font-weight: bold; }
+.highlight .s { color: #ba2121; }
+.highlight .nc { color: #0000ff; font-weight: bold; }
+.highlight .nf { color: #0000ff; }
+.highlight .bp { color: #008000; }
+
+/* Feature badges */
 .feature-badge {
     display: inline-block;
-    padding: 0.2em 0.5em;
-    margin: 0.2em;
+    padding: 0.2rem 0.6rem;
+    margin: 0.2rem;
     border-radius: 3px;
-    font-size: 0.85em;
+    font-size: 0.85rem;
     font-weight: 500;
 }
 
@@ -40,25 +260,38 @@ table {
     color: white;
 }
 
-/* Improve navigation for long pages */
-.md-sidebar__scrollwrap {
-    max-height: calc(100vh - 6.4rem);
+/* Mermaid diagram dark theme enhancements */
+[data-md-color-scheme="slate"] .mermaid {
+    background-color: transparent;
 }
 
-/* Better spacing for API documentation */
-.doc-contents {
-    margin: 1em 0;
+[data-md-color-scheme="slate"] .mermaid svg {
+    background-color: transparent;
+    max-width: 100%;
 }
 
-/* Highlight important notes */
-.admonition.tip {
-    border-left-color: #00bcd4;
+[data-md-color-scheme="slate"] .mermaid .node rect,
+[data-md-color-scheme="slate"] .mermaid .node circle,
+[data-md-color-scheme="slate"] .mermaid .node ellipse,
+[data-md-color-scheme="slate"] .mermaid .node polygon {
+    stroke: #666666 !important;
 }
 
-.admonition.warning {
-    border-left-color: #ff9800;
+[data-md-color-scheme="slate"] .mermaid .edgeLabel {
+    background-color: #2d2d2d !important;
+    color: #e0e0e0 !important;
 }
 
-.admonition.note {
-    border-left-color: #2196f3;
+[data-md-color-scheme="slate"] .mermaid .label {
+    color: #e0e0e0 !important;
+}
+
+[data-md-color-scheme="slate"] .mermaid .cluster rect {
+    fill: #2d2d2d !important;
+    stroke: #666666 !important;
+}
+
+/* Light theme - ensure default styling */
+[data-md-color-scheme="default"] .mermaid {
+    background-color: transparent;
 }

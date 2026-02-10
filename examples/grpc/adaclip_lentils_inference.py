@@ -11,7 +11,8 @@ from __future__ import annotations
 
 import numpy as np
 from cuvis_ai.data.datasets import SingleCu3sDataset
-from cuvis_ai_core.grpc import cuvis_ai_pb2, helpers
+from cuvis_ai_core.grpc import helpers
+from cuvis_ai_schemas.grpc.v1 import cuvis_ai_pb2
 from torch.utils.data import DataLoader
 from workflow_utils import (
     build_stub,

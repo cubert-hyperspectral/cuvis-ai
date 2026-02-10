@@ -1,9 +1,26 @@
+"""
+TensorBoard Monitoring Nodes.
+
+This module provides nodes for logging artifacts and metrics to TensorBoard
+during pipeline execution. The monitoring nodes are sink nodes that accept
+artifacts (visualizations) and metrics from upstream nodes and write them to
+TensorBoard logs for visualization and analysis.
+
+The primary use case is logging training and validation metrics, along with
+visualizations like heatmaps, RGB renderings, and PCA plots during model training.
+
+See Also
+--------
+cuvis_ai.node.visualizations : Nodes that generate artifacts for monitoring
+"""
+
 import re
 from pathlib import Path
 
 from cuvis_ai_core.node import Node
-from cuvis_ai_core.pipeline.ports import PortSpec
-from cuvis_ai_core.utils.types import Artifact, ArtifactType, Context, ExecutionStage, Metric
+from cuvis_ai_schemas.enums import ArtifactType, ExecutionStage
+from cuvis_ai_schemas.execution import Artifact, Context, Metric
+from cuvis_ai_schemas.pipeline import PortSpec
 from loguru import logger
 from torch.utils.tensorboard import SummaryWriter
 

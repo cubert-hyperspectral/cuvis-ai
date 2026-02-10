@@ -1,3 +1,16 @@
+"""
+Preprocessing Nodes.
+
+This module provides nodes for preprocessing hyperspectral data, including
+wavelength-based band selection and filtering. These nodes help reduce
+dimensionality and focus analysis on specific spectral regions of interest.
+
+See Also
+--------
+cuvis_ai.node.band_selection : Advanced band selection methods
+cuvis_ai.node.normalization : Normalization and standardization nodes
+"""
+
 from __future__ import annotations
 
 from typing import Any
@@ -5,7 +18,7 @@ from typing import Any
 import numpy as np
 import torch
 from cuvis_ai_core.node import Node
-from cuvis_ai_core.pipeline.ports import PortSpec
+from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
 
 

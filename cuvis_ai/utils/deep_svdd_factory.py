@@ -1,8 +1,34 @@
+"""
+Deep SVDD Channel Configuration Utilities.
+
+This module provides utilities for inferring channel counts after bandpass
+filtering for Deep SVDD networks. This is useful for automatically configuring
+network architectures based on the data pipeline's preprocessing steps.
+
+See Also
+--------
+cuvis_ai.node.preprocessors : Bandpass filtering nodes
+cuvis_ai.anomaly.deep_svdd : Deep SVDD anomaly detection
+"""
+
 from dataclasses import dataclass
 
 
 @dataclass
 class ChannelConfig:
+    """Configuration for network channel counts.
+
+    Stores the number of input and output channels for network layers,
+    typically determined after bandpass filtering.
+
+    Attributes
+    ----------
+    num_channels : int
+        Total number of channels in the network.
+    in_channels : int
+        Number of input channels to the network.
+    """
+
     num_channels: int
     in_channels: int
 

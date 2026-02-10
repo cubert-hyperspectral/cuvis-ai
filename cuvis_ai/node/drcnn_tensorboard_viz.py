@@ -14,8 +14,9 @@ from typing import Any
 import numpy as np
 import torch
 from cuvis_ai_core.node import Node
-from cuvis_ai_core.pipeline.ports import PortSpec
-from cuvis_ai_core.utils.types import Artifact, ArtifactType, Context, ExecutionStage
+from cuvis_ai_schemas.enums import ArtifactType, ExecutionStage
+from cuvis_ai_schemas.execution import Artifact, Context
+from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
 
 
