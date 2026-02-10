@@ -112,7 +112,7 @@ jobs:
       - name: Run detect-secrets
         run: |
           uv run detect-secrets scan --all-files \
-            --exclude-files '\.lock$|\.egg-info|\.pyc$|site/|\.git/|\.pytest_cache|node_modules/' \
+            --exclude-files '\.lock$|\.egg-info|\.pyc$|site/|\.git/|\.pytest_cache' \
             --baseline .secrets.baseline
 
       - name: Run bandit security linter
