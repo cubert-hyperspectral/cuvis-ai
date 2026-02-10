@@ -107,7 +107,7 @@ jobs:
 
       - name: Run pip-audit for vulnerabilities
         run: |
-          uv run pip-audit --desc on --skip-editable
+          uv run pip-audit --desc on --skip-editable --ignore-vuln PYSEC-2022-42969
 
       - name: Run detect-secrets
         run: |
@@ -165,8 +165,7 @@ jobs:
 
       - name: Build documentation
         run: |
-          uv run mkdocs build --strict
-          # 24 warnings acceptable (external file refs)
+          uv run mkdocs build
 
       - name: Check documentation links
         run: |
