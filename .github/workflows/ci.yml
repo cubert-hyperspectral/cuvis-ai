@@ -20,17 +20,17 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0  # Full history for setuptools-scm
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v7
         with:
           version: "latest"
 
@@ -48,7 +48,7 @@ jobs:
             -v
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.xml
@@ -62,15 +62,15 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v7
 
       - name: Install dependencies
         run: uv sync --locked --extra dev
@@ -92,15 +92,15 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v7
 
       - name: Install dependencies
         run: uv sync --locked --extra dev
@@ -108,7 +108,6 @@ jobs:
       - name: Run pip-audit for vulnerabilities
         run: |
           uv run pip-audit --strict --desc on --skip-editable
-        continue-on-error: true  # Don't fail CI on vulnerabilities yet
 
       - name: Run detect-secrets
         run: |
@@ -119,7 +118,29 @@ jobs:
       - name: Run bandit security linter
         run: |
           uv run bandit -r cuvis_ai/ -c pyproject.toml
-        continue-on-error: true  # Don't fail CI on security warnings yet
+
+  typecheck:
+    name: Type Checking
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install dependencies
+        run: uv sync --locked --extra dev
+
+      - name: Run mypy
+        run: uv run mypy .
+        continue-on-error: true  # Adoption phase
 
   doc-build:
     name: Documentation Build
@@ -127,17 +148,17 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v7
 
       - name: Install dependencies
         run: uv sync --locked --extra docs
@@ -153,3 +174,44 @@ jobs:
             -m check_links \
             --check-links \
             -v
+
+  build-and-validate:
+    name: Build & Validate Package
+    needs: [test, lint, security, typecheck, doc-build]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0  # Full history for setuptools-scm
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install dependencies
+        run: uv sync --locked --extra dev
+
+      - name: Build package
+        run: |
+          rm -rf dist/ build/ *.egg-info/
+          uv build
+
+      - name: Validate with twine
+        run: uv run twine check dist/*
+
+      - name: List package contents
+        run: |
+          ls -lh dist/
+          tar tzf dist/*.tar.gz | head -20
+
+      - name: Generate SBOM
+        run: uv run cyclonedx-py -o sbom.cdx.json || true
+
+      - name: Generate license report
+        run: uv run pip-licenses --format=markdown --with-authors > licenses.md || true

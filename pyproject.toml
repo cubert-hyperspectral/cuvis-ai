@@ -13,7 +13,7 @@ authors = [
     { name = "Cubert GmbH, Ulm, Germany", email = "cuvis.ai@cubert-gmbh.com" },
 ]
 dependencies = [
-    "cuvis==3.5.0",
+    "cuvis>=3.5.0",
     "cuvis-ai-core>=0.1.2",  # Resolved from PyPI when available, or local path via [tool.uv.sources]
     "cuvis-ai-schemas[full]>=0.1.0",
     "pydantic>=2.0.0,<3.0.0",

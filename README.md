@@ -29,6 +29,8 @@ cuvis.ai is split across three repositories:
 uv add cuvis-ai
 ```
 
+> **GPU support**: For PyTorch with CUDA, see the [Installation Guide](https://cubert-hyperspectral.github.io/cuvis-ai/user-guide/installation/) for setup instructions.
+
 **For development** (within this repo):
 
 ```bash

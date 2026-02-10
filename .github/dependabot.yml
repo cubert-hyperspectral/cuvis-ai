@@ -51,3 +51,5 @@ updates:
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
       - dependency-name: "torchvision"
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "torchaudio"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
