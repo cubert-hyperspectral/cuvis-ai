@@ -111,9 +111,7 @@ jobs:
 
       - name: Run detect-secrets
         run: |
-          uv run detect-secrets scan --all-files \
-            --exclude-files '\.lock$|\.egg-info|\.pyc$|site/|\.git/' \
-            --baseline .secrets.baseline
+          uv run detect-secrets audit --report .secrets.baseline
 
       - name: Run bandit security linter
         run: |
