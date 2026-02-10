@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.2.4] - 2026-02-10
+## [0.2.4] - ***
 
 ### Added
 - Comprehensive documentation structure with 70+ markdown files covering all framework aspects

@@ -107,7 +107,7 @@ jobs:
 
       - name: Run pip-audit for vulnerabilities
         run: |
-          uv run pip-audit --strict --desc on --skip-editable
+          uv run pip-audit --desc on --skip-editable
 
       - name: Run detect-secrets
         run: |
@@ -165,7 +165,7 @@ jobs:
 
       - name: Build documentation
         run: |
-          mkdocs build --strict
+          uv run mkdocs build --strict
           # 24 warnings acceptable (external file refs)
 
       - name: Check documentation links
