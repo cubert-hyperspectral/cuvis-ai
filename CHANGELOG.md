@@ -7,8 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.2.4] - ***
-
 ### Added
 - Comprehensive documentation structure with 70+ markdown files covering all framework aspects
 - 6 end-to-end tutorials (RX Statistical, Channel Selector, Deep SVDD, AdaCLIP, gRPC workflow, Remote Deployment)
@@ -188,8 +186,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[unreleased]: https://github.com/cubert-hyperspectral/cuvis-ai/compare/v0.2.4...HEAD
-[0.2.4]: https://github.com/cubert-hyperspectral/cuvis-ai/compare/v0.2.3...v0.2.4
+[unreleased]: https://github.com/cubert-hyperspectral/cuvis-ai/compare/v0.2.3...HEAD
 [0.2.3]: https://github.com/cubert-hyperspectral/cuvis-ai/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/cubert-hyperspectral/cuvis-ai/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/cubert-hyperspectral/cuvis-ai/compare/v0.2.0...v0.2.1
