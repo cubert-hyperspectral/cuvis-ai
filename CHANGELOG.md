@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.0] - 2026-02-11
 
 ### Added
 - Comprehensive documentation site (70+ pages): 6 tutorials, API reference, node catalog (50+ nodes across 11 categories), gRPC guides, config reference, how-to guides, plugin system docs, development guides, 20+ Mermaid/Graphviz diagrams
@@ -160,7 +160,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[unreleased]: https://github.com/cubert-hyperspectral/cuvis-ai/compare/v0.2.3...HEAD
+[0.3.0]: https://github.com/cubert-hyperspectral/cuvis-ai/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/cubert-hyperspectral/cuvis-ai/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/cubert-hyperspectral/cuvis-ai/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/cubert-hyperspectral/cuvis-ai/compare/v0.2.0...v0.2.1
