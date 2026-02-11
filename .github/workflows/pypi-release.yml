@@ -102,14 +102,14 @@ jobs:
         run: uv run pip-licenses --format=markdown --with-authors > licenses.md || true
 
       - name: Upload dist packages
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: dist-packages
           path: dist/
           retention-days: 7
 
       - name: Upload compliance artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: compliance-reports
           path: |
@@ -125,7 +125,7 @@ jobs:
 
     steps:
       - name: Download build artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v4
         with:
           name: dist-packages
           path: dist/
@@ -154,7 +154,7 @@ jobs:
 
     steps:
       - name: Download build artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v4
         with:
           name: dist-packages
           path: dist/
@@ -176,13 +176,13 @@ jobs:
           fetch-depth: 0
 
       - name: Download dist packages
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v4
         with:
           name: dist-packages
           path: dist/
 
       - name: Download compliance reports
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v4
         with:
           name: compliance-reports
           path: compliance/
