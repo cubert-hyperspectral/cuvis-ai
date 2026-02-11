@@ -26,7 +26,7 @@ from cuvis_ai_core.node import Node
 from cuvis_ai_schemas.execution import InputStream
 from cuvis_ai_schemas.pipeline import PortSpec
 
-## This node is not approeved
+## This node is not approved
 # missing unfreeze/freeze
 # missing approved documentation and alignment with current API
 # could we use streaming accumulators for mean and Laplacian construction

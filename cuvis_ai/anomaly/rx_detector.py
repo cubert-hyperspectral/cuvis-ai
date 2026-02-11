@@ -44,6 +44,11 @@ def _flatten_bhwc(x: torch.Tensor) -> torch.Tensor:
     return x.view(B, H * W, C)
 
 
+## This node is not approved
+# missing unfreeze/freeze
+# missing approved documentation and alignment with current API
+
+
 # ---------- Shared base ----------
 class RXBase(Node):
     """Base class for RX anomaly detectors."""

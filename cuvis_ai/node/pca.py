@@ -11,7 +11,7 @@ from cuvis_ai_schemas.execution import InputStream
 from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
 
-## This node is not approeved
+## This node is not approved
 # missing tests against standard impmentations
 # missing unfreeze/freeze
 # missing true incremental PCA implementation for large datasets with Welfords algo
