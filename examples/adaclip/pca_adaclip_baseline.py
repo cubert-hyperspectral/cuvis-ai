@@ -18,18 +18,17 @@ from pathlib import Path
 
 import hydra
 import torch
-from loguru import logger
-from omegaconf import DictConfig
-
 from cuvis_ai_core.data.datasets import SingleCu3sDataModule
-from cuvis_ai_core.utils.node_registry import NodeRegistry
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_core.training import StatisticalTrainer
-from cuvis_ai_core.training.config import (
-    PipelineMetadata,
+from cuvis_ai_core.utils.node_registry import NodeRegistry
+from cuvis_ai_schemas.pipeline import PipelineMetadata
+from cuvis_ai_schemas.training import (
     TrainingConfig,
     TrainRunConfig,
 )
+from loguru import logger
+from omegaconf import DictConfig
 
 from cuvis_ai.deciders.binary_decider import QuantileBinaryDecider
 from cuvis_ai.node.data import LentilsAnomalyDataNode
@@ -57,12 +56,12 @@ def main(cfg: DictConfig) -> None:
         registry.load_plugin(
             name="adaclip",
             config={
-                "repo": "git@gitlab.cubert.local:cubert/cuvis-ai-adaclip.git",
-                "ref": "v0.1.0",  # Tagged release for production stability
-                "provides": ["cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector"]
-            }
+                "repo": "https://github.com/cubert-hyperspectral/cuvis-ai-adaclip.git",
+                "tag": "v0.1.0",  # Tagged release for production stability
+                "provides": ["cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector"],
+            },
         )
-        
+
         # For local development, comment out above and use:
         # registry.load_plugin(
         #     name="adaclip",
@@ -71,7 +70,7 @@ def main(cfg: DictConfig) -> None:
         #         "provides": ["cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector"]
         #     }
         # )
-        
+
         # Get the AdaCLIPDetector class from the registry
         AdaCLIPDetector = NodeRegistry.get("cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector")
         logger.info("✓ AdaCLIP plugin loaded successfully")
@@ -133,6 +132,7 @@ def main(cfg: DictConfig) -> None:
 
     # PCA: 61 → 3 channels (frozen, statistical initialization only)
     pca = TrainablePCA(
+        num_channels=input_channels,  # Inferred from data at line 93
         n_components=3,  # 3 components for RGB compatibility
         whiten=False,  # Don't whiten - we'll normalize separately to [0,1]
         init_method="svd",  # Use SVD for initialization

@@ -7,9 +7,15 @@ from typing import Any, Literal
 import torch
 import torch.nn as nn
 from cuvis_ai_core.node import Node
-from cuvis_ai_core.pipeline.ports import PortSpec
-from cuvis_ai_core.utils.types import InputStream
+from cuvis_ai_schemas.execution import InputStream
+from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
+
+## This node is not approved
+# missing tests against standard impmentations
+# missing unfreeze/freeze
+# missing true incremental PCA implementation for large datasets with Welfords algo
+# missing turorial examples and approved documentation
 
 
 class TrainablePCA(Node):
@@ -72,6 +78,7 @@ class TrainablePCA(Node):
 
     def __init__(
         self,
+        num_channels: int,
         n_components: int,
         whiten: bool = False,
         init_method: Literal["svd", "random"] = "svd",
@@ -84,13 +91,18 @@ class TrainablePCA(Node):
         self.eps = eps
 
         super().__init__(
-            n_components=n_components, whiten=whiten, init_method=init_method, eps=eps, **kwargs
+            num_channels=num_channels,
+            n_components=n_components,
+            whiten=whiten,
+            init_method=init_method,
+            eps=eps,
+            **kwargs,
         )
 
         # Buffers for statistical initialization (private to avoid conflicts with output ports)
-        self.register_buffer("_mean", torch.empty(0))
-        self.register_buffer("_explained_variance", torch.empty(0))
-        self.register_buffer("_components", torch.empty(0, 0))
+        self.register_buffer("_mean", torch.empty(num_channels))
+        self.register_buffer("_explained_variance", torch.empty(n_components))
+        self.register_buffer("_components", torch.empty(n_components, num_channels))
 
         self._statistically_initialized = False
 
@@ -99,8 +111,8 @@ class TrainablePCA(Node):
 
         Parameters
         ----------
-        iterator : Iterator
-            Iterator yielding dicts matching INPUT_SPECS (port-based format)
+        input_stream : InputStream
+            Input stream yielding dicts matching INPUT_SPECS (port-based format)
             Expected format: {"data": tensor} where tensor is BHWC
         """
         # Todo: this should not concatenate all data and then do SVD - this is not scalable.
@@ -136,7 +148,6 @@ class TrainablePCA(Node):
         variance = (S**2) / (X.shape[0] - 1)
         self._explained_variance = variance[: self.n_components].clone()  # [n_components]
 
-        self._statistically_initialized = True
         self._statistically_initialized = True
 
     def unfreeze(self) -> None:

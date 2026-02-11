@@ -1,16 +1,16 @@
-# MkDocs Configuration for cuvis.ai
+# MkDocs Configuration for cuvis-ai
 site_name: CUVIS.AI Documentation
 site_description: PyTorch Lightning Training Pipeline for Hyperspectral Data Analysis
 site_author: Cubert GmbH
-site_url: https://cubert-hyperspectral.github.io/cuvis.ai/
+site_url: https://cubert-hyperspectral.github.io/cuvis-ai/
 
 # Repository
-repo_name: cubert-hyperspectral/cuvis.ai
-repo_url: https://github.com/cubert-hyperspectral/cuvis.ai
+repo_name: cubert-hyperspectral/cuvis-ai
+repo_url: https://github.com/cubert-hyperspectral/cuvis-ai
 edit_uri: edit/main/docs/
 
 # Copyright
-copyright: Copyright &copy; 2025 Cubert GmbH
+copyright: Copyright &copy; 2025-2026 Cubert GmbH
 
 # Configuration
 theme:
@@ -22,7 +22,7 @@ theme:
     - navigation.tabs
     - navigation.tabs.sticky
     - navigation.sections
-    - navigation.expand
+    # - navigation.expand  # Disabled: sections collapsed by default for cleaner navigation
     - navigation.top
     - search.suggest
     - search.highlight
@@ -31,20 +31,22 @@ theme:
     - content.code.copy
   palette:
     - scheme: default
-      primary: indigo
-      accent: indigo
+      primary: deep orange
+      accent: deep orange
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
     - scheme: slate
-      primary: indigo
-      accent: indigo
+      primary: deep orange
+      accent: deep orange
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
   font:
-    text: Roboto
-    code: Roboto Mono
+    text: Lato
+    code: Source Code Pro
+  logo: images/logo.png
+  favicon: images/logo.png
   icon:
     repo: fontawesome/brands/github
 
@@ -77,7 +79,7 @@ markdown_extensions:
       normalize_issue_symbols: true
       repo_url_shorthand: true
       user: cubert-hyperspectral
-      repo: cuvis.ai
+      repo: cuvis-ai
   - pymdownx.mark
   - pymdownx.smartsymbols
   - pymdownx.superfences:
@@ -95,16 +97,17 @@ markdown_extensions:
 plugins:
   - search:
       separator: '[\s\-,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
-  - gen-files:
-      scripts:
-        - docs/gen_ref_pages.py
+  # Disable auto-generated API pages to avoid duplicate anchors
+  # - gen-files:
+  #     scripts:
+  #       - docs/gen_ref_pages.py
   - literate-nav:
       nav_file: SUMMARY.md
   - mkdocstrings:
       handlers:
         python:
           options:
-            docstring_style: google
+            docstring_style: numpy
             docstring_section_style: table
             show_source: true
             show_root_heading: true
@@ -123,26 +126,87 @@ plugins:
 # Page tree
 nav:
   - Home: index.md
-  - User Guide:
+  - Getting Started:
       - Installation: user-guide/installation.md
       - Quickstart: user-guide/quickstart.md
-      - Configuration: user-guide/configuration.md
-      - Limitations: user-guide/limitations.md
-  - Tutorials:
-      - Phase 1 - Statistical Training: tutorials/phase1_statistical.md
-      - Phase 2 - Visualization: tutorials/phase2_visualization.md
-      - Phase 3 - Gradient Training: tutorials/phase3_gradient_training.md
-      - Phase 4 - Channel Selection: tutorials/phase4_channel_selection.md
+      - Configuration Basics: user-guide/configuration.md
+      - Core Concepts: concepts/overview.md
+      - Tutorials: tutorials/index.md
+      - How-To Guides: how-to/index.md
+  - User Guide:
+      - Core Concepts:
+          - Overview: concepts/overview.md
+          - Node System: concepts/node-system-deep-dive.md
+          - Port System: concepts/port-system-deep-dive.md
+          - Pipeline Lifecycle: concepts/pipeline-lifecycle.md
+          - Two-Phase Training: concepts/two-phase-training.md
+          - Execution Stages: concepts/execution-stages.md
+          - Plugin System:
+              - Overview: plugin-system/index.md
+              - Plugin Architecture: plugin-system/overview.md
+              - Plugin Development: plugin-system/development.md
+              - Plugin Usage: plugin-system/usage.md
+      - Tutorials:
+          - Overview: tutorials/index.md
+          - RX Statistical: tutorials/rx-statistical.md
+          - Channel Selector: tutorials/channel-selector.md
+          - Deep SVDD Gradient: tutorials/deep-svdd-gradient.md
+          - AdaCLIP Workflow: tutorials/adaclip-workflow.md
+          - gRPC Workflow: tutorials/grpc-workflow.md
+      - How-To Guides:
+          - Overview: how-to/index.md
+          - Build Pipeline (Python): how-to/build-pipeline-python.md
+          - Build Pipeline (YAML): how-to/build-pipeline-yaml.md
+          - Restore Pipeline: how-to/restore-pipeline-trainrun.md
+          - Add Built-in Node: how-to/add-builtin-node.md
+          - Monitoring & Visualization: how-to/monitoring-and-viz.md
+          - GPU Acceleration: reference/gpu_acceleration_guide.md
+          - Remote gRPC: how-to/remote-grpc.md
+  - Nodes:
+      - Node Catalog:
+          - Overview: node-catalog/index.md
+          - Data Nodes: node-catalog/data-nodes.md
+          - Preprocessing: node-catalog/preprocessing.md
+          - Selectors: node-catalog/selectors.md
+          - Statistical: node-catalog/statistical.md
+          - Deep Learning: node-catalog/deep-learning.md
+          - Clustering: node-catalog/clustering.md
+          - Output Nodes: node-catalog/output.md
+          - Utility Nodes: node-catalog/utility.md
+  - Advanced Topics:
+      - Configuration:
+          - Overview: config/index.md
+          - Config Groups: config/config-groups.md
+          - TrainRun Schema: config/trainrun-schema.md
+          - Pipeline Schema: config/pipeline-schema.md
+          - Hydra Composition: config/hydra-composition.md
+      - gRPC Services:
+          - Overview: grpc/index.md
+          - API Reference: grpc/api-reference.md
+          - Client Patterns: grpc/client-patterns.md
+          - Deployment: deployment/grpc_deployment.md
+      - Deployment:
+          - Overview: deployment/index.md
+          - Docker & Kubernetes: deployment/docker-kubernetes.md
+          - Logging & Monitoring: deployment/logging-monitoring.md
+          - Stress Testing: reference/stress_testing.md
+  - Development:
+      - Overview: development/index.md
+      - Contributing: development/contributing.md
+      - Docstrings Guide: development/docstrings.md
+      - Git Hooks: development/git-hooks.md
   - API Reference:
-      - Graph & Pipeline: api/pipeline.md
+      - Overview: api/index.md
+      - Pipeline & Graph: api/pipeline.md
       - Nodes: api/nodes.md
+      - Ports: api/ports.md
       - Training: api/training.md
       - Data: api/data.md
       - Utilities: api/utilities.md
   - Reference:
-      - Architecture: reference/architecture.md
-      - Features: reference/features.md
-      - Stress Testing: reference/stress_testing.md
+      - Glossary: reference/glossary.md
+      - Changelog: reference/changelog.md
+      - Limitations: user-guide/limitations.md
 
 # Extra
 extra:
@@ -163,3 +227,5 @@ extra_javascript:
   - javascripts/mathjax.js
   - https://polyfill.io/v3/polyfill.min.js?features=es6
   - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+  - https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js
+  - javascripts/mermaid-theme.js

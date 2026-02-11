@@ -4,7 +4,7 @@ import torch
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_core.training.datamodule import CuvisDataModule
 from cuvis_ai_core.training.trainers import StatisticalTrainer
-from cuvis_ai_core.utils.types import ExecutionStage
+from cuvis_ai_schemas.enums import ExecutionStage
 from torch.utils.data import DataLoader
 
 from cuvis_ai.anomaly.rx_detector import RXGlobal
@@ -108,7 +108,7 @@ def test_graph_train_with_gradient_training():
     # Create graph with trainable PCA and data node
     pipeline = CuvisPipeline("test_with_training")
     data_node = LentilsAnomalyDataNode(normal_class_ids=[0])
-    pca = TrainablePCA(n_components=3, trainable=True)
+    pca = TrainablePCA(num_channels=5, n_components=3, trainable=True)
 
     # Connect PCA
     pipeline.connect(data_node.outputs.cube, pca.data)

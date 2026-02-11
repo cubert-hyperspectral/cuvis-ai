@@ -1,0 +1,263 @@
+name: PyPI Release & Documentation Deployment
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write  # For creating GitHub releases
+  pages: write     # For deploying to GitHub Pages
+  id-token: write  # For PyPI trusted publishing
+
+jobs:
+  test-and-typecheck:
+    name: Pre-Release Validation
+    runs-on: ubuntu-latest
+    container:
+      image: cubertgmbh/cuvis_pyil:3.5.0-ubuntu24.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install dependencies
+        run: uv sync --locked --all-extras
+
+      - name: Run full test suite
+        run: |
+          uv run pytest tests/ \
+            -m "not slow and not gpu" \
+            --cov=cuvis_ai \
+            --cov-report=term-missing \
+            -v
+
+      - name: Run linting checks
+        run: |
+          uv run ruff format --check .
+          uv run ruff check .
+          uv run interrogate -v cuvis_ai/
+
+  build-and-validate:
+    name: Build & Validate Package
+    needs: test-and-typecheck
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install build dependencies
+        run: uv sync --locked --extra dev
+
+      - name: Build package
+        run: |
+          rm -rf dist/ build/ *.egg-info/
+          uv build
+
+      - name: Validate package with twine
+        run: |
+          uv run twine check dist/*
+
+      - name: Verify version matches tag
+        run: |
+          TAG_VERSION=${GITHUB_REF#refs/tags/v}
+          PKG_VERSION=$(ls dist/*.whl | head -1 | sed 's/.*-\([0-9][0-9.]*\)-.*/\1/')
+          echo "Tag version: $TAG_VERSION"
+          echo "Package version: $PKG_VERSION"
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "ERROR: Tag version ($TAG_VERSION) does not match package version ($PKG_VERSION)"
+            exit 1
+          fi
+
+      - name: List package contents
+        run: |
+          ls -lh dist/
+          tar tzf dist/*.tar.gz | head -20
+
+      - name: Generate SBOM
+        run: uv run cyclonedx-py -o sbom.cdx.json || true
+
+      - name: Generate license report
+        run: uv run pip-licenses --format=markdown --with-authors > licenses.md || true
+
+      - name: Upload dist packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: dist-packages
+          path: dist/
+          retention-days: 7
+
+      - name: Upload compliance artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: compliance-reports
+          path: |
+            sbom.cdx.json
+            licenses.md
+          retention-days: 7
+
+  publish-testpypi:
+    name: Publish to TestPyPI
+    needs: build-and-validate
+    runs-on: ubuntu-latest
+    environment: testpypi
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v7
+        with:
+          name: dist-packages
+          path: dist/
+
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
+          verbose: true
+
+      - name: Wait for package availability
+        run: sleep 60
+
+      - name: Smoke test TestPyPI installation
+        run: |
+          python -m pip install --index-url https://test.pypi.org/simple/ \
+            --extra-index-url https://pypi.org/simple/ \
+            cuvis-ai || echo "TestPyPI install check (may fail due to dependencies)"
+
+  publish-pypi:
+    name: Publish to Production PyPI
+    needs: publish-testpypi
+    runs-on: ubuntu-latest
+    environment: pypi  # Manual approval required
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v7
+        with:
+          name: dist-packages
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          verbose: true
+
+  create-github-release:
+    name: Create GitHub Release
+    needs: publish-pypi
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Download dist packages
+        uses: actions/download-artifact@v7
+        with:
+          name: dist-packages
+          path: dist/
+
+      - name: Download compliance reports
+        uses: actions/download-artifact@v7
+        with:
+          name: compliance-reports
+          path: compliance/
+
+      - name: Extract version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Extract and validate changelog entry
+        id: changelog
+        run: |
+          # Extract section between [VERSION] and next version or EOF
+          VERSION=${{ steps.get_version.outputs.VERSION }}
+          CHANGELOG=$(sed -n "/## \[$VERSION\]/,/## \[/p" CHANGELOG.md | sed '$d')
+          if [ -z "$CHANGELOG" ]; then
+            echo "ERROR: No CHANGELOG.md entry found for version $VERSION"
+            echo "Add a '## [$VERSION]' section to CHANGELOG.md before tagging."
+            exit 1
+          fi
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Release v${{ steps.get_version.outputs.VERSION }}
+          body: ${{ steps.changelog.outputs.CHANGELOG }}
+          files: |
+            dist/*
+            compliance/sbom.cdx.json
+            compliance/licenses.md
+          draft: false
+          prerelease: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy-docs:
+    name: Deploy Documentation to gh-pages
+    needs: create-github-release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0  # Full history for mike
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install documentation dependencies
+        run: uv sync --locked --extra docs
+
+      - name: Configure git for deployment
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Extract version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Deploy documentation with mike
+        run: |
+          VERSION=${{ steps.get_version.outputs.VERSION }}
+          uv run mike deploy --push --update-aliases $VERSION latest
+          uv run mike set-default --push latest
+
+      - name: Verify deployment
+        run: |
+          echo "Documentation deployed to:"
+          echo "https://cubert-hyperspectral.github.io/cuvis-ai/"
+          echo "Version: ${{ steps.get_version.outputs.VERSION }}"

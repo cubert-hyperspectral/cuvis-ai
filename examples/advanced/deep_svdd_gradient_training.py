@@ -8,11 +8,11 @@ import hydra
 from cuvis_ai_core.data.datasets import SingleCu3sDataModule
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_core.training import GradientTrainer, StatisticalTrainer
-from cuvis_ai_core.training.config import (
+from cuvis_ai_schemas.pipeline import PipelineMetadata
+from cuvis_ai_schemas.training import (
     CallbacksConfig,
     EarlyStoppingConfig,
     ModelCheckpointConfig,
-    PipelineMetadata,
     SchedulerConfig,
     TrainingConfig,
     TrainRunConfig,

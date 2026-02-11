@@ -10,8 +10,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from cuvis_ai_core.node.node import Node
-from cuvis_ai_core.pipeline.ports import PortSpec
-from cuvis_ai_core.utils.types import Context, ExecutionStage, InputStream, Metric
+from cuvis_ai_schemas.enums import ExecutionStage
+from cuvis_ai_schemas.execution import Context, InputStream, Metric
+from cuvis_ai_schemas.pipeline import PortSpec
 
 
 class SpectralNet(nn.Module):
@@ -30,6 +31,18 @@ class SpectralNet(nn.Module):
         nn.init.xavier_uniform_(self.fc2.weight)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward pass through two-layer spectral network.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input features [B, C].
+
+        Returns
+        -------
+        torch.Tensor
+            Projected features [B, rep_dim].
+        """
         x = F.relu(self.fc1(x))
         return self.fc2(x)
 
@@ -50,6 +63,23 @@ class RFFLayer(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Compute random Fourier features for RBF kernel approximation.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input features [B, input_dim].
+
+        Returns
+        -------
+        torch.Tensor
+            Random Fourier features [B, n_features].
+
+        Notes
+        -----
+        Approximates RBF kernel via random Fourier features using:
+        z(x) = sqrt(2/D) * cos(Wx + b) where W ~ N(0, 2*gamma*I).
+        """
         W: torch.Tensor = self.W  # type: ignore[assignment]
         b: torch.Tensor = self.b  # type: ignore[assignment]
         z_scale: torch.Tensor = self.z_scale  # type: ignore[assignment]
@@ -199,6 +229,13 @@ class ZScoreNormalizerGlobal(Node):
 
     @property
     def requires_initial_fit(self) -> bool:
+        """Whether this node requires statistical initialization from training data.
+
+        Returns
+        -------
+        bool
+            Always True for Z-score normalization.
+        """
         return True
 
     def statistical_initialization(self, input_stream: InputStream) -> None:
@@ -237,6 +274,27 @@ class ZScoreNormalizerGlobal(Node):
         self._statistically_initialized = True
 
     def forward(self, data: torch.Tensor, **_: Any) -> dict[str, torch.Tensor]:
+        """Apply per-channel Z-score normalization.
+
+        Parameters
+        ----------
+        data : torch.Tensor
+            Input feature tensor [B, H, W, C].
+        **_ : Any
+            Additional unused keyword arguments.
+
+        Returns
+        -------
+        dict[str, torch.Tensor]
+            Dictionary with "normalized" key containing Z-score normalized data [B, H, W, C].
+
+        Raises
+        ------
+        RuntimeError
+            If statistical_initialization() has not been called.
+        ValueError
+            If input channel count doesn't match initialized num_channels.
+        """
         if not self._statistically_initialized:
             raise RuntimeError(
                 "DeepSVDDEncoder requires statistical_initialization() before forward()"
@@ -256,6 +314,20 @@ class ZScoreNormalizerGlobal(Node):
 
     @staticmethod
     def _zscore_fit(X: np.ndarray, eps: float) -> tuple[np.ndarray, np.ndarray]:
+        """Compute per-channel mean and std for Z-score normalization.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            Sample data [N, C] where N is number of pixels, C is channels.
+        eps : float
+            Small constant added to std for numerical stability.
+
+        Returns
+        -------
+        tuple[np.ndarray, np.ndarray]
+            (mean [1, C], std [1, C]) for Z-score normalization.
+        """
         mean = X.mean(axis=0, keepdims=True).astype(np.float32)
         std = X.std(axis=0, keepdims=True).astype(np.float32)
         std = std + eps
@@ -289,6 +361,22 @@ class DeepSVDDScores(Node):
     def forward(
         self, embeddings: torch.Tensor, center: torch.Tensor, **_: Any
     ) -> dict[str, torch.Tensor]:
+        """Compute anomaly scores as squared distance from center.
+
+        Parameters
+        ----------
+        embeddings : torch.Tensor
+            Deep SVDD embeddings [B, H, W, D] from projection network.
+        center : torch.Tensor
+            Center vector [D] from DeepSVDDCenterTracker.
+        **_ : Any
+            Additional unused keyword arguments.
+
+        Returns
+        -------
+        dict[str, torch.Tensor]
+            Dictionary with "scores" key containing squared distances [B, H, W, 1].
+        """
         scores = ((embeddings - center.view(1, 1, 1, -1)) ** 2).sum(dim=-1, keepdim=True)
         return {"scores": scores}
 
@@ -340,9 +428,33 @@ class DeepSVDDCenterTracker(Node):
 
     @property
     def requires_initial_fit(self) -> bool:
+        """Whether this node requires statistical initialization from training data.
+
+        Returns
+        -------
+        bool
+            Always True for center tracking initialization.
+        """
         return True
 
     def statistical_initialization(self, input_stream: InputStream) -> None:
+        """Initialize the Deep SVDD center from training embeddings.
+
+        Computes the mean embedding across all training samples to initialize
+        the hypersphere center.
+
+        Parameters
+        ----------
+        input_stream : InputStream
+            Training data stream with embeddings [B, H, W, D].
+
+        Raises
+        ------
+        RuntimeError
+            If no embeddings are received from the input stream.
+        ValueError
+            If embedding dimensions don't match initialized rep_dim.
+        """
         total = None
         count = 0
         for batch in input_stream:
@@ -374,6 +486,34 @@ class DeepSVDDCenterTracker(Node):
     def forward(
         self, embeddings: torch.Tensor, context: Context | None = None, **_: Any
     ) -> dict[str, Any]:
+        """Track and output the Deep SVDD center with exponential moving average.
+
+        Updates the center using EMA during training (and optionally during eval),
+        then outputs the current center and center norm metric.
+
+        Parameters
+        ----------
+        embeddings : torch.Tensor
+            Deep SVDD embeddings [B, H, W, D].
+        context : Context, optional
+            Execution context determining whether to update center.
+        **_ : Any
+            Additional unused keyword arguments.
+
+        Returns
+        -------
+        dict[str, Any]
+            Dictionary with:
+            - "center" : torch.Tensor [D] - Current tracked center
+            - "metrics" : list[Metric] - Center norm metric
+
+        Raises
+        ------
+        RuntimeError
+            If statistical_initialization() has not been called.
+        ValueError
+            If embedding dimensions don't match initialized rep_dim.
+        """
         if not self._statistically_initialized:
             raise RuntimeError(
                 "DeepSVDDCenterTracker requires statistical_initialization() before forward()"

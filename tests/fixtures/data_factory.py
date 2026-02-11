@@ -8,9 +8,9 @@ from typing import Literal
 import numpy as np
 import pytest
 import torch
-from cuvis_ai_core.grpc.v1 import cuvis_ai_pb2
-from cuvis_ai_core.training.config import DataConfig, OptimizerConfig, TrainerConfig, TrainingConfig
 from cuvis_ai_core.training.datamodule import CuvisDataModule
+from cuvis_ai_schemas.grpc.v1 import cuvis_ai_pb2
+from cuvis_ai_schemas.training import DataConfig, OptimizerConfig, TrainerConfig, TrainingConfig
 from torch.utils.data import DataLoader, Dataset
 
 # Session-scoped cache for test data files to avoid repeated file system operations

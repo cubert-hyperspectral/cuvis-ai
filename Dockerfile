@@ -1,5 +1,5 @@
 # Production gRPC server using Cubert base image
-FROM cubertgmbh/cuvis_python:3.4.1-ubuntu24.04
+FROM cubertgmbh/cuvis_python:3.5.0-ubuntu24.04
 
 ENV CUVIS=/lib/cuvis
 
@@ -17,8 +17,9 @@ COPY pyproject.toml uv.lock ./
 COPY cuvis_ai/ /app/cuvis_ai/
 COPY .env.example /app/.env.example
 
-# Install dependencies (set version for setuptools-scm)
-ENV SETUPTOOLS_SCM_PRETEND_VERSION_FOR_CUVIS_AI=0.1.0
+# Install dependencies (version injected at build time for setuptools-scm)
+ARG PACKAGE_VERSION=0.0.0
+ENV SETUPTOOLS_SCM_PRETEND_VERSION_FOR_CUVIS_AI=${PACKAGE_VERSION}
 RUN uv sync --frozen --no-dev
 
 # Create non-root user
@@ -48,7 +49,7 @@ EXPOSE 50051
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import grpc; from grpc_health.v1 import health_pb2, health_pb2_grpc; \
+    CMD uv run python -c "import grpc; from grpc_health.v1 import health_pb2, health_pb2_grpc; \
     channel = grpc.insecure_channel('localhost:50051'); \
     stub = health_pb2_grpc.HealthStub(channel); \
     response = stub.Check(health_pb2.HealthCheckRequest()); \
@@ -59,4 +60,4 @@ ENV PYTHONPATH=/app
 ENV PATH="/app/.venv/bin:$PATH"
 
 # Run server
-CMD ["python", "-m", "cuvis_ai.grpc.production_server"]
+CMD ["uv", "run", "python", "-m", "cuvis_ai.grpc.production_server"]

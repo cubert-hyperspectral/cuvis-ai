@@ -5,8 +5,8 @@ import torch
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
 from cuvis_ai.anomaly.rx_detector import RXGlobal
-from cuvis_ai.anomaly.rx_logit_head import RXLogitHead
 from cuvis_ai.deciders.binary_decider import BinaryDecider
+from cuvis_ai.node.conversion import ScoreToLogit
 from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.losses import (
     AnomalyBCEWithLogits,
@@ -44,7 +44,7 @@ def test_soft_selector_weights_update(synthetic_anomaly_datamodule, training_con
         eps=1.0e-6,
     )
     rx = RXGlobal(num_channels=15, eps=1.0e-6, cache_inverse=True)
-    logit_head = RXLogitHead(init_scale=1.0, init_bias=5.0)
+    logit_head = ScoreToLogit(init_scale=1.0, init_bias=5.0)
     decider = BinaryDecider(threshold=0.5)
 
     # Connect nodes
@@ -151,6 +151,7 @@ def test_pca_weights_update(synthetic_anomaly_datamodule, training_config_factor
         eps=1.0e-6,
     )
     pca = TrainablePCA(
+        num_channels=15,  # After SoftChannelSelector(n_select=15, input_channels=20)
         n_components=3,
         trainable=True,
         init_method="svd",
@@ -244,7 +245,7 @@ def test_pca_weights_update(synthetic_anomaly_datamodule, training_config_factor
 
 
 def test_logit_head_weights_update(synthetic_anomaly_datamodule, training_config_factory):
-    """Test that RXLogitHead parameters are updated during training."""
+    """Test that ScoreToLogit parameters are updated during training."""
     pipeline = CuvisPipeline("test_logit_head_training")
     data_node = LentilsAnomalyDataNode(normal_class_ids=[0, 1])
     normalizer = MinMaxNormalizer(eps=1.0e-6, use_running_stats=True)
@@ -259,7 +260,7 @@ def test_logit_head_weights_update(synthetic_anomaly_datamodule, training_config
         eps=1.0e-6,
     )
     rx = RXGlobal(num_channels=15, eps=1.0e-6, cache_inverse=True)
-    logit_head = RXLogitHead(init_scale=1.0, init_bias=5.0)
+    logit_head = ScoreToLogit(init_scale=1.0, init_bias=5.0)
     decider = BinaryDecider(threshold=0.5)
 
     # Connect nodes
@@ -297,7 +298,7 @@ def test_logit_head_weights_update(synthetic_anomaly_datamodule, training_config
     initial_scale = logit_head.scale.item()
     initial_bias = logit_head.bias.item()
 
-    print("\nInitial RXLogitHead parameters:")
+    print("\nInitial ScoreToLogit parameters:")
     print(f"  Scale: {initial_scale:.6f}")
     print(f"  Bias: {initial_bias:.6f}")
     print(f"  Threshold: {logit_head.get_threshold():.6f}")
@@ -328,7 +329,7 @@ def test_logit_head_weights_update(synthetic_anomaly_datamodule, training_config
     final_scale = logit_head.scale.item()
     final_bias = logit_head.bias.item()
 
-    print("\nFinal RXLogitHead parameters:")
+    print("\nFinal ScoreToLogit parameters:")
     print(f"  Scale: {final_scale:.6f}")
     print(f"  Bias: {final_bias:.6f}")
     print(f"  Threshold: {logit_head.get_threshold():.6f}")
@@ -344,7 +345,7 @@ def test_logit_head_weights_update(synthetic_anomaly_datamodule, training_config
         "Neither scale nor bias changed during training"
     )
 
-    print("✓ RXLogitHead parameters updated successfully")
+    print("✓ ScoreToLogit parameters updated successfully")
 
 
 if __name__ == "__main__":  # pragma: no cover

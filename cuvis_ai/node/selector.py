@@ -8,8 +8,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from cuvis_ai_core.node import Node
-from cuvis_ai_core.pipeline.ports import PortSpec
-from cuvis_ai_core.utils.types import InputStream
+from cuvis_ai_schemas.execution import InputStream
+from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
 
 
@@ -111,7 +111,7 @@ class SoftChannelSelector(Node):
         # Validate selection size
         if self.n_select > self._n_channels:
             raise ValueError(
-                f"Cannot select {self.n_select} channels from {self._n_channels} available channels"
+                f"Cannot select {self.n_select} channels from {self._n_channels} available channels"  # nosec B608
             )
 
         # Initialize channel logits based on method - always as buffer
@@ -149,7 +149,7 @@ class SoftChannelSelector(Node):
 
         if self.n_select > self._n_channels:
             raise ValueError(
-                f"Cannot select {self.n_select} channels from {self._n_channels} available channels"
+                f"Cannot select {self.n_select} channels from {self._n_channels} available channels"  # nosec B608
             )
 
         # Initialize channel logits based on method

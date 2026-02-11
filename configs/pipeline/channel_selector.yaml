@@ -38,8 +38,8 @@ nodes:
     eps: 1.0e-06
     num_channels: 61
     cache_inverse: true
-- name: RXLogitHead
-  class: cuvis_ai.anomaly.rx_logit_head.RXLogitHead
+- name: ScoreToLogit
+  class: cuvis_ai.node.conversion.ScoreToLogit
   params:
     init_scale: 1.0
     init_bias: 0.0
@@ -110,10 +110,10 @@ connections:
 - from: SoftChannelSelector.outputs.weights
   to: rgb.inputs.weights
 - from: RXGlobal.outputs.scores
-  to: RXLogitHead.inputs.scores
-- from: RXLogitHead.outputs.logits
+  to: ScoreToLogit.inputs.scores
+- from: ScoreToLogit.outputs.logits
   to: bce.inputs.predictions
-- from: RXLogitHead.outputs.logits
+- from: ScoreToLogit.outputs.logits
   to: BinaryDecider.inputs.logits
 - from: BinaryDecider.outputs.decisions
   to: metrics_anomaly.inputs.decisions

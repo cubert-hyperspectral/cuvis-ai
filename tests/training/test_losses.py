@@ -11,20 +11,6 @@ from cuvis_ai.node.losses import (
     MSEReconstructionLoss,
     OrthogonalityLoss,
 )
-from cuvis_ai.node.pca import TrainablePCA
-
-
-@pytest.fixture
-def trainable_pca():
-    """Create a TrainablePCA node for testing."""
-    pca = TrainablePCA(n_components=3)
-
-    # Initialize with dummy data (using port-based dict format)
-    data_iterator = ({"data": torch.randn(2, 10, 10, 5)} for _ in range(3))
-    pca.statistical_initialization(data_iterator)
-    pca.unfreeze()  # Convert buffers to parameters for gradient training
-
-    return pca
 
 
 @pytest.fixture

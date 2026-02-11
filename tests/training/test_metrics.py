@@ -3,28 +3,16 @@
 import pytest
 import torch
 from cuvis_ai_core.node.node import Node
-from cuvis_ai_core.utils.types import Context, ExecutionStage
+from cuvis_ai_schemas.enums import ExecutionStage
+from cuvis_ai_schemas.execution import Context
 
 from cuvis_ai.node.metrics import (
     AnomalyDetectionMetrics,
+    AnomalyPixelStatisticsMetric,
     ComponentOrthogonalityMetric,
     ExplainedVarianceMetric,
     ScoreStatisticsMetric,
 )
-from cuvis_ai.node.pca import TrainablePCA
-
-
-@pytest.fixture
-def trainable_pca():
-    """Create a TrainablePCA node for testing."""
-    pca = TrainablePCA(n_components=3)
-
-    # Initialize with dummy data (using port-based dict format)
-    data_iterator = ({"data": torch.randn(2, 10, 10, 5)} for _ in range(3))
-    pca.statistical_initialization(data_iterator)
-    pca.unfreeze()  # Convert buffers to parameters for gradient training
-
-    return pca
 
 
 class TestExplainedVarianceMetric:
@@ -370,6 +358,96 @@ class TestComponentOrthogonalityMetric:
         assert metrics["orthogonality_error"] > 0.01
 
 
+class TestAnomalyPixelStatisticsMetric:
+    """Tests for AnomalyPixelStatisticsMetric."""
+
+    def test_initialization(self):
+        """Test AnomalyPixelStatisticsMetric initialization."""
+        metric_node = AnomalyPixelStatisticsMetric()
+        assert isinstance(metric_node, Node)
+
+    def test_has_proper_execution_stages(self):
+        """Test that AnomalyPixelStatisticsMetric has proper execution stages."""
+        metric_node = AnomalyPixelStatisticsMetric()
+        assert (
+            ExecutionStage.VAL in metric_node.execution_stages
+            or ExecutionStage.TEST in metric_node.execution_stages
+        )
+
+    def test_compute_metrics_basic(self):
+        """Test anomaly pixel statistics computation with known values."""
+        metric_node = AnomalyPixelStatisticsMetric()
+        context = Context(stage=ExecutionStage.VAL, epoch=0, batch_idx=0)
+
+        # Create a known tensor: 2 batches of 10x10 images with 1 channel
+        # Total: 200 pixels
+        # 50 anomalous pixels (25%)
+        decisions = torch.zeros(2, 10, 10, 1, dtype=torch.bool)
+        decisions[0, :5, :5, 0] = True  # 25 pixels
+        decisions[1, :5, :5, 0] = True  # 25 pixels
+
+        # Compute metrics using forward()
+        outputs = metric_node.forward(decisions=decisions, context=context)
+
+        # Check metrics list
+        metrics_list = outputs["metrics"]
+        assert isinstance(metrics_list, list)
+        assert len(metrics_list) == 3
+
+        # Convert to dict for easier checking
+        metrics = {m.name: m.value for m in metrics_list}
+
+        # Verify exact values
+        assert metrics["anomaly/total_pixels"] == 200.0
+        assert metrics["anomaly/anomalous_pixels"] == 50.0
+        assert metrics["anomaly/anomaly_percentage"] == 25.0
+
+    def test_all_anomalous(self):
+        """Test 100% anomaly case."""
+        metric_node = AnomalyPixelStatisticsMetric()
+        context = Context(stage=ExecutionStage.TEST, epoch=5, batch_idx=10)
+
+        # All pixels are anomalous
+        decisions = torch.ones(1, 5, 5, 1, dtype=torch.bool)
+
+        outputs = metric_node.forward(decisions=decisions, context=context)
+        metrics = {m.name: m.value for m in outputs["metrics"]}
+
+        assert metrics["anomaly/total_pixels"] == 25.0
+        assert metrics["anomaly/anomalous_pixels"] == 25.0
+        assert metrics["anomaly/anomaly_percentage"] == 100.0
+
+    def test_no_anomalies(self):
+        """Test 0% anomaly case."""
+        metric_node = AnomalyPixelStatisticsMetric()
+        context = Context(stage=ExecutionStage.TEST, epoch=2, batch_idx=5)
+
+        # No pixels are anomalous
+        decisions = torch.zeros(1, 8, 8, 1, dtype=torch.bool)
+
+        outputs = metric_node.forward(decisions=decisions, context=context)
+        metrics = {m.name: m.value for m in outputs["metrics"]}
+
+        assert metrics["anomaly/total_pixels"] == 64.0
+        assert metrics["anomaly/anomalous_pixels"] == 0.0
+        assert metrics["anomaly/anomaly_percentage"] == 0.0
+
+    def test_empty_tensor(self):
+        """Test division-by-zero guard with empty tensor."""
+        metric_node = AnomalyPixelStatisticsMetric()
+        context = Context(stage=ExecutionStage.VAL, epoch=0, batch_idx=0)
+
+        # Empty tensor (0 pixels)
+        decisions = torch.zeros(0, 0, 0, 1, dtype=torch.bool)
+
+        outputs = metric_node.forward(decisions=decisions, context=context)
+        metrics = {m.name: m.value for m in outputs["metrics"]}
+
+        assert metrics["anomaly/total_pixels"] == 0.0
+        assert metrics["anomaly/anomalous_pixels"] == 0.0
+        assert metrics["anomaly/anomaly_percentage"] == 0.0  # Division-by-zero guard
+
+
 class TestMetricNodeProtocol:
     """Tests for metric node protocol compliance."""
 
@@ -380,6 +458,7 @@ class TestMetricNodeProtocol:
             AnomalyDetectionMetrics,
             ScoreStatisticsMetric,
             ComponentOrthogonalityMetric,
+            AnomalyPixelStatisticsMetric,
         ]
 
         for metric_class in metric_classes:
@@ -392,6 +471,7 @@ class TestMetricNodeProtocol:
             AnomalyDetectionMetrics(),
             ScoreStatisticsMetric(),
             ComponentOrthogonalityMetric(),
+            AnomalyPixelStatisticsMetric(),
         ]
 
         for metric_node in metric_classes:

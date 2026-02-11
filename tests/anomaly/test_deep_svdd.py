@@ -1,6 +1,7 @@
 import pytest
 import torch
-from cuvis_ai_core.utils.types import Context, ExecutionStage
+from cuvis_ai_schemas.enums import ExecutionStage
+from cuvis_ai_schemas.execution import Context
 
 from cuvis_ai.anomaly.deep_svdd import (
     DeepSVDDCenterTracker,

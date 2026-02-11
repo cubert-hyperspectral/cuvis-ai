@@ -48,7 +48,7 @@ STUB_HEADER = """\
 from __future__ import annotations
 
 from cuvis_ai_core.node import Node
-from cuvis_ai_core.pipeline.ports import InputPort, OutputPort
+from cuvis_ai_schemas.pipeline import InputPort, OutputPort
 """
 
 

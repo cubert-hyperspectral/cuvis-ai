@@ -3,7 +3,7 @@
 import pytest
 import torch
 from cuvis_ai_core.node.node import Node
-from cuvis_ai_core.pipeline.ports import InputPort, OutputPort, PortSpec
+from cuvis_ai_schemas.pipeline import InputPort, OutputPort, PortSpec
 
 from cuvis_ai.node.pca import TrainablePCA
 from cuvis_ai.node.selector import SoftChannelSelector
@@ -49,7 +49,7 @@ def test_real_node_has_annotations_pca():
     assert "projected" in TrainablePCA.OUTPUT_SPECS
 
     # Create instance to check runtime ports
-    pca = TrainablePCA(n_components=5, input_channels=10)
+    pca = TrainablePCA(num_channels=10, n_components=5)
     assert hasattr(pca.inputs, "data")
     assert hasattr(pca.outputs, "projected")
 
@@ -71,7 +71,7 @@ def test_real_node_has_annotations_selector():
 
 def test_runtime_ports_still_created():
     """Verify runtime behavior unchanged - ports are still created at init."""
-    from cuvis_ai_core.pipeline.ports import InputPort, OutputPort
+    from cuvis_ai_schemas.pipeline import InputPort, OutputPort
 
     class TestNode(Node):
         INPUT_SPECS = {"test_input": PortSpec(dtype=torch.float32, shape=(-1,))}

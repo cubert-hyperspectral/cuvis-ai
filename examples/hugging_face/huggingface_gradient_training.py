@@ -31,9 +31,9 @@ import torch.nn as nn
 from cuvis_ai_core.data.datasets import SingleCu3sDataModule
 from cuvis_ai_core.node import Node
 from cuvis_ai_core.pipeline.pipeline import CuvisCanvas
-from cuvis_ai_core.pipeline.ports import PortSpec
 from cuvis_ai_core.training import GradientTrainer
-from cuvis_ai_core.training.config import (
+from cuvis_ai_schemas.pipeline import PortSpec
+from cuvis_ai_schemas.training import (
     CallbacksConfig,
     EarlyStoppingConfig,
     LearningRateMonitorConfig,

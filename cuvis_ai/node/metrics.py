@@ -6,8 +6,9 @@ from typing import Any
 
 import torch
 from cuvis_ai_core.node.node import Node
-from cuvis_ai_core.pipeline.ports import PortSpec
-from cuvis_ai_core.utils.types import Context, ExecutionStage, Metric
+from cuvis_ai_schemas.enums import ExecutionStage
+from cuvis_ai_schemas.execution import Context, Metric
+from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
 from torchmetrics.classification import (
     BinaryAveragePrecision,
@@ -603,6 +604,85 @@ class SelectorDiversityMetric(Node):
         return {"metrics": metrics}
 
 
+class AnomalyPixelStatisticsMetric(Node):
+    """Compute anomaly pixel statistics from binary decisions.
+
+    Calculates total pixels, anomalous pixels count, and anomaly percentage.
+    Useful for monitoring the proportion of detected anomalies in batches.
+    Executes only during validation and test stages.
+    """
+
+    INPUT_SPECS = {
+        "decisions": PortSpec(
+            dtype=torch.bool,
+            shape=(-1, -1, -1, 1),
+            description="Binary anomaly decisions [B, H, W, 1]",
+        ),
+    }
+
+    OUTPUT_SPECS = {"metrics": PortSpec(dtype=list, shape=(), description="List of Metric objects")}
+
+    def __init__(
+        self,
+        execution_stages: set[ExecutionStage] | None = None,
+        **kwargs,
+    ) -> None:
+        name, execution_stages = Node.consume_base_kwargs(
+            kwargs, execution_stages or {ExecutionStage.VAL, ExecutionStage.TEST}
+        )
+        super().__init__(
+            name=name,
+            execution_stages=execution_stages,
+            **kwargs,
+        )
+
+    def forward(self, decisions: Tensor, context: Context) -> dict[str, Any]:
+        """Compute anomaly pixel statistics.
+
+        Parameters
+        ----------
+        decisions : Tensor
+            Binary anomaly decisions [B, H, W, 1]
+        context : Context
+            Execution context with stage, epoch, batch_idx
+
+        Returns
+        -------
+        dict[str, Any]
+            Dictionary with "metrics" key containing list of Metric objects
+        """
+        # Calculate statistics
+        total_pixels = decisions.numel()
+        anomalous_pixels = int(decisions.sum().item())
+        anomaly_percentage = (anomalous_pixels / total_pixels) * 100 if total_pixels > 0 else 0.0
+
+        metrics = [
+            Metric(
+                name="anomaly/total_pixels",
+                value=float(total_pixels),
+                stage=context.stage,
+                epoch=context.epoch,
+                batch_idx=context.batch_idx,
+            ),
+            Metric(
+                name="anomaly/anomalous_pixels",
+                value=float(anomalous_pixels),
+                stage=context.stage,
+                epoch=context.epoch,
+                batch_idx=context.batch_idx,
+            ),
+            Metric(
+                name="anomaly/anomaly_percentage",
+                value=anomaly_percentage,
+                stage=context.stage,
+                epoch=context.epoch,
+                batch_idx=context.batch_idx,
+            ),
+        ]
+
+        return {"metrics": metrics}
+
+
 __all__ = [
     "ExplainedVarianceMetric",
     "AnomalyDetectionMetrics",
@@ -610,4 +690,5 @@ __all__ = [
     "ComponentOrthogonalityMetric",
     "SelectorEntropyMetric",
     "SelectorDiversityMetric",
+    "AnomalyPixelStatisticsMetric",
 ]

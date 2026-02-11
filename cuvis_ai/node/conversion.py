@@ -8,10 +8,10 @@ binary cross-entropy loss.
 import torch
 import torch.nn as nn
 from cuvis_ai_core.node import Node
-from cuvis_ai_core.pipeline.ports import PortSpec
+from cuvis_ai_schemas.pipeline import PortSpec
 
 
-class RXLogitHead(Node):
+class ScoreToLogit(Node):
     """Trainable head that converts RX scores to anomaly logits.
 
     This node takes RX anomaly scores (typically Mahalanobis distances) and
@@ -38,7 +38,7 @@ class RXLogitHead(Node):
     --------
     >>> # After RX detector
     >>> rx = RXGlobal(eps=1e-6)
-    >>> logit_head = RXLogitHead(init_scale=1.0, init_bias=5.0)
+    >>> logit_head = ScoreToLogit(init_scale=1.0, init_bias=5.0)
     >>> logit_head.unfreeze()  # Enable gradient training
     >>> graph.connect(rx.scores, logit_head.scores)
     """
@@ -94,7 +94,7 @@ class RXLogitHead(Node):
 
         Example
         -------
-        >>> logit_head = RXLogitHead(init_scale=1.0, init_bias=5.0)
+        >>> logit_head = ScoreToLogit(init_scale=1.0, init_bias=5.0)
         >>> logit_head.unfreeze()  # Enable gradient training
         >>> # Now scale and bias can be optimized
         """
@@ -170,7 +170,7 @@ class RXLogitHead(Node):
         capturing ~95% of normal data under Gaussian assumption.
         """
         if int(self._n.item()) <= 1:
-            raise ValueError("Not enough samples to finalize RXLogitHead statistics.")
+            raise ValueError("Not enough samples to finalize ScoreToLogit statistics.")
 
         mean = self._mean.clone()
         variance = self._M2 / (self._n - 1)
@@ -203,7 +203,7 @@ class RXLogitHead(Node):
 
         if not self._statistically_initialized:
             raise RuntimeError(
-                "RXLogitHead not initialized. Call statistical_initialization() before forward()."
+                "ScoreToLogit not initialized. Call statistical_initialization() before forward()."
             )
         # Apply affine transformation: logit = scale * (score - bias)
         logits = self.scale * (scores - self.bias)

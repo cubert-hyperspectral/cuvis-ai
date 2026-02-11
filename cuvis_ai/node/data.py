@@ -1,14 +1,80 @@
+"""Data loading nodes for hyperspectral anomaly detection pipelines.
+
+This module provides specialized data nodes that convert multi-class segmentation
+datasets into binary anomaly detection tasks. Data nodes handle type conversions,
+label mapping, and format transformations required for pipeline processing.
+"""
+
 from typing import Any
 
 import numpy as np
 import torch
 from cuvis_ai_core.node import Node
-from cuvis_ai_core.pipeline.ports import PortSpec
+from cuvis_ai_schemas.pipeline import PortSpec
 
 from cuvis_ai.node.labels import BinaryAnomalyLabelMapper
 
 
 class LentilsAnomalyDataNode(Node):
+    """Data node for Lentils anomaly detection dataset with binary label mapping.
+
+    Converts multi-class Lentils segmentation data to binary anomaly detection format.
+    Maps specified class IDs to normal (0) or anomaly (1) labels, and handles type
+    conversions from uint16 to float32 for hyperspectral cubes.
+
+    Parameters
+    ----------
+    normal_class_ids : list[int]
+        List of class IDs to treat as normal background (e.g., [0, 1] for unlabeled
+        and black lentils)
+    anomaly_class_ids : list[int] | None, optional
+        List of class IDs to treat as anomalies. If None, all classes not in
+        normal_class_ids are treated as anomalies (default: None)
+    **kwargs : dict
+        Additional arguments passed to Node base class
+
+    Attributes
+    ----------
+    _binary_mapper : BinaryAnomalyLabelMapper
+        Internal label mapper for converting multi-class to binary masks
+
+    Examples
+    --------
+    >>> from cuvis_ai.node.data import LentilsAnomalyDataNode
+    >>> from cuvis_ai_core.data.datasets import SingleCu3sDataModule
+    >>>
+    >>> # Create datamodule for Lentils dataset
+    >>> datamodule = SingleCu3sDataModule(
+    ...     data_dir="data/lentils",
+    ...     batch_size=4,
+    ... )
+    >>>
+    >>> # Create data node with normal class specification
+    >>> data_node = LentilsAnomalyDataNode(
+    ...     normal_class_ids=[0, 1],  # Unlabeled and black lentils are normal
+    ... )
+    >>>
+    >>> # Use in pipeline
+    >>> pipeline.add_node(data_node)
+    >>> pipeline.connect(
+    ...     (data_node.cube, normalizer.data),
+    ...     (data_node.mask, metrics.targets),
+    ... )
+
+    See Also
+    --------
+    BinaryAnomalyLabelMapper : Label mapping utility used internally
+    SingleCu3sDataModule : DataModule for loading CU3S hyperspectral data
+    docs/tutorials/rx-statistical.md : Complete example with LentilsAnomalyDataNode
+
+    Notes
+    -----
+    The node performs the following transformations:
+    - Converts hyperspectral cube from uint16 to float32
+    - Maps multi-class mask [B, H, W] to binary mask [B, H, W, 1]
+    - Extracts wavelengths from first batch element (assumes consistent wavelengths)
+    """
+
     INPUT_SPECS = {
         "cube": PortSpec(
             dtype=torch.uint16,
@@ -62,6 +128,32 @@ class LentilsAnomalyDataNode(Node):
         wavelengths: torch.Tensor | None = None,
         **_: Any,
     ) -> dict[str, torch.Tensor | np.ndarray]:
+        """Process hyperspectral cube and convert labels to binary anomaly format.
+
+        Parameters
+        ----------
+        cube : torch.Tensor
+            Input hyperspectral cube, shape (B, H, W, C), dtype uint16
+        mask : torch.Tensor | None, optional
+            Multi-class segmentation mask, shape (B, H, W), dtype int32.
+            If None, only cube is returned (default: None)
+        wavelengths : torch.Tensor | None, optional
+            Wavelengths for each channel, shape (B, C), dtype int32.
+            If None, wavelengths are not included in output (default: None)
+
+        Returns
+        -------
+        dict[str, torch.Tensor | np.ndarray]
+            Dictionary containing:
+            - "cube" : torch.Tensor
+                Converted hyperspectral cube, shape (B, H, W, C), dtype float32
+            - "mask" : torch.Tensor (optional)
+                Binary anomaly mask, shape (B, H, W, 1), dtype bool.
+                Only included if input mask is provided.
+            - "wavelengths" : np.ndarray (optional)
+                Wavelength array, shape (C,), dtype int32.
+                Only included if input wavelengths are provided.
+        """
         result: dict[str, torch.Tensor | np.ndarray] = {"cube": cube.to(torch.float32)}
 
         # wavelengths passthrough, could check that in all batch elements the same wavelengths are used

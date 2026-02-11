@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from cuvis_ai_core.grpc import cuvis_ai_pb2
+from cuvis_ai_schemas.grpc.v1 import cuvis_ai_pb2
 from workflow_utils import build_stub, config_search_paths, create_session_with_search_paths
 
 

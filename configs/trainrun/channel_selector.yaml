@@ -70,7 +70,7 @@ output_dir: outputs\channel_selector
 unfreeze_nodes:
 - SoftChannelSelector
 - RXGlobal
-- RXLogitHead
+- ScoreToLogit
 freeze_nodes: []
 metric_nodes:
 - metrics_anomaly

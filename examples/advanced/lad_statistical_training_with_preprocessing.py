@@ -8,84 +8,32 @@ The pipeline: Data → MinMax → Bandpass → PerPixelUnitNorm → LAD → Metr
 """
 
 from pathlib import Path
-from typing import Any
 
 import hydra
-import torch
 from cuvis_ai_core.data.datasets import SingleCu3sDataModule
-from cuvis_ai_core.node import Node
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
-from cuvis_ai_core.pipeline.ports import PortSpec
 from cuvis_ai_core.training import StatisticalTrainer
-from cuvis_ai_core.training.config import (
-    PipelineMetadata,
+from cuvis_ai_schemas.pipeline import PipelineMetadata
+from cuvis_ai_schemas.training import (
     TrainingConfig,
     TrainRunConfig,
 )
-from cuvis_ai_core.utils.types import Context, ExecutionStage, Metric
 from loguru import logger
 from omegaconf import DictConfig
-from torch import Tensor
 
 from cuvis_ai.anomaly.lad_detector import LADGlobal
 from cuvis_ai.deciders.binary_decider import QuantileBinaryDecider
 from cuvis_ai.node.data import LentilsAnomalyDataNode
-from cuvis_ai.node.metrics import AnomalyDetectionMetrics
+from cuvis_ai.node.metrics import AnomalyDetectionMetrics, AnomalyPixelStatisticsMetric
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.normalization import MinMaxNormalizer, PerPixelUnitNorm
 from cuvis_ai.node.preprocessors import BandpassByWavelength
 from cuvis_ai.node.visualizations import AnomalyMask, ScoreHeatmapVisualizer
 
 
-class SampleCustomMetrics(Node):
-    """Compute anomaly pixel statistics from binary decisions."""
-
-    INPUT_SPECS = {
-        "decisions": PortSpec(
-            dtype=torch.bool,
-            shape=(-1, -1, -1, 1),
-            description="Binary anomaly decisions [B, H, W, 1]",
-        ),
-    }
-
-    OUTPUT_SPECS = {"metrics": PortSpec(dtype=list, shape=(), description="List of Metric objects")}
-
-    def __init__(self, **kwargs) -> None:
-        super().__init__(execution_stages={ExecutionStage.VAL, ExecutionStage.TEST}, **kwargs)
-
-    def forward(self, decisions: Tensor, context: Context) -> dict[str, Any]:
-        total_pixels = decisions.numel()
-        anomalous_pixels = int(decisions.sum().item())
-        anomaly_percentage = (anomalous_pixels / total_pixels) * 100 if total_pixels > 0 else 0.0
-
-        metrics = [
-            Metric(
-                name="anomaly/total_pixels",
-                value=float(total_pixels),
-                stage=context.stage,
-                epoch=context.epoch,
-                batch_idx=context.batch_idx,
-            ),
-            Metric(
-                name="anomaly/anomalous_pixels",
-                value=float(anomalous_pixels),
-                stage=context.stage,
-                epoch=context.epoch,
-                batch_idx=context.batch_idx,
-            ),
-            Metric(
-                name="anomaly/anomaly_percentage",
-                value=anomaly_percentage,
-                stage=context.stage,
-                epoch=context.epoch,
-                batch_idx=context.batch_idx,
-            ),
-        ]
-
-        return {"metrics": metrics}
-
-
-@hydra.main(config_path="../../configs/", config_name="trainrun/default", version_base=None)
+@hydra.main(
+    config_path="../../configs/", config_name="trainrun/default_statistical", version_base=None
+)
 def main(cfg: DictConfig) -> None:
     """LAD Statistical with Preprocessing and trainrun config saving."""
 
@@ -121,7 +69,7 @@ def main(cfg: DictConfig) -> None:
     )
     decider_node = QuantileBinaryDecider(quantile=0.99)
     metrics_anomaly = AnomalyDetectionMetrics(name="metrics_anomaly")
-    sample_metrics = SampleCustomMetrics(name="sample_metrics")
+    sample_metrics = AnomalyPixelStatisticsMetric(name="sample_metrics")
     viz_mask = AnomalyMask(name="mask", channel=30, up_to=5)
     score_viz = ScoreHeatmapVisualizer(name="score_heatmap", normalize_scores=True, up_to=5)
 

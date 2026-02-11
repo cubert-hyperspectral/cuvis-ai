@@ -1,0 +1,216 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+    branches: [main, staging]
+
+# Cancel in-progress runs when new commit pushed
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    container:
+      image: cubertgmbh/cuvis_pyil:3.5.0-ubuntu24.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0  # Full history for setuptools-scm
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        run: |
+          uv sync --locked --all-extras
+
+      - name: Run tests with coverage
+        run: |
+          uv run pytest tests/ \
+            -m "not slow and not gpu" \
+            --cov=cuvis_ai \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            -v
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+  lint:
+    name: Linting & Style
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install dependencies
+        run: uv sync --locked --extra dev
+
+      - name: Run ruff format check
+        run: uv run ruff format --check .
+
+      - name: Run ruff linter
+        run: uv run ruff check .
+
+      - name: Check docstring coverage
+        run: |
+          uv run interrogate -v cuvis_ai/
+          # Requires 95%+ coverage (configured in pyproject.toml)
+
+  security:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install dependencies
+        run: uv sync --locked --extra dev
+
+      - name: Run pip-audit for vulnerabilities
+        run: |
+          uv run pip-audit --desc on --skip-editable --ignore-vuln PYSEC-2022-42969
+
+      - name: Run detect-secrets
+        run: |
+          uv run detect-secrets scan --all-files \
+            --exclude-files '\.lock$|\.egg-info|\.pyc$|site/|\.git/|\.pytest_cache' \
+            --baseline .secrets.baseline
+
+      - name: Run bandit security linter
+        run: |
+          uv run bandit -r cuvis_ai/ -c pyproject.toml
+
+  typecheck:
+    name: Type Checking
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install dependencies
+        run: uv sync --locked --extra dev
+
+      - name: Run mypy
+        run: uv run mypy .
+        continue-on-error: true  # Adoption phase
+
+  doc-build:
+    name: Documentation Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install dependencies
+        run: uv sync --locked --extra docs
+
+      - name: Build documentation
+        run: |
+          uv run mkdocs build
+
+      - name: Check documentation links
+        run: |
+          uv run pytest tests/docs/test_doc_links.py \
+            -m check_links \
+            --check-links \
+            -v
+
+  build-and-validate:
+    name: Build & Validate Package
+    needs: [test, lint, security, typecheck, doc-build]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0  # Full history for setuptools-scm
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install dependencies
+        run: uv sync --locked --extra dev
+
+      - name: Build package
+        run: |
+          rm -rf dist/ build/ *.egg-info/
+          uv build
+
+      - name: Validate with twine
+        run: uv run twine check dist/*
+
+      - name: List package contents
+        run: |
+          ls -lh dist/
+          tar tzf dist/*.tar.gz | head -20
+
+      - name: Generate SBOM
+        run: uv run cyclonedx-py -o sbom.cdx.json || true
+
+      - name: Generate license report
+        run: uv run pip-licenses --format=markdown --with-authors > licenses.md || true
