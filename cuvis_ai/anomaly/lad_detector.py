@@ -26,6 +26,11 @@ from cuvis_ai_core.node import Node
 from cuvis_ai_schemas.execution import InputStream
 from cuvis_ai_schemas.pipeline import PortSpec
 
+## This node is not approeved
+# missing unfreeze/freeze
+# missing approved documentation and alignment with current API
+# could we use streaming accumulators for mean and Laplacian construction
+
 
 class LADGlobal(Node):
     """Laplacian Anomaly Detector (global), variant 'C' (Cauchy), port-based.

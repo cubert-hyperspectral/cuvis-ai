@@ -149,7 +149,6 @@ class TrainablePCA(Node):
         self._explained_variance = variance[: self.n_components].clone()  # [n_components]
 
         self._statistically_initialized = True
-        self._statistically_initialized = True
 
     def unfreeze(self) -> None:
         """Convert components buffer to trainable nn.Parameter.
