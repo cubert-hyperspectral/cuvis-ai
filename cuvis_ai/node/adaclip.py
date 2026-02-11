@@ -66,9 +66,11 @@ class AdaCLIPLocalNode(HuggingFaceLocalNode):
         model_name: str = "AdaCLIP",
         cache_dir: str | None = None,
         text_prompt: str = "normal: lentils, anomaly: stones",
+        revision: str | None = None,
         **kwargs,
     ) -> None:
         self.text_prompt = text_prompt
+        self.revision = revision
 
         super().__init__(
             model_name=model_name,
@@ -86,10 +88,11 @@ class AdaCLIPLocalNode(HuggingFaceLocalNode):
             logger.info(f"Cache dir: {self.cache_dir or 'default'}")
 
             # Use CLIPVisionModel to avoid needing text inputs
-            model = CLIPVisionModel.from_pretrained(
+            model = CLIPVisionModel.from_pretrained(  # nosec B615
                 self.model_name,
                 token=hf_token,
                 cache_dir=self.cache_dir,
+                revision=self.revision,
             )
 
             model.eval()

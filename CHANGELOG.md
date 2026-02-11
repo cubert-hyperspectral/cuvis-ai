@@ -8,81 +8,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Comprehensive documentation structure with 70+ markdown files covering all framework aspects
-- 6 end-to-end tutorials (RX Statistical, Channel Selector, Deep SVDD, AdaCLIP, gRPC workflow, Remote Deployment)
-- Complete API reference documentation with mkdocstrings integration and numpy-style docstrings
-- Plugin system documentation (overview, development guide, usage guide) with 3 comprehensive guides
-- gRPC API documentation with sequence diagrams and client patterns (4 guides)
-- Configuration reference guides (config groups, TrainRun schema, pipeline schema, Hydra composition patterns)
-- 7 how-to guides (build pipelines in Python/YAML, restore pipelines, add built-in nodes, monitoring, remote gRPC)
-- Complete node catalog documenting 50+ built-in nodes across 11 categories
-- Development guides (contributing with plugin workflow, docstring standards, git hooks)
-- 20+ diagrams (11 Mermaid diagrams, Graphviz pipeline visualizations)
+- Comprehensive documentation site (70+ pages): 6 tutorials, API reference, node catalog (50+ nodes across 11 categories), gRPC guides, config reference, how-to guides, plugin system docs, development guides, 20+ Mermaid/Graphviz diagrams
+- MkDocs Material theme with dark mode, versioned deployment via mike, custom branding (deep orange, Lato/Source Code Pro fonts, logo/favicon), numpy-style mkdocstrings
+- `AnomalyPixelStatisticsMetric` node in `cuvis_ai.node.metrics` (replaces duplicate `SampleCustomMetrics` in examples)
+- `deep_svdd_factory.py` utility module with `ChannelConfig` dataclass in `cuvis_ai/utils/`
 - Central plugin registry at `configs/plugins/registry.yaml`
+- `configs/trainrun/default_statistical.yaml` for statistical-only training workflows
+- CI/CD pipeline (`ci.yml`): test + coverage (Codecov), lint (ruff, interrogate), security (pip-audit, bandit, detect-secrets), typecheck (mypy) — replaces `run_tests.yml`
+- PyPI release workflow (`pypi-release.yml`): build validation, TestPyPI publish with smoke tests, production PyPI publish, versioned docs deploy to gh-pages
+- Dependabot configuration for GitHub Actions and pip dependencies
+- Automated test data downloader (`scripts/download_data.py` with `download-data` CLI entry point)
+- Documentation test suite (`tests/docs/`): link checker, CLI command tests, runnable code example validation
 - Git hooks for automated code quality checks (ruff format, module case checking)
-- AnomalyPixelStatisticsMetric node in cuvis_ai.node.metrics for computing anomaly pixel statistics (replaces duplicate SampleCustomMetrics in examples)
-- Automated test data downloader (scripts/download_data.py) for Hugging Face datasets
-- Documentation testing infrastructure: link checker, CLI command tests, and runnable code example validation
-- Buffer initialization best practices section in node system deep dive documentation
-- Review status tracking system with warning banners for documentation quality assurance
-- Automated PyPI release workflow with GitHub Actions
-- Versioned documentation deployment to gh-pages using mike
-- Comprehensive CI/CD pipeline with parallel job execution
-  - Test suite with coverage reporting (Codecov integration)
-  - Linting and style checks (ruff, interrogate)
-  - Security scanning (pip-audit, bandit, detect-secrets)
-  - Documentation build validation with link checking
-- Automated dependency updates via Dependabot
-- Security baseline for secret detection (`.secrets.baseline`)
-- Smoke tests for TestPyPI releases
+- `LICENSE` file (Apache-2.0 full text)
+- `pytest.ini`, `codecov.yml`, `.secrets.baseline`, `baseline_coverage.txt`
 
 ### Changed
-- Migrated to cuvis-ai-schemas package for standardized schema definitions across repositories
-- Enhanced docstrings to 95%+ coverage across all public APIs
-- Updated all code examples to use `uv run` command pattern
-- README refactored to eliminate duplicate content - built-in nodes, community plugins, and plugin development sections now link to comprehensive documentation
-- Contributing guide enhanced with complete 7-step plugin contribution workflow (develop → test → publish → submit → PR → review → maintain)
-- Documentation navigation reorganized with 14 major sections and clear hierarchy
-- MkDocs configuration updated to Material theme with advanced search, dark mode support, deep orange color scheme, Lato and Source Code Pro fonts, custom logo and favicon
-- Split configs/trainrun/default.yaml into default_statistical.yaml and default_gradient.yaml for clearer workflow separation
-- Updated ScoreToLogit module paths in pipeline configurations (rx_statistical.yaml, channel_selector.yaml)
-- Updated `pyproject.toml` for PyPI compliance
-  - License format changed to SPDX identifier: `Apache-2.0`
-  - Python version classifiers aligned to 3.11 only
-  - Ruff target version updated to `py311`
-  - Added security tooling to dev dependencies: twine, pip-audit, bandit, detect-secrets
-  - Added mike for documentation versioning
-  - Added mypy and bandit tool configurations
-- cuvis-ai-core dependency handling updated for development/release workflow
-  - Development: Use local editable path via `[tool.uv.sources]`
-  - Release: Resolve from PyPI
-- CI/CD uses `cubertgmbh/cuvis_pyil:3.5.0-ubuntu24.04` base image
+- **Breaking**: `TrainablePCA.__init__()` now requires `num_channels` parameter; buffers initialized with correct shapes
+- Migrated type imports from `cuvis_ai_core` to new `cuvis-ai-schemas` package across all source files (`PortSpec`, `Context`, `InputStream`, `Metric`, `ExecutionStage`)
+- Renamed `RXLogitHead` → `ScoreToLogit` and moved from `cuvis_ai.anomaly.rx_logit_head` to `cuvis_ai.node.conversion`; updated all pipeline configs and examples
+- Renamed `BaseDecider` import to `BinaryDecider` in deciders module
+- Split `configs/trainrun/default.yaml` into `default_statistical.yaml` and `default_gradient.yaml`
+- Enhanced docstrings to 95%+ coverage across all public APIs (NumPy-style)
+- `pyproject.toml` updates for PyPI compliance:
+  - Package name: `cuvis_ai` → `cuvis-ai`; license: SPDX `Apache-2.0`; author email updated
+  - Python classifiers aligned to 3.11 only; ruff target `py310` → `py311`
+  - Added tool configs: `[tool.interrogate]` (95% threshold), `[tool.mypy]`, `[tool.bandit]`
+- Dependencies: added `cuvis-ai-schemas[full]>=0.1.0`; loosened `cuvis>=3.5.0` (was `==3.5.0`); pinned `cuvis-ai-core>=0.1.2`; removed `graphviz>=0.21`
+- Dev deps: added twine, pip-audit, bandit, detect-secrets, pip-licenses, cyclonedx-bom, interrogate
+- Docs deps: added mike, pytest-check-links, pytest-md-report
+- `restore-pipeline`/`restore-trainrun` CLI entry points now point to `cuvis_ai_core`
+- cuvis-ai-core dependency handling: local editable path for dev, PyPI for release
+- README refactored; CONTRIBUTING.md enhanced with 7-step plugin contribution workflow
+- Examples updated: removed inline `SampleCustomMetrics`, updated all imports for schema migration and ScoreToLogit rename
 
 ### Fixed
-- All broken internal links in documentation
-- Outdated module references (cuvis_ai.pipeline → cuvis_ai_core)
-- Empty documentation files and placeholder content
-- Plugin installation and dependency management issues
-- DataLoader access violation with proper num_workers configuration
-- Node import paths for cuvis-ai-core migration
-- TrainablePCA test suite (17 failing tests) by adding required num_channels parameter and centralizing fixture in tests/fixtures/mock_nodes.py
-- Config name references throughout documentation (trainrun/default → default_statistical/default_gradient)
-- Non-existent train.py script references replaced with actual runnable examples (rx_statistical.py, channel_selector.py)
-- Output path references corrected from timestamp placeholders to actual directory names (base_trainrun)
-- monitoring.md references redirected to visualization.md
-- Training API references (pipeline.train() → trainer.fit()) in documentation
+- LAD detector `reset()`: buffers now initialized with proper shapes instead of `torch.empty(0)`
+- LAD detector `unfreeze()`: preserves device when converting buffers to parameters
+- TrainablePCA: 17 failing tests fixed by adding required `num_channels` parameter and proper buffer shapes; centralized fixture in `tests/fixtures/mock_nodes.py`
+- Node import paths updated for cuvis-ai-schemas migration
+- Config references: `trainrun/default` → `default_statistical`/`default_gradient`; `RXLogitHead` → `ScoreToLogit` in pipeline YAMLs
+- Documentation: broken internal links, outdated module references, empty placeholder content, incorrect script/path references
 - MkDocs build warnings and docstring formatting issues
-- Package metadata alignment for PyPI submission requirements
-- Documentation build strictness (allows 24 external file reference warnings)
-- Test markers properly exclude slow and GPU tests in CI
-
-### Documentation
-- Documentation now deployed to https://cubert-hyperspectral.github.io/cuvis-ai/
-- Version selector available for accessing docs matching installed package version
-- Latest version always available at `/latest/` path
+- Package metadata alignment for PyPI submission
 
 ### Removed
-- SETUP_TEST_DATA.md (replaced by automated scripts/download_data.py)
+- `restore_pipeline.md` from repo root (replaced by docs site)
+- `changelog.md` (replaced by `CHANGELOG.md` with Keep a Changelog format)
+- `.github/workflows/run_tests.yml` (replaced by `ci.yml`)
+- `docs/api/grpc_api.md` and `docs/reference/architecture.md` (replaced by expanded docs sections)
 
 ## [0.2.3] - 2026-01-29
 

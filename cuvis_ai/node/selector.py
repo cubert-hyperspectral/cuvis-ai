@@ -111,7 +111,7 @@ class SoftChannelSelector(Node):
         # Validate selection size
         if self.n_select > self._n_channels:
             raise ValueError(
-                f"Cannot select {self.n_select} channels from {self._n_channels} available channels"
+                f"Cannot select {self.n_select} channels from {self._n_channels} available channels"  # nosec B608
             )
 
         # Initialize channel logits based on method - always as buffer
@@ -149,7 +149,7 @@ class SoftChannelSelector(Node):
 
         if self.n_select > self._n_channels:
             raise ValueError(
-                f"Cannot select {self.n_select} channels from {self._n_channels} available channels"
+                f"Cannot select {self.n_select} channels from {self._n_channels} available channels"  # nosec B608
             )
 
         # Initialize channel logits based on method
