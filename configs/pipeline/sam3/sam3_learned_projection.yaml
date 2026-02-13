@@ -1,0 +1,31 @@
+metadata:
+  name: SAM3_Learned_Projection
+  description: SAM3 tracking with a learned HSI-to-RGB projection front-end
+  tags:
+    - tracking
+    - sam3
+    - learned-projection
+    - video
+  author: cuvis.ai
+
+nodes:
+  - name: cu3s_loader
+    class: cuvis_ai.node.data.CU3SSequenceLoader
+    params: {}
+
+  # T1.4: Learnable projection node placeholder
+  - name: learned_projection
+    class: cuvis_ai.node.band_selection.LearnableChannelMixer
+    params: {}
+
+  - name: sam3_tracker
+    class: cuvis_ai_sam3.node.SAM3VideoTracker
+    params: {}
+
+connections:
+  - from: cu3s_loader.outputs.cube
+    to: learned_projection.inputs.data
+  - from: learned_projection.outputs.rgb_image
+    to: sam3_tracker.inputs.rgb_frames
+
+frozen_nodes: []
