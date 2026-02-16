@@ -7,7 +7,7 @@
 [![codecov](https://codecov.io/gh/cubert-hyperspectral/cuvis-ai/branch/main/graph/badge.svg)](https://codecov.io/gh/cubert-hyperspectral/cuvis-ai)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
-[![Documentation](https://img.shields.io/badge/docs-gh--pages-blue)](https://cubert-hyperspectral.github.io/cuvis-ai/)
+[![Documentation](https://img.shields.io/badge/docs-gh--pages-blue)](https://docs.cuvis.ai/latest/)
 
 A modular toolkit for building graph-based ML pipelines for hyperspectral imaging — from preprocessing through training to deployment.
 
@@ -29,7 +29,7 @@ cuvis.ai is split across three repositories:
 uv add cuvis-ai
 ```
 
-> **GPU support**: For PyTorch with CUDA, see the [Installation Guide](https://cubert-hyperspectral.github.io/cuvis-ai/user-guide/installation/) for setup instructions.
+> **GPU support**: For PyTorch with CUDA, see the [Installation Guide](https://docs.cuvis.ai/latest/user-guide/installation/) for setup instructions.
 
 **For development** (within this repo):
 
@@ -37,18 +37,18 @@ uv add cuvis-ai
 uv sync
 ```
 
-See the [Installation Guide](https://cubert-hyperspectral.github.io/cuvis-ai/user-guide/installation/) for prerequisites and detailed setup.
+See the [Installation Guide](https://docs.cuvis.ai/latest/user-guide/installation/) for prerequisites and detailed setup.
 
 ## Documentation
 
-Full documentation is available at **https://cubert-hyperspectral.github.io/cuvis-ai/**.
+Full documentation is available at **https://docs.cuvis.ai/latest/**.
 
-- [Quick Start](https://cubert-hyperspectral.github.io/cuvis-ai/user-guide/quickstart/)
-- [Core Concepts](https://cubert-hyperspectral.github.io/cuvis-ai/concepts/overview/)
-- [Node Catalog](https://cubert-hyperspectral.github.io/cuvis-ai/node-catalog/)
-- [Plugin System](https://cubert-hyperspectral.github.io/cuvis-ai/plugin-system/)
-- [API Reference](https://cubert-hyperspectral.github.io/cuvis-ai/api/)
-- [Contributing](https://cubert-hyperspectral.github.io/cuvis-ai/development/contributing/)
+- [Quick Start](https://docs.cuvis.ai/latest/user-guide/quickstart/)
+- [Core Concepts](https://docs.cuvis.ai/latest/concepts/overview/)
+- [Node Catalog](https://docs.cuvis.ai/latest/node-catalog/)
+- [Plugin System](https://docs.cuvis.ai/latest/plugin-system/)
+- [API Reference](https://docs.cuvis.ai/latest/api/)
+- [Contributing](https://docs.cuvis.ai/latest/development/contributing/)
 
 ## Links
 
