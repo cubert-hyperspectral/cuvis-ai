@@ -6,6 +6,7 @@ defaults:
   - _self_
 
 name: channel_selector_false_rgb
+mode: train
 output_dir: ./outputs/${name}
 
 mixer:
