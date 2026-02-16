@@ -19,6 +19,52 @@ from torchmetrics.functional.classification import binary_average_precision
 from cuvis_ai.utils.vis_helpers import fig_to_array, tensor_to_numpy
 
 
+class ImageArtifactVizBase(Node):
+    """Base class for visualization nodes that produce image artifacts."""
+
+    OUTPUT_SPECS = {
+        "artifacts": PortSpec(
+            dtype=list,
+            shape=(),
+            description="List of Artifact objects for TensorBoard",
+        )
+    }
+
+    def __init__(
+        self,
+        max_samples: int = 4,
+        log_every_n_batches: int = 1,
+        execution_stages: set[ExecutionStage] | None = None,
+        **kwargs,
+    ) -> None:
+        self.max_samples = max_samples
+        self.log_every_n_batches = log_every_n_batches
+        self._batch_counter = 0
+        if execution_stages is None:
+            execution_stages = {ExecutionStage.TRAIN, ExecutionStage.VAL, ExecutionStage.TEST}
+        super().__init__(
+            execution_stages=execution_stages,
+            max_samples=max_samples,
+            log_every_n_batches=log_every_n_batches,
+            **kwargs,
+        )
+
+    def _should_log(self) -> bool:
+        """Increment batch counter and return True if this batch should be logged."""
+        self._batch_counter += 1
+        return (self._batch_counter - 1) % self.log_every_n_batches == 0
+
+    @staticmethod
+    def _normalize_image(img: np.ndarray) -> np.ndarray:
+        """Normalize image to [0, 1] range."""
+        img_min, img_max = img.min(), img.max()
+        if img_max > img_min:
+            img = (img - img_min) / (img_max - img_min)
+        else:
+            img = np.zeros_like(img)
+        return np.clip(img, 0.0, 1.0).astype(np.float32)
+
+
 class AnomalyMask(Node):
     """Visualize anomaly detection with GT and predicted masks.
 
@@ -728,8 +774,144 @@ class RGBAnomalyMask(Node):
         return {"artifacts": artifacts}
 
 
+class ChannelSelectorFalseRGBViz(ImageArtifactVizBase):
+    """Visualize false RGB output from channel selectors with optional mask overlay.
+
+    Produces per-sample image artifacts:
+    - ``false_rgb_sample_{b}``: Normalized false RGB image [H, W, 3]
+    - ``mask_overlay_sample_{b}``: False RGB with red alpha-blend on foreground pixels (if mask provided)
+
+    Parameters
+    ----------
+    mask_overlay_alpha : float, optional
+        Alpha value for red mask overlay on foreground pixels (default: 0.4).
+    max_samples : int, optional
+        Maximum number of batch elements to visualize (default: 4).
+    log_every_n_batches : int, optional
+        Log every N-th batch (default: 1).
+    """
+
+    INPUT_SPECS = {
+        "rgb_output": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 3),
+            description="False RGB output from channel selector [B, H, W, 3]",
+        ),
+        "mask": PortSpec(
+            dtype=torch.int32,
+            shape=(-1, -1, -1),
+            description="Segmentation mask [B, H, W] where >0 is foreground",
+            optional=True,
+        ),
+    }
+
+    def __init__(
+        self,
+        mask_overlay_alpha: float = 0.4,
+        max_samples: int = 4,
+        log_every_n_batches: int = 1,
+        **kwargs,
+    ) -> None:
+        self.mask_overlay_alpha = mask_overlay_alpha
+        super().__init__(
+            max_samples=max_samples,
+            log_every_n_batches=log_every_n_batches,
+            mask_overlay_alpha=mask_overlay_alpha,
+            **kwargs,
+        )
+
+    @staticmethod
+    def _create_mask_overlay(rgb: np.ndarray, mask: np.ndarray, alpha: float) -> np.ndarray:
+        """Alpha-blend a red tint on foreground pixels.
+
+        Parameters
+        ----------
+        rgb : np.ndarray
+            Normalized RGB image [H, W, 3] in [0, 1].
+        mask : np.ndarray
+            Segmentation mask [H, W] where >0 is foreground.
+        alpha : float
+            Blend factor for the red overlay.
+
+        Returns
+        -------
+        np.ndarray
+            RGB image with red overlay on foreground, shape [H, W, 3].
+        """
+        overlay = rgb.copy()
+        fg = mask > 0
+        red_tint = np.array([1.0, 0.0, 0.0], dtype=np.float32)
+        overlay[fg] = (1.0 - alpha) * overlay[fg] + alpha * red_tint
+        return np.clip(overlay, 0.0, 1.0).astype(np.float32)
+
+    def forward(
+        self,
+        rgb_output: torch.Tensor,
+        context: Context,
+        mask: torch.Tensor | None = None,
+    ) -> dict[str, list[Artifact]]:
+        """Generate false RGB and mask overlay artifacts.
+
+        Parameters
+        ----------
+        rgb_output : torch.Tensor
+            False RGB tensor [B, H, W, 3].
+        context : Context
+            Execution context with stage, epoch, batch_idx.
+        mask : torch.Tensor | None
+            Optional segmentation mask [B, H, W].
+
+        Returns
+        -------
+        dict[str, list[Artifact]]
+            Dictionary with "artifacts" key containing image artifacts.
+        """
+        if not self._should_log():
+            return {"artifacts": []}
+
+        batch_size = min(rgb_output.shape[0], self.max_samples)
+        artifacts = []
+
+        for b in range(batch_size):
+            # Normalized false RGB
+            rgb_np = self._normalize_image(rgb_output[b].detach().cpu().numpy())
+
+            artifact_rgb = Artifact(
+                name=f"false_rgb_sample_{b}",
+                value=rgb_np,
+                el_id=b,
+                desc=f"False RGB for sample {b}",
+                type=ArtifactType.IMAGE,
+                stage=context.stage,
+                epoch=context.epoch,
+                batch_idx=context.batch_idx,
+            )
+            artifacts.append(artifact_rgb)
+
+            # Mask overlay (if mask provided and has foreground)
+            if mask is not None:
+                mask_np = mask[b].detach().cpu().numpy()
+                if mask_np.any():
+                    overlay = self._create_mask_overlay(rgb_np, mask_np, self.mask_overlay_alpha)
+                    artifact_overlay = Artifact(
+                        name=f"mask_overlay_sample_{b}",
+                        value=overlay,
+                        el_id=b,
+                        desc=f"False RGB with mask overlay for sample {b}",
+                        type=ArtifactType.IMAGE,
+                        stage=context.stage,
+                        epoch=context.epoch,
+                        batch_idx=context.batch_idx,
+                    )
+                    artifacts.append(artifact_overlay)
+
+        return {"artifacts": artifacts}
+
+
 __all__ = [
+    "ImageArtifactVizBase",
     "AnomalyMask",
     "RGBAnomalyMask",
     "ScoreHeatmapVisualizer",
+    "ChannelSelectorFalseRGBViz",
 ]
