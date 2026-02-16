@@ -129,7 +129,13 @@ class LearnableChannelMixer(Node):
             dtype=torch.float32,
             shape=(-1, -1, -1, "output_channels"),
             description="Reduced channel output (e.g., RGB-like) [B, H, W, output_channels]",
-        )
+        ),
+        "weights": PortSpec(
+            dtype=torch.float32,
+            shape=("output_channels", -1),
+            description="Last-layer mixing weights [output_channels, hidden_dim]",
+            optional=True,
+        ),
     }
 
     def __init__(
@@ -443,7 +449,8 @@ class LearnableChannelMixer(Node):
                 f"mean={mixed_bhwc.mean().item():.4f}, requires_grad={mixed_bhwc.requires_grad}"
             )
 
-        return {"rgb": mixed_bhwc}
+        last_layer_weights = self.convs[-1].weight.squeeze(-1).squeeze(-1)
+        return {"rgb": mixed_bhwc, "weights": last_layer_weights}
 
 
 def _sample_gumbel(shape: tuple[int, ...], device: torch.device, eps: float = 1e-10) -> Tensor:
