@@ -1,12 +1,18 @@
 """Convenience exports for node base classes and marker mixins."""
 
-from cuvis_ai.node.anomaly_visualization import AnomalyMask, RGBAnomalyMask, ScoreHeatmapVisualizer
+from cuvis_ai.node.anomaly_visualization import (
+    AnomalyMask,
+    ImageArtifactVizBase,
+    RGBAnomalyMask,
+    ScoreHeatmapVisualizer,
+)
 from cuvis_ai.node.channel_mixer import ConcreteChannelMixer, LearnableChannelMixer
 from cuvis_ai.node.channel_selector import (
     ChannelSelectorBase,
     CIRSelector,
     FixedWavelengthSelector,
     HighContrastSelector,
+    RangeAverageFalseRGBSelector,
     SoftChannelSelector,
     SupervisedCIRSelector,
     SupervisedFullSpectrumSelector,
@@ -16,27 +22,34 @@ from cuvis_ai.node.channel_selector import (
 )
 from cuvis_ai.node.dimensionality_reduction import TrainablePCA
 from cuvis_ai.node.labels import BinaryAnomalyLabelMapper
+from cuvis_ai.node.losses import DistinctnessLoss, ForegroundContrastLoss
 from cuvis_ai.node.normalization import IdentityNormalizer, MinMaxNormalizer, SigmoidNormalizer
 from cuvis_ai.node.pipeline_visualization import (
     CubeRGBVisualizer,
     PCAVisualization,
     PipelineComparisonVisualizer,
 )
+from cuvis_ai.node.video import ToVideoNode
 
 __all__ = [
     "AnomalyMask",
     "BinaryAnomalyLabelMapper",
     "ChannelSelectorBase",
+    "ChannelSelectorFalseRGBViz",
     "CIRSelector",
     "ConcreteChannelMixer",
     "CubeRGBVisualizer",
+    "DistinctnessLoss",
     "FixedWavelengthSelector",
+    "ForegroundContrastLoss",
     "HighContrastSelector",
     "IdentityNormalizer",
+    "ImageArtifactVizBase",
     "LearnableChannelMixer",
     "MinMaxNormalizer",
     "PCAVisualization",
     "PipelineComparisonVisualizer",
+    "RangeAverageFalseRGBSelector",
     "RGBAnomalyMask",
     "ScoreHeatmapVisualizer",
     "SigmoidNormalizer",
@@ -45,6 +58,7 @@ __all__ = [
     "SupervisedFullSpectrumSelector",
     "SupervisedSelectorBase",
     "SupervisedWindowedSelector",
+    "ToVideoNode",
     "TopKIndices",
     "TrainablePCA",
 ]
