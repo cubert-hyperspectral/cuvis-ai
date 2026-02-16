@@ -677,6 +677,116 @@ class IoULoss(LossNode):
         return {"loss": self.weight * loss}
 
 
+class ForegroundContrastLoss(LossNode):
+    """Loss that maximizes visual separation between foreground and background in RGB output.
+
+    Computes the negative Euclidean distance between mean foreground and mean
+    background pixel colors, encouraging the channel mixer to produce RGB images
+    where annotated objects are visually distinct from the background.
+
+    Optionally penalizes foreground color variance (compactness) to encourage
+    uniform foreground appearance.
+
+    Parameters
+    ----------
+    weight : float, optional
+        Overall weight for this loss component (default: 1.0).
+    compactness_weight : float, optional
+        Weight for foreground variance penalty (default: 0.0, disabled).
+    eps : float, optional
+        Small constant for numerical stability in sqrt (default: 1e-6).
+    """
+
+    INPUT_SPECS = {
+        "rgb": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 3),
+            description="RGB output from channel mixer [B, H, W, 3]",
+        ),
+        "mask": PortSpec(
+            dtype=torch.int32,
+            shape=(-1, -1, -1),
+            description="Segmentation mask [B, H, W] where >0 is foreground",
+        ),
+    }
+
+    OUTPUT_SPECS = {
+        "loss": PortSpec(
+            dtype=torch.float32,
+            shape=(),
+            description="Scalar foreground contrast loss",
+        )
+    }
+
+    def __init__(
+        self,
+        weight: float = 1.0,
+        compactness_weight: float = 0.0,
+        eps: float = 1e-6,
+        **kwargs,
+    ) -> None:
+        self.weight = float(weight)
+        self.compactness_weight = float(compactness_weight)
+        self.eps = float(eps)
+
+        super().__init__(
+            weight=self.weight,
+            compactness_weight=self.compactness_weight,
+            eps=self.eps,
+            **kwargs,
+        )
+
+    def forward(self, rgb: Tensor, mask: Tensor, **_: Any) -> dict[str, Tensor]:
+        """Compute foreground/background contrast loss.
+
+        Parameters
+        ----------
+        rgb : Tensor
+            RGB image tensor of shape [B, H, W, 3].
+        mask : Tensor
+            Segmentation mask of shape [B, H, W] where values > 0 are foreground.
+
+        Returns
+        -------
+        dict[str, Tensor]
+            Dictionary with a single key ``"loss"`` containing the scalar loss.
+        """
+        batch_size = rgb.shape[0]
+        losses = []
+
+        for b in range(batch_size):
+            fg_mask = mask[b] > 0  # [H, W]
+            bg_mask = ~fg_mask
+
+            # Skip frames with no foreground or no background
+            if not fg_mask.any() or not bg_mask.any():
+                continue
+
+            rgb_b = rgb[b]  # [H, W, 3]
+            fg_pixels = rgb_b[fg_mask]  # [N_fg, 3]
+            bg_pixels = rgb_b[bg_mask]  # [N_bg, 3]
+
+            fg_mean = fg_pixels.mean(dim=0)  # [3]
+            bg_mean = bg_pixels.mean(dim=0)  # [3]
+
+            # Negative distance: minimize this to maximize separation
+            distance = torch.sqrt(((fg_mean - bg_mean) ** 2).sum() + self.eps)
+            frame_loss = -distance
+
+            # Optional compactness: penalize foreground variance
+            if self.compactness_weight > 0:
+                fg_var = fg_pixels.var(dim=0).mean()
+                frame_loss = frame_loss + self.compactness_weight * fg_var
+
+            losses.append(frame_loss)
+
+        if len(losses) == 0:
+            return {"loss": torch.zeros((), device=rgb.device, dtype=rgb.dtype, requires_grad=True)}
+
+        loss = self.weight * torch.stack(losses).mean()
+        return {"loss": loss}
+
+
 __all__ = [
     "LossNode",
     "OrthogonalityLoss",
@@ -685,5 +795,7 @@ __all__ = [
     "SelectorEntropyRegularizer",
     "SelectorDiversityRegularizer",
     "DeepSVDDSoftBoundaryLoss",
+    "DistinctnessLoss",
+    "ForegroundContrastLoss",
     "IoULoss",
 ]
