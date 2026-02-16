@@ -18,6 +18,7 @@ Usage::
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import hydra
@@ -52,29 +53,44 @@ def inspect_dataset(cfg: DictConfig) -> None:
     output_dir = Path(cfg.output_dir) / "inspect"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Load all frames (no train/val/test split)
     data_cfg = OmegaConf.to_container(cfg.data, resolve=True)
+
+    # Extract annotated frame indices directly from the COCO JSON
+    annotation_json_path = data_cfg.get("annotation_json_path")
+    assert annotation_json_path is not None, "annotation_json_path is required for inspect mode"
+
+    with open(annotation_json_path) as f:
+        coco = json.load(f)
+
+    # image_id in COCO corresponds to the measurement/frame index
+    annotated_image_ids = {ann["image_id"] for ann in coco["annotations"]}
+    annotated_frame_ids = sorted(annotated_image_ids)
+
+    logger.info(f"Frames with annotations (from COCO JSON): {len(annotated_frame_ids)}")
+    logger.info(f"Annotated frame IDs: {annotated_frame_ids}")
+
+    # Load only annotated frames via measurement_indices
     dataset = SingleCu3sDataset(
         cu3s_file_path=data_cfg["cu3s_file_path"],
         processing_mode=data_cfg.get("processing_mode", "Raw"),
-        annotation_json_path=data_cfg.get("annotation_json_path"),
+        annotation_json_path=annotation_json_path,
+        measurement_indices=annotated_frame_ids,
     )
 
-    total_frames = len(dataset)
-    logger.info(f"Total frames in dataset: {total_frames}")
-
-    # Discover annotated frames
-    annotated_frame_ids = []
-    for idx in range(total_frames):
+    # Confirm annotations by checking masks on loaded frames
+    confirmed_frame_ids = []
+    for idx in range(len(dataset)):
         sample = dataset[idx]
         mask = sample.get("mask")
         if mask is not None and mask.any():
-            annotated_frame_ids.append(idx)
+            confirmed_frame_ids.append(sample["mesu_index"])
 
-    logger.info(f"Frames with mask annotations: {len(annotated_frame_ids)}/{total_frames}")
-    logger.info(f"Annotated frame IDs: {annotated_frame_ids}")
+    logger.info(
+        f"Confirmed frames with non-empty masks: {len(confirmed_frame_ids)}/{len(annotated_frame_ids)}"
+    )
+    logger.info(f"Confirmed frame IDs: {confirmed_frame_ids}")
 
-    # Export false RGB video + TensorBoard artifacts via pipeline
+    # Export false RGB video + TensorBoard artifacts via pipeline (annotated frames only)
     batch_size = data_cfg.get("batch_size", 1)
     dataloader = DataLoader(dataset, shuffle=False, batch_size=batch_size, num_workers=0)
 
@@ -112,7 +128,10 @@ def inspect_dataset(cfg: DictConfig) -> None:
         (viz.artifacts, tensorboard_node.artifacts),
     )
 
-    logger.info("Exporting false RGB video with mask overlays...")
+    total_frames = len(dataset)
+    logger.info(
+        f"Exporting false RGB video with mask overlays ({total_frames} annotated frames)..."
+    )
     processed = 0
     try:
         for batch in dataloader:
@@ -132,8 +151,8 @@ def inspect_dataset(cfg: DictConfig) -> None:
     logger.info("=" * 60)
     logger.info("ANNOTATED FRAME IDS (copy into configs/data/tracking_cap_and_car.yaml):")
     logger.info(f"  All annotated: {annotated_frame_ids}")
+    logger.info(f"  Confirmed (non-empty mask): {confirmed_frame_ids}")
     logger.info(f"  Total annotated: {len(annotated_frame_ids)}")
-    logger.info(f"  Total frames: {total_frames}")
     logger.info("=" * 60)
 
 
