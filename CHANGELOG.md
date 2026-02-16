@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- README documentation links: updated base URL to `docs.cuvis.ai` and added missing `/latest/` version prefix for mike-versioned docs
+
 ## [0.3.0] - 2026-02-11
 
 ### Added
