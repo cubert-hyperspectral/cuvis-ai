@@ -1,0 +1,86 @@
+# @package _global_
+
+defaults:
+  - /data@data: tracking_cap_and_car
+  - /training@training: default
+  - _self_
+
+name: channel_selector_false_rgb
+output_dir: ./outputs/${name}
+
+mixer:
+  input_channels: 61
+  output_channels: 3
+  init_method: pca
+  normalize_output: true
+
+losses:
+  foreground_contrast:
+    weight: 1.0
+    compactness_weight: 0.1
+  distinctness:
+    weight: 0.1
+
+training:
+  seed: 42
+  trainer:
+    max_epochs: 50
+    accelerator: auto
+    devices: 1
+    default_root_dir: ${output_dir}
+    precision: 32-true
+    accumulate_grad_batches: 1
+    enable_progress_bar: true
+    enable_checkpointing: true
+    log_every_n_steps: 10
+    val_check_interval: 1.0
+    check_val_every_n_epoch: 1
+    gradient_clip_val: 1.0
+    deterministic: false
+    benchmark: false
+    callbacks:
+      early_stopping:
+        - monitor: train/foreground_contrast
+          patience: 15
+          mode: min
+          min_delta: 1.0e-06
+      model_checkpoint:
+        dirpath: ${output_dir}/checkpoints
+        monitor: train/foreground_contrast
+        filename: '{epoch:02d}'
+        mode: min
+        save_top_k: 3
+        save_last: true
+        verbose: true
+      learning_rate_monitor:
+        logging_interval: epoch
+
+  optimizer:
+    name: adamw
+    lr: 0.005
+    weight_decay: 0.01
+    betas: [0.9, 0.999]
+
+  scheduler:
+    name: reduce_on_plateau
+    monitor: train/foreground_contrast
+    mode: min
+    factor: 0.5
+    patience: 5
+    threshold: 0.0001
+    threshold_mode: rel
+    cooldown: 0
+    min_lr: 1.0e-06
+    eps: 1.0e-08
+    verbose: false
+
+unfreeze_nodes:
+  - LearnableChannelMixer
+
+freeze_nodes: []
+
+loss_nodes:
+  - foreground_contrast
+  - distinctness
+
+metric_nodes: []
