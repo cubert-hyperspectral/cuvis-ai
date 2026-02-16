@@ -171,6 +171,134 @@ class FixedWavelengthSelector(ChannelSelectorBase):
         return {"rgb_image": rgb, "band_info": band_info}
 
 
+class RangeAverageFalseRGBSelector(ChannelSelectorBase):
+    """Range-based false RGB selection by averaging bands per channel.
+
+    For each output channel (R/G/B), all spectral bands within the configured
+    wavelength range are averaged per pixel. Channels with no matching bands are
+    filled with zeros.
+
+    Parameters
+    ----------
+    red_range : tuple[float, float]
+        Inclusive wavelength range for red channel in nanometers.
+    green_range : tuple[float, float]
+        Inclusive wavelength range for green channel in nanometers.
+    blue_range : tuple[float, float]
+        Inclusive wavelength range for blue channel in nanometers.
+    """
+
+    def __init__(
+        self,
+        red_range: tuple[float, float] = (580.0, 650.0),
+        green_range: tuple[float, float] = (500.0, 580.0),
+        blue_range: tuple[float, float] = (420.0, 500.0),
+        **kwargs: Any,
+    ) -> None:
+        for name, rng in {
+            "red_range": red_range,
+            "green_range": green_range,
+            "blue_range": blue_range,
+        }.items():
+            if len(rng) != 2 or rng[0] > rng[1]:
+                raise ValueError(f"{name} must be (min_nm, max_nm) with min_nm <= max_nm")
+
+        super().__init__(
+            red_range=red_range, green_range=green_range, blue_range=blue_range, **kwargs
+        )
+        self.red_range = red_range
+        self.green_range = green_range
+        self.blue_range = blue_range
+
+    @staticmethod
+    def _normalize_rgb(rgb: torch.Tensor) -> torch.Tensor:
+        """Apply per-batch, per-channel min-max normalization to [0, 1]."""
+        rgb_min = rgb.amin(dim=(1, 2), keepdim=True)
+        rgb_max = rgb.amax(dim=(1, 2), keepdim=True)
+        denom = (rgb_max - rgb_min).clamp_min(1e-8)
+        return ((rgb - rgb_min) / denom).clamp_(0.0, 1.0)
+
+    @staticmethod
+    def _prepare_wavelengths_tensor(
+        wavelengths: Any,
+        device: torch.device,
+    ) -> torch.Tensor:
+        """Convert wavelengths input to 1D float32 tensor on target device."""
+        if isinstance(wavelengths, torch.Tensor):
+            wavelengths_t = wavelengths
+        else:
+            wavelengths_t = torch.as_tensor(wavelengths)
+
+        if wavelengths_t.ndim == 2:
+            wavelengths_t = wavelengths_t[0]
+        if wavelengths_t.ndim != 1:
+            raise ValueError(f"Expected 1D wavelengths [C], got shape {tuple(wavelengths_t.shape)}")
+
+        return wavelengths_t.to(device=device, dtype=torch.float32)
+
+    def _build_channel_weights(
+        self, wavelengths_t: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Build per-channel averaging weights and inclusion mask from wavelength ranges."""
+        # Order is [R, G, B] to match output channel order.
+        ranges_t = torch.tensor(
+            [
+                [self.red_range[0], self.red_range[1]],
+                [self.green_range[0], self.green_range[1]],
+                [self.blue_range[0], self.blue_range[1]],
+            ],
+            device=wavelengths_t.device,
+            dtype=wavelengths_t.dtype,
+        )
+        low = ranges_t[:, 0:1]  # [3,1]
+        high = ranges_t[:, 1:2]  # [3,1]
+
+        # channel_mask[k, c] == True iff wavelength c belongs to channel k range.
+        channel_mask = (wavelengths_t.unsqueeze(0) >= low) & (wavelengths_t.unsqueeze(0) <= high)
+
+        counts = channel_mask.sum(dim=1, keepdim=True)  # [3,1]
+        weights = channel_mask.to(torch.float32) / counts.clamp_min(1).to(torch.float32)
+        return weights, channel_mask
+
+    def forward(
+        self,
+        cube: torch.Tensor,
+        wavelengths: Any,
+        context: Context | None = None,  # noqa: ARG002
+        **_: Any,
+    ) -> dict[str, Any]:
+        """Average spectral bands inside RGB ranges and compose normalized RGB."""
+        wavelengths_t = self._prepare_wavelengths_tensor(wavelengths, cube.device)
+        weights, channel_mask = self._build_channel_weights(wavelengths_t)
+
+        # Vectorized channel averaging:
+        # cube [B,H,W,C] and weights [3,C] -> rgb [B,H,W,3]
+        rgb = torch.einsum("bhwc,kc->bhwk", cube, weights.to(device=cube.device, dtype=cube.dtype))
+        rgb = self._normalize_rgb(rgb)
+
+        channel_indices = [
+            torch.where(channel_mask[i])[0].tolist() for i in range(channel_mask.shape[0])
+        ]
+        channel_names = ["red", "green", "blue"]
+        missing_channels = [
+            channel_names[i] for i, indices in enumerate(channel_indices) if len(indices) == 0
+        ]
+
+        band_info = {
+            "strategy": "range_average_false_rgb",
+            "band_indices": channel_indices,  # [R, G, B]
+            "band_wavelengths_nm": [wavelengths_t[idxs].tolist() for idxs in channel_indices],
+            "ranges_nm": {
+                "red": [float(self.red_range[0]), float(self.red_range[1])],
+                "green": [float(self.green_range[0]), float(self.green_range[1])],
+                "blue": [float(self.blue_range[0]), float(self.blue_range[1])],
+            },
+            "aggregation": "mean",
+            "missing_channels": missing_channels,
+        }
+        return {"rgb_image": rgb, "band_info": band_info}
+
+
 class HighContrastSelector(ChannelSelectorBase):
     """Data-driven band selection using spatial variance + Laplacian energy.
 
@@ -1250,6 +1378,7 @@ __all__ = [
     "CIRSelector",
     "FixedWavelengthSelector",
     "HighContrastSelector",
+    "RangeAverageFalseRGBSelector",
     "SoftChannelSelector",
     "SupervisedCIRSelector",
     "SupervisedFullSpectrumSelector",
