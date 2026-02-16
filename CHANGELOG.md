@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - README documentation links: updated base URL to `docs.cuvis.ai` and added missing `/latest/` version prefix for mike-versioned docs
+- Bump pillow 12.1.0 → 12.1.1 to fix CVE-2026-25990 (out-of-bounds write in PSD loader)
 
 ## [0.3.0] - 2026-02-11
 
