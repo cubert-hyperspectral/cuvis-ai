@@ -113,8 +113,7 @@ include = ["cuvis_ai*", "tools*", "scripts*"]
 torch = { index = "pytorch-cu128" }
 torchvision = { index = "pytorch-cu128" }
 cuvis-ai-schemas = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-schemas.git", branch = "main" }
-# cuvis-ai-core = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-core.git", branch = "nima/features/sam3-plugin-setup" }
-cuvis-ai-core = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-core.git", branch = "main" }
+cuvis-ai-core = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-core.git", branch = "nima/features/sam3-plugin-setup" }
 
 [tool.setuptools_scm]
 version_scheme = "post-release"

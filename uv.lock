@@ -566,8 +566,8 @@ docs = [
 requires-dist = [
     { name = "bandit", extras = ["toml"], marker = "extra == 'dev'", specifier = ">=1.7.0" },
     { name = "cuvis", specifier = ">=3.5.0" },
-    { name = "cuvis-ai-core", git = "https://github.com/cubert-hyperspectral/cuvis-ai-core.git?branch=main" },
-    { name = "cuvis-ai-schemas", extras = ["full"], git = "https://github.com/cubert-hyperspectral/cuvis-ai-schemas.git?branch=main" },
+    { name = "cuvis-ai-core", editable = "../../cuvis-ai-core/cuvis-ai-core" },
+    { name = "cuvis-ai-schemas", extras = ["full"], specifier = ">=0.1.0" },
     { name = "cyclonedx-bom", marker = "extra == 'dev'", specifier = ">=4.0.0" },
     { name = "detect-secrets", marker = "extra == 'dev'", specifier = ">=1.4.0" },
     { name = "dotenv", specifier = ">=0.9.9" },
@@ -621,8 +621,7 @@ provides-extras = ["docs", "dev"]
 
 [[package]]
 name = "cuvis-ai-core"
-version = "0.1.3.post3+g8b8a61ee9"
-source = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-core.git?branch=main#8b8a61ee9579b8a368b94d62a8f0f459911ef012" }
+source = { editable = "../../cuvis-ai-core/cuvis-ai-core" }
 dependencies = [
     { name = "cuvis" },
     { name = "cuvis-ai-schemas" },
@@ -650,13 +649,67 @@ dependencies = [
     { name = "typing-extensions" },
 ]
 
+[package.metadata]
+requires-dist = [
+    { name = "bandit", extras = ["toml"], marker = "extra == 'dev'", specifier = ">=1.7.0" },
+    { name = "cuvis", specifier = ">=3.5.0" },
+    { name = "cuvis-ai-schemas", specifier = ">=0.1.0" },
+    { name = "cyclonedx-bom", marker = "extra == 'dev'", specifier = ">=4.0.0" },
+    { name = "dataclass-wizard" },
+    { name = "detect-secrets", marker = "extra == 'dev'", specifier = ">=1.4.0" },
+    { name = "dotenv", specifier = ">=0.9.9" },
+    { name = "gdown", specifier = ">=5.2.1" },
+    { name = "gitpython", specifier = ">=3.1.40" },
+    { name = "graphviz", specifier = ">=0.21" },
+    { name = "grpcio", specifier = ">=1.56.0" },
+    { name = "grpcio-health-checking", specifier = ">=1.56.0" },
+    { name = "hydra-core", specifier = ">=1.3.0" },
+    { name = "ipdb", marker = "extra == 'dev'", specifier = ">=0.13.13" },
+    { name = "ipykernel", marker = "extra == 'dev'" },
+    { name = "ipympl", marker = "extra == 'dev'", specifier = ">=0.9.8" },
+    { name = "jupyterlab", marker = "extra == 'dev'" },
+    { name = "loguru", specifier = ">=0.7.0" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0.0" },
+    { name = "numpy", specifier = ">=1.21.0" },
+    { name = "omegaconf", specifier = ">=2.3.0" },
+    { name = "pillow", specifier = ">=9.0.0" },
+    { name = "pip-audit", marker = "extra == 'dev'", specifier = ">=2.7.0" },
+    { name = "pip-licenses", marker = "extra == 'dev'", specifier = ">=4.0.0" },
+    { name = "protobuf", specifier = ">=6.33.4" },
+    { name = "psutil", marker = "extra == 'dev'" },
+    { name = "pycocotools", specifier = ">=2.0.11" },
+    { name = "pydantic", specifier = ">=2.12.5" },
+    { name = "pytest", marker = "extra == 'dev'" },
+    { name = "pytest", marker = "extra == 'test'", specifier = ">=7.0.0" },
+    { name = "pytest-asyncio", marker = "extra == 'test'", specifier = ">=0.21.0" },
+    { name = "pytest-cov", marker = "extra == 'dev'" },
+    { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=4.0.0" },
+    { name = "pytest-mock", marker = "extra == 'test'", specifier = ">=3.10.0" },
+    { name = "pytorch-lightning", specifier = ">=2.6.0" },
+    { name = "pyyaml", specifier = ">=6.0" },
+    { name = "ruff", specifier = ">=0.14.11" },
+    { name = "ruff", marker = "extra == 'dev'" },
+    { name = "scikit-image", specifier = ">=0.25.2" },
+    { name = "torch", specifier = ">=2.9.1", index = "https://download.pytorch.org/whl/cu128" },
+    { name = "torchvision", index = "https://download.pytorch.org/whl/cu128" },
+    { name = "twine", marker = "extra == 'dev'", specifier = ">=6.2.0" },
+    { name = "types-protobuf", marker = "extra == 'dev'", specifier = ">=5.29.2" },
+    { name = "types-pyyaml", marker = "extra == 'dev'", specifier = ">=6.0.0" },
+    { name = "typing-extensions", specifier = ">=4.0.0" },
+]
+provides-extras = ["dev", "test"]
+
 [[package]]
 name = "cuvis-ai-schemas"
-version = "0.1.3.post4+gdc632014b"
-source = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-schemas.git?branch=main#dc632014b40585b05301ba52bc4068b7ca805705" }
+version = "0.1.3"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/69/ac/eb9370f6b357eded483ce31ef81641960918cc3d95a83b18f1b598873c55/cuvis_ai_schemas-0.1.3.tar.gz", hash = "sha256:013f071a5a3cfd9025795e6cf2ab4958770570d2724f3c4ec2e3278da4ba4b5c", size = 102888, upload-time = "2026-02-09T07:08:16.732Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6d/cd/fa700dcacd99b63d45b5074c852f1238c8c5ce8d8b78f8918acb9a01bcd4/cuvis_ai_schemas-0.1.3-py3-none-any.whl", hash = "sha256:4a545d93d79d11b29258e287464b0b57b12ef6cb605c1bd299ceaf3542baac2d", size = 45597, upload-time = "2026-02-09T07:08:15.399Z" },
 ]
 
 [package.optional-dependencies]
@@ -4011,14 +4064,14 @@ wheels = [
 
 [[package]]
 name = "werkzeug"
-version = "3.1.6"
+version = "3.1.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "markupsafe" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/61/f1/ee81806690a87dab5f5653c1f146c92bc066d7f4cebc603ef88eb9e13957/werkzeug-3.1.6.tar.gz", hash = "sha256:210c6bede5a420a913956b4791a7f4d6843a43b6fcee4dfa08a65e93007d0d25", size = 864736, upload-time = "2026-02-19T15:17:18.884Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5a/70/1469ef1d3542ae7c2c7b72bd5e3a4e6ee69d7978fa8a3af05a38eca5becf/werkzeug-3.1.5.tar.gz", hash = "sha256:6a548b0e88955dd07ccb25539d7d0cc97417ee9e179677d22c7041c8f078ce67", size = 864754, upload-time = "2026-01-08T17:49:23.247Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4d/ec/d58832f89ede95652fd01f4f24236af7d32b70cab2196dfcc2d2fd13c5c2/werkzeug-3.1.6-py3-none-any.whl", hash = "sha256:7ddf3357bb9564e407607f988f683d72038551200c704012bb9a4c523d42f131", size = 225166, upload-time = "2026-02-19T15:17:17.475Z" },
+    { url = "https://files.pythonhosted.org/packages/ad/e4/8d97cca767bcc1be76d16fb76951608305561c6e056811587f36cb1316a8/werkzeug-3.1.5-py3-none-any.whl", hash = "sha256:5111e36e91086ece91f93268bb39b4a35c1e6f1feac762c9c822ded0a4e322dc", size = 225025, upload-time = "2026-01-08T17:49:21.859Z" },
 ]
 
 [[package]]
