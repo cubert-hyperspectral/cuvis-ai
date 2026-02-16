@@ -5,31 +5,42 @@ from cuvis_ai.node.band_selection import (
     BaselineFalseRGBSelector,
     CIRFalseColorSelector,
     HighContrastBandSelector,
+    RangeAverageFalseRGBSelector,
     SupervisedBandSelectorBase,
     SupervisedCIRBandSelector,
     SupervisedFullSpectrumBandSelector,
     SupervisedWindowedFalseRGBSelector,
 )
+from cuvis_ai.node.channel_mixer import LearnableChannelMixer
 from cuvis_ai.node.labels import BinaryAnomalyLabelMapper
+from cuvis_ai.node.losses import DistinctnessLoss, ForegroundContrastLoss
 from cuvis_ai.node.normalization import IdentityNormalizer, MinMaxNormalizer, SigmoidNormalizer
 from cuvis_ai.node.pca import TrainablePCA
 from cuvis_ai.node.selector import SoftChannelSelector, TopKIndices
+from cuvis_ai.node.video import ToVideoNode
+from cuvis_ai.node.visualizations import ChannelSelectorFalseRGBViz, ImageArtifactVizBase
 
 __all__ = [
     "BandSelectorBase",
     "BaselineFalseRGBSelector",
     "BinaryAnomalyLabelMapper",
+    "ChannelSelectorFalseRGBViz",
     "CIRFalseColorSelector",
-    "ExecutionStage",
+    "DistinctnessLoss",
+    "ForegroundContrastLoss",
     "HighContrastBandSelector",
     "IdentityNormalizer",
+    "ImageArtifactVizBase",
+    "LearnableChannelMixer",
     "MinMaxNormalizer",
+    "RangeAverageFalseRGBSelector",
     "SigmoidNormalizer",
     "SoftChannelSelector",
     "SupervisedBandSelectorBase",
     "SupervisedCIRBandSelector",
     "SupervisedFullSpectrumBandSelector",
     "SupervisedWindowedFalseRGBSelector",
+    "ToVideoNode",
     "TopKIndices",
     "TrainablePCA",
 ]
