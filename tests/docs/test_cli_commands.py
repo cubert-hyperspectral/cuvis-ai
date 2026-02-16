@@ -56,7 +56,10 @@ def test_restore_trainrun_help():
 def test_mkdocs_build():
     """Test that documentation builds successfully."""
     result = subprocess.run(
-        ["uv", "run", "mkdocs", "build"], capture_output=True, text=True, timeout=120
+        ["uv", "run", "python", "-m", "mkdocs", "build"],
+        capture_output=True,
+        text=True,
+        timeout=120,
     )
     # Allow warnings but fail on errors
     assert result.returncode == 0, f"mkdocs build failed:\n{result.stderr}"

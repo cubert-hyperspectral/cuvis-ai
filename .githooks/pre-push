@@ -33,7 +33,7 @@ fi
 
 # Check docstring coverage
 echo "→ Checking docstring coverage (≥95%)..."
-if ! uv run interrogate -v cuvis_ai/ --fail-under 95; then
+if ! uv run python -m interrogate -v cuvis_ai/ --fail-under 95; then
     echo ""
     echo "✗ Docstring coverage check failed!"
     echo "  Coverage is below 95% threshold."
