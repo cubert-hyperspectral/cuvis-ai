@@ -194,12 +194,12 @@ jobs:
       - name: Extract and validate changelog entry
         id: changelog
         run: |
-          # Extract section between [VERSION] and next version or EOF
+          # Extract section between ## VERSION and next ## heading or EOF
           VERSION=${{ steps.get_version.outputs.VERSION }}
-          CHANGELOG=$(sed -n "/## \[$VERSION\]/,/## \[/p" CHANGELOG.md | sed '$d')
+          CHANGELOG=$(sed -n "/^## $VERSION/,/^## [0-9]/p" CHANGELOG.md | sed '$d')
           if [ -z "$CHANGELOG" ]; then
             echo "ERROR: No CHANGELOG.md entry found for version $VERSION"
-            echo "Add a '## [$VERSION]' section to CHANGELOG.md before tagging."
+            echo "Add a '## $VERSION' section to CHANGELOG.md before tagging."
             exit 1
           fi
           echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
