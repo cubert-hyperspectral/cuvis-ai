@@ -123,7 +123,6 @@ connections:
   to: TensorBoardMonitorNode.inputs.artifacts
 - from: mask.outputs.artifacts
   to: TensorBoardMonitorNode.inputs.artifacts
-frozen_nodes: []
 metadata:
   name: DeepSVDD_Gradient
   description: Trained model from DeepSVDD_Gradient trainrun (statistical + gradient

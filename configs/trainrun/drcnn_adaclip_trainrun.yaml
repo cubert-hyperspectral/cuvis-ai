@@ -129,7 +129,6 @@ pipeline:
     to: TensorBoardMonitorNode.inputs.artifacts
   - from: drcnn_tensorboard_viz.outputs.artifacts
     to: TensorBoardMonitorNode.inputs.artifacts
-  frozen_nodes: []
   metadata:
     name: DRCNN_AdaClip_Gradient
     description: ''

@@ -125,7 +125,6 @@ pipeline:
     to: TensorBoardMonitorNode.inputs.artifacts
   - from: mask.outputs.artifacts
     to: TensorBoardMonitorNode.inputs.artifacts
-  frozen_nodes: []
   metadata:
     name: DeepSVDD_Gradient
     description: ''

@@ -14,7 +14,6 @@ Pipeline configurations define the computational graph for hyperspectral image p
 - **metadata**: Pipeline identification and documentation
 - **nodes**: Processing components with parameters
 - **connections**: Data flow between nodes
-- **frozen_nodes**: Nodes excluded from training
 
 **File location:** `configs/pipeline/`
 
@@ -47,8 +46,6 @@ nodes:
 connections:
   - from: data_loader.outputs.cube
     to: detector.inputs.data
-
-frozen_nodes: []
 ```
 
 ### Complete Pipeline Structure
@@ -71,8 +68,6 @@ nodes:
 connections:
   - from: node.outputs.port    # Required
     to: node.inputs.port       # Required
-
-frozen_nodes: []               # Optional, list of node names
 ```
 
 ---
@@ -570,49 +565,6 @@ connections:
 
 ---
 
-## Frozen Nodes Section
-
-### Purpose
-
-The `frozen_nodes` list specifies nodes that should not be updated during training.
-
-**Use cases:**
-- Data loaders (always frozen)
-- Statistical nodes after initialization
-- Pretrained components that should remain fixed
-
-### Syntax
-
-```yaml
-frozen_nodes: []  # Empty list (all nodes trainable if applicable)
-```
-
-Or:
-```yaml
-frozen_nodes:
-  - data_loader
-  - normalizer
-  - pretrained_detector
-```
-
-### Examples
-
-**Statistical training (no gradient training):**
-```yaml
-frozen_nodes: []  # Not used in statistical training
-```
-
-**Gradient training with selective unfreezing:**
-```yaml
-# In trainrun config (not pipeline)
-freeze_nodes: [data_loader, normalizer]
-unfreeze_nodes: [channel_selector, rx_detector]
-```
-
-**Note:** The `frozen_nodes` field in pipeline configs is typically empty. Freezing/unfreezing is controlled by `freeze_nodes` and `unfreeze_nodes` in trainrun configs.
-
----
-
 ## Complete Pipeline Examples
 
 ### Example 1: Statistical RX Pipeline
@@ -680,7 +632,6 @@ connections:
   - from: metrics_anomaly.outputs.metrics
     to: TensorBoardMonitorNode.inputs.metrics
 
-frozen_nodes: []
 ```
 
 ### Example 2: Channel Selector Gradient Pipeline
@@ -772,7 +723,6 @@ connections:
   - from: LentilsAnomalyDataNode.outputs.mask
     to: metrics_anomaly.inputs.targets
 
-frozen_nodes: []
 ```
 
 ### Example 3: Deep SVDD Pipeline
@@ -827,7 +777,6 @@ connections:
   - from: LentilsAnomalyDataNode.outputs.mask
     to: metrics_anomaly.inputs.targets
 
-frozen_nodes: []
 ```
 
 ---

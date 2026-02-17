@@ -133,7 +133,6 @@ connections:
   to: TensorBoardMonitorNode.inputs.artifacts
 - from: concrete_tensorboard_viz.outputs.artifacts
   to: TensorBoardMonitorNode.inputs.artifacts
-frozen_nodes: []
 metadata:
   name: Concrete_AdaClip_Gradient
   description: 'Trained Concrete band selector + AdaClip model from Concrete_AdaClip_Gradient

@@ -85,7 +85,6 @@ connections:
   to: TensorBoardMonitorNode.inputs.artifacts
 - from: detection_metrics.outputs.metrics
   to: TensorBoardMonitorNode.inputs.metrics
-frozen_nodes: []
 metadata:
   name: AdaCLIP_HighContrast
   description: "Statistical AdaCLIP high-contrast pipeline (LentilsAnomalyDataNode\

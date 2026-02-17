@@ -81,7 +81,6 @@ connections:
   to: tensorboard_monitor.inputs.artifacts
 - from: anomaly_metrics.outputs.metrics
   to: tensorboard_monitor.inputs.metrics
-frozen_nodes: []
 metadata:
   name: AdaCLIP_Baseline
   description: "Statistical AdaCLIP baseline pipeline (LentilsAnomalyDataNode \u2192\

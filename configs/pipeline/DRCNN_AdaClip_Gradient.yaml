@@ -127,7 +127,6 @@ connections:
   to: TensorBoardMonitorNode.inputs.artifacts
 - from: drcnn_tensorboard_viz.outputs.artifacts
   to: TensorBoardMonitorNode.inputs.artifacts
-frozen_nodes: []
 metadata:
   name: DRCNN_AdaClip_Gradient
   description: Trained DRCNN channel mixer + AdaClip model from DRCNN_AdaClip_Gradient
