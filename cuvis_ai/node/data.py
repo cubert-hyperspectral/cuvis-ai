@@ -21,7 +21,7 @@ class CU3SDataNode(Node):
 
     INPUT_SPECS = {
         "cube": PortSpec(
-            dtype=torch.uint16,
+            dtype=torch.Tensor,
             shape=(-1, -1, -1, -1),
             description="Input hyperspectral cube [B, H, W, C]",
         ),
