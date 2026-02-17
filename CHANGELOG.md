@@ -1,175 +1,115 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
 ## [Unreleased]
 
-### Fixed
-- README documentation links: updated base URL to `docs.cuvis.ai` and added missing `/latest/` version prefix for mike-versioned docs
-- Bump pillow 12.1.0 → 12.1.1 to fix CVE-2026-25990 (out-of-bounds write in PSD loader)
+- Reformatted CHANGELOG to concise single-list style
+- Updated release workflow changelog extraction for new heading format
 
-## [0.3.0] - 2026-02-11
+## 0.3.0 - 2026-02-11
 
-### Added
-- Comprehensive documentation site (70+ pages): 6 tutorials, API reference, node catalog (50+ nodes across 11 categories), gRPC guides, config reference, how-to guides, plugin system docs, development guides, 20+ Mermaid/Graphviz diagrams
-- MkDocs Material theme with dark mode, versioned deployment via mike, custom branding (deep orange, Lato/Source Code Pro fonts, logo/favicon), numpy-style mkdocstrings
-- `AnomalyPixelStatisticsMetric` node in `cuvis_ai.node.metrics` (replaces duplicate `SampleCustomMetrics` in examples)
-- `deep_svdd_factory.py` utility module with `ChannelConfig` dataclass in `cuvis_ai/utils/`
-- Central plugin registry at `configs/plugins/registry.yaml`
-- `configs/trainrun/default_statistical.yaml` for statistical-only training workflows
-- CI/CD pipeline (`ci.yml`): test + coverage (Codecov), lint (ruff, interrogate), security (pip-audit, bandit, detect-secrets), typecheck (mypy) — replaces `run_tests.yml`
-- PyPI release workflow (`pypi-release.yml`): build validation, TestPyPI publish with smoke tests, production PyPI publish, versioned docs deploy to gh-pages
-- Dependabot configuration for GitHub Actions and pip dependencies
-- Automated test data downloader (`scripts/download_data.py` with `download-data` CLI entry point)
-- Documentation test suite (`tests/docs/`): link checker, CLI command tests, runnable code example validation
-- Git hooks for automated code quality checks (ruff format, module case checking)
-- `LICENSE` file (Apache-2.0 full text)
-- `pytest.ini`, `codecov.yml`, `.secrets.baseline`, `baseline_coverage.txt`
+- Fixed README documentation links to use docs.cuvis.ai with correct version prefix
+- Fixed Pillow CVE-2026-25990 by bumping 12.1.0 to 12.1.1
+- Added comprehensive documentation site with tutorials, API reference, and node catalog
+- Added MkDocs Material theme with dark mode and versioned deployment via mike
+- Added AnomalyPixelStatisticsMetric node replacing duplicate SampleCustomMetrics
+- Added deep_svdd_factory utility module with ChannelConfig dataclass
+- Added central plugin registry at configs/plugins/registry.yaml
+- Added statistical-only training config (default_statistical.yaml)
+- Added CI/CD pipeline with test, lint, security, and typecheck jobs
+- Added PyPI release workflow with TestPyPI verification and docs deployment
+- Added Dependabot configuration for GitHub Actions and pip dependencies
+- Added automated test data downloader script with CLI entry point
+- Added documentation test suite for link checking and code example validation
+- Added Git hooks for ruff format and module case checking
+- Added Apache-2.0 LICENSE file
+- Changed TrainablePCA to require num_channels parameter (breaking)
+- Changed type imports to use cuvis-ai-schemas package
+- Changed RXLogitHead to ScoreToLogit and moved to cuvis_ai.node.conversion
+- Changed BaseDecider import to BinaryDecider in deciders module
+- Changed trainrun config into separate statistical and gradient variants
+- Changed pyproject.toml for PyPI compliance and updated tooling configs
+- Changed dependencies to add cuvis-ai-schemas and loosen cuvis version pin
+- Changed restore-pipeline/restore-trainrun entry points to use cuvis_ai_core
+- Improved README and CONTRIBUTING.md with plugin contribution workflow
+- Improved docstring coverage to 95%+ across all public APIs
+- Fixed LAD detector reset() initializing buffers with wrong shapes
+- Fixed LAD detector unfreeze() losing device when converting buffers
+- Fixed TrainablePCA with proper num_channels parameter and buffer shapes
+- Fixed node import paths for cuvis-ai-schemas migration
+- Fixed config references for trainrun and ScoreToLogit rename
+- Fixed documentation links, module references, and placeholder content
+- Fixed MkDocs build warnings and docstring formatting
+- Fixed package metadata for PyPI submission
+- Removed restore_pipeline.md from repo root
+- Removed old changelog.md replaced by CHANGELOG.md
+- Removed run_tests.yml replaced by ci.yml
+- Removed outdated docs pages replaced by expanded docs sections
 
-### Changed
-- **Breaking**: `TrainablePCA.__init__()` now requires `num_channels` parameter; buffers initialized with correct shapes
-- Migrated type imports from `cuvis_ai_core` to new `cuvis-ai-schemas` package across all source files (`PortSpec`, `Context`, `InputStream`, `Metric`, `ExecutionStage`)
-- Renamed `RXLogitHead` → `ScoreToLogit` and moved from `cuvis_ai.anomaly.rx_logit_head` to `cuvis_ai.node.conversion`; updated all pipeline configs and examples
-- Renamed `BaseDecider` import to `BinaryDecider` in deciders module
-- Split `configs/trainrun/default.yaml` into `default_statistical.yaml` and `default_gradient.yaml`
-- Enhanced docstrings to 95%+ coverage across all public APIs (NumPy-style)
-- `pyproject.toml` updates for PyPI compliance:
-  - Package name: `cuvis_ai` → `cuvis-ai`; license: SPDX `Apache-2.0`; author email updated
-  - Python classifiers aligned to 3.11 only; ruff target `py310` → `py311`
-  - Added tool configs: `[tool.interrogate]` (95% threshold), `[tool.mypy]`, `[tool.bandit]`
-- Dependencies: added `cuvis-ai-schemas[full]>=0.1.0`; loosened `cuvis>=3.5.0` (was `==3.5.0`); pinned `cuvis-ai-core>=0.1.2`; removed `graphviz>=0.21`
-- Dev deps: added twine, pip-audit, bandit, detect-secrets, pip-licenses, cyclonedx-bom, interrogate
-- Docs deps: added mike, pytest-check-links, pytest-md-report
-- `restore-pipeline`/`restore-trainrun` CLI entry points now point to `cuvis_ai_core`
-- cuvis-ai-core dependency handling: local editable path for dev, PyPI for release
-- README refactored; CONTRIBUTING.md enhanced with 7-step plugin contribution workflow
-- Examples updated: removed inline `SampleCustomMetrics`, updated all imports for schema migration and ScoreToLogit rename
+## 0.2.3 - 2026-01-29
 
-### Fixed
-- LAD detector `reset()`: buffers now initialized with proper shapes instead of `torch.empty(0)`
-- LAD detector `unfreeze()`: preserves device when converting buffers to parameters
-- TrainablePCA: 17 failing tests fixed by adding required `num_channels` parameter and proper buffer shapes; centralized fixture in `tests/fixtures/mock_nodes.py`
-- Node import paths updated for cuvis-ai-schemas migration
-- Config references: `trainrun/default` → `default_statistical`/`default_gradient`; `RXLogitHead` → `ScoreToLogit` in pipeline YAMLs
-- Documentation: broken internal links, outdated module references, empty placeholder content, incorrect script/path references
-- MkDocs build warnings and docstring formatting issues
-- Package metadata alignment for PyPI submission
+- Added plugin system with Git repository and local filesystem support
+- Added Pydantic plugin configuration with strict validation
+- Added plugin caching in ~/.cuvis_plugins/ with version verification
+- Added session-scoped plugin isolation for gRPC services
+- Added plugin management gRPC RPCs (LoadPlugins, ListLoadedPlugins, GetPluginInfo, ClearPluginCache)
+- Added JSON transport pattern for plugin manifests
+- Added test migration infrastructure with 426 tests moved to cuvis-ai-core
+- Changed repository architecture to split into cuvis-ai-core and cuvis-ai
+- Changed import pattern to use cuvis_ai_core for framework components
+- Fixed DataLoader access violation with num_workers=0
+- Fixed gRPC servers to use single-threaded mode for cuvis SDK compatibility
 
-### Removed
-- `restore_pipeline.md` from repo root (replaced by docs site)
-- `changelog.md` (replaced by `CHANGELOG.md` with Keep a Changelog format)
-- `.github/workflows/run_tests.yml` (replaced by `ci.yml`)
-- `docs/api/grpc_api.md` and `docs/reference/architecture.md` (replaced by expanded docs sections)
+## 0.2.2 - 2026-01-15
 
-## [0.2.3] - 2026-01-29
+- Added restoration utilities in cuvis_ai.utils.restore module
+- Added CLI entry points for restore-pipeline and restore-trainrun
+- Added restore_pipeline.md guide with CLI and Python API examples
+- Changed restoration utilities to auto-detect statistical vs gradient workflows
+- Changed Python API surface to standardized imports
+- Removed duplicate example scripts replaced with library utilities
 
-### Added
-- Plugin system with Git repository and local filesystem support via extended NodeRegistry
-- Pydantic plugin configuration models: GitPluginConfig, LocalPluginConfig, PluginManifest with strict validation
-- Plugin caching in ~/.cuvis_plugins/ with intelligent cache reuse and version verification
-- Session-scoped plugin isolation for gRPC services (each session has independent plugin namespaces)
-- New gRPC RPCs: LoadPlugins, ListLoadedPlugins, GetPluginInfo, ListAvailableNodes, ClearPluginCache
-- JSON transport pattern for plugin manifests via config_bytes field
-- Test migration infrastructure: 426 tests moved to cuvis-ai-core with reusable fixtures
+## 0.2.1 - 2026-01-08
 
-### Changed
-- Repository split into cuvis-ai-core (framework) and cuvis-ai (catalog) with clear API boundaries
-- Import pattern change: `from cuvis_ai_core.* import ...` for framework components
-- Framework extraction: base Node class, port system, Pipeline, training infrastructure, gRPC services, NodeRegistry, data infrastructure moved to cuvis-ai-core
+- Added Pydantic v2 config models as single source of truth with validation
+- Added server-side Hydra composition with session-scoped search paths
+- Added config RPCs: ResolveConfig, ValidateConfig, GetParameterSchema, SetSessionSearchPaths
+- Added explicit 4-step workflow for gRPC API
+- Changed terminology from Experiment to TrainRun across configs and RPCs
+- Changed gRPC service into modular components
+- Changed config transport to use config_bytes with central registry
+- Fixed RPC surface for new config resolution flow
+- Fixed tests and examples (596 tests passing, 65% coverage)
 
-### Fixed
-- DataLoader access violation resolved with num_workers=0
-- Single-threaded gRPC servers for cuvis SDK compatibility
-- 421 tests passing in cuvis-ai-core with independent CI/CD capability
+## 0.2.0 - 2025-12-20
 
-## [0.2.2] - 2026-01-15
+- Added YAML-driven pipeline configuration with OmegaConf interpolation
+- Added hybrid NodeRegistry for built-ins and custom nodes
+- Added end-to-end pipeline serialization with YAML structure and .pt weights
+- Added version/schema compatibility guards on load
+- Added gRPC canvas management and discovery RPCs
+- Added pipeline path resolution helpers with CUVIS_CANVAS_DIR environment variable
+- Changed gRPC API to use PipelineConfig via config_bytes
+- Changed Train RPC to require DataConfig and TrainingConfig
+- Changed SaveCanvas/LoadCanvas to replace SaveCheckpoint/LoadCheckpoint
+- Changed node state management to standard state_dict()
+- Removed custom serialize/load patterns
 
-### Added
-- Restoration utilities in cuvis_ai.utils.restore module
-- CLI entry points: `uv run restore-pipeline` and `uv run restore-trainrun`
-- restore_pipeline.md guide with CLI and Python API examples
+## 0.1.5 - 2025-12-01
 
-### Changed
-- Restoration utilities consolidated for pipeline and trainrun recovery
-- restore_trainrun() auto-detects statistical vs gradient workflows
-- Python API surface standardized: `from cuvis_ai.utils import restore_pipeline, restore_trainrun`
+- Added gRPC service stack with proto definitions
+- Added Buf Schema Registry integration for cross-language codegen
+- Added session management and PipelineBuilder
+- Added file-based data access via DataConfig
+- Added two-phase training (statistical init then gradient fine-tuning)
+- Added pipeline introspection RPCs and streaming training progress
+- Changed output selection to use output_specs
+- Changed node naming to deterministic counter-based scheme
 
-### Removed
-- Duplicate example scripts replaced with library utilities
+## 0.1.3 - 2025-11-06
 
-## [0.2.1] - 2026-01-08
-
-### Added
-- Pydantic v2 config models as single source of truth with validation and JSON Schema introspection
-- Server-side Hydra composition with session-scoped search paths
-- New RPCs: ResolveConfig, ValidateConfig, GetParameterSchema, SetSessionSearchPaths
-- Explicit 4-step workflow: CreateSession → Build/Load Pipeline → SetTrainRunConfig → Train
-
-### Changed
-- Terminology update: Experiment → TrainRun across configs, RPCs, paths, and examples
-- gRPC service refactored into modular components (Session/Config/Pipeline/Training/TrainRun/Inference/Introspection/Discovery)
-- Standardized config transport via config_bytes and central config registry
-
-### Fixed
-- RPC surface updated for new config resolution flow
-- Tests and examples updated (596 tests passing, 65% coverage)
-
-## [0.2.0] - 2025-12-20
-
-### Added
-- YAML-driven pipeline configuration with OmegaConf interpolation
-- Hybrid NodeRegistry for built-ins and custom nodes
-- End-to-end pipeline serialization: YAML structure + single .pt weights file
-- Version/schema compatibility guards on load
-- gRPC Canvas management and discovery RPCs
-- Pipeline path resolution helpers (CUVIS_CANVAS_DIR environment variable)
-
-### Changed
-- gRPC API: CreateSession uses PipelineConfig (config_bytes)
-- Train RPC requires DataConfig + TrainingConfig
-- SaveCanvas/LoadCanvas replace SaveCheckpoint/LoadCheckpoint
-- Node state management simplified to state_dict() + buffers/parameters
-
-### Removed
-- Custom serialize/load patterns replaced with standard state_dict()
-
-## [0.1.5] - 2025-12-01
-
-### Added
-- gRPC service stack with proto definitions
-- Buf Schema Registry integration for cross-language codegen
-- Session management and PipelineBuilder
-- File-based data access via DataConfig
-- Two-phase training (statistical init → gradient fine-tuning)
-- Pipeline introspection RPCs (inputs/outputs/visualization)
-- Streaming training progress support
-
-### Changed
-- Output selection via output_specs
-- Deterministic counter-based node naming
-
-## [0.1.3] - 2025-11-06
-
-### Added
-- Port-based typed I/O system with PortSpec, InputPort, OutputPort
-- Graph connection API with auto-validation
-- Multi-input/output support for nodes
-- Training integration with PyTorch Lightning
-
-### Changed
-- Nodes declare INPUT_SPECS/OUTPUT_SPECS with auto-created ports
-- Executor refactored for port-based routing and stage-aware execution
-- Core and training nodes migrated to typed I/O
-
----
-
-[0.3.0]: https://github.com/cubert-hyperspectral/cuvis-ai/compare/v0.2.3...v0.3.0
-[0.2.3]: https://github.com/cubert-hyperspectral/cuvis-ai/compare/v0.2.2...v0.2.3
-[0.2.2]: https://github.com/cubert-hyperspectral/cuvis-ai/compare/v0.2.1...v0.2.2
-[0.2.1]: https://github.com/cubert-hyperspectral/cuvis-ai/compare/v0.2.0...v0.2.1
-[0.2.0]: https://github.com/cubert-hyperspectral/cuvis-ai/compare/v0.1.5...v0.2.0
-[0.1.5]: https://github.com/cubert-hyperspectral/cuvis-ai/compare/v0.1.3...v0.1.5
-[0.1.3]: https://github.com/cubert-hyperspectral/cuvis-ai/releases/tag/v0.1.3
+- Added port-based typed I/O system with PortSpec, InputPort, OutputPort
+- Added graph connection API with auto-validation
+- Added multi-input/output support for nodes
+- Added training integration with PyTorch Lightning
+- Changed nodes to declare INPUT_SPECS/OUTPUT_SPECS with auto-created ports
+- Changed executor for port-based routing and stage-aware execution
