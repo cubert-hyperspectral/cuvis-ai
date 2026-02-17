@@ -9,19 +9,6 @@ name: channel_selector_false_rgb
 mode: train
 output_dir: ./outputs/${name}
 
-mixer:
-  input_channels: 61
-  output_channels: 3
-  init_method: pca
-  normalize_output: true
-
-losses:
-  foreground_contrast:
-    weight: 1.0
-    compactness_weight: 0.1
-  distinctness:
-    weight: 0.1
-
 training:
   seed: 42
   trainer:
