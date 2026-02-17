@@ -27,6 +27,7 @@ dependencies = [
     "scikit-image",
     "scikit-learn",
     "tensorboard",
+    "setuptools<82",  # tensorboard 2.x imports pkg_resources, removed in setuptools 82
     # Core framework dependencies
     "torch>=2.9.1",
     "torchvision",
