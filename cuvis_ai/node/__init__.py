@@ -18,7 +18,11 @@ from cuvis_ai.node.normalization import IdentityNormalizer, MinMaxNormalizer, Si
 from cuvis_ai.node.pca import TrainablePCA
 from cuvis_ai.node.selector import SoftChannelSelector, TopKIndices
 from cuvis_ai.node.video import ToVideoNode
-from cuvis_ai.node.visualizations import ChannelSelectorFalseRGBViz, ImageArtifactVizBase
+from cuvis_ai.node.visualizations import (
+    ChannelSelectorFalseRGBViz,
+    ImageArtifactVizBase,
+    MaskOverlayNode,
+)
 
 __all__ = [
     "BandSelectorBase",
@@ -32,6 +36,7 @@ __all__ = [
     "IdentityNormalizer",
     "ImageArtifactVizBase",
     "LearnableChannelMixer",
+    "MaskOverlayNode",
     "MinMaxNormalizer",
     "RangeAverageFalseRGBSelector",
     "SigmoidNormalizer",
