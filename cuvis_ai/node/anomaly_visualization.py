@@ -16,7 +16,7 @@ from cuvis_ai_schemas.pipeline import PortSpec
 from loguru import logger
 from torchmetrics.functional.classification import binary_average_precision
 
-from cuvis_ai.utils.vis_helpers import fig_to_array, tensor_to_numpy
+from cuvis_ai.utils.vis_helpers import create_mask_overlay, fig_to_array, tensor_to_numpy
 
 
 class ImageArtifactVizBase(Node):
@@ -820,30 +820,6 @@ class ChannelSelectorFalseRGBViz(ImageArtifactVizBase):
             **kwargs,
         )
 
-    @staticmethod
-    def _create_mask_overlay(rgb: np.ndarray, mask: np.ndarray, alpha: float) -> np.ndarray:
-        """Alpha-blend a red tint on foreground pixels.
-
-        Parameters
-        ----------
-        rgb : np.ndarray
-            Normalized RGB image [H, W, 3] in [0, 1].
-        mask : np.ndarray
-            Segmentation mask [H, W] where >0 is foreground.
-        alpha : float
-            Blend factor for the red overlay.
-
-        Returns
-        -------
-        np.ndarray
-            RGB image with red overlay on foreground, shape [H, W, 3].
-        """
-        overlay = rgb.copy()
-        fg = mask > 0
-        red_tint = np.array([1.0, 0.0, 0.0], dtype=np.float32)
-        overlay[fg] = (1.0 - alpha) * overlay[fg] + alpha * red_tint
-        return np.clip(overlay, 0.0, 1.0).astype(np.float32)
-
     def forward(
         self,
         rgb_output: torch.Tensor,
@@ -889,23 +865,86 @@ class ChannelSelectorFalseRGBViz(ImageArtifactVizBase):
             artifacts.append(artifact_rgb)
 
             # Mask overlay (if mask provided and has foreground)
-            if mask is not None:
-                mask_np = mask[b].detach().cpu().numpy()
-                if mask_np.any():
-                    overlay = self._create_mask_overlay(rgb_np, mask_np, self.mask_overlay_alpha)
-                    artifact_overlay = Artifact(
-                        name=f"mask_overlay_sample_{b}",
-                        value=overlay,
-                        el_id=b,
-                        desc=f"False RGB with mask overlay for sample {b}",
-                        type=ArtifactType.IMAGE,
-                        stage=context.stage,
-                        epoch=context.epoch,
-                        batch_idx=context.batch_idx,
-                    )
-                    artifacts.append(artifact_overlay)
+            if mask is not None and mask[b].any():
+                overlay = create_mask_overlay(
+                    torch.from_numpy(rgb_np), mask[b].cpu(), alpha=self.mask_overlay_alpha
+                ).numpy()
+                artifact_overlay = Artifact(
+                    name=f"mask_overlay_sample_{b}",
+                    value=overlay,
+                    el_id=b,
+                    desc=f"False RGB with mask overlay for sample {b}",
+                    type=ArtifactType.IMAGE,
+                    stage=context.stage,
+                    epoch=context.epoch,
+                    batch_idx=context.batch_idx,
+                )
+                artifacts.append(artifact_overlay)
 
         return {"artifacts": artifacts}
+
+
+class MaskOverlayNode(Node):
+    """Alpha-blend a coloured mask overlay onto RGB frames.
+
+    Pure PyTorch processing node (no matplotlib, no gradients).  When *mask* is
+    ``None`` or entirely zero the input RGB is passed through unchanged.
+
+    Parameters
+    ----------
+    overlay_color : tuple[float, float, float], optional
+        RGB tint colour in ``[0, 1]`` (default: red ``(1, 0, 0)``).
+    alpha : float, optional
+        Blend factor for the overlay colour (default: 0.4).
+    """
+
+    INPUT_SPECS = {
+        "rgb_image": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 3),
+            description="RGB frames [B, H, W, 3] in [0, 1]",
+        ),
+        "mask": PortSpec(
+            dtype=torch.int32,
+            shape=(-1, -1, -1),
+            description="Segmentation mask [B, H, W] where >0 is foreground",
+            optional=True,
+        ),
+    }
+
+    OUTPUT_SPECS = {
+        "rgb_with_overlay": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 3),
+            description="RGB frames with mask overlay [B, H, W, 3] in [0, 1]",
+        ),
+    }
+
+    def __init__(
+        self,
+        overlay_color: tuple[float, float, float] = (1.0, 0.0, 0.0),
+        alpha: float = 0.4,
+        **kwargs,
+    ) -> None:
+        self.overlay_color = overlay_color
+        self.alpha = alpha
+        super().__init__(overlay_color=overlay_color, alpha=alpha, **kwargs)
+
+    @torch.no_grad()
+    def forward(
+        self,
+        rgb_image: torch.Tensor,
+        mask: torch.Tensor | None = None,
+        **_,
+    ) -> dict[str, torch.Tensor]:
+        """Apply mask overlay to RGB frames."""
+        if mask is None or not mask.any():
+            return {"rgb_with_overlay": rgb_image}
+        return {
+            "rgb_with_overlay": create_mask_overlay(
+                rgb_image, mask, alpha=self.alpha, color=self.overlay_color
+            )
+        }
 
 
 __all__ = [
@@ -914,4 +953,5 @@ __all__ = [
     "RGBAnomalyMask",
     "ScoreHeatmapVisualizer",
     "ChannelSelectorFalseRGBViz",
+    "MaskOverlayNode",
 ]

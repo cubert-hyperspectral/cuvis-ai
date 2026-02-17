@@ -2,7 +2,9 @@
 
 from cuvis_ai.node.anomaly_visualization import (
     AnomalyMask,
+    ChannelSelectorFalseRGBViz,
     ImageArtifactVizBase,
+    MaskOverlayNode,
     RGBAnomalyMask,
     ScoreHeatmapVisualizer,
 )
@@ -46,6 +48,7 @@ __all__ = [
     "IdentityNormalizer",
     "ImageArtifactVizBase",
     "LearnableChannelMixer",
+    "MaskOverlayNode",
     "MinMaxNormalizer",
     "PCAVisualization",
     "PipelineComparisonVisualizer",
