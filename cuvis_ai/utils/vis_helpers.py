@@ -88,4 +88,38 @@ def tensor_to_numpy(tensor: torch.Tensor) -> np.ndarray:
     return tensor.detach().cpu().numpy()
 
 
-__all__ = ["fig_to_array", "tensor_to_uint8", "tensor_to_numpy"]
+@torch.no_grad()
+def create_mask_overlay(
+    rgb: torch.Tensor,
+    mask: torch.Tensor,
+    alpha: float = 0.4,
+    color: tuple[float, float, float] = (1.0, 0.0, 0.0),
+) -> torch.Tensor:
+    """Alpha-blend a colored tint on foreground pixels.
+
+    Pure PyTorch, no gradients.  Works for both single images ``[H, W, 3]``
+    and batched ``[B, H, W, 3]`` thanks to broadcasting.
+
+    Parameters
+    ----------
+    rgb : torch.Tensor
+        RGB image(s) in ``[0, 1]``.  Shape ``[H, W, 3]`` or ``[B, H, W, 3]``.
+    mask : torch.Tensor
+        Segmentation mask where ``> 0`` is foreground.
+        Shape ``[H, W]`` or ``[B, H, W]``.
+    alpha : float, optional
+        Blend factor for the overlay colour (default: 0.4).
+    color : tuple[float, float, float], optional
+        RGB overlay colour in ``[0, 1]`` (default: red ``(1, 0, 0)``).
+
+    Returns
+    -------
+    torch.Tensor
+        Blended image, same shape and device as *rgb*, clamped to ``[0, 1]``.
+    """
+    fg = (mask > 0).unsqueeze(-1).float()  # [..., 1] for channel broadcast
+    tint = torch.tensor(color, dtype=rgb.dtype, device=rgb.device)
+    return ((1.0 - alpha * fg) * rgb + alpha * fg * tint).clamp(0.0, 1.0)
+
+
+__all__ = ["fig_to_array", "tensor_to_uint8", "tensor_to_numpy", "create_mask_overlay"]
