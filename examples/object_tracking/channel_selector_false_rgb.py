@@ -22,7 +22,6 @@ import json
 from pathlib import Path
 
 import hydra
-import torch
 from cuvis_ai_core.data.datasets import SingleCu3sDataModule, SingleCu3sDataset
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_core.training import GradientTrainer, StatisticalTrainer
@@ -40,7 +39,7 @@ from cuvis_ai.node.losses import DistinctnessLoss, ForegroundContrastLoss
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.normalization import MinMaxNormalizer
 from cuvis_ai.node.video import ToVideoNode
-from cuvis_ai.node.visualizations import ChannelSelectorFalseRGBViz
+from cuvis_ai.node.visualizations import ChannelSelectorFalseRGBViz, MaskOverlayNode
 
 # ---------------------------------------------------------------------------
 # Inspect mode
@@ -68,11 +67,13 @@ def inspect_dataset(cfg: DictConfig) -> None:
 
     logger.info(f"Frames with annotations (from COCO JSON): {len(annotated_frame_ids)}")
     logger.info(f"Annotated frame IDs: {annotated_frame_ids}")
+    processing_mode = data_cfg.get("processing_mode", "SpectralRadiance")
+    logger.info(f"Processing mode: {processing_mode}")
 
     # Load only annotated frames via measurement_indices
     dataset = SingleCu3sDataset(
         cu3s_file_path=data_cfg["cu3s_file_path"],
-        processing_mode=data_cfg.get("processing_mode", "Raw"),
+        processing_mode=processing_mode,
         annotation_json_path=annotation_json_path,
         measurement_indices=annotated_frame_ids,
     )
@@ -103,9 +104,11 @@ def inspect_dataset(cfg: DictConfig) -> None:
         blue_range=(420.0, 500.0),
         name="range_average_false_rgb",
     )
+    mask_overlay = MaskOverlayNode(name="mask_overlay")
     to_video = ToVideoNode(
         output__video_path=str(output_dir / "false_rgb.mp4"),
-        frame_rate=10.0,
+        frame_rate=1,
+        # frame_rotation=90,
         name="to_video",
     )
     viz = ChannelSelectorFalseRGBViz(
@@ -122,7 +125,11 @@ def inspect_dataset(cfg: DictConfig) -> None:
     pipeline.connect(
         (cu3s_data.outputs.cube, false_rgb.cube),
         (cu3s_data.outputs.wavelengths, false_rgb.wavelengths),
-        (false_rgb.rgb_image, to_video.rgb_image),
+        # Mask overlay on RGB before video export
+        (false_rgb.rgb_image, mask_overlay.rgb_image),
+        (cu3s_data.outputs.mask, mask_overlay.mask),
+        (mask_overlay.rgb_with_overlay, to_video.rgb_image),
+        # Viz/TensorBoard still gets original RGB + mask
         (false_rgb.rgb_image, viz.rgb_output),
         (cu3s_data.outputs.mask, viz.mask),
         (viz.artifacts, tensorboard_node.artifacts),
@@ -135,8 +142,6 @@ def inspect_dataset(cfg: DictConfig) -> None:
     processed = 0
     try:
         for batch in dataloader:
-            if batch["cube"].dtype != torch.uint16:
-                batch["cube"] = batch["cube"].to(torch.uint16)
             pipeline.forward(batch=batch, stage=ExecutionStage.INFERENCE)
             processed += batch["cube"].shape[0]
             if processed % 50 == 0 or processed == total_frames:
@@ -173,29 +178,24 @@ def run_experiment_mixer(cfg: DictConfig) -> None:
     # Build pipeline
     pipeline = CuvisPipeline("Channel_Selector_FalseRGB")
 
-    mixer_cfg = cfg.get("mixer", {})
-    loss_cfg = cfg.get("losses", {})
-
     data_node = CU3SDataNode(name="cu3s_data")
     normalizer = MinMaxNormalizer(eps=1.0e-6, use_running_stats=True)
     mixer = LearnableChannelMixer(
-        input_channels=mixer_cfg.get("input_channels", 61),
-        output_channels=mixer_cfg.get("output_channels", 3),
-        init_method=mixer_cfg.get("init_method", "pca"),
-        normalize_output=mixer_cfg.get("normalize_output", True),
+        input_channels=51,
+        output_channels=3,
+        init_method="pca",
+        normalize_output=True,
     )
 
-    fg_contrast_cfg = loss_cfg.get("foreground_contrast", {})
     contrast_loss = ForegroundContrastLoss(
         name="foreground_contrast",
-        weight=fg_contrast_cfg.get("weight", 1.0),
-        compactness_weight=fg_contrast_cfg.get("compactness_weight", 0.1),
+        weight=1.0,
+        compactness_weight=0.1,
     )
 
-    dist_cfg = loss_cfg.get("distinctness", {})
     distinctness_loss = DistinctnessLoss(
         name="distinctness",
-        weight=dist_cfg.get("weight", 0.1),
+        weight=0.1,
     )
 
     viz = ChannelSelectorFalseRGBViz(
@@ -227,14 +227,6 @@ def run_experiment_mixer(cfg: DictConfig) -> None:
     pipeline.visualize(
         format="render_graphviz",
         output_path=str(output_dir / "pipeline" / f"{pipeline.name}.png"),
-        show_execution_stage=True,
-    )
-    pipeline.visualize(
-        format="render_mermaid",
-        output_path=str(output_dir / "pipeline" / f"{pipeline.name}.md"),
-        direction="LR",
-        include_node_class=True,
-        wrap_markdown=True,
         show_execution_stage=True,
     )
 
@@ -294,7 +286,7 @@ def run_experiment_mixer(cfg: DictConfig) -> None:
     pipeline_config = pipeline.serialize()
     trainrun_config = TrainRunConfig(
         name=cfg.name,
-        pipeline=pipeline_config,
+        pipeline=pipeline_config.model_dump(),
         data=cfg.data,
         training=training_cfg,
         output_dir=str(output_dir),
