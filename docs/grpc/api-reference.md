@@ -917,7 +917,7 @@ for progress in stub.Train(
 
 **Execution Stages:**
 - `EXECUTION_STAGE_TRAIN` - Training loop
-- `EXECUTION_STAGE_VALIDATE` - Validation loop
+- `EXECUTION_STAGE_VAL` - Validation loop
 - `EXECUTION_STAGE_TEST` - Test loop
 
 **Train Status:**

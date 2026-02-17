@@ -231,7 +231,7 @@ print("Session closed.")
 ```
 [gradient] [TRAIN] IN_PROGRESS | losses={'deep_svdd_loss': 0.4523} | metrics={'iou': 0.6823}
 [gradient] [TRAIN] IN_PROGRESS | losses={'deep_svdd_loss': 0.3891} | metrics={'iou': 0.7234}
-[gradient] [VALIDATE] IN_PROGRESS | metrics={'val_iou': 0.7456, 'val_precision': 0.8123}
+[gradient] [VAL] IN_PROGRESS | metrics={'val_iou': 0.7456, 'val_precision': 0.8123}
 [gradient] [TRAIN] COMPLETED | message=Training complete (50 epochs)
 ```
 
