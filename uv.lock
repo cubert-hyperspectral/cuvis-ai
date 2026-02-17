@@ -567,7 +567,7 @@ docs = [
 requires-dist = [
     { name = "bandit", extras = ["toml"], marker = "extra == 'dev'", specifier = ">=1.7.0" },
     { name = "cuvis", specifier = ">=3.5.0" },
-    { name = "cuvis-ai-core", editable = "../../cuvis-ai-core/cuvis-ai-core" },
+    { name = "cuvis-ai-core", editable = "../../cuvis-ai-core/cuvis-ai-core-sam3" },
     { name = "cuvis-ai-schemas", extras = ["full"], specifier = ">=0.1.0" },
     { name = "cyclonedx-bom", marker = "extra == 'dev'", specifier = ">=4.0.0" },
     { name = "detect-secrets", marker = "extra == 'dev'", specifier = ">=1.4.0" },
@@ -623,7 +623,7 @@ provides-extras = ["docs", "dev"]
 
 [[package]]
 name = "cuvis-ai-core"
-source = { editable = "../../cuvis-ai-core/cuvis-ai-core" }
+source = { editable = "../../cuvis-ai-core/cuvis-ai-core-sam3" }
 dependencies = [
     { name = "cuvis" },
     { name = "cuvis-ai-schemas" },
