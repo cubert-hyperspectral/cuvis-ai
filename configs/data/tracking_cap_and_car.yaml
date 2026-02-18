@@ -1,7 +1,7 @@
 cu3s_file_path: "D:\\data\\2024_05_22_cap_and_car_2XM_setup\\2024_05_22__cap_and_car_50mm\\Auto_002.cu3s"
 annotation_json_path: "D:\\data\\2024_05_22_cap_and_car_2XM_setup\\2024_05_22__cap_and_car_50mm\\Auto_002.json"
 # Frame IDs — fill after running inspect mode
-train_ids: [871, 881, 887]
+train_ids: [696, 708, 720, 855, 858, 871, 881, 887]
 val_ids: [869]
 test_ids: [870]
 batch_size: 2

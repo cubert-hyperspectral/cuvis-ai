@@ -21,6 +21,7 @@ from cuvis_ai.node.selector import SoftChannelSelector, TopKIndices
 from cuvis_ai.node.video import ToVideoNode
 from cuvis_ai.node.visualizations import (
     ChannelSelectorFalseRGBViz,
+    ChannelWeightsViz,
     ImageArtifactVizBase,
     MaskOverlayNode,
 )
@@ -31,6 +32,7 @@ __all__ = [
     "BaselineFalseRGBSelector",
     "BinaryAnomalyLabelMapper",
     "ChannelSelectorFalseRGBViz",
+    "ChannelWeightsViz",
     "CIRFalseColorSelector",
     "DistinctnessLoss",
     "ForegroundContrastLoss",

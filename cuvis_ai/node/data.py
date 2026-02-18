@@ -55,6 +55,12 @@ class CU3SDataNode(Node):
             description="Wavelengths [C] in nm",
             optional=True,
         ),
+        "mesu_index": PortSpec(
+            dtype=torch.int64,
+            shape=(-1,),
+            description="Measurement/frame index per batch element [B]",
+            optional=True,
+        ),
     }
 
     def forward(
@@ -62,6 +68,7 @@ class CU3SDataNode(Node):
         cube: torch.Tensor,
         mask: torch.Tensor | None = None,
         wavelengths: torch.Tensor | None = None,
+        mesu_index: torch.Tensor | None = None,
         **_: Any,
     ) -> dict[str, torch.Tensor | np.ndarray]:
         """Normalize CU3S batch data for pipeline consumption."""
@@ -73,6 +80,9 @@ class CU3SDataNode(Node):
 
         if mask is not None:
             result["mask"] = mask
+
+        if mesu_index is not None:
+            result["mesu_index"] = mesu_index
 
         return result
 

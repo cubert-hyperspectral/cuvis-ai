@@ -4,6 +4,16 @@
 
 - Reformatted CHANGELOG to concise single-list style
 - Updated release workflow changelog extraction for new heading format
+- Added ChannelWeightsViz node with pure-torch heatmap, R/G/B indicators, and PIL text annotations
+- Added OKLab perceptual color space utilities (rgb_to_oklab, linear_rgb_to_oklab, srgb_to_linear)
+- Added mesu_index passthrough in CU3SDataNode for frame-identified TensorBoard naming
+- Added mesu_index input to ChannelSelectorFalseRGBViz for consistent frame tracking across shuffled epochs
+- Added OKLab color space and anchor_weight anti-gaming penalty to ForegroundContrastLoss
+- Added LR scheduling (reduce_on_plateau) wired to GradientTrainer in channel selector experiment
+- Changed LearnableChannelMixer output normalization from per-image min-max to BatchNorm2d + sigmoid
+- Changed channel selector training config to max_epochs=200 with early stopping and LR scheduling
+- Changed ForegroundContrastLoss to vectorized batch computation (no per-sample loop)
+- Expanded training data splits in tracking_cap_and_car.yaml
 
 ## 0.3.0 - 2026-02-11
 
