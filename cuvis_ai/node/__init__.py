@@ -31,10 +31,12 @@ from cuvis_ai.node.pipeline_visualization import (
     PCAVisualization,
     PipelineComparisonVisualizer,
 )
+from cuvis_ai.node.preprocessors import BandpassByWavelength, SpatialRotateNode
 from cuvis_ai.node.video import ToVideoNode
 
 __all__ = [
     "AnomalyMask",
+    "BandpassByWavelength",
     "BinaryAnomalyLabelMapper",
     "ChannelSelectorBase",
     "ChannelSelectorFalseRGBViz",
@@ -57,6 +59,7 @@ __all__ = [
     "ScoreHeatmapVisualizer",
     "SigmoidNormalizer",
     "SoftChannelSelector",
+    "SpatialRotateNode",
     "SupervisedCIRSelector",
     "SupervisedFullSpectrumSelector",
     "SupervisedSelectorBase",

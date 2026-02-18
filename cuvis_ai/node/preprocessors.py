@@ -133,4 +133,104 @@ class BandpassByWavelength(Node):
         return {"filtered": filtered}
 
 
-__all__ = ["BandpassByWavelength"]
+class SpatialRotateNode(Node):
+    """Rotate spatial dimensions of cubes, masks, and RGB images.
+
+    Applies a fixed rotation (90, -90, or 180 degrees) to the H and W
+    dimensions of all provided inputs.  Wavelengths pass through unchanged.
+
+    Place immediately after a data node so all downstream consumers see
+    correctly oriented data.
+
+    Parameters
+    ----------
+    rotation : int | None
+        Rotation in degrees.  Supported: 90, -90, 180
+        (and aliases 270, -270, -180).  None or 0 means passthrough.
+    """
+
+    INPUT_SPECS = {
+        "cube": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, -1),
+            description="Hyperspectral cube [B, H, W, C]",
+        ),
+        "mask": PortSpec(
+            dtype=torch.int32,
+            shape=(-1, -1, -1),
+            description="Segmentation mask [B, H, W]",
+            optional=True,
+        ),
+        "rgb_image": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 3),
+            description="RGB image [B, H, W, 3]",
+            optional=True,
+        ),
+    }
+
+    OUTPUT_SPECS = {
+        "cube": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, -1),
+            description="Rotated hyperspectral cube [B, H', W', C]",
+        ),
+        "mask": PortSpec(
+            dtype=torch.int32,
+            shape=(-1, -1, -1),
+            description="Rotated segmentation mask [B, H', W']",
+            optional=True,
+        ),
+        "rgb_image": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 3),
+            description="Rotated RGB image [B, H', W', 3]",
+            optional=True,
+        ),
+    }
+
+    _VALID_ROTATIONS = {None, 0, 90, -90, 180, -180, 270, -270}
+
+    def __init__(self, rotation: int | None = None, **kwargs: Any) -> None:
+        if rotation not in self._VALID_ROTATIONS:
+            raise ValueError(
+                f"rotation must be one of {sorted(r for r in self._VALID_ROTATIONS if r is not None)}"
+                f" or None, got {rotation}"
+            )
+        self.rotation = self._normalize(rotation)
+        super().__init__(rotation=rotation, **kwargs)
+
+    @staticmethod
+    def _normalize(rotation: int | None) -> int | None:
+        if rotation in (None, 0):
+            return None
+        if rotation in (180, -180):
+            return 180
+        if rotation in (90, -270):
+            return 90
+        if rotation in (-90, 270):
+            return -90
+        return rotation
+
+    @torch.no_grad()
+    def forward(
+        self,
+        cube: Tensor,
+        mask: Tensor | None = None,
+        rgb_image: Tensor | None = None,
+        **_: Any,
+    ) -> dict[str, Tensor]:
+        k = {None: 0, 90: 1, -90: -1, 180: 2}[self.rotation]
+
+        result: dict[str, Tensor] = {}
+        result["cube"] = torch.rot90(cube, k=k, dims=(1, 2)).contiguous() if k else cube
+        if mask is not None:
+            result["mask"] = torch.rot90(mask, k=k, dims=(1, 2)).contiguous() if k else mask
+        if rgb_image is not None:
+            result["rgb_image"] = (
+                torch.rot90(rgb_image, k=k, dims=(1, 2)).contiguous() if k else rgb_image
+            )
+        return result
+
+
+__all__ = ["BandpassByWavelength", "SpatialRotateNode"]

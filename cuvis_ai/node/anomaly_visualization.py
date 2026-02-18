@@ -65,6 +65,7 @@ class ImageArtifactVizBase(Node):
         return np.clip(img, 0.0, 1.0).astype(np.float32)
 
 
+
 class AnomalyMask(Node):
     """Visualize anomaly detection with GT and predicted masks.
 
@@ -892,8 +893,6 @@ class MaskOverlayNode(Node):
 
     Parameters
     ----------
-    overlay_color : tuple[float, float, float], optional
-        RGB tint colour in ``[0, 1]`` (default: red ``(1, 0, 0)``).
     alpha : float, optional
         Blend factor for the overlay colour (default: 0.4).
     """
@@ -922,13 +921,12 @@ class MaskOverlayNode(Node):
 
     def __init__(
         self,
-        overlay_color: tuple[float, float, float] = (1.0, 0.0, 0.0),
         alpha: float = 0.4,
         **kwargs,
     ) -> None:
-        self.overlay_color = overlay_color
+        self.overlay_color = (1.0, 0.0, 0.0)
         self.alpha = alpha
-        super().__init__(overlay_color=overlay_color, alpha=alpha, **kwargs)
+        super().__init__(alpha=alpha, **kwargs)
 
     @torch.no_grad()
     def forward(
