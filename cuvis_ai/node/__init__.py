@@ -3,6 +3,7 @@
 from cuvis_ai.node.anomaly_visualization import (
     AnomalyMask,
     ChannelSelectorFalseRGBViz,
+    ChannelWeightsViz,
     ImageArtifactVizBase,
     MaskOverlayNode,
     RGBAnomalyMask,
@@ -40,6 +41,7 @@ __all__ = [
     "BinaryAnomalyLabelMapper",
     "ChannelSelectorBase",
     "ChannelSelectorFalseRGBViz",
+    "ChannelWeightsViz",
     "CIRSelector",
     "ConcreteChannelMixer",
     "CubeRGBVisualizer",

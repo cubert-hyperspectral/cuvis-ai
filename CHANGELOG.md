@@ -14,32 +14,32 @@
 - Added plugin contract, manifest sync, and runtime smoke test files
 - Added 8 new test files: `test_welford`, `test_freeze_unfreeze`, `test_channel_selector_coverage`, `test_concrete_channel_mixer`, `test_pipeline_visualization`, `test_binary_decider`, `test_data_node`, `test_rx_per_batch`
 - Added pytest markers (`unit`/`integration`/`slow`) on all 30 test files; session-scoped fixtures for expensive operations; pytest config consolidated in `pytest.ini`
+- Added ChannelWeightsViz node with pure-torch heatmap, R/G/B indicators, and PIL text annotations
+- Added OKLab perceptual color space utilities (rgb_to_oklab, linear_rgb_to_oklab, srgb_to_linear)
+- Added mesu_index passthrough in CU3SDataNode for frame-identified TensorBoard naming
+- Added mesu_index input to ChannelSelectorFalseRGBViz for consistent frame tracking across shuffled epochs
+- Added OKLab color space and anchor_weight anti-gaming penalty to ForegroundContrastLoss
+- Added LR scheduling (reduce_on_plateau) wired to GradientTrainer in channel selector experiment
 - Changed RXGlobal, ScoreToLogit, LADGlobal to use `WelfordAccumulator` instead of inline Welford implementations
 - Changed `_compute_band_correlation_matrix` to single-pass streaming with `WelfordAccumulator`
 - Changed TrainablePCA and LearnableChannelMixer to use streaming covariance + `eigh` instead of concat + SVD
 - Changed SoftChannelSelector variance init to use streaming `WelfordAccumulator`
 - Changed ZScoreNormalizerGlobal to use streaming `WelfordAccumulator` instead of concat + subsample
-- Changed supervised band selectors to use template method pattern, pulling shared `forward()` and `statistical_initialization()` into `SupervisedSelectorBase`
+- Changed supervised band selectors to use template method pattern
 - Changed YAML configs and docs to use new schema field names (`hparams`, `class_name`)
-- Changed `EXECUTION_STAGE_VALIDATE` references to `VAL` across gRPC docs
-- Changed `.freezed` references to `.frozen` in tests and docs (matches cuvis-ai-core rename)
-- **Breaking**: Reorganized channel selector and mixer nodes into separate files: `band_selection.py` + `selector.py` → `channel_selector.py`, `concrete_selector.py` + `channel_mixer.py` → `channel_mixer.py`, `pca.py` → `dimensionality_reduction.py`, `visualizations.py` + `drcnn_tensorboard_viz.py` → `anomaly_visualization.py` + `pipeline_visualization.py`
-- **Breaking**: Renamed 9 classes to reflect selector/mixer distinction: `BandSelectorBase` → `ChannelSelectorBase`, `BaselineFalseRGBSelector` → `FixedWavelengthSelector`, `HighContrastBandSelector` → `HighContrastSelector`, `CIRFalseColorSelector` → `CIRSelector`, `SupervisedBandSelectorBase` → `SupervisedSelectorBase`, `SupervisedCIRBandSelector` → `SupervisedCIRSelector`, `SupervisedWindowedFalseRGBSelector` → `SupervisedWindowedSelector`, `SupervisedFullSpectrumBandSelector` → `SupervisedFullSpectrumSelector`, `ConcreteBandSelector` → `ConcreteChannelMixer`, `DRCNNTensorBoardViz` → `PipelineComparisonVisualizer`
+- Changed LearnableChannelMixer output normalization from per-image min-max to BatchNorm2d + sigmoid
+- Changed channel selector training config to max_epochs=200 with early stopping and LR scheduling
+- Changed ForegroundContrastLoss to vectorized batch computation (no per-sample loop)
+- **Breaking**: Reorganized channel selector and mixer nodes into separate files
+- **Breaking**: Renamed 9 classes to reflect selector/mixer distinction
 - **Breaking**: Deleted old files — no deprecation stubs or re-exports
-- Removed redundant `.to(device)` calls from `adaclip.py`, `anomaly_visualization.py`, `channel_selector.py` — pipeline handles device placement
-- Changed pipeline configs reorganized into `anomaly/` subdirectories (`adaclip/`, `deep_svdd/`, `rx/`)
-- Changed AdaCLIP pipeline node names and synced tuning values across 8 pipeline configs
-- Changed Deep SVDD configs, examples, and docs cleaned up for consistency
-- Changed CI workflows to install `libgl1`/`libglib2.0-0` system dependencies for plugin imports
+- Removed redundant `.to(device)` calls — pipeline handles device placement
 - Updated 13 pipeline + 17 trainrun YAML configs with new `class_name` paths
 - Updated 11 example scripts with new import paths
-- Updated 19 documentation files with new class names, import paths, and new content for `WelfordAccumulator` and `TRAINABLE_BUFFERS`
+- Updated 19 documentation files with new class names and import paths
 - Fixed `pyproject.toml` uv source field (`develop` to `editable`)
-- Fixed wavelength batching in supervised band selector `_collect_training_data` (flatten `[B, C]` to `[C]`)
-- Fixed trainrun callback field name and `channel_selector` weights config
 - Fixed Werkzeug CVE-2026-27199 by bumping 3.1.5 → 3.1.6
-- Removed dead `_quantile_threshold()` and duplicate `_resolve_reduce_dims()` from `TwoStageBinaryDecider`
-- Removed `frozen_nodes` from pipeline configs and docs
+- Expanded training data splits in tracking_cap_and_car.yaml
 
 ## 0.3.0 - 2026-02-11
 

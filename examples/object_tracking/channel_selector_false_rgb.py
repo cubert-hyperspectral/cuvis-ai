@@ -43,7 +43,7 @@ from cuvis_ai.node.preprocessors import SpatialRotateNode
 from cuvis_ai.node.video import ToVideoNode
 from cuvis_ai.node.visualizations import (
     ChannelSelectorFalseRGBViz,
-    CubeRGBVisualizer,
+    ChannelWeightsViz,
     MaskOverlayNode,
 )
 
@@ -83,6 +83,9 @@ def inspect_dataset(cfg: DictConfig) -> None:
         annotation_json_path=annotation_json_path,
         measurement_indices=annotated_frame_ids,
     )
+
+    wl = dataset.wavelengths
+    logger.info(f"Available wavelengths ({len(wl)}): {wl.tolist()}")
 
     # Confirm annotations by checking masks on loaded frames
     confirmed_frame_ids = []
@@ -139,9 +142,10 @@ def inspect_dataset(cfg: DictConfig) -> None:
         (false_rgb.rgb_image, mask_overlay.rgb_image),
         (rotate.outputs.mask, mask_overlay.mask),
         (mask_overlay.rgb_with_overlay, to_video.rgb_image),
-        # Viz/TensorBoard gets rotated RGB + mask
+        # Viz/TensorBoard gets rotated RGB + mask + frame IDs
         (false_rgb.rgb_image, viz.rgb_output),
         (rotate.outputs.mask, viz.mask),
+        (cu3s_data.outputs.mesu_index, viz.mesu_index),
         (viz.artifacts, tensorboard_node.artifacts),
     )
 
@@ -202,6 +206,8 @@ def run_experiment_mixer(cfg: DictConfig) -> None:
         name="foreground_contrast",
         weight=1.0,
         compactness_weight=0.1,
+        color_space="oklab",
+        assume_srgb=False,  # mixer output is linear RGB, no sRGB gamma
     )
 
     distinctness_loss = DistinctnessLoss(
@@ -214,7 +220,7 @@ def run_experiment_mixer(cfg: DictConfig) -> None:
         max_samples=4,
         log_every_n_batches=1,
     )
-    weight_viz = CubeRGBVisualizer(name="mixer_weights_viz", up_to=1)
+    weight_viz = ChannelWeightsViz(name="mixer_weights_viz")
     tensorboard_node = TensorBoardMonitorNode(
         output_dir=str(output_dir / "tensorboard"),
         run_name=pipeline.name,
@@ -244,12 +250,12 @@ def run_experiment_mixer(cfg: DictConfig) -> None:
         (mixer.rgb, contrast_loss.rgb),
         (rotate.outputs.mask, contrast_loss.mask),
         (mixer.weights, distinctness_loss.selection_weights),
-        # Visualization flow
+        # Visualization flow (mesu_index for frame-identified TensorBoard tags)
         (mixer.rgb, viz.rgb_output),
         (rotate.outputs.mask, viz.mask),
+        (data_node.outputs.mesu_index, viz.mesu_index),
         (viz.artifacts, tensorboard_node.artifacts),
-        # Weight visualization (bar chart of channel importance vs wavelengths)
-        (rotate.outputs.cube, weight_viz.cube),
+        # Weight visualization (bar chart + heatmap of mixing weights)
         (mixer.weights, weight_viz.weights),
         (data_node.outputs.wavelengths, weight_viz.wavelengths),
         (weight_viz.artifacts, tensorboard_node.artifacts),
@@ -263,6 +269,11 @@ def run_experiment_mixer(cfg: DictConfig) -> None:
     pipeline.visualize(
         format="render_graphviz",
         output_path=str(output_dir / "pipeline" / f"{pipeline.name}.png"),
+        show_execution_stage=True,
+    )
+    pipeline.visualize(
+        format="render_mermaid",
+        output_path=str(output_dir / "pipeline" / f"{pipeline.name}.md"),
         show_execution_stage=True,
     )
 
@@ -289,6 +300,7 @@ def run_experiment_mixer(cfg: DictConfig) -> None:
         metric_nodes=[],
         trainer_config=training_cfg.trainer,
         optimizer_config=training_cfg.optimizer,
+        scheduler_config=training_cfg.scheduler,
         monitors=[tensorboard_node],
     )
     grad_trainer.fit()
@@ -347,7 +359,8 @@ def run_experiment_mixer(cfg: DictConfig) -> None:
         f"  uv run restore-pipeline "
         f"--pipeline-path {pipeline_output_path} "
         f"--cu3s-file-path {cfg.data.cu3s_file_path} "
-        f"--processing-mode {cfg.data.get('processing_mode', 'SpectralRadiance')}"
+        f"--processing-mode {cfg.data.get('processing_mode', 'SpectralRadiance')} "
+        f"--device cuda"
     )
 
 
