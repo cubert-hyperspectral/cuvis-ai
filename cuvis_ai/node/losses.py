@@ -10,6 +10,7 @@ import torch.nn.functional as F
 from cuvis_ai_core.node import Node
 from cuvis_ai_schemas.enums import ExecutionStage
 from cuvis_ai_schemas.pipeline import PortSpec
+from loguru import logger
 from torch import Tensor
 
 
@@ -781,6 +782,12 @@ class ForegroundContrastLoss(LossNode):
             losses.append(frame_loss)
 
         if len(losses) == 0:
+            fg_total = (mask > 0).sum().item()
+            logger.warning(
+                f"ForegroundContrastLoss: all {batch_size} frames skipped — "
+                f"mask shape={list(mask.shape)}, dtype={mask.dtype}, "
+                f"fg_pixels={fg_total}, min={mask.min().item()}, max={mask.max().item()}"
+            )
             return {"loss": torch.zeros((), device=rgb.device, dtype=rgb.dtype, requires_grad=True)}
 
         loss = self.weight * torch.stack(losses).mean()
