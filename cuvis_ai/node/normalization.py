@@ -217,8 +217,8 @@ class MinMaxNormalizer(_ScoreNormalizerBase):
                 all_maxs.append(batch_max)
 
         if all_mins:
-            self.running_min = torch.stack(all_mins).min()
-            self.running_max = torch.stack(all_maxs).max()
+            self.running_min.copy_(torch.stack(all_mins).min())
+            self.running_max.copy_(torch.stack(all_maxs).max())
             self._statistically_initialized = True
 
     def _is_initialized(self) -> bool:

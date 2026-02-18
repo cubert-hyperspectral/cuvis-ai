@@ -16,6 +16,7 @@ from cuvis_ai.node.labels import BinaryAnomalyLabelMapper
 from cuvis_ai.node.losses import DistinctnessLoss, ForegroundContrastLoss
 from cuvis_ai.node.normalization import IdentityNormalizer, MinMaxNormalizer, SigmoidNormalizer
 from cuvis_ai.node.pca import TrainablePCA
+from cuvis_ai.node.preprocessors import BandpassByWavelength, SpatialRotateNode
 from cuvis_ai.node.selector import SoftChannelSelector, TopKIndices
 from cuvis_ai.node.video import ToVideoNode
 from cuvis_ai.node.visualizations import (
@@ -25,6 +26,7 @@ from cuvis_ai.node.visualizations import (
 )
 
 __all__ = [
+    "BandpassByWavelength",
     "BandSelectorBase",
     "BaselineFalseRGBSelector",
     "BinaryAnomalyLabelMapper",
@@ -41,6 +43,7 @@ __all__ = [
     "RangeAverageFalseRGBSelector",
     "SigmoidNormalizer",
     "SoftChannelSelector",
+    "SpatialRotateNode",
     "SupervisedBandSelectorBase",
     "SupervisedCIRBandSelector",
     "SupervisedFullSpectrumBandSelector",

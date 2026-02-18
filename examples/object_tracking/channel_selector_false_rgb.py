@@ -19,6 +19,7 @@ Usage::
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import hydra
@@ -38,8 +39,13 @@ from cuvis_ai.node.data import CU3SDataNode
 from cuvis_ai.node.losses import DistinctnessLoss, ForegroundContrastLoss
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.normalization import MinMaxNormalizer
+from cuvis_ai.node.preprocessors import SpatialRotateNode
 from cuvis_ai.node.video import ToVideoNode
-from cuvis_ai.node.visualizations import ChannelSelectorFalseRGBViz, MaskOverlayNode
+from cuvis_ai.node.visualizations import (
+    ChannelSelectorFalseRGBViz,
+    CubeRGBVisualizer,
+    MaskOverlayNode,
+)
 
 # ---------------------------------------------------------------------------
 # Inspect mode
@@ -98,6 +104,7 @@ def inspect_dataset(cfg: DictConfig) -> None:
     pipeline = CuvisPipeline("FalseRGB_Inspect")
 
     cu3s_data = CU3SDataNode(name="cu3s_data")
+    rotate = SpatialRotateNode(rotation=90, name="spatial_rotate")
     false_rgb = RangeAverageFalseRGBSelector(
         red_range=(580.0, 650.0),
         green_range=(500.0, 580.0),
@@ -108,7 +115,6 @@ def inspect_dataset(cfg: DictConfig) -> None:
     to_video = ToVideoNode(
         output__video_path=str(output_dir / "false_rgb.mp4"),
         frame_rate=1,
-        # frame_rotation=90,
         name="to_video",
     )
     viz = ChannelSelectorFalseRGBViz(
@@ -123,15 +129,19 @@ def inspect_dataset(cfg: DictConfig) -> None:
     )
 
     pipeline.connect(
-        (cu3s_data.outputs.cube, false_rgb.cube),
+        # Rotate spatial data immediately after loading
+        (cu3s_data.outputs.cube, rotate.inputs.cube),
+        (cu3s_data.outputs.mask, rotate.inputs.mask),
+        # False RGB from rotated cube + wavelengths (bypass rotate)
+        (rotate.outputs.cube, false_rgb.cube),
         (cu3s_data.outputs.wavelengths, false_rgb.wavelengths),
         # Mask overlay on RGB before video export
         (false_rgb.rgb_image, mask_overlay.rgb_image),
-        (cu3s_data.outputs.mask, mask_overlay.mask),
+        (rotate.outputs.mask, mask_overlay.mask),
         (mask_overlay.rgb_with_overlay, to_video.rgb_image),
-        # Viz/TensorBoard still gets original RGB + mask
+        # Viz/TensorBoard gets rotated RGB + mask
         (false_rgb.rgb_image, viz.rgb_output),
-        (cu3s_data.outputs.mask, viz.mask),
+        (rotate.outputs.mask, viz.mask),
         (viz.artifacts, tensorboard_node.artifacts),
     )
 
@@ -179,6 +189,7 @@ def run_experiment_mixer(cfg: DictConfig) -> None:
     pipeline = CuvisPipeline("Channel_Selector_FalseRGB")
 
     data_node = CU3SDataNode(name="cu3s_data")
+    rotate = SpatialRotateNode(rotation=90, name="spatial_rotate")
     normalizer = MinMaxNormalizer(eps=1.0e-6, use_running_stats=True)
     mixer = LearnableChannelMixer(
         input_channels=51,
@@ -203,24 +214,49 @@ def run_experiment_mixer(cfg: DictConfig) -> None:
         max_samples=4,
         log_every_n_batches=1,
     )
+    weight_viz = CubeRGBVisualizer(name="mixer_weights_viz", up_to=1)
     tensorboard_node = TensorBoardMonitorNode(
         output_dir=str(output_dir / "tensorboard"),
         run_name=pipeline.name,
     )
 
+    # Inference-only nodes: skipped during training, active for restore-pipeline
+    mask_overlay = MaskOverlayNode(
+        name="mask_overlay",
+        execution_stages={ExecutionStage.INFERENCE},
+    )
+    to_video = ToVideoNode(
+        output__video_path=str(output_dir / "trained_false_rgb.mp4"),
+        frame_rate=10,
+        name="to_video",
+        execution_stages={ExecutionStage.INFERENCE},
+    )
+
     # Connect pipeline
     pipeline.connect(
+        # Rotate data immediately after loading
+        (data_node.outputs.cube, rotate.inputs.cube),
+        (data_node.outputs.mask, rotate.inputs.mask),
         # Processing flow
-        (data_node.outputs.cube, normalizer.data),
+        (rotate.outputs.cube, normalizer.data),
         (normalizer.normalized, mixer.data),
         # Loss flow
         (mixer.rgb, contrast_loss.rgb),
-        (data_node.outputs.mask, contrast_loss.mask),
+        (rotate.outputs.mask, contrast_loss.mask),
         (mixer.weights, distinctness_loss.selection_weights),
         # Visualization flow
         (mixer.rgb, viz.rgb_output),
-        (data_node.outputs.mask, viz.mask),
+        (rotate.outputs.mask, viz.mask),
         (viz.artifacts, tensorboard_node.artifacts),
+        # Weight visualization (bar chart of channel importance vs wavelengths)
+        (rotate.outputs.cube, weight_viz.cube),
+        (mixer.weights, weight_viz.weights),
+        (data_node.outputs.wavelengths, weight_viz.wavelengths),
+        (weight_viz.artifacts, tensorboard_node.artifacts),
+        # Video export (INFERENCE only — skipped during training)
+        (mixer.rgb, mask_overlay.rgb_image),
+        (rotate.outputs.mask, mask_overlay.mask),
+        (mask_overlay.rgb_with_overlay, to_video.rgb_image),
     )
 
     # Visualize pipeline graph
@@ -306,6 +342,13 @@ def run_experiment_mixer(cfg: DictConfig) -> None:
     logger.info(f"TrainRun config saved: {trainrun_output_path}")
     logger.info(f"TensorBoard logs: {tensorboard_node.output_dir}")
     logger.info(f"View logs: uv run tensorboard --logdir={output_dir}")
+    logger.info(
+        "Generate video from trained pipeline:\n"
+        f"  uv run restore-pipeline "
+        f"--pipeline-path {pipeline_output_path} "
+        f"--cu3s-file-path {cfg.data.cu3s_file_path} "
+        f"--processing-mode {cfg.data.get('processing_mode', 'SpectralRadiance')}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -320,6 +363,10 @@ def run_experiment_mixer(cfg: DictConfig) -> None:
 )
 def main(cfg: DictConfig) -> None:
     """Channel Selector False RGB for Object Tracking — inspect or train mode."""
+    # Suppress DEBUG logs (e.g. TensorBoard monitor) to keep progress bar clean
+    logger.remove()
+    logger.add(sys.stderr, level="INFO")
+
     mode = cfg.get("mode", "train")
     logger.info(f"=== Channel Selector False RGB — mode={mode} ===")
 

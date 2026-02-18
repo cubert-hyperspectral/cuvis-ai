@@ -43,11 +43,13 @@ test_ids: [4, 12, ...]
 Build and train the pipeline:
 
 ```
-CU3SDataNode → MinMaxNormalizer → LearnableChannelMixer
-     |                                  |          |
-     mask ─────────────────────→ ForegroundContrastLoss
-                                        |    DistinctnessLoss ← weights
-                              ChannelSelectorFalseRGBViz → TensorBoardMonitorNode
+CU3SDataNode → SpatialRotateNode(90°) → MinMaxNormalizer → LearnableChannelMixer
+                    |                                            |          |
+                    mask ───────────────────────────→ ForegroundContrastLoss
+                                                          |    DistinctnessLoss ← weights
+                                                ChannelSelectorFalseRGBViz → TensorBoardMonitor
+                                                          |
+                                              MaskOverlayNode → ToVideoNode  (INFERENCE only)
 ```
 
 ```bash
@@ -69,16 +71,20 @@ Monitor training:
 uv run tensorboard --logdir=outputs/channel_selector_false_rgb/tensorboard
 ```
 
-## Restore Trained Pipeline
+## Step 3: Inference — Generate Trained False RGB Video
 
-Load the trained pipeline for inference on new data:
+The saved pipeline includes `MaskOverlayNode` and `ToVideoNode` (inference-only).
+Run `restore-pipeline` on any CU3S file to produce a video with the trained channel mixer:
 
 ```bash
 uv run restore-pipeline \
     --pipeline-path outputs/channel_selector_false_rgb/trained_models/Channel_Selector_FalseRGB.yaml \
-    --cu3s-file-path <path-to-new-cu3s-file> \
-    --processing-mode Raw
+    --cu3s-file-path "D:\data\2024_05_22_cap_and_car_2XM_setup\2024_05_22__cap_and_car_50mm\Auto_002.cu3s" \
+    --processing-mode SpectralRadiance
 ```
+
+This runs every frame through the trained pipeline and writes:
+- `outputs/channel_selector_false_rgb/trained_false_rgb.mp4` — trained false RGB video (path baked in pipeline config)
 
 Export a pipeline graph visualization:
 

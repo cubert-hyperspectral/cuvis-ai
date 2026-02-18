@@ -79,18 +79,27 @@ class CubeRGBVisualizer(ImageArtifactVizBase):
             description="Hyperspectral cube [B, H, W, C]",
         ),
         "weights": PortSpec(
-            dtype=torch.float32, shape=(-1,), description="Channel selection weights [C]"
+            dtype=torch.float32,
+            shape=(-1,),
+            description="Channel weights [C] or mixing matrix [K, C] (auto-reduced to 1D)",
         ),
         "wavelengths": PortSpec(
             dtype=np.int32, shape=(-1,), description="Wavelengths for each channel [C]"
         ),
     }
 
-    def __init__(self, name: str | None = None, up_to: int = 5) -> None:
+    def __init__(
+        self,
+        name: str | None = None,
+        up_to: int = 5,
+        execution_stages: set[ExecutionStage] | None = None,
+    ) -> None:
+        if execution_stages is None:
+            execution_stages = {ExecutionStage.INFERENCE, ExecutionStage.VAL}
         super().__init__(
             name=name,
             max_samples=up_to,
-            execution_stages={ExecutionStage.INFERENCE, ExecutionStage.VAL},
+            execution_stages=execution_stages,
         )
         self.up_to = up_to
 
@@ -119,6 +128,10 @@ class CubeRGBVisualizer(ImageArtifactVizBase):
         """
         if not self._should_log():
             return {"artifacts": []}
+
+        # Auto-reduce 2D weight matrices [K, C] to 1D importance [C]
+        if weights.ndim == 2:
+            weights = weights.abs().sum(dim=0)
 
         top3_indices = torch.topk(weights, k=3).indices.cpu().numpy()
         top3_wavelengths = wavelengths[top3_indices]
@@ -1230,8 +1243,6 @@ class MaskOverlayNode(Node):
 
     Parameters
     ----------
-    overlay_color : tuple[float, float, float], optional
-        RGB tint colour in ``[0, 1]`` (default: red ``(1, 0, 0)``).
     alpha : float, optional
         Blend factor for the overlay colour (default: 0.4).
     """
@@ -1260,13 +1271,12 @@ class MaskOverlayNode(Node):
 
     def __init__(
         self,
-        overlay_color: tuple[float, float, float] = (1.0, 0.0, 0.0),
         alpha: float = 0.4,
         **kwargs,
     ) -> None:
-        self.overlay_color = overlay_color
+        self.overlay_color = (1.0, 0.0, 0.0)
         self.alpha = alpha
-        super().__init__(overlay_color=overlay_color, alpha=alpha, **kwargs)
+        super().__init__(alpha=alpha, **kwargs)
 
     @torch.no_grad()
     def forward(

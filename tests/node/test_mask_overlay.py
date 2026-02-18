@@ -91,7 +91,7 @@ def test_create_mask_overlay_at_known_location():
 def test_mask_overlay_node_at_known_location():
     """Verify MaskOverlayNode wrapper preserves spatial alignment."""
     rgb, mask = _make_rgb_and_mask()
-    node = MaskOverlayNode(overlay_color=COLOR, alpha=ALPHA)
+    node = MaskOverlayNode(alpha=ALPHA)
     out = node.forward(rgb_image=rgb, mask=mask)
 
     result = out["rgb_with_overlay"]
@@ -197,7 +197,7 @@ def test_end_to_end_overlay_at_known_location(create_test_cube):
     )
 
     # Step 3: MaskOverlayNode
-    overlay_node = MaskOverlayNode(overlay_color=COLOR, alpha=ALPHA)
+    overlay_node = MaskOverlayNode(alpha=ALPHA)
     overlay_out = overlay_node.forward(
         rgb_image=rgb_image,
         mask=data_out["mask"],
@@ -264,7 +264,7 @@ def test_overlay_location_with_transposed_dimensions(create_test_cube):
     # The transposed mask has shape [1, 10, 6] while RGB is [1, 6, 10, 3]
     # This SHOULD cause a shape mismatch error in create_mask_overlay.
     # If it DOESN'T error (silent broadcast), that's a dangerous silent failure.
-    overlay_node = MaskOverlayNode(overlay_color=COLOR, alpha=ALPHA)
+    overlay_node = MaskOverlayNode(alpha=ALPHA)
     try:
         overlay_out = overlay_node.forward(
             rgb_image=rgb_image,
