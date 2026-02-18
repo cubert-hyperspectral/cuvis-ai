@@ -20,7 +20,6 @@ __all__ = [
     "BaselineFalseRGBSelector",
     "BinaryAnomalyLabelMapper",
     "CIRFalseColorSelector",
-    "ExecutionStage",
     "HighContrastBandSelector",
     "IdentityNormalizer",
     "MinMaxNormalizer",

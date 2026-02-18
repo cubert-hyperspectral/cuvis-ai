@@ -33,19 +33,19 @@ metadata:
 
 nodes:
   - name: data_loader
-    class: cuvis_ai.node.data.LentilsAnomalyDataNode
-    params:
+    class_name: cuvis_ai.node.data.LentilsAnomalyDataNode
+    hparams:
       normal_class_ids: [0, 1]
 
   - name: detector
-    class: cuvis_ai.anomaly.rx_detector.RXGlobal
-    params:
+    class_name: cuvis_ai.anomaly.rx_detector.RXGlobal
+    hparams:
       num_channels: 61
       eps: 1.0e-06
 
 connections:
-  - from: data_loader.outputs.cube
-    to: detector.inputs.data
+  - source: data_loader.outputs.cube
+    target: detector.inputs.data
 ```
 
 ### Complete Pipeline Structure
@@ -62,12 +62,12 @@ metadata:
 
 nodes:
   - name: string               # Required, unique
-    class: string              # Required, importable Python path
-    params: {}                 # Optional, node-specific parameters
+    class_name: string         # Required, importable Python path
+    hparams: {}                 # Optional, node-specific parameters
 
 connections:
-  - from: node.outputs.port    # Required
-    to: node.inputs.port       # Required
+  - source: node.outputs.port    # Required
+    target: node.inputs.port       # Required
 ```
 
 ---
@@ -173,8 +173,8 @@ Each node has three components:
 ```yaml
 nodes:
   - name: <unique_identifier>
-    class: <fully_qualified_class_path>
-    params: <dict_of_parameters>
+    class_name: <fully_qualified_class_path>
+    hparams: <dict_of_parameters>
 ```
 
 ### name (string, required)
@@ -199,7 +199,7 @@ name: my node            # Contains space
 name: detector-rx        # Contains dash (not Python identifier)
 ```
 
-### class (string, required)
+### class_name (string, required)
 
 - Fully qualified Python class path
 - Must be importable from Python path
@@ -209,64 +209,64 @@ name: detector-rx        # Contains dash (not Python identifier)
 
 **Data nodes:**
 ```yaml
-class: cuvis_ai.node.data.LentilsAnomalyDataNode
-class: cuvis_ai.node.data.Cu3sDataNode
+class_name: cuvis_ai.node.data.LentilsAnomalyDataNode
+class_name: cuvis_ai.node.data.Cu3sDataNode
 ```
 
 **Preprocessing nodes:**
 ```yaml
-class: cuvis_ai.node.normalization.MinMaxNormalizer
-class: cuvis_ai.node.normalization.StandardScaler
-class: cuvis_ai.node.preprocessing.PCANode
+class_name: cuvis_ai.node.normalization.MinMaxNormalizer
+class_name: cuvis_ai.node.normalization.StandardScaler
+class_name: cuvis_ai.node.preprocessing.PCANode
 ```
 
 **Detection nodes:**
 ```yaml
-class: cuvis_ai.anomaly.rx_detector.RXGlobal
-class: cuvis_ai.anomaly.lad_detector.LADDetector
-class: cuvis_ai.node.conversion.ScoreToLogit
+class_name: cuvis_ai.anomaly.rx_detector.RXGlobal
+class_name: cuvis_ai.anomaly.lad_detector.LADDetector
+class_name: cuvis_ai.node.conversion.ScoreToLogit
 ```
 
 **Decision nodes:**
 ```yaml
-class: cuvis_ai.deciders.binary_decider.BinaryDecider
+class_name: cuvis_ai.deciders.binary_decider.BinaryDecider
 ```
 
 **Loss nodes:**
 ```yaml
-class: cuvis_ai.anomaly.iou_loss.IoULoss
-class: cuvis_ai.anomaly.bce_loss.AnomalyBCEWithLogits
+class_name: cuvis_ai.anomaly.iou_loss.IoULoss
+class_name: cuvis_ai.anomaly.bce_loss.AnomalyBCEWithLogits
 ```
 
 **Metric nodes:**
 ```yaml
-class: cuvis_ai.node.metrics.AnomalyDetectionMetrics
+class_name: cuvis_ai.node.metrics.AnomalyDetectionMetrics
 ```
 
 **Monitoring nodes:**
 ```yaml
-class: cuvis_ai.node.monitor.TensorBoardMonitorNode
-class: cuvis_ai.node.visualizations.AnomalyMask
-class: cuvis_ai.node.visualizations.ScoreHeatmapVisualizer
+class_name: cuvis_ai.node.monitor.TensorBoardMonitorNode
+class_name: cuvis_ai.node.visualizations.AnomalyMask
+class_name: cuvis_ai.node.visualizations.ScoreHeatmapVisualizer
 ```
 
-### params (dict, optional)
+### hparams (dict, optional)
 
 Node-specific configuration parameters. Each node class defines its own parameters.
 
 **Example: Data node parameters**
 ```yaml
 - name: LentilsAnomalyDataNode
-  class: cuvis_ai.node.data.LentilsAnomalyDataNode
-  params:
+  class_name: cuvis_ai.node.data.LentilsAnomalyDataNode
+  hparams:
     normal_class_ids: [0, 1]
 ```
 
 **Example: Normalization parameters**
 ```yaml
 - name: MinMaxNormalizer
-  class: cuvis_ai.node.normalization.MinMaxNormalizer
-  params:
+  class_name: cuvis_ai.node.normalization.MinMaxNormalizer
+  hparams:
     eps: 1.0e-06
     use_running_stats: true
 ```
@@ -274,8 +274,8 @@ Node-specific configuration parameters. Each node class defines its own paramete
 **Example: Detector parameters**
 ```yaml
 - name: RXGlobal
-  class: cuvis_ai.anomaly.rx_detector.RXGlobal
-  params:
+  class_name: cuvis_ai.anomaly.rx_detector.RXGlobal
+  hparams:
     num_channels: 61
     eps: 1.0e-06
     cache_inverse: true
@@ -284,8 +284,8 @@ Node-specific configuration parameters. Each node class defines its own paramete
 **Example: Complex node with many parameters**
 ```yaml
 - name: concrete_selector
-  class: cuvis_ai.node.concrete_selector.ConcreteBandSelector
-  params:
+  class_name: cuvis_ai.node.concrete_selector.ConcreteBandSelector
+  hparams:
     input_channels: 61
     output_channels: 3
     tau_start: 10.0
@@ -298,14 +298,14 @@ Node-specific configuration parameters. Each node class defines its own paramete
 **Example: Node with no parameters**
 ```yaml
 - name: metrics_anomaly
-  class: cuvis_ai.node.metrics.AnomalyDetectionMetrics
-  params: {}
+  class_name: cuvis_ai.node.metrics.AnomalyDetectionMetrics
+  hparams: {}
 ```
 
-Or simply omit `params`:
+Or simply omit `hparams`:
 ```yaml
 - name: metrics_anomaly
-  class: cuvis_ai.node.metrics.AnomalyDetectionMetrics
+  class_name: cuvis_ai.node.metrics.AnomalyDetectionMetrics
 ```
 
 ### Complete Node Examples
@@ -314,35 +314,35 @@ Or simply omit `params`:
 ```yaml
 nodes:
   - name: LentilsAnomalyDataNode
-    class: cuvis_ai.node.data.LentilsAnomalyDataNode
-    params:
+    class_name: cuvis_ai.node.data.LentilsAnomalyDataNode
+    hparams:
       normal_class_ids: [0, 1]
 
   - name: MinMaxNormalizer
-    class: cuvis_ai.node.normalization.MinMaxNormalizer
-    params:
+    class_name: cuvis_ai.node.normalization.MinMaxNormalizer
+    hparams:
       eps: 1.0e-06
       use_running_stats: true
 
   - name: RXGlobal
-    class: cuvis_ai.anomaly.rx_detector.RXGlobal
-    params:
+    class_name: cuvis_ai.anomaly.rx_detector.RXGlobal
+    hparams:
       num_channels: 61
       eps: 1.0e-06
 
   - name: ScoreToLogit
-    class: cuvis_ai.node.conversion.ScoreToLogit
-    params:
+    class_name: cuvis_ai.node.conversion.ScoreToLogit
+    hparams:
       init_scale: 1.0
       init_bias: 0.0
 
   - name: BinaryDecider
-    class: cuvis_ai.deciders.binary_decider.BinaryDecider
-    params:
+    class_name: cuvis_ai.deciders.binary_decider.BinaryDecider
+    hparams:
       threshold: 0.5
 
   - name: metrics_anomaly
-    class: cuvis_ai.node.metrics.AnomalyDetectionMetrics
+    class_name: cuvis_ai.node.metrics.AnomalyDetectionMetrics
 ```
 
 ---
@@ -355,8 +355,8 @@ Connections define data flow between nodes using port references:
 
 ```yaml
 connections:
-  - from: <source_node>.<port_type>.<port_name>
-    to: <target_node>.<port_type>.<port_name>
+  - source: <source_node>.<port_type>.<port_name>
+    target: <target_node>.<port_type>.<port_name>
 ```
 
 **Port types:**
@@ -377,23 +377,23 @@ connections:
 
 **Valid connection:**
 ```yaml
-- from: data_loader.outputs.cube
-  to: normalizer.inputs.data
+- source: data_loader.outputs.cube
+  target: normalizer.inputs.data
 ```
 
 **Invalid connections:**
 ```yaml
 # Wrong: Using inputs as source
-- from: normalizer.inputs.data
-  to: detector.inputs.data
+- source: normalizer.inputs.data
+  target: detector.inputs.data
 
 # Wrong: Using outputs as target
-- from: data_loader.outputs.cube
-  to: normalizer.outputs.normalized
+- source: data_loader.outputs.cube
+  target: normalizer.outputs.normalized
 
 # Wrong: Mismatched port names
-- from: data_loader.outputs.cube
-  to: normalizer.inputs.wrong_port_name
+- source: data_loader.outputs.cube
+  target: normalizer.inputs.wrong_port_name
 ```
 
 ### Common Port Names
@@ -444,58 +444,58 @@ TensorBoardMonitorNode.inputs.artifacts  # Visualization artifacts
 **Linear flow:**
 ```yaml
 connections:
-  - from: data_loader.outputs.cube
-    to: normalizer.inputs.data
-  - from: normalizer.outputs.normalized
-    to: detector.inputs.data
-  - from: detector.outputs.scores
-    to: decider.inputs.scores
+  - source: data_loader.outputs.cube
+    target: normalizer.inputs.data
+  - source: normalizer.outputs.normalized
+    target: detector.inputs.data
+  - source: detector.outputs.scores
+    target: decider.inputs.scores
 ```
 
 **Multi-branch flow:**
 ```yaml
 connections:
   # Main flow
-  - from: data_loader.outputs.cube
-    to: normalizer.inputs.data
-  - from: normalizer.outputs.normalized
-    to: detector.inputs.data
+  - source: data_loader.outputs.cube
+    target: normalizer.inputs.data
+  - source: normalizer.outputs.normalized
+    target: detector.inputs.data
 
   # Branch 1: Metrics
-  - from: decider.outputs.decisions
-    to: metrics.inputs.decisions
-  - from: data_loader.outputs.mask
-    to: metrics.inputs.targets
+  - source: decider.outputs.decisions
+    target: metrics.inputs.decisions
+  - source: data_loader.outputs.mask
+    target: metrics.inputs.targets
 
   # Branch 2: Visualization
-  - from: decider.outputs.decisions
-    to: viz.inputs.decisions
-  - from: data_loader.outputs.cube
-    to: viz.inputs.cube
+  - source: decider.outputs.decisions
+    target: viz.inputs.decisions
+  - source: data_loader.outputs.cube
+    target: viz.inputs.cube
 ```
 
 **Fan-out pattern (one source → multiple targets):**
 ```yaml
 connections:
   # RX scores go to multiple destinations
-  - from: detector.outputs.scores
-    to: decider.inputs.scores
-  - from: detector.outputs.scores
-    to: score_viz.inputs.scores
-  - from: detector.outputs.scores
-    to: metrics.inputs.logits
+  - source: detector.outputs.scores
+    target: decider.inputs.scores
+  - source: detector.outputs.scores
+    target: score_viz.inputs.scores
+  - source: detector.outputs.scores
+    target: metrics.inputs.logits
 ```
 
 **Convergence pattern (multiple sources → one target):**
 ```yaml
 connections:
   # Monitoring receives from multiple sources
-  - from: metrics.outputs.metrics
-    to: monitor.inputs.metrics
-  - from: viz_mask.outputs.artifacts
-    to: monitor.inputs.artifacts
-  - from: score_viz.outputs.artifacts
-    to: monitor.inputs.artifacts
+  - source: metrics.outputs.metrics
+    target: monitor.inputs.metrics
+  - source: viz_mask.outputs.artifacts
+    target: monitor.inputs.artifacts
+  - source: score_viz.outputs.artifacts
+    target: monitor.inputs.artifacts
 ```
 
 ### Complete Connection Examples
@@ -503,64 +503,64 @@ connections:
 **RX Statistical Pipeline:**
 ```yaml
 connections:
-  - from: LentilsAnomalyDataNode.outputs.cube
-    to: MinMaxNormalizer.inputs.data
-  - from: LentilsAnomalyDataNode.outputs.mask
-    to: metrics_anomaly.inputs.targets
-  - from: LentilsAnomalyDataNode.outputs.mask
-    to: mask.inputs.mask
-  - from: LentilsAnomalyDataNode.outputs.cube
-    to: mask.inputs.cube
-  - from: MinMaxNormalizer.outputs.normalized
-    to: RXGlobal.inputs.data
-  - from: RXGlobal.outputs.scores
-    to: ScoreToLogit.inputs.scores
-  - from: ScoreToLogit.outputs.logits
-    to: BinaryDecider.inputs.logits
-  - from: BinaryDecider.outputs.decisions
-    to: metrics_anomaly.inputs.decisions
-  - from: BinaryDecider.outputs.decisions
-    to: mask.inputs.decisions
-  - from: metrics_anomaly.outputs.metrics
-    to: TensorBoardMonitorNode.inputs.metrics
-  - from: mask.outputs.artifacts
-    to: TensorBoardMonitorNode.inputs.artifacts
+  - source: LentilsAnomalyDataNode.outputs.cube
+    target: MinMaxNormalizer.inputs.data
+  - source: LentilsAnomalyDataNode.outputs.mask
+    target: metrics_anomaly.inputs.targets
+  - source: LentilsAnomalyDataNode.outputs.mask
+    target: mask.inputs.mask
+  - source: LentilsAnomalyDataNode.outputs.cube
+    target: mask.inputs.cube
+  - source: MinMaxNormalizer.outputs.normalized
+    target: RXGlobal.inputs.data
+  - source: RXGlobal.outputs.scores
+    target: ScoreToLogit.inputs.scores
+  - source: ScoreToLogit.outputs.logits
+    target: BinaryDecider.inputs.logits
+  - source: BinaryDecider.outputs.decisions
+    target: metrics_anomaly.inputs.decisions
+  - source: BinaryDecider.outputs.decisions
+    target: mask.inputs.decisions
+  - source: metrics_anomaly.outputs.metrics
+    target: TensorBoardMonitorNode.inputs.metrics
+  - source: mask.outputs.artifacts
+    target: TensorBoardMonitorNode.inputs.artifacts
 ```
 
 **DRCNN + AdaClip Pipeline (multi-branch):**
 ```yaml
 connections:
   # Data loading
-  - from: LentilsAnomalyDataNode.outputs.cube
-    to: MinMaxNormalizer.inputs.data
+  - source: LentilsAnomalyDataNode.outputs.cube
+    target: MinMaxNormalizer.inputs.data
 
   # Main processing
-  - from: MinMaxNormalizer.outputs.normalized
-    to: channel_mixer.inputs.data
-  - from: channel_mixer.outputs.output
-    to: adaclip.inputs.image
+  - source: MinMaxNormalizer.outputs.normalized
+    target: channel_mixer.inputs.data
+  - source: channel_mixer.outputs.output
+    target: adaclip.inputs.image
 
   # Loss computation
-  - from: adaclip.outputs.scores
-    to: iou_loss.inputs.predictions
-  - from: LentilsAnomalyDataNode.outputs.mask
-    to: iou_loss.inputs.targets
+  - source: adaclip.outputs.scores
+    target: iou_loss.inputs.predictions
+  - source: LentilsAnomalyDataNode.outputs.mask
+    target: iou_loss.inputs.targets
 
   # Decisions
-  - from: adaclip.outputs.scores
-    to: decider.inputs.logits
+  - source: adaclip.outputs.scores
+    target: decider.inputs.logits
 
   # Metrics
-  - from: decider.outputs.decisions
-    to: metrics_anomaly.inputs.decisions
-  - from: LentilsAnomalyDataNode.outputs.mask
-    to: metrics_anomaly.inputs.targets
-  - from: adaclip.outputs.scores
-    to: metrics_anomaly.inputs.logits
+  - source: decider.outputs.decisions
+    target: metrics_anomaly.inputs.decisions
+  - source: LentilsAnomalyDataNode.outputs.mask
+    target: metrics_anomaly.inputs.targets
+  - source: adaclip.outputs.scores
+    target: metrics_anomaly.inputs.logits
 
   # Monitoring
-  - from: metrics_anomaly.outputs.metrics
-    to: TensorBoardMonitorNode.inputs.metrics
+  - source: metrics_anomaly.outputs.metrics
+    target: TensorBoardMonitorNode.inputs.metrics
 ```
 
 ---
@@ -580,57 +580,57 @@ metadata:
 
 nodes:
   - name: LentilsAnomalyDataNode
-    class: cuvis_ai.node.data.LentilsAnomalyDataNode
-    params:
+    class_name: cuvis_ai.node.data.LentilsAnomalyDataNode
+    hparams:
       normal_class_ids: [0, 1]
 
   - name: MinMaxNormalizer
-    class: cuvis_ai.node.normalization.MinMaxNormalizer
-    params:
+    class_name: cuvis_ai.node.normalization.MinMaxNormalizer
+    hparams:
       eps: 1.0e-06
       use_running_stats: true
 
   - name: RXGlobal
-    class: cuvis_ai.anomaly.rx_detector.RXGlobal
-    params:
+    class_name: cuvis_ai.anomaly.rx_detector.RXGlobal
+    hparams:
       num_channels: 61
       eps: 1.0e-06
 
   - name: ScoreToLogit
-    class: cuvis_ai.node.conversion.ScoreToLogit
-    params:
+    class_name: cuvis_ai.node.conversion.ScoreToLogit
+    hparams:
       init_scale: 1.0
       init_bias: 0.0
 
   - name: BinaryDecider
-    class: cuvis_ai.deciders.binary_decider.BinaryDecider
-    params:
+    class_name: cuvis_ai.deciders.binary_decider.BinaryDecider
+    hparams:
       threshold: 0.5
 
   - name: metrics_anomaly
-    class: cuvis_ai.node.metrics.AnomalyDetectionMetrics
+    class_name: cuvis_ai.node.metrics.AnomalyDetectionMetrics
 
   - name: TensorBoardMonitorNode
-    class: cuvis_ai.node.monitor.TensorBoardMonitorNode
-    params:
+    class_name: cuvis_ai.node.monitor.TensorBoardMonitorNode
+    hparams:
       output_dir: outputs/rx_statistical/tensorboard
       run_name: RX_Statistical
 
 connections:
-  - from: LentilsAnomalyDataNode.outputs.cube
-    to: MinMaxNormalizer.inputs.data
-  - from: MinMaxNormalizer.outputs.normalized
-    to: RXGlobal.inputs.data
-  - from: RXGlobal.outputs.scores
-    to: ScoreToLogit.inputs.scores
-  - from: ScoreToLogit.outputs.logits
-    to: BinaryDecider.inputs.logits
-  - from: BinaryDecider.outputs.decisions
-    to: metrics_anomaly.inputs.decisions
-  - from: LentilsAnomalyDataNode.outputs.mask
-    to: metrics_anomaly.inputs.targets
-  - from: metrics_anomaly.outputs.metrics
-    to: TensorBoardMonitorNode.inputs.metrics
+  - source: LentilsAnomalyDataNode.outputs.cube
+    target: MinMaxNormalizer.inputs.data
+  - source: MinMaxNormalizer.outputs.normalized
+    target: RXGlobal.inputs.data
+  - source: RXGlobal.outputs.scores
+    target: ScoreToLogit.inputs.scores
+  - source: ScoreToLogit.outputs.logits
+    target: BinaryDecider.inputs.logits
+  - source: BinaryDecider.outputs.decisions
+    target: metrics_anomaly.inputs.decisions
+  - source: LentilsAnomalyDataNode.outputs.mask
+    target: metrics_anomaly.inputs.targets
+  - source: metrics_anomaly.outputs.metrics
+    target: TensorBoardMonitorNode.inputs.metrics
 
 ```
 
@@ -649,79 +649,79 @@ metadata:
 
 nodes:
   - name: LentilsAnomalyDataNode
-    class: cuvis_ai.node.data.LentilsAnomalyDataNode
-    params:
+    class_name: cuvis_ai.node.data.LentilsAnomalyDataNode
+    hparams:
       normal_class_ids: [0, 1]
 
   - name: MinMaxNormalizer
-    class: cuvis_ai.node.normalization.MinMaxNormalizer
-    params:
+    class_name: cuvis_ai.node.normalization.MinMaxNormalizer
+    hparams:
       eps: 1.0e-06
       use_running_stats: true
 
   - name: selector
-    class: cuvis_ai.node.channel_selection.ChannelSelector
-    params:
+    class_name: cuvis_ai.node.channel_selection.ChannelSelector
+    hparams:
       num_channels: 61
       tau_start: 8.0
       tau_end: 0.05
 
   - name: rx_global
-    class: cuvis_ai.anomaly.rx_detector.RXGlobal
-    params:
+    class_name: cuvis_ai.anomaly.rx_detector.RXGlobal
+    hparams:
       num_channels: 61
       eps: 1.0e-06
 
   - name: logit_head
-    class: cuvis_ai.node.conversion.ScoreToLogit
-    params:
+    class_name: cuvis_ai.node.conversion.ScoreToLogit
+    hparams:
       init_scale: 1.0
       init_bias: 0.0
 
   - name: decider
-    class: cuvis_ai.deciders.binary_decider.BinaryDecider
-    params:
+    class_name: cuvis_ai.deciders.binary_decider.BinaryDecider
+    hparams:
       threshold: 0.5
 
   - name: bce_loss
-    class: cuvis_ai.anomaly.bce_loss.AnomalyBCEWithLogits
-    params:
+    class_name: cuvis_ai.anomaly.bce_loss.AnomalyBCEWithLogits
+    hparams:
       weight: 1.0
 
   - name: entropy_loss
-    class: cuvis_ai.anomaly.entropy_loss.SelectorEntropyLoss
-    params:
+    class_name: cuvis_ai.anomaly.entropy_loss.SelectorEntropyLoss
+    hparams:
       weight: 0.001
 
   - name: metrics_anomaly
-    class: cuvis_ai.node.metrics.AnomalyDetectionMetrics
+    class_name: cuvis_ai.node.metrics.AnomalyDetectionMetrics
 
 connections:
   # Data flow
-  - from: LentilsAnomalyDataNode.outputs.cube
-    to: MinMaxNormalizer.inputs.data
-  - from: MinMaxNormalizer.outputs.normalized
-    to: selector.inputs.data
-  - from: selector.outputs.selected
-    to: rx_global.inputs.data
-  - from: rx_global.outputs.scores
-    to: logit_head.inputs.scores
-  - from: logit_head.outputs.logits
-    to: decider.inputs.logits
+  - source: LentilsAnomalyDataNode.outputs.cube
+    target: MinMaxNormalizer.inputs.data
+  - source: MinMaxNormalizer.outputs.normalized
+    target: selector.inputs.data
+  - source: selector.outputs.selected
+    target: rx_global.inputs.data
+  - source: rx_global.outputs.scores
+    target: logit_head.inputs.scores
+  - source: logit_head.outputs.logits
+    target: decider.inputs.logits
 
   # Loss computation
-  - from: logit_head.outputs.logits
-    to: bce_loss.inputs.predictions
-  - from: LentilsAnomalyDataNode.outputs.mask
-    to: bce_loss.inputs.targets
-  - from: selector.outputs.weights
-    to: entropy_loss.inputs.weights
+  - source: logit_head.outputs.logits
+    target: bce_loss.inputs.predictions
+  - source: LentilsAnomalyDataNode.outputs.mask
+    target: bce_loss.inputs.targets
+  - source: selector.outputs.weights
+    target: entropy_loss.inputs.weights
 
   # Metrics
-  - from: decider.outputs.decisions
-    to: metrics_anomaly.inputs.decisions
-  - from: LentilsAnomalyDataNode.outputs.mask
-    to: metrics_anomaly.inputs.targets
+  - source: decider.outputs.decisions
+    target: metrics_anomaly.inputs.decisions
+  - source: LentilsAnomalyDataNode.outputs.mask
+    target: metrics_anomaly.inputs.targets
 
 ```
 
@@ -739,43 +739,43 @@ metadata:
 
 nodes:
   - name: LentilsAnomalyDataNode
-    class: cuvis_ai.node.data.LentilsAnomalyDataNode
-    params:
+    class_name: cuvis_ai.node.data.LentilsAnomalyDataNode
+    hparams:
       normal_class_ids: [0, 1]
 
   - name: normalizer
-    class: cuvis_ai.node.normalization.MinMaxNormalizer
-    params:
+    class_name: cuvis_ai.node.normalization.MinMaxNormalizer
+    hparams:
       eps: 1.0e-06
       use_running_stats: true
 
   - name: projection
-    class: cuvis_ai.node.deep_svdd.ProjectionNetwork
-    params:
+    class_name: cuvis_ai.node.deep_svdd.ProjectionNetwork
+    hparams:
       input_dim: 61
       hidden_dims: [128, 64, 32]
       output_dim: 16
 
   - name: deepsvdd_loss
-    class: cuvis_ai.anomaly.deep_svdd_loss.DeepSVDDLoss
-    params:
+    class_name: cuvis_ai.anomaly.deep_svdd_loss.DeepSVDDLoss
+    hparams:
       radius: 0.0
       nu: 0.1
 
   - name: metrics_anomaly
-    class: cuvis_ai.node.metrics.AnomalyDetectionMetrics
+    class_name: cuvis_ai.node.metrics.AnomalyDetectionMetrics
 
 connections:
-  - from: LentilsAnomalyDataNode.outputs.cube
-    to: normalizer.inputs.data
-  - from: normalizer.outputs.normalized
-    to: projection.inputs.data
-  - from: projection.outputs.embeddings
-    to: deepsvdd_loss.inputs.embeddings
-  - from: deepsvdd_loss.outputs.scores
-    to: metrics_anomaly.inputs.logits
-  - from: LentilsAnomalyDataNode.outputs.mask
-    to: metrics_anomaly.inputs.targets
+  - source: LentilsAnomalyDataNode.outputs.cube
+    target: normalizer.inputs.data
+  - source: normalizer.outputs.normalized
+    target: projection.inputs.data
+  - source: projection.outputs.embeddings
+    target: deepsvdd_loss.inputs.embeddings
+  - source: deepsvdd_loss.outputs.scores
+    target: metrics_anomaly.inputs.logits
+  - source: LentilsAnomalyDataNode.outputs.mask
+    target: metrics_anomaly.inputs.targets
 
 ```
 
@@ -791,18 +791,18 @@ All node names must be unique within a pipeline.
 ```yaml
 nodes:
   - name: normalizer_1
-    class: cuvis_ai.node.normalization.MinMaxNormalizer
+    class_name: cuvis_ai.node.normalization.MinMaxNormalizer
   - name: normalizer_2
-    class: cuvis_ai.node.normalization.MinMaxNormalizer
+    class_name: cuvis_ai.node.normalization.MinMaxNormalizer
 ```
 
 **Invalid:**
 ```yaml
 nodes:
   - name: normalizer
-    class: cuvis_ai.node.normalization.MinMaxNormalizer
+    class_name: cuvis_ai.node.normalization.MinMaxNormalizer
   - name: normalizer  # ✗ Duplicate name
-    class: cuvis_ai.node.normalization.StandardScaler
+    class_name: cuvis_ai.node.normalization.StandardScaler
 ```
 
 ### 2. Class Importability
@@ -811,13 +811,13 @@ All node classes must be importable from Python path.
 
 **Valid:**
 ```yaml
-class: cuvis_ai.anomaly.rx_detector.RXGlobal  # ✓ Exists
+class_name: cuvis_ai.anomaly.rx_detector.RXGlobal  # ✓ Exists
 ```
 
 **Invalid:**
 ```yaml
-class: cuvis_ai.anomaly.NonexistentNode  # ✗ Import error
-class: RXGlobal                          # ✗ Not fully qualified
+class_name: cuvis_ai.anomaly.NonexistentNode  # ✗ Import error
+class_name: RXGlobal                     # ✗ Not fully qualified
 ```
 
 ### 3. Connection Validity
@@ -825,23 +825,23 @@ class: RXGlobal                          # ✗ Not fully qualified
 **Source must be output port:**
 ```yaml
 # Valid
-- from: detector.outputs.scores
-  to: decider.inputs.scores
+- source: detector.outputs.scores
+  target: decider.inputs.scores
 
 # Invalid
-- from: detector.inputs.data  # ✗ Can't use input as source
-  to: decider.inputs.scores
+- source: detector.inputs.data  # ✗ Can't use input as source
+  target: decider.inputs.scores
 ```
 
 **Target must be input port:**
 ```yaml
 # Valid
-- from: detector.outputs.scores
-  to: decider.inputs.scores
+- source: detector.outputs.scores
+  target: decider.inputs.scores
 
 # Invalid
-- from: detector.outputs.scores
-  to: decider.outputs.decisions  # ✗ Can't use output as target
+- source: detector.outputs.scores
+  target: decider.outputs.decisions  # ✗ Can't use output as target
 ```
 
 **Referenced nodes must exist:**
@@ -851,13 +851,13 @@ nodes:
   - name: detector
     ...
 connections:
-  - from: detector.outputs.scores
-    to: decider.inputs.scores
+  - source: detector.outputs.scores
+    target: decider.inputs.scores
 
 # Invalid
 connections:
-  - from: nonexistent_node.outputs.data  # ✗ Node not defined
-    to: decider.inputs.scores
+  - source: nonexistent_node.outputs.data  # ✗ Node not defined
+    target: decider.inputs.scores
 ```
 
 ### 4. Parameter Types
@@ -866,7 +866,7 @@ Node parameters must match expected types.
 
 **Valid:**
 ```yaml
-params:
+hparams:
   num_channels: 61         # int
   eps: 1.0e-06             # float
   use_running_stats: true  # bool
@@ -875,7 +875,7 @@ params:
 
 **Invalid:**
 ```yaml
-params:
+hparams:
   num_channels: "61"       # ✗ String instead of int
   eps: true                # ✗ Bool instead of float
   normal_class_ids: 0      # ✗ Int instead of list
@@ -923,18 +923,18 @@ name: ScoreVisualizer
 ```yaml
 connections:
   # Main processing flow
-  - from: data_loader.outputs.cube
-    to: normalizer.inputs.data
-  - from: normalizer.outputs.normalized
-    to: detector.inputs.data
+  - source: data_loader.outputs.cube
+    target: normalizer.inputs.data
+  - source: normalizer.outputs.normalized
+    target: detector.inputs.data
 
   # Loss computation
-  - from: detector.outputs.scores
-    to: loss.inputs.predictions
+  - source: detector.outputs.scores
+    target: loss.inputs.predictions
 
   # Metrics and monitoring
-  - from: metrics.outputs.metrics
-    to: monitor.inputs.metrics
+  - source: metrics.outputs.metrics
+    target: monitor.inputs.metrics
 ```
 
 ### 4. Comments for Complex Pipelines
@@ -964,8 +964,8 @@ nodes:
 
 ```yaml
 - name: concrete_selector
-  class: cuvis_ai.node.concrete_selector.ConcreteBandSelector
-  params:
+  class_name: cuvis_ai.node.concrete_selector.ConcreteBandSelector
+  hparams:
     input_channels: 61
     output_channels: 3
     tau_start: 10.0        # Initial temperature for Gumbel-Softmax

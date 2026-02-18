@@ -9,67 +9,67 @@ metadata:
   cuvis_ai_version: 0.1.5.post26+g6df1b4549.d20251202
 nodes:
 - name: LentilsAnomalyDataNode
-  class: cuvis_ai.node.data.LentilsAnomalyDataNode
-  params:
+  class_name: cuvis_ai.node.data.LentilsAnomalyDataNode
+  hparams:
     normal_class_ids:
     - 0
     - 1
 - name: MinMaxNormalizer
-  class: cuvis_ai.node.normalization.MinMaxNormalizer
-  params:
+  class_name: cuvis_ai.node.normalization.MinMaxNormalizer
+  hparams:
     eps: 1.0e-06
     use_running_stats: true
 - name: RXGlobal
-  class: cuvis_ai.anomaly.rx_detector.RXGlobal
-  params:
+  class_name: cuvis_ai.anomaly.rx_detector.RXGlobal
+  hparams:
     eps: 1.0e-06
     num_channels: 61
     cache_inverse: true
 - name: ScoreToLogit
-  class: cuvis_ai.node.conversion.ScoreToLogit
-  params:
+  class_name: cuvis_ai.node.conversion.ScoreToLogit
+  hparams:
     init_scale: 1.0
     init_bias: 0.0
 - name: BinaryDecider
-  class: cuvis_ai.deciders.binary_decider.BinaryDecider
-  params:
+  class_name: cuvis_ai.deciders.binary_decider.BinaryDecider
+  hparams:
     threshold: 0.5
 - name: metrics_anomaly
-  class: cuvis_ai.node.metrics.AnomalyDetectionMetrics
-  params:
+  class_name: cuvis_ai.node.metrics.AnomalyDetectionMetrics
+  hparams:
     execution_stages: null
 - name: TensorBoardMonitorNode
-  class: cuvis_ai.node.monitor.TensorBoardMonitorNode
-  params:
+  class_name: cuvis_ai.node.monitor.TensorBoardMonitorNode
+  hparams:
     output_dir: outputs\rx_statistical\..\tensorboard
     run_name: RX_Statistical
     comment: ''
     flush_secs: 120
 - name: mask
-  class: cuvis_ai.node.visualizations.AnomalyMask
-  params:
+  class_name: cuvis_ai.node.visualizations.AnomalyMask
+  hparams:
     channel: 30
     up_to: 5
 connections:
-- from: LentilsAnomalyDataNode.outputs.cube
-  to: MinMaxNormalizer.inputs.data
-- from: LentilsAnomalyDataNode.outputs.mask
-  to: metrics_anomaly.inputs.targets
-- from: LentilsAnomalyDataNode.outputs.mask
-  to: mask.inputs.mask
-- from: LentilsAnomalyDataNode.outputs.cube
-  to: mask.inputs.cube
-- from: MinMaxNormalizer.outputs.normalized
-  to: RXGlobal.inputs.data
-- from: RXGlobal.outputs.scores
-  to: ScoreToLogit.inputs.scores
-- from: ScoreToLogit.outputs.logits
-  to: BinaryDecider.inputs.logits
-- from: BinaryDecider.outputs.decisions
-  to: metrics_anomaly.inputs.decisions
-- from: BinaryDecider.outputs.decisions
-  to: mask.inputs.decisions
-- from: metrics_anomaly.outputs.metrics
-  to: TensorBoardMonitorNode.inputs.metrics
-- from: mask.outputs.artifacts
-  to: TensorBoardMonitorNode.inputs.artifacts
+- source: LentilsAnomalyDataNode.outputs.cube
+  target: MinMaxNormalizer.inputs.data
+- source: LentilsAnomalyDataNode.outputs.mask
+  target: metrics_anomaly.inputs.targets
+- source: LentilsAnomalyDataNode.outputs.mask
+  target: mask.inputs.mask
+- source: LentilsAnomalyDataNode.outputs.cube
+  target: mask.inputs.cube
+- source: MinMaxNormalizer.outputs.normalized
+  target: RXGlobal.inputs.data
+- source: RXGlobal.outputs.scores
+  target: ScoreToLogit.inputs.scores
+- source: ScoreToLogit.outputs.logits
+  target: BinaryDecider.inputs.logits
+- source: BinaryDecider.outputs.decisions
+  target: metrics_anomaly.inputs.decisions
+- source: BinaryDecider.outputs.decisions
+  target: mask.inputs.decisions
+- source: metrics_anomaly.outputs.metrics
+  target: TensorBoardMonitorNode.inputs.metrics
+- source: mask.outputs.artifacts
+  target: TensorBoardMonitorNode.inputs.artifacts
