@@ -43,3 +43,34 @@ def test_minmax_normalizer_constant_channels_stable() -> None:
     assert np.isfinite(np_out).all()
     assert np_out.min() >= -1e-6
     assert np_out.max() <= 1.0 + 1e-6
+
+
+@torch.no_grad()
+def test_minmax_normalizer_single_channel() -> None:
+    """Normalizer works correctly with a single spectral channel (C=1)."""
+    B, H, W, C = 2, 4, 4, 1
+    x = torch.randn(B, H, W, C) * 3.0
+
+    node = MinMaxNormalizer(eps=1e-6, use_running_stats=False)
+    out = node.forward(data=x)["normalized"]
+
+    assert out.shape == x.shape
+
+    flat = out.view(B, -1, C).cpu().numpy()
+    assert np.isfinite(flat).all()
+    assert np.all(flat >= -1e-6)
+    assert np.all(flat <= 1.0 + 1e-6)
+
+
+@torch.no_grad()
+def test_minmax_normalizer_single_pixel() -> None:
+    """Normalizer stays finite with a single spatial pixel (H=W=1)."""
+    B, H, W, C = 3, 1, 1, 5
+    x = torch.randn(B, H, W, C) * 2.0
+
+    node = MinMaxNormalizer(eps=1e-6, use_running_stats=False)
+    out = node.forward(data=x)["normalized"]
+
+    assert out.shape == x.shape
+    np_out = out.cpu().numpy()
+    assert np.isfinite(np_out).all()
