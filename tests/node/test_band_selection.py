@@ -154,11 +154,14 @@ class TestStatisticalInitialization:
 
         assert sel._statistically_initialized is True
 
-        cube = torch.randn(1, 8, 8, channels)
-        wavelengths = np.linspace(430, 910, channels, dtype=np.float32)
-        result = sel.forward(cube, wavelengths)
+        batch = next(iter(dm.val_dataloader()))
+        result = sel.forward(
+            cube=batch["cube"],
+            wavelengths=batch["wavelengths"][0].numpy().astype(np.float32),
+        )
 
-        assert result["rgb_image"].shape == (1, 8, 8, 3)
+        assert result["rgb_image"].shape[0] == batch["cube"].shape[0]
+        assert result["rgb_image"].shape[-1] == 3
         assert len(result["band_info"]["band_indices"]) == 3
         assert result["band_info"]["strategy"] == "supervised_full_spectrum"
 
@@ -184,10 +187,44 @@ class TestStatisticalInitialization:
 
         assert sel._statistically_initialized is True
 
-        cube = torch.randn(1, 8, 8, channels)
-        wavelengths = np.linspace(430, 910, channels, dtype=np.float32)
-        result = sel.forward(cube, wavelengths)
+        batch = next(iter(dm.val_dataloader()))
+        result = sel.forward(
+            cube=batch["cube"],
+            wavelengths=batch["wavelengths"][0].numpy().astype(np.float32),
+        )
 
         assert result["band_info"]["strategy"] == "supervised_cir"
         assert "windows_nm" in result["band_info"]
-        assert result["rgb_image"].shape == (1, 8, 8, 3)
+        assert result["rgb_image"].shape[-1] == 3
+
+    def test_windowed_fit_and_forward(self, synthetic_anomaly_datamodule):
+        channels = 61  # Enough channels to span visible RGB windows
+        dm = synthetic_anomaly_datamodule(
+            batch_size=4,
+            num_samples=16,
+            height=8,
+            width=8,
+            channels=channels,
+            include_labels=True,
+            mode="random",
+            seed=42,
+            dtype=torch.float32,
+            wavelength_range=(430.0, 910.0),
+        )
+
+        sel = SupervisedWindowedFalseRGBSelector(num_spectral_bands=channels)
+
+        input_stream = dm.train_dataloader()
+        sel.statistical_initialization(input_stream)
+
+        assert sel._statistically_initialized is True
+
+        batch = next(iter(dm.val_dataloader()))
+        result = sel.forward(
+            cube=batch["cube"],
+            wavelengths=batch["wavelengths"][0].numpy().astype(np.float32),
+        )
+
+        assert result["band_info"]["strategy"] == "supervised_windowed_false_rgb"
+        assert "windows_nm" in result["band_info"]
+        assert result["rgb_image"].shape[-1] == 3
