@@ -420,11 +420,12 @@ def test_bandpass_single_band_selection(create_test_cube) -> None:
     )
 
     wavelengths_np = wavelengths[0].cpu().numpy()
-    # Pick a narrow range around the median wavelength
-    median_wl = float(np.median(wavelengths_np))
+    # Pick a narrow range around an actual wavelength (not median, which may fall between values)
+    mid_idx = len(wavelengths_np) // 2
+    target_wl = float(wavelengths_np[mid_idx])
     step = float(np.diff(wavelengths_np).min()) if len(wavelengths_np) > 1 else 1.0
-    min_nm = median_wl - step * 0.1
-    max_nm = median_wl + step * 0.1
+    min_nm = target_wl - step * 0.4
+    max_nm = target_wl + step * 0.4
 
     bandpass = BandpassByWavelength(
         min_wavelength_nm=min_nm,

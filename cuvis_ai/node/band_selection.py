@@ -719,6 +719,10 @@ class SupervisedBandSelectorBase(BandSelectorBase):
                 else:
                     wavelengths_np = np.asarray(wavelengths)
                 wavelengths_np = wavelengths_np.astype(np.float32, copy=False)
+                # DataLoader stacks per-sample [C] wavelengths into [B, C];
+                # we only need the 1-D channel vector.
+                if wavelengths_np.ndim > 1:
+                    wavelengths_np = wavelengths_np[0]
 
         if wavelengths_np is None:
             raise RuntimeError("SupervisedBandSelector requires wavelengths in the input stream.")
