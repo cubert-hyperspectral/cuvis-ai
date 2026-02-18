@@ -760,6 +760,108 @@ class SupervisedBandSelectorBase(BandSelectorBase):
 
         self._statistically_initialized = True
 
+    # -- Hooks for subclasses ------------------------------------------------
+
+    _strategy_name: str = ""
+    """Strategy identifier included in ``band_info``. Subclasses must set this."""
+
+    def _select_bands(
+        self,
+        band_scores: np.ndarray,
+        wavelengths: np.ndarray,
+        corr_matrix: np.ndarray,
+    ) -> list[int]:
+        """Select 3 band indices from scored bands. Subclasses must implement."""
+        raise NotImplementedError
+
+    def _extra_band_info(self, wavelengths_np: np.ndarray) -> dict[str, Any]:
+        """Return additional ``band_info`` entries (e.g., windows). Override as needed."""
+        return {}
+
+    # -- Common implementations ----------------------------------------------
+
+    def statistical_initialization(self, input_stream: InputStream) -> None:
+        """Initialize band selection using supervised scoring.
+
+        Computes Fisher, AUC, and MI scores for each band, delegates to
+        :meth:`_select_bands` for strategy-specific selection, and stores
+        the 3 selected bands.
+
+        Parameters
+        ----------
+        input_stream : InputStream
+            Training data stream with cube, mask, and wavelengths.
+
+        Raises
+        ------
+        ValueError
+            If band selection doesn't return exactly 3 bands.
+        """
+        cubes, masks, wavelengths = self._collect_training_data(input_stream)
+        band_scores, fisher_scores, auc_scores, mi_scores = _compute_band_scores_supervised(
+            cubes,
+            masks,
+            wavelengths,
+            self.score_weights,
+        )
+        corr_matrix = _compute_band_correlation_matrix(cubes, len(wavelengths))
+        selected_indices = self._select_bands(band_scores, wavelengths, corr_matrix)
+        if len(selected_indices) != 3:
+            raise ValueError(f"{type(self).__name__} expected 3 bands, got {len(selected_indices)}")
+        self._store_scores_and_indices(
+            band_scores, fisher_scores, auc_scores, mi_scores, selected_indices
+        )
+
+    def forward(
+        self,
+        cube: torch.Tensor,
+        wavelengths: np.ndarray,
+        mask: torch.Tensor | None = None,  # noqa: ARG002
+        context: Context | None = None,  # noqa: ARG002
+        **_: Any,
+    ) -> dict[str, Any]:
+        """Generate false-color RGB from selected bands.
+
+        Parameters
+        ----------
+        cube : torch.Tensor
+            Hyperspectral cube [B, H, W, C].
+        wavelengths : np.ndarray
+            Wavelengths for each channel [C].
+        mask : torch.Tensor, optional
+            Ground truth mask (unused in forward, required for initialization).
+        context : Context, optional
+            Pipeline execution context (unused).
+        **_ : Any
+            Additional unused keyword arguments.
+
+        Returns
+        -------
+        dict[str, Any]
+            Dictionary with "rgb_image" [B, H, W, 3] and "band_info" metadata.
+
+        Raises
+        ------
+        RuntimeError
+            If the node has not been statistically initialized.
+        """
+        if not self._statistically_initialized or self.selected_indices.numel() != 3:
+            raise RuntimeError(f"{type(self).__name__} not fitted")
+
+        wavelengths_np = np.asarray(wavelengths, dtype=np.float32)
+        indices = self.selected_indices.tolist()
+        rgb = self._compose_rgb(cube, indices)
+
+        band_info = {
+            "strategy": self._strategy_name,
+            "band_indices": indices,
+            "band_wavelengths_nm": [float(wavelengths_np[i]) for i in indices],
+            "score_weights": list(self.score_weights),
+            "lambda_penalty": float(self.lambda_penalty),
+            **self._extra_band_info(wavelengths_np),
+        }
+        return {"rgb_image": rgb, "band_info": band_info}
+
 
 class SupervisedCIRBandSelector(SupervisedBandSelectorBase):
     """Supervised CIR/NIR band selection with window constraints.
@@ -773,6 +875,8 @@ class SupervisedCIRBandSelector(SupervisedBandSelectorBase):
     (Fisher + AUC + MI) with an mRMR-style redundancy penalty.
     """
 
+    _strategy_name = "supervised_cir"
+
     def __init__(
         self,
         windows: Sequence[tuple[float, float]] = ((840.0, 910.0), (650.0, 720.0), (500.0, 570.0)),
@@ -780,104 +884,26 @@ class SupervisedCIRBandSelector(SupervisedBandSelectorBase):
         lambda_penalty: float = 0.5,
         **kwargs: Any,
     ) -> None:
-        # Call super().__init__ FIRST so Serializable captures hparams correctly
         super().__init__(
             score_weights=score_weights,
             lambda_penalty=lambda_penalty,
             windows=list(windows),
             **kwargs,
         )
-        # Then set instance attributes
         self.windows = list(windows)
 
-    def statistical_initialization(self, input_stream: InputStream) -> None:
-        """Initialize band selection using supervised scoring with CIR windows.
-
-        Computes Fisher, AUC, and MI scores for each band, applies mRMR selection
-        within CIR-specific wavelength windows, and stores the 3 selected bands.
-
-        Parameters
-        ----------
-        input_stream : InputStream
-            Training data stream with cube, mask, and wavelengths.
-
-        Raises
-        ------
-        ValueError
-            If the mRMR selection doesn't return exactly 3 bands.
-        """
-        cubes, masks, wavelengths = self._collect_training_data(input_stream)
-        band_scores, fisher_scores, auc_scores, mi_scores = _compute_band_scores_supervised(
-            cubes,
-            masks,
-            wavelengths,
-            self.score_weights,
-        )
-        corr_matrix = _compute_band_correlation_matrix(cubes, len(wavelengths))
-        selected_indices = _mrmr_band_selection(
-            band_scores,
-            wavelengths,
-            self.windows,
-            corr_matrix,
-            self.lambda_penalty,
-        )
-        if len(selected_indices) != 3:
-            raise ValueError(
-                f"SupervisedCIRBandSelector expected 3 bands, got {len(selected_indices)}"
-            )
-        self._store_scores_and_indices(
-            band_scores, fisher_scores, auc_scores, mi_scores, selected_indices
-        )
-
-    def forward(
+    def _select_bands(
         self,
-        cube: torch.Tensor,
+        band_scores: np.ndarray,
         wavelengths: np.ndarray,
-        mask: torch.Tensor | None = None,  # noqa: ARG002
-        context: Context | None = None,  # noqa: ARG002
-        **_: Any,
-    ) -> dict[str, Any]:
-        """Generate false-color RGB from selected CIR bands.
+        corr_matrix: np.ndarray,
+    ) -> list[int]:
+        return _mrmr_band_selection(
+            band_scores, wavelengths, self.windows, corr_matrix, self.lambda_penalty
+        )
 
-        Parameters
-        ----------
-        cube : torch.Tensor
-            Hyperspectral cube [B, H, W, C].
-        wavelengths : np.ndarray
-            Wavelengths for each channel [C].
-        mask : torch.Tensor, optional
-            Ground truth mask (unused in forward, required for initialization).
-        context : Context, optional
-            Pipeline execution context (unused).
-        **_ : Any
-            Additional unused keyword arguments.
-
-        Returns
-        -------
-        dict[str, Any]
-            Dictionary with "rgb_image" [B, H, W, 3] and "band_info" metadata.
-
-        Raises
-        ------
-        RuntimeError
-            If the node has not been statistically initialized.
-        """
-        if not self._statistically_initialized or self.selected_indices.numel() != 3:
-            raise RuntimeError("SupervisedCIRBandSelector not fitted")
-
-        wavelengths_np = np.asarray(wavelengths, dtype=np.float32)
-        indices = self.selected_indices.tolist()
-        rgb = self._compose_rgb(cube, indices)
-
-        band_info = {
-            "strategy": "supervised_cir",
-            "band_indices": indices,
-            "band_wavelengths_nm": [float(wavelengths_np[i]) for i in indices],
-            "windows_nm": [[float(s), float(e)] for s, e in self.windows],
-            "score_weights": list(self.score_weights),
-            "lambda_penalty": float(self.lambda_penalty),
-        }
-        return {"rgb_image": rgb, "band_info": band_info}
+    def _extra_band_info(self, wavelengths_np: np.ndarray) -> dict[str, Any]:
+        return {"windows_nm": [[float(s), float(e)] for s, e in self.windows]}
 
 
 class SupervisedWindowedFalseRGBSelector(SupervisedBandSelectorBase):
@@ -885,10 +911,12 @@ class SupervisedWindowedFalseRGBSelector(SupervisedBandSelectorBase):
 
     Similar to :class:`HighContrastBandSelector`, but uses label-driven scores.
     Default windows:
-        - Blue: 440–500 nm
-        - Green: 500–580 nm
-        - Red: 610–700 nm
+        - Blue: 440-500 nm
+        - Green: 500-580 nm
+        - Red: 610-700 nm
     """
+
+    _strategy_name = "supervised_windowed_false_rgb"
 
     def __init__(
         self,
@@ -897,104 +925,26 @@ class SupervisedWindowedFalseRGBSelector(SupervisedBandSelectorBase):
         lambda_penalty: float = 0.5,
         **kwargs: Any,
     ) -> None:
-        # Call super().__init__ FIRST so Serializable captures hparams correctly
         super().__init__(
             score_weights=score_weights,
             lambda_penalty=lambda_penalty,
             windows=list(windows),
             **kwargs,
         )
-        # Then set instance attributes
         self.windows = list(windows)
 
-    def statistical_initialization(self, input_stream: InputStream) -> None:
-        """Initialize band selection using supervised scoring with RGB windows.
-
-        Computes Fisher, AUC, and MI scores for each band, applies mRMR selection
-        within RGB wavelength windows (blue/green/red), and stores the 3 selected bands.
-
-        Parameters
-        ----------
-        input_stream : InputStream
-            Training data stream with cube, mask, and wavelengths.
-
-        Raises
-        ------
-        ValueError
-            If the mRMR selection doesn't return exactly 3 bands.
-        """
-        cubes, masks, wavelengths = self._collect_training_data(input_stream)
-        band_scores, fisher_scores, auc_scores, mi_scores = _compute_band_scores_supervised(
-            cubes,
-            masks,
-            wavelengths,
-            self.score_weights,
-        )
-        corr_matrix = _compute_band_correlation_matrix(cubes, len(wavelengths))
-        selected_indices = _mrmr_band_selection(
-            band_scores,
-            wavelengths,
-            self.windows,
-            corr_matrix,
-            self.lambda_penalty,
-        )
-        if len(selected_indices) != 3:
-            raise ValueError(
-                f"SupervisedWindowedFalseRGBSelector expected 3 bands, got {len(selected_indices)}",
-            )
-        self._store_scores_and_indices(
-            band_scores, fisher_scores, auc_scores, mi_scores, selected_indices
-        )
-
-    def forward(
+    def _select_bands(
         self,
-        cube: torch.Tensor,
+        band_scores: np.ndarray,
         wavelengths: np.ndarray,
-        mask: torch.Tensor | None = None,  # noqa: ARG002
-        context: Context | None = None,  # noqa: ARG002
-        **_: Any,
-    ) -> dict[str, Any]:
-        """Generate false-color RGB from selected windowed bands.
+        corr_matrix: np.ndarray,
+    ) -> list[int]:
+        return _mrmr_band_selection(
+            band_scores, wavelengths, self.windows, corr_matrix, self.lambda_penalty
+        )
 
-        Parameters
-        ----------
-        cube : torch.Tensor
-            Hyperspectral cube [B, H, W, C].
-        wavelengths : np.ndarray
-            Wavelengths for each channel [C].
-        mask : torch.Tensor, optional
-            Ground truth mask (unused in forward, required for initialization).
-        context : Context, optional
-            Pipeline execution context (unused).
-        **_ : Any
-            Additional unused keyword arguments.
-
-        Returns
-        -------
-        dict[str, Any]
-            Dictionary with "rgb_image" [B, H, W, 3] and "band_info" metadata.
-
-        Raises
-        ------
-        RuntimeError
-            If the node has not been statistically initialized.
-        """
-        if not self._statistically_initialized or self.selected_indices.numel() != 3:
-            raise RuntimeError("SupervisedWindowedFalseRGBSelector not fitted")
-
-        wavelengths_np = np.asarray(wavelengths, dtype=np.float32)
-        indices = self.selected_indices.tolist()
-        rgb = self._compose_rgb(cube, indices)
-
-        band_info = {
-            "strategy": "supervised_windowed_false_rgb",
-            "band_indices": indices,
-            "band_wavelengths_nm": [float(wavelengths_np[i]) for i in indices],
-            "windows_nm": [[float(s), float(e)] for s, e in self.windows],
-            "score_weights": list(self.score_weights),
-            "lambda_penalty": float(self.lambda_penalty),
-        }
-        return {"rgb_image": rgb, "band_info": band_info}
+    def _extra_band_info(self, wavelengths_np: np.ndarray) -> dict[str, Any]:
+        return {"windows_nm": [[float(s), float(e)] for s, e in self.windows]}
 
 
 class SupervisedFullSpectrumBandSelector(SupervisedBandSelectorBase):
@@ -1004,6 +954,8 @@ class SupervisedFullSpectrumBandSelector(SupervisedBandSelectorBase):
     redundancy penalty applied over the full spectrum.
     """
 
+    _strategy_name = "supervised_full_spectrum"
+
     def __init__(
         self,
         score_weights: tuple[float, float, float] = (1.0, 1.0, 1.0),
@@ -1012,92 +964,15 @@ class SupervisedFullSpectrumBandSelector(SupervisedBandSelectorBase):
     ) -> None:
         super().__init__(score_weights=score_weights, lambda_penalty=lambda_penalty, **kwargs)
 
-    def statistical_initialization(self, input_stream: InputStream) -> None:
-        """Initialize band selection using supervised scoring across full spectrum.
-
-        Computes Fisher, AUC, and MI scores for each band, applies mRMR selection
-        globally without wavelength window constraints, and stores the 3 selected bands.
-
-        Parameters
-        ----------
-        input_stream : InputStream
-            Training data stream with cube, mask, and wavelengths.
-
-        Raises
-        ------
-        ValueError
-            If the mRMR selection doesn't return exactly 3 bands.
-        """
-        cubes, masks, wavelengths = self._collect_training_data(input_stream)
-        band_scores, fisher_scores, auc_scores, mi_scores = _compute_band_scores_supervised(
-            cubes,
-            masks,
-            wavelengths,
-            self.score_weights,
-        )
-        corr_matrix = _compute_band_correlation_matrix(cubes, len(wavelengths))
-        selected_indices = _select_top_k_bands(
-            band_scores,
-            corr_matrix,
-            k=3,
-            lambda_penalty=self.lambda_penalty,
-        )
-        if len(selected_indices) != 3:
-            raise ValueError(
-                f"SupervisedFullSpectrumBandSelector expected 3 bands, got {len(selected_indices)}",
-            )
-        self._store_scores_and_indices(
-            band_scores, fisher_scores, auc_scores, mi_scores, selected_indices
-        )
-
-    def forward(
+    def _select_bands(
         self,
-        cube: torch.Tensor,
-        wavelengths: np.ndarray,
-        mask: torch.Tensor | None = None,  # noqa: ARG002
-        context: Context | None = None,  # noqa: ARG002
-        **_: Any,
-    ) -> dict[str, Any]:
-        """Generate false-color RGB from globally selected bands.
-
-        Parameters
-        ----------
-        cube : torch.Tensor
-            Hyperspectral cube [B, H, W, C].
-        wavelengths : np.ndarray
-            Wavelengths for each channel [C].
-        mask : torch.Tensor, optional
-            Ground truth mask (unused in forward, required for initialization).
-        context : Context, optional
-            Pipeline execution context (unused).
-        **_ : Any
-            Additional unused keyword arguments.
-
-        Returns
-        -------
-        dict[str, Any]
-            Dictionary with "rgb_image" [B, H, W, 3] and "band_info" metadata.
-
-        Raises
-        ------
-        RuntimeError
-            If the node has not been statistically initialized.
-        """
-        if not self._statistically_initialized or self.selected_indices.numel() != 3:
-            raise RuntimeError("SupervisedFullSpectrumBandSelector not fitted")
-
-        wavelengths_np = np.asarray(wavelengths, dtype=np.float32)
-        indices = self.selected_indices.tolist()
-        rgb = self._compose_rgb(cube, indices)
-
-        band_info = {
-            "strategy": "supervised_full_spectrum",
-            "band_indices": indices,
-            "band_wavelengths_nm": [float(wavelengths_np[i]) for i in indices],
-            "score_weights": list(self.score_weights),
-            "lambda_penalty": float(self.lambda_penalty),
-        }
-        return {"rgb_image": rgb, "band_info": band_info}
+        band_scores: np.ndarray,
+        wavelengths: np.ndarray,  # noqa: ARG002
+        corr_matrix: np.ndarray,
+    ) -> list[int]:
+        return _select_top_k_bands(
+            band_scores, corr_matrix, k=3, lambda_penalty=self.lambda_penalty
+        )
 
 
 __all__ = [
