@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+- Added `resolve_reduce_dims()` as shared module-level utility in `binary_decider`
+- Changed supervised band selectors to use template method pattern, pulling shared `forward()` and `statistical_initialization()` into `SupervisedBandSelectorBase`
+- Changed YAML configs and docs to use new schema field names (`hparams`, `class_name`)
+- Changed `EXECUTION_STAGE_VALIDATE` references to `VAL` across gRPC docs
+- Removed dead `_quantile_threshold()` and duplicate `_resolve_reduce_dims()` from `TwoStageBinaryDecider`
+- Removed `frozen_nodes` from pipeline configs and docs
 - Reformatted CHANGELOG to concise single-list style
 - Updated release workflow changelog extraction for new heading format
 
