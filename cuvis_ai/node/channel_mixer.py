@@ -213,6 +213,11 @@ class LearnableChannelMixer(Node):
             )
             self.convs.append(conv)
 
+        # Output normalization: BatchNorm + sigmoid replaces per-image min-max
+        # BatchNorm tracks running mean/var during training → consistent normalization at eval
+        if self.normalize_output:
+            self.output_bn = nn.BatchNorm2d(output_channels, affine=True)
+
         # Leaky ReLU activation (as per DRCNN paper)
         # Note: Leaky ReLU with a=0.01 can be very aggressive, killing most negative values
         # Consider using a higher value (e.g., 0.1) or removing activation if issues occur
@@ -412,34 +417,14 @@ class LearnableChannelMixer(Node):
                 if i < len(self.convs) - 1 or not self.normalize_output:
                     mixed = self.activation(mixed)
 
+        # Apply output normalization (BatchNorm + sigmoid) while still in BCHW format
+        # BatchNorm tracks running mean/var → consistent normalization at eval (no per-frame flicker)
+        if self.normalize_output:
+            mixed = self.output_bn(mixed)  # BatchNorm2d: BCHW → BCHW
+            mixed = torch.sigmoid(mixed)  # Map to (0, 1)
+
         # Convert back from BCHW to BHWC
         mixed_bhwc = mixed.permute(0, 2, 3, 1)  # [B, H, W, C_out]
-
-        # DEBUG disabled: previously saved output_before_norm tensor here (_save_debug_tensor).
-        # for b in range(B):
-        #     self._save_debug_tensor(mixed_bhwc[b], "output_before_norm", context, frame_idx=b)
-
-        # Apply per-channel normalization to [0, 1] range (matching band selector behavior)
-        # This ensures compatibility with AdaClip preprocessing
-        if self.normalize_output:
-            # Per-image, per-channel min/max normalization to [0, 1]
-            # This ensures each image is normalized independently for visual consistency
-            # Shape: [B, H, W, C_out]
-            B_norm, H_norm, W_norm, C_norm = mixed_bhwc.shape
-            # Reshape to [B, H*W, C] for easier per-image processing
-            mixed_flat = mixed_bhwc.view(B_norm, H_norm * W_norm, C_norm)
-            # Compute min/max per image, per channel: [B, 1, C]
-            rgb_min = mixed_flat.amin(dim=1, keepdim=True)  # [B, 1, C]
-            rgb_max = mixed_flat.amax(dim=1, keepdim=True)  # [B, 1, C]
-            denom = (rgb_max - rgb_min).clamp_min(self.eps)
-            # Normalize: [B, H*W, C]
-            mixed_normalized = (mixed_flat - rgb_min) / denom
-            # Reshape back and clamp
-            mixed_bhwc = mixed_normalized.view(B_norm, H_norm, W_norm, C_norm).clamp_(0.0, 1.0)
-
-        # DEBUG disabled: previously saved output_after_norm tensor here (_save_debug_tensor).
-        # for b in range(B):
-        #     self._save_debug_tensor(mixed_bhwc[b], "output_after_norm", context, frame_idx=b)
 
         # DEBUG: Print output info
         if hasattr(self, "_debug") and self._debug:

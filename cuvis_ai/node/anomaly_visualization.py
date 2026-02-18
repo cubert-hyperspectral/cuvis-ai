@@ -14,6 +14,7 @@ from cuvis_ai_schemas.enums import ArtifactType, ExecutionStage
 from cuvis_ai_schemas.execution import Artifact, Context
 from cuvis_ai_schemas.pipeline import PortSpec
 from loguru import logger
+from PIL import Image, ImageDraw, ImageFont
 from torchmetrics.functional.classification import binary_average_precision
 
 from cuvis_ai.utils.vis_helpers import create_mask_overlay, fig_to_array, tensor_to_numpy
@@ -44,8 +45,6 @@ class ImageArtifactVizBase(Node):
             execution_stages = {ExecutionStage.TRAIN, ExecutionStage.VAL, ExecutionStage.TEST}
         super().__init__(
             execution_stages=execution_stages,
-            max_samples=max_samples,
-            log_every_n_batches=log_every_n_batches,
             **kwargs,
         )
 
@@ -804,6 +803,12 @@ class ChannelSelectorFalseRGBViz(ImageArtifactVizBase):
             description="Segmentation mask [B, H, W] where >0 is foreground",
             optional=True,
         ),
+        "mesu_index": PortSpec(
+            dtype=torch.int64,
+            shape=(-1,),
+            description="Measurement index per batch element [B] for artifact naming",
+            optional=True,
+        ),
     }
 
     def __init__(
@@ -826,6 +831,7 @@ class ChannelSelectorFalseRGBViz(ImageArtifactVizBase):
         rgb_output: torch.Tensor,
         context: Context,
         mask: torch.Tensor | None = None,
+        mesu_index: torch.Tensor | None = None,
     ) -> dict[str, list[Artifact]]:
         """Generate false RGB and mask overlay artifacts.
 
@@ -837,6 +843,8 @@ class ChannelSelectorFalseRGBViz(ImageArtifactVizBase):
             Execution context with stage, epoch, batch_idx.
         mask : torch.Tensor | None
             Optional segmentation mask [B, H, W].
+        mesu_index : torch.Tensor | None
+            Optional measurement indices [B] for frame-identified artifact naming.
 
         Returns
         -------
@@ -850,14 +858,17 @@ class ChannelSelectorFalseRGBViz(ImageArtifactVizBase):
         artifacts = []
 
         for b in range(batch_size):
+            # Use mesu_index for naming if available, otherwise fall back to batch index
+            frame_id = f"mesu_{mesu_index[b].item()}" if mesu_index is not None else f"sample_{b}"
+
             # Normalized false RGB
             rgb_np = self._normalize_image(rgb_output[b].detach().cpu().numpy())
 
             artifact_rgb = Artifact(
-                name=f"false_rgb_sample_{b}",
+                name=f"false_rgb_{frame_id}",
                 value=rgb_np,
                 el_id=b,
-                desc=f"False RGB for sample {b}",
+                desc=f"False RGB for {frame_id}",
                 type=ArtifactType.IMAGE,
                 stage=context.stage,
                 epoch=context.epoch,
@@ -871,10 +882,10 @@ class ChannelSelectorFalseRGBViz(ImageArtifactVizBase):
                     torch.from_numpy(rgb_np), mask[b].cpu(), alpha=self.mask_overlay_alpha
                 ).numpy()
                 artifact_overlay = Artifact(
-                    name=f"mask_overlay_sample_{b}",
+                    name=f"mask_overlay_{frame_id}",
                     value=overlay,
                     el_id=b,
-                    desc=f"False RGB with mask overlay for sample {b}",
+                    desc=f"False RGB with mask overlay for {frame_id}",
                     type=ArtifactType.IMAGE,
                     stage=context.stage,
                     epoch=context.epoch,
@@ -945,8 +956,223 @@ class MaskOverlayNode(Node):
         }
 
 
+def _diverging_colormap(t: torch.Tensor) -> torch.Tensor:
+    """Map values in [0, 1] to a blue-white-red diverging colormap.
+
+    Pure-torch implementation (no matplotlib). Produces colours similar to
+    ``RdBu_r``: 0 → blue, 0.5 → white, 1 → red.
+
+    Parameters
+    ----------
+    t : Tensor
+        Values in [0, 1], arbitrary shape.
+
+    Returns
+    -------
+    Tensor
+        RGB in [0, 1] with shape ``(*t.shape, 3)``.
+    """
+    t = t.clamp(0.0, 1.0).unsqueeze(-1)  # [..., 1]
+    # Blue end, white midpoint, red end
+    blue = t.new_tensor([0.23, 0.30, 0.75])
+    white = t.new_tensor([1.0, 1.0, 1.0])
+    red = t.new_tensor([0.75, 0.15, 0.15])
+    # Piecewise linear interpolation
+    low = torch.lerp(blue, white, (t * 2.0).clamp(0.0, 1.0))  # t in [0, 0.5]
+    high = torch.lerp(white, red, (t * 2.0 - 1.0).clamp(0.0, 1.0))  # t in [0.5, 1]
+    return torch.where(t < 0.5, low, high)
+
+
+class ChannelWeightsViz(ImageArtifactVizBase):
+    """Visualize channel mixer weights as a heatmap.
+
+    Produces a ``[K, C]`` mixing matrix heatmap with output channels on the
+    y-axis and input channels on the x-axis. Uses a diverging blue-white-red
+    colormap centred at zero so positive/negative contributions are immediately
+    visible.
+
+    Implemented in pure PyTorch (no matplotlib) so it adds negligible overhead
+    to the training loop.
+
+    Parameters
+    ----------
+    max_samples : int, optional
+        Ignored (weights are per-model, not per-sample). Kept for base class
+        compatibility. Default: 1.
+    log_every_n_batches : int, optional
+        Log every N-th batch (default: 1).
+    cell_height : int, optional
+        Pixel height per matrix row (default: 40).
+    cell_width : int, optional
+        Pixel width per matrix column (default: 6).
+    """
+
+    INPUT_SPECS = {
+        "weights": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1),
+            description="Mixing matrix weights [K, C]",
+        ),
+        "wavelengths": PortSpec(
+            dtype=np.int32,
+            shape=(-1,),
+            description="Wavelengths [C] in nm",
+            optional=True,
+        ),
+    }
+
+    def __init__(
+        self,
+        max_samples: int = 1,
+        log_every_n_batches: int = 1,
+        cell_height: int = 60,
+        cell_width: int = 12,
+        **kwargs,
+    ) -> None:
+        super().__init__(
+            max_samples=max_samples,
+            log_every_n_batches=log_every_n_batches,
+            **kwargs,
+        )
+        self.cell_height = cell_height
+        self.cell_width = cell_width
+
+    def forward(
+        self,
+        weights: torch.Tensor,
+        context: Context,
+        wavelengths: np.ndarray | None = None,
+    ) -> dict[str, list[Artifact]]:
+        """Generate mixing matrix heatmap artifact.
+
+        Pure-torch rendering with R/G/B indicator bars, grid lines, and a
+        diverging colorbar — no matplotlib for training-loop speed.
+
+        Parameters
+        ----------
+        weights : Tensor
+            Mixing matrix ``[K, C]``.
+        context : Context
+            Execution context with stage, epoch, batch_idx.
+        wavelengths : ndarray, optional
+            Wavelengths ``[C]`` in nm (reserved for future use).
+
+        Returns
+        -------
+        dict[str, list[Artifact]]
+            Dictionary with ``"artifacts"`` key.
+        """
+        if not self._should_log():
+            return {"artifacts": []}
+
+        w = weights.detach().float()
+        if w.ndim == 1:
+            w = w.unsqueeze(0)  # [1, C]
+
+        K, C = w.shape
+        vmax = w.abs().max().clamp_min(1e-8)
+        t = (w / vmax + 1.0) * 0.5  # [K, C] in [0, 1], 0.5 = zero
+
+        # Colormap the heatmap → [K, C, 3]
+        heatmap = _diverging_colormap(t)
+
+        # Build upscaled heatmap canvas with 1px black grid lines
+        ch, cw = self.cell_height, self.cell_width
+        grid_h = K * ch + (K + 1)
+        grid_w = C * cw + (C + 1)
+        canvas = torch.zeros(grid_h, grid_w, 3)  # black grid lines
+        for r in range(K):
+            y0 = 1 + r * (ch + 1)
+            for c in range(C):
+                x0 = 1 + c * (cw + 1)
+                canvas[y0 : y0 + ch, x0 : x0 + cw] = heatmap[r, c]
+
+        # Left margin: colored R/G/B indicator bars
+        indicator_w = max(ch // 3, 8)
+        _channel_colors = torch.tensor(
+            [
+                [1.0, 0.0, 0.0],  # R
+                [0.0, 0.7, 0.0],  # G
+                [0.0, 0.0, 1.0],  # B
+            ]
+        )
+        indicator = torch.ones(grid_h, indicator_w, 3)  # white background
+        for r in range(min(K, len(_channel_colors))):
+            y0 = 1 + r * (ch + 1)
+            indicator[y0 : y0 + ch, :] = _channel_colors[r]
+
+        # Right margin: colorbar gradient (top=positive/red, bottom=negative/blue)
+        cbar_w = max(ch // 3, 8)
+        cbar_t = torch.linspace(1.0, 0.0, grid_h).unsqueeze(1)  # [grid_h, 1]
+        cbar = _diverging_colormap(cbar_t).expand(grid_h, cbar_w, 3).contiguous()
+
+        # Assemble: [indicator | gap | heatmap | gap | colorbar]
+        gap = torch.ones(grid_h, 2, 3)  # 2px white gap
+        full = torch.cat([indicator, gap, canvas, gap, cbar], dim=1)
+
+        # Convert to uint8 numpy [H, W, 3]
+        heatmap_np = (full * 255).clamp(0, 255).byte().cpu().numpy()
+
+        # --- Text annotations via PIL (fast, no matplotlib) ---
+        vmax_val = vmax.item()
+        heat_h, heat_w = heatmap_np.shape[:2]
+        left_margin, top_margin = 30, 5
+        bottom_margin, right_margin = 45, 50
+
+        canvas_img = Image.new(
+            "RGB",
+            (left_margin + heat_w + right_margin, top_margin + heat_h + bottom_margin),
+            (255, 255, 255),
+        )
+        canvas_img.paste(Image.fromarray(heatmap_np), (left_margin, top_margin))
+        draw = ImageDraw.Draw(canvas_img)
+        font = ImageFont.load_default()
+
+        # Y-axis: R / G / B labels (centered on each row)
+        row_labels = ["R", "G", "B"] if K == 3 else [str(i) for i in range(K)]
+        for r in range(K):
+            y_center = top_margin + 1 + r * (ch + 1) + ch // 2
+            draw.text((6, y_center - 5), row_labels[r], fill=(0, 0, 0), font=font)
+
+        # X-axis: wavelength tick labels (every Nth to avoid overlap)
+        # heatmap grid starts after: indicator_w + 2px gap + 1px border
+        heatmap_x0 = left_margin + indicator_w + 2 + 1
+        if wavelengths is not None and len(wavelengths) == C:
+            step = max(1, C // 15)
+            for i in range(0, C, step):
+                x = heatmap_x0 + i * (cw + 1) + cw // 2
+                y = top_margin + heat_h + 2
+                label = str(int(wavelengths[i]))
+                draw.text((x - len(label) * 3, y), label, fill=(0, 0, 0), font=font)
+
+        # Colorbar scale: +vmax at top, 0 at middle, -vmax at bottom
+        cbar_x = left_margin + heat_w + 4
+        draw.text((cbar_x, top_margin), f"+{vmax_val:.2f}", fill=(0, 0, 0), font=font)
+        draw.text((cbar_x, top_margin + heat_h // 2 - 5), "0", fill=(0, 0, 0), font=font)
+        draw.text((cbar_x, top_margin + heat_h - 10), f"-{vmax_val:.2f}", fill=(0, 0, 0), font=font)
+
+        img_np = np.array(canvas_img)
+
+        stage = context.stage.name.lower() if context.stage else "unknown"
+        return {
+            "artifacts": [
+                Artifact(
+                    name="mixing_matrix",
+                    value=img_np,
+                    el_id=0,
+                    desc=f"Mixing matrix — {stage} epoch {context.epoch}",
+                    type=ArtifactType.IMAGE,
+                    stage=context.stage,
+                    epoch=context.epoch,
+                    batch_idx=context.batch_idx,
+                )
+            ],
+        }
+
+
 __all__ = [
     "ImageArtifactVizBase",
+    "ChannelWeightsViz",
     "AnomalyMask",
     "RGBAnomalyMask",
     "ScoreHeatmapVisualizer",
