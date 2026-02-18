@@ -112,12 +112,8 @@ include = ["cuvis_ai*", "tools*", "scripts*"]
 [tool.uv.sources]
 torch = { index = "pytorch-cu128" }
 torchvision = { index = "pytorch-cu128" }
-# cuvis-ai-core = { path = "../cuvis-ai-core", editable = true }
-# DEVELOPMENT: Keep uncommented for local development
-# cuvis-ai-core = { path = "../../cuvis-ai-core/cuvis-ai-core", editable = true }
-# RELEASE: Uncomment above line for local development - resolves from PyPI for release
-# cuvis-ai-schemas = { path = "../../cuvis-ai-schemas", editable = true }
-# cuvis-ai-core = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-core.git", tag = "v0.1.1" }
+cuvis-ai-schemas = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-schemas.git", branch = "nima/features/schemas-refactoring" }
+cuvis-ai-core = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-core.git", branch = "nima/features/schemas-refactoring" }
 
 [tool.setuptools_scm]
 version_scheme = "post-release"
