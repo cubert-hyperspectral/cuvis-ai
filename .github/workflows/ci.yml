@@ -145,6 +145,8 @@ jobs:
   doc-build:
     name: Documentation Build
     runs-on: ubuntu-latest
+    container:
+      image: cubertgmbh/cuvis_pyil:3.5.0-ubuntu24.04
 
     steps:
       - name: Checkout code
