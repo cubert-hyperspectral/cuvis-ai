@@ -567,7 +567,7 @@ requires-dist = [
     { name = "bandit", extras = ["toml"], marker = "extra == 'dev'", specifier = ">=1.7.0" },
     { name = "cuvis", specifier = ">=3.5.0" },
     { name = "cuvis-ai-core", git = "https://github.com/cubert-hyperspectral/cuvis-ai-core.git?branch=nima%2Ffeatures%2Fconsolidation" },
-    { name = "cuvis-ai-schemas", extras = ["full"], git = "https://github.com/cubert-hyperspectral/cuvis-ai-schemas.git?branch=nima%2Ffeatures%2Fschemas-refactoring" },
+    { name = "cuvis-ai-schemas", extras = ["full"], git = "https://github.com/cubert-hyperspectral/cuvis-ai-schemas.git?branch=main" },
     { name = "cyclonedx-bom", marker = "extra == 'dev'", specifier = ">=4.0.0" },
     { name = "detect-secrets", marker = "extra == 'dev'", specifier = ">=1.4.0" },
     { name = "dotenv", specifier = ">=0.9.9" },
@@ -621,8 +621,8 @@ provides-extras = ["docs", "dev"]
 
 [[package]]
 name = "cuvis-ai-core"
-version = "0.1.3.post17+g05164f8b7"
-source = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-core.git?branch=nima%2Ffeatures%2Fconsolidation#05164f8b7e8f299d70e4caba74d1b7004f9fee07" }
+version = "0.1.3.post19+gac11989e2"
+source = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-core.git?branch=nima%2Ffeatures%2Fconsolidation#ac11989e24add1eb239298a93bd3ee71ffcf339d" }
 dependencies = [
     { name = "cuvis" },
     { name = "cuvis-ai-schemas" },
@@ -652,8 +652,8 @@ dependencies = [
 
 [[package]]
 name = "cuvis-ai-schemas"
-version = "0.1.3.post10+gf67a79aae"
-source = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-schemas.git?branch=nima%2Ffeatures%2Fschemas-refactoring#f67a79aae667fe403286cb416e330df52e4472f8" }
+version = "0.1.3.post4+gdc632014b"
+source = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-schemas.git?branch=main#dc632014b40585b05301ba52bc4068b7ca805705" }
 dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },

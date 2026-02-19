@@ -6,7 +6,6 @@ binary cross-entropy loss.
 """
 
 import torch
-import torch.nn as nn
 from cuvis_ai_core.node import Node
 from cuvis_ai_schemas.pipeline import PortSpec
 
@@ -61,6 +60,8 @@ class ScoreToLogit(Node):
         )
     }
 
+    TRAINABLE_BUFFERS = ("scale", "bias")
+
     def __init__(
         self,
         init_scale: float = 1.0,
@@ -83,26 +84,6 @@ class ScoreToLogit(Node):
         self._welford = WelfordAccumulator(1)
         # Allow using the head with the provided init_scale/init_bias without forcing a fit()
         self._statistically_initialized = True
-
-    def unfreeze(self) -> None:
-        """Convert scale and bias buffers to trainable nn.Parameters.
-
-        Call this method to enable gradient-based optimization of the
-        scale and bias parameters. They will be converted from buffers to
-        nn.Parameters, allowing gradient updates during training.
-
-        Example
-        -------
-        >>> logit_head = ScoreToLogit(init_scale=1.0, init_bias=5.0)
-        >>> logit_head.unfreeze()  # Enable gradient training
-        >>> # Now scale and bias can be optimized
-        """
-        if self.scale is not None and self.bias is not None:
-            # Convert buffers to parameters
-            self.scale = nn.Parameter(self.scale.clone(), requires_grad=True)
-            self.bias = nn.Parameter(self.bias.clone(), requires_grad=True)
-        # Call parent to enable requires_grad
-        super().unfreeze()
 
     def statistical_initialization(self, input_stream) -> None:
         """Initialize bias from statistics of RX scores using streaming approach.

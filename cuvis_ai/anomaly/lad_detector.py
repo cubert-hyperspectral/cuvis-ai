@@ -21,7 +21,6 @@ from typing import Any
 
 import numpy as np
 import torch
-import torch.nn as nn
 from cuvis_ai_core.node import Node
 from cuvis_ai_schemas.execution import InputStream
 from cuvis_ai_schemas.pipeline import PortSpec
@@ -29,7 +28,6 @@ from cuvis_ai_schemas.pipeline import PortSpec
 from cuvis_ai.utils.welford import WelfordAccumulator
 
 ## This node is not approved
-# missing unfreeze/freeze
 # missing approved documentation and alignment with current API
 # could we use streaming accumulators for mean and Laplacian construction
 
@@ -93,6 +91,8 @@ class LADGlobal(Node):
             description="LAD anomaly scores per pixel (BHW1 format)",
         )
     }
+
+    TRAINABLE_BUFFERS = ("M", "L")
 
     def __init__(
         self,
@@ -227,27 +227,6 @@ class LADGlobal(Node):
         self.M.zero_()
         self.L.zero_()
         self._statistically_initialized = False
-
-    def unfreeze(self) -> None:
-        """Convert M and L buffers to trainable nn.Parameters."""
-        if self.M.numel() > 0 and self.L.numel() > 0:
-            device = self.M.device
-            # Store current values
-            M_data = self.M.clone()
-            L_data = self.L.clone()
-
-            # Remove buffer registrations
-            delattr(self, "M")
-            delattr(self, "L")
-
-            # Register as parameters
-            self.M = nn.Parameter(M_data, requires_grad=True)
-            self.L = nn.Parameter(L_data, requires_grad=True)
-            self.M.to(device=device)
-            self.L.to(device=device)
-
-        # Call parent to enable requires_grad
-        super().unfreeze()
 
     # ------------------------------------------------------------------
     # Forward & serialization

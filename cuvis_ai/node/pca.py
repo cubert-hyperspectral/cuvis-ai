@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any, Literal
 
 import torch
-import torch.nn as nn
 from cuvis_ai_core.node import Node
 from cuvis_ai_schemas.execution import InputStream
 from cuvis_ai_schemas.pipeline import PortSpec
@@ -14,10 +13,8 @@ from torch import Tensor
 from cuvis_ai.utils.welford import WelfordAccumulator
 
 ## This node is not approved
-# missing tests against standard impmentations
-# missing unfreeze/freeze
-# missing true incremental PCA implementation for large datasets with Welfords algo
-# missing turorial examples and approved documentation
+# missing tests against standard implementations
+# missing tutorial examples and approved documentation
 
 
 class TrainablePCA(Node):
@@ -77,6 +74,8 @@ class TrainablePCA(Node):
             optional=True,
         ),
     }
+
+    TRAINABLE_BUFFERS = ("_components",)
 
     def __init__(
         self,
@@ -143,25 +142,6 @@ class TrainablePCA(Node):
         self._explained_variance = eigenvalues[: self.n_components].float()  # [n_components]
 
         self._statistically_initialized = True
-
-    def unfreeze(self) -> None:
-        """Convert components buffer to trainable nn.Parameter.
-
-        Call this method after fit() to enable gradient-based training of the
-        principal components. The components will be converted from a buffer
-        to an nn.Parameter, allowing gradient updates during training.
-
-        Example
-        -------
-        >>> pca.statistical_initialization(input_stream)  # Statistical initialization
-        >>> pca.unfreeze()  # Enable gradient training
-        >>> # Now PCA components can be fine-tuned with gradient descent
-        """
-        if self._components.numel() > 0:
-            # Convert buffer to parameter
-            self._components = nn.Parameter(self._components.clone())
-        # Call parent to enable requires_grad
-        super().unfreeze()  # could this have unintended side effects? like the graph be unfrozen?
 
     def forward(self, data: Tensor, **_: Any) -> dict[str, Tensor]:
         """Project data onto principal components.

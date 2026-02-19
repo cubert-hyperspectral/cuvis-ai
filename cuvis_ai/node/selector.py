@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any, Literal
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from cuvis_ai_core.node import Node
 from cuvis_ai_schemas.execution import InputStream
@@ -72,6 +71,8 @@ class SoftChannelSelector(Node):
             description="Current channel selection weights",
         ),
     }
+
+    TRAINABLE_BUFFERS = ("channel_logits",)
 
     def __init__(
         self,
@@ -177,25 +178,6 @@ class SoftChannelSelector(Node):
         # Store as buffer
         self.channel_logits.data[:] = logits.clone()
         self._statistically_initialized = True
-
-    def unfreeze(self) -> None:
-        """Convert channel logits buffer to trainable nn.Parameter.
-
-        Call this method to enable gradient-based optimization of channel
-        selection weights. The logits will be converted from a buffer to an
-        nn.Parameter, allowing gradient updates during training.
-
-        Example
-        -------
-        >>> selector = SoftChannelSelector(n_select=10, input_channels=100)
-        >>> selector.unfreeze()  # Enable gradient training
-        >>> # Now channel selection weights can be optimized
-        """
-        if self.channel_logits is not None:
-            # Convert buffer to parameter
-            self.channel_logits = nn.Parameter(self.channel_logits.clone())
-        # Call parent to enable requires_grad
-        super().unfreeze()
 
     def update_temperature(self, epoch: int | None = None, step: int | None = None) -> None:
         """Update temperature with decay schedule.

@@ -21,7 +21,6 @@ Reference:
 """
 
 import torch
-import torch.nn as nn
 from cuvis_ai_core.node import Node
 from cuvis_ai_schemas.execution import InputStream
 from cuvis_ai_schemas.pipeline import PortSpec
@@ -47,7 +46,6 @@ def _flatten_bhwc(x: torch.Tensor) -> torch.Tensor:
 
 
 ## This node is not approved
-# missing unfreeze/freeze
 # missing approved documentation and alignment with current API
 
 
@@ -158,6 +156,8 @@ class RXGlobal(RXBase):
     Call unfreeze() to convert them to trainable nn.Parameters for gradient-based optimization.
     """
 
+    TRAINABLE_BUFFERS = ("mu", "cov", "cov_inv")
+
     def __init__(
         self, num_channels: int, eps: float = 1e-6, cache_inverse: bool = True, **kwargs
     ) -> None:
@@ -202,28 +202,6 @@ class RXGlobal(RXBase):
         if self._welford.count > 0:
             self.finalize()
         self._statistically_initialized = True
-
-    def unfreeze(self) -> None:
-        """Convert mu and cov buffers to trainable nn.Parameters.
-
-        Call this method after fit() to enable gradient-based optimization of
-        the mean and covariance statistics. They will be converted from buffers
-        to nn.Parameters, allowing gradient updates during training.
-
-        Example
-        -------
-        >>> rx.fit(input_stream)  # Statistical initialization
-        >>> rx.unfreeze()  # Enable gradient training
-        >>> # Now RX statistics can be fine-tuned with gradient descent
-        """
-        if self.mu.numel() > 0 and self.cov.numel() > 0:
-            # Convert buffers to parameters
-            self.mu = nn.Parameter(self.mu.clone(), requires_grad=True)
-            self.cov = nn.Parameter(self.cov.clone(), requires_grad=True)
-            if self.cov_inv.numel() > 0:
-                self.cov_inv = nn.Parameter(self.cov_inv.clone(), requires_grad=True)
-        # Call parent to enable requires_grad
-        super().unfreeze()
 
     @torch.no_grad()
     def update(self, batch_bhwc: torch.Tensor) -> None:

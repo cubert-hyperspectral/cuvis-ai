@@ -303,23 +303,18 @@ class LearnableChannelMixer(Node):
 
         self._statistically_initialized = True
 
+    def freeze(self) -> None:
+        """Disable gradient-based training of mixer weights."""
+        for conv in self.convs:
+            for param in conv.parameters():
+                param.requires_grad = False
+        super().freeze()
+
     def unfreeze(self) -> None:
-        """Enable gradient-based training of mixer weights.
-
-        Call this method to allow gradient updates during training. The mixer
-        weights and biases will be optimized via backpropagation.
-
-        Example
-        -------
-        >>> mixer = LearnableChannelMixer(input_channels=61, output_channels=3)
-        >>> mixer.unfreeze()  # Enable gradient training
-        >>> # Now mixer weights can be optimized with gradient descent
-        """
-        # Ensure parameters require gradients for all layers
+        """Enable gradient-based training of mixer weights."""
         for conv in self.convs:
             for param in conv.parameters():
                 param.requires_grad = True
-        # Call parent to enable requires_grad on the module
         super().unfreeze()
 
     # NOTE(debug-cleanup): Debug tensor saving is disabled for production.
