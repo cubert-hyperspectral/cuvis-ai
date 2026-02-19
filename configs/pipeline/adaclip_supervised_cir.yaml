@@ -7,7 +7,7 @@ nodes:
     - 0
     - 1
 - name: SupervisedCIRBandSelector
-  class_name: cuvis_ai.node.band_selection.SupervisedCIRBandSelector
+  class_name: cuvis_ai.node.channel_selector.SupervisedCIRSelector
   hparams:
     windows:
     - - 840.0
@@ -41,13 +41,13 @@ nodes:
     quantile: 0.995
     reduce_dims: null
 - name: ScoreHeatmapVisualizer
-  class_name: cuvis_ai.node.visualizations.ScoreHeatmapVisualizer
+  class_name: cuvis_ai.node.anomaly_visualization.ScoreHeatmapVisualizer
   hparams:
     normalize_scores: true
     cmap: inferno
     up_to: 3
 - name: RGBAnomalyMask
-  class_name: cuvis_ai.node.visualizations.RGBAnomalyMask
+  class_name: cuvis_ai.node.anomaly_visualization.RGBAnomalyMask
   hparams:
     up_to: 3
 - name: detection_metrics

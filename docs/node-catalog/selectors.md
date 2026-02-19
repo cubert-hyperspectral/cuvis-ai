@@ -254,7 +254,7 @@ optimizer = torch.optim.Adam(selector.parameters())  # Now includes channel_logi
 - [SelectorEntropyRegularizer](loss-metrics.md#selectorentropyregularizer) - Entropy regularization loss
 - [SelectorDiversityRegularizer](loss-metrics.md#selectordiversityregularizer) - Diversity regularization loss
 - [Concept: Two-Phase Training](../concepts/two-phase-training.md)
-- API Reference: ::: cuvis_ai.node.selector.SoftChannelSelector
+- API Reference: ::: cuvis_ai.node.channel_selector.SoftChannelSelector
 
 ---
 
@@ -332,7 +332,7 @@ connections:
 #### See Also
 
 - [SoftChannelSelector](#softchannelselector) - Produces weights for this node
-- API Reference: ::: cuvis_ai.node.selector.TopKIndices
+- API Reference: ::: cuvis_ai.node.channel_selector.TopKIndices
 
 ---
 
@@ -414,7 +414,7 @@ connections:
 
 - [Tutorial 4: AdaCLIP Workflow](../tutorials/adaclip-workflow.md#approach-1-pca-baseline) - Uses band selectors
 - [HighContrastBandSelector](#highcontrastbandselector) - Data-driven alternative
-- API Reference: ::: cuvis_ai.node.band_selection.BaselineFalseRGBSelector
+- API Reference: ::: cuvis_ai.node.channel_selector.FixedWavelengthSelector
 
 ---
 
@@ -463,7 +463,7 @@ print(outputs["band_info"]["channel_mapping"])
 #### See Also
 
 - [Tutorial 4: AdaCLIP Workflow](../tutorials/adaclip-workflow.md) - CIR variants
-- API Reference: ::: cuvis_ai.node.band_selection.CIRFalseColorSelector
+- API Reference: ::: cuvis_ai.node.channel_selector.CIRSelector
 
 ---
 
@@ -522,7 +522,7 @@ outputs = high_contrast.forward(cube=cube, wavelengths=wavelengths)
 
 #### See Also
 
-- API Reference: ::: cuvis_ai.node.band_selection.HighContrastBandSelector
+- API Reference: ::: cuvis_ai.node.channel_selector.HighContrastSelector
 
 ---
 
@@ -631,7 +631,7 @@ connections:
 #### See Also
 
 - [Tutorial 4: AdaCLIP Workflow](../tutorials/adaclip-workflow.md) - Supervised band selectors
-- API Reference: ::: cuvis_ai.node.band_selection.SupervisedCIRBandSelector
+- API Reference: ::: cuvis_ai.node.channel_selector.SupervisedCIRSelector
 
 ---
 
@@ -663,7 +663,7 @@ Same as [SupervisedCIRBandSelector](#supervisedcirbandselector)
 #### See Also
 
 - [Tutorial 4: AdaCLIP Workflow](../tutorials/adaclip-workflow.md) - Complete example
-- API Reference: ::: cuvis_ai.node.band_selection.SupervisedWindowedFalseRGBSelector
+- API Reference: ::: cuvis_ai.node.channel_selector.SupervisedWindowedSelector
 
 ---
 
@@ -715,7 +715,7 @@ print(full_spectrum.selected_indices)
 #### See Also
 
 - [Tutorial 4: AdaCLIP Workflow](../tutorials/adaclip-workflow.md) - Comparison of selectors
-- API Reference: ::: cuvis_ai.node.band_selection.SupervisedFullSpectrumBandSelector
+- API Reference: ::: cuvis_ai.node.channel_selector.SupervisedFullSpectrumSelector
 
 ---
 

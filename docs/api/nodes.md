@@ -94,13 +94,13 @@ Nodes for data loading, normalization, and preprocessing.
 
 ---
 
-## Channel & Band Selection Nodes
+## Channel Selection & Mixing Nodes
 
 Nodes for selecting and transforming spectral channels.
 
-### Band Selection
+### Channel Selector
 
-::: cuvis_ai.node.band_selection
+::: cuvis_ai.node.channel_selector
     options:
       show_root_heading: true
       heading_level: 4
@@ -108,20 +108,6 @@ Nodes for selecting and transforming spectral channels.
 ### Channel Mixer
 
 ::: cuvis_ai.node.channel_mixer
-    options:
-      show_root_heading: true
-      heading_level: 4
-
-### Concrete Selector
-
-::: cuvis_ai.node.concrete_selector
-    options:
-      show_root_heading: true
-      heading_level: 4
-
-### Channel Selector
-
-::: cuvis_ai.node.selector
     options:
       show_root_heading: true
       heading_level: 4
@@ -145,9 +131,9 @@ Nodes implementing deep learning components.
 
 Nodes for dimensionality reduction and feature extraction.
 
-### PCA
+### Dimensionality Reduction
 
-::: cuvis_ai.node.pca
+::: cuvis_ai.node.dimensionality_reduction
     options:
       show_root_heading: true
       heading_level: 4
@@ -158,16 +144,16 @@ Nodes for dimensionality reduction and feature extraction.
 
 Nodes for creating visualizations and TensorBoard logging.
 
-### Visualizations
+### Anomaly Visualization
 
-::: cuvis_ai.node.visualizations
+::: cuvis_ai.node.anomaly_visualization
     options:
       show_root_heading: true
       heading_level: 4
 
-### TensorBoard Visualization
+### Pipeline Visualization
 
-::: cuvis_ai.node.drcnn_tensorboard_viz
+::: cuvis_ai.node.pipeline_visualization
     options:
       show_root_heading: true
       heading_level: 4

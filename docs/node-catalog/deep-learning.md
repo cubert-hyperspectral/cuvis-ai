@@ -527,7 +527,7 @@ connections:
 
 - [Tutorial 4: AdaCLIP Workflow](../tutorials/adaclip-workflow.md#variant-1-pca-baseline)
 - [OrthogonalityLoss](loss-metrics.md#orthogonalityloss) - Regularize components
-- API Reference: ::: cuvis_ai.node.pca.TrainablePCA
+- API Reference: ::: cuvis_ai.node.dimensionality_reduction.TrainablePCA
 
 ---
 
@@ -757,7 +757,7 @@ connections:
 
 - [Tutorial 4: AdaCLIP Workflow](../tutorials/adaclip-workflow.md#variant-3-concrete-selector)
 - [DistinctnessLoss](loss-metrics.md#distinctnessloss) - Encourage diverse bands
-- API Reference: ::: cuvis_ai.node.concrete_selector.ConcreteBandSelector
+- API Reference: ::: cuvis_ai.node.channel_mixer.ConcreteChannelMixer
 
 ---
 
