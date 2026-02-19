@@ -8,8 +8,7 @@
 - Changed `EXECUTION_STAGE_VALIDATE` references to `VAL` across gRPC docs
 - Removed dead `_quantile_threshold()` and duplicate `_resolve_reduce_dims()` from `TwoStageBinaryDecider`
 - Removed `frozen_nodes` from pipeline configs and docs
-- Reformatted CHANGELOG to concise single-list style
-- Updated release workflow changelog extraction for new heading format
+- Fixed wavelength batching in supervised band selector `_collect_training_data` (flatten `[B, C]` to `[C]`)
 
 ## 0.3.0 - 2026-02-11
 
