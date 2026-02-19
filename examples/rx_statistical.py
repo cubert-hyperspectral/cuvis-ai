@@ -14,12 +14,12 @@ from omegaconf import DictConfig
 
 from cuvis_ai.anomaly.rx_detector import RXGlobal
 from cuvis_ai.deciders.binary_decider import BinaryDecider
+from cuvis_ai.node.anomaly_visualization import AnomalyMask
 from cuvis_ai.node.conversion import ScoreToLogit
 from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics, AnomalyPixelStatisticsMetric
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.normalization import MinMaxNormalizer
-from cuvis_ai.node.visualizations import AnomalyMask
 
 
 @hydra.main(

@@ -48,15 +48,12 @@ from torch import Tensor
 from torch.utils.tensorboard import SummaryWriter
 
 from cuvis_ai.node.adaclip import AdaCLIPLocalNode
+from cuvis_ai.node.anomaly_visualization import AnomalyMask, ScoreHeatmapVisualizer
+from cuvis_ai.node.channel_selector import SoftChannelSelector
 from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.metrics import SelectorDiversityMetric, SelectorEntropyMetric
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
-from cuvis_ai.node.selector import SoftChannelSelector
-from cuvis_ai.node.visualizations import (
-    AnomalyMask,
-    CubeRGBVisualizer,
-    ScoreHeatmapVisualizer,
-)
+from cuvis_ai.node.pipeline_visualization import CubeRGBVisualizer
 
 # ============================================================================
 # Loss Function Implementation (Inline for Phase 3)

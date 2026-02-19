@@ -103,7 +103,7 @@ def test_graph_train_statistical_only():
 
 def test_graph_train_with_gradient_training():
     """Test StatisticalTrainer with PCA initialization."""
-    from cuvis_ai.node.pca import TrainablePCA
+    from cuvis_ai.node.dimensionality_reduction import TrainablePCA
 
     # Create graph with trainable PCA and data node
     pipeline = CuvisPipeline("test_with_training")

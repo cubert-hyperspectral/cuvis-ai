@@ -112,8 +112,11 @@ def test_freeze_raises_for_missing_buffer() -> None:
 # ---------------------------------------------------------------------------
 
 _NODE_CONFIGS: list[tuple[str, dict]] = [
-    ("cuvis_ai.node.selector:SoftChannelSelector", {"n_select": 3, "input_channels": 10}),
-    ("cuvis_ai.node.pca:TrainablePCA", {"num_channels": 10, "n_components": 3}),
+    ("cuvis_ai.node.channel_selector:SoftChannelSelector", {"n_select": 3, "input_channels": 10}),
+    (
+        "cuvis_ai.node.dimensionality_reduction:TrainablePCA",
+        {"num_channels": 10, "n_components": 3},
+    ),
     ("cuvis_ai.node.conversion:ScoreToLogit", {"init_scale": 1.0, "init_bias": 0.0}),
     ("cuvis_ai.anomaly.lad_detector:LADGlobal", {"num_channels": 10}),
     ("cuvis_ai.anomaly.rx_detector:RXGlobal", {"num_channels": 10}),
