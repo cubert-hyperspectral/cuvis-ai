@@ -12,6 +12,8 @@ from cuvis_ai_schemas.execution import InputStream
 from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
 
+from cuvis_ai.utils.welford import WelfordAccumulator
+
 
 class SoftChannelSelector(Node):
     """Soft channel selector with temperature-based Gumbel-Softmax selection.
@@ -158,21 +160,14 @@ class SoftChannelSelector(Node):
             logits = torch.zeros(self._n_channels)
         elif self.init_method == "variance":
             # Importance-based initialization using channel variance
-            all_data = []
-            all_data.append(x)
-
-            # Collect more data for better statistics
+            acc = WelfordAccumulator(self._n_channels)
+            acc.update(x.reshape(-1, x.shape[-1]))
             for batch_data in input_stream:
                 x_batch = batch_data["data"]
                 if x_batch is not None:
-                    all_data.append(x_batch)
+                    acc.update(x_batch.reshape(-1, x_batch.shape[-1]))
 
-            # Concatenate and compute variance per channel
-            X = torch.cat(all_data, dim=0)  # [B, H, W, C]
-            X_flat = X.reshape(-1, X.shape[-1])  # [B*H*W, C]
-
-            # Compute variance for each channel
-            variance = X_flat.var(dim=0)  # [C]
+            variance = acc.var  # [C]
 
             # Use log variance as initial logits (high variance = high importance)
             logits = torch.log(variance + self.eps)

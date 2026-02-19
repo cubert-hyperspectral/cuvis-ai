@@ -18,6 +18,8 @@ from cuvis_ai_schemas.pipeline import PortSpec
 from scipy.ndimage import laplace
 from sklearn.metrics import roc_auc_score
 
+from cuvis_ai.utils.welford import WelfordAccumulator
+
 
 class BandSelectorBase(Node):
     """Base class for hyperspectral band selection strategies.
@@ -479,76 +481,24 @@ def _compute_band_correlation_matrix(
 ) -> np.ndarray:
     """Compute absolute correlation matrix across bands from training cubes.
 
-    This implementation is streaming, it avoids stacking
-    all pixels from all cubes into a single huge matrix. Instead it performs
-    two passes:
-
-    1) Accumulate per-band mean and (uncentered) second moment using Welford's
-       method to obtain global means and variances.
-    2) Accumulate cross terms E[x_i * x_j] across batches to derive the
-       covariance and correlation.
+    Uses a single-pass ``WelfordAccumulator`` with covariance tracking to
+    compute mean, variance, and covariance in one streaming pass over all
+    cubes, then derives the absolute correlation matrix.
     """
     if len(training_cubes) == 0:
         return np.eye(num_bands, dtype=np.float64)
 
-    # ------------------------------------------------------------------
-    # Pass 1: compute per-band mean and variance via Welford's algorithm
-    # ------------------------------------------------------------------
-    count = 0
-    mean = np.zeros(num_bands, dtype=np.float64)
-    m2 = np.zeros(num_bands, dtype=np.float64)  # sum of squared diffs
-
+    acc = WelfordAccumulator(num_bands, track_covariance=True)
     for cube in training_cubes:
-        # cube: [H, W, C]
         h, w, c = cube.shape
         assert c == num_bands, "num_bands must match cube.shape[2]"
-        flat = cube.reshape(-1, c).astype(np.float64, copy=False)  # [N, C]
-        # Iterate over rows to keep memory bounded per update
-        for x in flat:
-            count += 1
-            delta = x - mean
-            mean += delta / count
-            delta2 = x - mean
-            m2 += delta2 * delta2
+        flat = torch.from_numpy(cube.reshape(-1, c))  # (N, C)
+        acc.update(flat)
 
-    if count <= 1:
+    if acc.count <= 1:
         return np.eye(num_bands, dtype=np.float64)
 
-    var = m2 / (count - 1)
-    # Avoid division by zero later
-    var = np.clip(var, 1e-12, None)
-    std = np.sqrt(var)
-
-    # ------------------------------------------------------------------
-    # Pass 2: accumulate E[x_i * x_j] to compute covariance / correlation
-    # ------------------------------------------------------------------
-    exx = np.zeros((num_bands, num_bands), dtype=np.float64)
-    total_count = 0
-
-    for cube in training_cubes:
-        h, w, c = cube.shape
-        flat = cube.reshape(-1, c).astype(np.float64, copy=False)  # [N, C]
-        # Sum x^T x over all rows: flat.T @ flat
-        exx += flat.T @ flat
-        total_count += flat.shape[0]
-
-    if total_count == 0:
-        return np.eye(num_bands, dtype=np.float64)
-
-    exx /= float(total_count)  # E[x_i * x_j]
-
-    # Cov[i,j] = E[x_i * x_j] - mu_i * mu_j
-    mu_outer = np.outer(mean, mean)
-    cov = exx - mu_outer
-
-    # Convert covariance to correlation: corr_ij = cov_ij / (std_i * std_j)
-    denom = np.outer(std, std)
-    denom = np.clip(denom, 1e-12, None)
-    corr = cov / denom
-
-    # Replace NaNs (from zero variance) with 0 and return absolute values
-    corr = np.nan_to_num(corr, nan=0.0)
-    return np.abs(corr)
+    return acc.corr.numpy()
 
 
 def _mrmr_band_selection(

@@ -26,6 +26,8 @@ from cuvis_ai_core.node import Node
 from cuvis_ai_schemas.execution import InputStream
 from cuvis_ai_schemas.pipeline import PortSpec
 
+from cuvis_ai.utils.welford import WelfordAccumulator
+
 
 def _flatten_bhwc(x: torch.Tensor) -> torch.Tensor:
     """Flatten spatial dimensions of BHWC tensor to BNC format.
@@ -178,12 +180,7 @@ class RXGlobal(RXBase):
         self.register_buffer(
             "cov_inv", torch.zeros(self.num_channels, self.num_channels, dtype=torch.float32)
         )  # (C,C)
-        # Streaming accumulators (float64 for numerical stability)
-        self.register_buffer("_mean", torch.zeros(self.num_channels, dtype=torch.float64))
-        self.register_buffer(
-            "_M2", torch.zeros(self.num_channels, self.num_channels, dtype=torch.float64)
-        )
-        self._n = 0
+        self._welford = WelfordAccumulator(self.num_channels, track_covariance=True)
         self._statistically_initialized = False
 
     def statistical_initialization(self, input_stream: InputStream) -> None:
@@ -202,7 +199,7 @@ class RXGlobal(RXBase):
             if x is not None:
                 self.update(x)
 
-        if self._n > 0:
+        if self._welford.count > 0:
             self.finalize()
         self._statistically_initialized = True
 
@@ -230,37 +227,21 @@ class RXGlobal(RXBase):
 
     @torch.no_grad()
     def update(self, batch_bhwc: torch.Tensor) -> None:
-        """Update streaming statistics with a new batch using Welford's algorithm.
-
-        This method incrementally computes mean and covariance from batches of data
-        using Welford's numerically stable online algorithm. Multiple batches can be
-        processed sequentially before calling finalize() to compute final statistics.
+        """Update streaming statistics with a new batch.
 
         Parameters
         ----------
         batch_bhwc : torch.Tensor
             Input batch in BHWC format, shape (B, H, W, C)
-
-        Notes
-        -----
-        The algorithm maintains running accumulators (_mean, _M2, _n) in float64
-        for numerical stability. Batches with ≤1 samples are ignored. After update(),
-        call finalize() to compute mu and cov from the accumulated statistics.
         """
         X = _flatten_bhwc(batch_bhwc).reshape(-1, batch_bhwc.shape[-1])  # (M,C)
-        m = X.shape[0]
-        if m <= 1:
+        if X.shape[0] <= 1:
             return
-        mean_b = X.mean(0)
-        M2_b = (X - mean_b).T @ (X - mean_b)
-        if self._n == 0:
-            self._n, self._mean, self._M2 = m, mean_b, M2_b
-        else:
-            n, tot = self._n, self._n + m
-            delta = mean_b - self._mean
-            new_mean = self._mean + delta * (m / tot)
-            outer = torch.outer(delta, delta) * (n * m / tot)
-            self._n, self._mean, self._M2 = tot, new_mean, self._M2 + M2_b + outer
+        # Adapt accumulator if actual data channels differ from constructor's num_channels
+        # (e.g., upstream SoftChannelSelector preserves all channels instead of reducing)
+        if X.shape[1] != self._welford._n_features:
+            self._welford = WelfordAccumulator(X.shape[1], track_covariance=True)
+        self._welford.update(X)
         self._statistically_initialized = False
 
     @torch.no_grad()
@@ -286,14 +267,12 @@ class RXGlobal(RXBase):
         After finalization, mu and cov are stored as buffers (frozen by default).
         Call unfreeze() to convert them to nn.Parameters for gradient-based training.
         """
-        if self._n <= 1:
+        if self._welford.count <= 1:
             raise ValueError("Not enough samples to finalize.")
-        mu = self._mean.clone()
-        cov = self._M2 / (self._n - 1)
+        self.mu = self._welford.mean
+        cov = self._welford.cov
         if self.eps > 0:
             cov = cov + self.eps * torch.eye(cov.shape[0], device=cov.device, dtype=cov.dtype)
-        # Always store as buffers initially (frozen by default)
-        self.mu = mu
         self.cov = cov
         if self.cache_inverse:
             self.cov_inv = torch.linalg.pinv(cov)
@@ -314,12 +293,10 @@ class RXGlobal(RXBase):
         Use this method when you need to re-initialize the detector with different
         training data or when switching between different dataset distributions.
         """
-        self.mu = torch.empty(0)
-        self.cov = torch.empty(0, 0)
-        self.cov_inv = torch.empty(0, 0)
-        self._n = 0
-        self._mean = torch.empty(0)
-        self._M2 = torch.empty(0, 0)
+        self.mu.zero_()
+        self.cov.zero_()
+        self.cov_inv.zero_()
+        self._welford.reset()
         self._statistically_initialized = False
 
     def forward(self, data: torch.Tensor, **_) -> dict[str, torch.Tensor]:

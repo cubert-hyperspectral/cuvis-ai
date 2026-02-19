@@ -20,6 +20,8 @@ from cuvis_ai_schemas.execution import Context, InputStream
 from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
 
+from cuvis_ai.utils.welford import WelfordAccumulator
+
 
 class LearnableChannelMixer(Node):
     """Learnable channel mixer for hyperspectral data reduction (DRCNN-style).
@@ -258,37 +260,29 @@ class LearnableChannelMixer(Node):
         if self.init_method != "pca":
             return  # No statistical initialization needed
 
-        # Collect all data for PCA
-        all_data = []
+        acc = WelfordAccumulator(self.input_channels, track_covariance=True)
         for batch_data in input_stream:
             x = batch_data["data"]
             if x is not None:
-                # Flatten spatial dimensions: [B, H, W, C] -> [B*H*W, C]
-                flat = x.reshape(-1, x.shape[-1])
-                all_data.append(flat)
+                flat = x.reshape(-1, x.shape[-1])  # [B*H*W, C]
+                acc.update(flat)
 
-        if not all_data:
+        if acc.count == 0:
             raise ValueError("No data provided for PCA initialization")
 
-        # Concatenate all samples
-        X = torch.cat(all_data, dim=0)  # [N, C_in]
+        cov = acc.cov.to(torch.float64)  # [C_in, C_in]
 
-        # Compute mean and center data
-        mean = X.mean(dim=0, keepdim=True)  # [1, C_in]
-        X_centered = X - mean  # [N, C_in]
-
-        # Compute SVD to get principal components
-        # X_centered = U @ S @ V.T where V contains principal components
-        U, S, Vt = torch.linalg.svd(X_centered, full_matrices=False)
+        # Eigen decomposition (equivalent to SVD on centered data)
+        eigenvalues, eigenvectors = torch.linalg.eigh(cov)
+        eigenvalues = eigenvalues.flip(0)
+        eigenvectors = eigenvectors.flip(1)
 
         # For multi-layer, initialize only the first layer with PCA
         # Subsequent layers use xavier initialization (already done in _initialize_weights)
         first_layer_out_channels = self.reduction_scheme[1]
 
-        # Extract top first_layer_out_channels components
-        # Vt is [min(N, C_in), C_in], we want first first_layer_out_channels rows
-        n_components = min(first_layer_out_channels, Vt.shape[0])
-        components = Vt[:n_components, :].clone()  # [n_components, C_in]
+        n_components = min(first_layer_out_channels, eigenvectors.shape[1])
+        components = eigenvectors[:, :n_components].T.float()  # [n_components, C_in]
 
         # If we need more output channels than components, pad with zeros
         if n_components < first_layer_out_channels:
