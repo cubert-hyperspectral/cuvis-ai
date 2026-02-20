@@ -112,7 +112,7 @@ connections:
 
 - [Tutorial 1: RX Statistical](../tutorials/rx-statistical.md#visualization)
 - [TensorBoardMonitorNode](#tensorboardmonitornode)
-- API Reference: ::: cuvis_ai.node.visualizations.AnomalyMask
+- API Reference: ::: cuvis_ai.node.anomaly_visualization.AnomalyMask
 
 ---
 
@@ -170,7 +170,7 @@ pipeline.connect(
 #### See Also
 
 - [Tutorial 3: Deep SVDD Gradient](../tutorials/deep-svdd-gradient.md#score-visualization)
-- API Reference: ::: cuvis_ai.node.visualizations.ScoreHeatmapVisualizer
+- API Reference: ::: cuvis_ai.node.anomaly_visualization.ScoreHeatmapVisualizer
 
 ---
 
@@ -231,7 +231,7 @@ pipeline.connect(
 
 - [Tutorial 2: Channel Selector](../tutorials/channel-selector.md#monitoring)
 - [SoftChannelSelector](selectors.md#softchannelselector)
-- API Reference: ::: cuvis_ai.node.visualizations.CubeRGBVisualizer
+- API Reference: ::: cuvis_ai.node.pipeline_visualization.CubeRGBVisualizer
 
 ---
 
@@ -289,7 +289,7 @@ pipeline.connect(
 
 - [Tutorial 4: AdaCLIP Workflow](../tutorials/adaclip-workflow.md#variant-1-pca-baseline)
 - [TrainablePCA](deep-learning.md#trainablepca)
-- API Reference: ::: cuvis_ai.node.visualizations.PCAVisualization
+- API Reference: ::: cuvis_ai.node.pipeline_visualization.PCAVisualization
 
 ---
 
@@ -351,7 +351,7 @@ pipeline.connect(
 
 - [Tutorial 4: AdaCLIP Workflow](../tutorials/adaclip-workflow.md#variant-2-drcnn-mixer)
 - [LearnableChannelMixer](deep-learning.md#learnablechannelmixer)
-- API Reference: ::: cuvis_ai.node.visualizations.RGBAnomalyMask
+- API Reference: ::: cuvis_ai.node.anomaly_visualization.RGBAnomalyMask
 
 ---
 

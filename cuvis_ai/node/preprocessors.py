@@ -7,7 +7,7 @@ dimensionality and focus analysis on specific spectral regions of interest.
 
 See Also
 --------
-cuvis_ai.node.band_selection : Advanced band selection methods
+cuvis_ai.node.channel_selector : Advanced channel selection methods
 cuvis_ai.node.normalization : Normalization and standardization nodes
 """
 

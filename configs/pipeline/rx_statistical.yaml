@@ -46,7 +46,7 @@ nodes:
     comment: ''
     flush_secs: 120
 - name: mask
-  class_name: cuvis_ai.node.visualizations.AnomalyMask
+  class_name: cuvis_ai.node.anomaly_visualization.AnomalyMask
   hparams:
     channel: 30
     up_to: 5

@@ -31,13 +31,13 @@ from loguru import logger
 from omegaconf import DictConfig
 
 from cuvis_ai.deciders.binary_decider import QuantileBinaryDecider
+from cuvis_ai.node.anomaly_visualization import AnomalyMask, ScoreHeatmapVisualizer
 from cuvis_ai.node.data import LentilsAnomalyDataNode
-from cuvis_ai.node.drcnn_tensorboard_viz import DRCNNTensorBoardViz
+from cuvis_ai.node.dimensionality_reduction import TrainablePCA
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.normalization import MinMaxNormalizer
-from cuvis_ai.node.pca import TrainablePCA
-from cuvis_ai.node.visualizations import AnomalyMask, ScoreHeatmapVisualizer
+from cuvis_ai.node.pipeline_visualization import PipelineComparisonVisualizer
 
 
 @hydra.main(
@@ -186,7 +186,7 @@ def main(cfg: DictConfig) -> None:
 
     # TensorBoard visualization for PCA-AdaClip pipeline
     # This creates image artifacts for: HSI input, PCA output, normalized PCA (AdaClip input), masks, scores
-    drcnn_tb_viz = DRCNNTensorBoardViz(
+    drcnn_tb_viz = PipelineComparisonVisualizer(
         hsi_channels=[0, 20, 40],  # Channels for false-color RGB visualization
         max_samples=4,  # Log up to 4 samples per batch
         log_every_n_batches=1,  # Log every batch

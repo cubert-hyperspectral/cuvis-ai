@@ -11,7 +11,8 @@ visualizations like heatmaps, RGB renderings, and PCA plots during model trainin
 
 See Also
 --------
-cuvis_ai.node.visualizations : Nodes that generate artifacts for monitoring
+cuvis_ai.node.anomaly_visualization : Anomaly visualization nodes
+cuvis_ai.node.pipeline_visualization : Pipeline visualization nodes
 """
 
 import re

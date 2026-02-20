@@ -56,18 +56,18 @@ nodes:
   hparams:
     execution_stages: null
 - name: score_heatmap
-  class_name: cuvis_ai.node.visualizations.ScoreHeatmapVisualizer
+  class_name: cuvis_ai.node.anomaly_visualization.ScoreHeatmapVisualizer
   hparams:
     normalize_scores: true
     cmap: inferno
     up_to: 5
 - name: mask
-  class_name: cuvis_ai.node.visualizations.AnomalyMask
+  class_name: cuvis_ai.node.anomaly_visualization.AnomalyMask
   hparams:
     channel: 30
     up_to: 5
 - name: drcnn_tensorboard_viz
-  class_name: cuvis_ai.node.drcnn_tensorboard_viz.DRCNNTensorBoardViz
+  class_name: cuvis_ai.node.pipeline_visualization.PipelineComparisonVisualizer
   hparams:
     hsi_channels:
     - 0

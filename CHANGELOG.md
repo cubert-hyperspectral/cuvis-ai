@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+- Added reusable `WelfordAccumulator` utility (`cuvis_ai.utils.welford`) for streaming mean/variance/covariance
+- Changed RXGlobal, ScoreToLogit, LADGlobal to use `WelfordAccumulator` instead of inline Welford implementations
+- Changed `_compute_band_correlation_matrix` to single-pass streaming with `WelfordAccumulator`
+- Changed TrainablePCA and LearnableChannelMixer to use streaming covariance + `eigh` instead of concat + SVD
+- Changed SoftChannelSelector variance init to use streaming `WelfordAccumulator`
+- Changed ZScoreNormalizerGlobal to use streaming `WelfordAccumulator` instead of concat + subsample
+- Fixed `pyproject.toml` uv source field (`develop` to `editable`)
 - Added `resolve_reduce_dims()` as shared module-level utility in `binary_decider`
 - Changed supervised band selectors to use template method pattern, pulling shared `forward()` and `statistical_initialization()` into `SupervisedBandSelectorBase`
 - Changed YAML configs and docs to use new schema field names (`hparams`, `class_name`)

@@ -23,9 +23,11 @@ TARGET_NODE_MODULES = [
     "cuvis_ai.node.metrics",
     "cuvis_ai.node.monitor",
     "cuvis_ai.node.normalization",
-    "cuvis_ai.node.pca",
-    "cuvis_ai.node.selector",
-    "cuvis_ai.node.visualizations",
+    "cuvis_ai.node.channel_selector",
+    "cuvis_ai.node.channel_mixer",
+    "cuvis_ai.node.dimensionality_reduction",
+    "cuvis_ai.node.anomaly_visualization",
+    "cuvis_ai.node.pipeline_visualization",
 ]
 
 STUB_PACKAGE_ROOT = Path(__file__).resolve().parents[1] / "cuvis_ai" / "_stubs"

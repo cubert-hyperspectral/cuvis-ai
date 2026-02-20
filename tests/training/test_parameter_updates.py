@@ -6,8 +6,10 @@ from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
 from cuvis_ai.anomaly.rx_detector import RXGlobal
 from cuvis_ai.deciders.binary_decider import BinaryDecider
+from cuvis_ai.node.channel_selector import SoftChannelSelector
 from cuvis_ai.node.conversion import ScoreToLogit
 from cuvis_ai.node.data import LentilsAnomalyDataNode
+from cuvis_ai.node.dimensionality_reduction import TrainablePCA
 from cuvis_ai.node.losses import (
     AnomalyBCEWithLogits,
     OrthogonalityLoss,
@@ -20,8 +22,6 @@ from cuvis_ai.node.metrics import (
     ExplainedVarianceMetric,
 )
 from cuvis_ai.node.normalization import MinMaxNormalizer
-from cuvis_ai.node.pca import TrainablePCA
-from cuvis_ai.node.selector import SoftChannelSelector
 
 
 def test_soft_selector_weights_update(synthetic_anomaly_datamodule, training_config_factory):

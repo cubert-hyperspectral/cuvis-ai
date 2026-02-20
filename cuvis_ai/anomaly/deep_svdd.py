@@ -5,7 +5,6 @@ from __future__ import annotations
 import math
 from typing import Any
 
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -13,6 +12,8 @@ from cuvis_ai_core.node.node import Node
 from cuvis_ai_schemas.enums import ExecutionStage
 from cuvis_ai_schemas.execution import Context, InputStream, Metric
 from cuvis_ai_schemas.pipeline import PortSpec
+
+from cuvis_ai.utils.welford import WelfordAccumulator
 
 
 class SpectralNet(nn.Module):
@@ -240,7 +241,7 @@ class ZScoreNormalizerGlobal(Node):
 
     def statistical_initialization(self, input_stream: InputStream) -> None:
         """Estimate per-band z-score statistics from the provided stream."""
-        pixels: list[np.ndarray] = []
+        acc = WelfordAccumulator(self.num_channels)
         for batch in input_stream:
             data = batch.get("data")
             if data is None:
@@ -250,27 +251,15 @@ class ZScoreNormalizerGlobal(Node):
             B, H, W, C = data.shape
             if C != self.num_channels:
                 raise ValueError(f"Channel mismatch: expected {self.num_channels}, got {C}")
-            # todo: https://cuvis.atlassian.net/browse/ALL-4971, later this will be in tensor
-            # to avoid converting to numpy and back with streaming stats
-            pixels.append(data.reshape(B * H * W, C).detach().cpu().numpy().astype(np.float32))
+            acc.update(data.reshape(B * H * W, C))
 
-        if not pixels:
+        if acc.count == 0:
             raise RuntimeError(
                 "DeepSVDDEncoder.statistical_initialization() did not receive any data"
             )
 
-        X_all = np.concatenate(pixels, axis=0)
-        n_stats = min(self.sample_n, X_all.shape[0])
-        if n_stats < X_all.shape[0]:
-            rng = np.random.default_rng(self.seed)
-            idx = rng.choice(X_all.shape[0], size=n_stats, replace=False)
-            X_stats = X_all[idx]
-        else:
-            X_stats = X_all
-
-        mean, std = self._zscore_fit(X_stats, eps=self.eps)
-        self.zscore_mean.copy_(torch.from_numpy(mean).squeeze(0))
-        self.zscore_std.copy_(torch.from_numpy(std).squeeze(0))
+        self.zscore_mean.copy_(acc.mean)
+        self.zscore_std.copy_(acc.std + self.eps)
         self._statistically_initialized = True
 
     def forward(self, data: torch.Tensor, **_: Any) -> dict[str, torch.Tensor]:
@@ -311,27 +300,6 @@ class ZScoreNormalizerGlobal(Node):
 
         normalized = flat.reshape(B, H, W, C)
         return {"normalized": normalized}
-
-    @staticmethod
-    def _zscore_fit(X: np.ndarray, eps: float) -> tuple[np.ndarray, np.ndarray]:
-        """Compute per-channel mean and std for Z-score normalization.
-
-        Parameters
-        ----------
-        X : np.ndarray
-            Sample data [N, C] where N is number of pixels, C is channels.
-        eps : float
-            Small constant added to std for numerical stability.
-
-        Returns
-        -------
-        tuple[np.ndarray, np.ndarray]
-            (mean [1, C], std [1, C]) for Z-score normalization.
-        """
-        mean = X.mean(axis=0, keepdims=True).astype(np.float32)
-        std = X.std(axis=0, keepdims=True).astype(np.float32)
-        std = std + eps
-        return mean, std
 
 
 class DeepSVDDScores(Node):

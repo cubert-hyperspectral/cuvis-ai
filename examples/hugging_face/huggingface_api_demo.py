@@ -47,9 +47,9 @@ from loguru import logger
 from torch import Tensor
 
 from cuvis_ai.node.adaclip import AdaCLIPAPINode
+from cuvis_ai.node.anomaly_visualization import AnomalyMask
 from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
-from cuvis_ai.node.visualizations import AnomalyMask
 
 
 class SimpleRGBConverter(Node):

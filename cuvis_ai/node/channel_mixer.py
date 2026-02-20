@@ -1,24 +1,33 @@
-"""Learnable channel mixer node for DRCNN-style spectral data reduction.
+"""Learnable channel mixer nodes for spectral data reduction.
 
-This module implements a learnable channel mixer based on the Data Reduction CNN (DRCNN)
-approach from Zeegers et al. (2020). The mixer performs spectral pixel-wise 1x1 convolutions
-to reduce hyperspectral data to a smaller number of channels (e.g., 61 → 3 for RGB compatibility).
+Channel mixers project across channels using a full weight matrix:
+``output[k] = Σ_c W[k,c] * input[c]``, which can change the channel count.
+Contrast with *channel selectors* (see :mod:`cuvis_ai.node.channel_selector`),
+which gate/reweight individual channels independently (diagonal operation).
 
-Reference:
-    Zeegers et al., "Task-Driven Learned Hyperspectral Data Reduction Using End-to-End
-    Supervised Deep Learning," J. Imaging 6(12):132, 2020.
+This module provides two mixer variants:
+
+* :class:`LearnableChannelMixer` — 1×1 convolution-based mixer (DRCNN-style,
+  Zeegers et al. 2020).
+* :class:`ConcreteChannelMixer` — Gumbel-Softmax differentiable band selection
+  that learns soft-to-hard channel weighting via temperature annealing.
 """
 
 from __future__ import annotations
 
+import math
 from typing import Any, Literal
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from cuvis_ai_core.node import Node
+from cuvis_ai_schemas.enums import ExecutionStage
 from cuvis_ai_schemas.execution import Context, InputStream
 from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
+
+from cuvis_ai.utils.welford import WelfordAccumulator
 
 
 class LearnableChannelMixer(Node):
@@ -258,37 +267,29 @@ class LearnableChannelMixer(Node):
         if self.init_method != "pca":
             return  # No statistical initialization needed
 
-        # Collect all data for PCA
-        all_data = []
+        acc = WelfordAccumulator(self.input_channels, track_covariance=True)
         for batch_data in input_stream:
             x = batch_data["data"]
             if x is not None:
-                # Flatten spatial dimensions: [B, H, W, C] -> [B*H*W, C]
-                flat = x.reshape(-1, x.shape[-1])
-                all_data.append(flat)
+                flat = x.reshape(-1, x.shape[-1])  # [B*H*W, C]
+                acc.update(flat)
 
-        if not all_data:
+        if acc.count == 0:
             raise ValueError("No data provided for PCA initialization")
 
-        # Concatenate all samples
-        X = torch.cat(all_data, dim=0)  # [N, C_in]
+        cov = acc.cov.to(torch.float64)  # [C_in, C_in]
 
-        # Compute mean and center data
-        mean = X.mean(dim=0, keepdim=True)  # [1, C_in]
-        X_centered = X - mean  # [N, C_in]
-
-        # Compute SVD to get principal components
-        # X_centered = U @ S @ V.T where V contains principal components
-        U, S, Vt = torch.linalg.svd(X_centered, full_matrices=False)
+        # Eigen decomposition (equivalent to SVD on centered data)
+        eigenvalues, eigenvectors = torch.linalg.eigh(cov)
+        eigenvalues = eigenvalues.flip(0)
+        eigenvectors = eigenvectors.flip(1)
 
         # For multi-layer, initialize only the first layer with PCA
         # Subsequent layers use xavier initialization (already done in _initialize_weights)
         first_layer_out_channels = self.reduction_scheme[1]
 
-        # Extract top first_layer_out_channels components
-        # Vt is [min(N, C_in), C_in], we want first first_layer_out_channels rows
-        n_components = min(first_layer_out_channels, Vt.shape[0])
-        components = Vt[:n_components, :].clone()  # [n_components, C_in]
+        n_components = min(first_layer_out_channels, eigenvectors.shape[1])
+        components = eigenvectors[:, :n_components].T.float()  # [n_components, C_in]
 
         # If we need more output channels than components, pad with zeros
         if n_components < first_layer_out_channels:
@@ -309,23 +310,18 @@ class LearnableChannelMixer(Node):
 
         self._statistically_initialized = True
 
+    def freeze(self) -> None:
+        """Disable gradient-based training of mixer weights."""
+        for conv in self.convs:
+            for param in conv.parameters():
+                param.requires_grad = False
+        super().freeze()
+
     def unfreeze(self) -> None:
-        """Enable gradient-based training of mixer weights.
-
-        Call this method to allow gradient updates during training. The mixer
-        weights and biases will be optimized via backpropagation.
-
-        Example
-        -------
-        >>> mixer = LearnableChannelMixer(input_channels=61, output_channels=3)
-        >>> mixer.unfreeze()  # Enable gradient training
-        >>> # Now mixer weights can be optimized with gradient descent
-        """
-        # Ensure parameters require gradients for all layers
+        """Enable gradient-based training of mixer weights."""
         for conv in self.convs:
             for param in conv.parameters():
                 param.requires_grad = True
-        # Call parent to enable requires_grad on the module
         super().unfreeze()
 
     # NOTE(debug-cleanup): Debug tensor saving is disabled for production.
@@ -450,4 +446,234 @@ class LearnableChannelMixer(Node):
         return {"rgb": mixed_bhwc}
 
 
-__all__ = ["LearnableChannelMixer"]
+def _sample_gumbel(shape: tuple[int, ...], device: torch.device, eps: float = 1e-10) -> Tensor:
+    """Sample Gumbel(0, 1) noise."""
+    u = torch.rand(shape, device=device)
+    return -torch.log(-torch.log(u + eps) + eps)
+
+
+class ConcreteChannelMixer(Node):
+    """Concrete/Gumbel-Softmax channel mixer for hyperspectral cubes.
+
+    Learns ``K`` categorical distributions over ``T`` input bands,
+    and during training uses the Gumbel-Softmax trick to produce differentiable
+    approximate one-hot selection weights that become increasingly peaked as the
+    temperature :math:`\\tau` is annealed.
+
+    For each output channel :math:`c \\in {1, \\dots, K}`, we learn logits
+    ``L_c in R^T`` and sample:
+
+    .. math::
+
+        w_c = \\text{softmax}\\left( \\frac{L_c + g}{\\tau} \\right), \\quad
+        g \\sim \\text{Gumbel}(0, 1)
+
+    The resulting weights are used to form K-channel RGB-like images:
+
+    .. math::
+
+        Y[:, :, c] = \\sum_{t=1}^T w_c[t] \\cdot X[:, :, t]
+
+    where ``X`` is the input hyperspectral cube in ``[0, 1]``.
+
+    Parameters
+    ----------
+    input_channels : int
+        Number of input spectral channels (e.g., 61 for hyperspectral cube).
+    output_channels : int, optional
+        Number of output channels (default: 3 for RGB/AdaClip compatibility).
+    tau_start : float, optional
+        Initial temperature for Gumbel-Softmax (default: 10.0).
+    tau_end : float, optional
+        Final temperature for Gumbel-Softmax (default: 0.1).
+    max_epochs : int, optional
+        Number of epochs over which to exponentially anneal :math:`\\tau`
+        from ``tau_start`` to ``tau_end`` (default: 20).
+    use_hard_inference : bool, optional
+        If True, uses hard argmax selection at inference/validation time
+        (one-hot weights). If False, uses softmax over logits (default: True).
+    eps : float, optional
+        Small constant for numerical stability (default: 1e-6).
+
+    Notes
+    -----
+    - During training (``context.stage == 'train'``), the node samples
+      Gumbel noise and uses the Concrete relaxation with the current
+      temperature :math:`\\tau(\\text{epoch})``.
+    - During validation/test/inference, it uses deterministic weights
+      without Gumbel noise.
+    - The node exposes ``selection_weights`` so that repulsion penalties
+      (e.g., DistinctnessLoss) can be attached in the pipeline.
+    """
+
+    INPUT_SPECS = {
+        "data": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, -1),
+            description="Input hyperspectral cube [B, H, W, C_in] in BHWC format.",
+        )
+    }
+
+    OUTPUT_SPECS = {
+        "rgb": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, "output_channels"),
+            description="Selected-band RGB-like image [B, H, W, C_out].",
+        ),
+        "selection_weights": PortSpec(
+            dtype=torch.float32,
+            shape=("output_channels", -1),
+            description="Current selection weights [C_out, C_in].",
+        ),
+    }
+
+    def __init__(
+        self,
+        input_channels: int,
+        output_channels: int = 3,
+        tau_start: float = 10.0,
+        tau_end: float = 0.1,
+        max_epochs: int = 20,
+        use_hard_inference: bool = True,
+        eps: float = 1e-6,
+        **kwargs: Any,
+    ) -> None:
+        self.input_channels = int(input_channels)
+        self.output_channels = int(output_channels)
+        self.tau_start = float(tau_start)
+        self.tau_end = float(tau_end)
+        self.max_epochs = int(max_epochs)
+        self.use_hard_inference = bool(use_hard_inference)
+        self.eps = float(eps)
+
+        if self.output_channels <= 0:
+            raise ValueError(f"output_channels must be positive, got {output_channels}")
+        if self.input_channels <= 0:
+            raise ValueError(f"input_channels must be positive, got {input_channels}")
+        if self.tau_start <= 0.0 or self.tau_end <= 0.0:
+            raise ValueError("tau_start and tau_end must be positive.")
+
+        super().__init__(
+            input_channels=self.input_channels,
+            output_channels=self.output_channels,
+            tau_start=self.tau_start,
+            tau_end=self.tau_end,
+            max_epochs=self.max_epochs,
+            use_hard_inference=self.use_hard_inference,
+            eps=self.eps,
+            **kwargs,
+        )
+
+        # Learnable logits for Categorical over input channels: [C_out, C_in]
+        self.logits = nn.Parameter(torch.zeros(self.output_channels, self.input_channels))
+
+    def _current_tau(self, context: Context | None) -> float:
+        """Compute current temperature based on epoch (exponential schedule)."""
+        if context is None or context.stage != ExecutionStage.TRAIN:
+            return self.tau_end
+
+        if self.max_epochs <= 1:
+            return self.tau_end
+
+        epoch = max(0, min(context.epoch, self.max_epochs - 1))
+        return self._get_tau(epoch)
+
+    def _get_tau(self, epoch: int) -> float:
+        """Get temperature for a specific epoch (exponential schedule).
+
+        Parameters
+        ----------
+        epoch : int
+            Epoch number (0-indexed).
+
+        Returns
+        -------
+        float
+            Temperature value for the given epoch.
+        """
+        if self.max_epochs <= 1:
+            return self.tau_end
+
+        epoch = max(0, min(epoch, self.max_epochs - 1))
+        frac = epoch / float(self.max_epochs - 1)
+
+        # Exponential interpolation in log-space between tau_start and tau_end
+        log_tau_start = math.log(self.tau_start)
+        log_tau_end = math.log(self.tau_end)
+        log_tau = (1.0 - frac) * log_tau_start + frac * log_tau_end
+        return float(math.exp(log_tau))
+
+    def get_selection_weights(self, deterministic: bool = True) -> Tensor:
+        """Return current selection weights without data dependency.
+
+        Parameters
+        ----------
+        deterministic : bool, optional
+            If True, uses softmax over logits (no Gumbel noise) at a
+            "midpoint" temperature (geometric mean of start/end). If False,
+            uses current logits with ``tau_end``.
+        """
+        if deterministic:
+            tau = math.sqrt(self.tau_start * self.tau_end)
+        else:
+            tau = self.tau_end
+
+        return F.softmax(self.logits / tau, dim=-1)
+
+    def get_selected_bands(self) -> Tensor:
+        """Return argmax band indices per output channel."""
+        with torch.no_grad():
+            return torch.argmax(self.logits, dim=-1)
+
+    def forward(
+        self,
+        data: Tensor,
+        context: Context | None = None,
+        **_: Any,
+    ) -> dict[str, Tensor]:
+        """Apply Concrete/Gumbel-Softmax channel mixing.
+
+        Parameters
+        ----------
+        data : Tensor
+            Input tensor [B, H, W, C_in] in BHWC format.
+        context : Context, optional
+            Execution context with stage and epoch information.
+
+        Returns
+        -------
+        dict[str, Tensor]
+            Dictionary with:
+            - ``"rgb"``: [B, H, W, C_out] RGB-like image.
+            - ``"selection_weights"``: [C_out, C_in] current weights.
+        """
+        B, H, W, C_in = data.shape
+
+        tau = self._current_tau(context)
+        device = data.device
+
+        if self.training and context is not None and context.stage == ExecutionStage.TRAIN:
+            # Gumbel-Softmax sampling during training
+            g = _sample_gumbel(self.logits.shape, device=device, eps=self.eps)
+            weights = F.softmax((self.logits + g) / tau, dim=-1)  # [C_out, C_in]
+        else:
+            # Deterministic selection for val/test/inference
+            if self.use_hard_inference:
+                # Hard argmax → one-hot
+                indices = torch.argmax(self.logits, dim=-1)  # [C_out]
+                weights = torch.zeros_like(self.logits)
+                weights.scatter_(1, indices.unsqueeze(-1), 1.0)
+            else:
+                # Softmax over logits at low temperature
+                weights = F.softmax(self.logits / self.tau_end, dim=-1)
+
+        # Weighted sum over spectral dimension: [B, H, W, C_in] x [C_out, C_in] -> [B, H, W, C_out]
+        rgb = torch.einsum("bhwc,kc->bhwk", data, weights)
+
+        return {
+            "rgb": rgb,
+            "selection_weights": weights,
+        }
+
+
+__all__ = ["ConcreteChannelMixer", "LearnableChannelMixer"]
