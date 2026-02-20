@@ -645,7 +645,7 @@ class VisualizationNode(Node):
 **Available execution stages:**
 - `ExecutionStage.ALWAYS` - Default, runs in all stages
 - `ExecutionStage.TRAIN` - Training only
-- `ExecutionStage.VAL` (or `VALIDATE`) - Validation only
+- `ExecutionStage.VAL` - Validation only
 - `ExecutionStage.TEST` - Testing only
 - `ExecutionStage.INFERENCE` - Inference only
 

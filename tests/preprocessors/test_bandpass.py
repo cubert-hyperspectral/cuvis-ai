@@ -379,3 +379,61 @@ def test_bandpass_spectrum_matches_classic(create_test_cube) -> None:
     expected_wavelengths = wavelengths_np[(wavelengths_np >= min_nm) & (wavelengths_np <= max_nm)]
     np.testing.assert_array_equal(expected_wavelengths, classic_wavelengths)
     assert len(avg_spectrum) == len(expected_wavelengths)
+
+
+@torch.no_grad()
+def test_bandpass_unsorted_wavelengths(create_test_cube) -> None:
+    """Bandpass handles wavelengths that are not in ascending order."""
+    cube, wavelengths = create_test_cube(
+        batch_size=1, height=5, width=5, num_channels=20, dtype=torch.float32
+    )
+
+    # Shuffle wavelength order
+    wavelengths_np = wavelengths[0].cpu().numpy()
+    perm = np.random.default_rng(42).permutation(len(wavelengths_np))
+    shuffled_wavelengths = torch.tensor(wavelengths_np[perm], dtype=torch.float32)
+    shuffled_cube = cube[..., perm]
+
+    min_nm = float(wavelengths_np.min()) + 50
+    max_nm = float(wavelengths_np.max()) - 50
+
+    bandpass = BandpassByWavelength(
+        min_wavelength_nm=min_nm,
+        max_wavelength_nm=max_nm,
+    )
+
+    filtered = bandpass.forward(data=shuffled_cube, wavelengths=shuffled_wavelengths)["filtered"]
+
+    # Compute expected count from the unsorted wavelengths
+    mask = (shuffled_wavelengths.numpy() >= min_nm) & (shuffled_wavelengths.numpy() <= max_nm)
+    expected_channels = int(mask.sum())
+
+    assert filtered.shape[-1] == expected_channels
+    assert torch.isfinite(filtered).all()
+
+
+@torch.no_grad()
+def test_bandpass_single_band_selection(create_test_cube) -> None:
+    """Bandpass correctly selects exactly one band when range is very narrow."""
+    cube, wavelengths = create_test_cube(
+        batch_size=2, height=4, width=4, num_channels=50, dtype=torch.float32
+    )
+
+    wavelengths_np = wavelengths[0].cpu().numpy()
+    # Pick a narrow range around an actual wavelength (not median, which may fall between values)
+    mid_idx = len(wavelengths_np) // 2
+    target_wl = float(wavelengths_np[mid_idx])
+    step = float(np.diff(wavelengths_np).min()) if len(wavelengths_np) > 1 else 1.0
+    min_nm = target_wl - step * 0.4
+    max_nm = target_wl + step * 0.4
+
+    bandpass = BandpassByWavelength(
+        min_wavelength_nm=min_nm,
+        max_wavelength_nm=max_nm,
+    )
+
+    wavelengths_tensor = wavelengths[0].float()
+    filtered = bandpass.forward(data=cube, wavelengths=wavelengths_tensor)["filtered"]
+
+    assert filtered.shape[-1] == 1
+    assert filtered.shape[:3] == cube.shape[:3]

@@ -19,6 +19,32 @@ from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
 
 
+def resolve_reduce_dims(reduce_dims: tuple[int, ...] | None, tensor_ndim: int) -> tuple[int, ...]:
+    """Resolve reduction dimensions, handling negative indices.
+
+    Parameters
+    ----------
+    reduce_dims : tuple[int, ...] | None
+        Dimension indices to reduce over (may contain negatives).
+        When ``None``, returns all non-batch dimensions ``(1, ..., ndim-1)``.
+    tensor_ndim : int
+        Number of dimensions in the tensor.
+
+    Returns
+    -------
+    tuple[int, ...]
+        Sorted, deduplicated positive dimension indices.
+    """
+    if reduce_dims is None:
+        return tuple(range(1, tensor_ndim))
+
+    resolved: list[int] = []
+    for dim in reduce_dims:
+        adjusted = dim if dim >= 0 else tensor_ndim + dim
+        resolved.append(adjusted)
+    return tuple(sorted(set(resolved)))
+
+
 class BinaryDecider(BaseDecider):
     """Simple decider node using a static threshold to classify data.
 
@@ -193,19 +219,19 @@ class QuantileBinaryDecider(BaseDecider):
                 Binary decision mask, shape (B, H, W, 1)
         """
         tensor = logits
-        reduce_dims = self._resolve_reduce_dims(tensor.dim())
+        dims = resolve_reduce_dims(self.reduce_dims, tensor.dim())
 
-        if len(reduce_dims) == 1:
+        if len(dims) == 1:
             threshold = torch.quantile(
                 tensor,
                 self.quantile,
-                dim=reduce_dims[0],
+                dim=dims[0],
                 keepdim=True,
             )
         else:
             tensor_ndim = tensor.dim()
-            dims_to_keep = tuple(i for i in range(tensor_ndim) if i not in reduce_dims)
-            new_order = (*dims_to_keep, *reduce_dims)
+            dims_to_keep = tuple(i for i in range(tensor_ndim) if i not in dims)
+            new_order = (*dims_to_keep, *dims)
             permuted = tensor.permute(new_order)
             sizes_keep = [permuted.size(i) for i in range(len(dims_to_keep))]
             flattened = permuted.reshape(*sizes_keep, -1)
@@ -217,7 +243,7 @@ class QuantileBinaryDecider(BaseDecider):
             )
             threshold_permuted = threshold_flat.reshape(
                 *sizes_keep,
-                *([1] * len(reduce_dims)),
+                *([1] * len(dims)),
             )
             inverse_order = [0] * tensor_ndim
             for original_idx, permuted_idx in enumerate(new_order):
@@ -226,19 +252,6 @@ class QuantileBinaryDecider(BaseDecider):
 
         decisions = (tensor >= threshold).to(torch.bool)
         return {"decisions": decisions}
-
-    def _resolve_reduce_dims(self, tensor_ndim: int) -> tuple[int, ...]:
-        """Resolve reduce_dims, handling negative indices and defaulting to non-batch dims."""
-        if self.reduce_dims is None:
-            # Default: reduce over all non-batch dimensions (H, W, C for BHWC)
-            return tuple(range(1, tensor_ndim))
-
-        resolved_dims: list[int] = []
-        for dim in self.reduce_dims:
-            adjusted = dim if dim >= 0 else tensor_ndim + dim
-            resolved_dims.append(adjusted)
-
-        return tuple(sorted(set(resolved_dims)))
 
     @staticmethod
     def _validate_quantile(quantile: float) -> None:

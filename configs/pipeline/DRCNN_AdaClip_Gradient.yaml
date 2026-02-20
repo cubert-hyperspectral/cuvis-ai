@@ -1,19 +1,19 @@
 name: ''
 nodes:
 - name: LentilsAnomalyDataNode
-  class: cuvis_ai.node.data.LentilsAnomalyDataNode
-  params:
+  class_name: cuvis_ai.node.data.LentilsAnomalyDataNode
+  hparams:
     normal_class_ids:
     - 0
     - 1
 - name: MinMaxNormalizer
-  class: cuvis_ai.node.normalization.MinMaxNormalizer
-  params:
+  class_name: cuvis_ai.node.normalization.MinMaxNormalizer
+  hparams:
     eps: 1.0e-06
     use_running_stats: true
 - name: channel_mixer
-  class: cuvis_ai.node.channel_mixer.LearnableChannelMixer
-  params:
+  class_name: cuvis_ai.node.channel_mixer.LearnableChannelMixer
+  hparams:
     input_channels: 61
     output_channels: 3
     leaky_relu_negative_slope: 0.1
@@ -28,8 +28,8 @@ nodes:
     - 8
     - 3
 - name: adaclip
-  class: cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
-  params:
+  class_name: cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
+  hparams:
     weight_name: pretrained_all
     backbone: ViT-L-14-336
     prompt_text: ''
@@ -41,34 +41,34 @@ nodes:
     enable_warmup: false
     enable_gradients: true
 - name: iou_loss
-  class: cuvis_ai.node.losses.IoULoss
-  params:
+  class_name: cuvis_ai.node.losses.IoULoss
+  hparams:
     weight: 1.0
     smooth: 1.0e-06
     normalize_method: minmax
 - name: decider
-  class: cuvis_ai.deciders.binary_decider.QuantileBinaryDecider
-  params:
+  class_name: cuvis_ai.deciders.binary_decider.QuantileBinaryDecider
+  hparams:
     quantile: 0.995
     reduce_dims: null
 - name: metrics_anomaly
-  class: cuvis_ai.node.metrics.AnomalyDetectionMetrics
-  params:
+  class_name: cuvis_ai.node.metrics.AnomalyDetectionMetrics
+  hparams:
     execution_stages: null
 - name: score_heatmap
-  class: cuvis_ai.node.visualizations.ScoreHeatmapVisualizer
-  params:
+  class_name: cuvis_ai.node.visualizations.ScoreHeatmapVisualizer
+  hparams:
     normalize_scores: true
     cmap: inferno
     up_to: 5
 - name: mask
-  class: cuvis_ai.node.visualizations.AnomalyMask
-  params:
+  class_name: cuvis_ai.node.visualizations.AnomalyMask
+  hparams:
     channel: 30
     up_to: 5
 - name: drcnn_tensorboard_viz
-  class: cuvis_ai.node.drcnn_tensorboard_viz.DRCNNTensorBoardViz
-  params:
+  class_name: cuvis_ai.node.drcnn_tensorboard_viz.DRCNNTensorBoardViz
+  hparams:
     hsi_channels:
     - 0
     - 20
@@ -76,58 +76,57 @@ nodes:
     max_samples: 4
     log_every_n_batches: 1
 - name: TensorBoardMonitorNode
-  class: cuvis_ai.node.monitor.TensorBoardMonitorNode
-  params:
+  class_name: cuvis_ai.node.monitor.TensorBoardMonitorNode
+  hparams:
     output_dir: outputs\drcnn_adaclip\tensorboard
     run_name: DRCNN_AdaClip_Gradient
     comment: ''
     flush_secs: 120
 connections:
-- from: LentilsAnomalyDataNode.outputs.cube
-  to: MinMaxNormalizer.inputs.data
-- from: LentilsAnomalyDataNode.outputs.mask
-  to: iou_loss.inputs.targets
-- from: LentilsAnomalyDataNode.outputs.mask
-  to: metrics_anomaly.inputs.targets
-- from: LentilsAnomalyDataNode.outputs.mask
-  to: mask.inputs.mask
-- from: LentilsAnomalyDataNode.outputs.cube
-  to: mask.inputs.cube
-- from: LentilsAnomalyDataNode.outputs.cube
-  to: drcnn_tensorboard_viz.inputs.hsi_cube
-- from: LentilsAnomalyDataNode.outputs.mask
-  to: drcnn_tensorboard_viz.inputs.ground_truth_mask
-- from: MinMaxNormalizer.outputs.normalized
-  to: channel_mixer.inputs.data
-- from: channel_mixer.outputs.rgb
-  to: adaclip.inputs.rgb_image
-- from: channel_mixer.outputs.rgb
-  to: drcnn_tensorboard_viz.inputs.mixer_output
-- from: adaclip.outputs.scores
-  to: iou_loss.inputs.predictions
-- from: adaclip.outputs.scores
-  to: decider.inputs.logits
-- from: adaclip.outputs.scores
-  to: metrics_anomaly.inputs.logits
-- from: adaclip.outputs.scores
-  to: score_heatmap.inputs.scores
-- from: adaclip.outputs.scores
-  to: mask.inputs.scores
-- from: adaclip.outputs.scores
-  to: drcnn_tensorboard_viz.inputs.adaclip_scores
-- from: decider.outputs.decisions
-  to: metrics_anomaly.inputs.decisions
-- from: decider.outputs.decisions
-  to: mask.inputs.decisions
-- from: metrics_anomaly.outputs.metrics
-  to: TensorBoardMonitorNode.inputs.metrics
-- from: score_heatmap.outputs.artifacts
-  to: TensorBoardMonitorNode.inputs.artifacts
-- from: mask.outputs.artifacts
-  to: TensorBoardMonitorNode.inputs.artifacts
-- from: drcnn_tensorboard_viz.outputs.artifacts
-  to: TensorBoardMonitorNode.inputs.artifacts
-frozen_nodes: []
+- source: LentilsAnomalyDataNode.outputs.cube
+  target: MinMaxNormalizer.inputs.data
+- source: LentilsAnomalyDataNode.outputs.mask
+  target: iou_loss.inputs.targets
+- source: LentilsAnomalyDataNode.outputs.mask
+  target: metrics_anomaly.inputs.targets
+- source: LentilsAnomalyDataNode.outputs.mask
+  target: mask.inputs.mask
+- source: LentilsAnomalyDataNode.outputs.cube
+  target: mask.inputs.cube
+- source: LentilsAnomalyDataNode.outputs.cube
+  target: drcnn_tensorboard_viz.inputs.hsi_cube
+- source: LentilsAnomalyDataNode.outputs.mask
+  target: drcnn_tensorboard_viz.inputs.ground_truth_mask
+- source: MinMaxNormalizer.outputs.normalized
+  target: channel_mixer.inputs.data
+- source: channel_mixer.outputs.rgb
+  target: adaclip.inputs.rgb_image
+- source: channel_mixer.outputs.rgb
+  target: drcnn_tensorboard_viz.inputs.mixer_output
+- source: adaclip.outputs.scores
+  target: iou_loss.inputs.predictions
+- source: adaclip.outputs.scores
+  target: decider.inputs.logits
+- source: adaclip.outputs.scores
+  target: metrics_anomaly.inputs.logits
+- source: adaclip.outputs.scores
+  target: score_heatmap.inputs.scores
+- source: adaclip.outputs.scores
+  target: mask.inputs.scores
+- source: adaclip.outputs.scores
+  target: drcnn_tensorboard_viz.inputs.adaclip_scores
+- source: decider.outputs.decisions
+  target: metrics_anomaly.inputs.decisions
+- source: decider.outputs.decisions
+  target: mask.inputs.decisions
+- source: metrics_anomaly.outputs.metrics
+  target: TensorBoardMonitorNode.inputs.metrics
+- source: score_heatmap.outputs.artifacts
+  target: TensorBoardMonitorNode.inputs.artifacts
+- source: mask.outputs.artifacts
+  target: TensorBoardMonitorNode.inputs.artifacts
+- source: drcnn_tensorboard_viz.outputs.artifacts
+  target: TensorBoardMonitorNode.inputs.artifacts
 metadata:
   name: DRCNN_AdaClip_Gradient
   description: Trained DRCNN channel mixer + AdaClip model from DRCNN_AdaClip_Gradient

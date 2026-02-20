@@ -424,7 +424,7 @@ def train_with_early_stopping(stub, session_id, trainer_type, patience=5):
         print(format_progress(progress))
 
         # Check validation metrics for early stopping
-        if progress.context.stage == cuvis_ai_pb2.EXECUTION_STAGE_VALIDATE:
+        if progress.context.stage == cuvis_ai_pb2.EXECUTION_STAGE_VAL:
             current_metric = progress.metrics.get('val_iou', 0.0)
 
             if current_metric > best_metric:

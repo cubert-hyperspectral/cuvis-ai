@@ -56,3 +56,19 @@ def test_zero_variance_pixels_stable() -> None:
 
     assert torch.isfinite(out).all()
     assert torch.allclose(out[0, 0, 0, :], torch.zeros_like(out[0, 0, 0, :]))
+
+
+@torch.no_grad()
+def test_single_channel_stable() -> None:
+    """Single-channel input (C=1) stays finite and doesn't produce NaN/Inf.
+
+    With C=1, mean-centering zeros the value and norm becomes ~0. The eps
+    parameter should prevent division by zero.
+    """
+    x = _random_cube(2, 4, 5, 1)
+    node = PerPixelUnitNorm(eps=1e-6)
+
+    out = node.forward(data=x)["normalized"]
+
+    assert out.shape == x.shape
+    assert torch.isfinite(out).all()
