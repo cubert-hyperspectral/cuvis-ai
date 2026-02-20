@@ -708,17 +708,13 @@ class SupervisedSelectorBase(ChannelSelectorBase):
         if len(selected_indices) != 3:
             raise ValueError(f"selected_indices must have 3 elements, got {len(selected_indices)}")
 
-        # Get device from existing buffers
-        device = self.band_scores.device
-
         # Update buffer values (buffers already exist with correct shapes)
-        self.band_scores.copy_(torch.from_numpy(band_scores.astype(np.float32)).to(device))
-        self.fisher_scores.copy_(torch.from_numpy(fisher_scores.astype(np.float32)).to(device))
-        self.auc_scores.copy_(torch.from_numpy(auc_scores.astype(np.float32)).to(device))
-        self.mi_scores.copy_(torch.from_numpy(mi_scores.astype(np.float32)).to(device))
-        self.selected_indices.copy_(
-            torch.as_tensor(selected_indices, dtype=torch.long, device=device)
-        )
+        # .copy_() handles cross-device transfer automatically
+        self.band_scores.copy_(torch.from_numpy(band_scores.astype(np.float32)))
+        self.fisher_scores.copy_(torch.from_numpy(fisher_scores.astype(np.float32)))
+        self.auc_scores.copy_(torch.from_numpy(auc_scores.astype(np.float32)))
+        self.mi_scores.copy_(torch.from_numpy(mi_scores.astype(np.float32)))
+        self.selected_indices.copy_(torch.as_tensor(selected_indices, dtype=torch.long))
 
         self._statistically_initialized = True
 

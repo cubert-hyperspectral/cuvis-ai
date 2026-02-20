@@ -689,8 +689,6 @@ class RGBAnomalyMask(Node):
                     raw_scores = scores[i, ..., 0]
                     probs = torch.sigmoid(raw_scores).flatten()
                     target_tensor = mask[i, ..., 0].flatten().to(dtype=torch.long)
-                    if probs.device != target_tensor.device:
-                        target_tensor = target_tensor.to(probs.device)
                     if probs.numel() == target_tensor.numel():
                         per_image_ap = binary_average_precision(probs, target_tensor).item()
 
