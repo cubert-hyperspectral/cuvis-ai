@@ -8,6 +8,8 @@ import torch
 
 from cuvis_ai.node.channel_mixer import LearnableChannelMixer
 
+pytestmark = pytest.mark.unit
+
 
 @torch.no_grad()
 def test_learnable_channel_mixer_basic_shape_and_dtype() -> None:

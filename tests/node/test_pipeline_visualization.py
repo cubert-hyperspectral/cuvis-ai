@@ -14,6 +14,8 @@ from cuvis_ai.node.pipeline_visualization import (
     PipelineComparisonVisualizer,
 )
 
+pytestmark = pytest.mark.unit
+
 # ---------------------------------------------------------------------------
 # CubeRGBVisualizer
 # ---------------------------------------------------------------------------

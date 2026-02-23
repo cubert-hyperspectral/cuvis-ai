@@ -11,6 +11,8 @@ from cuvis_ai.anomaly.deep_svdd import (
 )
 from cuvis_ai.node.losses import DeepSVDDSoftBoundaryLoss
 
+pytestmark = pytest.mark.unit
+
 
 def _make_stream(tensor: torch.Tensor):
     def generator():
@@ -36,14 +38,8 @@ def test_deep_svdd_forward_requires_fit():
     num_channels = 3
     encoder = ZScoreNormalizerGlobal(num_channels=num_channels)
     x = torch.randn(1, 4, 4, num_channels)
-    try:
+    with pytest.raises(RuntimeError, match="statistical_initialization"):
         encoder.forward(x)
-    except RuntimeError as exc:
-        assert "statistical_initialization()" in str(exc)
-    else:
-        raise AssertionError(
-            "Expected RuntimeError when calling forward before statistical_initialization()"
-        )
 
 
 def test_deep_svdd_loss_radius_updates():
@@ -64,6 +60,8 @@ def test_deep_svdd_loss_radius_updates():
     assert not torch.allclose(radius_before, radius_after)
 
 
+@pytest.mark.slow
+@pytest.mark.integration
 def test_deep_svdd_end_to_end_training_loop():
     torch.manual_seed(0)
     num_channels = 5

@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 import torch
 
 from cuvis_ai.deciders.binary_decider import QuantileBinaryDecider
+
+pytestmark = pytest.mark.unit
 
 
 def _make_linear_map() -> torch.Tensor:

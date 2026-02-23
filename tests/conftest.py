@@ -34,11 +34,6 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     )
 
 
-def pytest_configure(config: pytest.Config) -> None:
-    """Declare the custom marker so pytest does not warn."""
-    config.addinivalue_line("markers", "slow: mark test as slow to skip by default")
-
-
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
     """Skip slow tests unless --runslow was requested explicitly."""
     if config.getoption("--runslow"):

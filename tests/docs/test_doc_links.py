@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.integration
+
 # Get documentation directory relative to this test file
 DOCS_DIR = Path(__file__).parent.parent.parent / "docs"
 ROOT_DIR = Path(__file__).parent.parent.parent

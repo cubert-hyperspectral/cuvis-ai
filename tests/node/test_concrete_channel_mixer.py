@@ -9,6 +9,8 @@ from cuvis_ai_schemas.execution import Context
 
 from cuvis_ai.node.channel_mixer import ConcreteChannelMixer
 
+pytestmark = pytest.mark.unit
+
 
 @torch.no_grad()
 def test_concrete_mixer_basic_shape() -> None:

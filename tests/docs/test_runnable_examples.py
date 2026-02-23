@@ -10,6 +10,8 @@ from pathlib import Path
 import pytest
 from extract_code_examples import categorize_code, extract_python_blocks
 
+pytestmark = pytest.mark.integration
+
 # Documentation directory
 DOCS_DIR = Path(__file__).parent.parent.parent / "docs"
 

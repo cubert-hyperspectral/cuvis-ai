@@ -15,6 +15,8 @@ from cuvis_ai.node.channel_selector import (
     SupervisedWindowedSelector,
 )
 
+pytestmark = pytest.mark.unit
+
 # ---------------------------------------------------------------------------
 # Base class hook / abstract method tests
 # ---------------------------------------------------------------------------
@@ -132,6 +134,8 @@ class TestForwardAfterManualInit:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.slow
+@pytest.mark.integration
 class TestStatisticalInitialization:
     def test_full_spectrum_fit_and_forward(self, synthetic_anomaly_datamodule):
         channels = 20

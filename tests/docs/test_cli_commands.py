@@ -8,6 +8,8 @@ import subprocess
 
 import pytest
 
+pytestmark = pytest.mark.integration
+
 # Basic CLI commands that should always work (--help flags)
 CLI_COMMANDS_BASIC = [
     "uv run pytest --version",
@@ -50,6 +52,7 @@ def test_restore_trainrun_help():
         assert flag in result.stdout, f"Expected flag '{flag}' not found in help output"
 
 
+@pytest.mark.slow
 def test_mkdocs_build():
     """Test that documentation builds successfully."""
     result = subprocess.run(

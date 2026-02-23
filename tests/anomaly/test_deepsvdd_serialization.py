@@ -1,3 +1,4 @@
+import pytest
 import torch
 
 from cuvis_ai.anomaly.deep_svdd import (
@@ -6,6 +7,8 @@ from cuvis_ai.anomaly.deep_svdd import (
     ZScoreNormalizerGlobal,
 )
 from cuvis_ai.node.losses import DeepSVDDSoftBoundaryLoss
+
+pytestmark = pytest.mark.unit
 
 
 def _make_stream(tensor: torch.Tensor, key: str) -> list[dict[str, torch.Tensor]]:

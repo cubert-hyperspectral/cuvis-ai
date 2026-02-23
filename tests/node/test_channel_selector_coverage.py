@@ -18,6 +18,8 @@ from cuvis_ai.node.channel_selector import (
     TopKIndices,
 )
 
+pytestmark = pytest.mark.unit
+
 # ---------------------------------------------------------------------------
 # TopKIndices
 # ---------------------------------------------------------------------------

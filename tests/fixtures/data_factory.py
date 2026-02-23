@@ -17,6 +17,29 @@ from torch.utils.data import DataLoader, Dataset
 _test_data_cache = {}
 
 
+def _make_wavelengths_np(
+    num_channels: int,
+    wavelength_range: tuple[float, float] = (430.0, 910.0),
+) -> np.ndarray:
+    """Create wavelength array as int32 numpy array.
+
+    Shared helper to avoid duplicated wavelength generation logic.
+
+    Parameters
+    ----------
+    num_channels : int
+        Number of spectral channels.
+    wavelength_range : tuple[float, float]
+        Min and max wavelengths in nanometers.
+
+    Returns
+    -------
+    np.ndarray
+        Wavelength array with shape ``(num_channels,)`` and dtype ``int32``.
+    """
+    return np.linspace(wavelength_range[0], wavelength_range[1], num_channels, dtype=np.int32)
+
+
 @pytest.fixture(scope="session")
 def test_data_files_cached(test_data_path: Path) -> Generator[tuple[Path, Path], None, None]:
     """Session-scoped cached version of test data files.
@@ -128,7 +151,7 @@ def data_config_factory(test_data_files_cached: tuple[Path, Path]):
     return _create_config
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def create_test_cube():
     """Factory fixture for creating test hyperspectral cubes with various patterns.
 
@@ -185,10 +208,8 @@ def create_test_cube():
         wavelengths : torch.Tensor
             Wavelength tensor [B, C] in nanometers with dtype int32
         """
-        # Create wavelengths from min to max in equal steps as torch tensor with int32 dtype
-        wavelengths_1d = torch.linspace(
-            wavelength_range[0], wavelength_range[1], num_channels, dtype=torch.float32
-        ).int()  # Convert to int32
+        # Create wavelengths from min to max in equal steps as int32
+        wavelengths_1d = torch.from_numpy(_make_wavelengths_np(num_channels, wavelength_range))
 
         # Expand to 2D [B, C] - same wavelengths for all batch samples
         wavelengths = wavelengths_1d.unsqueeze(0).expand(batch_size, -1).clone()
@@ -283,12 +304,7 @@ class SyntheticAnomalyDataModule(CuvisDataModule):
         self.batch_size = batch_size
 
         # Generate cubes using create_test_cube logic (wavelengths as int32 to match LentilsAnomalyDataNode)
-        wavelengths = np.linspace(
-            wavelength_range[0],
-            wavelength_range[1],
-            channels,
-            dtype=np.int32,
-        )
+        wavelengths = _make_wavelengths_np(channels, wavelength_range)
 
         if mode == "wavelength_dependent":
             wavelengths_tensor = torch.from_numpy(wavelengths).float()
@@ -351,7 +367,7 @@ class SyntheticAnomalyDataModule(CuvisDataModule):
         return DataLoader(self._val_dataset, batch_size=self.batch_size, shuffle=False)
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def synthetic_anomaly_datamodule():
     """Factory fixture for creating synthetic anomaly datamodules.
 
@@ -376,7 +392,7 @@ def synthetic_anomaly_datamodule():
     return _create
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def create_batch_with_wavelengths():
     """Helper fixture for creating batches with properly formatted wavelengths.
 
@@ -422,12 +438,7 @@ def create_batch_with_wavelengths():
         channels = num_channels if num_channels is not None else cube.shape[-1]
 
         # Create 1D wavelengths
-        wavelengths_1d = torch.linspace(
-            wavelength_range[0],
-            wavelength_range[1],
-            channels,
-            dtype=torch.float32,
-        ).int()
+        wavelengths_1d = torch.from_numpy(_make_wavelengths_np(channels, wavelength_range))
 
         # Expand to 2D [B, C] - same wavelengths for all batch samples
         wavelengths_2d = wavelengths_1d.unsqueeze(0).expand(batch_size, -1)
@@ -438,7 +449,7 @@ def create_batch_with_wavelengths():
     return _add_wavelengths
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def training_config_factory():
     """Factory for creating TrainingConfig with test-friendly defaults.
 

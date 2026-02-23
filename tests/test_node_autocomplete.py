@@ -8,6 +8,8 @@ from cuvis_ai_schemas.pipeline import InputPort, OutputPort, PortSpec
 from cuvis_ai.node.channel_selector import SoftChannelSelector
 from cuvis_ai.node.dimensionality_reduction import TrainablePCA
 
+pytestmark = pytest.mark.unit
+
 
 def test_init_subclass_adds_annotations():
     """Verify __init_subclass__ creates port specs for nodes."""

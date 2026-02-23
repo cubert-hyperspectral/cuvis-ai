@@ -10,7 +10,7 @@ from cuvis_ai.node.dimensionality_reduction import TrainablePCA
 # they should be added here.
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def trainable_pca():
     """Create a TrainablePCA node for testing.
 

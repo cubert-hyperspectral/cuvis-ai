@@ -9,6 +9,8 @@ import torch
 import torch.nn as nn
 from cuvis_ai_core.node import Node
 
+pytestmark = pytest.mark.unit
+
 # ---------------------------------------------------------------------------
 # 1. __init_subclass__ validation tests
 # ---------------------------------------------------------------------------

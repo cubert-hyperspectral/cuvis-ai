@@ -4,6 +4,8 @@ import pytest
 
 from cuvis_ai.anomaly.rx_detector import RXPerBatch
 
+pytestmark = pytest.mark.unit
+
 
 def test_node_hparams_auto_population():
     """Test that Node subclasses automatically populate hparams from init parameters."""

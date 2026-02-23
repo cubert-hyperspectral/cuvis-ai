@@ -1,10 +1,13 @@
 """Tests for statistical node initialization."""
 
+import pytest
 import torch
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
 from cuvis_ai.anomaly.rx_detector import RXGlobal
 from cuvis_ai.node.normalization import MinMaxNormalizer
+
+pytestmark = pytest.mark.unit
 
 
 def test_rxglobal_requires_initial_fit():

@@ -8,6 +8,8 @@ import torch
 
 from cuvis_ai.utils.welford import WelfordAccumulator
 
+pytestmark = pytest.mark.unit
+
 # ------------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------------
