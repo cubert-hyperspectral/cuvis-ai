@@ -97,7 +97,7 @@ temp(epoch) = max(temp_min, temp_init * (decay ** epoch))
 **Scenario 1: Two-phase training** (statistical init → gradient optimization)
 
 ```python
-from cuvis_ai.node.selector import SoftChannelSelector
+from cuvis_ai.node.channel_selector import SoftChannelSelector
 
 # Phase 1: Statistical initialization
 selector = SoftChannelSelector(
@@ -239,18 +239,19 @@ pipeline.add_node(selector)
 trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
 trainer.fit()  # Initializes selector
 # selector.channel_logits is a buffer, not a parameter!
+# (SoftChannelSelector declares TRAINABLE_BUFFERS = ("channel_logits",))
 
 optimizer = torch.optim.Adam(selector.parameters())  # Empty!
 
 # Solution: Unfreeze before creating optimizer
-selector.unfreeze()  # Converts buffer → nn.Parameter
+selector.unfreeze()  # Promotes channel_logits buffer → nn.Parameter
 optimizer = torch.optim.Adam(selector.parameters())  # Now includes channel_logits
 ```
 
 #### See Also
 
 - [Tutorial 2: Channel Selector](../tutorials/channel-selector.md) - Complete two-phase training example
-- [Tutorial 4: AdaCLIP Workflow](../tutorials/adaclip-workflow.md#concrete-band-selector) - Alternative selector: ConcreteBandSelector
+- [Tutorial 4: AdaCLIP Workflow](../tutorials/adaclip-workflow.md#concrete-band-selector) - Alternative selector: ConcreteChannelMixer
 - [SelectorEntropyRegularizer](loss-metrics.md#selectorentropyregularizer) - Entropy regularization loss
 - [SelectorDiversityRegularizer](loss-metrics.md#selectordiversityregularizer) - Diversity regularization loss
 - [Concept: Two-Phase Training](../concepts/two-phase-training.md)
@@ -294,7 +295,7 @@ optimizer = torch.optim.Adam(selector.parameters())  # Now includes channel_logi
 #### Example Usage (Python)
 
 ```python
-from cuvis_ai.node.selector import SoftChannelSelector, TopKIndices
+from cuvis_ai.node.channel_selector import SoftChannelSelector, TopKIndices
 
 # Create selector and top-k extractor
 selector = SoftChannelSelector(n_select=3, input_channels=61)
@@ -340,7 +341,7 @@ connections:
 
 These nodes select bands using fixed wavelengths or data-driven heuristics (no labels required).
 
-### BaselineFalseRGBSelector
+### FixedWavelengthSelector
 
 **Description:** Fixed wavelength band selection (e.g., 650, 550, 450 nm for R, G, B)
 
@@ -378,10 +379,10 @@ These nodes select bands using fixed wavelengths or data-driven heuristics (no l
 #### Example Usage (Python)
 
 ```python
-from cuvis_ai.node.band_selection import BaselineFalseRGBSelector
+from cuvis_ai.node.channel_selector import FixedWavelengthSelector
 
 # Default: Red=650nm, Green=550nm, Blue=450nm
-baseline = BaselineFalseRGBSelector(
+baseline = FixedWavelengthSelector(
     target_wavelengths=(650.0, 550.0, 450.0)
 )
 
@@ -400,7 +401,7 @@ print(outputs["band_info"])
 ```yaml
 nodes:
   baseline_rgb:
-    type: BaselineFalseRGBSelector
+    type: FixedWavelengthSelector
     config:
       target_wavelengths: [650.0, 550.0, 450.0]
 
@@ -413,12 +414,12 @@ connections:
 #### See Also
 
 - [Tutorial 4: AdaCLIP Workflow](../tutorials/adaclip-workflow.md#approach-1-pca-baseline) - Uses band selectors
-- [HighContrastBandSelector](#highcontrastbandselector) - Data-driven alternative
+- [HighContrastSelector](#highcontrastselector) - Data-driven alternative
 - API Reference: ::: cuvis_ai.node.channel_selector.FixedWavelengthSelector
 
 ---
 
-### CIRFalseColorSelector
+### CIRSelector
 
 **Description:** Color Infrared (CIR) false color composition: NIR → R, Red → G, Green → B
 
@@ -433,7 +434,7 @@ connections:
 
 #### Port Specifications
 
-Same as [BaselineFalseRGBSelector](#baselinefalsergbselector)
+Same as [FixedWavelengthSelector](#fixedwavelengthselector)
 
 #### Parameters
 
@@ -446,10 +447,10 @@ Same as [BaselineFalseRGBSelector](#baselinefalsergbselector)
 #### Example Usage (Python)
 
 ```python
-from cuvis_ai.node.band_selection import CIRFalseColorSelector
+from cuvis_ai.node.channel_selector import CIRSelector
 
 # CIR mapping: NIR=860nm → R, Red=670nm → G, Green=560nm → B
-cir = CIRFalseColorSelector(
+cir = CIRSelector(
     nir_nm=860.0,
     red_nm=670.0,
     green_nm=560.0,
@@ -467,7 +468,7 @@ print(outputs["band_info"]["channel_mapping"])
 
 ---
 
-### HighContrastBandSelector
+### HighContrastSelector
 
 **Description:** Data-driven band selection using spatial variance + Laplacian energy
 
@@ -482,7 +483,7 @@ print(outputs["band_info"]["channel_mapping"])
 
 #### Port Specifications
 
-Same as [BaselineFalseRGBSelector](#baselinefalsergbselector)
+Same as [FixedWavelengthSelector](#fixedwavelengthselector)
 
 #### Parameters
 
@@ -508,10 +509,10 @@ Where:
 #### Example Usage (Python)
 
 ```python
-from cuvis_ai.node.band_selection import HighContrastBandSelector
+from cuvis_ai.node.channel_selector import HighContrastSelector
 
 # Select high-contrast bands in visible spectrum windows
-high_contrast = HighContrastBandSelector(
+high_contrast = HighContrastSelector(
     windows=((440, 500), (500, 580), (610, 700)),  # B, G, R
     alpha=0.1,  # Laplacian weight
 )
@@ -552,7 +553,7 @@ adjusted_score(band) = combined_score - lambda * max_correlation_with_selected
 
 ---
 
-### SupervisedCIRBandSelector
+### SupervisedCIRSelector
 
 **Description:** Supervised CIR/NIR band selection with window constraints
 
@@ -567,7 +568,7 @@ adjusted_score(band) = combined_score - lambda * max_correlation_with_selected
 
 #### Port Specifications
 
-Same as [BaselineFalseRGBSelector](#baselinefalsergbselector), plus:
+Same as [FixedWavelengthSelector](#fixedwavelengthselector), plus:
 
 **Input Ports (additional):**
 
@@ -587,10 +588,10 @@ Same as [BaselineFalseRGBSelector](#baselinefalsergbselector), plus:
 #### Example Usage (Python)
 
 ```python
-from cuvis_ai.node.band_selection import SupervisedCIRBandSelector
+from cuvis_ai.node.channel_selector import SupervisedCIRSelector
 
 # Create supervised CIR selector
-supervised_cir = SupervisedCIRBandSelector(
+supervised_cir = SupervisedCIRSelector(
     num_spectral_bands=61,
     windows=((840.0, 910.0), (650.0, 720.0), (500.0, 570.0)),  # NIR, R, G
     score_weights=(1.0, 1.0, 1.0),  # Equal weight to Fisher, AUC, MI
@@ -615,7 +616,7 @@ print(f"AUC scores: {supervised_cir.auc_scores}")  # [0.73, 0.68, ...]
 ```yaml
 nodes:
   supervised_cir:
-    type: SupervisedCIRBandSelector
+    type: SupervisedCIRSelector
     config:
       num_spectral_bands: 61
       windows: [[840.0, 910.0], [650.0, 720.0], [500.0, 570.0]]
@@ -635,7 +636,7 @@ connections:
 
 ---
 
-### SupervisedWindowedFalseRGBSelector
+### SupervisedWindowedSelector
 
 **Description:** Supervised band selection constrained to visible RGB windows
 
@@ -649,7 +650,7 @@ connections:
 
 #### Port Specifications
 
-Same as [SupervisedCIRBandSelector](#supervisedcirbandselector)
+Same as [SupervisedCIRSelector](#supervisedcirselector)
 
 #### Parameters
 
@@ -667,7 +668,7 @@ Same as [SupervisedCIRBandSelector](#supervisedcirbandselector)
 
 ---
 
-### SupervisedFullSpectrumBandSelector
+### SupervisedFullSpectrumSelector
 
 **Description:** Supervised selection without window constraints (top-k globally)
 
@@ -681,7 +682,7 @@ Same as [SupervisedCIRBandSelector](#supervisedcirbandselector)
 
 #### Port Specifications
 
-Same as [SupervisedCIRBandSelector](#supervisedcirbandselector)
+Same as [SupervisedCIRSelector](#supervisedcirselector)
 
 #### Parameters
 
@@ -694,10 +695,10 @@ Same as [SupervisedCIRBandSelector](#supervisedcirbandselector)
 #### Example Usage (Python)
 
 ```python
-from cuvis_ai.node.band_selection import SupervisedFullSpectrumBandSelector
+from cuvis_ai.node.channel_selector import SupervisedFullSpectrumSelector
 
 # Select top-3 bands globally (no window constraints)
-full_spectrum = SupervisedFullSpectrumBandSelector(
+full_spectrum = SupervisedFullSpectrumSelector(
     num_spectral_bands=61,
     score_weights=(1.0, 1.0, 1.0),
     lambda_penalty=0.5,
@@ -726,20 +727,20 @@ print(full_spectrum.selected_indices)
 | Selector | Learnable | Requires Labels | Training Paradigm | Best For |
 |----------|-----------|-----------------|-------------------|----------|
 | **SoftChannelSelector** | **Yes** | **No** | **Two-phase** | **End-to-end learning, interpretability** |
-| BaselineFalseRGBSelector | No | No | None | Quick RGB conversion |
-| CIRFalseColorSelector | No | No | None | Vegetation/NIR analysis |
-| HighContrastBandSelector | No | No | None | High-contrast visualization |
-| SupervisedCIRBandSelector | No | Yes | Statistical init | CIR windows, supervised |
-| SupervisedWindowedFalseRGBSelector | No | Yes | Statistical init | RGB windows, supervised |
-| SupervisedFullSpectrumBandSelector | No | Yes | Statistical init | Unconstrained, supervised |
+| FixedWavelengthSelector | No | No | None | Quick RGB conversion |
+| CIRSelector | No | No | None | Vegetation/NIR analysis |
+| HighContrastSelector | No | No | None | High-contrast visualization |
+| SupervisedCIRSelector | No | Yes | Statistical init | CIR windows, supervised |
+| SupervisedWindowedSelector | No | Yes | Statistical init | RGB windows, supervised |
+| SupervisedFullSpectrumSelector | No | Yes | Statistical init | Unconstrained, supervised |
 
 ### Supervised Selector Comparison
 
 | Selector | Windows | Selection Constraint | Best For |
 |----------|---------|----------------------|----------|
-| SupervisedCIRBandSelector | NIR + Red + Green | 3 windows (CIR) | Vegetation, NIR-focused tasks |
-| SupervisedWindowedFalseRGBSelector | Blue + Green + Red | 3 windows (RGB) | Natural color, interpretable |
-| SupervisedFullSpectrumBandSelector | None | Top-k globally | Discovering unexpected spectral regions |
+| SupervisedCIRSelector | NIR + Red + Green | 3 windows (CIR) | Vegetation, NIR-focused tasks |
+| SupervisedWindowedSelector | Blue + Green + Red | 3 windows (RGB) | Natural color, interpretable |
+| SupervisedFullSpectrumSelector | None | Top-k globally | Discovering unexpected spectral regions |
 
 ---
 
@@ -758,13 +759,13 @@ graph TD
     C -->|Yes| E[SoftChannelSelector]
     C -->|No| F{Use Case?}
 
-    F -->|True Color| G[BaselineFalseRGBSelector]
-    F -->|NIR/Vegetation| H[CIRFalseColorSelector]
-    F -->|High Contrast| I[HighContrastBandSelector]
+    F -->|True Color| G[FixedWavelengthSelector]
+    F -->|NIR/Vegetation| H[CIRSelector]
+    F -->|High Contrast| I[HighContrastSelector]
 
-    D -->|CIR Windows| J[SupervisedCIRBandSelector]
-    D -->|RGB Windows| K[SupervisedWindowedFalseRGBSelector]
-    D -->|No Constraint| L[SupervisedFullSpectrumBandSelector]
+    D -->|CIR Windows| J[SupervisedCIRSelector]
+    D -->|RGB Windows| K[SupervisedWindowedSelector]
+    D -->|No Constraint| L[SupervisedFullSpectrumSelector]
 ```
 
 ### Recommendation by Use Case
@@ -772,10 +773,10 @@ graph TD
 | Use Case | Recommended Selector | Reason |
 |----------|---------------------|--------|
 | Two-phase learnable pipeline | SoftChannelSelector | End-to-end gradient optimization |
-| Quick RGB for CLIP/AdaCLIP | BaselineFalseRGBSelector | Fast, no training needed |
-| Vegetation anomaly detection | CIRFalseColorSelector or SupervisedCIRBandSelector | NIR emphasis |
-| Supervised with labels | SupervisedWindowedFalseRGBSelector | Optimal discriminative bands |
-| Exploration/discovery | SupervisedFullSpectrumBandSelector | Finds unexpected bands |
+| Quick RGB for CLIP/AdaCLIP | FixedWavelengthSelector | Fast, no training needed |
+| Vegetation anomaly detection | CIRSelector or SupervisedCIRSelector | NIR emphasis |
+| Supervised with labels | SupervisedWindowedSelector | Optimal discriminative bands |
+| Exploration/discovery | SupervisedFullSpectrumSelector | Finds unexpected bands |
 
 ---
 
@@ -787,7 +788,7 @@ graph TD
 |----------|-------------|----------------|-------|
 | SoftChannelSelector | O(B×H×W×C) | O(N×H×W×C) | N = initialization batches |
 | Fixed selectors (Baseline, CIR) | O(C) lookup | None | Nearest wavelength search |
-| HighContrastBandSelector | O(C×H×W) | None | Variance + Laplacian per band |
+| HighContrastSelector | O(C×H×W) | None | Variance + Laplacian per band |
 | Supervised selectors | O(C) indexing | O(N×H×W×C) | mRMR scoring across dataset |
 
 **Optimization Tips:**
@@ -802,9 +803,9 @@ graph TD
 ## Creating Custom Selectors
 
 ```python
-from cuvis_ai.node.band_selection import BandSelectorBase
+from cuvis_ai.node.channel_selector import ChannelSelectorBase
 
-class CustomBandSelector(BandSelectorBase):
+class CustomBandSelector(ChannelSelectorBase):
     def __init__(self, custom_param: float = 1.0, **kwargs):
         super().__init__(custom_param=custom_param, **kwargs)
         self.custom_param = custom_param

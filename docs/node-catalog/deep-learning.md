@@ -51,7 +51,7 @@ $$
 \text{normalized}(x) = \frac{x - \mu}{\sigma + \epsilon}
 $$
 
-where $\mu, \sigma$ are estimated per-channel means/stds from a random sample of training pixels.
+where $\mu, \sigma$ are estimated per-channel means/stds using `WelfordAccumulator` for numerically stable streaming computation. See [Node System Deep Dive: WelfordAccumulator](../concepts/node-system-deep-dive.md#welfordaccumulator) for details.
 
 #### Port Specifications
 
@@ -477,7 +477,7 @@ connections:
 #### Example Usage (Python)
 
 ```python
-from cuvis_ai.node.pca import TrainablePCA
+from cuvis_ai.node.dimensionality_reduction import TrainablePCA
 
 # Create PCA node: 61 → 3 channels
 from cuvis_ai_core.training import StatisticalTrainer
@@ -646,7 +646,7 @@ connections:
 
 ---
 
-### ConcreteBandSelector
+### ConcreteChannelMixer
 
 **Description:** Gumbel-Softmax learnable band selector with temperature annealing
 
@@ -699,10 +699,10 @@ Output: $Y[:, :, c] = \sum_{t=1}^T w_c[t] \cdot X[:, :, t]$
 #### Example Usage (Python)
 
 ```python
-from cuvis_ai.node.concrete_selector import ConcreteBandSelector
+from cuvis_ai.node.channel_mixer import ConcreteChannelMixer
 
 # Create Concrete selector
-selector = ConcreteBandSelector(
+selector = ConcreteChannelMixer(
     input_channels=61,
     output_channels=3,
     tau_start=10.0,
@@ -728,7 +728,7 @@ pipeline.connect(
 ```yaml
 nodes:
   selector:
-    type: ConcreteBandSelector
+    type: ConcreteChannelMixer
     config:
       input_channels: 61
       output_channels: 3
@@ -769,7 +769,7 @@ connections:
 |------|--------|----------|--------------|----------|
 | **TrainablePCA** | SVD → gradient | Two-phase | Unbounded | Statistical baseline |
 | **LearnableChannelMixer** | 1x1 Conv | Gradient-only | [0, 1] normalized | DRCNN-style mixing |
-| **ConcreteBandSelector** | Gumbel-Softmax | Gradient-only | [0, 1] (weighted sum) | Discrete band selection |
+| **ConcreteChannelMixer** | Gumbel-Softmax | Gradient-only | [0, 1] (weighted sum) | Discrete band selection |
 
 ### Deep SVDD Pipeline
 
@@ -796,7 +796,7 @@ graph LR
 |---------|------|-----------|-------------|
 | **PCA Baseline** | TrainablePCA (frozen) | No | Fast, statistical |
 | **DRCNN Mixer** | LearnableChannelMixer | Yes | Better, learned |
-| **Concrete Selector** | ConcreteBandSelector | Yes | Best, discrete |
+| **Concrete Selector** | ConcreteChannelMixer | Yes | Best, discrete |
 
 ---
 
@@ -842,6 +842,6 @@ nodes:
 - **Concepts:** [Two-Phase Training](../concepts/two-phase-training.md)
 - **Concepts:** [Execution Stages](../concepts/execution-stages.md)
 - **API Reference:** [cuvis_ai.anomaly.deep_svdd](../../api/anomaly/#deep_svdd)
-- **API Reference:** [cuvis_ai.node.pca](../../api/node/#pca)
+- **API Reference:** [cuvis_ai.node.dimensionality_reduction](../../api/node/#dimensionality_reduction)
 - **API Reference:** [cuvis_ai.node.channel_mixer](../../api/node/#channel_mixer)
-- **API Reference:** [cuvis_ai.node.concrete_selector](../../api/node/#concrete_selector)
+- **API Reference:** [cuvis_ai.node.channel_mixer](../../api/node/#channel_mixer)

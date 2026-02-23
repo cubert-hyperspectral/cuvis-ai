@@ -125,7 +125,7 @@ normalizer = MinMaxNormalizer(
 ### Add Soft Channel Selector (NEW!)
 
 ```python
-from cuvis_ai.node.selector import SoftChannelSelector
+from cuvis_ai.node.channel_selector import SoftChannelSelector
 
 selector = SoftChannelSelector(
     n_select=3,               # Select 3 channels (for RGB-like output)
@@ -245,7 +245,8 @@ metrics_anomaly = AnomalyDetectionMetrics(name="metrics_anomaly")
 ### Visualization Nodes
 
 ```python
-from cuvis_ai.node.visualizations import AnomalyMask, CubeRGBVisualizer
+from cuvis_ai.node.anomaly_visualization import AnomalyMask
+from cuvis_ai.node.pipeline_visualization import CubeRGBVisualizer
 
 # Anomaly mask visualization (same as RX tutorial)
 viz_mask = AnomalyMask(name="mask", channel=30, up_to=5)
@@ -622,8 +623,9 @@ from cuvis_ai.node.losses import (
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.normalization import MinMaxNormalizer
-from cuvis_ai.node.selector import SoftChannelSelector
-from cuvis_ai.node.visualizations import AnomalyMask, CubeRGBVisualizer
+from cuvis_ai.node.channel_selector import SoftChannelSelector
+from cuvis_ai.node.anomaly_visualization import AnomalyMask
+from cuvis_ai.node.pipeline_visualization import CubeRGBVisualizer
 
 
 @hydra.main(config_path="../configs/", config_name="trainrun/channel_selector", version_base=None)

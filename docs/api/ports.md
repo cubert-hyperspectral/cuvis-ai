@@ -159,7 +159,7 @@ pipeline.connect(selector.selected, pca.features, stage="both")
 `LossAggregator` has been removed—the trainer now collects individual loss nodes directly.
 Register every loss/regularizer node with the `GradientTrainer` (or any custom trainer) and
 feed their inputs through standard port connections, as shown in
-`examples//03_channel_selector.py`.
+`examples/channel_selector.py`.
 
 ```python
 pipeline.connect(

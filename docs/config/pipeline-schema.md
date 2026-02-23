@@ -246,8 +246,8 @@ class_name: cuvis_ai.node.metrics.AnomalyDetectionMetrics
 **Monitoring nodes:**
 ```yaml
 class_name: cuvis_ai.node.monitor.TensorBoardMonitorNode
-class_name: cuvis_ai.node.visualizations.AnomalyMask
-class_name: cuvis_ai.node.visualizations.ScoreHeatmapVisualizer
+class_name: cuvis_ai.node.anomaly_visualization.AnomalyMask
+class_name: cuvis_ai.node.anomaly_visualization.ScoreHeatmapVisualizer
 ```
 
 ### hparams (dict, optional)
@@ -284,7 +284,7 @@ Node-specific configuration parameters. Each node class defines its own paramete
 **Example: Complex node with many parameters**
 ```yaml
 - name: concrete_selector
-  class_name: cuvis_ai.node.concrete_selector.ConcreteBandSelector
+  class_name: cuvis_ai.node.channel_mixer.ConcreteChannelMixer
   hparams:
     input_channels: 61
     output_channels: 3
@@ -964,7 +964,7 @@ nodes:
 
 ```yaml
 - name: concrete_selector
-  class_name: cuvis_ai.node.concrete_selector.ConcreteBandSelector
+  class_name: cuvis_ai.node.channel_mixer.ConcreteChannelMixer
   hparams:
     input_channels: 61
     output_channels: 3

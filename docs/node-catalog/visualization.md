@@ -67,7 +67,7 @@ Model → Decisions/Scores → Visualization Node → TensorBoardMonitorNode
 #### Example Usage (Python)
 
 ```python
-from cuvis_ai.node.visualizations import AnomalyMask
+from cuvis_ai.node.anomaly_visualization import AnomalyMask
 
 # Create visualizer
 viz = AnomalyMask(channel=30, up_to=5)
@@ -150,7 +150,7 @@ connections:
 #### Example Usage (Python)
 
 ```python
-from cuvis_ai.node.visualizations import ScoreHeatmapVisualizer
+from cuvis_ai.node.anomaly_visualization import ScoreHeatmapVisualizer
 
 # Create heatmap visualizer
 heatmap_viz = ScoreHeatmapVisualizer(
@@ -212,7 +212,7 @@ pipeline.connect(
 #### Example Usage (Python)
 
 ```python
-from cuvis_ai.node.visualizations import CubeRGBVisualizer
+from cuvis_ai.node.pipeline_visualization import CubeRGBVisualizer
 
 # Create false-color visualizer
 rgb_viz = CubeRGBVisualizer(up_to=5)
@@ -272,7 +272,7 @@ pipeline.connect(
 #### Example Usage (Python)
 
 ```python
-from cuvis_ai.node.visualizations import PCAVisualization
+from cuvis_ai.node.pipeline_visualization import PCAVisualization
 
 # Create PCA visualizer
 pca_viz = PCAVisualization(up_to=10)
@@ -332,7 +332,7 @@ pipeline.connect(
 #### Example Usage (Python)
 
 ```python
-from cuvis_ai.node.visualizations import RGBAnomalyMask
+from cuvis_ai.node.anomaly_visualization import RGBAnomalyMask
 
 # Create RGB visualizer
 rgb_viz = RGBAnomalyMask(up_to=5)
@@ -575,5 +575,5 @@ connections:
 - **Tutorial:** [Channel Selector](../tutorials/channel-selector.md#monitoring-channel-weights)
 - **Tutorial:** [Deep SVDD Gradient](../tutorials/deep-svdd-gradient.md#score-visualization)
 - **Concepts:** [Execution Stages](../concepts/execution-stages.md)
-- **API Reference:** [cuvis_ai.node.visualizations](../../api/node/#visualizations)
+- **API Reference:** [cuvis_ai.node.anomaly_visualization](../../api/node/#anomaly_visualization), [cuvis_ai.node.pipeline_visualization](../../api/node/#pipeline_visualization)
 - **API Reference:** [cuvis_ai.node.monitor](../../api/node/#monitor)

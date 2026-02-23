@@ -123,7 +123,7 @@ nodes:
 
   # Channel selection
   - name: selector
-    class: cuvis_ai.node.selector.SoftChannelSelector
+    class: cuvis_ai.node.channel_selector.SoftChannelSelector
     params:
       n_select: 3
       input_channels: 61
