@@ -14,6 +14,7 @@
 - Changed YAML configs and docs to use new schema field names (`hparams`, `class_name`)
 - Changed `EXECUTION_STAGE_VALIDATE` references to `VAL` across gRPC docs
 - Removed dead `_quantile_threshold()` and duplicate `_resolve_reduce_dims()` from `TwoStageBinaryDecider`
+- Changed `.freezed` references to `.frozen` in tests and docs (matches cuvis-ai-core rename)
 - Removed `frozen_nodes` from pipeline configs and docs
 - Fixed wavelength batching in supervised band selector `_collect_training_data` (flatten `[B, C]` to `[C]`)
 

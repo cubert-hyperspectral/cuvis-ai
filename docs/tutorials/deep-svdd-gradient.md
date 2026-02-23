@@ -275,7 +275,7 @@ decider_node = QuantileBinaryDecider(
 
 ```python
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics
-from cuvis_ai.node.visualizations import AnomalyMask, ScoreHeatmapVisualizer
+from cuvis_ai.node.anomaly_visualization import AnomalyMask, ScoreHeatmapVisualizer
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 
 metrics_node = AnomalyDetectionMetrics(name="metrics_anomaly")
@@ -638,7 +638,7 @@ from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.normalization import PerPixelUnitNorm
 from cuvis_ai.node.preprocessors import BandpassByWavelength
-from cuvis_ai.node.visualizations import AnomalyMask, ScoreHeatmapVisualizer
+from cuvis_ai.node.anomaly_visualization import AnomalyMask, ScoreHeatmapVisualizer
 
 
 @hydra.main(config_path="../../configs/", config_name="trainrun/deep_svdd", version_base=None)
@@ -789,7 +789,7 @@ training_cfg.optimizer.lr = 0.001  # From 0.0001
 loss_node = DeepSVDDSoftBoundaryLoss(nu=0.2)  # Allow more outliers
 
 # 3. Verify unfreeze
-print(f"Encoder frozen: {encoder.is_frozen()}")  # Should be False
+print(f"Encoder frozen: {encoder.frozen}")  # Should be False
 ```
 
 ### Issue: Memory Error (OOM)

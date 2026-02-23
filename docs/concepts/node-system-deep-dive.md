@@ -79,7 +79,7 @@ class Node(nn.Module, ABC, Serializable):
 
 * `requires_initial_fit`: Auto-detects if node needs statistical initialization
 * `execution_stages`: Controls when node executes (TRAIN, VAL, TEST, INFERENCE, ALWAYS)
-* `freezed`: Tracks frozen vs trainable state
+* `frozen`: Tracks frozen vs trainable state
 
 ---
 
@@ -384,14 +384,98 @@ from cuvis_ai_core.training import StatisticalTrainer
 # Phase 1: Statistical initialization (frozen by default)
 trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
 trainer.fit()  # Computes statistics, stores as buffers
-node.freezed  # True - no gradients, values constant
+node.frozen  # True - no gradients, values constant
 
 # Phase 2: Unfreeze for gradient training (optional)
 node.unfreeze()  # Converts buffers → parameters, enables gradient updates
-node.freezed  # False - now trainable
+node.frozen  # False - now trainable
 
 # Benefits: Fast statistical init + optional gradient refinement
 ```
+
+### TRAINABLE_BUFFERS
+
+The `TRAINABLE_BUFFERS` class attribute declares which buffers should be promoted to `nn.Parameter` on `unfreeze()` and demoted back on `freeze()`. The base class handles the conversion automatically.
+
+**Declaration:**
+
+```python
+class ScoreToLogit(Node):
+    TRAINABLE_BUFFERS = ("scale", "bias")
+
+    def __init__(self, init_scale: float = 1.0, init_bias: float = 0.0, **kwargs):
+        super().__init__(**kwargs)
+        self.register_buffer("scale", torch.tensor(init_scale, dtype=torch.float32))
+        self.register_buffer("bias", torch.tensor(init_bias, dtype=torch.float32))
+```
+
+**Validation:** `__init_subclass__` checks at class definition time that `TRAINABLE_BUFFERS` is a tuple of strings. Invalid declarations raise `TypeError` on import.
+
+**Lifecycle:**
+
+1. After construction: tensors live in `_buffers` — not trainable
+2. After `unfreeze()`: promoted to `nn.Parameter` — trainable, `requires_grad=True`
+3. After `freeze()`: demoted back to buffer — not trainable
+
+**Built-in nodes using TRAINABLE_BUFFERS:**
+
+| Node | Buffers | Shape |
+|------|---------|-------|
+| `ScoreToLogit` | `scale`, `bias` | scalar, scalar |
+| `SoftChannelSelector` | `channel_logits` | `(n_channels,)` |
+| `TrainablePCA` | `_components` | `(n_components, n_features)` |
+| `RXGlobal` | `mu`, `cov`, `cov_inv` | `(C,)`, `(C,C)`, `(C,C)` |
+| `LADGlobal` | `M`, `L` | `(C,)`, `(C,C)` |
+
+Nodes with non-buffer learnable state (e.g., `LearnableChannelMixer` with `nn.Conv2d` layers) override `freeze()`/`unfreeze()` and call `super()`.
+
+---
+
+## Reusable Utilities
+
+### WelfordAccumulator
+
+`WelfordAccumulator` is an `nn.Module` subclass providing numerically stable streaming computation of mean, variance, and optionally covariance. It uses Welford's online algorithm (batch-merge variant).
+
+**Location:** `cuvis_ai.utils.welford`
+
+**Why it exists:** Several nodes need running statistics during statistical initialization (mean, variance, covariance). `WelfordAccumulator` centralizes this pattern with `float64` internal precision and non-persistent buffers.
+
+**Usage:**
+
+```python
+from cuvis_ai.utils.welford import WelfordAccumulator
+
+# Variance-only mode
+acc = WelfordAccumulator(n_features=61)
+
+# Or with covariance tracking
+acc = WelfordAccumulator(n_features=61, track_covariance=True)
+
+# Feed batches during statistical initialization
+for batch in dataloader:
+    pixels = batch["cube"].reshape(-1, 61)  # (N, C)
+    acc.update(pixels)
+
+# Read results
+print(acc.count)    # total samples seen
+print(acc.mean)     # shape (61,), float32
+print(acc.var)      # shape (61,), float32, Bessel-corrected
+print(acc.std)      # shape (61,), float32
+
+# Covariance mode only:
+print(acc.cov)      # shape (61, 61), float32
+print(acc.corr)     # shape (61, 61), float32, absolute correlation
+```
+
+**Key properties:**
+
+- **nn.Module subclass**: `.to(device)` on parent nodes automatically propagates to accumulator buffers
+- **Non-persistent buffers**: `_n`, `_mean`, `_M2` are excluded from `state_dict()` — they are transient training state
+- **float64 internal precision**: Accumulation uses `float64` for numerical stability; properties return `float32`
+- **Batch-merge algorithm**: Efficient for large batches — processes entire batches at once, not sample-by-sample
+
+**Used by:** `ZScoreNormalizerGlobal`, `RXGlobal`, `SoftChannelSelector` (via `_compute_band_correlation_matrix`)
 
 ---
 
