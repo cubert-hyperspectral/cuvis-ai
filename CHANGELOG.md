@@ -2,21 +2,41 @@
 
 ## [Unreleased]
 
-- Added reusable `WelfordAccumulator` utility (`cuvis_ai.utils.welford`) for streaming mean/variance/covariance
-- Changed RXGlobal, ScoreToLogit, LADGlobal to use `WelfordAccumulator` instead of inline Welford implementations
-- Changed `_compute_band_correlation_matrix` to single-pass streaming with `WelfordAccumulator`
-- Changed TrainablePCA and LearnableChannelMixer to use streaming covariance + `eigh` instead of concat + SVD
-- Changed SoftChannelSelector variance init to use streaming `WelfordAccumulator`
-- Changed ZScoreNormalizerGlobal to use streaming `WelfordAccumulator` instead of concat + subsample
-- Fixed `pyproject.toml` uv source field (`develop` to `editable`)
-- Added `resolve_reduce_dims()` as shared module-level utility in `binary_decider`
-- Changed supervised band selectors to use template method pattern, pulling shared `forward()` and `statistical_initialization()` into `SupervisedBandSelectorBase`
-- Changed YAML configs and docs to use new schema field names (`hparams`, `class_name`)
-- Changed `EXECUTION_STAGE_VALIDATE` references to `VAL` across gRPC docs
-- Removed dead `_quantile_threshold()` and duplicate `_resolve_reduce_dims()` from `TwoStageBinaryDecider`
-- Changed `.freezed` references to `.frozen` in tests and docs (matches cuvis-ai-core rename)
-- Removed `frozen_nodes` from pipeline configs and docs
-- Fixed wavelength batching in supervised band selector `_collect_training_data` (flatten `[B, C]` to `[C]`)
+### Added
+- Reusable `WelfordAccumulator` utility (`cuvis_ai.utils.welford`) for streaming mean/variance/covariance
+- `resolve_reduce_dims()` as shared module-level utility in `binary_decider`
+- `TRAINABLE_BUFFERS` class attribute — 5 nodes declare trainable buffers, base class handles buffer↔parameter conversion in freeze/unfreeze automatically
+- `freeze()` for `LearnableChannelMixer` matching existing `unfreeze()` override
+- `ConcreteChannelMixer` and `LearnableChannelMixer` now exported from `cuvis_ai.node`
+- All 6 visualization nodes now exported from `cuvis_ai.node`: `AnomalyMask`, `RGBAnomalyMask`, `ScoreHeatmapVisualizer`, `CubeRGBVisualizer`, `PCAVisualization`, `PipelineComparisonVisualizer`
+- 8 new test files: `test_welford`, `test_freeze_unfreeze`, `test_channel_selector_coverage`, `test_concrete_channel_mixer`, `test_pipeline_visualization`, `test_binary_decider`, `test_data_node`, `test_rx_per_batch`
+- Pytest markers (`unit`/`integration`/`slow`) on all 30 test files; session-scoped fixtures for expensive operations; pytest config consolidated in `pytest.ini`
+
+### Changed
+- RXGlobal, ScoreToLogit, LADGlobal to use `WelfordAccumulator` instead of inline Welford implementations
+- `_compute_band_correlation_matrix` to single-pass streaming with `WelfordAccumulator`
+- TrainablePCA and LearnableChannelMixer to use streaming covariance + `eigh` instead of concat + SVD
+- SoftChannelSelector variance init to use streaming `WelfordAccumulator`
+- ZScoreNormalizerGlobal to use streaming `WelfordAccumulator` instead of concat + subsample
+- Supervised band selectors to use template method pattern, pulling shared `forward()` and `statistical_initialization()` into `SupervisedSelectorBase`
+- YAML configs and docs to use new schema field names (`hparams`, `class_name`)
+- `EXECUTION_STAGE_VALIDATE` references to `VAL` across gRPC docs
+- `.freezed` references to `.frozen` in tests and docs (matches cuvis-ai-core rename)
+- **Breaking**: Reorganized channel selector and mixer nodes into separate files: `band_selection.py` + `selector.py` → `channel_selector.py`, `concrete_selector.py` + `channel_mixer.py` → `channel_mixer.py`, `pca.py` → `dimensionality_reduction.py`, `visualizations.py` + `drcnn_tensorboard_viz.py` → `anomaly_visualization.py` + `pipeline_visualization.py`
+- **Breaking**: Renamed 9 classes to reflect selector/mixer distinction: `BandSelectorBase` → `ChannelSelectorBase`, `BaselineFalseRGBSelector` → `FixedWavelengthSelector`, `HighContrastBandSelector` → `HighContrastSelector`, `CIRFalseColorSelector` → `CIRSelector`, `SupervisedBandSelectorBase` → `SupervisedSelectorBase`, `SupervisedCIRBandSelector` → `SupervisedCIRSelector`, `SupervisedWindowedFalseRGBSelector` → `SupervisedWindowedSelector`, `SupervisedFullSpectrumBandSelector` → `SupervisedFullSpectrumSelector`, `ConcreteBandSelector` → `ConcreteChannelMixer`, `DRCNNTensorBoardViz` → `PipelineComparisonVisualizer`
+- **Breaking**: Deleted old files — no deprecation stubs or re-exports
+- Removed redundant `.to(device)` calls from `adaclip.py`, `anomaly_visualization.py`, `channel_selector.py` — pipeline handles device placement
+- Updated 13 pipeline + 17 trainrun YAML configs with new `class_name` paths
+- Updated 11 example scripts with new import paths
+- Updated 19 documentation files with new class names, import paths, and new content for `WelfordAccumulator` and `TRAINABLE_BUFFERS`
+
+### Fixed
+- `pyproject.toml` uv source field (`develop` to `editable`)
+- Wavelength batching in supervised band selector `_collect_training_data` (flatten `[B, C]` to `[C]`)
+
+### Removed
+- Dead `_quantile_threshold()` and duplicate `_resolve_reduce_dims()` from `TwoStageBinaryDecider`
+- `frozen_nodes` from pipeline configs and docs
 
 ## 0.3.0 - 2026-02-11
 
