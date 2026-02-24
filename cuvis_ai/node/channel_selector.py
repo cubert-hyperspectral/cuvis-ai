@@ -210,6 +210,23 @@ class RangeAverageFalseRGBSelector(ChannelSelectorBase):
         self.green_range = green_range
         self.blue_range = blue_range
 
+        # Static channel range boundaries [3, 2]; buffer so .to(device) moves it.
+        self.register_buffer(
+            "_ranges",
+            torch.tensor(
+                [
+                    [red_range[0], red_range[1]],
+                    [green_range[0], green_range[1]],
+                    [blue_range[0], blue_range[1]],
+                ],
+                dtype=torch.float32,
+            ),
+        )
+        # Wavelength-dependent channel weights; lazily computed on first forward.
+        self.register_buffer("_avg_weights", None, persistent=False)
+        self.register_buffer("_avg_mask", None, persistent=False)
+        self._cached_wl_key: tuple[float, ...] | None = None
+
     @staticmethod
     def _normalize_rgb(rgb: torch.Tensor) -> torch.Tensor:
         """Apply per-batch, per-channel min-max normalization to [0, 1]."""
@@ -240,16 +257,8 @@ class RangeAverageFalseRGBSelector(ChannelSelectorBase):
         self, wavelengths_t: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Build per-channel averaging weights and inclusion mask from wavelength ranges."""
-        # Order is [R, G, B] to match output channel order.
-        ranges_t = torch.tensor(
-            [
-                [self.red_range[0], self.red_range[1]],
-                [self.green_range[0], self.green_range[1]],
-                [self.blue_range[0], self.blue_range[1]],
-            ],
-            device=wavelengths_t.device,
-            dtype=wavelengths_t.dtype,
-        )
+        # Use pre-registered _ranges buffer (moves with .to(device)).
+        ranges_t = self._ranges.to(device=wavelengths_t.device, dtype=wavelengths_t.dtype)
         low = ranges_t[:, 0:1]  # [3,1]
         high = ranges_t[:, 1:2]  # [3,1]
 
@@ -269,15 +278,20 @@ class RangeAverageFalseRGBSelector(ChannelSelectorBase):
     ) -> dict[str, Any]:
         """Average spectral bands inside RGB ranges and compose normalized RGB."""
         wavelengths_t = self._prepare_wavelengths_tensor(wavelengths, cube.device)
-        weights, channel_mask = self._build_channel_weights(wavelengths_t)
+
+        # Lazily compute & cache channel weights when wavelengths change.
+        wl_key = tuple(wavelengths_t.tolist())
+        if self._avg_weights is None or self._cached_wl_key != wl_key:
+            self._avg_weights, self._avg_mask = self._build_channel_weights(wavelengths_t)
+            self._cached_wl_key = wl_key
 
         # Vectorized channel averaging:
         # cube [B,H,W,C] and weights [3,C] -> rgb [B,H,W,3]
-        rgb = torch.einsum("bhwc,kc->bhwk", cube, weights.to(device=cube.device, dtype=cube.dtype))
+        rgb = torch.einsum("bhwc,kc->bhwk", cube, self._avg_weights)
         rgb = self._normalize_rgb(rgb)
 
         channel_indices = [
-            torch.where(channel_mask[i])[0].tolist() for i in range(channel_mask.shape[0])
+            torch.where(self._avg_mask[i])[0].tolist() for i in range(self._avg_mask.shape[0])
         ]
         channel_names = ["red", "green", "blue"]
         missing_channels = [
@@ -451,6 +465,335 @@ class CIRSelector(ChannelSelectorBase):
             "band_wavelengths_nm": [float(wavelengths_np[i]) for i in indices],
             "target_wavelengths_nm": [self.nir_nm, self.red_nm, self.green_nm],
             "channel_mapping": {"R": "NIR", "G": "Red", "B": "Green"},
+        }
+
+        return {"rgb_image": rgb, "band_info": band_info}
+
+
+class CIETristimulusFalseRGBSelector(ChannelSelectorBase):
+    """CIE 1931 tristimulus-based false RGB rendering.
+
+    Converts a hyperspectral cube to sRGB by integrating each pixel's spectrum
+    with the CIE 1931 2-degree standard observer color matching functions
+    (x_bar, y_bar, z_bar), applying a D65 white point normalization, converting
+    from CIE XYZ to linear sRGB, and optionally applying sRGB gamma.
+
+    This produces the most physically grounded false RGB and lands closest to
+    the distribution SAM3's Perception Encoder expects.
+
+    For wavelengths outside the visible range (approx. >780 nm), the CMFs are
+    zero, so NIR bands do not contribute to the output.
+
+    Parameters
+    ----------
+    apply_gamma : bool
+        Apply sRGB gamma curve (IEC 61966-2-1). Default True.
+    normalize_output : bool
+        Apply per-batch min-max normalization to [0, 1] after conversion.
+        Default True. Useful because radiance-based spectra produce arbitrary
+        magnitude XYZ values.
+    """
+
+    # CIE 1931 2-degree observer CMFs at 5 nm intervals, 380-780 nm.
+    # Source: CIE 015:2004, Table 1 (standard tabulation).
+    # fmt: off
+    _CMF_WAVELENGTHS = np.array([
+        380, 385, 390, 395, 400, 405, 410, 415, 420, 425,
+        430, 435, 440, 445, 450, 455, 460, 465, 470, 475,
+        480, 485, 490, 495, 500, 505, 510, 515, 520, 525,
+        530, 535, 540, 545, 550, 555, 560, 565, 570, 575,
+        580, 585, 590, 595, 600, 605, 610, 615, 620, 625,
+        630, 635, 640, 645, 650, 655, 660, 665, 670, 675,
+        680, 685, 690, 695, 700, 705, 710, 715, 720, 725,
+        730, 735, 740, 745, 750, 755, 760, 765, 770, 775, 780,
+    ], dtype=np.float64)
+
+    _X_BAR = np.array([
+        0.0014, 0.0022, 0.0042, 0.0076, 0.0143, 0.0232, 0.0435, 0.0776,
+        0.1344, 0.2148, 0.2839, 0.3285, 0.3483, 0.3481, 0.3362, 0.3187,
+        0.2908, 0.2511, 0.1954, 0.1421, 0.0956, 0.0580, 0.0320, 0.0147,
+        0.0049, 0.0024, 0.0093, 0.0291, 0.0633, 0.1096, 0.1655, 0.2257,
+        0.2904, 0.3597, 0.4334, 0.5121, 0.5945, 0.6784, 0.7621, 0.8425,
+        0.9163, 0.9786, 1.0263, 1.0567, 1.0622, 1.0456, 1.0026, 0.9384,
+        0.8544, 0.7514, 0.6424, 0.5419, 0.4479, 0.3608, 0.2835, 0.2187,
+        0.1649, 0.1212, 0.0874, 0.0636, 0.0468, 0.0329, 0.0227, 0.0158,
+        0.0114, 0.0081, 0.0058, 0.0041, 0.0029, 0.0020, 0.0014, 0.0010,
+        0.0007, 0.0005, 0.0003, 0.0002, 0.0002, 0.0001, 0.0001, 0.0001,
+        0.0000,
+    ], dtype=np.float64)
+
+    _Y_BAR = np.array([
+        0.0000, 0.0001, 0.0001, 0.0002, 0.0004, 0.0006, 0.0012, 0.0022,
+        0.0040, 0.0073, 0.0116, 0.0168, 0.0230, 0.0298, 0.0380, 0.0480,
+        0.0600, 0.0739, 0.0910, 0.1126, 0.1390, 0.1693, 0.2080, 0.2586,
+        0.3230, 0.4073, 0.5030, 0.6082, 0.7100, 0.7932, 0.8620, 0.9149,
+        0.9540, 0.9803, 0.9950, 1.0000, 0.9950, 0.9786, 0.9520, 0.9154,
+        0.8700, 0.8163, 0.7570, 0.6949, 0.6310, 0.5668, 0.5030, 0.4412,
+        0.3810, 0.3210, 0.2650, 0.2170, 0.1750, 0.1382, 0.1070, 0.0816,
+        0.0610, 0.0446, 0.0320, 0.0232, 0.0170, 0.0119, 0.0082, 0.0057,
+        0.0041, 0.0029, 0.0021, 0.0015, 0.0010, 0.0007, 0.0005, 0.0004,
+        0.0002, 0.0002, 0.0001, 0.0001, 0.0001, 0.0000, 0.0000, 0.0000,
+        0.0000,
+    ], dtype=np.float64)
+
+    _Z_BAR = np.array([
+        0.0065, 0.0105, 0.0201, 0.0362, 0.0679, 0.1102, 0.2074, 0.3713,
+        0.6456, 1.0391, 1.3856, 1.6230, 1.7471, 1.7826, 1.7721, 1.7441,
+        1.6692, 1.5281, 1.2876, 1.0419, 0.8130, 0.6162, 0.4652, 0.3533,
+        0.2720, 0.2123, 0.1582, 0.1117, 0.0782, 0.0573, 0.0422, 0.0298,
+        0.0203, 0.0134, 0.0087, 0.0057, 0.0039, 0.0027, 0.0021, 0.0018,
+        0.0017, 0.0014, 0.0011, 0.0010, 0.0008, 0.0006, 0.0003, 0.0002,
+        0.0002, 0.0001, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000,
+    ], dtype=np.float64)
+    # fmt: on
+
+    # XYZ -> linear sRGB matrix (IEC 61966-2-1 / Rec. 709 primaries, D65).
+    _XYZ_TO_SRGB = np.array(
+        [
+            [3.2406255, -1.5372080, -0.4986286],
+            [-0.9689307, 1.8757561, 0.0415175],
+            [0.0557101, -0.2040211, 1.0569959],
+        ],
+        dtype=np.float64,
+    )
+
+    def __init__(
+        self,
+        apply_gamma: bool = True,
+        normalize_output: bool = True,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(apply_gamma=apply_gamma, normalize_output=normalize_output, **kwargs)
+        self.apply_gamma = apply_gamma
+        self.normalize_output = normalize_output
+
+        # Static XYZ -> linear sRGB matrix; buffer so .to(device) moves it.
+        self.register_buffer(
+            "_xyz_to_srgb_matrix",
+            torch.from_numpy(self._XYZ_TO_SRGB.astype(np.float32)),
+        )
+        # Wavelength-dependent CMF integration weights; lazily computed on first forward.
+        self.register_buffer("_cmf_weights", None, persistent=False)
+        self._cached_wl_key: tuple[float, ...] | None = None
+        self._cached_n_visible: int = 0
+
+    @staticmethod
+    def _srgb_gamma(linear: torch.Tensor) -> torch.Tensor:
+        """Apply sRGB companding (IEC 61966-2-1)."""
+        low = 12.92 * linear
+        high = 1.055 * linear.clamp_min(1e-10).pow(1.0 / 2.4) - 0.055
+        return torch.where(linear <= 0.0031308, low, high)
+
+    def _interpolate_cmfs(
+        self,
+        wavelengths_nm: np.ndarray,
+    ) -> np.ndarray:
+        """Interpolate CIE CMFs to the sensor's wavelength grid.
+
+        Parameters
+        ----------
+        wavelengths_nm : np.ndarray
+            Sensor wavelengths in nm, shape (C,).
+
+        Returns
+        -------
+        np.ndarray
+            CMF weights, shape (3, C) — rows are x_bar, y_bar, z_bar.
+        """
+        x_interp = np.interp(
+            wavelengths_nm, self._CMF_WAVELENGTHS, self._X_BAR, left=0.0, right=0.0
+        )
+        y_interp = np.interp(
+            wavelengths_nm, self._CMF_WAVELENGTHS, self._Y_BAR, left=0.0, right=0.0
+        )
+        z_interp = np.interp(
+            wavelengths_nm, self._CMF_WAVELENGTHS, self._Z_BAR, left=0.0, right=0.0
+        )
+        return np.stack([x_interp, y_interp, z_interp], axis=0)  # (3, C)
+
+    def forward(
+        self,
+        cube: torch.Tensor,
+        wavelengths: Any,
+        context: Context | None = None,  # noqa: ARG002
+        **_: Any,
+    ) -> dict[str, Any]:
+        """Convert HSI cube to sRGB via CIE 1931 tristimulus integration.
+
+        Parameters
+        ----------
+        cube : torch.Tensor
+            Hyperspectral cube [B, H, W, C].
+        wavelengths : torch.Tensor | np.ndarray
+            Wavelength array [C] in nanometers.
+
+        Returns
+        -------
+        dict[str, Any]
+            Dictionary with "rgb_image" [B, H, W, 3] and "band_info".
+        """
+        wavelengths_np = np.asarray(wavelengths, dtype=np.float64).ravel()
+        if wavelengths_np.ndim == 0:
+            raise ValueError("wavelengths must be a 1-D array")
+
+        # Lazily compute & cache integration weights when wavelengths change.
+        wl_key = tuple(wavelengths_np.tolist())
+        if self._cmf_weights is None or self._cached_wl_key != wl_key:
+            cmfs = self._interpolate_cmfs(wavelengths_np)
+            spacing = np.gradient(wavelengths_np)  # (C,)
+            iw = (cmfs * spacing[np.newaxis, :]).astype(np.float32)
+            self._cmf_weights = torch.from_numpy(iw).to(device=cube.device)
+            self._cached_wl_key = wl_key
+            self._cached_n_visible = int((cmfs.sum(axis=0) > 1e-6).sum())
+
+        # XYZ via einsum: cube [B,H,W,C] @ w^T [C,3] -> [B,H,W,3]
+        xyz = torch.einsum("bhwc,kc->bhwk", cube, self._cmf_weights)  # k=3 for X,Y,Z
+
+        # XYZ -> linear sRGB (buffer, moves with .to(device))
+        rgb_linear = torch.einsum("bhwj,ij->bhwi", xyz, self._xyz_to_srgb_matrix)  # i=3 for R,G,B
+        rgb_linear = rgb_linear.clamp_min(0.0)
+
+        # Optional sRGB gamma
+        if self.apply_gamma:
+            rgb = self._srgb_gamma(rgb_linear)
+        else:
+            rgb = rgb_linear
+
+        # Normalize to [0, 1]
+        if self.normalize_output:
+            rgb_min = rgb.amin(dim=(1, 2), keepdim=True)
+            rgb_max = rgb.amax(dim=(1, 2), keepdim=True)
+            denom = (rgb_max - rgb_min).clamp_min(1e-8)
+            rgb = ((rgb - rgb_min) / denom).clamp_(0.0, 1.0)
+        else:
+            rgb = rgb.clamp_(0.0, 1.0)
+
+        band_info = {
+            "strategy": "cie_tristimulus",
+            "illuminant": "D65",
+            "apply_gamma": self.apply_gamma,
+            "sensor_bands_total": len(wavelengths_np),
+            "sensor_bands_visible": self._cached_n_visible,
+            "wavelength_range_nm": [float(wavelengths_np[0]), float(wavelengths_np[-1])],
+        }
+
+        return {"rgb_image": rgb, "band_info": band_info}
+
+
+class CameraEmulationFalseRGBSelector(ChannelSelectorBase):
+    """Camera-emulation false RGB using smooth Gaussian sensitivity curves.
+
+    Defines three broad, smooth Gaussian weighting curves over the spectral
+    bands that mimic R/G/B camera sensitivity (peaks at configurable
+    wavelengths). The weight matrix W is [3, num_bands], applied as
+    ``rgb = W @ spectrum``. Non-negativity is enforced by construction.
+
+    This is simple, stable, and requires no training. Good middle ground
+    between single-band selection and learned mapping.
+
+    Parameters
+    ----------
+    r_peak : float
+        Red channel peak wavelength in nm. Default: 610.0
+    g_peak : float
+        Green channel peak wavelength in nm. Default: 540.0
+    b_peak : float
+        Blue channel peak wavelength in nm. Default: 460.0
+    r_sigma : float
+        Red channel Gaussian sigma in nm. Default: 40.0
+    g_sigma : float
+        Green channel Gaussian sigma in nm. Default: 35.0
+    b_sigma : float
+        Blue channel Gaussian sigma in nm. Default: 30.0
+    """
+
+    def __init__(
+        self,
+        r_peak: float = 610.0,
+        g_peak: float = 540.0,
+        b_peak: float = 460.0,
+        r_sigma: float = 40.0,
+        g_sigma: float = 35.0,
+        b_sigma: float = 30.0,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(
+            r_peak=r_peak,
+            g_peak=g_peak,
+            b_peak=b_peak,
+            r_sigma=r_sigma,
+            g_sigma=g_sigma,
+            b_sigma=b_sigma,
+            **kwargs,
+        )
+        self.peaks = (r_peak, g_peak, b_peak)
+        self.sigmas = (r_sigma, g_sigma, b_sigma)
+
+        # Wavelength-dependent Gaussian weights; lazily computed on first forward.
+        self.register_buffer("_channel_weights", None, persistent=False)
+        self._cached_wl_key: tuple[float, ...] | None = None
+
+    def _build_weights(self, wavelengths_np: np.ndarray) -> np.ndarray:
+        """Build [3, C] Gaussian weight matrix, each row sums to 1."""
+        w = np.zeros((3, len(wavelengths_np)), dtype=np.float64)
+        for i, (peak, sigma) in enumerate(zip(self.peaks, self.sigmas, strict=False)):
+            w[i] = np.exp(-0.5 * ((wavelengths_np - peak) / sigma) ** 2)
+        # Normalize each row so weights sum to 1
+        row_sums = w.sum(axis=1, keepdims=True)
+        row_sums = np.maximum(row_sums, 1e-10)
+        w /= row_sums
+        return w
+
+    def forward(
+        self,
+        cube: torch.Tensor,
+        wavelengths: Any,
+        context: Context | None = None,  # noqa: ARG002
+        **_: Any,
+    ) -> dict[str, Any]:
+        """Convert HSI cube to false RGB using Gaussian camera sensitivity.
+
+        Parameters
+        ----------
+        cube : torch.Tensor
+            Hyperspectral cube [B, H, W, C].
+        wavelengths : torch.Tensor | np.ndarray
+            Wavelength array [C] in nanometers.
+
+        Returns
+        -------
+        dict[str, Any]
+            Dictionary with "rgb_image" [B, H, W, 3] and "band_info".
+        """
+        wavelengths_np = np.asarray(wavelengths, dtype=np.float64).ravel()
+
+        # Lazily compute & cache Gaussian weights when wavelengths change.
+        wl_key = tuple(wavelengths_np.tolist())
+        if self._channel_weights is None or self._cached_wl_key != wl_key:
+            weights = self._build_weights(wavelengths_np)
+            self._channel_weights = torch.from_numpy(weights.astype(np.float32)).to(
+                device=cube.device
+            )
+            self._cached_wl_key = wl_key
+
+        # Weighted sum: cube [B,H,W,C] @ w^T [C,3] -> [B,H,W,3]
+        rgb = torch.einsum("bhwc,kc->bhwk", cube, self._channel_weights)
+
+        # Per-batch, per-channel min-max normalization to [0, 1]
+        rgb_min = rgb.amin(dim=(1, 2), keepdim=True)
+        rgb_max = rgb.amax(dim=(1, 2), keepdim=True)
+        denom = (rgb_max - rgb_min).clamp_min(1e-8)
+        rgb = ((rgb - rgb_min) / denom).clamp_(0.0, 1.0)
+
+        band_info = {
+            "strategy": "camera_emulation",
+            "peaks_nm": {"R": self.peaks[0], "G": self.peaks[1], "B": self.peaks[2]},
+            "sigmas_nm": {"R": self.sigmas[0], "G": self.sigmas[1], "B": self.sigmas[2]},
+            "sensor_bands_total": len(wavelengths_np),
         }
 
         return {"rgb_image": rgb, "band_info": band_info}
@@ -1374,7 +1717,9 @@ class TopKIndices(Node):
 
 
 __all__ = [
+    "CameraEmulationFalseRGBSelector",
     "ChannelSelectorBase",
+    "CIETristimulusFalseRGBSelector",
     "CIRSelector",
     "FixedWavelengthSelector",
     "HighContrastSelector",
