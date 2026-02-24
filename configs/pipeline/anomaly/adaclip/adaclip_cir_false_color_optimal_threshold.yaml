@@ -6,7 +6,7 @@ nodes:
     normal_class_ids:
     - 0
     - 1
-- name: CIRFalseColorSelector
+- name: CIRSelector
   class_name: cuvis_ai.node.channel_selector.CIRSelector
   hparams:
     nir_nm: 860.0
@@ -56,16 +56,16 @@ nodes:
     flush_secs: 120
 connections:
 - source: LentilsAnomalyDataNode.outputs.cube
-  target: CIRFalseColorSelector.inputs.cube
+  target: CIRSelector.inputs.cube
 - source: LentilsAnomalyDataNode.outputs.wavelengths
-  target: CIRFalseColorSelector.inputs.wavelengths
+  target: CIRSelector.inputs.wavelengths
 - source: LentilsAnomalyDataNode.outputs.mask
   target: detection_metrics.inputs.targets
 - source: LentilsAnomalyDataNode.outputs.mask
   target: RGBAnomalyMask.inputs.mask
-- source: CIRFalseColorSelector.outputs.rgb_image
+- source: CIRSelector.outputs.rgb_image
   target: AdaCLIPDetector.inputs.rgb_image
-- source: CIRFalseColorSelector.outputs.rgb_image
+- source: CIRSelector.outputs.rgb_image
   target: RGBAnomalyMask.inputs.rgb_image
 - source: AdaCLIPDetector.outputs.scores
   target: TwoStageBinaryDecider.inputs.logits
@@ -86,7 +86,7 @@ connections:
 metadata:
   name: AdaCLIP_CIR_FalseColor_OptimalThreshold
   description: "Statistical AdaCLIP CIR false-color pipeline with optimal threshold\
-    \ (LentilsAnomalyDataNode \u2192 CIRFalseColorSelector \u2192 AdaCLIPDetector\
+    \ (LentilsAnomalyDataNode \u2192 CIRSelector \u2192 AdaCLIPDetector\
     \ \u2192 TwoStageBinaryDecider)"
   created: ''
   tags:

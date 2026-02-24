@@ -6,7 +6,7 @@ nodes:
     normal_class_ids:
     - 0
     - 1
-- name: SupervisedWindowedFalseRGBSelector
+- name: SupervisedWindowedSelector
   class_name: cuvis_ai.node.channel_selector.SupervisedWindowedSelector
   hparams:
     windows:
@@ -63,18 +63,18 @@ nodes:
     flush_secs: 120
 connections:
 - source: LentilsAnomalyDataNode.outputs.cube
-  target: SupervisedWindowedFalseRGBSelector.inputs.cube
+  target: SupervisedWindowedSelector.inputs.cube
 - source: LentilsAnomalyDataNode.outputs.wavelengths
-  target: SupervisedWindowedFalseRGBSelector.inputs.wavelengths
+  target: SupervisedWindowedSelector.inputs.wavelengths
 - source: LentilsAnomalyDataNode.outputs.mask
-  target: SupervisedWindowedFalseRGBSelector.inputs.mask
+  target: SupervisedWindowedSelector.inputs.mask
 - source: LentilsAnomalyDataNode.outputs.mask
   target: detection_metrics.inputs.targets
 - source: LentilsAnomalyDataNode.outputs.mask
   target: RGBAnomalyMask.inputs.mask
-- source: SupervisedWindowedFalseRGBSelector.outputs.rgb_image
+- source: SupervisedWindowedSelector.outputs.rgb_image
   target: AdaCLIPDetector.inputs.rgb_image
-- source: SupervisedWindowedFalseRGBSelector.outputs.rgb_image
+- source: SupervisedWindowedSelector.outputs.rgb_image
   target: RGBAnomalyMask.inputs.rgb_image
 - source: AdaCLIPDetector.outputs.scores
   target: QuantileBinaryDecider.inputs.logits
@@ -95,7 +95,7 @@ connections:
 metadata:
   name: AdaCLIP_Supervised_WindowedFalseRGB
   description: "Statistical AdaCLIP supervised windowed false-RGB pipeline (LentilsAnomalyDataNode\
-    \ \u2192 SupervisedWindowedFalseRGBSelector \u2192 AdaCLIPDetector)"
+    \ \u2192 SupervisedWindowedSelector \u2192 AdaCLIPDetector)"
   created: ''
   tags:
   - statistical

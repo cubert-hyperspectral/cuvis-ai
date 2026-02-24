@@ -6,7 +6,7 @@ nodes:
     normal_class_ids:
     - 0
     - 1
-- name: SupervisedFullSpectrumBandSelector
+- name: SupervisedFullSpectrumSelector
   class_name: cuvis_ai.node.channel_selector.SupervisedFullSpectrumSelector
   hparams:
     score_weights:
@@ -56,18 +56,18 @@ nodes:
     flush_secs: 120
 connections:
 - source: LentilsAnomalyDataNode.outputs.cube
-  target: SupervisedFullSpectrumBandSelector.inputs.cube
+  target: SupervisedFullSpectrumSelector.inputs.cube
 - source: LentilsAnomalyDataNode.outputs.wavelengths
-  target: SupervisedFullSpectrumBandSelector.inputs.wavelengths
+  target: SupervisedFullSpectrumSelector.inputs.wavelengths
 - source: LentilsAnomalyDataNode.outputs.mask
-  target: SupervisedFullSpectrumBandSelector.inputs.mask
+  target: SupervisedFullSpectrumSelector.inputs.mask
 - source: LentilsAnomalyDataNode.outputs.mask
   target: detection_metrics.inputs.targets
 - source: LentilsAnomalyDataNode.outputs.mask
   target: RGBAnomalyMask.inputs.mask
-- source: SupervisedFullSpectrumBandSelector.outputs.rgb_image
+- source: SupervisedFullSpectrumSelector.outputs.rgb_image
   target: AdaCLIPDetector.inputs.rgb_image
-- source: SupervisedFullSpectrumBandSelector.outputs.rgb_image
+- source: SupervisedFullSpectrumSelector.outputs.rgb_image
   target: RGBAnomalyMask.inputs.rgb_image
 - source: AdaCLIPDetector.outputs.scores
   target: QuantileBinaryDecider.inputs.logits
@@ -88,7 +88,7 @@ connections:
 metadata:
   name: AdaCLIP_Supervised_FullSpectrum
   description: "Statistical AdaCLIP supervised full-spectrum pipeline (LentilsAnomalyDataNode\
-    \ \u2192 SupervisedFullSpectrumBandSelector \u2192 AdaCLIPDetector)"
+    \ \u2192 SupervisedFullSpectrumSelector \u2192 AdaCLIPDetector)"
   created: ''
   tags:
   - statistical

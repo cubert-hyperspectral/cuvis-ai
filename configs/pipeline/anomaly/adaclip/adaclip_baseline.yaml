@@ -18,7 +18,7 @@ nodes:
   hparams:
     weight_name: pretrained_all
     backbone: ViT-L-14-336
-    prompt_text: anomaly
+    prompt_text: ''
     image_size: 518
     prompting_depth: 4
     prompting_length: 5
@@ -26,6 +26,7 @@ nodes:
     use_half_precision: false
     enable_warmup: false
     enable_gradients: false
+    use_torch_preprocess: true
 - name: quantile_decider
   class_name: cuvis_ai.deciders.binary_decider.QuantileBinaryDecider
   hparams:
@@ -36,11 +37,11 @@ nodes:
   hparams:
     normalize_scores: true
     cmap: inferno
-    up_to: 3
+    up_to: 5
 - name: rgb_anomaly_mask_viz
   class_name: cuvis_ai.node.anomaly_visualization.RGBAnomalyMask
   hparams:
-    up_to: 3
+    up_to: 5
 - name: anomaly_metrics
   class_name: cuvis_ai.node.metrics.AnomalyDetectionMetrics
   hparams:
@@ -84,7 +85,7 @@ connections:
 metadata:
   name: AdaCLIP_Baseline
   description: "Statistical AdaCLIP baseline pipeline (LentilsAnomalyDataNode \u2192\
-    \ BaselineFalseRGBSelector \u2192 AdaCLIPDetector)"
+    \ FixedWavelengthSelector \u2192 AdaCLIPDetector)"
   created: ''
   tags:
   - statistical

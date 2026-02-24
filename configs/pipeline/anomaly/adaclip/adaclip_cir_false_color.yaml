@@ -6,7 +6,7 @@ nodes:
     normal_class_ids:
     - 0
     - 1
-- name: CIRFalseColorSelector
+- name: CIRSelector
   class_name: cuvis_ai.node.channel_selector.CIRSelector
   hparams:
     nir_nm: 860.0
@@ -17,14 +17,14 @@ nodes:
   hparams:
     weight_name: pretrained_all
     backbone: ViT-L-14-336
-    prompt_text: ''
+    prompt_text: 'normal: lentils, anomaly: stones'
     image_size: 518 # 336
     prompting_depth: 4
     prompting_length: 5
     gaussian_sigma: 4.0
-    use_half_precision: true
+    use_half_precision: false
     enable_warmup: true
-    enable_gradients: true
+    enable_gradients: false
     use_torch_preprocess: true
 - name: QuantileBinaryDecider
   class_name: cuvis_ai.deciders.binary_decider.QuantileBinaryDecider
@@ -54,16 +54,16 @@ nodes:
     flush_secs: 120
 connections:
 - source: LentilsAnomalyDataNode.outputs.cube
-  target: CIRFalseColorSelector.inputs.cube
+  target: CIRSelector.inputs.cube
 - source: LentilsAnomalyDataNode.outputs.wavelengths
-  target: CIRFalseColorSelector.inputs.wavelengths
+  target: CIRSelector.inputs.wavelengths
 - source: LentilsAnomalyDataNode.outputs.mask
   target: detection_metrics.inputs.targets
 - source: LentilsAnomalyDataNode.outputs.mask
   target: RGBAnomalyMask.inputs.mask
-- source: CIRFalseColorSelector.outputs.rgb_image
+- source: CIRSelector.outputs.rgb_image
   target: AdaCLIPDetector.inputs.rgb_image
-- source: CIRFalseColorSelector.outputs.rgb_image
+- source: CIRSelector.outputs.rgb_image
   target: RGBAnomalyMask.inputs.rgb_image
 - source: AdaCLIPDetector.outputs.scores
   target: QuantileBinaryDecider.inputs.logits
@@ -84,7 +84,7 @@ connections:
 metadata:
   name: AdaCLIP_CIR_FalseColor
   description: "Statistical AdaCLIP CIR false-color pipeline (LentilsAnomalyDataNode\
-    \ \u2192 CIRFalseColorSelector \u2192 AdaCLIPDetector)"
+    \ \u2192 CIRSelector \u2192 AdaCLIPDetector)"
   created: ''
   tags:
   - statistical

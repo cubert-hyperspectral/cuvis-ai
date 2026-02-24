@@ -6,7 +6,7 @@ nodes:
     normal_class_ids:
     - 0
     - 1
-- name: SupervisedCIRBandSelector
+- name: SupervisedCIRSelector
   class_name: cuvis_ai.node.channel_selector.SupervisedCIRSelector
   hparams:
     windows:
@@ -63,18 +63,18 @@ nodes:
     flush_secs: 120
 connections:
 - source: LentilsAnomalyDataNode.outputs.cube
-  target: SupervisedCIRBandSelector.inputs.cube
+  target: SupervisedCIRSelector.inputs.cube
 - source: LentilsAnomalyDataNode.outputs.wavelengths
-  target: SupervisedCIRBandSelector.inputs.wavelengths
+  target: SupervisedCIRSelector.inputs.wavelengths
 - source: LentilsAnomalyDataNode.outputs.mask
-  target: SupervisedCIRBandSelector.inputs.mask
+  target: SupervisedCIRSelector.inputs.mask
 - source: LentilsAnomalyDataNode.outputs.mask
   target: detection_metrics.inputs.targets
 - source: LentilsAnomalyDataNode.outputs.mask
   target: RGBAnomalyMask.inputs.mask
-- source: SupervisedCIRBandSelector.outputs.rgb_image
+- source: SupervisedCIRSelector.outputs.rgb_image
   target: AdaCLIPDetector.inputs.rgb_image
-- source: SupervisedCIRBandSelector.outputs.rgb_image
+- source: SupervisedCIRSelector.outputs.rgb_image
   target: RGBAnomalyMask.inputs.rgb_image
 - source: AdaCLIPDetector.outputs.scores
   target: QuantileBinaryDecider.inputs.logits
@@ -95,7 +95,7 @@ connections:
 metadata:
   name: AdaCLIP_Supervised_CIR
   description: "Statistical AdaCLIP supervised CIR pipeline (LentilsAnomalyDataNode\
-    \ \u2192 SupervisedCIRBandSelector \u2192 AdaCLIPDetector)"
+    \ \u2192 SupervisedCIRSelector \u2192 AdaCLIPDetector)"
   created: ''
   tags:
   - statistical

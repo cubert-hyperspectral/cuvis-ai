@@ -6,7 +6,7 @@ nodes:
     normal_class_ids:
     - 0
     - 1
-- name: HighContrastBandSelector
+- name: HighContrastSelector
   class_name: cuvis_ai.node.channel_selector.HighContrastSelector
   hparams:
     windows:
@@ -58,16 +58,16 @@ nodes:
     flush_secs: 120
 connections:
 - source: LentilsAnomalyDataNode.outputs.cube
-  target: HighContrastBandSelector.inputs.cube
+  target: HighContrastSelector.inputs.cube
 - source: LentilsAnomalyDataNode.outputs.wavelengths
-  target: HighContrastBandSelector.inputs.wavelengths
+  target: HighContrastSelector.inputs.wavelengths
 - source: LentilsAnomalyDataNode.outputs.mask
   target: detection_metrics.inputs.targets
 - source: LentilsAnomalyDataNode.outputs.mask
   target: RGBAnomalyMask.inputs.mask
-- source: HighContrastBandSelector.outputs.rgb_image
+- source: HighContrastSelector.outputs.rgb_image
   target: AdaCLIPDetector.inputs.rgb_image
-- source: HighContrastBandSelector.outputs.rgb_image
+- source: HighContrastSelector.outputs.rgb_image
   target: RGBAnomalyMask.inputs.rgb_image
 - source: AdaCLIPDetector.outputs.scores
   target: QuantileBinaryDecider.inputs.logits
@@ -88,7 +88,7 @@ connections:
 metadata:
   name: AdaCLIP_HighContrast
   description: "Statistical AdaCLIP high-contrast pipeline (LentilsAnomalyDataNode\
-    \ \u2192 HighContrastBandSelector \u2192 AdaCLIPDetector)"
+    \ \u2192 HighContrastSelector \u2192 AdaCLIPDetector)"
   created: ''
   tags:
   - statistical
