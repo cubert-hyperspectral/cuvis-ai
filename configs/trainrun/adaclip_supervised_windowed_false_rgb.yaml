@@ -3,7 +3,7 @@
 name: adaclip_supervised_windowed_false_rgb
 
 defaults:
-  - /pipeline@pipeline: adaclip_supervised_windowed_false_rgb
+  - /pipeline/anomaly/adaclip@pipeline: adaclip_supervised_windowed_false_rgb
   - /data@data: lentils
   - _self_
 

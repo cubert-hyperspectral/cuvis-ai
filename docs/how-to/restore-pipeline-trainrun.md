@@ -611,7 +611,7 @@ Load external plugins when restoring pipelines:
 
 ```bash
 uv run restore-pipeline \
-  --pipeline-path configs/pipeline/adaclip_baseline.yaml \
+  --pipeline-path configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml \
   --plugins-path examples/adaclip/plugins_local.yaml
 ```
 
@@ -619,7 +619,7 @@ With inference:
 
 ```bash
 uv run restore-pipeline \
-  --pipeline-path configs/pipeline/adaclip_baseline.yaml \
+  --pipeline-path configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml \
   --plugins-path examples/adaclip/plugins.yaml \
   --cu3s-file-path data/Lentils/Lentils_000.cu3s
 ```
@@ -631,13 +631,13 @@ from cuvis_ai_core.utils import restore_pipeline
 
 # Load pipeline with plugins
 pipeline = restore_pipeline(
-    pipeline_path="configs/pipeline/adaclip_baseline.yaml",
+    pipeline_path="configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml",
     plugins_path="examples/adaclip/plugins.yaml"
 )
 
 # Or with inference
 pipeline = restore_pipeline(
-    pipeline_path="configs/pipeline/adaclip_baseline.yaml",
+    pipeline_path="configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml",
     plugins_path="examples/adaclip/plugins.yaml",
     cu3s_file_path="data/Lentils/Lentils_000.cu3s"
 )
@@ -659,7 +659,7 @@ registry.load_plugins("examples/adaclip/plugins.yaml")
 
 # Load pipeline with plugin-aware registry
 pipeline = CuvisPipeline.load_pipeline(
-    "configs/pipeline/adaclip_baseline.yaml",
+    "configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml",
     node_registry=registry
 )
 ```

@@ -201,7 +201,7 @@ connections:
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
 # Load pipeline from YAML
-pipeline = CuvisPipeline.load_pipeline("configs/pipeline/rx_statistical.yaml")
+pipeline = CuvisPipeline.load_pipeline("configs/pipeline/anomaly/rx/rx_statistical.yaml")
 
 # Validate
 pipeline.validate()
@@ -227,7 +227,7 @@ Override specific parameters without modifying the YAML file:
 ```python
 # Override node parameters
 pipeline = CuvisPipeline.load_pipeline(
-    config_path="configs/pipeline/rx_statistical.yaml",
+    config_path="configs/pipeline/anomaly/rx/rx_statistical.yaml",
     config_overrides={
         "nodes.2.params.threshold": 0.8,  # Override BinaryDecider threshold
         "nodes.3.params.eps": 1e-8,       # Override RXGlobal eps
@@ -236,7 +236,7 @@ pipeline = CuvisPipeline.load_pipeline(
 
 # Or using dot notation (requires Hydra)
 pipeline = CuvisPipeline.load_pipeline(
-    config_path="configs/pipeline/rx_statistical.yaml",
+    config_path="configs/pipeline/anomaly/rx/rx_statistical.yaml",
     config_overrides=[
         "nodes.2.params.threshold=0.8",
         "metadata.name=RX_Custom"
@@ -249,7 +249,7 @@ pipeline = CuvisPipeline.load_pipeline(
 ```python
 # Load pipeline with specific weights file
 pipeline = CuvisPipeline.load_pipeline(
-    config_path="configs/pipeline/rx_statistical.yaml",
+    config_path="configs/pipeline/anomaly/rx/rx_statistical.yaml",
     weights_path="outputs/trained_models/rx_custom.pt",
     device="cuda",
     strict_weight_loading=True
@@ -268,7 +268,7 @@ For training experiments, use Hydra composition to combine pipeline, data, and t
 name: my_trainrun
 
 defaults:
-  - /pipeline@pipeline: rx_statistical
+  - /pipeline/anomaly/rx@pipeline: rx_statistical
   - /data@data: lentils
   - /training@training: default
   - _self_

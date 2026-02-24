@@ -28,7 +28,7 @@ def main(server_address: str = "localhost:50051") -> None:
     print(f"Session created: {session_id}")
 
     # Resolve the adaclip_baseline trainrun config
-    # This loads the pipeline from configs/pipeline/adaclip_baseline.yaml
+    # This loads the pipeline from configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml
     resolved, config_dict = resolve_trainrun_config(
         stub,
         session_id,

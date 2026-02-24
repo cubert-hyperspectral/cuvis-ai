@@ -149,7 +149,7 @@ metadata:
 
 ```yaml
 metadata:
-  name: DRCNN_AdaClip_Gradient
+  name: drcnn_adaclip_gradient
   description: DRCNN channel mixer with AdaClip anomaly detection
   created: '2026-02-04T10:30:00'
   tags:

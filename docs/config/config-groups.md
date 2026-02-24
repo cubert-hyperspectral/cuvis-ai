@@ -52,7 +52,7 @@ configs/
 # @package _global_
 
 defaults:
-  - /pipeline@pipeline: rx_statistical
+  - /pipeline/anomaly/rx@pipeline: rx_statistical
   - /data@data: lentils
   - /training@training: default
   - _self_
@@ -88,7 +88,7 @@ Pipeline group defines the computational graph (nodes + connections).
 **Selection pattern:**
 ```yaml
 defaults:
-  - /pipeline@pipeline: rx_statistical
+  - /pipeline/anomaly/rx@pipeline: rx_statistical
 ```
 
 **Example: rx_statistical.yaml**
@@ -130,7 +130,7 @@ connections:
 ```yaml
 # In trainrun config
 defaults:
-  - /pipeline@pipeline: rx_statistical
+  - /pipeline/anomaly/rx@pipeline: rx_statistical
   - _self_
 
 # Override specific node params
@@ -286,7 +286,7 @@ def main(cfg: DictConfig):
 # @package _global_
 
 defaults:
-  - /pipeline@pipeline: rx_statistical
+  - /pipeline/anomaly/rx@pipeline: rx_statistical
   - /data@data: lentils
   - /training@training: default
   - _self_
@@ -357,7 +357,7 @@ Most common pattern for complete experiments:
 # @package _global_
 
 defaults:
-  - /pipeline@pipeline: channel_selector
+  - /pipeline/anomaly/rx@pipeline: channel_selector
   - /data@data: lentils
   - /training@training: default
   - _self_
@@ -379,7 +379,7 @@ Override specific sections without full replacement:
 # @package _global_
 
 defaults:
-  - /pipeline@pipeline: rx_statistical
+  - /pipeline/anomaly/rx@pipeline: rx_statistical
   - /data@data: lentils
   - /training@training: default
   - _self_
@@ -522,7 +522,7 @@ processing_mode: Reflectance
 # @package _global_
 
 defaults:
-  - /pipeline@pipeline: rx_statistical
+  - /pipeline/anomaly/rx@pipeline: rx_statistical
   - /data@data: my_dataset/default
   - /training@training: default
   - _self_
@@ -574,7 +574,7 @@ configs/
 **Use descriptive names:**
 ```yaml
 # Good
-configs/pipeline/channel_selector_with_rx.yaml
+configs/pipeline/anomaly/rx/channel_selector_with_rx.yaml
 
 # Avoid
 configs/pipeline/pipeline1.yaml
@@ -586,14 +586,14 @@ configs/pipeline/pipeline1.yaml
 ```yaml
 # Correct
 defaults:
-  - /pipeline@pipeline: rx_statistical
+  - /pipeline/anomaly/rx@pipeline: rx_statistical
   - /data@data: lentils
   - _self_  # ← LAST
 
 # Wrong
 defaults:
   - _self_
-  - /pipeline@pipeline: rx_statistical  # Won't override _self_
+  - /pipeline/anomaly/rx@pipeline: rx_statistical  # Won't override _self_
 ```
 
 ### 3. Minimal Overrides
@@ -648,7 +648,7 @@ data:
 # without gradient-based training.
 
 defaults:
-  - /pipeline@pipeline: rx_statistical
+  - /pipeline/anomaly/rx@pipeline: rx_statistical
   - /data@data: lentils
   - _self_
 
@@ -671,7 +671,7 @@ loss_nodes: []
 # @package _global_
 
 defaults:
-  - /pipeline@pipeline: channel_selector
+  - /pipeline/anomaly/rx@pipeline: channel_selector
   - /data@data: lentils
   - /training@training: default
   - _self_
@@ -752,7 +752,7 @@ ls configs/pipeline/
 
 # Verify path in defaults
 defaults:
-  - /pipeline@pipeline: rx_statistical  # ← Must match filename
+  - /pipeline/anomaly/rx@pipeline: rx_statistical  # ← Must match filename
 ```
 
 ### Override Not Applied
@@ -762,7 +762,7 @@ defaults:
 **Solution:** Ensure `_self_` is last in defaults:
 ```yaml
 defaults:
-  - /pipeline@pipeline: rx_statistical
+  - /pipeline/anomaly/rx@pipeline: rx_statistical
   - /data@data: lentils
   - _self_  # ← MUST BE LAST
 
@@ -791,7 +791,7 @@ annotation_json_path: data/Lentils/Lentils_000.json
 # @package _global_  ← Required for trainruns
 
 defaults:
-  - /pipeline@pipeline: rx_statistical
+  - /pipeline/anomaly/rx@pipeline: rx_statistical
 ```
 
 ---

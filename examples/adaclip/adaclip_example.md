@@ -126,10 +126,10 @@ Copy the generated files to the appropriate locations in `cuvis.ai`:
 ```bash
 # Copy pipeline YAML and weights
 cp AdaCLIP-cuvis/outputs/adaclip_baseline/trained_models/adaclip_baseline.yaml \
-   cuvis.ai/configs/pipeline/adaclip_baseline.yaml
+   cuvis.ai/configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml
 
 cp AdaCLIP-cuvis/outputs/adaclip_baseline/trained_models/adaclip_baseline.pt \
-   cuvis.ai/configs/pipeline/adaclip_baseline.pt
+   cuvis.ai/configs/pipeline/anomaly/adaclip/adaclip_baseline.pt
 ```
 
 **Important:** The pipeline YAML should be the **complete** `PipelineConfig` (with nodes, connections, metadata) extracted from the trained pipeline, not just parameters.
@@ -144,7 +144,7 @@ Create a trainrun config in `cuvis.ai/configs/trainrun/adaclip_baseline.yaml` th
 name: adaclip_baseline
 
 defaults:
-  - /pipeline@pipeline: adaclip_baseline  # References configs/pipeline/adaclip_baseline.yaml
+  - /pipeline/anomaly/adaclip@pipeline: adaclip_baseline  # References configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml
   - /data@data: lentils                    # References configs/data/lentils.yaml
   - /training@training: default             # References configs/training/default.yaml
   - _self_
@@ -200,16 +200,16 @@ Use the `restore-pipeline` CLI command for inference without requiring the full 
 
 ```bash
 # Display pipeline info
-uv run restore-pipeline --pipeline-path configs/pipeline/adaclip_baseline.yaml
+uv run restore-pipeline --pipeline-path configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml
 
 # Run inference on CU3S file
 uv run restore-pipeline \
-  --pipeline-path configs/pipeline/adaclip_baseline.yaml \
+  --pipeline-path configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml \
   --cu3s-file-path data/Lentils/Lentils_000.cu3s
 
 # Use custom CU3S file
 uv run restore-pipeline \
-  --pipeline-path configs/pipeline/adaclip_baseline.yaml \
+  --pipeline-path configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml \
   --cu3s-file-path /path/to/your/custom_data.cu3s
 ```
 
@@ -230,7 +230,7 @@ restore_trainrun(
 
 # Restore and run pipeline inference
 restore_pipeline(
-    pipeline_path="configs/pipeline/adaclip_baseline.yaml",
+    pipeline_path="configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml",
     cu3s_file_path="data/Lentils/Lentils_000.cu3s"
 )
 ```
@@ -271,7 +271,7 @@ uv run python cuvis_ai_adaclip/examples_cuvis/statistical_baseline.py \
 ```bash
 # Using restore-pipeline
 uv run restore-pipeline \
-  --pipeline-path configs/pipeline/adaclip_baseline.yaml \
+  --pipeline-path configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml \
   --cu3s-file-path /path/to/your/custom_data.cu3s
 
 # Using restore-trainrun
@@ -345,7 +345,7 @@ The trainrun configs use Hydra's `defaults` to compose multiple configs:
 
 ```yaml
 defaults:
-  - /pipeline@pipeline: adaclip_baseline  # Loads configs/pipeline/adaclip_baseline.yaml
+  - /pipeline/anomaly/adaclip@pipeline: adaclip_baseline  # Loads configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml
   - /data@data: lentils                    # Loads configs/data/lentils.yaml
   - /training@training: default            # Loads configs/training/default.yaml
   - _self_                                  # Merges with current config

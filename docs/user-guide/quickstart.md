@@ -37,10 +37,10 @@ Want to see CUVIS.AI in action first? Run inference with a pre-configured pipeli
 
 ```bash
 # View pipeline structure
-uv run restore-pipeline --pipeline-path configs/pipeline/rx_statistical.yaml
+uv run restore-pipeline --pipeline-path configs/pipeline/anomaly/rx/rx_statistical.yaml
 
 # Run inference on sample data
-uv run restore-pipeline --pipeline-path configs/pipeline/rx_statistical.yaml --cu3s-file-path data/Lentils/Demo_000.cu3s
+uv run restore-pipeline --pipeline-path configs/pipeline/anomaly/rx/rx_statistical.yaml --cu3s-file-path data/Lentils/Demo_000.cu3s
 ```
 
 This loads the pipeline configuration and runs anomaly detection on the sample hyperspectral cube.
@@ -59,7 +59,7 @@ Results are saved to `outputs/base_trainrun/`.
 ## What Just Happened?
 
 1. **Loaded data** - The Lentils hyperspectral dataset
-2. **Built pipeline** - RX statistical anomaly detector from `configs/pipeline/rx_statistical.yaml`
+2. **Built pipeline** - RX statistical anomaly detector from `configs/pipeline/anomaly/rx/rx_statistical.yaml`
 3. **Trained model** - Statistical initialization on training data
 4. **Saved results** - Pipeline, weights, and metrics to `outputs/`
 

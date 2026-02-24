@@ -2,7 +2,7 @@
 
 
 defaults:
-  - /pipeline@pipeline: rx_statistical
+  - /pipeline/anomaly/rx@pipeline: rx_statistical
   - /data@data: lentils
   - _self_
 

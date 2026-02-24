@@ -720,7 +720,7 @@ from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.anomaly.iou_loss import IoULoss
 
 # Create pipeline
-pipeline = CuvisPipeline("DRCNN_AdaClip_Gradient")
+pipeline = CuvisPipeline("drcnn_adaclip_gradient")
 
 # Processing nodes
 data_node = LentilsAnomalyDataNode(normal_class_ids=[0, 1])
@@ -844,7 +844,7 @@ from cuvis_ai.anomaly.iou_loss import IoULoss
 from cuvis_ai.anomaly.distinctness_loss import DistinctnessLoss
 
 # Create pipeline
-pipeline = CuvisPipeline("Concrete_AdaClip")
+pipeline = CuvisPipeline("concrete_adaclip")
 
 # Processing nodes
 data_node = LentilsAnomalyDataNode(normal_class_ids=[0, 1])
@@ -956,7 +956,7 @@ name: drcnn_adaclip
 output_dir: ./outputs/${name}
 
 defaults:
-  - /pipeline@pipeline: drcnn_adaclip
+  - /pipeline/anomaly/adaclip@pipeline: drcnn_adaclip_gradient
   - /data@data: lentils
   - /training@training: default
   - _self_
@@ -1012,11 +1012,11 @@ outputs/drcnn_adaclip/
 │   ├── epoch=01.ckpt
 │   └── last.ckpt
 ├── pipeline/
-│   ├── DRCNN_AdaClip_Gradient.png
-│   └── DRCNN_AdaClip_Gradient.md
+│   ├── drcnn_adaclip_gradient.png
+│   └── drcnn_adaclip_gradient.md
 └── trained_models/
-    ├── DRCNN_AdaClip_Gradient.yaml
-    ├── DRCNN_AdaClip_Gradient.pt
+    ├── drcnn_adaclip_gradient.yaml
+    ├── drcnn_adaclip_gradient.pt
     └── drcnn_adaclip_trainrun.yaml
 ```
 

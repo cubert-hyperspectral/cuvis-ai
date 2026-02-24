@@ -162,16 +162,16 @@ def main() -> None:
         epilog="""\
 Examples:
   # Display pipeline info
-  python run_inference.py --pipeline-path configs/pipeline/channel_selector.yaml
+  python run_inference.py --pipeline-path configs/pipeline/anomaly/rx/channel_selector.yaml
 
   # Restore pipeline with custom weights
-  python run_inference.py --pipeline-path configs/pipeline/channel_selector.yaml --weights-path outputs/my_weights.pt
+  python run_inference.py --pipeline-path configs/pipeline/anomaly/rx/channel_selector.yaml --weights-path outputs/my_weights.pt
 
   # Override config values
-  python run_inference.py --pipeline-path configs/pipeline/channel_selector.yaml --override nodes.10.params.output_dir=outputs/my_tb
+  python run_inference.py --pipeline-path configs/pipeline/anomaly/rx/channel_selector.yaml --override nodes.10.params.output_dir=outputs/my_tb
 
   # Use custom gRPC server
-  python run_inference.py --pipeline-path configs/pipeline/channel_selector.yaml --server localhost:50052
+  python run_inference.py --pipeline-path configs/pipeline/anomaly/rx/channel_selector.yaml --server localhost:50052
         """,
     )
 

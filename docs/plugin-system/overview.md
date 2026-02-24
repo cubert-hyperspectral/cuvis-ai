@@ -308,22 +308,22 @@ Restore and run pipelines with plugin support:
 
 ```bash
 # Display pipeline information
-uv run restore-pipeline --pipeline-path configs/pipeline/adaclip_baseline.yaml
+uv run restore-pipeline --pipeline-path configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml
 
 # Load plugins from manifest
 uv run restore-pipeline \
-    --pipeline-path configs/pipeline/adaclip_baseline.yaml \
+    --pipeline-path configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml \
     --plugins-path examples/adaclip/plugins.yaml
 
 # Run inference with plugins
 uv run restore-pipeline \
-    --pipeline-path configs/pipeline/adaclip_baseline.yaml \
+    --pipeline-path configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml \
     --plugins-path examples/adaclip/plugins.yaml \
     --cu3s-file-path data/test_sample.cu3s
 
 # Export pipeline visualization
 uv run restore-pipeline \
-    --pipeline-path configs/pipeline/adaclip_baseline.yaml \
+    --pipeline-path configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml \
     --plugins-path examples/adaclip/plugins.yaml \
     --pipeline-vis-ext png
 ```

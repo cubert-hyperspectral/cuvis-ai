@@ -3,7 +3,7 @@
 name: adaclip_high_contrast
 
 defaults:
-  - /pipeline@pipeline: adaclip_high_contrast
+  - /pipeline/anomaly/adaclip@pipeline: adaclip_high_contrast
   - /data@data: lentils
   - _self_
 

@@ -134,7 +134,7 @@ def main(cfg: DictConfig) -> None:
             logger.info(f"    Class {class_id} ({class_name}): {count} pixels ({pct:.2f}%)")
 
     # Stage 2: Build pipeline
-    pipeline = CuvisPipeline("DRCNN_AdaClip_Gradient")
+    pipeline = CuvisPipeline("drcnn_adaclip_gradient")
 
     # Data entry node (hardcoded from YAML pipeline.data_node)
     # Use anomaly_class_ids=[3] to only treat Stone (class 3) as anomaly for IoU loss

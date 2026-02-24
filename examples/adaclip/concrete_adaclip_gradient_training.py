@@ -120,7 +120,7 @@ def main(cfg: DictConfig) -> None:
         )
 
     # Stage 2: Build pipeline
-    pipeline = CuvisPipeline("Concrete_AdaClip_Gradient")
+    pipeline = CuvisPipeline("concrete_adaclip_gradient")
 
     # Data entry node
     # Use anomaly_class_ids=[3] to only treat Stone (class 3) as anomaly for IoU loss

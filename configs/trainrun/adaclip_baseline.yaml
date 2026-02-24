@@ -3,7 +3,7 @@
 name: adaclip_baseline
 
 defaults:
-  - /pipeline@pipeline: adaclip_baseline
+  - /pipeline/anomaly/adaclip@pipeline: adaclip_baseline
   - /data@data: lentils
   - _self_
 

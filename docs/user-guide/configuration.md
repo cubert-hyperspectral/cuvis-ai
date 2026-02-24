@@ -49,7 +49,7 @@ Pipeline configs define the computational graph structure: nodes and their conne
 
 **Location**: `configs/pipeline/*.yaml`
 
-**Complete example** (`configs/pipeline/rx_statistical.yaml` - simplified):
+**Complete example** (`configs/pipeline/anomaly/rx/rx_statistical.yaml` - simplified):
 
 ```yaml
 # Pipeline metadata
@@ -183,7 +183,7 @@ Trainrun configs compose pipeline, data, and training configs together and add o
 
 # Compose other configs using Hydra defaults
 defaults:
-  - /pipeline@pipeline: rx_statistical  # Inject configs/pipeline/rx_statistical.yaml into .pipeline
+  - /pipeline/anomaly/rx@pipeline: rx_statistical  # Inject configs/pipeline/anomaly/rx/rx_statistical.yaml into .pipeline
   - /data@data: lentils                 # Inject configs/data/lentils.yaml into .data
   - /training@training: default         # Inject configs/training/default.yaml into .training
   - _self_                              # Allow overrides from this file
@@ -217,7 +217,7 @@ metric_nodes:             # Nodes that compute metrics
     - `metric_nodes`: Nodes that compute metrics
 
 !!! tip "Package Directive Syntax"
-    The syntax `/source@destination: config_name` tells Hydra to load `configs/source/config_name.yaml` and inject it at the `destination` key in the merged config. For example, `/pipeline@pipeline: rx_statistical` loads `configs/pipeline/rx_statistical.yaml` and places it at `cfg.pipeline`.
+    The syntax `/source@destination: config_name` tells Hydra to load `configs/source/config_name.yaml` and inject it at the `destination` key in the merged config. For example, `/pipeline/anomaly/rx@pipeline: rx_statistical` loads `configs/pipeline/anomaly/rx/rx_statistical.yaml` and places it at `cfg.pipeline`.
 
 ## How Configuration Composition Works
 
@@ -230,7 +230,7 @@ When you run a trainrun config, Hydra merges all composed configs:
 ```yaml
 # trainrun/my_experiment.yaml
 defaults:
-  - /pipeline@pipeline: rx_statistical
+  - /pipeline/anomaly/rx@pipeline: rx_statistical
   - /data@data: lentils
   - /training@training: default
   - _self_
@@ -242,7 +242,7 @@ The resulting merged config structure:
 
 ```python
 cfg = {
-    "pipeline": {  # From /pipeline@pipeline: rx_statistical
+    "pipeline": {  # From /pipeline/anomaly/rx@pipeline: rx_statistical
         "metadata": {...},
         "nodes": [...],
         "connections": [...]
