@@ -2,7 +2,7 @@
 
 
 defaults:
-  - /pipeline@pipeline: channel_selector
+  - /pipeline/anomaly/rx@pipeline: channel_selector
   - /data@data: lentils
   - /training@training: default
   - _self_
@@ -35,7 +35,7 @@ training:
         min_delta: 1.0e-06
         stopping_threshold: null
         verbose: true
-      model_checkpoint:
+      checkpoint:
         dirpath: outputs\channel_selector\checkpoints
         monitor: metrics_anomaly/iou
         filename: '{epoch:02d}'

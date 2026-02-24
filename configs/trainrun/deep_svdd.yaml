@@ -3,7 +3,7 @@
 name: deep_svdd
 
 defaults:
-  - /pipeline@pipeline: deep_svdd
+  - /pipeline/anomaly/deep_svdd@pipeline: deep_svdd
   - /data@data: lentils
   - /training@training: default
   - _self_
@@ -31,7 +31,7 @@ training:
     deterministic: false
     benchmark: false
     callbacks:
-      model_checkpoint:
+      checkpoint:
         dirpath: outputs\deepsvdd\checkpoints
         monitor: metrics_anomaly/iou
         filename: "{epoch:02d}"
