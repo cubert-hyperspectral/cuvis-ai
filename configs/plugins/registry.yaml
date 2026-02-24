@@ -15,14 +15,15 @@ plugins:
 
   adaclip:
     # AdaCLIP-based anomaly detection with advanced band selection
-    repo: "https://github.com/cubert-hyperspectral/cuvis-ai-adaclip.git"
-    tag: "v0.1.2"
+    path: "D:\\code-repos\\cuvis-ai-adaclip\\cuvis-ai-adaclip"
+    # repo: "https://github.com/cubert-hyperspectral/cuvis-ai-adaclip.git"
+    # tag: "v0.1.2"
     provides:
       - cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
 
   sam3:
     # SAM3-based video object tracking plugin
-    path: "../../cuvis-ai-sam3"
+    path: "D:\\code-repos\\cuvis-ai-sam3"
     provides:
       - cuvis_ai_sam3.node.SAM3TrackerInference
       - cuvis_ai_sam3.node.SpectralSignatureExtractor
