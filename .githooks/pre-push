@@ -4,6 +4,10 @@
 
 set -e
 
+# Unset GIT_DIR/GIT_WORK_TREE so that uv's internal git fetch calls
+# (for git-based dependencies) don't inherit the hook's git context.
+unset GIT_DIR GIT_WORK_TREE
+
 echo "Running pre-push checks..."
 
 # Sync dev dependencies first
