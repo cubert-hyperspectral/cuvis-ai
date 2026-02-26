@@ -8,6 +8,10 @@
 - Added `freeze()` for `LearnableChannelMixer` matching existing `unfreeze()` override
 - Added `ConcreteChannelMixer` and `LearnableChannelMixer` exported from `cuvis_ai.node`
 - Added all 6 visualization nodes exported from `cuvis_ai.node`: `AnomalyMask`, `RGBAnomalyMask`, `ScoreHeatmapVisualizer`, `CubeRGBVisualizer`, `PCAVisualization`, `PipelineComparisonVisualizer`
+- Added insufficient-samples guard to `RXGlobal` and `ScoreToLogit` — raises early when training data has too few samples
+- Added plugin runtime smoke CI workflow (`plugin-runtime-smoke.yml`) with slow plugin tests
+- Added AdaCLIP standalone plugin manifest (`configs/plugins/adaclip.yaml`) and 6 example scripts
+- Added plugin contract, manifest sync, and runtime smoke test files
 - Added 8 new test files: `test_welford`, `test_freeze_unfreeze`, `test_channel_selector_coverage`, `test_concrete_channel_mixer`, `test_pipeline_visualization`, `test_binary_decider`, `test_data_node`, `test_rx_per_batch`
 - Added pytest markers (`unit`/`integration`/`slow`) on all 30 test files; session-scoped fixtures for expensive operations; pytest config consolidated in `pytest.ini`
 - Changed RXGlobal, ScoreToLogit, LADGlobal to use `WelfordAccumulator` instead of inline Welford implementations
@@ -23,11 +27,17 @@
 - **Breaking**: Renamed 9 classes to reflect selector/mixer distinction: `BandSelectorBase` → `ChannelSelectorBase`, `BaselineFalseRGBSelector` → `FixedWavelengthSelector`, `HighContrastBandSelector` → `HighContrastSelector`, `CIRFalseColorSelector` → `CIRSelector`, `SupervisedBandSelectorBase` → `SupervisedSelectorBase`, `SupervisedCIRBandSelector` → `SupervisedCIRSelector`, `SupervisedWindowedFalseRGBSelector` → `SupervisedWindowedSelector`, `SupervisedFullSpectrumBandSelector` → `SupervisedFullSpectrumSelector`, `ConcreteBandSelector` → `ConcreteChannelMixer`, `DRCNNTensorBoardViz` → `PipelineComparisonVisualizer`
 - **Breaking**: Deleted old files — no deprecation stubs or re-exports
 - Removed redundant `.to(device)` calls from `adaclip.py`, `anomaly_visualization.py`, `channel_selector.py` — pipeline handles device placement
+- Changed pipeline configs reorganized into `anomaly/` subdirectories (`adaclip/`, `deep_svdd/`, `rx/`)
+- Changed AdaCLIP pipeline node names and synced tuning values across 8 pipeline configs
+- Changed Deep SVDD configs, examples, and docs cleaned up for consistency
+- Changed CI workflows to install `libgl1`/`libglib2.0-0` system dependencies for plugin imports
 - Updated 13 pipeline + 17 trainrun YAML configs with new `class_name` paths
 - Updated 11 example scripts with new import paths
 - Updated 19 documentation files with new class names, import paths, and new content for `WelfordAccumulator` and `TRAINABLE_BUFFERS`
 - Fixed `pyproject.toml` uv source field (`develop` to `editable`)
 - Fixed wavelength batching in supervised band selector `_collect_training_data` (flatten `[B, C]` to `[C]`)
+- Fixed trainrun callback field name and `channel_selector` weights config
+- Fixed Werkzeug CVE-2026-27199 by bumping 3.1.5 → 3.1.6
 - Removed dead `_quantile_threshold()` and duplicate `_resolve_reduce_dims()` from `TwoStageBinaryDecider`
 - Removed `frozen_nodes` from pipeline configs and docs
 
