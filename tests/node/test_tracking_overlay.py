@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pytest
 import torch
-
 from cuvis_ai.node.visualizations import TrackingOverlayNode
 
 # ---------------------------------------------------------------------------

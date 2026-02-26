@@ -10,10 +10,10 @@ transposition bugs that would be invisible with square images.
 from __future__ import annotations
 
 import torch
-
 from cuvis_ai.node.band_selection import RangeAverageFalseRGBSelector
-from cuvis_ai.node.data import CU3SDataNode
 from cuvis_ai.node.visualizations import MaskOverlayNode
+
+from cuvis_ai.node.data import CU3SDataNode
 from cuvis_ai.utils.vis_helpers import create_mask_overlay
 
 # Common non-square test dimensions (H != W to catch transpose bugs)

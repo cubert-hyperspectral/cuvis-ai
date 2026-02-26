@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import numpy as np
 import torch
-
 from cuvis_ai.node.band_selection import BandSelectorBase, RangeAverageFalseRGBSelector
 
 

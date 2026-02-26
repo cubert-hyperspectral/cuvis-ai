@@ -45,11 +45,6 @@ from pathlib import Path
 
 import click
 import torch
-from cuvis_ai_core.data.datasets import SingleCu3sDataModule
-from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
-from cuvis_ai_core.training import Predictor
-from loguru import logger
-
 from cuvis_ai.node.band_selection import (
     BandSelectorBase,
     BaselineFalseRGBSelector,
@@ -57,6 +52,11 @@ from cuvis_ai.node.band_selection import (
     CIETristimulusFalseRGBSelector,
     RangeAverageFalseRGBSelector,
 )
+from cuvis_ai_core.data.datasets import SingleCu3sDataModule
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.training import Predictor
+from loguru import logger
+
 from cuvis_ai.node.data import CU3SDataNode
 from cuvis_ai.node.video import ToVideoNode
 

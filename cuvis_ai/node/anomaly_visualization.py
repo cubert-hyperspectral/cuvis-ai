@@ -69,7 +69,6 @@ class ImageArtifactVizBase(Node):
         return np.clip(img, 0.0, 1.0).astype(np.float32)
 
 
-
 class AnomalyMask(Node):
     """Visualize anomaly detection with GT and predicted masks.
 
