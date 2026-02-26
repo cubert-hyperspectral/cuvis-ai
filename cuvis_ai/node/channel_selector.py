@@ -345,6 +345,7 @@ class FixedWavelengthSelector(ChannelSelectorBase):
         self.target_wavelengths = target_wavelengths
 
     def _compute_raw_rgb(self, cube: torch.Tensor, wavelengths: Any) -> torch.Tensor:
+        """Select the nearest spectral band for each target wavelength."""
         wavelengths_np = np.asarray(wavelengths, dtype=np.float32)
         indices = [self._nearest_band_index(wavelengths_np, nm) for nm in self.target_wavelengths]
         bands = [cube[..., idx] for idx in indices]
@@ -488,6 +489,7 @@ class RangeAverageFalseRGBSelector(ChannelSelectorBase):
             self._cached_wl_key = wl_key
 
     def _compute_raw_rgb(self, cube: torch.Tensor, wavelengths: Any) -> torch.Tensor:
+        """Compute RGB by weighted averaging of bands within each spectral range."""
         self._ensure_weights(wavelengths, cube.device)
         return torch.einsum("bhwc,kc->bhwk", cube, self._avg_weights)
 
@@ -831,6 +833,7 @@ class CIETristimulusFalseRGBSelector(ChannelSelectorBase):
         return None
 
     def _compute_raw_rgb(self, cube: torch.Tensor, wavelengths: Any) -> torch.Tensor:
+        """Convert spectral cube to linear sRGB via CIE XYZ tristimulus integration."""
         self._ensure_cmf_weights(wavelengths, cube.device)
         xyz = torch.einsum("bhwc,kc->bhwk", cube, self._cmf_weights)
         rgb_linear = torch.einsum("bhwj,ij->bhwi", xyz, self._xyz_to_srgb_matrix)
@@ -950,6 +953,7 @@ class CameraEmulationFalseRGBSelector(ChannelSelectorBase):
             self._cached_wl_key = wl_key
 
     def _compute_raw_rgb(self, cube: torch.Tensor, wavelengths: Any) -> torch.Tensor:
+        """Compute RGB using Gaussian camera sensitivity response functions."""
         self._ensure_channel_weights(wavelengths, cube.device)
         return torch.einsum("bhwc,kc->bhwk", cube, self._channel_weights)
 
@@ -1517,11 +1521,13 @@ class SupervisedCIRSelector(SupervisedSelectorBase):
         wavelengths: np.ndarray,
         corr_matrix: np.ndarray,
     ) -> list[int]:
+        """Select one band per CIR window using mRMR-penalized supervised scores."""
         return _mrmr_band_selection(
             band_scores, wavelengths, self.windows, corr_matrix, self.lambda_penalty
         )
 
     def _extra_band_info(self, wavelengths_np: np.ndarray) -> dict[str, Any]:
+        """Return the CIR spectral window boundaries as metadata."""
         return {"windows_nm": [[float(s), float(e)] for s, e in self.windows]}
 
 
@@ -1558,11 +1564,13 @@ class SupervisedWindowedSelector(SupervisedSelectorBase):
         wavelengths: np.ndarray,
         corr_matrix: np.ndarray,
     ) -> list[int]:
+        """Select one band per visible RGB window using mRMR-penalized supervised scores."""
         return _mrmr_band_selection(
             band_scores, wavelengths, self.windows, corr_matrix, self.lambda_penalty
         )
 
     def _extra_band_info(self, wavelengths_np: np.ndarray) -> dict[str, Any]:
+        """Return the visible RGB spectral window boundaries as metadata."""
         return {"windows_nm": [[float(s), float(e)] for s, e in self.windows]}
 
 
@@ -1589,6 +1597,7 @@ class SupervisedFullSpectrumSelector(SupervisedSelectorBase):
         wavelengths: np.ndarray,  # noqa: ARG002
         corr_matrix: np.ndarray,
     ) -> list[int]:
+        """Select top-3 bands globally using mRMR redundancy penalty over the full spectrum."""
         return _select_top_k_bands(
             band_scores, corr_matrix, k=3, lambda_penalty=self.lambda_penalty
         )

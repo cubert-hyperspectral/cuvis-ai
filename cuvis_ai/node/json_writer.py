@@ -151,12 +151,14 @@ class TrackingCocoJsonNode(Node):
 
     @staticmethod
     def _parse_frame_id(frame_id: torch.Tensor) -> int:
+        """Extract a scalar integer frame index from a single-element tensor."""
         if frame_id.numel() != 1:
             raise ValueError("frame_id must contain exactly one scalar value.")
         return int(frame_id.reshape(-1)[0].item())
 
     @staticmethod
     def _parse_mask(mask: torch.Tensor) -> torch.Tensor:
+        """Squeeze a [1, H, W] or [H, W] mask tensor to 2-D."""
         if mask.ndim == 3:
             if mask.shape[0] != 1:
                 raise ValueError(
@@ -169,6 +171,7 @@ class TrackingCocoJsonNode(Node):
 
     @staticmethod
     def _parse_vector(tensor: torch.Tensor, port_name: str) -> torch.Tensor:
+        """Squeeze a [1, N] or [N] vector tensor to 1-D, raising on invalid shape."""
         if tensor.ndim == 2:
             if tensor.shape[0] != 1:
                 raise ValueError(
@@ -181,10 +184,12 @@ class TrackingCocoJsonNode(Node):
 
     @staticmethod
     def _validate_alignment(object_ids: torch.Tensor, detection_scores: torch.Tensor) -> None:
+        """Verify that object_ids and detection_scores have matching lengths."""
         if int(object_ids.numel()) != int(detection_scores.numel()):
             raise ValueError("object_ids and detection_scores must have identical lengths.")
 
     def _flush_json(self) -> None:
+        """Assemble all accumulated frames into a COCO-format dict and write to disk."""
         frames = [self._frames_by_id[idx] for idx in sorted(self._frames_by_id.keys())]
 
         images = [
@@ -229,11 +234,13 @@ class TrackingCocoJsonNode(Node):
             self._write_json_direct(payload)
 
     def _write_json_direct(self, payload: dict[str, Any]) -> None:
+        """Write the JSON payload directly to the output file."""
         with self.output_json_path.open("w", encoding="utf-8") as handle:
             json.dump(payload, handle, indent=2)
             handle.write("\n")
 
     def _write_json_atomic(self, payload: dict[str, Any]) -> None:
+        """Write the JSON payload atomically via a temporary file and rename."""
         tmp_fd, tmp_path = tempfile.mkstemp(
             dir=str(self.output_json_path.parent),
             prefix=f".{self.output_json_path.stem}_",

@@ -202,6 +202,7 @@ class SpatialRotateNode(Node):
 
     @staticmethod
     def _normalize(rotation: int | None) -> int | None:
+        """Normalize equivalent rotation values to a canonical form (None, 90, -90, or 180)."""
         if rotation in (None, 0):
             return None
         if rotation in (180, -180):
@@ -220,6 +221,7 @@ class SpatialRotateNode(Node):
         rgb_image: Tensor | None = None,
         **_: Any,
     ) -> dict[str, Tensor]:
+        """Apply the configured rotation to the cube, mask, and rgb_image tensors."""
         k = {None: 0, 90: 1, -90: -1, 180: 2}[self.rotation]
 
         result: dict[str, Tensor] = {}

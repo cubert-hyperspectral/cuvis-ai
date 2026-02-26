@@ -7,11 +7,11 @@ from __future__ import annotations
 
 import pytest
 import torch
-
 from cuvis_ai.node.band_selection import RangeAverageFalseRGBSelector
+from cuvis_ai.node.visualizations import MaskOverlayNode
+
 from cuvis_ai.node.data import CU3SDataNode
 from cuvis_ai.node.preprocessors import SpatialRotateNode
-from cuvis_ai.node.visualizations import MaskOverlayNode
 
 B, H, W, C = 2, 6, 10, 20
 
