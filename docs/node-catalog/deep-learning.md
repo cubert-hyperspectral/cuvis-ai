@@ -72,8 +72,6 @@ where $\mu, \sigma$ are estimated per-channel means/stds using `WelfordAccumulat
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | num_channels | int | required | Number of spectral channels |
-| sample_n | int | 500000 | Max pixels to sample for statistics |
-| seed | int | 0 | Random seed for sampling |
 | eps | float | 1e-8 | Stability constant added to std |
 
 #### Example Usage (Python)
@@ -84,7 +82,7 @@ from cuvis_ai.anomaly.deep_svdd import ZScoreNormalizerGlobal
 # Create encoder
 from cuvis_ai_core.training import StatisticalTrainer
 
-encoder = ZScoreNormalizerGlobal(num_channels=61, sample_n=500_000)
+encoder = ZScoreNormalizerGlobal(num_channels=61)
 pipeline.add_node(encoder)
 
 # Statistical initialization
@@ -106,8 +104,6 @@ nodes:
     type: ZScoreNormalizerGlobal
     config:
       num_channels: 61
-      sample_n: 500000
-      seed: 0
       eps: 1e-8
 
 connections:

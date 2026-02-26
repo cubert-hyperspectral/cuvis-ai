@@ -79,8 +79,6 @@ def main(cfg: DictConfig) -> None:
     encoder = ZScoreNormalizerGlobal(
         num_channels=pipeline_cfg.encoder.num_channels,
         hidden=pipeline_cfg.encoder.hidden,
-        sample_n=pipeline_cfg.encoder.sample_n,
-        seed=pipeline_cfg.encoder.seed,
     )
     projection = DeepSVDDProjection(
         in_channels=pipeline_cfg.projection.in_channels,

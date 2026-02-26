@@ -156,8 +156,6 @@ from cuvis_ai.anomaly.deep_svdd import ZScoreNormalizerGlobal
 encoder = ZScoreNormalizerGlobal(
     num_channels=35,     # Channels after bandpass (inferred automatically)
     hidden=64,           # Hidden layer size
-    sample_n=1024,       # Samples for statistical init
-    seed=42,             # Random seed for reproducibility
 )
 ```
 
@@ -658,7 +656,7 @@ def main(cfg: DictConfig) -> None:
     data_node = LentilsAnomalyDataNode(normal_class_ids=[0, 1])
     bandpass_node = BandpassByWavelength(min_wavelength_nm=450.0, max_wavelength_nm=900.0)
     unit_norm_node = PerPixelUnitNorm(eps=1e-8)
-    encoder = ZScoreNormalizerGlobal(num_channels=35, hidden=64, sample_n=1024, seed=42)
+    encoder = ZScoreNormalizerGlobal(num_channels=35, hidden=64)
     projection = DeepSVDDProjection(in_channels=35, rep_dim=32, hidden=128)
     center_tracker = DeepSVDDCenterTracker(rep_dim=32, alpha=0.1)
     loss_node = DeepSVDDSoftBoundaryLoss(name="deepsvdd_loss", nu=0.1)

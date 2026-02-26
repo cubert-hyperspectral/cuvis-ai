@@ -78,8 +78,6 @@ loss_nodes:
 #   encoder:
 #     num_channels: 27
 #     hidden: 128
-#     sample_n: 200000
-#     seed: 0
 
 #   projection:
 #     in_channels: 27

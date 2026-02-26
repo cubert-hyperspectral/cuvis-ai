@@ -204,7 +204,7 @@ from cuvis_ai.node.data import LentilsAnomalyDataNode
 # Create pipeline with deep learning nodes
 pipeline = CuvisPipeline("DeepSVDD")
 data_node = LentilsAnomalyDataNode(normal_class_ids=[0, 1])
-encoder = ZScoreNormalizerGlobal(num_channels=61, hidden=32, sample_n=100)
+encoder = ZScoreNormalizerGlobal(num_channels=61, hidden=32)
 projection = DeepSVDDProjection(in_channels=61, rep_dim=16, hidden=[32, 16])
 center_tracker = DeepSVDDCenterTracker(rep_dim=16)
 loss_node = DeepSVDDSoftBoundaryLoss(name="deepsvdd_loss")

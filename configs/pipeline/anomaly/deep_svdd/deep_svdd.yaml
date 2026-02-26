@@ -19,8 +19,6 @@ nodes:
   class_name: cuvis_ai.anomaly.deep_svdd.ZScoreNormalizerGlobal
   hparams:
     num_channels: 27
-    sample_n: 200000
-    seed: 0
     eps: 1.0e-08
     hidden: 128
 - name: DeepSVDDProjection
