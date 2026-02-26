@@ -17,7 +17,12 @@ from loguru import logger
 from PIL import Image, ImageDraw, ImageFont
 from torchmetrics.functional.classification import binary_average_precision
 
-from cuvis_ai.utils.vis_helpers import create_mask_overlay, fig_to_array, tensor_to_numpy
+from cuvis_ai.utils.vis_helpers import (
+    create_mask_overlay,
+    fig_to_array,
+    render_multi_object_overlay,
+    tensor_to_numpy,
+)
 
 
 class ImageArtifactVizBase(Node):
@@ -956,6 +961,116 @@ class MaskOverlayNode(Node):
         }
 
 
+class TrackingOverlayNode(Node):
+    """Alpha-blend per-object coloured masks onto RGB frames.
+
+    Converts a SAM3-style label map (``mask``) into per-object binary masks and
+    renders a coloured overlay with optional contour lines and object-ID labels
+    using :func:`cuvis_ai.utils.vis_helpers.render_multi_object_overlay`.
+
+    Parameters
+    ----------
+    alpha : float
+        Blend factor for the overlay colour (default 0.4).
+    draw_contours : bool
+        Draw contour outlines on mask edges (default True).
+    draw_ids : bool
+        Render numeric object-ID labels above each mask (default True).
+    """
+
+    INPUT_SPECS = {
+        "rgb_image": PortSpec(
+            dtype=torch.float32,
+            shape=(1, -1, -1, 3),
+            description="Single RGB frame [1, H, W, 3] in [0, 1].",
+        ),
+        "mask": PortSpec(
+            dtype=torch.int32,
+            shape=(1, -1, -1),
+            description="SAM3 label map [1, H, W]; pixel value = object ID, 0 = background.",
+        ),
+        "object_ids": PortSpec(
+            dtype=torch.int64,
+            shape=(1, -1),
+            description="Active object IDs [1, N] for deterministic ordering. "
+            "If absent, IDs are derived from unique non-zero mask values.",
+            optional=True,
+        ),
+    }
+
+    OUTPUT_SPECS = {
+        "rgb_with_overlay": PortSpec(
+            dtype=torch.float32,
+            shape=(1, -1, -1, 3),
+            description="RGB frame with coloured mask overlays [1, H, W, 3] in [0, 1].",
+        ),
+    }
+
+    def __init__(
+        self,
+        alpha: float = 0.4,
+        draw_contours: bool = True,
+        draw_ids: bool = True,
+        **kwargs,
+    ) -> None:
+        self.alpha = float(alpha)
+        self.draw_contours = bool(draw_contours)
+        self.draw_ids = bool(draw_ids)
+        super().__init__(
+            alpha=alpha,
+            draw_contours=draw_contours,
+            draw_ids=draw_ids,
+            **kwargs,
+        )
+
+    @torch.no_grad()
+    def forward(
+        self,
+        rgb_image: torch.Tensor,
+        mask: torch.Tensor,
+        object_ids: torch.Tensor | None = None,
+        **_,
+    ) -> dict[str, torch.Tensor]:
+        """Render coloured per-object mask overlays onto *rgb_image*.
+
+        Parameters
+        ----------
+        rgb_image : torch.Tensor
+            Single RGB frame ``[1, H, W, 3]`` float32 in ``[0, 1]``.
+        mask : torch.Tensor
+            SAM3 label map ``[1, H, W]`` int32.
+        object_ids : torch.Tensor or None
+            Active object IDs ``[1, N]`` int64.  When provided, only these IDs
+            are rendered and the ordering is preserved.  When absent, all
+            non-zero unique values in *mask* are used.
+
+        Returns
+        -------
+        dict
+            ``{"rgb_with_overlay": torch.Tensor [1, H, W, 3] float32 in [0, 1]}``
+        """
+        frame_np = (rgb_image[0].cpu().numpy() * 255.0).clip(0, 255).astype(np.uint8)
+        mask_np = mask[0].cpu().numpy()  # [H, W] int32
+
+        if object_ids is not None:
+            ids: list[int] = [int(i) for i in object_ids[0].cpu().tolist()]
+        else:
+            ids = [int(i) for i in np.unique(mask_np) if i != 0]
+
+        per_obj_masks: list[tuple[int, np.ndarray]] = [(oid, mask_np == oid) for oid in ids]
+
+        rendered = render_multi_object_overlay(
+            frame_np,
+            per_obj_masks,
+            alpha=self.alpha,
+            draw_contours=self.draw_contours,
+            draw_ids=self.draw_ids,
+        )
+
+        out = torch.from_numpy(rendered).float() / 255.0  # [H, W, 3]
+        return {"rgb_with_overlay": out.unsqueeze(0)}  # [1, H, W, 3]
+
+
 def _diverging_colormap(t: torch.Tensor) -> torch.Tensor:
     """Map values in [0, 1] to a blue-white-red diverging colormap.
 
@@ -1178,4 +1293,5 @@ __all__ = [
     "ScoreHeatmapVisualizer",
     "ChannelSelectorFalseRGBViz",
     "MaskOverlayNode",
+    "TrackingOverlayNode",
 ]
