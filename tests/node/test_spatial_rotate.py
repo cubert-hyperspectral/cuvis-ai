@@ -7,9 +7,9 @@ from __future__ import annotations
 
 import pytest
 import torch
-from cuvis_ai.node.band_selection import RangeAverageFalseRGBSelector
-from cuvis_ai.node.visualizations import MaskOverlayNode
 
+from cuvis_ai.node.anomaly_visualization import MaskOverlayNode
+from cuvis_ai.node.channel_selector import RangeAverageFalseRGBSelector
 from cuvis_ai.node.data import CU3SDataNode
 from cuvis_ai.node.preprocessors import SpatialRotateNode
 

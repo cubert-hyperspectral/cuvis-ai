@@ -23,12 +23,6 @@ import sys
 from pathlib import Path
 
 import hydra
-from cuvis_ai.node.band_selection import RangeAverageFalseRGBSelector
-from cuvis_ai.node.visualizations import (
-    ChannelSelectorFalseRGBViz,
-    ChannelWeightsViz,
-    MaskOverlayNode,
-)
 from cuvis_ai_core.data.datasets import SingleCu3sDataModule, SingleCu3sDataset
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_core.training import GradientTrainer, StatisticalTrainer
@@ -39,7 +33,13 @@ from loguru import logger
 from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader
 
+from cuvis_ai.node.anomaly_visualization import (
+    ChannelSelectorFalseRGBViz,
+    ChannelWeightsViz,
+    MaskOverlayNode,
+)
 from cuvis_ai.node.channel_mixer import LearnableChannelMixer
+from cuvis_ai.node.channel_selector import RangeAverageFalseRGBSelector
 from cuvis_ai.node.data import CU3SDataNode
 from cuvis_ai.node.losses import DistinctnessLoss, ForegroundContrastLoss
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
