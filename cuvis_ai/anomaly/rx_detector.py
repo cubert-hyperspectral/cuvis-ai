@@ -199,9 +199,13 @@ class RXGlobal(RXBase):
             if x is not None:
                 self.update(x)
 
-        if self._welford.count > 0:
-            self.finalize()
-        self._statistically_initialized = True
+        if self._welford.count <= 1:
+            self._statistically_initialized = False
+            raise RuntimeError(
+                "RXGlobal.statistical_initialization() received insufficient samples. "
+                "Expected at least 2 valid pixels."
+            )
+        self.finalize()
 
     @torch.no_grad()
     def update(self, batch_bhwc: torch.Tensor) -> None:
@@ -218,7 +222,9 @@ class RXGlobal(RXBase):
         # Adapt accumulator if actual data channels differ from constructor's num_channels
         # (e.g., upstream SoftChannelSelector preserves all channels instead of reducing)
         if X.shape[1] != self._welford._n_features:
-            self._welford = WelfordAccumulator(X.shape[1], track_covariance=True)
+            self._welford = WelfordAccumulator(X.shape[1], track_covariance=True).to(
+                device=X.device
+            )
         self._welford.update(X)
         self._statistically_initialized = False
 

@@ -104,9 +104,13 @@ class ScoreToLogit(Node):
             if scores is not None:
                 self.update(scores)
 
-        if self._welford.count > 0:
-            self.finalize()
-        self._statistically_initialized = True
+        if self._welford.count <= 1:
+            self._statistically_initialized = False
+            raise RuntimeError(
+                "ScoreToLogit.statistical_initialization() received insufficient samples. "
+                "Expected at least 2 score values."
+            )
+        self.finalize()
 
     @torch.no_grad()
     def update(self, scores: torch.Tensor) -> None:

@@ -24,7 +24,7 @@ def _make_stream(tensor: torch.Tensor):
 def test_deep_svdd_fit_and_forward_shapes():
     num_channels = 6
     x = torch.randn(2, 8, 9, num_channels)
-    encoder = ZScoreNormalizerGlobal(num_channels=num_channels, sample_n=1000, seed=0)
+    encoder = ZScoreNormalizerGlobal(num_channels=num_channels)
     encoder.statistical_initialization(_make_stream(x))
     normalized = encoder.forward(x)["normalized"]
     # Explicit in_channels path (no statistical fit needed for projection)
@@ -67,7 +67,7 @@ def test_deep_svdd_end_to_end_training_loop():
     num_channels = 5
     rep_dim = 3
     x = torch.randn(1, 6, 6, num_channels)
-    encoder = ZScoreNormalizerGlobal(num_channels=num_channels, sample_n=100, seed=0)
+    encoder = ZScoreNormalizerGlobal(num_channels=num_channels)
     encoder.statistical_initialization(_make_stream(x))
 
     # Use statistical initialization path for projection (infer in_channels in statistical_initialization)
