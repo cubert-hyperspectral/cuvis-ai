@@ -147,13 +147,13 @@ def main(
     logger.info("Output: {}", output_dir)
     logger.info("Device: {}", device)
 
-    from cuvis_ai.node.band_selection import CIETristimulusFalseRGBSelector
-    from cuvis_ai.node.visualizations import TrackingOverlayNode
     from cuvis_ai_core.data.datasets import SingleCu3sDataModule
     from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
     from cuvis_ai_core.training import Predictor
     from cuvis_ai_core.utils.node_registry import NodeRegistry
 
+    from cuvis_ai.node.anomaly_visualization import TrackingOverlayNode
+    from cuvis_ai.node.channel_selector import CIETristimulusFalseRGBSelector
     from cuvis_ai.node.data import CU3SDataNode
     from cuvis_ai.node.video import ToVideoNode
 

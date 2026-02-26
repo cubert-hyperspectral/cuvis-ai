@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import numpy as np
 import torch
-from cuvis_ai.node.band_selection import BandSelectorBase, RangeAverageFalseRGBSelector
+
+from cuvis_ai.node.channel_selector import ChannelSelectorBase, RangeAverageFalseRGBSelector
 
 
 def test_range_average_false_rgb_selector_averages_bands_in_ranges(create_test_cube) -> None:
@@ -41,11 +42,11 @@ def test_range_average_false_rgb_selector_averages_bands_in_ranges(create_test_c
     raw = torch.stack([red, green, blue], dim=-1)
     # Running mode warmup uses per-frame percentile normalization.
     flat = raw.reshape(-1, 3)
-    lo = torch.quantile(flat, BandSelectorBase._NORM_QUANTILE_LOW, dim=0).view(1, 1, 1, 3)
-    hi = torch.quantile(flat, BandSelectorBase._NORM_QUANTILE_HIGH, dim=0).view(1, 1, 1, 3)
+    lo = torch.quantile(flat, ChannelSelectorBase._NORM_QUANTILE_LOW, dim=0).view(1, 1, 1, 3)
+    hi = torch.quantile(flat, ChannelSelectorBase._NORM_QUANTILE_HIGH, dim=0).view(1, 1, 1, 3)
     denom = (hi - lo).clamp_min(1e-8)
     expected = ((raw - lo) / denom).clamp(0.0, 1.0)
-    expected = BandSelectorBase._srgb_gamma(expected)
+    expected = ChannelSelectorBase._srgb_gamma(expected)
 
     assert torch.allclose(rgb, expected, atol=1e-6, rtol=1e-6)
     assert info["strategy"] == "range_average_false_rgb"
