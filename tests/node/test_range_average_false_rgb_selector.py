@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import torch
 
-from cuvis_ai.node.band_selection import RangeAverageFalseRGBSelector
+from cuvis_ai.node.band_selection import BandSelectorBase, RangeAverageFalseRGBSelector
 
 
 def test_range_average_false_rgb_selector_averages_bands_in_ranges(create_test_cube) -> None:
@@ -44,6 +44,7 @@ def test_range_average_false_rgb_selector_averages_bands_in_ranges(create_test_c
     rgb_max = raw.amax(dim=(1, 2), keepdim=True)
     denom = (rgb_max - rgb_min).clamp_min(1e-8)
     expected = ((raw - rgb_min) / denom).clamp(0.0, 1.0)
+    expected = BandSelectorBase._srgb_gamma(expected)
 
     assert torch.allclose(rgb, expected, atol=1e-6, rtol=1e-6)
     assert info["strategy"] == "range_average_false_rgb"

@@ -9,11 +9,43 @@ hyperspectral cubes and composing RGB images for downstream processing
 
 For cross-channel linear projection (full matrix, reduces channel count),
 see :mod:`cuvis_ai.node.channel_mixer`.
+
+Normalization design
+--------------------
+All channel selectors share a common RGB normalization strategy in
+``ChannelSelectorBase``, controlled by ``NormMode``:
+
+- **Percentile bounds** (not absolute min/max): SpectralRadiance data contains
+  outlier pixels whose absolute max can be 10x the median, compressing 99% of
+  the image into the bottom of the brightness range. Using the 0.5th / 99.5th
+  percentile clips these outliers and preserves visual dynamic range.
+
+- **Per-channel [3] bounds**: Separate min/max per R/G/B channel preserves
+  colour balance. A single scalar bound would distort hue if one channel has a
+  wider range than the others.
+
+- **Three modes** (``NormMode``):
+  ``running`` (default) — warmup + min/max accumulation. The first N frames use
+      per-frame normalization (visually good immediately) while silently
+      building global percentile bounds. After warmup the accumulated bounds are
+      used, giving temporal stability identical to ``statistical`` mode.
+  ``statistical`` — pre-computed global percentiles via ``StatisticalTrainer``.
+      Use when exact global stats matter and a full first pass is acceptable.
+  ``per_frame`` — each frame normalized independently; no inter-frame state.
+      Use for unrelated images or single-frame pipelines.
+
+- **Why warmup + accumulation** (not EMA): Exponential moving averages have
+  recency bias — for long videos the early-frame statistics are forgotten. The
+  min/max accumulation bounds only ever *expand* (min-of-lows, max-of-highs),
+  so they converge to the exact same result as a full statistical-init pass
+  without requiring a separate first pass. The warmup period ensures the first
+  few frames look natural before enough data has been accumulated.
 """
 
 from __future__ import annotations
 
 from collections.abc import Sequence
+from enum import StrEnum
 from typing import Any, Literal
 
 import numpy as np
@@ -29,12 +61,32 @@ from torch import Tensor
 from cuvis_ai.utils.welford import WelfordAccumulator
 
 
+class NormMode(StrEnum):
+    """RGB normalization mode for channel selectors."""
+
+    PER_FRAME = "per_frame"
+    RUNNING = "running"
+    STATISTICAL = "statistical"
+
+
 class ChannelSelectorBase(Node):
     """Base class for hyperspectral band selection strategies.
 
-    This base class defines the common input/output ports for band selection nodes.
-    Subclasses should implement the `forward()` method to perform specific
-    band selection strategies.
+    This base class defines the common input/output ports for band selection
+    nodes and provides shared percentile-based RGB normalization (see module
+    docstring for design rationale).
+
+    Subclasses should implement ``forward()`` and ``_compute_raw_rgb()`` (the
+    latter is used by ``statistical_initialization`` and ``_running_normalize``).
+
+    Parameters
+    ----------
+    norm_mode : str | NormMode
+        RGB normalization mode.  Default ``NormMode.RUNNING``.
+    apply_gamma : bool
+        Apply sRGB gamma curve after normalization.  Default ``True``.
+        Lifts midtones so linear [0, 1] values appear natural on standard
+        displays.
 
     Ports
     -----
@@ -76,13 +128,175 @@ class ChannelSelectorBase(Node):
         ),
     }
 
+    # Percentile bounds for normalization (fractions, not percentages).
+    # Prevents outlier pixels from compressing the dynamic range.
+    _NORM_QUANTILE_LOW = 0.005  # 0.5th percentile
+    _NORM_QUANTILE_HIGH = 0.995  # 99.5th percentile
+    _WARMUP_FRAMES = 10  # per-frame normalization during warmup
+
+    def __init__(
+        self,
+        norm_mode: str | NormMode = NormMode.RUNNING,
+        apply_gamma: bool = True,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(
+            norm_mode=str(norm_mode) if isinstance(norm_mode, NormMode) else norm_mode,
+            apply_gamma=apply_gamma,
+            **kwargs,
+        )
+        self.norm_mode = NormMode(norm_mode)
+        self.apply_gamma = apply_gamma
+
+        # Per-channel [3] running bounds for normalization.
+        self.register_buffer("running_min", torch.full((3,), float("nan")))
+        self.register_buffer("running_max", torch.full((3,), float("nan")))
+        self._norm_frame_count = 0
+        self._statistically_initialized = False
+
+        if self.norm_mode == NormMode.STATISTICAL:
+            self._requires_initial_fit_override = True
+
     @staticmethod
     def _nearest_band_index(wavelengths: np.ndarray, target_nm: float) -> int:
         """Find the index of the band nearest to the target wavelength."""
         return int(np.argmin(np.abs(wavelengths - target_nm)))
 
+    # ------------------------------------------------------------------
+    # RGB normalization
+    # ------------------------------------------------------------------
+
+    def _normalize_rgb(self, raw_rgb: torch.Tensor) -> torch.Tensor:
+        """Normalize raw RGB tensor to [0, 1] and optionally apply sRGB gamma.
+
+        Parameters
+        ----------
+        raw_rgb : torch.Tensor
+            Unnormalized RGB image [B, H, W, 3].
+
+        Returns
+        -------
+        torch.Tensor
+            Normalized (and gamma-corrected if ``apply_gamma``) RGB [B, H, W, 3].
+        """
+        if self.norm_mode == NormMode.STATISTICAL and self._statistically_initialized:
+            result = self._apply_accumulated_stats(raw_rgb)
+        elif self.norm_mode == NormMode.RUNNING:
+            result = self._running_normalize(raw_rgb)
+        else:
+            result = self._per_frame_normalize(raw_rgb)
+
+        if self.apply_gamma:
+            result = self._srgb_gamma(result)
+        return result
+
+    @staticmethod
+    def _per_frame_normalize(rgb: torch.Tensor) -> torch.Tensor:
+        """Per-batch, per-channel min-max normalization to [0, 1]."""
+        rgb_min = rgb.amin(dim=(1, 2), keepdim=True)
+        rgb_max = rgb.amax(dim=(1, 2), keepdim=True)
+        denom = (rgb_max - rgb_min).clamp_min(1e-8)
+        return ((rgb - rgb_min) / denom).clamp_(0.0, 1.0)
+
+    def _apply_accumulated_stats(self, rgb: torch.Tensor) -> torch.Tensor:
+        """Normalize using accumulated per-channel bounds."""
+        lo = self.running_min.view(1, 1, 1, 3)
+        hi = self.running_max.view(1, 1, 1, 3)
+        denom = (hi - lo).clamp_min(1e-8)
+        return ((rgb - lo) / denom).clamp_(0.0, 1.0)
+
+    @staticmethod
+    def _srgb_gamma(linear: torch.Tensor) -> torch.Tensor:
+        """Apply sRGB companding (IEC 61966-2-1).
+
+        Converts linear [0, 1] values to sRGB gamma-encoded [0, 1].
+        This lifts midtones so images appear natural on standard displays.
+        """
+        low = 12.92 * linear
+        high = 1.055 * linear.clamp_min(1e-10).pow(1.0 / 2.4) - 0.055
+        return torch.where(linear <= 0.0031308, low, high)
+
+    @torch.no_grad()
+    def _running_normalize(self, rgb: torch.Tensor) -> torch.Tensor:
+        """Warmup + min/max accumulation hybrid normalization.
+
+        Always accumulates per-frame percentile bounds (monotonic: bounds only
+        expand).  During the warmup period the output uses per-frame
+        normalization so the first frames look natural.  After warmup, switches
+        to the accumulated bounds for temporal stability.
+        """
+        flat = rgb.reshape(-1, 3)
+        frame_lo = torch.quantile(flat, self._NORM_QUANTILE_LOW, dim=0)  # [3]
+        frame_hi = torch.quantile(flat, self._NORM_QUANTILE_HIGH, dim=0)  # [3]
+
+        if torch.isnan(self.running_min).any():
+            self.running_min.copy_(frame_lo)
+            self.running_max.copy_(frame_hi)
+        else:
+            torch.minimum(self.running_min, frame_lo, out=self.running_min)
+            torch.maximum(self.running_max, frame_hi, out=self.running_max)
+
+        self._norm_frame_count += 1
+
+        if self._norm_frame_count <= self._WARMUP_FRAMES:
+            return self._per_frame_normalize(rgb)
+        return self._apply_accumulated_stats(rgb)
+
+    # ------------------------------------------------------------------
+    # Subclass hooks
+    # ------------------------------------------------------------------
+
+    def _compute_raw_rgb(self, cube: torch.Tensor, wavelengths: Any) -> torch.Tensor:
+        """Compute unnormalized RGB from a hyperspectral cube.
+
+        Subclasses must override this to support ``statistical`` and
+        ``running`` normalization modes.
+
+        Parameters
+        ----------
+        cube : torch.Tensor
+            Hyperspectral cube [B, H, W, C].
+        wavelengths : Any
+            Wavelength array [C] in nanometers.
+
+        Returns
+        -------
+        torch.Tensor
+            Unnormalized RGB [B, H, W, 3].
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} must implement _compute_raw_rgb() "
+            "to support statistical normalization."
+        )
+
+    def statistical_initialization(self, input_stream: InputStream) -> None:
+        """Compute global percentile bounds across the entire dataset.
+
+        Uses ``_compute_raw_rgb()`` to convert each batch, then accumulates
+        per-channel percentile bounds (min-of-lows, max-of-highs).
+        """
+        for batch_data in input_stream:
+            raw_rgb = self._compute_raw_rgb(batch_data["cube"], batch_data["wavelengths"])
+            flat = raw_rgb.reshape(-1, 3)
+            frame_lo = torch.quantile(flat, self._NORM_QUANTILE_LOW, dim=0)
+            frame_hi = torch.quantile(flat, self._NORM_QUANTILE_HIGH, dim=0)
+
+            if torch.isnan(self.running_min).any():
+                self.running_min.copy_(frame_lo)
+                self.running_max.copy_(frame_hi)
+            else:
+                torch.minimum(self.running_min, frame_lo, out=self.running_min)
+                torch.maximum(self.running_max, frame_hi, out=self.running_max)
+
+        if not torch.isnan(self.running_min).any():
+            self._statistically_initialized = True
+
+    # ------------------------------------------------------------------
+    # Convenience helpers
+    # ------------------------------------------------------------------
+
     def _compose_rgb(self, cube: torch.Tensor, indices: Sequence[int]) -> torch.Tensor:
-        """Compose RGB from selected band indices.
+        """Compose and normalize RGB from selected band indices.
 
         Parameters
         ----------
@@ -96,19 +310,9 @@ class ChannelSelectorBase(Node):
         torch.Tensor
             RGB image [B, H, W, 3] in 0-1 range, on the same device as input.
         """
-        # Gather selected bands on the SAME device as cube
-        # cube: [B, H, W, C] → [B, H, W, 3]
         bands = [cube[..., idx] for idx in indices]  # each [B, H, W]
         rgb = torch.stack(bands, dim=-1)  # [B, H, W, 3]
-
-        # Per-batch, per-channel min/max normalization to [0, 1]
-        # Keep dims so broadcasting works: [B, 1, 1, 3]
-        rgb_min = rgb.amin(dim=(1, 2), keepdim=True)
-        rgb_max = rgb.amax(dim=(1, 2), keepdim=True)
-        denom = (rgb_max - rgb_min).clamp_min(1e-8)
-
-        rgb = (rgb - rgb_min) / denom
-        return rgb.clamp_(0.0, 1.0)
+        return self._normalize_rgb(rgb)
 
 
 class FixedWavelengthSelector(ChannelSelectorBase):
@@ -131,6 +335,12 @@ class FixedWavelengthSelector(ChannelSelectorBase):
     ) -> None:
         super().__init__(target_wavelengths=target_wavelengths, **kwargs)
         self.target_wavelengths = target_wavelengths
+
+    def _compute_raw_rgb(self, cube: torch.Tensor, wavelengths: Any) -> torch.Tensor:
+        wavelengths_np = np.asarray(wavelengths, dtype=np.float32)
+        indices = [self._nearest_band_index(wavelengths_np, nm) for nm in self.target_wavelengths]
+        bands = [cube[..., idx] for idx in indices]
+        return torch.stack(bands, dim=-1)
 
     def forward(
         self,
@@ -158,7 +368,7 @@ class FixedWavelengthSelector(ChannelSelectorBase):
         # Find nearest bands
         indices = [self._nearest_band_index(wavelengths_np, nm) for nm in self.target_wavelengths]
 
-        # Compose RGB
+        # Compose RGB (includes normalization via _normalize_rgb)
         rgb = self._compose_rgb(cube, indices)
 
         band_info = {
@@ -228,14 +438,6 @@ class RangeAverageFalseRGBSelector(ChannelSelectorBase):
         self._cached_wl_key: tuple[float, ...] | None = None
 
     @staticmethod
-    def _normalize_rgb(rgb: torch.Tensor) -> torch.Tensor:
-        """Apply per-batch, per-channel min-max normalization to [0, 1]."""
-        rgb_min = rgb.amin(dim=(1, 2), keepdim=True)
-        rgb_max = rgb.amax(dim=(1, 2), keepdim=True)
-        denom = (rgb_max - rgb_min).clamp_min(1e-8)
-        return ((rgb - rgb_min) / denom).clamp_(0.0, 1.0)
-
-    @staticmethod
     def _prepare_wavelengths_tensor(
         wavelengths: Any,
         device: torch.device,
@@ -269,6 +471,18 @@ class RangeAverageFalseRGBSelector(ChannelSelectorBase):
         weights = channel_mask.to(torch.float32) / counts.clamp_min(1).to(torch.float32)
         return weights, channel_mask
 
+    def _ensure_weights(self, wavelengths: Any, device: torch.device) -> None:
+        """Lazily compute & cache channel weights when wavelengths change."""
+        wavelengths_t = self._prepare_wavelengths_tensor(wavelengths, device)
+        wl_key = tuple(wavelengths_t.tolist())
+        if self._avg_weights is None or self._cached_wl_key != wl_key:
+            self._avg_weights, self._avg_mask = self._build_channel_weights(wavelengths_t)
+            self._cached_wl_key = wl_key
+
+    def _compute_raw_rgb(self, cube: torch.Tensor, wavelengths: Any) -> torch.Tensor:
+        self._ensure_weights(wavelengths, cube.device)
+        return torch.einsum("bhwc,kc->bhwk", cube, self._avg_weights)
+
     def forward(
         self,
         cube: torch.Tensor,
@@ -277,17 +491,12 @@ class RangeAverageFalseRGBSelector(ChannelSelectorBase):
         **_: Any,
     ) -> dict[str, Any]:
         """Average spectral bands inside RGB ranges and compose normalized RGB."""
+        self._ensure_weights(wavelengths, cube.device)
         wavelengths_t = self._prepare_wavelengths_tensor(wavelengths, cube.device)
-
-        # Lazily compute & cache channel weights when wavelengths change.
-        wl_key = tuple(wavelengths_t.tolist())
-        if self._avg_weights is None or self._cached_wl_key != wl_key:
-            self._avg_weights, self._avg_mask = self._build_channel_weights(wavelengths_t)
-            self._cached_wl_key = wl_key
 
         # Vectorized channel averaging:
         # cube [B,H,W,C] and weights [3,C] -> rgb [B,H,W,3]
-        rgb = torch.einsum("bhwc,kc->bhwk", cube, self._avg_weights)
+        rgb = self._compute_raw_rgb(cube, wavelengths)
         rgb = self._normalize_rgb(rgb)
 
         channel_indices = [
@@ -475,23 +684,17 @@ class CIETristimulusFalseRGBSelector(ChannelSelectorBase):
 
     Converts a hyperspectral cube to sRGB by integrating each pixel's spectrum
     with the CIE 1931 2-degree standard observer color matching functions
-    (x_bar, y_bar, z_bar), applying a D65 white point normalization, converting
-    from CIE XYZ to linear sRGB, and optionally applying sRGB gamma.
+    (x_bar, y_bar, z_bar), applying a D65 white point normalization, and
+    converting from CIE XYZ to linear sRGB.
+
+    Normalization and sRGB gamma are handled by ``ChannelSelectorBase`` (see
+    ``apply_gamma`` parameter inherited from the base class).
 
     This produces the most physically grounded false RGB and lands closest to
     the distribution SAM3's Perception Encoder expects.
 
     For wavelengths outside the visible range (approx. >780 nm), the CMFs are
     zero, so NIR bands do not contribute to the output.
-
-    Parameters
-    ----------
-    apply_gamma : bool
-        Apply sRGB gamma curve (IEC 61966-2-1). Default True.
-    normalize_output : bool
-        Apply per-batch min-max normalization to [0, 1] after conversion.
-        Default True. Useful because radiance-based spectra produce arbitrary
-        magnitude XYZ values.
     """
 
     # CIE 1931 2-degree observer CMFs at 5 nm intervals, 380-780 nm.
@@ -561,15 +764,8 @@ class CIETristimulusFalseRGBSelector(ChannelSelectorBase):
         dtype=np.float64,
     )
 
-    def __init__(
-        self,
-        apply_gamma: bool = True,
-        normalize_output: bool = True,
-        **kwargs: Any,
-    ) -> None:
-        super().__init__(apply_gamma=apply_gamma, normalize_output=normalize_output, **kwargs)
-        self.apply_gamma = apply_gamma
-        self.normalize_output = normalize_output
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
 
         # Static XYZ -> linear sRGB matrix; buffer so .to(device) moves it.
         self.register_buffer(
@@ -580,13 +776,6 @@ class CIETristimulusFalseRGBSelector(ChannelSelectorBase):
         self.register_buffer("_cmf_weights", None, persistent=False)
         self._cached_wl_key: tuple[float, ...] | None = None
         self._cached_n_visible: int = 0
-
-    @staticmethod
-    def _srgb_gamma(linear: torch.Tensor) -> torch.Tensor:
-        """Apply sRGB companding (IEC 61966-2-1)."""
-        low = 12.92 * linear
-        high = 1.055 * linear.clamp_min(1e-10).pow(1.0 / 2.4) - 0.055
-        return torch.where(linear <= 0.0031308, low, high)
 
     def _interpolate_cmfs(
         self,
@@ -615,6 +804,30 @@ class CIETristimulusFalseRGBSelector(ChannelSelectorBase):
         )
         return np.stack([x_interp, y_interp, z_interp], axis=0)  # (3, C)
 
+    def _ensure_cmf_weights(self, wavelengths: Any, device: torch.device) -> np.ndarray | None:
+        """Lazily compute & cache CMF integration weights when wavelengths change.
+
+        Returns the raw CMFs array (for n_visible count) if weights were
+        recomputed, or None if the cache was valid.
+        """
+        wavelengths_np = np.asarray(wavelengths, dtype=np.float64).ravel()
+        wl_key = tuple(wavelengths_np.tolist())
+        if self._cmf_weights is None or self._cached_wl_key != wl_key:
+            cmfs = self._interpolate_cmfs(wavelengths_np)
+            spacing = np.gradient(wavelengths_np)
+            iw = (cmfs * spacing[np.newaxis, :]).astype(np.float32)
+            self._cmf_weights = torch.from_numpy(iw).to(device=device)
+            self._cached_wl_key = wl_key
+            self._cached_n_visible = int((cmfs.sum(axis=0) > 1e-6).sum())
+            return cmfs
+        return None
+
+    def _compute_raw_rgb(self, cube: torch.Tensor, wavelengths: Any) -> torch.Tensor:
+        self._ensure_cmf_weights(wavelengths, cube.device)
+        xyz = torch.einsum("bhwc,kc->bhwk", cube, self._cmf_weights)
+        rgb_linear = torch.einsum("bhwj,ij->bhwi", xyz, self._xyz_to_srgb_matrix)
+        return rgb_linear.clamp_min(0.0)
+
     def forward(
         self,
         cube: torch.Tensor,
@@ -640,37 +853,8 @@ class CIETristimulusFalseRGBSelector(ChannelSelectorBase):
         if wavelengths_np.ndim == 0:
             raise ValueError("wavelengths must be a 1-D array")
 
-        # Lazily compute & cache integration weights when wavelengths change.
-        wl_key = tuple(wavelengths_np.tolist())
-        if self._cmf_weights is None or self._cached_wl_key != wl_key:
-            cmfs = self._interpolate_cmfs(wavelengths_np)
-            spacing = np.gradient(wavelengths_np)  # (C,)
-            iw = (cmfs * spacing[np.newaxis, :]).astype(np.float32)
-            self._cmf_weights = torch.from_numpy(iw).to(device=cube.device)
-            self._cached_wl_key = wl_key
-            self._cached_n_visible = int((cmfs.sum(axis=0) > 1e-6).sum())
-
-        # XYZ via einsum: cube [B,H,W,C] @ w^T [C,3] -> [B,H,W,3]
-        xyz = torch.einsum("bhwc,kc->bhwk", cube, self._cmf_weights)  # k=3 for X,Y,Z
-
-        # XYZ -> linear sRGB (buffer, moves with .to(device))
-        rgb_linear = torch.einsum("bhwj,ij->bhwi", xyz, self._xyz_to_srgb_matrix)  # i=3 for R,G,B
-        rgb_linear = rgb_linear.clamp_min(0.0)
-
-        # Optional sRGB gamma
-        if self.apply_gamma:
-            rgb = self._srgb_gamma(rgb_linear)
-        else:
-            rgb = rgb_linear
-
-        # Normalize to [0, 1]
-        if self.normalize_output:
-            rgb_min = rgb.amin(dim=(1, 2), keepdim=True)
-            rgb_max = rgb.amax(dim=(1, 2), keepdim=True)
-            denom = (rgb_max - rgb_min).clamp_min(1e-8)
-            rgb = ((rgb - rgb_min) / denom).clamp_(0.0, 1.0)
-        else:
-            rgb = rgb.clamp_(0.0, 1.0)
+        # Compute unnormalized linear sRGB, then normalize + gamma via base class.
+        rgb = self._normalize_rgb(self._compute_raw_rgb(cube, wavelengths))
 
         band_info = {
             "strategy": "cie_tristimulus",
@@ -748,6 +932,19 @@ class CameraEmulationFalseRGBSelector(ChannelSelectorBase):
         w /= row_sums
         return w
 
+    def _ensure_channel_weights(self, wavelengths: Any, device: torch.device) -> None:
+        """Lazily compute & cache Gaussian weights when wavelengths change."""
+        wavelengths_np = np.asarray(wavelengths, dtype=np.float64).ravel()
+        wl_key = tuple(wavelengths_np.tolist())
+        if self._channel_weights is None or self._cached_wl_key != wl_key:
+            weights = self._build_weights(wavelengths_np)
+            self._channel_weights = torch.from_numpy(weights.astype(np.float32)).to(device=device)
+            self._cached_wl_key = wl_key
+
+    def _compute_raw_rgb(self, cube: torch.Tensor, wavelengths: Any) -> torch.Tensor:
+        self._ensure_channel_weights(wavelengths, cube.device)
+        return torch.einsum("bhwc,kc->bhwk", cube, self._channel_weights)
+
     def forward(
         self,
         cube: torch.Tensor,
@@ -771,23 +968,8 @@ class CameraEmulationFalseRGBSelector(ChannelSelectorBase):
         """
         wavelengths_np = np.asarray(wavelengths, dtype=np.float64).ravel()
 
-        # Lazily compute & cache Gaussian weights when wavelengths change.
-        wl_key = tuple(wavelengths_np.tolist())
-        if self._channel_weights is None or self._cached_wl_key != wl_key:
-            weights = self._build_weights(wavelengths_np)
-            self._channel_weights = torch.from_numpy(weights.astype(np.float32)).to(
-                device=cube.device
-            )
-            self._cached_wl_key = wl_key
-
-        # Weighted sum: cube [B,H,W,C] @ w^T [C,3] -> [B,H,W,3]
-        rgb = torch.einsum("bhwc,kc->bhwk", cube, self._channel_weights)
-
-        # Per-batch, per-channel min-max normalization to [0, 1]
-        rgb_min = rgb.amin(dim=(1, 2), keepdim=True)
-        rgb_max = rgb.amax(dim=(1, 2), keepdim=True)
-        denom = (rgb_max - rgb_min).clamp_min(1e-8)
-        rgb = ((rgb - rgb_min) / denom).clamp_(0.0, 1.0)
+        rgb = self._compute_raw_rgb(cube, wavelengths)
+        rgb = self._normalize_rgb(rgb)
 
         band_info = {
             "strategy": "camera_emulation",
@@ -1720,6 +1902,7 @@ __all__ = [
     "CameraEmulationFalseRGBSelector",
     "ChannelSelectorBase",
     "CIETristimulusFalseRGBSelector",
+    "NormMode",
     "CIRSelector",
     "FixedWavelengthSelector",
     "HighContrastSelector",
