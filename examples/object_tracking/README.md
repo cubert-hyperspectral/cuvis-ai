@@ -1,151 +1,147 @@
-# Object Tracking — Channel Selector False RGB
+# Object Tracking Examples
 
-Learnable channel mixing for hyperspectral object tracking. A `LearnableChannelMixer`
-(1x1 conv) learns a linear combination of spectral bands into 3 RGB channels,
-optimized with `ForegroundContrastLoss` to maximize foreground/background visual
-separation. The false RGB output feeds SAM3 for video object tracking.
+This folder contains object-tracking workflows for hyperspectral CU3S recordings.
 
-## Prerequisites
+## SAM3 HSI Tracking (Current)
 
-- CU3S recording: `Auto_002.cu3s`
-- COCO annotations: `Auto_002.json`
-- Update paths in `configs/data/tracking_cap_and_car.yaml`
+Use `examples/object_tracking/sam3_hsi_tracker.py` for end-to-end SAM3 tracking with a
+single pipeline and core `Predictor`.
 
-## Step 1: Inspect — Discover Annotated Frames
+### What This Script Does
 
-Scan all frames, report which have mask annotations, and export a false RGB
-video with mask overlays for visual inspection.
+- Loads CU3S frames via `SingleCu3sDataModule` in `predict` mode
+- Builds one pipeline:
+  - `CU3SDataNode -> CIETristimulusFalseRGBSelector -> SAM3TrackerInference`
+  - Tentative sink: `TrackingCocoJsonNode` (COCO JSON)
+  - Overlay sink: `TrackingOverlayNode -> ToVideoNode` (MP4)
+- Runs inference through `cuvis_ai_core.training.Predictor` (no manual node forwarding)
+- Saves pipeline visualizations as PNG and Mermaid markdown
+
+### Prerequisites
+
+- CU3S input file (for example `Auto_002.cu3s`)
+- `cuvis-ai-core` with `Predictor` and datamodule predict-stage support installed in the environment
+- SAM3 plugin available and discoverable from `examples/object_tracking/plugins.yaml`
+
+Current local plugin manifest:
+
+```yaml
+plugins:
+  sam3:
+    path: "../../../../cuvis-ai-sam3"
+    provides:
+      - cuvis_ai_sam3.node.SAM3TrackerInference
+```
+
+If your plugin checkout is at a different path, update `path` accordingly.
+
+### Run
+
+From repo root:
+
+**Bash / Linux / macOS:**
+
+```bash
+uv run python examples/object_tracking/sam3_hsi_tracker.py \
+  --cu3s-path "D:\data\your_dataset\Auto_002.cu3s"
+```
+
+**PowerShell (Windows):**
+
+```powershell
+uv run python examples/object_tracking/sam3_hsi_tracker.py `
+  --cu3s-path "D:\data\your_dataset\Auto_002.cu3s"
+```
+
+Quick smoke test (10 frames):
+
+```bash
+uv run python examples/object_tracking/sam3_hsi_tracker.py \
+  --cu3s-path "D:\data\your_dataset\Auto_002.cu3s" \
+  --end-frame 10
+```
+
+```powershell
+uv run python examples/object_tracking/sam3_hsi_tracker.py `
+  --cu3s-path "D:\data\your_dataset\Auto_002.cu3s" `
+  --end-frame 10
+```
+
+CPU-only:
+
+```bash
+uv run python examples/object_tracking/sam3_hsi_tracker.py \
+  --cu3s-path "D:\data\your_dataset\Auto_002.cu3s" \
+  --device cpu
+```
+
+```powershell
+uv run python examples/object_tracking/sam3_hsi_tracker.py `
+  --cu3s-path "D:\data\your_dataset\Auto_002.cu3s" `
+  --device cpu
+```
+
+With explicit checkpoint/prompt/output:
+
+```bash
+uv run python examples/object_tracking/sam3_hsi_tracker.py \
+  --cu3s-path "D:\data\your_dataset\Auto_002.cu3s" \
+  --checkpoint-path "D:\models\sam3_checkpoint.pt" \
+  --prompt "person" \
+  --output-dir "outputs/sam3_tracking"
+```
+
+```powershell
+uv run python examples/object_tracking/sam3_hsi_tracker.py `
+  --cu3s-path "D:\data\your_dataset\Auto_002.cu3s" `
+  --checkpoint-path "D:\models\sam3_checkpoint.pt" `
+  --prompt "person" `
+  --output-dir "outputs/sam3_tracking"
+```
+
+Show CLI help:
+
+```bash
+uv run python examples/object_tracking/sam3_hsi_tracker.py --help
+```
+
+### Main CLI Options
+
+- `--cu3s-path` required input `.cu3s`
+- `--processing-mode` `Raw|DarkSubtract|Preview|Reflectance|SpectralRadiance` (default `SpectralRadiance`)
+- `--end-frame` limit frames (`-1` means all)
+- `--prompt` text prompt for tracker initialization
+- `--output-dir` output directory (default `./tracking_output`)
+- `--device` `cuda|cpu`
+- `--checkpoint-path` optional tracker checkpoint path
+- `--mask-alpha` overlay alpha
+- `--plugins-yaml` plugin manifest path (default `plugins.yaml` relative to this script)
+- `--bf16` enable CUDA bf16 autocast
+- `--compile` enable `torch.compile`
+
+### Outputs
+
+For `--output-dir <OUT>`:
+
+- `<OUT>/tracking_results.json` - COCO instance segmentation output (tentative stream)
+- `<OUT>/tracking_overlay.mp4` - overlay video (always produced)
+- `<OUT>/pipeline/SAM3_HSI_Tracking.png` - graphviz pipeline image
+- `<OUT>/pipeline/SAM3_HSI_Tracking.md` - mermaid pipeline markdown
+
+## Channel Selector False RGB Workflow (Training)
+
+`examples/object_tracking/channel_selector_false_rgb.py` remains available for
+learnable false-RGB training and inspection.
+
+Inspect:
 
 ```bash
 uv run python examples/object_tracking/channel_selector_false_rgb.py mode=inspect
 ```
 
-**Outputs:**
-- `outputs/channel_selector_false_rgb/inspect/false_rgb.mp4` — false RGB video for frame scrubbing
-- `outputs/channel_selector_false_rgb/inspect/tensorboard/` — per-frame images with mask overlays
-
-View per-frame artifacts in TensorBoard:
-
-```bash
-uv run tensorboard --logdir=outputs/channel_selector_false_rgb/inspect/tensorboard
-```
-
-The script prints annotated frame IDs. Copy them into `configs/data/tracking_cap_and_car.yaml`:
-
-```yaml
-train_ids: [0, 5, 10, 15, ...]
-val_ids: [3, 8, ...]
-test_ids: [4, 12, ...]
-```
-
-## Step 2: Train — Optimize Channel Mixer
-
-Build and train the pipeline:
-
-```
-CU3SDataNode → SpatialRotateNode(90°) → MinMaxNormalizer → LearnableChannelMixer
-                    |                                            |          |
-                    mask ───────────────────────────→ ForegroundContrastLoss
-                                                          |    DistinctnessLoss ← weights
-                                                ChannelSelectorFalseRGBViz → TensorBoardMonitor
-                                                          |
-                                              MaskOverlayNode → ToVideoNode  (INFERENCE only)
-```
+Train:
 
 ```bash
 uv run python examples/object_tracking/channel_selector_false_rgb.py mode=train
 ```
 
-Training uses a two-phase approach:
-1. **Statistical init** — PCA initialization for the mixer, running stats for the normalizer
-2. **Gradient training** — AdamW (lr=0.005), 50 epochs with early stopping (patience=15)
-
-**Outputs:**
-- `outputs/channel_selector_false_rgb/trained_models/` — saved pipeline + trainrun config
-- `outputs/channel_selector_false_rgb/tensorboard/` — loss curves + false RGB visualizations
-- `outputs/channel_selector_false_rgb/pipeline/` — pipeline graph (PNG + Mermaid)
-
-Monitor training:
-
-```bash
-uv run tensorboard --logdir=outputs/channel_selector_false_rgb/tensorboard
-```
-
-## Step 3: Inference — Generate Trained False RGB Video
-
-The saved pipeline includes `MaskOverlayNode` and `ToVideoNode` (inference-only).
-Run `restore-pipeline` on any CU3S file to produce a video with the trained channel mixer:
-
-```bash
-uv run restore-pipeline \
-    --pipeline-path outputs/channel_selector_false_rgb/trained_models/Channel_Selector_FalseRGB.yaml \
-    --cu3s-file-path "D:\data\2024_05_22_cap_and_car_2XM_setup\2024_05_22__cap_and_car_50mm\Auto_002.cu3s" \
-    --processing-mode SpectralRadiance
-```
-
-This runs every frame through the trained pipeline and writes:
-- `outputs/channel_selector_false_rgb/trained_false_rgb.mp4` — trained false RGB video (path baked in pipeline config)
-
-Export a pipeline graph visualization:
-
-```bash
-uv run restore-pipeline \
-    --pipeline-path outputs/channel_selector_false_rgb/trained_models/Channel_Selector_FalseRGB.yaml \
-    --pipeline-vis-ext png
-```
-
-## Restore Trainrun
-
-Inspect the full training configuration or reproduce the training run:
-
-```bash
-# View trainrun info (data splits, losses, training config)
-uv run restore-trainrun \
-    --trainrun-path outputs/channel_selector_false_rgb/trained_models/channel_selector_false_rgb_trainrun.yaml \
-    --mode info
-
-# Re-run training
-uv run restore-trainrun \
-    --trainrun-path outputs/channel_selector_false_rgb/trained_models/channel_selector_false_rgb_trainrun.yaml \
-    --mode train
-
-# Run validation only
-uv run restore-trainrun \
-    --trainrun-path outputs/channel_selector_false_rgb/trained_models/channel_selector_false_rgb_trainrun.yaml \
-    --mode validate
-
-# Run test only
-uv run restore-trainrun \
-    --trainrun-path outputs/channel_selector_false_rgb/trained_models/channel_selector_false_rgb_trainrun.yaml \
-    --mode test
-```
-
-Override config values when restoring:
-
-```bash
-uv run restore-trainrun \
-    --trainrun-path outputs/channel_selector_false_rgb/trained_models/channel_selector_false_rgb_trainrun.yaml \
-    --mode train \
-    --override data.batch_size=4 \
-    --override training.trainer.max_epochs=100
-```
-
-## Export False RGB Video (Standalone)
-
-Export a false RGB video from any CU3S file using static wavelength-range averaging
-(no training required):
-
-```bash
-uv run python examples/object_tracking/export_cu3s_false_rgb_video.py \
-    --cu3s-file-path <path-to-cu3s> \
-    --output-video-path output.mp4 \
-    --processing-mode Raw
-```
-
-## Config Files
-
-| File | Purpose |
-|------|---------|
-| `configs/data/tracking_cap_and_car.yaml` | CU3S data paths and frame splits |
-| `configs/trainrun/channel_selector_false_rgb.yaml` | Full training configuration (epochs, lr, losses, mixer) |
-| `configs/training/default.yaml` | Base training defaults (inherited) |
