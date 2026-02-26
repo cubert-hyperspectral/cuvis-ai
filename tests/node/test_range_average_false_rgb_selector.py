@@ -40,10 +40,12 @@ def test_range_average_false_rgb_selector_averages_bands_in_ranges(create_test_c
     green = cube[..., green_idx].mean(dim=-1)
     blue = cube[..., blue_idx].mean(dim=-1)
     raw = torch.stack([red, green, blue], dim=-1)
-    rgb_min = raw.amin(dim=(1, 2), keepdim=True)
-    rgb_max = raw.amax(dim=(1, 2), keepdim=True)
-    denom = (rgb_max - rgb_min).clamp_min(1e-8)
-    expected = ((raw - rgb_min) / denom).clamp(0.0, 1.0)
+    # Running mode warmup uses per-frame percentile normalization.
+    flat = raw.reshape(-1, 3)
+    lo = torch.quantile(flat, BandSelectorBase._NORM_QUANTILE_LOW, dim=0).view(1, 1, 1, 3)
+    hi = torch.quantile(flat, BandSelectorBase._NORM_QUANTILE_HIGH, dim=0).view(1, 1, 1, 3)
+    denom = (hi - lo).clamp_min(1e-8)
+    expected = ((raw - lo) / denom).clamp(0.0, 1.0)
     expected = BandSelectorBase._srgb_gamma(expected)
 
     assert torch.allclose(rgb, expected, atol=1e-6, rtol=1e-6)
