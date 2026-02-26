@@ -1053,7 +1053,8 @@ class TrackingOverlayNode(Node):
         mask_np = mask[0].cpu().numpy()  # [H, W] int32
 
         if object_ids is not None:
-            ids: list[int] = [int(i) for i in object_ids[0].cpu().tolist()]
+            # Some trackers include background label 0 in object_ids; never render it.
+            ids = [int(i) for i in object_ids[0].cpu().tolist() if int(i) > 0]
         else:
             ids = [int(i) for i in np.unique(mask_np) if i != 0]
 

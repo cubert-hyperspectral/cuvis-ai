@@ -80,6 +80,33 @@ def test_object_ids_optional_inferred_from_mask() -> None:
     torch.testing.assert_close(out_explicit["rgb_with_overlay"], out_inferred["rgb_with_overlay"])
 
 
+def test_background_id_zero_in_object_ids_is_ignored() -> None:
+    """Explicit object_ids containing 0 should render like the same list without 0."""
+    node = TrackingOverlayNode(alpha=1.0, draw_contours=False, draw_ids=False)
+    h, w = 10, 10
+    rgb = torch.ones((1, h, w, 3), dtype=torch.float32) * 0.5
+    mask = torch.zeros((1, h, w), dtype=torch.int32)
+    mask[0, :5, :] = 1  # top half is object 1, bottom half background 0
+
+    out_with_zero = node.forward(
+        rgb_image=rgb,
+        mask=mask,
+        object_ids=torch.tensor([[0, 1]], dtype=torch.int64),
+    )
+    out_without_zero = node.forward(
+        rgb_image=rgb,
+        mask=mask,
+        object_ids=torch.tensor([[1]], dtype=torch.int64),
+    )
+
+    torch.testing.assert_close(
+        out_with_zero["rgb_with_overlay"],
+        out_without_zero["rgb_with_overlay"],
+        atol=1 / 255,
+        rtol=0.0,
+    )
+
+
 def test_overlay_modifies_masked_pixels() -> None:
     """Pixels inside the object mask differ from the original frame after blending."""
     # draw_contours/draw_ids disabled so no pixels outside the mask region are touched.
