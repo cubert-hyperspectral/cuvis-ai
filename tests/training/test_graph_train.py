@@ -1,75 +1,19 @@
 """Tests for external trainer orchestration."""
 
+import pytest
 import torch
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
-from cuvis_ai_core.training.datamodule import CuvisDataModule
 from cuvis_ai_core.training.trainers import StatisticalTrainer
 from cuvis_ai_schemas.enums import ExecutionStage
-from torch.utils.data import DataLoader
 
 from cuvis_ai.anomaly.rx_detector import RXGlobal
 from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.normalization import MinMaxNormalizer
 
-
-class MockDataModule(CuvisDataModule):
-    """Mock datamodule for testing."""
-
-    def __init__(self, batch_size=2, num_samples=10, dtype=torch.uint16):
-        super().__init__()
-        self.batch_size = batch_size
-        self.num_samples = num_samples
-        # Create data with specified dtype (default uint16)
-        self.data = torch.randint(0, 65535, (num_samples, 10, 10, 5), dtype=dtype)  # N, H, W, C
-        # Create wavelengths for 5 channels
-        self.wavelengths = torch.arange(5, dtype=torch.int32)
-
-    def prepare_data(self):
-        pass
-
-    def setup(self, stage=None):
-        pass
-
-    def train_dataloader(self):
-        # Return DataLoader that yields dicts directly
-        class DictDataset:
-            def __init__(self, data, wavelengths):
-                self.data = data
-                self.wavelengths = wavelengths
-
-            def __len__(self):
-                return len(self.data)
-
-            def __getitem__(self, idx):
-                return {
-                    "cube": self.data[idx],
-                    "wavelengths": self.wavelengths,  # 1D, DataLoader will stack to 2D
-                }
-
-        dataset = DictDataset(self.data, self.wavelengths)
-        return DataLoader(dataset, batch_size=self.batch_size, shuffle=False)
-
-    def val_dataloader(self):
-        # Return DataLoader that yields dicts directly
-        class DictDataset:
-            def __init__(self, data, wavelengths):
-                self.data = data
-                self.wavelengths = wavelengths
-
-            def __len__(self):
-                return len(self.data)
-
-            def __getitem__(self, idx):
-                return {
-                    "cube": self.data[idx],
-                    "wavelengths": self.wavelengths,  # 1D, DataLoader will stack to 2D
-                }
-
-        dataset = DictDataset(self.data[:4], self.wavelengths)
-        return DataLoader(dataset, batch_size=self.batch_size, shuffle=False)
+pytestmark = [pytest.mark.integration, pytest.mark.slow]
 
 
-def test_graph_train_statistical_only():
+def test_graph_train_statistical_only(synthetic_anomaly_datamodule):
     """Test StatisticalTrainer with statistical initialization only (no gradient training)."""
     # Create graph with data node to adapt inputs
     pipeline = CuvisPipeline("test_statistical")
@@ -81,7 +25,15 @@ def test_graph_train_statistical_only():
     pipeline.connect((data_node.outputs.cube, rx.data), (rx.scores, normalizer.data))
 
     # Create datamodule
-    datamodule = MockDataModule(batch_size=2, num_samples=10)
+    datamodule = synthetic_anomaly_datamodule(
+        batch_size=2,
+        num_samples=10,
+        height=10,
+        width=10,
+        channels=5,
+        include_labels=False,
+        dtype=torch.uint16,
+    )
 
     # Use StatisticalTrainer for initialization
     stat_trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
@@ -101,9 +53,9 @@ def test_graph_train_statistical_only():
     assert normalizer._statistically_initialized is True
 
 
-def test_graph_train_with_gradient_training():
+def test_graph_train_with_gradient_training(synthetic_anomaly_datamodule):
     """Test StatisticalTrainer with PCA initialization."""
-    from cuvis_ai.node.pca import TrainablePCA
+    from cuvis_ai.node.dimensionality_reduction import TrainablePCA
 
     # Create graph with trainable PCA and data node
     pipeline = CuvisPipeline("test_with_training")
@@ -114,7 +66,15 @@ def test_graph_train_with_gradient_training():
     pipeline.connect(data_node.outputs.cube, pca.data)
 
     # Create datamodule
-    datamodule = MockDataModule(batch_size=2, num_samples=10)
+    datamodule = synthetic_anomaly_datamodule(
+        batch_size=2,
+        num_samples=10,
+        height=10,
+        width=10,
+        channels=5,
+        include_labels=False,
+        dtype=torch.uint16,
+    )
 
     # Statistical initialization
     stat_trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
@@ -129,17 +89,13 @@ def test_graph_train_with_gradient_training():
     assert pca._components.shape == torch.Size([3, 5])  # n_components x n_features
 
 
-def test_graph_train_seed_reproducibility():
+def test_graph_train_seed_reproducibility(synthetic_anomaly_datamodule):
     """Test that same seed produces reproducible results."""
-    # Create fixed data (to isolate seed effects on initialization)
-    torch.manual_seed(12345)  # Fixed seed for data generation
-    fixed_data = torch.randint(0, 65535, (10, 10, 10, 5), dtype=torch.uint16)
 
-    def create_and_train(seed):
-        # Reset seed before each training run
-        torch.manual_seed(seed)
+    def create_and_train(run_seed):
+        torch.manual_seed(run_seed)
 
-        pipeline = CuvisPipeline(f"test_seed_{seed}")
+        pipeline = CuvisPipeline(f"test_seed_{run_seed}")
         data_node = LentilsAnomalyDataNode(normal_class_ids=[0])
         rx = RXGlobal(num_channels=5)
         normalizer = MinMaxNormalizer(use_running_stats=True)
@@ -147,9 +103,17 @@ def test_graph_train_seed_reproducibility():
         # Connect with data node
         pipeline.connect((data_node.outputs.cube, rx.data), (rx.scores, normalizer.data))
 
-        # Use same fixed data for all runs
-        datamodule = MockDataModule(batch_size=2, num_samples=10)
-        datamodule.data = fixed_data.clone()
+        # Use same seed for deterministic data generation
+        datamodule = synthetic_anomaly_datamodule(
+            batch_size=2,
+            num_samples=10,
+            height=10,
+            width=10,
+            channels=5,
+            include_labels=False,
+            dtype=torch.uint16,
+            seed=12345,
+        )
 
         # Use StatisticalTrainer
         stat_trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
@@ -166,7 +130,7 @@ def test_graph_train_seed_reproducibility():
     assert torch.allclose(cov1, cov2, atol=1e-6)
 
 
-def test_graph_forward_after_training():
+def test_graph_forward_after_training(synthetic_anomaly_datamodule):
     """Test that graph can perform forward pass after training."""
     # Create and train graph with data node
     pipeline = CuvisPipeline("test_forward")
@@ -177,7 +141,15 @@ def test_graph_forward_after_training():
     # Connect nodes (automatically adds them to graph)
     pipeline.connect((data_node.outputs.cube, rx.data), (rx.scores, normalizer.data))
 
-    datamodule = MockDataModule(batch_size=2, num_samples=10)
+    datamodule = synthetic_anomaly_datamodule(
+        batch_size=2,
+        num_samples=10,
+        height=10,
+        width=10,
+        channels=5,
+        include_labels=False,
+        dtype=torch.uint16,
+    )
 
     # Use StatisticalTrainer
     stat_trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)

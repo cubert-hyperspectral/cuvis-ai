@@ -21,13 +21,13 @@ from typing import Any
 
 import numpy as np
 import torch
-import torch.nn as nn
 from cuvis_ai_core.node import Node
 from cuvis_ai_schemas.execution import InputStream
 from cuvis_ai_schemas.pipeline import PortSpec
 
+from cuvis_ai.utils.welford import WelfordAccumulator
+
 ## This node is not approved
-# missing unfreeze/freeze
 # missing approved documentation and alignment with current API
 # could we use streaming accumulators for mean and Laplacian construction
 
@@ -92,6 +92,8 @@ class LADGlobal(Node):
         )
     }
 
+    TRAINABLE_BUFFERS = ("M", "L")
+
     def __init__(
         self,
         num_channels: int,
@@ -113,11 +115,7 @@ class LADGlobal(Node):
             **kwargs,
         )
 
-        # Streaming accumulators (float64 for numerical stability)
-        self.register_buffer(
-            "_mean_run", torch.zeros(self.num_channels, dtype=torch.float64)
-        )  # (C,)
-        self._count: int = 0
+        self._welford = WelfordAccumulator(self.num_channels)
         # Model buffers
         self.register_buffer("M", torch.zeros(self.num_channels, dtype=torch.float64))  # (C,)
         self.register_buffer(
@@ -144,7 +142,7 @@ class LADGlobal(Node):
             if x is not None:
                 self.update(x)
 
-        if self._count <= 0:
+        if self._welford.count <= 0:
             raise RuntimeError("No samples provided to LADGlobal.statistical_initialization()")
 
         self.finalize()
@@ -154,31 +152,19 @@ class LADGlobal(Node):
     def update(self, batch_bhwc: torch.Tensor) -> None:
         """Update running mean statistics from a BHWC batch."""
         B, H, W, C = batch_bhwc.shape
-        X = batch_bhwc.reshape(B * H * W, C).to(dtype=torch.float64)
-        m = X.shape[0]
-        if m <= 0:
+        X = batch_bhwc.reshape(B * H * W, C)
+        if X.shape[0] <= 0:
             return
-
-        mean_b = X.mean(dim=0)
-
-        if self._count == 0:
-            self._mean_run = mean_b
-            self._count = m
-        else:
-            tot = self._count + m
-            delta = mean_b - self._mean_run
-            self._mean_run = self._mean_run + delta * (m / tot)
-            self._count = tot
-
+        self._welford.update(X)
         self._statistically_initialized = False
 
     @torch.no_grad()
     def finalize(self) -> None:
         """Finalize mean and Laplacian from accumulated statistics."""
-        if self._count <= 0 or self._mean_run.numel() == 0:
+        if self._welford.count <= 0:
             raise RuntimeError("No samples accumulated for LADGlobal.finalize()")
 
-        M = self._mean_run.clone().to(dtype=torch.float64)
+        M = self._welford.mean.to(dtype=torch.float64)
         C = M.shape[0]
         a = M.mean()
 
@@ -237,37 +223,10 @@ class LADGlobal(Node):
         Use this method to re-initialize the detector with different training data
         or when switching between different spectral distributions.
         """
-        self.register_buffer(
-            "_mean_run", torch.zeros(self.num_channels, dtype=torch.float64)
-        )  # (C,)
-        self._count: int = 0
-        # Model buffers
-        self.register_buffer("M", torch.zeros(self.num_channels, dtype=torch.float64))  # (C,)
-        self.register_buffer(
-            "L", torch.zeros(self.num_channels, self.num_channels, dtype=torch.float64)
-        )  # (C, C)
+        self._welford.reset()
+        self.M.zero_()
+        self.L.zero_()
         self._statistically_initialized = False
-
-    def unfreeze(self) -> None:
-        """Convert M and L buffers to trainable nn.Parameters."""
-        if self.M.numel() > 0 and self.L.numel() > 0:
-            device = self.M.device
-            # Store current values
-            M_data = self.M.clone()
-            L_data = self.L.clone()
-
-            # Remove buffer registrations
-            delattr(self, "M")
-            delattr(self, "L")
-
-            # Register as parameters
-            self.M = nn.Parameter(M_data, requires_grad=True)
-            self.L = nn.Parameter(L_data, requires_grad=True)
-            self.M.to(device=device)
-            self.L.to(device=device)
-
-        # Call parent to enable requires_grad
-        super().unfreeze()
 
     # ------------------------------------------------------------------
     # Forward & serialization

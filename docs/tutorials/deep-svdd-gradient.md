@@ -156,8 +156,6 @@ from cuvis_ai.anomaly.deep_svdd import ZScoreNormalizerGlobal
 encoder = ZScoreNormalizerGlobal(
     num_channels=35,     # Channels after bandpass (inferred automatically)
     hidden=64,           # Hidden layer size
-    sample_n=1024,       # Samples for statistical init
-    seed=42,             # Random seed for reproducibility
 )
 ```
 
@@ -275,7 +273,7 @@ decider_node = QuantileBinaryDecider(
 
 ```python
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics
-from cuvis_ai.node.visualizations import AnomalyMask, ScoreHeatmapVisualizer
+from cuvis_ai.node.anomaly_visualization import AnomalyMask, ScoreHeatmapVisualizer
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 
 metrics_node = AnomalyDetectionMetrics(name="metrics_anomaly")
@@ -638,7 +636,7 @@ from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.normalization import PerPixelUnitNorm
 from cuvis_ai.node.preprocessors import BandpassByWavelength
-from cuvis_ai.node.visualizations import AnomalyMask, ScoreHeatmapVisualizer
+from cuvis_ai.node.anomaly_visualization import AnomalyMask, ScoreHeatmapVisualizer
 
 
 @hydra.main(config_path="../../configs/", config_name="trainrun/deep_svdd", version_base=None)
@@ -658,7 +656,7 @@ def main(cfg: DictConfig) -> None:
     data_node = LentilsAnomalyDataNode(normal_class_ids=[0, 1])
     bandpass_node = BandpassByWavelength(min_wavelength_nm=450.0, max_wavelength_nm=900.0)
     unit_norm_node = PerPixelUnitNorm(eps=1e-8)
-    encoder = ZScoreNormalizerGlobal(num_channels=35, hidden=64, sample_n=1024, seed=42)
+    encoder = ZScoreNormalizerGlobal(num_channels=35, hidden=64)
     projection = DeepSVDDProjection(in_channels=35, rep_dim=32, hidden=128)
     center_tracker = DeepSVDDCenterTracker(rep_dim=32, alpha=0.1)
     loss_node = DeepSVDDSoftBoundaryLoss(name="deepsvdd_loss", nu=0.1)
@@ -789,7 +787,7 @@ training_cfg.optimizer.lr = 0.001  # From 0.0001
 loss_node = DeepSVDDSoftBoundaryLoss(nu=0.2)  # Allow more outliers
 
 # 3. Verify unfreeze
-print(f"Encoder frozen: {encoder.is_frozen()}")  # Should be False
+print(f"Encoder frozen: {encoder.frozen}")  # Should be False
 ```
 
 ### Issue: Memory Error (OOM)

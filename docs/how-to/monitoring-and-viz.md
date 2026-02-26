@@ -26,7 +26,7 @@ CUVIS.AI provides comprehensive monitoring and visualization capabilities:
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics
-from cuvis_ai.node.visualizations import AnomalyMask, ScoreHeatmapVisualizer
+from cuvis_ai.node.anomaly_visualization import AnomalyMask, ScoreHeatmapVisualizer
 
 # Create pipeline
 pipeline = CuvisPipeline("monitored_pipeline")
@@ -376,7 +376,7 @@ Side-by-side ground truth and prediction comparison with overlay.
 **Example:**
 
 ```python
-from cuvis_ai.node.visualizations import AnomalyMask
+from cuvis_ai.node.anomaly_visualization import AnomalyMask
 
 viz_mask = AnomalyMask(channel=30, up_to=5)
 
@@ -417,7 +417,7 @@ Like [AnomalyMask](#anomalymask) but for RGB images.
 **Example:**
 
 ```python
-from cuvis_ai.node.visualizations import RGBAnomalyMask
+from cuvis_ai.node.anomaly_visualization import RGBAnomalyMask
 
 rgb_viz = RGBAnomalyMask(up_to=5)
 
@@ -450,7 +450,7 @@ Heatmap visualization of anomaly scores.
 **Example:**
 
 ```python
-from cuvis_ai.node.visualizations import ScoreHeatmapVisualizer
+from cuvis_ai.node.anomaly_visualization import ScoreHeatmapVisualizer
 
 score_viz = ScoreHeatmapVisualizer(
     normalize_scores=True,
@@ -495,7 +495,7 @@ Visualize first 2 PCA components with spatial encoding.
 **Example:**
 
 ```python
-from cuvis_ai.node.visualizations import PCAVisualization
+from cuvis_ai.node.pipeline_visualization import PCAVisualization
 
 pca_viz = PCAVisualization(up_to=3)
 
@@ -530,7 +530,7 @@ False-color RGB from selected hyperspectral channels.
 **Example:**
 
 ```python
-from cuvis_ai.node.visualizations import CubeRGBVisualizer
+from cuvis_ai.node.pipeline_visualization import CubeRGBVisualizer
 
 rgb_viz = CubeRGBVisualizer(up_to=5)
 
@@ -548,7 +548,7 @@ val/viz_rgb_sample_0
 val/viz_rgb_sample_1
 ```
 
-### DRCNNTensorBoardViz
+### PipelineComparisonVisualizer
 
 Specialized visualizations for DRCNN pipelines.
 
@@ -580,9 +580,9 @@ Specialized visualizations for DRCNN pipelines.
 **Example:**
 
 ```python
-from cuvis_ai.node.drcnn_tensorboard_viz import DRCNNTensorBoardViz
+from cuvis_ai.node.pipeline_visualization import PipelineComparisonVisualizer
 
-drcnn_viz = DRCNNTensorBoardViz(
+drcnn_viz = PipelineComparisonVisualizer(
     hsi_channels=[0, 20, 40],
     max_samples=4,
     log_every_n_batches=1,
@@ -621,7 +621,7 @@ from cuvis_ai.anomaly.rx_detector import RXGlobal
 from cuvis_ai.node.conversion import ScoreToLogit
 from cuvis_ai.anomaly.binary_decider import BinaryDecider
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics
-from cuvis_ai.node.visualizations import AnomalyMask, ScoreHeatmapVisualizer
+from cuvis_ai.node.anomaly_visualization import AnomalyMask, ScoreHeatmapVisualizer
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 
 # Create pipeline
@@ -710,17 +710,17 @@ Comprehensive monitoring with multiple visualizations and losses.
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.normalization import MinMaxNormalizer
-from cuvis_ai.anomaly.learnable_channel_mixer import LearnableChannelMixer
+from cuvis_ai.node.channel_mixer import LearnableChannelMixer
 from cuvis_ai.anomaly.adaclip_anomaly_detector import AdaClipAnomalyDetector
 from cuvis_ai.anomaly.binary_decider import BinaryDecider
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics
-from cuvis_ai.node.visualizations import AnomalyMask, ScoreHeatmapVisualizer
-from cuvis_ai.node.drcnn_tensorboard_viz import DRCNNTensorBoardViz
+from cuvis_ai.node.anomaly_visualization import AnomalyMask, ScoreHeatmapVisualizer
+from cuvis_ai.node.pipeline_visualization import PipelineComparisonVisualizer
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.anomaly.iou_loss import IoULoss
 
 # Create pipeline
-pipeline = CuvisPipeline("DRCNN_AdaClip_Gradient")
+pipeline = CuvisPipeline("drcnn_adaclip_gradient")
 
 # Processing nodes
 data_node = LentilsAnomalyDataNode(normal_class_ids=[0, 1])
@@ -734,7 +734,7 @@ iou_loss = IoULoss(weight=1.0, normalize_method="minmax")
 metrics = AnomalyDetectionMetrics()
 viz_mask = AnomalyMask(channel=30, up_to=5)
 score_viz = ScoreHeatmapVisualizer(up_to=5)
-drcnn_viz = DRCNNTensorBoardViz(
+drcnn_viz = PipelineComparisonVisualizer(
     hsi_channels=[0, 20, 40],
     max_samples=4,
     log_every_n_batches=1,
@@ -833,22 +833,23 @@ Monitor multiple loss components and selector diversity.
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.normalization import MinMaxNormalizer
-from cuvis_ai.anomaly.concrete_band_selector import ConcreteBandSelector
+from cuvis_ai.node.channel_mixer import ConcreteChannelMixer
 from cuvis_ai.anomaly.adaclip_anomaly_detector import AdaClipAnomalyDetector
 from cuvis_ai.anomaly.binary_decider import BinaryDecider
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics, SelectorEntropyMetric
-from cuvis_ai.node.visualizations import AnomalyMask, CubeRGBVisualizer
+from cuvis_ai.node.anomaly_visualization import AnomalyMask
+from cuvis_ai.node.pipeline_visualization import CubeRGBVisualizer
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.anomaly.iou_loss import IoULoss
 from cuvis_ai.anomaly.distinctness_loss import DistinctnessLoss
 
 # Create pipeline
-pipeline = CuvisPipeline("Concrete_AdaClip")
+pipeline = CuvisPipeline("concrete_adaclip")
 
 # Processing nodes
 data_node = LentilsAnomalyDataNode(normal_class_ids=[0, 1])
 normalizer = MinMaxNormalizer(eps=1.0e-6, use_running_stats=True)
-selector = ConcreteBandSelector(
+selector = ConcreteChannelMixer(
     num_channels=61,
     num_bands_to_select=3,
     temperature=0.5,
@@ -955,7 +956,7 @@ name: drcnn_adaclip
 output_dir: ./outputs/${name}
 
 defaults:
-  - /pipeline@pipeline: drcnn_adaclip
+  - /pipeline/anomaly/adaclip@pipeline: drcnn_adaclip_gradient
   - /data@data: lentils
   - /training@training: default
   - _self_
@@ -1011,11 +1012,11 @@ outputs/drcnn_adaclip/
 │   ├── epoch=01.ckpt
 │   └── last.ckpt
 ├── pipeline/
-│   ├── DRCNN_AdaClip_Gradient.png
-│   └── DRCNN_AdaClip_Gradient.md
+│   ├── drcnn_adaclip_gradient.png
+│   └── drcnn_adaclip_gradient.md
 └── trained_models/
-    ├── DRCNN_AdaClip_Gradient.yaml
-    ├── DRCNN_AdaClip_Gradient.pt
+    ├── drcnn_adaclip_gradient.yaml
+    ├── drcnn_adaclip_gradient.pt
     └── drcnn_adaclip_trainrun.yaml
 ```
 
@@ -1033,7 +1034,7 @@ viz_mask = AnomalyMask(channel=30, up_to=5)  # Max 5 images
 score_viz = ScoreHeatmapVisualizer(up_to=5)
 
 # Good: Log less frequently for large datasets
-drcnn_viz = DRCNNTensorBoardViz(log_every_n_batches=5)  # Every 5th batch
+drcnn_viz = PipelineComparisonVisualizer(log_every_n_batches=5)  # Every 5th batch
 ```
 
 **Avoid:**
@@ -1234,7 +1235,7 @@ trainer = GradientTrainer(
 viz_mask = AnomalyMask(up_to=3)  # Instead of up_to=10
 
 # Log less frequently
-drcnn_viz = DRCNNTensorBoardViz(log_every_n_batches=10)  # Every 10th batch
+drcnn_viz = PipelineComparisonVisualizer(log_every_n_batches=10)  # Every 10th batch
 ```
 
 **Verify execution stages:**
@@ -1285,7 +1286,7 @@ monitor = TensorBoardMonitorNode(
     flush_secs=300,  # Flush less frequently (5 minutes)
 )
 
-viz = DRCNNTensorBoardViz(
+viz = PipelineComparisonVisualizer(
     log_every_n_batches=10,  # Log less often
     max_samples=2,  # Fewer images
 )

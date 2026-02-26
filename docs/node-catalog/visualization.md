@@ -67,7 +67,7 @@ Model → Decisions/Scores → Visualization Node → TensorBoardMonitorNode
 #### Example Usage (Python)
 
 ```python
-from cuvis_ai.node.visualizations import AnomalyMask
+from cuvis_ai.node.anomaly_visualization import AnomalyMask
 
 # Create visualizer
 viz = AnomalyMask(channel=30, up_to=5)
@@ -112,7 +112,7 @@ connections:
 
 - [Tutorial 1: RX Statistical](../tutorials/rx-statistical.md#visualization)
 - [TensorBoardMonitorNode](#tensorboardmonitornode)
-- API Reference: ::: cuvis_ai.node.visualizations.AnomalyMask
+- API Reference: ::: cuvis_ai.node.anomaly_visualization.AnomalyMask
 
 ---
 
@@ -150,7 +150,7 @@ connections:
 #### Example Usage (Python)
 
 ```python
-from cuvis_ai.node.visualizations import ScoreHeatmapVisualizer
+from cuvis_ai.node.anomaly_visualization import ScoreHeatmapVisualizer
 
 # Create heatmap visualizer
 heatmap_viz = ScoreHeatmapVisualizer(
@@ -170,7 +170,7 @@ pipeline.connect(
 #### See Also
 
 - [Tutorial 3: Deep SVDD Gradient](../tutorials/deep-svdd-gradient.md#score-visualization)
-- API Reference: ::: cuvis_ai.node.visualizations.ScoreHeatmapVisualizer
+- API Reference: ::: cuvis_ai.node.anomaly_visualization.ScoreHeatmapVisualizer
 
 ---
 
@@ -212,7 +212,7 @@ pipeline.connect(
 #### Example Usage (Python)
 
 ```python
-from cuvis_ai.node.visualizations import CubeRGBVisualizer
+from cuvis_ai.node.pipeline_visualization import CubeRGBVisualizer
 
 # Create false-color visualizer
 rgb_viz = CubeRGBVisualizer(up_to=5)
@@ -231,7 +231,7 @@ pipeline.connect(
 
 - [Tutorial 2: Channel Selector](../tutorials/channel-selector.md#monitoring)
 - [SoftChannelSelector](selectors.md#softchannelselector)
-- API Reference: ::: cuvis_ai.node.visualizations.CubeRGBVisualizer
+- API Reference: ::: cuvis_ai.node.pipeline_visualization.CubeRGBVisualizer
 
 ---
 
@@ -272,7 +272,7 @@ pipeline.connect(
 #### Example Usage (Python)
 
 ```python
-from cuvis_ai.node.visualizations import PCAVisualization
+from cuvis_ai.node.pipeline_visualization import PCAVisualization
 
 # Create PCA visualizer
 pca_viz = PCAVisualization(up_to=10)
@@ -289,7 +289,7 @@ pipeline.connect(
 
 - [Tutorial 4: AdaCLIP Workflow](../tutorials/adaclip-workflow.md#variant-1-pca-baseline)
 - [TrainablePCA](deep-learning.md#trainablepca)
-- API Reference: ::: cuvis_ai.node.visualizations.PCAVisualization
+- API Reference: ::: cuvis_ai.node.pipeline_visualization.PCAVisualization
 
 ---
 
@@ -332,7 +332,7 @@ pipeline.connect(
 #### Example Usage (Python)
 
 ```python
-from cuvis_ai.node.visualizations import RGBAnomalyMask
+from cuvis_ai.node.anomaly_visualization import RGBAnomalyMask
 
 # Create RGB visualizer
 rgb_viz = RGBAnomalyMask(up_to=5)
@@ -351,7 +351,7 @@ pipeline.connect(
 
 - [Tutorial 4: AdaCLIP Workflow](../tutorials/adaclip-workflow.md#variant-2-drcnn-mixer)
 - [LearnableChannelMixer](deep-learning.md#learnablechannelmixer)
-- API Reference: ::: cuvis_ai.node.visualizations.RGBAnomalyMask
+- API Reference: ::: cuvis_ai.node.anomaly_visualization.RGBAnomalyMask
 
 ---
 
@@ -575,5 +575,5 @@ connections:
 - **Tutorial:** [Channel Selector](../tutorials/channel-selector.md#monitoring-channel-weights)
 - **Tutorial:** [Deep SVDD Gradient](../tutorials/deep-svdd-gradient.md#score-visualization)
 - **Concepts:** [Execution Stages](../concepts/execution-stages.md)
-- **API Reference:** [cuvis_ai.node.visualizations](../../api/node/#visualizations)
+- **API Reference:** [cuvis_ai.node.anomaly_visualization](../../api/node/#anomaly_visualization), [cuvis_ai.node.pipeline_visualization](../../api/node/#pipeline_visualization)
 - **API Reference:** [cuvis_ai.node.monitor](../../api/node/#monitor)

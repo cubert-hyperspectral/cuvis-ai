@@ -209,7 +209,7 @@ Applies a fixed threshold (0.5) to convert logits to binary decisions.
 ```python
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
-from cuvis_ai.node.visualizations import AnomalyMask
+from cuvis_ai.node.anomaly_visualization import AnomalyMask
 
 # Anomaly detection metrics (IoU, precision, recall, F1)
 metrics_anomaly = AnomalyDetectionMetrics(name="metrics_anomaly")
@@ -473,7 +473,7 @@ from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.normalization import MinMaxNormalizer
-from cuvis_ai.node.visualizations import AnomalyMask
+from cuvis_ai.node.anomaly_visualization import AnomalyMask
 
 
 @hydra.main(config_path="../configs/", config_name="trainrun/default_statistical", version_base=None)

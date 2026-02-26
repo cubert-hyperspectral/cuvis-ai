@@ -14,6 +14,8 @@ from cuvis_ai.node.metrics import (
     ScoreStatisticsMetric,
 )
 
+pytestmark = pytest.mark.unit
+
 
 class TestExplainedVarianceMetric:
     """Tests for ExplainedVarianceMetric."""
@@ -343,13 +345,16 @@ class TestComponentOrthogonalityMetric:
 
     def test_degraded_orthogonality_detection(self, trainable_pca):
         """Test detection of degraded orthogonality."""
+        import copy
+
+        pca = copy.deepcopy(trainable_pca)
         metric_node = ComponentOrthogonalityMetric()
         context = Context(stage=ExecutionStage.VAL, epoch=0, batch_idx=0)
 
         # Degrade orthogonality by adding noise
-        trainable_pca._components.data += 0.1 * torch.randn_like(trainable_pca._components)
+        pca._components.data += 0.1 * torch.randn_like(pca._components)
 
-        components = trainable_pca._components
+        components = pca._components
         outputs = metric_node.forward(components=components, context=context)
 
         metrics = {m.name: m.value for m in outputs["metrics"]}

@@ -6,17 +6,22 @@ nodes:
     normal_class_ids:
     - 0
     - 1
-- name: HighContrastBandSelector
-  class_name: cuvis_ai.node.band_selection.HighContrastBandSelector
+- name: SupervisedCIRSelector
+  class_name: cuvis_ai.node.channel_selector.SupervisedCIRSelector
   hparams:
     windows:
-    - - 440.0
-      - 500.0
+    - - 840.0
+      - 910.0
+    - - 650.0
+      - 720.0
     - - 500.0
-      - 580.0
-    - - 610.0
-      - 700.0
-    alpha: 0.1
+      - 570.0
+    score_weights:
+    - 1.0
+    - 1.0
+    - 1.0
+    lambda_penalty: 0.5
+    num_spectral_bands: 61
 - name: AdaCLIPDetector
   class_name: cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
   hparams:
@@ -36,13 +41,13 @@ nodes:
     quantile: 0.995
     reduce_dims: null
 - name: ScoreHeatmapVisualizer
-  class_name: cuvis_ai.node.visualizations.ScoreHeatmapVisualizer
+  class_name: cuvis_ai.node.anomaly_visualization.ScoreHeatmapVisualizer
   hparams:
     normalize_scores: true
     cmap: inferno
     up_to: 3
 - name: RGBAnomalyMask
-  class_name: cuvis_ai.node.visualizations.RGBAnomalyMask
+  class_name: cuvis_ai.node.anomaly_visualization.RGBAnomalyMask
   hparams:
     up_to: 3
 - name: detection_metrics
@@ -53,21 +58,23 @@ nodes:
   class_name: cuvis_ai.node.monitor.TensorBoardMonitorNode
   hparams:
     output_dir: outputs\tensorboard
-    run_name: AdaCLIP_HighContrast
+    run_name: AdaCLIP_Supervised_CIR
     comment: ''
     flush_secs: 120
 connections:
 - source: LentilsAnomalyDataNode.outputs.cube
-  target: HighContrastBandSelector.inputs.cube
+  target: SupervisedCIRSelector.inputs.cube
 - source: LentilsAnomalyDataNode.outputs.wavelengths
-  target: HighContrastBandSelector.inputs.wavelengths
+  target: SupervisedCIRSelector.inputs.wavelengths
+- source: LentilsAnomalyDataNode.outputs.mask
+  target: SupervisedCIRSelector.inputs.mask
 - source: LentilsAnomalyDataNode.outputs.mask
   target: detection_metrics.inputs.targets
 - source: LentilsAnomalyDataNode.outputs.mask
   target: RGBAnomalyMask.inputs.mask
-- source: HighContrastBandSelector.outputs.rgb_image
+- source: SupervisedCIRSelector.outputs.rgb_image
   target: AdaCLIPDetector.inputs.rgb_image
-- source: HighContrastBandSelector.outputs.rgb_image
+- source: SupervisedCIRSelector.outputs.rgb_image
   target: RGBAnomalyMask.inputs.rgb_image
 - source: AdaCLIPDetector.outputs.scores
   target: QuantileBinaryDecider.inputs.logits
@@ -86,13 +93,13 @@ connections:
 - source: detection_metrics.outputs.metrics
   target: TensorBoardMonitorNode.inputs.metrics
 metadata:
-  name: AdaCLIP_HighContrast
-  description: "Statistical AdaCLIP high-contrast pipeline (LentilsAnomalyDataNode\
-    \ \u2192 HighContrastBandSelector \u2192 AdaCLIPDetector)"
+  name: AdaCLIP_Supervised_CIR
+  description: "Statistical AdaCLIP supervised CIR pipeline (LentilsAnomalyDataNode\
+    \ \u2192 SupervisedCIRSelector \u2192 AdaCLIPDetector)"
   created: ''
   tags:
   - statistical
   - adaclip
-  - high_contrast
+  - supervised_cir
   author: cuvis.ai
   cuvis_ai_version: 0.1.5.post30+g6d28af5c2.d20251217

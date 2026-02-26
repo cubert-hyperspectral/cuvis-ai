@@ -1,6 +1,6 @@
-"""Tests for supervised band selection refactoring.
+"""Tests for supervised channel selection refactoring.
 
-Covers the template method hooks in SupervisedBandSelectorBase and
+Covers the template method hooks in SupervisedSelectorBase and
 the concrete subclass implementations.
 """
 
@@ -8,26 +8,28 @@ import numpy as np
 import pytest
 import torch
 
-from cuvis_ai.node.band_selection import (
-    SupervisedBandSelectorBase,
-    SupervisedCIRBandSelector,
-    SupervisedFullSpectrumBandSelector,
-    SupervisedWindowedFalseRGBSelector,
+from cuvis_ai.node.channel_selector import (
+    SupervisedCIRSelector,
+    SupervisedFullSpectrumSelector,
+    SupervisedSelectorBase,
+    SupervisedWindowedSelector,
 )
+
+pytestmark = pytest.mark.unit
 
 # ---------------------------------------------------------------------------
 # Base class hook / abstract method tests
 # ---------------------------------------------------------------------------
 
 
-class TestSupervisedBandSelectorBase:
+class TestSupervisedSelectorBase:
     def test_strategy_name_is_empty_on_base(self):
-        assert SupervisedBandSelectorBase._strategy_name == ""
+        assert SupervisedSelectorBase._strategy_name == ""
 
     def test_select_bands_raises_not_implemented(self):
-        sel = SupervisedFullSpectrumBandSelector(num_spectral_bands=10)
+        sel = SupervisedFullSpectrumSelector(num_spectral_bands=10)
         with pytest.raises(NotImplementedError):
-            SupervisedBandSelectorBase._select_bands(
+            SupervisedSelectorBase._select_bands(
                 sel,
                 np.zeros(10),
                 np.linspace(400, 900, 10),
@@ -36,12 +38,12 @@ class TestSupervisedBandSelectorBase:
 
     def test_extra_band_info_returns_empty_dict(self):
         # FullSpectrum does NOT override _extra_band_info
-        sel = SupervisedFullSpectrumBandSelector(num_spectral_bands=10)
+        sel = SupervisedFullSpectrumSelector(num_spectral_bands=10)
         result = sel._extra_band_info(np.linspace(400, 900, 10))
         assert result == {}
 
     def test_forward_raises_when_not_fitted(self):
-        sel = SupervisedFullSpectrumBandSelector(num_spectral_bands=20)
+        sel = SupervisedFullSpectrumSelector(num_spectral_bands=20)
         cube = torch.randn(1, 8, 8, 20)
         wavelengths = np.linspace(430, 910, 20)
 
@@ -56,30 +58,30 @@ class TestSupervisedBandSelectorBase:
 
 class TestStrategyNames:
     def test_cir_strategy_name(self):
-        assert SupervisedCIRBandSelector._strategy_name == "supervised_cir"
+        assert SupervisedCIRSelector._strategy_name == "supervised_cir"
 
     def test_windowed_strategy_name(self):
-        assert SupervisedWindowedFalseRGBSelector._strategy_name == "supervised_windowed_false_rgb"
+        assert SupervisedWindowedSelector._strategy_name == "supervised_windowed_false_rgb"
 
     def test_full_spectrum_strategy_name(self):
-        assert SupervisedFullSpectrumBandSelector._strategy_name == "supervised_full_spectrum"
+        assert SupervisedFullSpectrumSelector._strategy_name == "supervised_full_spectrum"
 
 
 class TestExtraBandInfo:
     def test_cir_returns_windows(self):
-        sel = SupervisedCIRBandSelector(num_spectral_bands=20)
+        sel = SupervisedCIRSelector(num_spectral_bands=20)
         info = sel._extra_band_info(np.linspace(430, 910, 20, dtype=np.float32))
         assert "windows_nm" in info
         assert len(info["windows_nm"]) == 3
 
     def test_windowed_returns_windows(self):
-        sel = SupervisedWindowedFalseRGBSelector(num_spectral_bands=20)
+        sel = SupervisedWindowedSelector(num_spectral_bands=20)
         info = sel._extra_band_info(np.linspace(430, 910, 20, dtype=np.float32))
         assert "windows_nm" in info
         assert len(info["windows_nm"]) == 3
 
     def test_full_spectrum_returns_empty(self):
-        sel = SupervisedFullSpectrumBandSelector(num_spectral_bands=20)
+        sel = SupervisedFullSpectrumSelector(num_spectral_bands=20)
         info = sel._extra_band_info(np.linspace(430, 910, 20, dtype=np.float32))
         assert info == {}
 
@@ -92,7 +94,7 @@ class TestExtraBandInfo:
 class TestForwardAfterManualInit:
     def test_forward_produces_rgb_and_band_info(self):
         num_bands = 20
-        sel = SupervisedFullSpectrumBandSelector(num_spectral_bands=num_bands)
+        sel = SupervisedFullSpectrumSelector(num_spectral_bands=num_bands)
 
         # Manually set fitted state
         sel._statistically_initialized = True
@@ -113,7 +115,7 @@ class TestForwardAfterManualInit:
 
     def test_forward_cir_includes_windows(self):
         num_bands = 20
-        sel = SupervisedCIRBandSelector(num_spectral_bands=num_bands)
+        sel = SupervisedCIRSelector(num_spectral_bands=num_bands)
 
         sel._statistically_initialized = True
         sel.selected_indices = torch.tensor([2, 8, 15], dtype=torch.long)
@@ -132,6 +134,8 @@ class TestForwardAfterManualInit:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.slow
+@pytest.mark.integration
 class TestStatisticalInitialization:
     def test_full_spectrum_fit_and_forward(self, synthetic_anomaly_datamodule):
         channels = 20
@@ -147,7 +151,7 @@ class TestStatisticalInitialization:
             dtype=torch.float32,
         )
 
-        sel = SupervisedFullSpectrumBandSelector(num_spectral_bands=channels)
+        sel = SupervisedFullSpectrumSelector(num_spectral_bands=channels)
 
         input_stream = dm.train_dataloader()
         sel.statistical_initialization(input_stream)
@@ -180,7 +184,7 @@ class TestStatisticalInitialization:
             wavelength_range=(430.0, 910.0),
         )
 
-        sel = SupervisedCIRBandSelector(num_spectral_bands=channels)
+        sel = SupervisedCIRSelector(num_spectral_bands=channels)
 
         input_stream = dm.train_dataloader()
         sel.statistical_initialization(input_stream)
@@ -212,7 +216,7 @@ class TestStatisticalInitialization:
             wavelength_range=(430.0, 910.0),
         )
 
-        sel = SupervisedWindowedFalseRGBSelector(num_spectral_bands=channels)
+        sel = SupervisedWindowedSelector(num_spectral_bands=channels)
 
         input_stream = dm.train_dataloader()
         sel.statistical_initialization(input_stream)

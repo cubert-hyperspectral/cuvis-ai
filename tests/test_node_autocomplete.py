@@ -5,8 +5,10 @@ import torch
 from cuvis_ai_core.node.node import Node
 from cuvis_ai_schemas.pipeline import InputPort, OutputPort, PortSpec
 
-from cuvis_ai.node.pca import TrainablePCA
-from cuvis_ai.node.selector import SoftChannelSelector
+from cuvis_ai.node.channel_selector import SoftChannelSelector
+from cuvis_ai.node.dimensionality_reduction import TrainablePCA
+
+pytestmark = pytest.mark.unit
 
 
 def test_init_subclass_adds_annotations():

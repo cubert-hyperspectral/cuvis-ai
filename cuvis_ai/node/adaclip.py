@@ -169,13 +169,6 @@ class AdaCLIPLocalNode(HuggingFaceLocalNode):
 
         image_processed = self._preprocess_image(image)
 
-        # Ensure model is on the same device as input
-        # Get model's current device
-        model_device = next(self.model.parameters()).device
-        if image_processed.device != model_device:
-            # Move model to input device (more efficient than moving data back)
-            self.model.to(image_processed.device)
-
         try:
             # CLIP models expect pixel_values as keyword argument
             # Keep gradients enabled for gradient passthrough

@@ -174,7 +174,7 @@ print(normalizer.running_max)  # Global max values
 #### SoftChannelSelector
 
 ```python
-from cuvis_ai.node.selector import SoftChannelSelector
+from cuvis_ai.node.channel_selector import SoftChannelSelector
 
 from cuvis_ai_core.training import StatisticalTrainer
 
@@ -194,7 +194,7 @@ trainer.fit()  # Automatically calls statistical_initialization on selector
 #### TrainablePCA
 
 ```python
-from cuvis_ai.node.pca import TrainablePCA
+from cuvis_ai.node.dimensionality_reduction import TrainablePCA
 
 from cuvis_ai_core.training import StatisticalTrainer
 
@@ -303,16 +303,22 @@ print(f"Trainable parameters: {trainable_params:,}")
 ```
 
 **What unfreeze() does:**
+
+The base class `unfreeze()` method uses the `TRAINABLE_BUFFERS` class attribute to know which buffers to promote to `nn.Parameter`:
+
 ```python
-def unfreeze(self) -> None:
-    """Convert buffers to parameters for gradient training."""
-    for name, buffer in list(self._buffers.items()):
-        if buffer is not None and buffer.numel() > 0:
-            param = nn.Parameter(buffer.clone())
-            delattr(self, name)
-            setattr(self, name, param)
-    self.freezed = False
+class ScoreToLogit(Node):
+    TRAINABLE_BUFFERS = ("scale", "bias")   # Declares trainable buffers
+
+    def __init__(self, init_scale=1.0, init_bias=0.0, **kwargs):
+        super().__init__(**kwargs)
+        self.register_buffer("scale", torch.tensor(init_scale))  # Buffer (frozen)
+        self.register_buffer("bias", torch.tensor(init_bias))    # Buffer (frozen)
 ```
+
+On `unfreeze()`, declared buffers are converted: `_buffers → nn.Parameter`. On `freeze()`, they revert: `nn.Parameter → _buffers`. The `__init_subclass__` hook validates `TRAINABLE_BUFFERS` is a tuple of strings at class definition time.
+
+See [Node System Deep Dive: TRAINABLE_BUFFERS](node-system-deep-dive.md#trainable_buffers) for the full mechanism and list of nodes.
 
 ### Defining Loss Nodes
 
@@ -445,7 +451,7 @@ training_config = TrainingConfig(
 from cuvis_ai.pipeline.pipeline import CuvisPipeline
 from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.normalization import MinMaxNormalizer
-from cuvis_ai.node.selector import SoftChannelSelector
+from cuvis_ai.node.channel_selector import SoftChannelSelector
 from cuvis_ai.anomaly.rx_detector import RXGlobal
 from cuvis_ai.node.losses import AnomalyBCEWithLogits
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics

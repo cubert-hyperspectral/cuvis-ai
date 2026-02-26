@@ -1,3 +1,4 @@
+import pytest
 import torch
 
 from cuvis_ai.anomaly.deep_svdd import (
@@ -7,6 +8,8 @@ from cuvis_ai.anomaly.deep_svdd import (
 )
 from cuvis_ai.node.losses import DeepSVDDSoftBoundaryLoss
 
+pytestmark = pytest.mark.unit
+
 
 def _make_stream(tensor: torch.Tensor, key: str) -> list[dict[str, torch.Tensor]]:
     return [{key: tensor}]
@@ -15,7 +18,7 @@ def _make_stream(tensor: torch.Tensor, key: str) -> list[dict[str, torch.Tensor]
 def test_deepsvdd_encoder_round_trip() -> None:
     """Test DeepSVDDEncoder serialization with pre-allocated buffers."""
     num_channels = 3
-    encoder = ZScoreNormalizerGlobal(num_channels=num_channels, sample_n=16, seed=0, eps=1e-6)
+    encoder = ZScoreNormalizerGlobal(num_channels=num_channels, eps=1e-6)
 
     # Fit the encoder
     data = torch.randn(1, 2, 2, num_channels)
@@ -23,7 +26,7 @@ def test_deepsvdd_encoder_round_trip() -> None:
 
     # Get state and create new encoder
     state = encoder.state_dict()
-    reloaded = ZScoreNormalizerGlobal(num_channels=num_channels, sample_n=16, seed=0, eps=1e-6)
+    reloaded = ZScoreNormalizerGlobal(num_channels=num_channels, eps=1e-6)
     reloaded.load_state_dict(state)
 
     # Test forward pass
@@ -121,7 +124,7 @@ def test_deepsvdd_end_to_end_round_trip(tmp_path) -> None:
     data = torch.randn(2, 200, 200, num_channels)
 
     # Create and fit encoder
-    encoder = ZScoreNormalizerGlobal(num_channels=num_channels, sample_n=16, seed=0, eps=1e-6)
+    encoder = ZScoreNormalizerGlobal(num_channels=num_channels, eps=1e-6)
     encoder.statistical_initialization(iter(_make_stream(data, "data")))
     normalized = encoder.forward(data)["normalized"]
 
@@ -152,9 +155,7 @@ def test_deepsvdd_end_to_end_round_trip(tmp_path) -> None:
 
     # Load and verify encoder
     state = torch.load(checkpoint_path)
-    encoder_loaded = ZScoreNormalizerGlobal(
-        num_channels=num_channels, sample_n=16, seed=0, eps=1e-6
-    )
+    encoder_loaded = ZScoreNormalizerGlobal(num_channels=num_channels, eps=1e-6)
     encoder_loaded.load_state_dict(state["encoder"])
     normalized_loaded = encoder_loaded.forward(data)["normalized"]
     assert torch.allclose(normalized, normalized_loaded)

@@ -10,6 +10,8 @@ import pytest
 
 import cuvis_ai
 
+pytestmark = pytest.mark.unit
+
 
 def iter_module_names() -> Iterable[str]:
     """Yield fully-qualified module names under cuvis_ai."""

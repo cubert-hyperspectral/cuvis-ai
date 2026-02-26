@@ -335,7 +335,7 @@ graph LR
     E --> K[SelectorEntropyReg.weights]
     F --> L[SelectorDiversityReg.weights]
     J --> M[AnomalyBCEWithLogits.predictions]
-    J --> N[AnomalyHeatmap.data]
+    J --> N[ScoreHeatmapVisualizer.data]
 
     K --> O[SelectorEntropyReg.loss]
     L --> P[SelectorDiversityReg.loss]
@@ -365,11 +365,11 @@ graph LR
 
 ```python
 from cuvis_ai.node.normalization import MinMaxNormalizer
-from cuvis_ai.node.selector import SoftChannelSelector
-from cuvis_ai.node.pca import TrainablePCA
+from cuvis_ai.node.channel_selector import SoftChannelSelector
+from cuvis_ai.node.dimensionality_reduction import TrainablePCA
 from cuvis_ai.anomaly.rx_detector import RXGlobal
 from cuvis_ai.node.losses import AnomalyBCEWithLogits, SelectorEntropyRegularizer, SelectorDiversityRegularizer
-from cuvis_ai.node.visualizations import AnomalyHeatmap
+from cuvis_ai.node.anomaly_visualization import ScoreHeatmapVisualizer
 
 # Create nodes
 normalizer = MinMaxNormalizer(eps=1e-6)
@@ -379,7 +379,7 @@ rx = RXGlobal(num_channels=10)
 bce_loss = AnomalyBCEWithLogits(name="bce", weight=10.0)
 entropy_loss = SelectorEntropyRegularizer(name="entropy", weight=0.1)
 diversity_loss = SelectorDiversityRegularizer(name="diversity", weight=0.01)
-heatmap = AnomalyHeatmap(name="heatmap")
+heatmap = ScoreHeatmapVisualizer(name="heatmap")
 
 # Connect pipeline
 pipeline.connect(

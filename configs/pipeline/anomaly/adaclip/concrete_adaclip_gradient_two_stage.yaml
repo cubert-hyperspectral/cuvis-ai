@@ -6,27 +6,23 @@ nodes:
     normal_class_ids:
     - 0
     - 1
+    anomaly_class_ids:
+    - 3
 - name: MinMaxNormalizer
   class_name: cuvis_ai.node.normalization.MinMaxNormalizer
   hparams:
     eps: 1.0e-06
     use_running_stats: true
-- name: channel_mixer
-  class_name: cuvis_ai.node.channel_mixer.LearnableChannelMixer
+- name: concrete_selector
+  class_name: cuvis_ai.node.channel_mixer.ConcreteChannelMixer
   hparams:
     input_channels: 61
     output_channels: 3
-    leaky_relu_negative_slope: 0.1
-    use_bias: true
-    use_activation: true
-    normalize_output: true
-    init_method: pca
+    tau_start: 10.0
+    tau_end: 0.1
+    max_epochs: 20
+    use_hard_inference: true
     eps: 1.0e-06
-    reduction_scheme:
-    - 61
-    - 16
-    - 8
-    - 3
 - name: adaclip
   class_name: cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
   hparams:
@@ -40,15 +36,23 @@ nodes:
     use_half_precision: false
     enable_warmup: false
     enable_gradients: true
+    use_torch_preprocess: true
 - name: iou_loss
   class_name: cuvis_ai.node.losses.IoULoss
   hparams:
     weight: 1.0
     smooth: 1.0e-06
     normalize_method: minmax
-- name: decider
-  class_name: cuvis_ai.deciders.binary_decider.QuantileBinaryDecider
+- name: distinctness_loss
+  class_name: cuvis_ai.node.losses.DistinctnessLoss
   hparams:
+    weight: 0.1
+    eps: 1.0e-06
+- name: decider
+  class_name: cuvis_ai.deciders.two_stage_decider.TwoStageBinaryDecider
+  hparams:
+    image_threshold: 0.24 # 0.15 with cuvis next works
+    top_k_fraction: 0.001
     quantile: 0.995
     reduce_dims: null
 - name: metrics_anomaly
@@ -56,18 +60,18 @@ nodes:
   hparams:
     execution_stages: null
 - name: score_heatmap
-  class_name: cuvis_ai.node.visualizations.ScoreHeatmapVisualizer
+  class_name: cuvis_ai.node.anomaly_visualization.ScoreHeatmapVisualizer
   hparams:
     normalize_scores: true
     cmap: inferno
     up_to: 5
 - name: mask
-  class_name: cuvis_ai.node.visualizations.AnomalyMask
+  class_name: cuvis_ai.node.anomaly_visualization.AnomalyMask
   hparams:
     channel: 30
     up_to: 5
-- name: drcnn_tensorboard_viz
-  class_name: cuvis_ai.node.drcnn_tensorboard_viz.DRCNNTensorBoardViz
+- name: concrete_tensorboard_viz
+  class_name: cuvis_ai.node.pipeline_visualization.PipelineComparisonVisualizer
   hparams:
     hsi_channels:
     - 0
@@ -78,8 +82,8 @@ nodes:
 - name: TensorBoardMonitorNode
   class_name: cuvis_ai.node.monitor.TensorBoardMonitorNode
   hparams:
-    output_dir: outputs\drcnn_adaclip\tensorboard
-    run_name: DRCNN_AdaClip_Gradient
+    output_dir: outputs\concrete_adaclip\tensorboard
+    run_name: concrete_adaclip_gradient
     comment: ''
     flush_secs: 120
 connections:
@@ -94,15 +98,17 @@ connections:
 - source: LentilsAnomalyDataNode.outputs.cube
   target: mask.inputs.cube
 - source: LentilsAnomalyDataNode.outputs.cube
-  target: drcnn_tensorboard_viz.inputs.hsi_cube
+  target: concrete_tensorboard_viz.inputs.hsi_cube
 - source: LentilsAnomalyDataNode.outputs.mask
-  target: drcnn_tensorboard_viz.inputs.ground_truth_mask
+  target: concrete_tensorboard_viz.inputs.ground_truth_mask
 - source: MinMaxNormalizer.outputs.normalized
-  target: channel_mixer.inputs.data
-- source: channel_mixer.outputs.rgb
+  target: concrete_selector.inputs.data
+- source: concrete_selector.outputs.rgb
   target: adaclip.inputs.rgb_image
-- source: channel_mixer.outputs.rgb
-  target: drcnn_tensorboard_viz.inputs.mixer_output
+- source: concrete_selector.outputs.selection_weights
+  target: distinctness_loss.inputs.selection_weights
+- source: concrete_selector.outputs.rgb
+  target: concrete_tensorboard_viz.inputs.mixer_output
 - source: adaclip.outputs.scores
   target: iou_loss.inputs.predictions
 - source: adaclip.outputs.scores
@@ -114,7 +120,7 @@ connections:
 - source: adaclip.outputs.scores
   target: mask.inputs.scores
 - source: adaclip.outputs.scores
-  target: drcnn_tensorboard_viz.inputs.adaclip_scores
+  target: concrete_tensorboard_viz.inputs.adaclip_scores
 - source: decider.outputs.decisions
   target: metrics_anomaly.inputs.decisions
 - source: decider.outputs.decisions
@@ -125,18 +131,20 @@ connections:
   target: TensorBoardMonitorNode.inputs.artifacts
 - source: mask.outputs.artifacts
   target: TensorBoardMonitorNode.inputs.artifacts
-- source: drcnn_tensorboard_viz.outputs.artifacts
+- source: concrete_tensorboard_viz.outputs.artifacts
   target: TensorBoardMonitorNode.inputs.artifacts
 metadata:
-  name: DRCNN_AdaClip_Gradient
-  description: Trained DRCNN channel mixer + AdaClip model from DRCNN_AdaClip_Gradient
-    trainrun. Mixer reduces 61 channels to 3 for AdaClip compatibility.
+  name: concrete_adaclip_gradient
+  description: 'Trained Concrete band selector + AdaClip model from concrete_adaclip_gradient
+    trainrun. Selector reduces 61 channels to 3 for AdaClip compatibility. Selected
+    bands: [55, 56, 24]. Updated with TwoStageBinaryDecider (image_threshold=0.24, quantile=0.995)'
   created: ''
   tags:
   - gradient
-  - drcnn
+  - concrete
+  - gumbel
   - adaclip
-  - channel_mixer
+  - band_selector
   - anomaly_detection
   author: cuvis.ai
   cuvis_ai_version: 0.1.5.post40+g5d4ea80af.d20260105

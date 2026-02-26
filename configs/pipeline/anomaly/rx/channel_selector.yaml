@@ -22,7 +22,7 @@ nodes:
     eps: 1.0e-06
     use_running_stats: true
 - name: SoftChannelSelector
-  class_name: cuvis_ai.node.selector.SoftChannelSelector
+  class_name: cuvis_ai.node.channel_selector.SoftChannelSelector
   hparams:
     n_select: 3
     input_channels: 61
@@ -75,12 +75,12 @@ nodes:
     comment: ''
     flush_secs: 120
 - name: mask
-  class_name: cuvis_ai.node.visualizations.AnomalyMask
+  class_name: cuvis_ai.node.anomaly_visualization.AnomalyMask
   hparams:
     channel: 30
     up_to: 5
 - name: rgb
-  class_name: cuvis_ai.node.visualizations.CubeRGBVisualizer
+  class_name: cuvis_ai.node.pipeline_visualization.CubeRGBVisualizer
   hparams:
     name: null
     up_to: 5

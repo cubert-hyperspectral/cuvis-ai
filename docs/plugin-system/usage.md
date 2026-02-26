@@ -413,7 +413,7 @@ uv run restore-pipeline \
 
 # With inference on CU3S file
 uv run restore-pipeline \
-    --pipeline-path configs/pipeline/adaclip_baseline.yaml \
+    --pipeline-path configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml \
     --plugins-path plugins.yaml \
     --cu3s-file-path data/test_sample.cu3s
 

@@ -45,7 +45,7 @@ Nodes are the building blocks of CUVIS.AI pipelines. Each node performs a specif
 
     Channel and feature selection nodes
 
-    **Nodes:** SoftChannelSelector, BaselineFalseRGBSelector, SupervisedSelectors (8)
+    **Nodes:** SoftChannelSelector, FixedWavelengthSelector, SupervisedSelectors (8)
 
 -   :material-chart-bell-curve: **[Statistical](statistical.md)**
 
@@ -61,7 +61,7 @@ Nodes are the building blocks of CUVIS.AI pipelines. Each node performs a specif
 
     Neural network and gradient-based training nodes
 
-    **Nodes:** DeepSVDD*, TrainablePCA, LearnableChannelMixer, ConcreteBandSelector (8)
+    **Nodes:** DeepSVDD*, TrainablePCA, LearnableChannelMixer, ConcreteChannelMixer (8)
 
 -   :material-chart-line: **[Loss & Metrics](loss-metrics.md)**
 
@@ -107,12 +107,12 @@ Nodes are the building blocks of CUVIS.AI pipelines. Each node performs a specif
 | **IdentityNormalizer** | Preprocessing | ❌ | ❌ | Pass-through (no-op) |
 | **SoftChannelSelector** | Selectors | ✅ | ✅ | Learnable soft channel selection (Gumbel-Softmax) |
 | **TopKIndices** | Selectors | ❌ | ❌ | Extract top-k channel indices from weights |
-| **BaselineFalseRGBSelector** | Selectors | ❌ | ❌ | Fixed RGB wavelength selection |
-| **CIRFalseColorSelector** | Selectors | ❌ | ❌ | Color Infrared false color |
-| **HighContrastBandSelector** | Selectors | ❌ | ❌ | Data-driven high-contrast selection |
-| **SupervisedCIRBandSelector** | Selectors | ✅ | ❌ | Supervised NIR/Red/Green selection with mRMR |
-| **SupervisedWindowedFalseRGBSelector** | Selectors | ✅ | ❌ | Supervised RGB selection with windowing |
-| **SupervisedFullSpectrumBandSelector** | Selectors | ✅ | ❌ | Supervised global band selection |
+| **FixedWavelengthSelector** | Selectors | ❌ | ❌ | Fixed RGB wavelength selection |
+| **CIRSelector** | Selectors | ❌ | ❌ | Color Infrared false color |
+| **HighContrastSelector** | Selectors | ❌ | ❌ | Data-driven high-contrast selection |
+| **SupervisedCIRSelector** | Selectors | ✅ | ❌ | Supervised NIR/Red/Green selection with mRMR |
+| **SupervisedWindowedSelector** | Selectors | ✅ | ❌ | Supervised RGB selection with windowing |
+| **SupervisedFullSpectrumSelector** | Selectors | ✅ | ❌ | Supervised global band selection |
 | **RXGlobal** | Statistical | ✅ | ❌ | Reed-Xiaoli anomaly detector |
 | **ScoreToLogit** | Utility | ❌ | ✅ | Transform RX scores to logits |
 | **DeepSVDDProjection** | Deep Learning | ❌ | ✅ | Deep SVDD projection network |
@@ -120,7 +120,7 @@ Nodes are the building blocks of CUVIS.AI pipelines. Each node performs a specif
 | **DeepSVDDScores** | Deep Learning | ❌ | ❌ | Compute distance-based anomaly scores |
 | **TrainablePCA** | Deep Learning | ✅ | ✅ | PCA with optional gradient training |
 | **LearnableChannelMixer** | Deep Learning | ✅ | ✅ | DRCNN-style 1x1 convolution mixer |
-| **ConcreteBandSelector** | Deep Learning | ❌ | ✅ | Concrete/Gumbel-Softmax discrete selector |
+| **ConcreteChannelMixer** | Deep Learning | ❌ | ✅ | Concrete/Gumbel-Softmax discrete selector |
 | **AnomalyBCEWithLogits** | Loss | ❌ | ❌ | Binary cross-entropy loss |
 | **DeepSVDDSoftBoundaryLoss** | Loss | ❌ | ❌ | Soft boundary loss for Deep SVDD |
 | **OrthogonalityLoss** | Loss | ❌ | ❌ | Orthogonality regularization for PCA |
@@ -148,9 +148,9 @@ Nodes are the building blocks of CUVIS.AI pipelines. Each node performs a specif
 - **Deep Learning:** [DeepSVDD*](deep-learning.md#deepsvdd-nodes) - One-class learning with neural networks
 
 **Band/Channel Selection:**
-- **Fixed Selection:** [BaselineFalseRGBSelector](selectors.md#baselinefalsergbselector), [CIRFalseColorSelector](selectors.md#cirfalsecolorselector)
-- **Learnable Selection:** [SoftChannelSelector](selectors.md#softchannelselector), [ConcreteBandSelector](deep-learning.md#concretebandselector)
-- **Supervised Selection:** [SupervisedCIRBandSelector](selectors.md#supervisedcirbandselector), [SupervisedWindowedFalseRGBSelector](selectors.md#supervisedwindowedfalsergbselector)
+- **Fixed Selection:** [FixedWavelengthSelector](selectors.md#fixedwavelengthselector), [CIRSelector](selectors.md#cirselector)
+- **Learnable Selection:** [SoftChannelSelector](selectors.md#softchannelselector), [ConcreteChannelMixer](deep-learning.md#concretechannelmixer)
+- **Supervised Selection:** [SupervisedCIRSelector](selectors.md#supervisedcirselector), [SupervisedWindowedSelector](selectors.md#supervisedwindowedselector)
 
 **Preprocessing:**
 - **Normalization:** [MinMaxNormalizer](preprocessing.md#minmaxnormalizer), [ZScoreNormalizer](preprocessing.md#zscorenormalizer)
@@ -171,8 +171,8 @@ Nodes are the building blocks of CUVIS.AI pipelines. Each node performs a specif
 **Statistical-Only (No Gradients):**
 - [RXGlobal](statistical.md#rxglobal)
 - [MinMaxNormalizer](preprocessing.md#minmaxnormalizer) (with `use_running_stats=True`)
-- [SupervisedCIRBandSelector](selectors.md#supervisedcirbandselector)
-- [SupervisedWindowedFalseRGBSelector](selectors.md#supervisedwindowedfalsergbselector)
+- [SupervisedCIRSelector](selectors.md#supervisedcirselector)
+- [SupervisedWindowedSelector](selectors.md#supervisedwindowedselector)
 
 **Two-Phase (Statistical → Gradient):**
 - [SoftChannelSelector](selectors.md#softchannelselector)
@@ -181,7 +181,7 @@ Nodes are the building blocks of CUVIS.AI pipelines. Each node performs a specif
 - [DeepSVDD* nodes](deep-learning.md#deepsvdd-nodes)
 
 **Gradient-Only:**
-- [ConcreteBandSelector](deep-learning.md#concretebandselector)
+- [ConcreteChannelMixer](deep-learning.md#concretechannelmixer)
 - [DeepSVDDProjection](deep-learning.md#deepsvddprojection)
 
 **No Training Required:**
@@ -199,8 +199,8 @@ Nodes are the building blocks of CUVIS.AI pipelines. Each node performs a specif
 - [RXGlobal](statistical.md#rxglobal)
 
 **RGB/False-Color:**
-- [BaselineFalseRGBSelector](selectors.md#baselinefalsergbselector)
-- [CIRFalseColorSelector](selectors.md#cirfalsecolorselector)
+- [FixedWavelengthSelector](selectors.md#fixedwavelengthselector)
+- [CIRSelector](selectors.md#cirselector)
 - [CubeRGBVisualizer](visualization.md#cubergbvisualizer)
 
 **Feature Embeddings:**

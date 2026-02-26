@@ -105,7 +105,7 @@ registry.load_plugin(
 ### Step 2: Build PCA Pipeline
 
 ```python
-from cuvis_ai.node.pca import TrainablePCA
+from cuvis_ai.node.dimensionality_reduction import TrainablePCA
 from cuvis_ai.node.normalization import MinMaxNormalizer
 from cuvis_ai.deciders.binary_decider import QuantileBinaryDecider
 
@@ -346,10 +346,10 @@ for name, param in mixer.named_parameters():
 ### Step 4: Visualize Processing Pipeline
 
 ```python
-from cuvis_ai.node.drcnn_tensorboard_viz import DRCNNTensorBoardViz
+from cuvis_ai.node.pipeline_visualization import PipelineComparisonVisualizer
 
 # TensorBoard visualization node
-drcnn_tb_viz = DRCNNTensorBoardViz(
+drcnn_tb_viz = PipelineComparisonVisualizer(
     hsi_channels=[0, 20, 40],  # False-color RGB visualization
     max_samples=4,
     log_every_n_batches=1,
@@ -391,7 +391,7 @@ pipeline.connect(
 ### Step 1: Build Concrete Pipeline
 
 ```python
-from cuvis_ai.node.concrete_selector import ConcreteBandSelector
+from cuvis_ai.node.channel_mixer import ConcreteChannelMixer
 from cuvis_ai.node.losses import DistinctnessLoss
 from cuvis_ai.deciders.two_stage_decider import TwoStageBinaryDecider
 
@@ -403,7 +403,7 @@ data_node = LentilsAnomalyDataNode(
 normalizer = MinMaxNormalizer(eps=1e-6, use_running_stats=True)
 
 # Concrete band selector: 61 → 3 channels
-selector = ConcreteBandSelector(
+selector = ConcreteChannelMixer(
     input_channels=61,
     output_channels=3,
     tau_start=10.0,                # Initial temperature (soft)
@@ -718,7 +718,7 @@ Final selected bands: [31, 31, 31]
 
 2. Adjust temperature schedule:
    ```python
-   selector = ConcreteBandSelector(
+   selector = ConcreteChannelMixer(
        tau_start=15.0,  # Increase initial temperature
        tau_end=0.5,     # Increase final temperature
    )
@@ -836,7 +836,7 @@ You've learned three approaches to hyperspectral dimensionality reduction for Ad
 
 **Try Advanced Configurations:**
 - **Multi-loss training:** Combine IoU + entropy + diversity regularizers
-- **Alternative selectors:** SupervisedCIRBandSelector, SupervisedWindowedFalseRGBSelector
+- **Alternative selectors:** SupervisedCIRSelector, SupervisedWindowedSelector
 - **Custom CLIP models:** Try different ViT backbones (ViT-B-16, ViT-L-14)
 - **Transfer learning:** Fine-tune AdaCLIP prompts for your specific anomaly types
 

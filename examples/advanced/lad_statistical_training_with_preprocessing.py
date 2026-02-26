@@ -23,12 +23,12 @@ from omegaconf import DictConfig
 
 from cuvis_ai.anomaly.lad_detector import LADGlobal
 from cuvis_ai.deciders.binary_decider import QuantileBinaryDecider
+from cuvis_ai.node.anomaly_visualization import AnomalyMask, ScoreHeatmapVisualizer
 from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics, AnomalyPixelStatisticsMetric
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.normalization import MinMaxNormalizer, PerPixelUnitNorm
 from cuvis_ai.node.preprocessors import BandpassByWavelength
-from cuvis_ai.node.visualizations import AnomalyMask, ScoreHeatmapVisualizer
 
 
 @hydra.main(

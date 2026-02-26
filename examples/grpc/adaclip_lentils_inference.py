@@ -46,7 +46,7 @@ def main(
         cuvis_ai_pb2.ResolveConfigRequest(
             session_id=session_id,
             config_type="pipeline",
-            path="configs/pipeline/adaclip_baseline.yaml",
+            path="configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml",
             overrides=[],
         )
     )

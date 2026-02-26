@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 import torch
 
 from cuvis_ai.node.normalization import PerPixelUnitNorm
+
+pytestmark = pytest.mark.unit
 
 
 def _random_cube(

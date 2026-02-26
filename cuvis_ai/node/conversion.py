@@ -6,9 +6,10 @@ binary cross-entropy loss.
 """
 
 import torch
-import torch.nn as nn
 from cuvis_ai_core.node import Node
 from cuvis_ai_schemas.pipeline import PortSpec
+
+from cuvis_ai.utils.welford import WelfordAccumulator
 
 
 class ScoreToLogit(Node):
@@ -59,6 +60,8 @@ class ScoreToLogit(Node):
         )
     }
 
+    TRAINABLE_BUFFERS = ("scale", "bias")
+
     def __init__(
         self,
         init_scale: float = 1.0,
@@ -78,32 +81,9 @@ class ScoreToLogit(Node):
         self.register_buffer("scale", torch.tensor(init_scale, dtype=torch.float32))
         self.register_buffer("bias", torch.tensor(init_bias, dtype=torch.float32))
 
-        # Streaming accumulators for statistics (similar to RXGlobal)
-        self.register_buffer("_mean", torch.tensor(float("nan")))
-        self.register_buffer("_M2", torch.tensor(float("nan")))
-        self.register_buffer("_n", torch.tensor(0, dtype=torch.long))
+        self._welford = WelfordAccumulator(1)
         # Allow using the head with the provided init_scale/init_bias without forcing a fit()
         self._statistically_initialized = True
-
-    def unfreeze(self) -> None:
-        """Convert scale and bias buffers to trainable nn.Parameters.
-
-        Call this method to enable gradient-based optimization of the
-        scale and bias parameters. They will be converted from buffers to
-        nn.Parameters, allowing gradient updates during training.
-
-        Example
-        -------
-        >>> logit_head = ScoreToLogit(init_scale=1.0, init_bias=5.0)
-        >>> logit_head.unfreeze()  # Enable gradient training
-        >>> # Now scale and bias can be optimized
-        """
-        if self.scale is not None and self.bias is not None:
-            # Convert buffers to parameters
-            self.scale = nn.Parameter(self.scale.clone(), requires_grad=True)
-            self.bias = nn.Parameter(self.bias.clone(), requires_grad=True)
-        # Call parent to enable requires_grad
-        super().unfreeze()
 
     def statistical_initialization(self, input_stream) -> None:
         """Initialize bias from statistics of RX scores using streaming approach.
@@ -124,42 +104,27 @@ class ScoreToLogit(Node):
             if scores is not None:
                 self.update(scores)
 
-        if self._n > 0:
-            self.finalize()
-        self._statistically_initialized = True
+        if self._welford.count <= 1:
+            self._statistically_initialized = False
+            raise RuntimeError(
+                "ScoreToLogit.statistical_initialization() received insufficient samples. "
+                "Expected at least 2 score values."
+            )
+        self.finalize()
 
     @torch.no_grad()
     def update(self, scores: torch.Tensor) -> None:
         """Update running statistics with a batch of scores.
-
-        Uses Welford's online algorithm for numerically stable computation.
 
         Parameters
         ----------
         scores : torch.Tensor
             Batch of RX scores in BHWC format
         """
-        # Flatten to 1D
         X = scores.flatten()
-        m = X.shape[0]
-        if m <= 1:
+        if X.shape[0] <= 1:
             return
-
-        mean_b = X.mean()
-        M2_b = ((X - mean_b) ** 2).sum()
-
-        n = int(self._n.item())
-        if n == 0:
-            self._n = torch.tensor(m, dtype=torch.long, device=self.scale.device)
-            self._mean = mean_b
-            self._M2 = M2_b
-        else:
-            tot = n + m
-            delta = mean_b - self._mean
-            new_mean = self._mean + delta * (m / tot)
-            self._M2 = self._M2 + M2_b + (delta**2) * (n * m / tot)
-            self._n = torch.tensor(tot, dtype=torch.long, device=self.scale.device)
-            self._mean = new_mean
+        self._welford.update(X)
         self._statistically_initialized = False
 
     @torch.no_grad()
@@ -169,12 +134,11 @@ class ScoreToLogit(Node):
         This threshold (mean + 2*std) is a common heuristic for anomaly detection,
         capturing ~95% of normal data under Gaussian assumption.
         """
-        if int(self._n.item()) <= 1:
+        if self._welford.count <= 1:
             raise ValueError("Not enough samples to finalize ScoreToLogit statistics.")
 
-        mean = self._mean.clone()
-        variance = self._M2 / (self._n - 1)
-        std = torch.sqrt(variance)
+        mean = self._welford.mean.squeeze()
+        std = self._welford.std.squeeze()
 
         # Set bias to mean + 2*std (threshold for anomalies)
         self.bias = mean + 2.0 * std
@@ -182,9 +146,7 @@ class ScoreToLogit(Node):
 
     def reset(self) -> None:
         """Reset all statistics and accumulators."""
-        self._n = torch.tensor(0, dtype=torch.long, device=self.scale.device)
-        self._mean = torch.tensor(float("nan"))
-        self._M2 = torch.tensor(float("nan"))
+        self._welford.reset()
         self._statistically_initialized = False
 
     def forward(self, scores: torch.Tensor, **_) -> dict[str, torch.Tensor]:

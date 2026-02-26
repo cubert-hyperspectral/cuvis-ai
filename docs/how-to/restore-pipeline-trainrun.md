@@ -611,18 +611,20 @@ Load external plugins when restoring pipelines:
 
 ```bash
 uv run restore-pipeline \
-  --pipeline-path configs/pipeline/adaclip_baseline.yaml \
-  --plugins-path examples/adaclip/plugins_local.yaml
+  --pipeline-path configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml \
+  --plugins-path configs/plugins/adaclip.yaml
 ```
 
 With inference:
 
 ```bash
 uv run restore-pipeline \
-  --pipeline-path configs/pipeline/adaclip_baseline.yaml \
-  --plugins-path examples/adaclip/plugins.yaml \
+  --pipeline-path configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml \
+  --plugins-path configs/plugins/adaclip.yaml \
   --cu3s-file-path data/Lentils/Lentils_000.cu3s
 ```
+
+Use `configs/plugins/registry.yaml` only when you intentionally want to load all registered plugins.
 
 ### Using Plugins with Python API
 
@@ -631,14 +633,14 @@ from cuvis_ai_core.utils import restore_pipeline
 
 # Load pipeline with plugins
 pipeline = restore_pipeline(
-    pipeline_path="configs/pipeline/adaclip_baseline.yaml",
-    plugins_path="examples/adaclip/plugins.yaml"
+    pipeline_path="configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml",
+    plugins_path="configs/plugins/adaclip.yaml"
 )
 
 # Or with inference
 pipeline = restore_pipeline(
-    pipeline_path="configs/pipeline/adaclip_baseline.yaml",
-    plugins_path="examples/adaclip/plugins.yaml",
+    pipeline_path="configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml",
+    plugins_path="configs/plugins/adaclip.yaml",
     cu3s_file_path="data/Lentils/Lentils_000.cu3s"
 )
 ```
@@ -655,11 +657,11 @@ from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 registry = NodeRegistry()
 
 # Load plugins (automatically installs dependencies)
-registry.load_plugins("examples/adaclip/plugins.yaml")
+registry.load_plugins("configs/plugins/adaclip.yaml")
 
 # Load pipeline with plugin-aware registry
 pipeline = CuvisPipeline.load_pipeline(
-    "configs/pipeline/adaclip_baseline.yaml",
+    "configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml",
     node_registry=registry
 )
 ```

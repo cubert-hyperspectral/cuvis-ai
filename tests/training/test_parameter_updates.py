@@ -6,8 +6,10 @@ from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
 from cuvis_ai.anomaly.rx_detector import RXGlobal
 from cuvis_ai.deciders.binary_decider import BinaryDecider
+from cuvis_ai.node.channel_selector import SoftChannelSelector
 from cuvis_ai.node.conversion import ScoreToLogit
 from cuvis_ai.node.data import LentilsAnomalyDataNode
+from cuvis_ai.node.dimensionality_reduction import TrainablePCA
 from cuvis_ai.node.losses import (
     AnomalyBCEWithLogits,
     OrthogonalityLoss,
@@ -20,8 +22,8 @@ from cuvis_ai.node.metrics import (
     ExplainedVarianceMetric,
 )
 from cuvis_ai.node.normalization import MinMaxNormalizer
-from cuvis_ai.node.pca import TrainablePCA
-from cuvis_ai.node.selector import SoftChannelSelector
+
+pytestmark = [pytest.mark.integration, pytest.mark.slow]
 
 
 def test_soft_selector_weights_update(synthetic_anomaly_datamodule, training_config_factory):
@@ -101,14 +103,6 @@ def test_soft_selector_weights_update(synthetic_anomaly_datamodule, training_con
     grad_trainer.fit()
 
     final_logits = selector.channel_logits.data.clone()
-    final_mean = final_logits.mean().item()
-    final_std = final_logits.std().item()
-
-    print("\nFinal selector channel_logits:")
-    print(f"  Mean: {final_mean:.6f}")
-    print(f"  Std: {final_std:.6f}")
-    print(f"  Min: {final_logits.min().item():.6f}")
-    print(f"  Max: {final_logits.max().item():.6f}")
 
     assert selector.channel_logits is not None, "Selector channel_logits not initialized"
     assert isinstance(selector.channel_logits, torch.nn.Parameter), (
@@ -121,17 +115,9 @@ def test_soft_selector_weights_update(synthetic_anomaly_datamodule, training_con
         "indicating no training occurred"
     )
 
-    relative_spread = logit_std / (final_logits.abs().mean().item() + 1e-8)
-
-    print("\nStatistics:")
-    print(f"  Std deviation: {logit_std:.6f}")
-    print(f"  Relative spread: {relative_spread:.2%}")
-
     assert selector.channel_logits.grad is not None or selector.channel_logits.requires_grad, (
         "Selector channel_logits should remain trainable"
     )
-
-    print("✓ SoftChannelSelector weights updated successfully")
 
 
 def test_pca_weights_update(synthetic_anomaly_datamodule, training_config_factory):
@@ -226,13 +212,6 @@ def test_pca_weights_update(synthetic_anomaly_datamodule, training_config_factor
     orth_result = orth_loss_fn.forward(components=final_components, context=None)
     final_orth_loss = orth_result["loss"].item()
 
-    print("\nFinal PCA components:")
-    print(f"  Shape: {final_components.shape}")
-    print(f"  Mean norm: {final_mean_norm:.6f}")
-    print(f"  Orthogonality loss: {final_orth_loss:.6f}")
-    print(f"  Min: {final_components.min().item():.6f}")
-    print(f"  Max: {final_components.max().item():.6f}")
-
     assert pca._components.requires_grad, "PCA components should require gradients for training"
     assert final_orth_loss < 0.5, (
         f"PCA components have poor orthogonality (loss={final_orth_loss:.6f})"
@@ -240,8 +219,6 @@ def test_pca_weights_update(synthetic_anomaly_datamodule, training_config_factor
     assert 0.5 < final_mean_norm < 2.0, (
         f"PCA component norms are unusual (mean={final_mean_norm:.6f})"
     )
-
-    print("✓ TrainablePCA components updated successfully")
 
 
 def test_logit_head_weights_update(synthetic_anomaly_datamodule, training_config_factory):
@@ -298,11 +275,6 @@ def test_logit_head_weights_update(synthetic_anomaly_datamodule, training_config
     initial_scale = logit_head.scale.item()
     initial_bias = logit_head.bias.item()
 
-    print("\nInitial ScoreToLogit parameters:")
-    print(f"  Scale: {initial_scale:.6f}")
-    print(f"  Bias: {initial_bias:.6f}")
-    print(f"  Threshold: {logit_head.get_threshold():.6f}")
-
     # Statistical initialization
     from cuvis_ai_core.training.trainers import GradientTrainer, StatisticalTrainer
 
@@ -329,23 +301,12 @@ def test_logit_head_weights_update(synthetic_anomaly_datamodule, training_config
     final_scale = logit_head.scale.item()
     final_bias = logit_head.bias.item()
 
-    print("\nFinal ScoreToLogit parameters:")
-    print(f"  Scale: {final_scale:.6f}")
-    print(f"  Bias: {final_bias:.6f}")
-    print(f"  Threshold: {logit_head.get_threshold():.6f}")
-
     scale_change = abs(final_scale - initial_scale)
     bias_change = abs(final_bias - initial_bias)
-
-    print("\nChanges:")
-    print(f"  Scale change: {scale_change:.6f}")
-    print(f"  Bias change: {bias_change:.6f}")
 
     assert scale_change > 0.001 or bias_change > 0.001, (
         "Neither scale nor bias changed during training"
     )
-
-    print("✓ ScoreToLogit parameters updated successfully")
 
 
 if __name__ == "__main__":  # pragma: no cover

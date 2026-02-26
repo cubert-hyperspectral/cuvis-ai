@@ -3,7 +3,7 @@
 name: adaclip_supervised_full_spectrum
 
 defaults:
-  - /pipeline@pipeline: adaclip_supervised_full_spectrum
+  - /pipeline/anomaly/adaclip@pipeline: adaclip_supervised_full_spectrum
   - /data@data: lentils
   - _self_
 

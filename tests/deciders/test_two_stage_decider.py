@@ -7,6 +7,8 @@ import torch
 
 from cuvis_ai.deciders.two_stage_decider import TwoStageBinaryDecider
 
+pytestmark = pytest.mark.unit
+
 
 def _make_linear_map() -> torch.Tensor:
     """Create a linear map from 1 to 100, reshaped to [1, 10, 10, 1]."""

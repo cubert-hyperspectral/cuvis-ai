@@ -113,26 +113,12 @@ include = ["cuvis_ai*", "tools*", "scripts*"]
 torch = { index = "pytorch-cu128" }
 torchvision = { index = "pytorch-cu128" }
 cuvis-ai-schemas = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-schemas.git", branch = "main" }
+# cuvis-ai-core = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-core.git", branch = "nima/features/sam3-plugin-setup" }
 cuvis-ai-core = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-core.git", branch = "main" }
 
 [tool.setuptools_scm]
 version_scheme = "post-release"
 local_scheme = "node-and-date"
-
-[tool.pytest.ini_options]
-addopts = "-ra --showlocals"
-testpaths = ["tests"]
-xfail_strict = true
-filterwarnings = [
-    "ignore::DeprecationWarning",
-    "ignore::PendingDeprecationWarning",
-    "ignore::UserWarning: pkg_resources is deprecated as an API.*",
-    "ignore:Module already imported so cannot be rewritten",
-]
-markers = [
-    "stress: marks tests as stress tests (deselect with '-m \"not stress\"')",
-    "gpu: marks tests as GPU tests (deselect with '-m \"not gpu\"')",
-]
 
 [tool.ruff]
 target-version = "py311"

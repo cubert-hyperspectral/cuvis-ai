@@ -58,18 +58,18 @@ pipeline:
     hparams:
       execution_stages: null
   - name: score_heatmap
-    class_name: cuvis_ai.node.visualizations.ScoreHeatmapVisualizer
+    class_name: cuvis_ai.node.anomaly_visualization.ScoreHeatmapVisualizer
     hparams:
       normalize_scores: true
       cmap: inferno
       up_to: 5
   - name: mask
-    class_name: cuvis_ai.node.visualizations.AnomalyMask
+    class_name: cuvis_ai.node.anomaly_visualization.AnomalyMask
     hparams:
       channel: 30
       up_to: 5
   - name: drcnn_tensorboard_viz
-    class_name: cuvis_ai.node.drcnn_tensorboard_viz.DRCNNTensorBoardViz
+    class_name: cuvis_ai.node.pipeline_visualization.PipelineComparisonVisualizer
     hparams:
       hsi_channels:
       - 0
@@ -81,7 +81,7 @@ pipeline:
     class_name: cuvis_ai.node.monitor.TensorBoardMonitorNode
     hparams:
       output_dir: outputs\drcnn_adaclip\tensorboard
-      run_name: DRCNN_AdaClip_Gradient
+      run_name: drcnn_adaclip_gradient
       comment: ''
       flush_secs: 120
   connections:
@@ -130,7 +130,7 @@ pipeline:
   - source: drcnn_tensorboard_viz.outputs.artifacts
     target: TensorBoardMonitorNode.inputs.artifacts
   metadata:
-    name: DRCNN_AdaClip_Gradient
+    name: drcnn_adaclip_gradient
     description: ''
     created: '2026-01-05T11:33:21.691178'
     tags: []

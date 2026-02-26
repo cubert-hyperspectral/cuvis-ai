@@ -29,20 +29,20 @@ To restore a trained pipeline and run inference on CU3S data:
 ```bash
 # Run inference on CU3S data (all parameters required)
 uv run python examples/grpc/run_inference.py \
-  --pipeline-path configs/pipeline/channel_selector.yaml \
+  --pipeline-path configs/pipeline/anomaly/rx/channel_selector.yaml \
   --weights-path outputs/my_weights.pt \
   --cu3s-file-path data/DemoData/Demo_000.cu3s
 
 # Run inference with custom processing mode
 uv run python examples/grpc/run_inference.py \
-  --pipeline-path configs/pipeline/channel_selector.yaml \
+  --pipeline-path configs/pipeline/anomaly/rx/channel_selector.yaml \
   --weights-path outputs/my_weights.pt \
   --cu3s-file-path data/DemoData/Demo_000.cu3s \
   --processing-mode Raw
 
 # Run inference with config overrides
 uv run python examples/grpc/run_inference.py \
-  --pipeline-path configs/pipeline/channel_selector.yaml \
+  --pipeline-path configs/pipeline/anomaly/rx/channel_selector.yaml \
   --weights-path outputs/my_weights.pt \
   --cu3s-file-path data/DemoData/Demo_000.cu3s \
   --override nodes.10.params.output_dir=outputs/my_tb

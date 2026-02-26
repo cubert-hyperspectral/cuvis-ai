@@ -27,13 +27,13 @@ from cuvis_ai.anomaly.deep_svdd import (
     ZScoreNormalizerGlobal,
 )
 from cuvis_ai.deciders.binary_decider import QuantileBinaryDecider
+from cuvis_ai.node.anomaly_visualization import AnomalyMask, ScoreHeatmapVisualizer
 from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.losses import DeepSVDDSoftBoundaryLoss
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.normalization import PerPixelUnitNorm
 from cuvis_ai.node.preprocessors import BandpassByWavelength
-from cuvis_ai.node.visualizations import AnomalyMask, ScoreHeatmapVisualizer
 from cuvis_ai.utils.deep_svdd_factory import infer_channels_after_bandpass
 
 
@@ -79,8 +79,6 @@ def main(cfg: DictConfig) -> None:
     encoder = ZScoreNormalizerGlobal(
         num_channels=pipeline_cfg.encoder.num_channels,
         hidden=pipeline_cfg.encoder.hidden,
-        sample_n=pipeline_cfg.encoder.sample_n,
-        seed=pipeline_cfg.encoder.seed,
     )
     projection = DeepSVDDProjection(
         in_channels=pipeline_cfg.projection.in_channels,

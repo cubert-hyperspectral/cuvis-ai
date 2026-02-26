@@ -5,7 +5,7 @@ Concrete/Gumbel-Softmax band selector to learn 3 discrete bands that
 are optimal for AdaClip-based anomaly detection.
 
 Pipeline:
-  1. HSI cube (61 channels) → ConcreteBandSelector → RGB-like (3 channels)
+  1. HSI cube (61 channels) → ConcreteChannelMixer → RGB-like (3 channels)
   2. RGB-like → AdaClip (frozen) → Anomaly scores
   3. Scores → IoU or BCE loss (+ distinctness loss on selector weights)
   4. Backpropagation updates only the selector logits
@@ -33,14 +33,14 @@ from loguru import logger
 from omegaconf import DictConfig, OmegaConf
 
 from cuvis_ai.deciders.two_stage_decider import TwoStageBinaryDecider
-from cuvis_ai.node.concrete_selector import ConcreteBandSelector
+from cuvis_ai.node.anomaly_visualization import AnomalyMask, ScoreHeatmapVisualizer
+from cuvis_ai.node.channel_mixer import ConcreteChannelMixer
 from cuvis_ai.node.data import LentilsAnomalyDataNode
-from cuvis_ai.node.drcnn_tensorboard_viz import DRCNNTensorBoardViz
 from cuvis_ai.node.losses import AnomalyBCEWithLogits, DistinctnessLoss, IoULoss
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.normalization import MinMaxNormalizer
-from cuvis_ai.node.visualizations import AnomalyMask, ScoreHeatmapVisualizer
+from cuvis_ai.node.pipeline_visualization import PipelineComparisonVisualizer
 
 
 @hydra.main(
@@ -53,28 +53,14 @@ def main(cfg: DictConfig) -> None:
 
     logger.info("=== Concrete Band Selector + AdaClip Gradient Training ===")
 
-    # Load AdaCLIP plugin from GitLab repository
-    logger.info("Loading AdaCLIP plugin from GitLab repository...")
+    # Load AdaCLIP plugin from selective manifest
+    plugins_manifest = Path(__file__).resolve().parents[2] / "configs" / "plugins" / "adaclip.yaml"
+    logger.info(f"Loading AdaCLIP plugin from manifest: {plugins_manifest}")
 
-    # Create a NodeRegistry instance for plugin loading
     registry = NodeRegistry()
-    registry.load_plugin(
-        name="adaclip",
-        config={
-            "repo": "https://github.com/cubert-hyperspectral/cuvis-ai-adaclip.git",
-            "tag": "v0.1.0",  # Tagged release for production stability
-            "provides": ["cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector"],
-        },
-    )
-
-    # For local development, comment out above and use:
-    # registry.load_plugin(
-    #     name="adaclip",
-    #     config={
-    #         "path": r"D:\code-repos\cuvis-ai-adaclip",
-    #         "provides": ["cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector"]
-    #     }
-    # )
+    registry.load_plugins(plugins_manifest)
+    if "adaclip" not in registry.plugin_configs:
+        raise KeyError("Plugin 'adaclip' not found in configs/plugins/adaclip.yaml")
 
     # Get the AdaCLIPDetector class from the registry (class method works for both built-ins and plugins)
     AdaCLIPDetector = NodeRegistry.get("cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector")
@@ -120,7 +106,7 @@ def main(cfg: DictConfig) -> None:
         )
 
     # Stage 2: Build pipeline
-    pipeline = CuvisPipeline("Concrete_AdaClip_Gradient")
+    pipeline = CuvisPipeline("concrete_adaclip_gradient")
 
     # Data entry node
     # Use anomaly_class_ids=[3] to only treat Stone (class 3) as anomaly for IoU loss
@@ -138,7 +124,7 @@ def main(cfg: DictConfig) -> None:
 
     # Concrete band selector: 61 → 3 channels (categorical one-of-T per channel)
     selector_cfg = pipeline_cfg.get("selector", {})
-    selector = ConcreteBandSelector(
+    selector = ConcreteChannelMixer(
         input_channels=input_channels,
         output_channels=3,
         tau_start=selector_cfg.get("tau_start", 10.0),
@@ -230,7 +216,7 @@ def main(cfg: DictConfig) -> None:
     )
 
     # TensorBoard visualization for Concrete-AdaClip pipeline
-    drcnn_tb_viz = DRCNNTensorBoardViz(
+    drcnn_tb_viz = PipelineComparisonVisualizer(
         hsi_channels=[0, 20, 40],
         max_samples=4,
         log_every_n_batches=1,

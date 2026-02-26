@@ -3,7 +3,7 @@
 name: adaclip_supervised_cir
 
 defaults:
-  - /pipeline@pipeline: adaclip_supervised_cir
+  - /pipeline/anomaly/adaclip@pipeline: adaclip_supervised_cir
   - /data@data: lentils
   - _self_
 

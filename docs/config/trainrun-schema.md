@@ -55,7 +55,7 @@ pipeline:
 **Composition format:**
 ```yaml
 defaults:
-  - /pipeline@pipeline: rx_statistical  # Load from configs/pipeline/
+  - /pipeline/anomaly/rx@pipeline: rx_statistical  # Load from configs/pipeline/
 ```
 
 ### data (dict)
@@ -179,7 +179,7 @@ tags:
 name: rx_statistical_experiment
 
 defaults:
-  - /pipeline@pipeline: rx_statistical
+  - /pipeline/anomaly/rx@pipeline: rx_statistical
   - /data@data: lentils
   - /training@training: default
   - _self_
@@ -213,7 +213,7 @@ unfreeze_nodes: []
 name: channel_selector_experiment
 
 defaults:
-  - /pipeline@pipeline: channel_selector
+  - /pipeline/anomaly/rx@pipeline: channel_selector
   - /data@data: lentils
   - /training@training: default
   - _self_
@@ -277,7 +277,7 @@ tags:
 name: deep_svdd_experiment
 
 defaults:
-  - /pipeline@pipeline: deep_svdd
+  - /pipeline/anomaly/deep_svdd@pipeline: deep_svdd
   - /data@data: lentils
   - /training@training: default
   - _self_
@@ -352,7 +352,7 @@ Must be the first line of every trainrun configuration file.
 **defaults list must include:**
 ```yaml
 defaults:
-  - /pipeline@pipeline: <pipeline_name>
+  - /pipeline/anomaly/<category>@pipeline: <pipeline_name>
   - /data@data: <data_name>
   - /training@training: <training_name>
   - _self_  # Must be last for overrides to work
@@ -411,7 +411,7 @@ Minimal configuration for rapid iteration:
 name: quick_test
 
 defaults:
-  - /pipeline@pipeline: rx_statistical
+  - /pipeline/anomaly/rx@pipeline: rx_statistical
   - /data@data: lentils
   - /training@training: default
   - _self_
@@ -429,7 +429,7 @@ Base configuration for multi-run experiments:
 name: hp_sweep_lr_${training.optimizer.lr}
 
 defaults:
-  - /pipeline@pipeline: channel_selector
+  - /pipeline/anomaly/rx@pipeline: channel_selector
   - /data@data: lentils
   - /training@training: default
   - _self_
@@ -456,7 +456,7 @@ Comprehensive configuration with all settings explicit:
 name: production_model_v1
 
 defaults:
-  - /pipeline@pipeline: channel_selector
+  - /pipeline/anomaly/rx@pipeline: channel_selector
   - /data@data: lentils
   - /training@training: default
   - _self_

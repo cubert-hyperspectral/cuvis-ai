@@ -38,8 +38,15 @@ jobs:
         run: |
           uv sync --locked --all-extras
 
+      - name: Install system dependencies for plugin imports
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends libgl1 libglib2.0-0
+          rm -rf /var/lib/apt/lists/*
+
       - name: Run tests with coverage
         run: |
+          # Includes fast plugin compliance checks in tests/plugins/test_plugin_contracts.py
           uv run pytest tests/ \
             -m "not slow and not gpu" \
             --cov=cuvis_ai \
@@ -145,6 +152,8 @@ jobs:
   doc-build:
     name: Documentation Build
     runs-on: ubuntu-latest
+    container:
+      image: cubertgmbh/cuvis_pyil:3.5.0-ubuntu24.04
 
     steps:
       - name: Checkout code

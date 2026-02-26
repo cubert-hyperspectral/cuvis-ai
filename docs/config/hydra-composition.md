@@ -35,7 +35,7 @@ Hydra enables powerful configuration composition:
 # @package _global_
 
 defaults:
-  - /pipeline@pipeline: rx_statistical
+  - /pipeline/anomaly/rx@pipeline: rx_statistical
   - /data@data: lentils
   - /training@training: default
   - _self_
@@ -64,7 +64,7 @@ Merges config at the root level.
 # @package _global_
 
 defaults:
-  - /pipeline@pipeline: rx_statistical
+  - /pipeline/anomaly/rx@pipeline: rx_statistical
 name: experiment_1
 ```
 
@@ -106,7 +106,7 @@ Control exactly where configs are placed:
 
 ```yaml
 defaults:
-  - /pipeline@pipeline: rx_statistical       # → pipeline: {...}
+  - /pipeline/anomaly/rx@pipeline: rx_statistical       # → pipeline: {...}
   - /data@data: lentils                      # → data: {...}
   - /training@training: default              # → training: {...}
 ```
@@ -125,7 +125,7 @@ The `defaults` list determines config composition order:
 # @package _global_
 
 defaults:
-  - /pipeline@pipeline: rx_statistical   # Load first
+  - /pipeline/anomaly/rx@pipeline: rx_statistical   # Load first
   - /data@data: lentils                  # Load second
   - /training@training: default          # Load third
   - _self_                               # THIS CONFIG (must be last)
@@ -142,8 +142,8 @@ data:
 **Absolute paths** (start with `/`):
 ```yaml
 defaults:
-  - /pipeline@pipeline: rx_statistical
-  # Searches: configs/pipeline/rx_statistical.yaml
+  - /pipeline/anomaly/rx@pipeline: rx_statistical
+  # Searches: configs/pipeline/anomaly/rx/rx_statistical.yaml
 ```
 
 **Relative paths** (no leading `/`):
@@ -351,7 +351,7 @@ Reference values from other config groups:
 ```yaml
 # In trainrun config
 defaults:
-  - /pipeline@pipeline: rx_statistical
+  - /pipeline/anomaly/rx@pipeline: rx_statistical
   - /training@training: default
   - _self_
 
@@ -371,7 +371,7 @@ experiment_seed: ${training.seed}
 **In trainrun config file:**
 ```yaml
 defaults:
-  - /pipeline@pipeline: rx_statistical
+  - /pipeline/anomaly/rx@pipeline: rx_statistical
   - /data@data: lentils
   - /training@training: default
   - _self_  # ← Must be last
@@ -667,7 +667,7 @@ optimizer:
 **Usage:**
 ```yaml
 defaults:
-  - /pipeline@pipeline: rx_statistical
+  - /pipeline/anomaly/rx@pipeline: rx_statistical
   - /data@data: lentils
   - /training@training: default
   - /mixins/debug@training:_here_  # Merge debug settings
@@ -714,7 +714,7 @@ python train.py \
 ```yaml
 # ✓ Correct
 defaults:
-  - /pipeline@pipeline: rx_statistical
+  - /pipeline/anomaly/rx@pipeline: rx_statistical
   - /data@data: lentils
   - _self_
 
@@ -724,7 +724,7 @@ data:
 # ✗ Wrong
 defaults:
   - _self_
-  - /pipeline@pipeline: rx_statistical
+  - /pipeline/anomaly/rx@pipeline: rx_statistical
 
 data:
   batch_size: 16  # Doesn't override!
@@ -738,7 +738,7 @@ data:
 # @package _global_  # ← Always add this
 
 defaults:
-  - /pipeline@pipeline: rx_statistical
+  - /pipeline/anomaly/rx@pipeline: rx_statistical
 ```
 
 **Avoid mixing package directives** in the same config.
@@ -829,7 +829,7 @@ config_dict = OmegaConf.to_container(cfg, resolve=True)
 **Solution:** Check defaults list and package directives:
 ```yaml
 defaults:
-  - /pipeline@pipeline: rx_statistical  # ← Ensure @pipeline part
+  - /pipeline/anomaly/rx@pipeline: rx_statistical  # ← Ensure @pipeline part
 ```
 
 ### Interpolation Error
@@ -849,7 +849,7 @@ output_dir: ./outputs/${name}
 **Solution:** Ensure `_self_` is last:
 ```yaml
 defaults:
-  - /pipeline@pipeline: rx_statistical
+  - /pipeline/anomaly/rx@pipeline: rx_statistical
   - _self_  # ← MUST BE LAST
 
 # Overrides below

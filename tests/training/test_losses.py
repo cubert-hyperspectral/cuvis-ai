@@ -12,6 +12,8 @@ from cuvis_ai.node.losses import (
     OrthogonalityLoss,
 )
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture
 def distinctness_loss_node():
@@ -79,15 +81,18 @@ class TestOrthogonalityLoss:
 
     def test_loss_decreases_with_training(self, trainable_pca):
         """Test that loss can decrease with gradient updates."""
+        import copy
+
+        pca = copy.deepcopy(trainable_pca)
         loss_node = OrthogonalityLoss(weight=1.0)
 
         # Degrade orthogonality so there's something to optimize
-        trainable_pca._components.data += 0.1 * torch.randn_like(trainable_pca._components)
+        pca._components.data += 0.1 * torch.randn_like(pca._components)
 
-        optimizer = torch.optim.SGD(trainable_pca.parameters(), lr=0.01)
+        optimizer = torch.optim.SGD(pca.parameters(), lr=0.01)
 
         # Initial loss (should be non-trivial now)
-        outputs_initial = loss_node.forward(components=trainable_pca._components)
+        outputs_initial = loss_node.forward(components=pca._components)
         initial_value = outputs_initial["loss"].item()
 
         # Loss should be significantly above zero
@@ -96,12 +101,12 @@ class TestOrthogonalityLoss:
         # Train for a few steps
         for _ in range(10):
             optimizer.zero_grad()
-            outputs = loss_node.forward(components=trainable_pca._components)
+            outputs = loss_node.forward(components=pca._components)
             outputs["loss"].backward()
             optimizer.step()
 
         # Final loss
-        outputs_final = loss_node.forward(components=trainable_pca._components)
+        outputs_final = loss_node.forward(components=pca._components)
         final_value = outputs_final["loss"].item()
 
         # Loss should decrease (components becoming more orthogonal)

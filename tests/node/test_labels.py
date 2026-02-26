@@ -7,6 +7,8 @@ import torch
 
 from cuvis_ai.node.labels import BinaryAnomalyLabelMapper
 
+pytestmark = pytest.mark.unit
+
 
 class TestBinaryAnomalyLabelMapper:
     """Test suite for BinaryAnomalyLabelMapper node."""

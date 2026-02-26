@@ -1,8 +1,11 @@
 import numpy as np
+import pytest
 import torch
 import torch.nn as nn
 
 from cuvis_ai.anomaly.lad_detector import LADGlobal
+
+pytestmark = pytest.mark.unit
 
 
 def _lad_fit_numpy(arr_bhwc: torch.Tensor) -> tuple[np.ndarray, np.ndarray]:
@@ -188,9 +191,11 @@ def test_lad_unfreeze_converts_buffers_to_parameters():
     assert torch.allclose(lad.L, L_original, atol=1e-7)
 
     # Node should not be frozen
-    assert not lad.freezed
+    assert not lad.frozen
 
 
+@pytest.mark.slow
+@pytest.mark.integration
 def test_lad_trainable_parameters_update(synthetic_anomaly_datamodule, training_config_factory):
     """Test that LAD parameters can be updated during gradient training."""
     from cuvis_ai_core.pipeline.pipeline import CuvisPipeline

@@ -342,7 +342,7 @@ connections:
 **Description:** Repulsion loss encouraging selector diversity (prevents band collapse)
 
 **Perfect for:**
-- ConcreteBandSelector training
+- ConcreteChannelMixer training
 - Preventing channel collapse to same band
 - Encouraging diverse band selection
 
@@ -393,7 +393,7 @@ pipeline.connect(
 #### See Also
 
 - [Tutorial 4: AdaCLIP Workflow](../tutorials/adaclip-workflow.md#variant-3-concrete-selector)
-- [ConcreteBandSelector](deep-learning.md#concretebandselector)
+- [ConcreteChannelMixer](deep-learning.md#concretechannelmixer)
 - API Reference: ::: cuvis_ai.node.losses.DistinctnessLoss
 
 ---

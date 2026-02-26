@@ -3,14 +3,14 @@
 import pytest
 import torch
 
-from cuvis_ai.node.pca import TrainablePCA
+from cuvis_ai.node.dimensionality_reduction import TrainablePCA
 
 # This file previously contained MockStatisticalTrainableNode which was unused
 # and has been removed. If additional mock nodes are needed for testing,
 # they should be added here.
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def trainable_pca():
     """Create a TrainablePCA node for testing.
 

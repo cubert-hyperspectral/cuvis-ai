@@ -6,21 +6,19 @@ nodes:
     normal_class_ids:
     - 0
     - 1
-- name: SupervisedFullSpectrumBandSelector
-  class_name: cuvis_ai.node.band_selection.SupervisedFullSpectrumBandSelector
+    anomaly_class_ids: null
+- name: CIRSelector
+  class_name: cuvis_ai.node.channel_selector.CIRSelector
   hparams:
-    score_weights:
-    - 1.0
-    - 1.0
-    - 1.0
-    lambda_penalty: 0.5
-    num_spectral_bands: 61
+    nir_nm: 860.0
+    red_nm: 670.0
+    green_nm: 560.0
 - name: AdaCLIPDetector
   class_name: cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
   hparams:
     weight_name: pretrained_all
     backbone: ViT-L-14-336
-    prompt_text: anomaly
+    prompt_text: ''
     image_size: 518
     prompting_depth: 4
     prompting_length: 5
@@ -28,19 +26,23 @@ nodes:
     use_half_precision: false
     enable_warmup: false
     enable_gradients: false
-- name: QuantileBinaryDecider
-  class_name: cuvis_ai.deciders.binary_decider.QuantileBinaryDecider
+    use_torch_preprocess: true
+- name: TwoStageBinaryDecider
+  class_name: cuvis_ai.deciders.two_stage_decider.TwoStageBinaryDecider
   hparams:
+    image_threshold: 0.0847439244389534
+    top_k_fraction: 0.001
     quantile: 0.995
     reduce_dims: null
+    threshold: 0.5
 - name: ScoreHeatmapVisualizer
-  class_name: cuvis_ai.node.visualizations.ScoreHeatmapVisualizer
+  class_name: cuvis_ai.node.anomaly_visualization.ScoreHeatmapVisualizer
   hparams:
     normalize_scores: true
     cmap: inferno
     up_to: 3
 - name: RGBAnomalyMask
-  class_name: cuvis_ai.node.visualizations.RGBAnomalyMask
+  class_name: cuvis_ai.node.anomaly_visualization.RGBAnomalyMask
   hparams:
     up_to: 3
 - name: detection_metrics
@@ -50,34 +52,32 @@ nodes:
 - name: TensorBoardMonitorNode
   class_name: cuvis_ai.node.monitor.TensorBoardMonitorNode
   hparams:
-    output_dir: outputs\tensorboard
-    run_name: AdaCLIP_Supervised_FullSpectrum
+    output_dir: outputs\adaclip_cir_false_color_optimal_threshold\tensorboard
+    run_name: AdaCLIP_CIR_FalseColor_OptimalThreshold
     comment: ''
     flush_secs: 120
 connections:
 - source: LentilsAnomalyDataNode.outputs.cube
-  target: SupervisedFullSpectrumBandSelector.inputs.cube
+  target: CIRSelector.inputs.cube
 - source: LentilsAnomalyDataNode.outputs.wavelengths
-  target: SupervisedFullSpectrumBandSelector.inputs.wavelengths
-- source: LentilsAnomalyDataNode.outputs.mask
-  target: SupervisedFullSpectrumBandSelector.inputs.mask
+  target: CIRSelector.inputs.wavelengths
 - source: LentilsAnomalyDataNode.outputs.mask
   target: detection_metrics.inputs.targets
 - source: LentilsAnomalyDataNode.outputs.mask
   target: RGBAnomalyMask.inputs.mask
-- source: SupervisedFullSpectrumBandSelector.outputs.rgb_image
+- source: CIRSelector.outputs.rgb_image
   target: AdaCLIPDetector.inputs.rgb_image
-- source: SupervisedFullSpectrumBandSelector.outputs.rgb_image
+- source: CIRSelector.outputs.rgb_image
   target: RGBAnomalyMask.inputs.rgb_image
 - source: AdaCLIPDetector.outputs.scores
-  target: QuantileBinaryDecider.inputs.logits
+  target: TwoStageBinaryDecider.inputs.logits
 - source: AdaCLIPDetector.outputs.scores
   target: ScoreHeatmapVisualizer.inputs.scores
 - source: AdaCLIPDetector.outputs.scores
   target: RGBAnomalyMask.inputs.scores
-- source: QuantileBinaryDecider.outputs.decisions
+- source: TwoStageBinaryDecider.outputs.decisions
   target: detection_metrics.inputs.decisions
-- source: QuantileBinaryDecider.outputs.decisions
+- source: TwoStageBinaryDecider.outputs.decisions
   target: RGBAnomalyMask.inputs.decisions
 - source: ScoreHeatmapVisualizer.outputs.artifacts
   target: TensorBoardMonitorNode.inputs.artifacts
@@ -86,13 +86,15 @@ connections:
 - source: detection_metrics.outputs.metrics
   target: TensorBoardMonitorNode.inputs.metrics
 metadata:
-  name: AdaCLIP_Supervised_FullSpectrum
-  description: "Statistical AdaCLIP supervised full-spectrum pipeline (LentilsAnomalyDataNode\
-    \ \u2192 SupervisedFullSpectrumBandSelector \u2192 AdaCLIPDetector)"
+  name: AdaCLIP_CIR_FalseColor_OptimalThreshold
+  description: Statistical AdaCLIP CIR false-color pipeline with optimal threshold
+    (LentilsAnomalyDataNode -> CIRSelector -> AdaCLIPDetector -> TwoStageBinaryDecider)
   created: ''
   tags:
   - statistical
   - adaclip
-  - supervised_full_spectrum
+  - cir_false_color
+  - optimal_threshold
+  - two_stage
   author: cuvis.ai
-  cuvis_ai_version: 0.1.5.post30+g6d28af5c2.d20251217
+  cuvis_ai_version: 0.1.0

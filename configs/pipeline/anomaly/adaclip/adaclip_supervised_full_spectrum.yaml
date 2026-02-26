@@ -6,16 +6,9 @@ nodes:
     normal_class_ids:
     - 0
     - 1
-- name: SupervisedWindowedFalseRGBSelector
-  class_name: cuvis_ai.node.band_selection.SupervisedWindowedFalseRGBSelector
+- name: SupervisedFullSpectrumSelector
+  class_name: cuvis_ai.node.channel_selector.SupervisedFullSpectrumSelector
   hparams:
-    windows:
-    - - 440.0
-      - 500.0
-    - - 500.0
-      - 580.0
-    - - 610.0
-      - 700.0
     score_weights:
     - 1.0
     - 1.0
@@ -41,13 +34,13 @@ nodes:
     quantile: 0.995
     reduce_dims: null
 - name: ScoreHeatmapVisualizer
-  class_name: cuvis_ai.node.visualizations.ScoreHeatmapVisualizer
+  class_name: cuvis_ai.node.anomaly_visualization.ScoreHeatmapVisualizer
   hparams:
     normalize_scores: true
     cmap: inferno
     up_to: 3
 - name: RGBAnomalyMask
-  class_name: cuvis_ai.node.visualizations.RGBAnomalyMask
+  class_name: cuvis_ai.node.anomaly_visualization.RGBAnomalyMask
   hparams:
     up_to: 3
 - name: detection_metrics
@@ -58,23 +51,23 @@ nodes:
   class_name: cuvis_ai.node.monitor.TensorBoardMonitorNode
   hparams:
     output_dir: outputs\tensorboard
-    run_name: AdaCLIP_Supervised_WindowedFalseRGB
+    run_name: AdaCLIP_Supervised_FullSpectrum
     comment: ''
     flush_secs: 120
 connections:
 - source: LentilsAnomalyDataNode.outputs.cube
-  target: SupervisedWindowedFalseRGBSelector.inputs.cube
+  target: SupervisedFullSpectrumSelector.inputs.cube
 - source: LentilsAnomalyDataNode.outputs.wavelengths
-  target: SupervisedWindowedFalseRGBSelector.inputs.wavelengths
+  target: SupervisedFullSpectrumSelector.inputs.wavelengths
 - source: LentilsAnomalyDataNode.outputs.mask
-  target: SupervisedWindowedFalseRGBSelector.inputs.mask
+  target: SupervisedFullSpectrumSelector.inputs.mask
 - source: LentilsAnomalyDataNode.outputs.mask
   target: detection_metrics.inputs.targets
 - source: LentilsAnomalyDataNode.outputs.mask
   target: RGBAnomalyMask.inputs.mask
-- source: SupervisedWindowedFalseRGBSelector.outputs.rgb_image
+- source: SupervisedFullSpectrumSelector.outputs.rgb_image
   target: AdaCLIPDetector.inputs.rgb_image
-- source: SupervisedWindowedFalseRGBSelector.outputs.rgb_image
+- source: SupervisedFullSpectrumSelector.outputs.rgb_image
   target: RGBAnomalyMask.inputs.rgb_image
 - source: AdaCLIPDetector.outputs.scores
   target: QuantileBinaryDecider.inputs.logits
@@ -93,13 +86,13 @@ connections:
 - source: detection_metrics.outputs.metrics
   target: TensorBoardMonitorNode.inputs.metrics
 metadata:
-  name: AdaCLIP_Supervised_WindowedFalseRGB
-  description: "Statistical AdaCLIP supervised windowed false-RGB pipeline (LentilsAnomalyDataNode\
-    \ \u2192 SupervisedWindowedFalseRGBSelector \u2192 AdaCLIPDetector)"
+  name: AdaCLIP_Supervised_FullSpectrum
+  description: "Statistical AdaCLIP supervised full-spectrum pipeline (LentilsAnomalyDataNode\
+    \ \u2192 SupervisedFullSpectrumSelector \u2192 AdaCLIPDetector)"
   created: ''
   tags:
   - statistical
   - adaclip
-  - supervised_windowed_false_rgb
+  - supervised_full_spectrum
   author: cuvis.ai
   cuvis_ai_version: 0.1.5.post30+g6d28af5c2.d20251217

@@ -5,17 +5,16 @@ from __future__ import annotations
 from typing import Any, Literal
 
 import torch
-import torch.nn as nn
 from cuvis_ai_core.node import Node
 from cuvis_ai_schemas.execution import InputStream
 from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
 
+from cuvis_ai.utils.welford import WelfordAccumulator
+
 ## This node is not approved
-# missing tests against standard impmentations
-# missing unfreeze/freeze
-# missing true incremental PCA implementation for large datasets with Welfords algo
-# missing turorial examples and approved documentation
+# missing tests against standard implementations
+# missing tutorial examples and approved documentation
 
 
 class TrainablePCA(Node):
@@ -76,6 +75,8 @@ class TrainablePCA(Node):
         ),
     }
 
+    TRAINABLE_BUFFERS = ("_components",)
+
     def __init__(
         self,
         num_channels: int,
@@ -115,59 +116,32 @@ class TrainablePCA(Node):
             Input stream yielding dicts matching INPUT_SPECS (port-based format)
             Expected format: {"data": tensor} where tensor is BHWC
         """
-        # Todo: this should not concatenate all data and then do SVD - this is not scalable.
-        # Iether do incremental PCA or use a subset of data.
-        # Collect all data
-        all_data = []
+        acc = None
         for batch_data in input_stream:
             x = batch_data["data"]
             if x is not None:
-                # Flatten spatial dimensions: [B, H, W, C] -> [B*H*W, C]
-                flat = x.reshape(-1, x.shape[-1])
-                all_data.append(flat)
+                flat = x.reshape(-1, x.shape[-1])  # [B*H*W, C]
+                if acc is None:
+                    acc = WelfordAccumulator(flat.shape[1], track_covariance=True)
+                acc.update(flat)
 
-        if not all_data:
+        if acc is None or acc.count == 0:
             raise ValueError("No data provided for PCA initialization")
 
-        # Concatenate all samples
-        X = torch.cat(all_data, dim=0)  # [N, C]
+        self._mean = acc.mean  # [C]
+        cov = acc.cov.to(torch.float64)  # [C, C]
 
-        # Compute mean and center data
-        self._mean = X.mean(dim=0)  # [C]
-        X_centered = X - self._mean  # [N, C]
+        # Eigen decomposition on covariance (equivalent to SVD on centered data)
+        eigenvalues, eigenvectors = torch.linalg.eigh(cov)
+        # eigh returns ascending order; flip to descending
+        eigenvalues = eigenvalues.flip(0)
+        eigenvectors = eigenvectors.flip(1)
 
-        # Compute SVD
-        # X_centered = U @ S @ V.T where V contains principal components
-        U, S, Vt = torch.linalg.svd(X_centered, full_matrices=False)
-
-        # Extract top n_components and store as buffer
-        self._components = Vt[: self.n_components, :].clone()  # [n_components, C]
-
-        # Compute explained variance
-        # Variance = (S^2) / (N - 1)
-        variance = (S**2) / (X.shape[0] - 1)
-        self._explained_variance = variance[: self.n_components].clone()  # [n_components]
+        # Extract top n_components (rows = principal components)
+        self._components = eigenvectors[:, : self.n_components].T.float()  # [n_components, C]
+        self._explained_variance = eigenvalues[: self.n_components].float()  # [n_components]
 
         self._statistically_initialized = True
-
-    def unfreeze(self) -> None:
-        """Convert components buffer to trainable nn.Parameter.
-
-        Call this method after fit() to enable gradient-based training of the
-        principal components. The components will be converted from a buffer
-        to an nn.Parameter, allowing gradient updates during training.
-
-        Example
-        -------
-        >>> pca.statistical_initialization(input_stream)  # Statistical initialization
-        >>> pca.unfreeze()  # Enable gradient training
-        >>> # Now PCA components can be fine-tuned with gradient descent
-        """
-        if self._components.numel() > 0:
-            # Convert buffer to parameter
-            self._components = nn.Parameter(self._components.clone())
-        # Call parent to enable requires_grad
-        super().unfreeze()  # could this have unintended side effects? like the graph be unfrozen?
 
     def forward(self, data: Tensor, **_: Any) -> dict[str, Tensor]:
         """Project data onto principal components.

@@ -16,6 +16,8 @@ import torch
 
 from cuvis_ai.node.preprocessors import BandpassByWavelength
 
+pytestmark = pytest.mark.unit
+
 
 def _classic_bandpass_numpy(
     cube: np.ndarray,

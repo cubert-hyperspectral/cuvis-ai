@@ -181,6 +181,8 @@ class MinMaxNormalizer(_ScoreNormalizerBase):
     can be useful for real-time processing when training data is unavailable.
     """
 
+    TRAINABLE_BUFFERS = ("running_min", "running_max")
+
     def __init__(self, eps: float = 1e-6, use_running_stats: bool = True, **kwargs) -> None:
         self.eps = float(eps)
         self.use_running_stats = use_running_stats
@@ -202,6 +204,11 @@ class MinMaxNormalizer(_ScoreNormalizerBase):
             Iterator yielding dicts matching INPUT_SPECS (port-based format)
             Expected format: {"data": tensor} where tensor is the scores/data
         """
+        # Reset previous running statistics before recomputing.
+        self.running_min.fill_(float("nan"))
+        self.running_max.fill_(float("nan"))
+        self._statistically_initialized = False
+
         all_mins = []
         all_maxs = []
 
@@ -216,10 +223,14 @@ class MinMaxNormalizer(_ScoreNormalizerBase):
                 all_mins.append(batch_min)
                 all_maxs.append(batch_max)
 
-        if all_mins:
-            self.running_min = torch.stack(all_mins).min()
-            self.running_max = torch.stack(all_maxs).max()
-            self._statistically_initialized = True
+        if not all_mins:
+            raise RuntimeError(
+                "MinMaxNormalizer.statistical_initialization() did not receive any data."
+            )
+
+        self.running_min.copy_(torch.stack(all_mins).min())
+        self.running_max.copy_(torch.stack(all_maxs).max())
+        self._statistically_initialized = True
 
     def _is_initialized(self) -> bool:
         """Check if running statistics have been initialized."""
@@ -241,8 +252,13 @@ class MinMaxNormalizer(_ScoreNormalizerBase):
         B, H, W, C = tensor.shape
         flat = tensor.view(B, -1, C)
 
-        # Use running stats if available and initialized
-        if self.use_running_stats and self._is_initialized():
+        # Running-stats mode is strict: statistical initialization is required.
+        if self.use_running_stats:
+            if not self._is_initialized() or not self._statistically_initialized:
+                raise RuntimeError(
+                    "MinMaxNormalizer requires statistical_initialization() before forward() "
+                    "when use_running_stats=True."
+                )
             mins = self.running_min
             maxs = self.running_max
             ranges = torch.clamp(maxs - mins, min=self.eps)

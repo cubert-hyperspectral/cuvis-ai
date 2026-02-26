@@ -36,14 +36,14 @@ from loguru import logger
 from omegaconf import DictConfig, OmegaConf
 
 from cuvis_ai.deciders.binary_decider import QuantileBinaryDecider
+from cuvis_ai.node.anomaly_visualization import AnomalyMask, ScoreHeatmapVisualizer
 from cuvis_ai.node.channel_mixer import LearnableChannelMixer
 from cuvis_ai.node.data import LentilsAnomalyDataNode
-from cuvis_ai.node.drcnn_tensorboard_viz import DRCNNTensorBoardViz
 from cuvis_ai.node.losses import IoULoss
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.normalization import MinMaxNormalizer
-from cuvis_ai.node.visualizations import AnomalyMask, ScoreHeatmapVisualizer
+from cuvis_ai.node.pipeline_visualization import PipelineComparisonVisualizer
 
 
 @hydra.main(config_path="../../configs/", config_name="trainrun/drcnn_adaclip", version_base=None)
@@ -52,28 +52,14 @@ def main(cfg: DictConfig) -> None:
 
     logger.info("=== DRCNN Channel Mixer + AdaClip Gradient Training ===")
 
-    # Load AdaCLIP plugin from GitLab repository
-    logger.info("Loading AdaCLIP plugin from GitLab repository...")
+    # Load AdaCLIP plugin from selective manifest
+    plugins_manifest = Path(__file__).resolve().parents[2] / "configs" / "plugins" / "adaclip.yaml"
+    logger.info(f"Loading AdaCLIP plugin from manifest: {plugins_manifest}")
     try:
-        # Create a NodeRegistry instance for plugin loading
         registry = NodeRegistry()
-        registry.load_plugin(
-            name="adaclip",
-            config={
-                "repo": "https://github.com/cubert-hyperspectral/cuvis-ai-adaclip.git",
-                "tag": "v0.1.0",  # Tagged release for production stability
-                "provides": ["cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector"],
-            },
-        )
-
-        # For local development, comment out above and use:
-        # registry.load_plugin(
-        #     name="adaclip",
-        #     config={
-        #         "path": r"D:\code-repos\cuvis-ai-adaclip",
-        #         "provides": ["cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector"]
-        #     }
-        # )
+        registry.load_plugins(plugins_manifest)
+        if "adaclip" not in registry.plugin_configs:
+            raise KeyError("Plugin 'adaclip' not found in configs/plugins/adaclip.yaml")
 
         # Get the AdaCLIPDetector class from the registry
         AdaCLIPDetector = NodeRegistry.get("cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector")
@@ -134,7 +120,7 @@ def main(cfg: DictConfig) -> None:
             logger.info(f"    Class {class_id} ({class_name}): {count} pixels ({pct:.2f}%)")
 
     # Stage 2: Build pipeline
-    pipeline = CuvisPipeline("DRCNN_AdaClip_Gradient")
+    pipeline = CuvisPipeline("drcnn_adaclip_gradient")
 
     # Data entry node (hardcoded from YAML pipeline.data_node)
     # Use anomaly_class_ids=[3] to only treat Stone (class 3) as anomaly for IoU loss
@@ -219,7 +205,7 @@ def main(cfg: DictConfig) -> None:
 
     # TensorBoard visualization for DRCNN-AdaClip pipeline
     # This creates image artifacts for: HSI input, mixer output (AdaClip input), masks, scores
-    drcnn_tb_viz = DRCNNTensorBoardViz(
+    drcnn_tb_viz = PipelineComparisonVisualizer(
         hsi_channels=[0, 20, 40],  # Channels for false-color RGB visualization
         max_samples=4,  # Log up to 4 samples per batch
         log_every_n_batches=1,  # Log every batch (set to higher value to reduce TensorBoard size)
