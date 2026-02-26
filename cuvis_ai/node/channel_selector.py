@@ -198,6 +198,14 @@ class ChannelSelectorBase(Node):
         denom = (rgb_max - rgb_min).clamp_min(1e-8)
         return ((rgb - rgb_min) / denom).clamp_(0.0, 1.0)
 
+    def _per_frame_percentile_normalize(self, rgb: torch.Tensor) -> torch.Tensor:
+        """Per-frame percentile normalization matching the running accumulation quantiles."""
+        flat = rgb.reshape(-1, 3)
+        lo = torch.quantile(flat, self._NORM_QUANTILE_LOW, dim=0).view(1, 1, 1, 3)
+        hi = torch.quantile(flat, self._NORM_QUANTILE_HIGH, dim=0).view(1, 1, 1, 3)
+        denom = (hi - lo).clamp_min(1e-8)
+        return ((rgb - lo) / denom).clamp_(0.0, 1.0)
+
     def _apply_accumulated_stats(self, rgb: torch.Tensor) -> torch.Tensor:
         """Normalize using accumulated per-channel bounds."""
         lo = self.running_min.view(1, 1, 1, 3)
@@ -239,7 +247,7 @@ class ChannelSelectorBase(Node):
         self._norm_frame_count += 1
 
         if self._norm_frame_count <= self._WARMUP_FRAMES:
-            return self._per_frame_normalize(rgb)
+            return self._per_frame_percentile_normalize(rgb)
         return self._apply_accumulated_stats(rgb)
 
     # ------------------------------------------------------------------
