@@ -1,0 +1,64 @@
+metadata:
+  name: SAM3_With_Spectral_Signatures
+  description: SAM3 tracking with spectral signature extraction and streaming JSON sinks
+  tags:
+    - tracking
+    - sam3
+    - spectral
+    - false-rgb
+    - video
+  author: cuvis.ai
+
+nodes:
+  - name: cu3s_data
+    class: cuvis_ai.node.data.CU3SDataNode
+    params: {}
+
+  - name: false_rgb
+    class: cuvis_ai.node.band_selection.BaselineFalseRGBSelector
+    params: {}
+
+  - name: sam3_tracker
+    class: cuvis_ai_sam3.node.SAM3TrackerInference
+    params:
+      prompt_text: "person"
+
+  - name: spectral_extractor
+    class: cuvis_ai_sam3.node.SpectralSignatureExtractor
+    params:
+      trim_fraction: 0.1
+
+  - name: tracking_coco_json
+    class: cuvis_ai.node.json_writer.TrackingCocoJsonNode
+    params:
+      output_json_path: outputs/tracking_results.json
+      category_name: person
+
+connections:
+  - from: cu3s_data.outputs.cube
+    to: false_rgb.inputs.cube
+  - from: cu3s_data.outputs.wavelengths
+    to: false_rgb.inputs.wavelengths
+
+  - from: false_rgb.outputs.rgb_image
+    to: sam3_tracker.inputs.rgb_frame
+
+  - from: cu3s_data.outputs.cube
+    to: spectral_extractor.inputs.cube
+  - from: sam3_tracker.outputs.mask
+    to: spectral_extractor.inputs.mask
+  - from: sam3_tracker.outputs.object_ids
+    to: spectral_extractor.inputs.object_ids
+  - from: cu3s_data.outputs.wavelengths
+    to: spectral_extractor.inputs.wavelengths
+
+  - from: sam3_tracker.outputs.frame_id
+    to: tracking_coco_json.inputs.frame_id
+  - from: sam3_tracker.outputs.mask
+    to: tracking_coco_json.inputs.mask
+  - from: sam3_tracker.outputs.object_ids
+    to: tracking_coco_json.inputs.object_ids
+  - from: sam3_tracker.outputs.detection_scores
+    to: tracking_coco_json.inputs.detection_scores
+
+frozen_nodes: []
