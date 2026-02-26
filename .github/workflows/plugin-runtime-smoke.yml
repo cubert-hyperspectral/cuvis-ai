@@ -29,6 +29,12 @@ jobs:
       - name: Install dependencies
         run: uv sync --locked --all-extras
 
+      - name: Install system dependencies for plugin imports
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends libgl1 libglib2.0-0
+          rm -rf /var/lib/apt/lists/*
+
       - name: Run slow plugin runtime smoke tests
         run: |
           uv run pytest tests/plugins/test_plugin_runtime_smoke.py \

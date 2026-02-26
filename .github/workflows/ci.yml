@@ -38,6 +38,12 @@ jobs:
         run: |
           uv sync --locked --all-extras
 
+      - name: Install system dependencies for plugin imports
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends libgl1 libglib2.0-0
+          rm -rf /var/lib/apt/lists/*
+
       - name: Run tests with coverage
         run: |
           # Includes fast plugin compliance checks in tests/plugins/test_plugin_contracts.py
