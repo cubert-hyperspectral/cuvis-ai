@@ -54,6 +54,13 @@ def _resolve_processing_mode(processing_mode: str) -> str:
     default=Path("./tracking_output"),
     show_default=True,
 )
+@click.option(
+    "--name-suffix",
+    type=str,
+    default="",
+    show_default=True,
+    help="Optional suffix appended to output-dir name to keep multiple test runs.",
+)
 @click.option("--checkpoint-path", type=click.Path(dir_okay=False, path_type=Path), default=None)
 @click.option(
     "--plugins-yaml",
@@ -65,6 +72,34 @@ def _resolve_processing_mode(processing_mode: str) -> str:
 @click.option(
     "--compile", "compile_model", is_flag=True, default=False, help="Enable torch.compile."
 )
+@click.option(
+    "--score-threshold-detection",
+    type=float,
+    default=0.5,
+    show_default=True,
+    help="SAM3 detector score threshold (lower increases recall).",
+)
+@click.option(
+    "--new-det-thresh",
+    type=float,
+    default=0.7,
+    show_default=True,
+    help="SAM3 new-track threshold (lower admits weaker new tracks).",
+)
+@click.option(
+    "--det-nms-thresh",
+    type=float,
+    default=0.1,
+    show_default=True,
+    help="SAM3 detector NMS IoU threshold (higher is less suppressive).",
+)
+@click.option(
+    "--overlap-suppress-thresh",
+    type=float,
+    default=0.7,
+    show_default=True,
+    help="SAM3 overlap suppression threshold (higher is less suppressive).",
+)
 def main(
     cu3s_path: Path,
     processing_mode: str,
@@ -72,18 +107,37 @@ def main(
     end_frame: int,
     prompt: str,
     output_dir: Path,
+    name_suffix: str,
     checkpoint_path: Path | None,
     plugins_yaml: Path,
     bf16: bool,
     compile_model: bool,
+    score_threshold_detection: float,
+    new_det_thresh: float,
+    det_nms_thresh: float,
+    overlap_suppress_thresh: float,
 ) -> None:
     """Run SAM3 HSI tracking using a CuvisPipeline plus core Predictor."""
     if end_frame == 0 or end_frame < -1:
         raise click.BadParameter("--end-frame must be -1 or a positive integer.")
+    for option_name, value in (
+        ("--score-threshold-detection", score_threshold_detection),
+        ("--new-det-thresh", new_det_thresh),
+        ("--det-nms-thresh", det_nms_thresh),
+        ("--overlap-suppress-thresh", overlap_suppress_thresh),
+    ):
+        if not (0.0 <= float(value) <= 1.0):
+            raise click.BadParameter(f"{option_name} must be in [0, 1].")
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     resolved_mode = _resolve_processing_mode(processing_mode)
+    suffix = name_suffix.strip()
+    if suffix:
+        safe_suffix = suffix.replace("\\", "_").replace("/", "_").replace(" ", "_")
+        if not safe_suffix.startswith("_"):
+            safe_suffix = f"_{safe_suffix}"
+        output_dir = output_dir.parent / f"{output_dir.name}{safe_suffix}"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     logger.info("CU3S: {}", cu3s_path)
@@ -150,6 +204,24 @@ def main(
         compile_model=compile_model,
         name="sam3_tracker",
     )
+    tracker_model = getattr(sam3_tracker, "_model", None)
+    if tracker_model is None:
+        logger.warning("Could not access SAM3 internal model; threshold overrides were skipped.")
+    else:
+        tracker_model.score_threshold_detection = float(score_threshold_detection)
+        tracker_model.new_det_thresh = float(new_det_thresh)
+        tracker_model.det_nms_thresh = float(det_nms_thresh)
+        tracker_model.suppress_overlapping_based_on_recent_occlusion_threshold = float(
+            overlap_suppress_thresh
+        )
+        logger.info(
+            "SAM3 thresholds: score_threshold_detection={}, new_det_thresh={}, "
+            "det_nms_thresh={}, overlap_suppress_thresh={}",
+            score_threshold_detection,
+            new_det_thresh,
+            det_nms_thresh,
+            overlap_suppress_thresh,
+        )
     tracking_json = TrackingCocoJsonNode(
         output_json_path=str(output_dir / "tracking_results.json"),
         category_name=prompt,
