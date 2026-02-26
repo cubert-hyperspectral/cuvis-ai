@@ -14,12 +14,28 @@
 - Added plugin contract, manifest sync, and runtime smoke test files
 - Added 8 new test files: `test_welford`, `test_freeze_unfreeze`, `test_channel_selector_coverage`, `test_concrete_channel_mixer`, `test_pipeline_visualization`, `test_binary_decider`, `test_data_node`, `test_rx_per_batch`
 - Added pytest markers (`unit`/`integration`/`slow`) on all 30 test files; session-scoped fixtures for expensive operations; pytest config consolidated in `pytest.ini`
-- Added ChannelWeightsViz node with pure-torch heatmap, R/G/B indicators, and PIL text annotations
+- Added SAM3 plugin integration scaffolding with plugin registry, pipeline configs, and example manifests
+- Added CU3S video data support with restructured data nodes and CU3SDataNode
+- Added RangeAverageFalseRGBSelector for wavelength-range-averaged false RGB
+- Added CIETristimulusFalseRGBSelector using CIE 1931 2-degree observer color matching functions
+- Added CameraEmulationFalseRGBSelector using Gaussian spectral response curves
+- Added NormMode enum and unified percentile-based RGB normalization in ChannelSelectorBase (per_frame/running/statistical with warmup+accumulation)
+- Added sRGB gamma, _compute_raw_rgb() hook, and statistical_initialization() to ChannelSelectorBase
+- Added LearnableChannelMixer weights output port for loss/viz consumption
+- Added ForegroundContrastLoss with OKLab color space and anchor_weight anti-gaming penalty
 - Added OKLab perceptual color space utilities (rgb_to_oklab, linear_rgb_to_oklab, srgb_to_linear)
-- Added mesu_index passthrough in CU3SDataNode for frame-identified TensorBoard naming
-- Added mesu_index input to ChannelSelectorFalseRGBViz for consistent frame tracking across shuffled epochs
-- Added OKLab color space and anchor_weight anti-gaming penalty to ForegroundContrastLoss
-- Added LR scheduling (reduce_on_plateau) wired to GradientTrainer in channel selector experiment
+- Added ImageArtifactVizBase, ChannelSelectorFalseRGBViz, and ChannelWeightsViz visualization nodes
+- Added MaskOverlayNode and create_mask_overlay shared PyTorch utility
+- Added TrackingOverlayNode for per-object colored mask overlays with contour lines and ID labels
+- Added multi-object overlay rendering utilities (render_multi_object_overlay)
+- Added TrackingCocoJsonNode for streaming COCO instance-segmentation JSON with RLE masks and atomic writes
+- Added ToVideoNode for streaming RGB frames to MP4 via OpenCV
+- Added channel selector false RGB experiment with Hydra configs, inspect mode, and training pipeline
+- Added sam3_hsi_tracker.py end-to-end SAM3 tracking example using CIE false RGB and core Predictor
+- Added SAM3 pipeline configs: naive false RGB, learned projection, and spectral signature extraction
+- Added mesu_index passthrough in CU3SDataNode and ChannelSelectorFalseRGBViz for frame tracking
+- Added LR scheduling (reduce_on_plateau) wired to GradientTrainer
+- Added unit tests for data, video, band selection, tracking COCO JSON, and tracking overlay nodes
 - Changed RXGlobal, ScoreToLogit, LADGlobal to use `WelfordAccumulator` instead of inline Welford implementations
 - Changed `_compute_band_correlation_matrix` to single-pass streaming with `WelfordAccumulator`
 - Changed TrainablePCA and LearnableChannelMixer to use streaming covariance + `eigh` instead of concat + SVD
@@ -30,6 +46,8 @@
 - Changed LearnableChannelMixer output normalization from per-image min-max to BatchNorm2d + sigmoid
 - Changed channel selector training config to max_epochs=200 with early stopping and LR scheduling
 - Changed ForegroundContrastLoss to vectorized batch computation (no per-sample loop)
+- Changed export_cu3s_false_rgb_video.py from argparse to Click CLI and DataLoader to core Predictor
+- Changed plugin registry to use relative path for SAM3 and AdaCLIP repo tag v0.1.2
 - **Breaking**: Reorganized channel selector and mixer nodes into separate files
 - **Breaking**: Renamed 9 classes to reflect selector/mixer distinction
 - **Breaking**: Deleted old files — no deprecation stubs or re-exports
@@ -39,7 +57,14 @@
 - Updated 19 documentation files with new class names and import paths
 - Fixed `pyproject.toml` uv source field (`develop` to `editable`)
 - Fixed Werkzeug CVE-2026-27199 by bumping 3.1.5 → 3.1.6
+- Fixed ToVideoNode parameter typo: output__video_path renamed to output_video_path
+- Fixed setuptools<82 pin for tensorboard pkg_resources compatibility
+- Fixed Windows uv script path errors by using python -m in hooks and tests
+- Fixed CU3SDataNode cube input spec to use torch.Tensor dtype
 - Expanded training data splits in tracking_cap_and_car.yaml
+- Pinned cuvis-ai-schemas to git main branch
+- Removed examples/adaclip/plugins.yaml (consolidated into central registry)
+- Removed Phase 1 scaffold files (sam3_example.md, sam3_tracking_example.py)
 
 ## 0.3.0 - 2026-02-11
 
