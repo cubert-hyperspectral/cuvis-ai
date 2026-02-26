@@ -9,23 +9,25 @@ metadata:
   author: cuvis.ai
 
 nodes:
-  - name: cu3s_loader
-    class: cuvis_ai.node.data.CU3SSequenceLoader
+  - name: cu3s_data
+    class: cuvis_ai.node.data.CU3SDataNode
     params: {}
 
-  # T1.4: Learnable projection node placeholder
   - name: learned_projection
-    class: cuvis_ai.node.band_selection.LearnableChannelMixer
-    params: {}
+    class: cuvis_ai.node.channel_mixer.LearnableChannelMixer
+    params:
+      input_channels: 61
+      output_channels: 3
 
   - name: sam3_tracker
-    class: cuvis_ai_sam3.node.SAM3VideoTracker
-    params: {}
+    class: cuvis_ai_sam3.node.SAM3TrackerInference
+    params:
+      prompt_text: "person"
 
 connections:
-  - from: cu3s_loader.outputs.cube
+  - from: cu3s_data.outputs.cube
     to: learned_projection.inputs.data
-  - from: learned_projection.outputs.rgb_image
-    to: sam3_tracker.inputs.rgb_frames
+  - from: learned_projection.outputs.rgb
+    to: sam3_tracker.inputs.rgb_frame
 
 frozen_nodes: []

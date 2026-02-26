@@ -23,7 +23,7 @@ plugins:
 
   sam3:
     # SAM3-based video object tracking plugin
-    path: "D:\\code-repos\\cuvis-ai-sam3"
+    path: "../.."
     provides:
       - cuvis_ai_sam3.node.SAM3TrackerInference
       - cuvis_ai_sam3.node.SpectralSignatureExtractor
