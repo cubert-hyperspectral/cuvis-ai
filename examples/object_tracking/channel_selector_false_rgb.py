@@ -116,7 +116,7 @@ def inspect_dataset(cfg: DictConfig) -> None:
     )
     mask_overlay = MaskOverlayNode(name="mask_overlay")
     to_video = ToVideoNode(
-        output__video_path=str(output_dir / "false_rgb.mp4"),
+        output_video_path=str(output_dir / "false_rgb.mp4"),
         frame_rate=1,
         name="to_video",
     )
@@ -232,7 +232,7 @@ def run_experiment_mixer(cfg: DictConfig) -> None:
         execution_stages={ExecutionStage.INFERENCE},
     )
     to_video = ToVideoNode(
-        output__video_path=str(output_dir / "trained_false_rgb.mp4"),
+        output_video_path=str(output_dir / "trained_false_rgb.mp4"),
         frame_rate=10,
         name="to_video",
         execution_stages={ExecutionStage.INFERENCE},

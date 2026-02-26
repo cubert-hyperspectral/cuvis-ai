@@ -58,7 +58,7 @@ def test_to_video_node_writes_frames_across_forward_calls(
     tmp_path: Path,
 ) -> None:
     output_path = tmp_path / "video" / "false_rgb.mp4"
-    node = ToVideoNode(output__video_path=str(output_path), frame_rate=12.5)
+    node = ToVideoNode(output_video_path=str(output_path), frame_rate=12.5)
 
     batch = torch.tensor(
         [
@@ -89,7 +89,7 @@ def test_to_video_node_applies_minus_90_rotation(
     tmp_path: Path,
 ) -> None:
     node = ToVideoNode(
-        output__video_path=str(tmp_path / "rotated.mp4"),
+        output_video_path=str(tmp_path / "rotated.mp4"),
         frame_rate=10.0,
         frame_rotation=-90,
     )
@@ -110,7 +110,7 @@ def test_to_video_node_applies_plus_90_rotation_anticlockwise(
     tmp_path: Path,
 ) -> None:
     node = ToVideoNode(
-        output__video_path=str(tmp_path / "rotated_ccw.mp4"),
+        output_video_path=str(tmp_path / "rotated_ccw.mp4"),
         frame_rate=10.0,
         frame_rotation=90,
     )
@@ -130,7 +130,7 @@ def test_to_video_node_rejects_inconsistent_frame_sizes(
     mock_cv2_video_writer: list[_RecordingWriter],
     tmp_path: Path,
 ) -> None:
-    node = ToVideoNode(output__video_path=str(tmp_path / "size_mismatch.mp4"), frame_rate=10.0)
+    node = ToVideoNode(output_video_path=str(tmp_path / "size_mismatch.mp4"), frame_rate=10.0)
 
     node.forward(rgb_image=torch.zeros((1, 4, 5, 3), dtype=torch.float32))
     with pytest.raises(ValueError, match="share one size"):
@@ -139,12 +139,12 @@ def test_to_video_node_rejects_inconsistent_frame_sizes(
 
 def test_to_video_node_validates_frame_rate() -> None:
     with pytest.raises(ValueError, match="frame_rate"):
-        ToVideoNode(output__video_path="out.mp4", frame_rate=0.0)
+        ToVideoNode(output_video_path="out.mp4", frame_rate=0.0)
 
 
 def test_to_video_node_validates_frame_rotation() -> None:
     with pytest.raises(ValueError, match="frame_rotation"):
-        ToVideoNode(output__video_path="out.mp4", frame_rotation=45)
+        ToVideoNode(output_video_path="out.mp4", frame_rotation=45)
 
 
 def test_to_video_node_raises_when_writer_fails_to_open(
@@ -158,6 +158,6 @@ def test_to_video_node_raises_when_writer_fails_to_open(
     )
     monkeypatch.setattr(video_module.cv2, "VideoWriter_fourcc", lambda *_: 42)
 
-    node = ToVideoNode(output__video_path=str(tmp_path / "bad_writer.mp4"), frame_rate=8.0)
+    node = ToVideoNode(output_video_path=str(tmp_path / "bad_writer.mp4"), frame_rate=8.0)
     with pytest.raises(RuntimeError, match="Failed to open video writer"):
         node.forward(rgb_image=torch.zeros((1, 4, 4, 3), dtype=torch.float32))

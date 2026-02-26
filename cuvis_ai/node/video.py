@@ -21,7 +21,7 @@ class ToVideoNode(Node):
 
     Parameters
     ----------
-    output__video_path : str
+    output_video_path : str
         Output path for the generated video file (for example ``.mp4``).
     frame_rate : float, optional
         Video frame rate in frames per second. Must be positive. Default is ``10.0``.
@@ -52,7 +52,7 @@ class ToVideoNode(Node):
 
     def __init__(
         self,
-        output__video_path: str,
+        output_video_path: str,
         frame_rate: float = 10.0,
         frame_rotation: int | None = None,
         codec: str = "mp4v",
@@ -68,7 +68,7 @@ class ToVideoNode(Node):
                 "frame_rotation must be one of: None, 0, 90, -90, 180, -180, 270, -270"
             )
 
-        self.output_video_path = Path(output__video_path)
+        self.output_video_path = Path(output_video_path)
         self.frame_rate = float(frame_rate)
         self.frame_rotation = self._normalize_rotation(frame_rotation)
         self.codec = codec
@@ -78,7 +78,7 @@ class ToVideoNode(Node):
         self.output_video_path.parent.mkdir(parents=True, exist_ok=True)
 
         super().__init__(
-            output__video_path=output__video_path,
+            output_video_path=output_video_path,
             frame_rate=frame_rate,
             frame_rotation=frame_rotation,
             codec=codec,
