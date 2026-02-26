@@ -200,7 +200,7 @@ class ChannelSelectorBase(Node):
 
     def _per_frame_percentile_normalize(self, rgb: torch.Tensor) -> torch.Tensor:
         """Per-frame percentile normalization matching the running accumulation quantiles."""
-        flat = rgb.reshape(-1, 3)
+        flat = rgb.reshape(-1, 3).float()  # quantile() requires float/double
         lo = torch.quantile(flat, self._NORM_QUANTILE_LOW, dim=0).view(1, 1, 1, 3)
         hi = torch.quantile(flat, self._NORM_QUANTILE_HIGH, dim=0).view(1, 1, 1, 3)
         denom = (hi - lo).clamp_min(1e-8)
@@ -233,7 +233,7 @@ class ChannelSelectorBase(Node):
         normalization so the first frames look natural.  After warmup, switches
         to the accumulated bounds for temporal stability.
         """
-        flat = rgb.reshape(-1, 3)
+        flat = rgb.reshape(-1, 3).float()  # quantile() requires float/double
         frame_lo = torch.quantile(flat, self._NORM_QUANTILE_LOW, dim=0)  # [3]
         frame_hi = torch.quantile(flat, self._NORM_QUANTILE_HIGH, dim=0)  # [3]
 
@@ -285,7 +285,7 @@ class ChannelSelectorBase(Node):
         """
         for batch_data in input_stream:
             raw_rgb = self._compute_raw_rgb(batch_data["cube"], batch_data["wavelengths"])
-            flat = raw_rgb.reshape(-1, 3)
+            flat = raw_rgb.reshape(-1, 3).float()  # quantile() requires float/double
             frame_lo = torch.quantile(flat, self._NORM_QUANTILE_LOW, dim=0)
             frame_hi = torch.quantile(flat, self._NORM_QUANTILE_HIGH, dim=0)
 

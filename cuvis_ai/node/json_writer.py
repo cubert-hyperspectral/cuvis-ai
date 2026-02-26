@@ -116,6 +116,9 @@ class TrackingCocoJsonNode(Node):
 
         objects: list[dict[str, Any]] = []
         for idx, obj_id in enumerate(object_ids_list):
+            if int(obj_id) <= 0:
+                # Background/non-object IDs must not be exported as track annotations.
+                continue
             obj_mask = mask_2d.eq(int(obj_id))
             if not bool(obj_mask.any()):
                 continue

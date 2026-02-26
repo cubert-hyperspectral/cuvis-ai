@@ -126,6 +126,26 @@ def test_tracking_coco_json_validates_alignment(tmp_path: Path) -> None:
         )
 
 
+def test_tracking_coco_json_ignores_background_id_zero(tmp_path: Path) -> None:
+    json_path = tmp_path / "tracking_results.json"
+    node = TrackingCocoJsonNode(output_json_path=str(json_path), category_name="person")
+
+    node.forward(
+        **_build_inputs(
+            frame_idx=0,
+            mask_2d=torch.tensor([[0, 1], [0, 1]], dtype=torch.int32),
+            object_ids=[0, 1],
+            detection_scores=[0.99, 0.95],
+        )
+    )
+
+    parsed = _read_json(json_path)
+    assert len(parsed["annotations"]) == 1
+    ann = parsed["annotations"][0]
+    assert ann["track_id"] == 1
+    assert ann["score"] == pytest.approx(0.95)
+
+
 def test_tracking_coco_json_atomic_write_is_parseable(tmp_path: Path) -> None:
     json_path = tmp_path / "tracking_results.json"
     node = TrackingCocoJsonNode(
