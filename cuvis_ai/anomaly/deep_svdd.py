@@ -180,6 +180,8 @@ class DeepSVDDProjection(Node):
 class ZScoreNormalizerGlobal(Node):
     """Port-based Deep SVDD z-score normalizer for BHWC cubes."""
 
+    TRAINABLE_BUFFERS = ("zscore_mean", "zscore_std")
+
     INPUT_SPECS = {
         "data": PortSpec(
             dtype=torch.float32,
@@ -200,22 +202,16 @@ class ZScoreNormalizerGlobal(Node):
         self,
         *,
         num_channels: int,
-        sample_n: int = 500_000,
-        seed: int = 0,
         eps: float = 1e-8,
         **kwargs: Any,
     ) -> None:
         if num_channels <= 0:
             raise ValueError(f"num_channels must be positive, got {num_channels}")
         self.num_channels = int(num_channels)
-        self.sample_n = int(sample_n)
-        self.seed = int(seed)
         self.eps = float(eps)
 
         super().__init__(
             num_channels=self.num_channels,
-            sample_n=self.sample_n,
-            seed=self.seed,
             eps=self.eps,
             **kwargs,
         )
@@ -351,6 +347,8 @@ class DeepSVDDScores(Node):
 
 class DeepSVDDCenterTracker(Node):
     """Track and expose Deep SVDD center statistics with optional logging."""
+
+    TRAINABLE_BUFFERS = ("_tracked_center",)
 
     INPUT_SPECS = {
         "embeddings": PortSpec(

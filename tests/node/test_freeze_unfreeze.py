@@ -122,6 +122,9 @@ _NODE_CONFIGS: list[tuple[str, dict]] = [
     ("cuvis_ai.node.conversion:ScoreToLogit", {"init_scale": 1.0, "init_bias": 0.0}),
     ("cuvis_ai.anomaly.lad_detector:LADGlobal", {"num_channels": 10}),
     ("cuvis_ai.anomaly.rx_detector:RXGlobal", {"num_channels": 10}),
+    ("cuvis_ai.anomaly.deep_svdd:ZScoreNormalizerGlobal", {"num_channels": 10}),
+    ("cuvis_ai.anomaly.deep_svdd:DeepSVDDCenterTracker", {"rep_dim": 10}),
+    ("cuvis_ai.node.normalization:MinMaxNormalizer", {"eps": 1e-6, "use_running_stats": True}),
     (
         "cuvis_ai.node.channel_mixer:LearnableChannelMixer",
         {"input_channels": 10, "output_channels": 3},
@@ -153,6 +156,20 @@ def node_and_spec(request):
 def _get_trainable_names(node: nn.Module) -> tuple[str, ...]:
     """Get TRAINABLE_BUFFERS from a node, or infer from custom freeze/unfreeze."""
     return getattr(node, "TRAINABLE_BUFFERS", ())
+
+
+def _tensors_equal_nan_safe(a: torch.Tensor, b: torch.Tensor) -> bool:
+    """Compare tensors treating NaN == NaN as True."""
+    if a.shape != b.shape:
+        return False
+    nan_a = torch.isnan(a)
+    nan_b = torch.isnan(b)
+    if not torch.equal(nan_a, nan_b):
+        return False
+    mask = ~nan_a
+    if not mask.any():
+        return True
+    return torch.equal(a[mask], b[mask])
 
 
 def test_initial_state_is_frozen(node_and_spec) -> None:
@@ -244,7 +261,9 @@ def test_tensor_values_preserved(node_and_spec) -> None:
 
     for name in tb_names:
         current = getattr(node, name)
-        assert torch.equal(current, initial_values[name]), f"{name} values changed after round-trip"
+        assert _tensors_equal_nan_safe(current, initial_values[name]), (
+            f"{name} values changed after round-trip"
+        )
 
 
 def test_double_round_trip(node_and_spec) -> None:
@@ -262,6 +281,6 @@ def test_double_round_trip(node_and_spec) -> None:
 
     assert set(state_before.keys()) == set(state_after.keys())
     for key in state_before:
-        assert torch.equal(state_before[key], state_after[key]), (
+        assert _tensors_equal_nan_safe(state_before[key], state_after[key]), (
             f"Value for '{key}' changed after double round-trip"
         )
