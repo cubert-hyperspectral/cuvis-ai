@@ -40,6 +40,7 @@ jobs:
 
       - name: Run tests with coverage
         run: |
+          # Includes fast plugin compliance checks in tests/plugins/test_plugin_contracts.py
           uv run pytest tests/ \
             -m "not slow and not gpu" \
             --cov=cuvis_ai \

@@ -6,12 +6,12 @@ This guide documents the complete workflow for contributing AdaCLIP examples to 
 
 **Important:** Starting with Phase 5, AdaCLIP examples now use the **plugin system** instead of direct package installation. This aligns with the repository split architecture and eliminates the need for manual package installation.
 
-The AdaCLIP workflow follows a **plugin → train → copy → restore → use** pattern:
+The AdaCLIP workflow follows a **plugin → run script → copy artifacts → restore → use** pattern:
 
-1. **Load plugin**: Load AdaCLIP plugin from local repository using the NodeRegistry plugin system
-2. **Train**: Run training scripts that use the plugin to generate pipeline artifacts
-3. **Copy artifacts**: Copy the generated pipeline YAMLs and weights to `cuvis.ai/configs/pipeline/`
-4. **Create trainrun configs**: Create Hydra-based trainrun configs in `cuvis.ai/configs/trainrun/` that compose pipeline + data + training configs
+1. **Load plugin**: Load AdaCLIP plugin from `configs/plugins/adaclip.yaml`
+2. **Run script**: Execute example script(s) to generate reusable pipeline/trainrun artifacts in `outputs/.../trained_models/`
+3. **Copy artifacts**: Copy produced pipeline/trainrun YAMLs to `configs/pipeline/...` and `configs/trainrun/...`
+4. **Use configs**: Run `restore-trainrun` or `restore-pipeline` against shipped configs
 5. **Use in cuvis.ai**: Use `restore_trainrun` for training/validation/test or `restore_pipeline` for inference
 
 This workflow ensures that:
@@ -25,41 +25,34 @@ This workflow ensures that:
 
 ### Loading AdaCLIP Plugin
 
-All three AdaCLIP examples now use the plugin system. There are two approaches:
+All AdaCLIP examples in this folder use the plugin system. There are two approaches:
 
-#### Approach 1: Programmatic Loading (Used in Examples)
+#### Approach 1: Manifest-Based Loading (Used in Examples)
 
 ```python
 from cuvis_ai_core.utils.node_registry import NodeRegistry
 
-# IMPORTANT: Create a NodeRegistry instance first - load_plugin() is an instance method!
+# Create registry and load the AdaCLIP-only manifest
 registry = NodeRegistry()
-
-# Load AdaCLIP plugin from local development clone
-registry.load_plugin(
-    name="adaclip",
-    config={
-        "path": r"D:\code-repos\cuvis-ai-adaclip",
-        "provides": ["cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector"]
-    }
-)
+registry.load_plugins("configs/plugins/adaclip.yaml")
 
 # Get the AdaCLIPDetector class from the registry (get() works as both class and instance method)
 AdaCLIPDetector = NodeRegistry.get("cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector")
 ```
 
-**Key Point:** `load_plugin()` is an **instance method** (requires creating a `NodeRegistry` instance first), while `get()` works as both a class and instance method. This is by design from Phase 4's hybrid architecture:
+**Key Point:** `load_plugins()` and `load_plugin()` are **instance methods** (require creating a `NodeRegistry` instance first), while `get()` works as both a class and instance method. This is by design from Phase 4's hybrid architecture:
 - Built-in nodes: accessed via class method `NodeRegistry.get("MinMaxNormalizer")`
 - Plugin nodes: require instance-based loading first, then can be accessed via class method `NodeRegistry.get("plugin.node.Class")`
 
-#### Approach 2: Manifest-Based Loading
+#### Approach 2: Direct Single-Plugin Loading
 
-Create a `plugins.yaml` file (see `examples/adaclip/plugins.yaml`):
+Use direct `load_plugin(...)`:
 
 ```yaml
 plugins:
   adaclip:
-    path: "D:/code-repos/cuvis-ai-adaclip"
+    repo: "https://github.com/cubert-hyperspectral/cuvis-ai-adaclip.git"
+    tag: "nima/features/consolidation"
     provides:
       - cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
 ```
@@ -69,12 +62,21 @@ Then load it in your script:
 ```python
 from cuvis_ai_core.utils.node_registry import NodeRegistry
 
-# Load plugins from manifest
-NodeRegistry.load_plugins("examples/adaclip/plugins.yaml")
+# Load AdaCLIP plugin directly
+registry = NodeRegistry()
+registry.load_plugin(
+    name="adaclip",
+    config={
+        "path": r"D:\code-repos\cuvis-ai-adaclip\cuvis-ai-adaclip-consolidation",
+        "provides": ["cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector"],
+    },
+)
 
 # Get the AdaCLIPDetector class
 AdaCLIPDetector = NodeRegistry.get("cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector")
 ```
+
+For load-all behavior, use the central registry at `configs/plugins/registry.yaml`.
 
 ### Prerequisites
 
@@ -86,7 +88,7 @@ AdaCLIPDetector = NodeRegistry.get("cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDe
    git clone https://github.com/cubert-hyperspectral/cuvis-ai-adaclip.git
    ```
 
-2. Ensure the path in the examples matches your local clone location. If your clone is elsewhere, update the `path` parameter in the plugin loading code.
+2. Ensure `configs/plugins/adaclip.yaml` points to the plugin source you want to validate.
 
 3. No manual installation needed - the plugin system handles everything!
 
@@ -106,11 +108,14 @@ uv run python examples/adaclip/concrete_adaclip_gradient_training.py
 
 # Example 3: PCA + AdaCLIP baseline (no gradient training)
 uv run python examples/adaclip/pca_adaclip_baseline.py
+
+# Example 4: CIR false-color optimal-threshold statistical workflow
+uv run python examples/adaclip/statistical_cir_false_color_optimal_threshold.py
 ```
 
 **Note:** The plugin loading happens automatically at the start of each script. You'll see:
 ```
-Loading AdaCLIP plugin from local repository...
+Loading AdaCLIP plugin from manifest: configs/plugins/adaclip.yaml
 ✓ AdaCLIP plugin loaded successfully
 ```
 
@@ -130,9 +135,16 @@ cp AdaCLIP-cuvis/outputs/adaclip_baseline/trained_models/adaclip_baseline.yaml \
 
 cp AdaCLIP-cuvis/outputs/adaclip_baseline/trained_models/adaclip_baseline.pt \
    cuvis.ai/configs/pipeline/anomaly/adaclip/adaclip_baseline.pt
+
+# Copy reusable optimal-threshold artifacts produced by the script
+copy /Y outputs\adaclip_cir_false_color_optimal_threshold\trained_models\AdaCLIP_CIR_FalseColor_OptimalThreshold.yaml ^
+  configs\pipeline\anomaly\adaclip\adaclip_cir_false_color_optimal_threshold.yaml
+
+copy /Y outputs\adaclip_cir_false_color_optimal_threshold\trained_models\adaclip_cir_false_color_optimal_threshold_trainrun.yaml ^
+  configs\trainrun\adaclip_cir_false_color_optimal_threshold.yaml
 ```
 
-**Important:** The pipeline YAML should be the **complete** `PipelineConfig` (with nodes, connections, metadata) extracted from the trained pipeline, not just parameters.
+**Important:** The script generates artifacts in `outputs/.../trained_models/`. Shipping to `configs/` is an explicit copy step.
 
 ### Step 3: Create Trainrun Config with Hydra Defaults
 

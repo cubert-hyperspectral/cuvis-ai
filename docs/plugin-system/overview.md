@@ -313,18 +313,18 @@ uv run restore-pipeline --pipeline-path configs/pipeline/anomaly/adaclip/adaclip
 # Load plugins from manifest
 uv run restore-pipeline \
     --pipeline-path configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml \
-    --plugins-path examples/adaclip/plugins.yaml
+    --plugins-path configs/plugins/registry.yaml
 
 # Run inference with plugins
 uv run restore-pipeline \
     --pipeline-path configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml \
-    --plugins-path examples/adaclip/plugins.yaml \
+    --plugins-path configs/plugins/registry.yaml \
     --cu3s-file-path data/test_sample.cu3s
 
 # Export pipeline visualization
 uv run restore-pipeline \
     --pipeline-path configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml \
-    --plugins-path examples/adaclip/plugins.yaml \
+    --plugins-path configs/plugins/registry.yaml \
     --pipeline-vis-ext png
 ```
 

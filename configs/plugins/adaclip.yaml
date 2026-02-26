@@ -1,0 +1,15 @@
+# AdaCLIP Plugin Manifest (selective load convenience)
+#
+# Canonical source of truth for plugin entries remains:
+#   configs/plugins/registry.yaml
+#
+# Use this file when you want to load only AdaCLIP:
+#   uv run restore-pipeline --plugins-path configs/plugins/adaclip.yaml
+
+plugins:
+  adaclip:
+    # AdaCLIP-based anomaly detection with advanced band selection
+    repo: "https://github.com/cubert-hyperspectral/cuvis-ai-adaclip.git"
+    tag: "v0.1.2"
+    provides:
+      - cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector

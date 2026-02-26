@@ -6,6 +6,7 @@ nodes:
     normal_class_ids:
     - 0
     - 1
+    anomaly_class_ids: null
 - name: CIRSelector
   class_name: cuvis_ai.node.channel_selector.CIRSelector
   hparams:
@@ -33,6 +34,7 @@ nodes:
     top_k_fraction: 0.001
     quantile: 0.995
     reduce_dims: null
+    threshold: 0.5
 - name: ScoreHeatmapVisualizer
   class_name: cuvis_ai.node.anomaly_visualization.ScoreHeatmapVisualizer
   hparams:
@@ -50,7 +52,7 @@ nodes:
 - name: TensorBoardMonitorNode
   class_name: cuvis_ai.node.monitor.TensorBoardMonitorNode
   hparams:
-    output_dir: outputs\tensorboard
+    output_dir: outputs\adaclip_cir_false_color_optimal_threshold\tensorboard
     run_name: AdaCLIP_CIR_FalseColor_OptimalThreshold
     comment: ''
     flush_secs: 120
@@ -85,9 +87,8 @@ connections:
   target: TensorBoardMonitorNode.inputs.metrics
 metadata:
   name: AdaCLIP_CIR_FalseColor_OptimalThreshold
-  description: "Statistical AdaCLIP CIR false-color pipeline with optimal threshold\
-    \ (LentilsAnomalyDataNode \u2192 CIRSelector \u2192 AdaCLIPDetector\
-    \ \u2192 TwoStageBinaryDecider)"
+  description: Statistical AdaCLIP CIR false-color pipeline with optimal threshold
+    (LentilsAnomalyDataNode -> CIRSelector -> AdaCLIPDetector -> TwoStageBinaryDecider)
   created: ''
   tags:
   - statistical
@@ -96,4 +97,4 @@ metadata:
   - optimal_threshold
   - two_stage
   author: cuvis.ai
-  cuvis_ai_version: 0.1.5.post40+g5d4ea80af.d20260105
+  cuvis_ai_version: 0.1.0

@@ -53,28 +53,14 @@ def main(cfg: DictConfig) -> None:
 
     logger.info("=== Concrete Band Selector + AdaClip Gradient Training ===")
 
-    # Load AdaCLIP plugin from GitLab repository
-    logger.info("Loading AdaCLIP plugin from GitLab repository...")
+    # Load AdaCLIP plugin from selective manifest
+    plugins_manifest = Path(__file__).resolve().parents[2] / "configs" / "plugins" / "adaclip.yaml"
+    logger.info(f"Loading AdaCLIP plugin from manifest: {plugins_manifest}")
 
-    # Create a NodeRegistry instance for plugin loading
     registry = NodeRegistry()
-    registry.load_plugin(
-        name="adaclip",
-        config={
-            "repo": "https://github.com/cubert-hyperspectral/cuvis-ai-adaclip.git",
-            "tag": "v0.1.0",  # Tagged release for production stability
-            "provides": ["cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector"],
-        },
-    )
-
-    # For local development, comment out above and use:
-    # registry.load_plugin(
-    #     name="adaclip",
-    #     config={
-    #         "path": r"D:\code-repos\cuvis-ai-adaclip",
-    #         "provides": ["cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector"]
-    #     }
-    # )
+    registry.load_plugins(plugins_manifest)
+    if "adaclip" not in registry.plugin_configs:
+        raise KeyError("Plugin 'adaclip' not found in configs/plugins/adaclip.yaml")
 
     # Get the AdaCLIPDetector class from the registry (class method works for both built-ins and plugins)
     AdaCLIPDetector = NodeRegistry.get("cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector")
