@@ -14,8 +14,8 @@ authors = [
 ]
 dependencies = [
     "cuvis>=3.5.0",
-    "cuvis-ai-core>=0.1.2",  # Resolved from PyPI when available, or local path via [tool.uv.sources]
-    "cuvis-ai-schemas[full]>=0.1.0",
+    "cuvis-ai-core>=0.2.0",
+    "cuvis-ai-schemas[full]>=0.2.0",
     "pydantic>=2.0.0,<3.0.0",
     "imantics",
     "ftfy>=6.1.1",
@@ -112,9 +112,6 @@ include = ["cuvis_ai*", "tools*", "scripts*"]
 [tool.uv.sources]
 torch = { index = "pytorch-cu128" }
 torchvision = { index = "pytorch-cu128" }
-cuvis-ai-schemas = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-schemas.git", branch = "main" }
-# cuvis-ai-core = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-core.git", branch = "nima/features/sam3-plugin-setup" }
-cuvis-ai-core = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-core.git", branch = "main" }
 
 [tool.setuptools_scm]
 version_scheme = "post-release"

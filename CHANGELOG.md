@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## 0.4.0 - 2026-02-27
+
 - Added reusable `WelfordAccumulator` utility (`cuvis_ai.utils.welford`) for streaming mean/variance/covariance
 - Added `resolve_reduce_dims()` as shared module-level utility in `binary_decider`
 - Added `TRAINABLE_BUFFERS` class attribute — 5 nodes declare trainable buffers, base class handles buffer↔parameter conversion in freeze/unfreeze automatically
