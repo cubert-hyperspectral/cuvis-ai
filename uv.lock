@@ -652,8 +652,8 @@ dependencies = [
 
 [[package]]
 name = "cuvis-ai-schemas"
-version = "0.1.3.post4+gdc632014b"
-source = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-schemas.git?branch=main#dc632014b40585b05301ba52bc4068b7ca805705" }
+version = "0.1.3.post5+g97c807401"
+source = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-schemas.git?branch=main#97c8074017b0b1389bbff5fa28d7ef522a4fc8de" }
 dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
