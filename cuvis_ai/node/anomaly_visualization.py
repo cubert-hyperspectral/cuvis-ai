@@ -17,10 +17,10 @@ from loguru import logger
 from PIL import Image, ImageDraw, ImageFont
 from torchmetrics.functional.classification import binary_average_precision
 
+from cuvis_ai.utils.torch_draw import draw_box, id_to_color, overlay_instances
 from cuvis_ai.utils.vis_helpers import (
     create_mask_overlay,
     fig_to_array,
-    render_multi_object_overlay,
     tensor_to_numpy,
 )
 
@@ -965,7 +965,7 @@ class TrackingOverlayNode(Node):
 
     Converts a SAM3-style label map (``mask``) into per-object binary masks and
     renders a coloured overlay with optional contour lines and object-ID labels
-    using :func:`cuvis_ai.utils.vis_helpers.render_multi_object_overlay`.
+    using :func:`cuvis_ai.utils.torch_draw.overlay_instances`.
 
     Parameters
     ----------
@@ -1048,27 +1048,129 @@ class TrackingOverlayNode(Node):
         dict
             ``{"rgb_with_overlay": torch.Tensor [1, H, W, 3] float32 in [0, 1]}``
         """
-        frame_np = (rgb_image[0].cpu().numpy() * 255.0).clip(0, 255).astype(np.uint8)
-        mask_np = mask[0].cpu().numpy()  # [H, W] int32
+        frame_u8 = (rgb_image[0].clamp(0.0, 1.0) * 255.0).to(torch.uint8)  # [H, W, 3]
+        # Align mask/object-id tensors to the image device. Some upstream nodes can
+        # emit CPU tensors even when the visualization path runs on CUDA.
+        mask_t = mask[0].to(frame_u8.device)  # [H, W] int32
+        present_ids_t = torch.unique(mask_t)
+        present_ids_t = present_ids_t[present_ids_t > 0]
 
         if object_ids is not None:
             # Some trackers include background label 0 in object_ids; never render it.
-            ids = [int(i) for i in object_ids[0].cpu().tolist() if int(i) > 0]
+            filtered_ids = object_ids[0].to(mask_t.device)
+            filtered_ids = filtered_ids[filtered_ids > 0]
+            if present_ids_t.numel() > 0:
+                filtered_ids = filtered_ids[torch.isin(filtered_ids, present_ids_t)]
+            else:
+                filtered_ids = filtered_ids[:0]
+            ids = []
+            seen: set[int] = set()
+            for raw_id in filtered_ids.tolist():
+                obj_id = int(raw_id)
+                if obj_id in seen:
+                    continue
+                seen.add(obj_id)
+                ids.append(obj_id)
         else:
-            ids = [int(i) for i in np.unique(mask_np) if i != 0]
+            ids = [int(v) for v in present_ids_t.tolist()]
 
-        per_obj_masks: list[tuple[int, np.ndarray]] = [(oid, mask_np == oid) for oid in ids]
+        per_obj_masks: list[tuple[int, torch.Tensor]] = [(oid, mask_t == oid) for oid in ids]
 
-        rendered = render_multi_object_overlay(
-            frame_np,
+        rendered = overlay_instances(
+            frame_u8,
             per_obj_masks,
             alpha=self.alpha,
-            draw_contours=self.draw_contours,
+            draw_edges=self.draw_contours,
             draw_ids=self.draw_ids,
         )
 
-        out = torch.from_numpy(rendered).float() / 255.0  # [H, W, 3]
+        out = rendered.to(torch.float32) / 255.0  # [H, W, 3]
         return {"rgb_with_overlay": out.unsqueeze(0)}  # [1, H, W, 3]
+
+
+def render_bboxes_overlay_torch(
+    rgb_image: torch.Tensor,
+    bboxes: torch.Tensor,
+    category_ids: torch.Tensor,
+    line_thickness: int = 2,
+) -> torch.Tensor:
+    """Render bbox edges on RGB frames using pure torch drawing primitives."""
+    out = (rgb_image.clamp(0.0, 1.0) * 255.0).to(torch.uint8).clone()
+    frame = out[0]  # [H, W, 3]
+
+    num_boxes = int(bboxes.shape[1])
+    if num_boxes == 0:
+        return out.to(torch.float32) / 255.0
+
+    classes = category_ids[0].to(torch.int64)
+    colors = id_to_color(classes)
+    n = min(num_boxes, int(colors.shape[0]))
+    thickness = max(1, int(line_thickness))
+
+    for i in range(n):
+        x1, y1, x2, y2 = [int(v) for v in bboxes[0, i].round().tolist()]
+        draw_box(frame, (x1, y1, x2, y2), colors[i], thickness=thickness)
+
+    return out.to(torch.float32) / 255.0
+
+
+class BBoxesOverlayNode(Node):
+    """Torch-only bounding-box overlay renderer for YOLO-style detections."""
+
+    INPUT_SPECS = {
+        "rgb_image": PortSpec(
+            dtype=torch.float32,
+            shape=(1, -1, -1, 3),
+            description="RGB frame [1, H, W, 3] in [0, 1].",
+        ),
+        "bboxes": PortSpec(
+            dtype=torch.float32,
+            shape=(1, -1, 4),
+            description="Bounding boxes [1, N, 4] in xyxy.",
+        ),
+        "category_ids": PortSpec(
+            dtype=torch.int64,
+            shape=(1, -1),
+            description="Category IDs [1, N].",
+        ),
+        "confidences": PortSpec(
+            dtype=torch.float32,
+            shape=(1, -1),
+            description="Optional confidences [1, N].",
+            optional=True,
+        ),
+    }
+
+    OUTPUT_SPECS = {
+        "rgb_with_overlay": PortSpec(
+            dtype=torch.float32,
+            shape=(1, -1, -1, 3),
+            description="RGB frame with bbox overlays [1, H, W, 3] in [0, 1].",
+        ),
+    }
+
+    def __init__(self, line_thickness: int = 2, **kwargs) -> None:
+        self.line_thickness = int(line_thickness)
+        super().__init__(line_thickness=line_thickness, **kwargs)
+
+    @torch.no_grad()
+    def forward(
+        self,
+        rgb_image: torch.Tensor,
+        bboxes: torch.Tensor,
+        category_ids: torch.Tensor,
+        confidences: torch.Tensor | None = None,  # noqa: ARG002
+        **_,
+    ) -> dict[str, torch.Tensor]:
+        """Overlay bbox edges with deterministic per-class colors."""
+        return {
+            "rgb_with_overlay": render_bboxes_overlay_torch(
+                rgb_image=rgb_image,
+                bboxes=bboxes,
+                category_ids=category_ids,
+                line_thickness=self.line_thickness,
+            )
+        }
 
 
 def _diverging_colormap(t: torch.Tensor) -> torch.Tensor:
@@ -1288,6 +1390,7 @@ class ChannelWeightsViz(ImageArtifactVizBase):
 __all__ = [
     "ImageArtifactVizBase",
     "ChannelWeightsViz",
+    "BBoxesOverlayNode",
     "AnomalyMask",
     "RGBAnomalyMask",
     "ScoreHeatmapVisualizer",

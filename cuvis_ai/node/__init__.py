@@ -2,6 +2,7 @@
 
 from cuvis_ai.node.anomaly_visualization import (
     AnomalyMask,
+    BBoxesOverlayNode,
     ChannelSelectorFalseRGBViz,
     ChannelWeightsViz,
     ImageArtifactVizBase,
@@ -28,7 +29,7 @@ from cuvis_ai.node.channel_selector import (
     TopKIndices,
 )
 from cuvis_ai.node.dimensionality_reduction import TrainablePCA
-from cuvis_ai.node.json_writer import TrackingCocoJsonNode
+from cuvis_ai.node.json_writer import DetectionCocoJsonNode, TrackingCocoJsonNode
 from cuvis_ai.node.labels import BinaryAnomalyLabelMapper
 from cuvis_ai.node.losses import DistinctnessLoss, ForegroundContrastLoss
 from cuvis_ai.node.normalization import IdentityNormalizer, MinMaxNormalizer, SigmoidNormalizer
@@ -43,6 +44,7 @@ from cuvis_ai.node.video import ToVideoNode
 __all__ = [
     "AnomalyMask",
     "BandpassByWavelength",
+    "BBoxesOverlayNode",
     "BinaryAnomalyLabelMapper",
     "CameraEmulationFalseRGBSelector",
     "ChannelSelectorBase",
@@ -52,6 +54,7 @@ __all__ = [
     "CIRSelector",
     "ConcreteChannelMixer",
     "CubeRGBVisualizer",
+    "DetectionCocoJsonNode",
     "DistinctnessLoss",
     "FixedWavelengthSelector",
     "ForegroundContrastLoss",

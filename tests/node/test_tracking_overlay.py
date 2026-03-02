@@ -218,3 +218,65 @@ def test_forward_inside_no_grad() -> None:
             object_ids=torch.tensor([[1]], dtype=torch.int64),
         )
     assert out["rgb_with_overlay"].shape == rgb.shape
+
+
+def test_output_device_matches_input_cpu() -> None:
+    node = TrackingOverlayNode(draw_contours=False, draw_ids=False)
+    rgb = torch.rand((1, 8, 8, 3), dtype=torch.float32, device="cpu")
+    mask = torch.zeros((1, 8, 8), dtype=torch.int32, device=rgb.device)
+    mask[0, :4, :] = 1
+    out = node.forward(
+        rgb_image=rgb,
+        mask=mask,
+        object_ids=torch.tensor([[1]], dtype=torch.int64, device=rgb.device),
+    )
+    assert out["rgb_with_overlay"].device == rgb.device
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+def test_output_device_matches_input_cuda() -> None:
+    node = TrackingOverlayNode(draw_contours=False, draw_ids=False)
+    rgb = torch.rand((1, 8, 8, 3), dtype=torch.float32, device="cuda")
+    mask = torch.zeros((1, 8, 8), dtype=torch.int32, device=rgb.device)
+    mask[0, :4, :] = 1
+    out = node.forward(
+        rgb_image=rgb,
+        mask=mask,
+        object_ids=torch.tensor([[1]], dtype=torch.int64, device=rgb.device),
+    )
+    assert out["rgb_with_overlay"].device == rgb.device
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+def test_cuda_rgb_with_cpu_mask_is_supported() -> None:
+    node = TrackingOverlayNode(draw_contours=False, draw_ids=False)
+    rgb = torch.rand((1, 8, 8, 3), dtype=torch.float32, device="cuda")
+    # Simulate upstream CPU-emitted tracker mask/object_ids.
+    mask_cpu = torch.zeros((1, 8, 8), dtype=torch.int32, device="cpu")
+    mask_cpu[0, :4, :] = 1
+    ids_cpu = torch.tensor([[1]], dtype=torch.int64, device="cpu")
+    out = node.forward(rgb_image=rgb, mask=mask_cpu, object_ids=ids_cpu)
+    assert out["rgb_with_overlay"].device == rgb.device
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+def test_cpu_cuda_outputs_close() -> None:
+    torch.manual_seed(23)
+    node = TrackingOverlayNode(alpha=0.6, draw_ids=False, draw_contours=True)
+    rgb_cpu = torch.rand((1, 10, 12, 3), dtype=torch.float32)
+    mask_cpu = torch.zeros((1, 10, 12), dtype=torch.int32)
+    mask_cpu[0, :5, :] = 2
+    ids_cpu = torch.tensor([[2]], dtype=torch.int64)
+
+    out_cpu = node.forward(rgb_image=rgb_cpu, mask=mask_cpu, object_ids=ids_cpu)["rgb_with_overlay"]
+
+    rgb_cuda = rgb_cpu.to("cuda")
+    mask_cuda = mask_cpu.to("cuda")
+    ids_cuda = ids_cpu.to("cuda")
+    out_cuda = node.forward(rgb_image=rgb_cuda, mask=mask_cuda, object_ids=ids_cuda)[
+        "rgb_with_overlay"
+    ].cpu()
+    torch.testing.assert_close(out_cpu, out_cuda, atol=1 / 255, rtol=0.0)
