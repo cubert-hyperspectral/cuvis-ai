@@ -131,7 +131,7 @@ jobs:
 
     steps:
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: dist-packages
           path: dist/
@@ -160,7 +160,7 @@ jobs:
 
     steps:
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: dist-packages
           path: dist/
@@ -182,13 +182,13 @@ jobs:
           fetch-depth: 0
 
       - name: Download dist packages
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: dist-packages
           path: dist/
 
       - name: Download compliance reports
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: compliance-reports
           path: compliance/
