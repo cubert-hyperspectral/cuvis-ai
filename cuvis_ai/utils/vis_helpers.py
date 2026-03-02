@@ -5,10 +5,11 @@ from __future__ import annotations
 from io import BytesIO
 from typing import TYPE_CHECKING
 
-import cv2
 import numpy as np
 import torch
 from PIL import Image
+
+from cuvis_ai.utils.torch_draw import overlay_instances
 
 if TYPE_CHECKING:
     import matplotlib.figure
@@ -177,62 +178,33 @@ def render_multi_object_overlay(
     contour_thickness : int
         Pixel width of contour lines (default 2).
     font_scale : float
-        ``cv2.putText`` font scale (default 0.7).
+        Legacy text scale knob (default 0.7). Mapped to bitmap font scale.
     font_thickness : int
-        ``cv2.putText`` font thickness (default 2).
+        Legacy text thickness knob (default 2). Mapped to bitmap font scale.
 
     Returns
     -------
     np.ndarray
         Copy of *frame* with overlays, same shape and dtype.
     """
-    out = frame.copy()
+    # Map legacy cv2 knobs to bitmap-font text scale so callers keep control.
+    text_scale = max(
+        1,
+        int(round(max(0.1, float(font_scale)) * 3.0 + 0.5 * max(0, int(font_thickness) - 1))),
+    )
 
-    for obj_id, mask in masks:
-        binary = (mask > 0).astype(np.uint8)
-        if not binary.any():
-            continue
-
-        color = object_color(obj_id)
-
-        # Alpha-blend the tint on foreground pixels.
-        fg = binary[..., np.newaxis].astype(np.float32)
-        tint = np.array(color, dtype=np.float32)
-        blended = (1.0 - alpha * fg) * out.astype(np.float32) + alpha * fg * tint
-        out = np.clip(blended, 0, 255).astype(np.uint8)
-
-        if draw_contours:
-            contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            cv2.drawContours(out, contours, -1, color, contour_thickness)
-
-        if draw_ids:
-            # Place label above the top of the mask bounding box.
-            ys, xs = np.where(binary)
-            x_min, y_min = int(xs.min()), int(ys.min())
-            label = str(obj_id)
-            (tw, th), _ = cv2.getTextSize(
-                label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, font_thickness
-            )
-            # Background rectangle for readability.
-            pad = 4
-            rx1 = max(x_min - 1, 0)
-            ry1 = max(y_min - th - 2 * pad, 0)
-            rx2 = rx1 + tw + 2 * pad
-            ry2 = ry1 + th + 2 * pad
-            cv2.rectangle(out, (rx1, ry1), (rx2, ry2), color, cv2.FILLED)
-            # White text for contrast.
-            cv2.putText(
-                out,
-                label,
-                (rx1 + pad, ry2 - pad),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                font_scale,
-                (255, 255, 255),
-                font_thickness,
-                cv2.LINE_AA,
-            )
-
-    return out
+    img_t = torch.from_numpy(frame.copy())
+    masks_t = [(int(obj_id), torch.from_numpy(mask > 0)) for obj_id, mask in masks]
+    result = overlay_instances(
+        img_t,
+        masks_t,
+        alpha=alpha,
+        draw_edges=draw_contours,
+        draw_ids=draw_ids,
+        edge_thickness=int(contour_thickness),
+        text_scale=text_scale,
+    )
+    return result.numpy()
 
 
 __all__ = [
