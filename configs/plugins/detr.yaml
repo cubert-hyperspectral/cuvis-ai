@@ -1,0 +1,7 @@
+plugins:
+  detr:
+    path: "D:/code-repos/cuvis-ai-detr/detr-init"
+    provides:
+      - cuvis_ai_detr.node.RTDETRDetection
+      - cuvis_ai_detr.node.RTDETRPostprocess
+      - cuvis_ai_detr.node.CategoryFilterNode

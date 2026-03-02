@@ -1,8 +1,8 @@
-"""SAM3 HSI object tracking: CU3S -> CIE false RGB -> pipeline-based SAM3 inference.
+"""SAM3 HSI object tracking: CU3S -> range-averaged false RGB -> SAM3 inference.
 
 Outputs:
 - tracking_results.json   COCO-format annotations with RLE masks, bboxes, scores
-- tracking_overlay.mp4    CIE false RGB frames with coloured mask overlays
+- tracking_overlay.mp4    Range-averaged false RGB frames with coloured mask overlays
 """
 
 from __future__ import annotations
@@ -100,6 +100,32 @@ def _resolve_processing_mode(processing_mode: str) -> str:
     show_default=True,
     help="SAM3 overlap suppression threshold (higher is less suppressive).",
 )
+@click.option(
+    "--max-tracker-states",
+    type=int,
+    default=5,
+    show_default=True,
+    help="Maximum number of active tracker states (lower is faster, higher improves ID continuity for new arrivals).",
+)
+@click.option(
+    "--state-diagnostics/--no-state-diagnostics",
+    default=False,
+    show_default=True,
+    help="Enable periodic internal state-size debug logs from SAM3 tracker node.",
+)
+@click.option(
+    "--progress-log-interval",
+    type=int,
+    default=50,
+    show_default=True,
+    help="Emit a tracker progress log every N frames (0 disables periodic progress logs).",
+)
+@click.option(
+    "--confirmed-output/--tentative-output",
+    default=True,
+    show_default=True,
+    help="Use confirmed tracker outputs for JSON/video sinks (more reliable, fewer false positives).",
+)
 def main(
     cu3s_path: Path,
     processing_mode: str,
@@ -116,6 +142,10 @@ def main(
     new_det_thresh: float,
     det_nms_thresh: float,
     overlap_suppress_thresh: float,
+    max_tracker_states: int,
+    state_diagnostics: bool,
+    progress_log_interval: int,
+    confirmed_output: bool,
 ) -> None:
     """Run SAM3 HSI tracking using a CuvisPipeline plus core Predictor."""
     if end_frame == 0 or end_frame < -1:
@@ -128,6 +158,10 @@ def main(
     ):
         if not (0.0 <= float(value) <= 1.0):
             raise click.BadParameter(f"{option_name} must be in [0, 1].")
+    if max_tracker_states < 1:
+        raise click.BadParameter("--max-tracker-states must be >= 1.")
+    if progress_log_interval < 0:
+        raise click.BadParameter("--progress-log-interval must be >= 0.")
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -142,7 +176,7 @@ def main(
 
     logger.info("CU3S: {}", cu3s_path)
     logger.info("Processing mode: {}", resolved_mode)
-    logger.info("False RGB: CIE tristimulus")
+    logger.info("False RGB: range-averaged (R:580-650, G:500-580, B:420-500 nm)")
     logger.info("Prompt: '{}'", prompt)
     logger.info("Output: {}", output_dir)
     logger.info("Device: {}", device)
@@ -153,7 +187,7 @@ def main(
     from cuvis_ai_core.utils.node_registry import NodeRegistry
 
     from cuvis_ai.node.anomaly_visualization import TrackingOverlayNode
-    from cuvis_ai.node.channel_selector import CIETristimulusFalseRGBSelector
+    from cuvis_ai.node.channel_selector import RangeAverageFalseRGBSelector
     from cuvis_ai.node.data import CU3SDataNode
     from cuvis_ai.node.video import ToVideoNode
 
@@ -197,35 +231,53 @@ def main(
     pipeline = CuvisPipeline("SAM3_HSI_Tracking")
 
     cu3s_data = CU3SDataNode(name="cu3s_data")
-    false_rgb = CIETristimulusFalseRGBSelector(name="cie_false_rgb")
+    false_rgb = RangeAverageFalseRGBSelector(name="range_average_false_rgb")
     sam3_tracker = sam3_tracker_cls(
         checkpoint_path=str(checkpoint_path) if checkpoint_path else None,
         prompt_text=prompt,
+        score_threshold_detection=float(score_threshold_detection),
+        new_det_thresh=float(new_det_thresh),
+        det_nms_thresh=float(det_nms_thresh),
+        overlap_suppress_thresh=float(overlap_suppress_thresh),
+        max_tracker_states=int(max_tracker_states),
+        enable_state_diagnostics=bool(state_diagnostics),
+        progress_log_interval=int(progress_log_interval),
         compile_model=compile_model,
         name="sam3_tracker",
     )
-    tracker_model = getattr(sam3_tracker, "_model", None)
-    if tracker_model is None:
-        logger.warning("Could not access SAM3 internal model; threshold overrides were skipped.")
-    else:
-        tracker_model.score_threshold_detection = float(score_threshold_detection)
-        tracker_model.new_det_thresh = float(new_det_thresh)
-        tracker_model.det_nms_thresh = float(det_nms_thresh)
-        tracker_model.suppress_overlapping_based_on_recent_occlusion_threshold = float(
-            overlap_suppress_thresh
-        )
-        logger.info(
-            "SAM3 thresholds: score_threshold_detection={}, new_det_thresh={}, "
-            "det_nms_thresh={}, overlap_suppress_thresh={}",
-            score_threshold_detection,
-            new_det_thresh,
-            det_nms_thresh,
-            overlap_suppress_thresh,
-        )
+    logger.info(
+        "SAM3 thresholds: score_threshold_detection={}, new_det_thresh={}, "
+        "det_nms_thresh={}, overlap_suppress_thresh={}, max_tracker_states={}, "
+        "state_diagnostics={}, progress_log_interval={}",
+        score_threshold_detection,
+        new_det_thresh,
+        det_nms_thresh,
+        overlap_suppress_thresh,
+        max_tracker_states,
+        state_diagnostics,
+        progress_log_interval,
+    )
     tracking_json = TrackingCocoJsonNode(
         output_json_path=str(output_dir / "tracking_results.json"),
         category_name=prompt,
         name="tracking_coco_json",
+    )
+    output_mask_port = (
+        sam3_tracker.outputs.confirmed_mask if confirmed_output else sam3_tracker.outputs.mask
+    )
+    output_ids_port = (
+        sam3_tracker.outputs.confirmed_object_ids
+        if confirmed_output
+        else sam3_tracker.outputs.object_ids
+    )
+    output_scores_port = (
+        sam3_tracker.outputs.confirmed_detection_scores
+        if confirmed_output
+        else sam3_tracker.outputs.detection_scores
+    )
+    logger.info(
+        "Sink outputs: {} tracks",
+        "confirmed" if confirmed_output else "tentative",
     )
 
     pipeline.connect(
@@ -233,9 +285,9 @@ def main(
         (cu3s_data.outputs.wavelengths, false_rgb.inputs.wavelengths),
         (false_rgb.outputs.rgb_image, sam3_tracker.inputs.rgb_frame),
         (sam3_tracker.outputs.frame_id, tracking_json.inputs.frame_id),
-        (sam3_tracker.outputs.mask, tracking_json.inputs.mask),
-        (sam3_tracker.outputs.object_ids, tracking_json.inputs.object_ids),
-        (sam3_tracker.outputs.detection_scores, tracking_json.inputs.detection_scores),
+        (output_mask_port, tracking_json.inputs.mask),
+        (output_ids_port, tracking_json.inputs.object_ids),
+        (output_scores_port, tracking_json.inputs.detection_scores),
     )
 
     overlay_node = TrackingOverlayNode(alpha=0.2, name="overlay")
@@ -248,8 +300,8 @@ def main(
     )
     pipeline.connect(
         (false_rgb.outputs.rgb_image, overlay_node.inputs.rgb_image),
-        (sam3_tracker.outputs.mask, overlay_node.inputs.mask),
-        (sam3_tracker.outputs.object_ids, overlay_node.inputs.object_ids),
+        (output_mask_port, overlay_node.inputs.mask),
+        (output_ids_port, overlay_node.inputs.object_ids),
         (overlay_node.outputs.rgb_with_overlay, to_video.inputs.rgb_image),
     )
 

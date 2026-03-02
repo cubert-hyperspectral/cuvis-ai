@@ -30,7 +30,9 @@ def _read_json(path: Path) -> dict:
 
 def test_tracking_coco_json_writes_valid_json_after_each_frame(tmp_path: Path) -> None:
     json_path = tmp_path / "tracking_results.json"
-    node = TrackingCocoJsonNode(output_json_path=str(json_path), category_name="person")
+    node = TrackingCocoJsonNode(
+        output_json_path=str(json_path), category_name="person", flush_interval=1
+    )
 
     frames = (
         _build_inputs(
@@ -58,6 +60,7 @@ def test_tracking_coco_json_writes_valid_json_after_each_frame(tmp_path: Path) -
         parsed = _read_json(json_path)
         assert set(parsed.keys()) == {"info", "images", "annotations", "categories"}
 
+    node.close()
     parsed = _read_json(json_path)
     assert [image["id"] for image in parsed["images"]] == [0, 1, 2]
     assert len(parsed["annotations"]) == 2
@@ -85,6 +88,7 @@ def test_tracking_coco_json_replaces_existing_frame_idempotently(tmp_path: Path)
         )
     )
 
+    node.close()
     parsed = _read_json(json_path)
     assert len(parsed["images"]) == 1
     assert parsed["images"][0]["id"] == 4
@@ -105,6 +109,7 @@ def test_tracking_coco_json_writes_empty_frame_entry(tmp_path: Path) -> None:
         )
     )
 
+    node.close()
     parsed = _read_json(json_path)
     assert len(parsed["images"]) == 1
     assert parsed["images"][0]["id"] == 7
@@ -139,6 +144,7 @@ def test_tracking_coco_json_ignores_background_id_zero(tmp_path: Path) -> None:
         )
     )
 
+    node.close()
     parsed = _read_json(json_path)
     assert len(parsed["annotations"]) == 1
     ann = parsed["annotations"][0]
@@ -152,6 +158,7 @@ def test_tracking_coco_json_atomic_write_is_parseable(tmp_path: Path) -> None:
         output_json_path=str(json_path),
         category_name="person",
         atomic_write=True,
+        flush_interval=1,
     )
 
     for frame_idx in range(12):
@@ -169,3 +176,89 @@ def test_tracking_coco_json_atomic_write_is_parseable(tmp_path: Path) -> None:
         parsed = _read_json(json_path)
         assert "images" in parsed
         assert "annotations" in parsed
+
+    node.close()
+
+
+def test_tracking_coco_json_deferred_write_on_close(tmp_path: Path) -> None:
+    """Default flush_interval=0 writes nothing until close() is called."""
+    json_path = tmp_path / "tracking_results.json"
+    node = TrackingCocoJsonNode(output_json_path=str(json_path), category_name="person")
+
+    node.forward(
+        **_build_inputs(
+            frame_idx=0,
+            mask_2d=torch.tensor([[0, 1], [0, 1]], dtype=torch.int32),
+            object_ids=[1],
+            detection_scores=[0.95],
+        )
+    )
+
+    assert not json_path.exists()
+
+    node.close()
+    assert json_path.exists()
+    parsed = _read_json(json_path)
+    assert len(parsed["images"]) == 1
+    assert len(parsed["annotations"]) == 1
+
+
+def test_tracking_coco_json_close_is_idempotent(tmp_path: Path) -> None:
+    """Calling close() multiple times must not error or corrupt the file."""
+    json_path = tmp_path / "tracking_results.json"
+    node = TrackingCocoJsonNode(output_json_path=str(json_path), category_name="person")
+
+    node.forward(
+        **_build_inputs(
+            frame_idx=0,
+            mask_2d=torch.tensor([[0, 1], [0, 1]], dtype=torch.int32),
+            object_ids=[1],
+            detection_scores=[0.95],
+        )
+    )
+
+    node.close()
+    node.close()
+    parsed = _read_json(json_path)
+    assert len(parsed["images"]) == 1
+
+
+def test_tracking_coco_json_flush_interval(tmp_path: Path) -> None:
+    """flush_interval=3 writes after every 3rd frame."""
+    json_path = tmp_path / "tracking_results.json"
+    node = TrackingCocoJsonNode(
+        output_json_path=str(json_path), category_name="person", flush_interval=3
+    )
+
+    for i in range(2):
+        node.forward(
+            **_build_inputs(
+                frame_idx=i,
+                mask_2d=torch.tensor([[0, 1], [0, 1]], dtype=torch.int32),
+                object_ids=[1],
+                detection_scores=[0.9],
+            )
+        )
+    assert not json_path.exists()
+
+    node.forward(
+        **_build_inputs(
+            frame_idx=2,
+            mask_2d=torch.tensor([[0, 1], [0, 1]], dtype=torch.int32),
+            object_ids=[1],
+            detection_scores=[0.9],
+        )
+    )
+    assert json_path.exists()
+    parsed = _read_json(json_path)
+    assert len(parsed["images"]) == 3
+
+    node.close()
+
+
+def test_tracking_coco_json_validates_flush_interval(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="flush_interval"):
+        TrackingCocoJsonNode(
+            output_json_path=str(tmp_path / "test.json"),
+            flush_interval=-1,
+        )
