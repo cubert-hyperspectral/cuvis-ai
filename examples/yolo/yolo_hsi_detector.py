@@ -127,6 +127,7 @@ def main(
     registry = NodeRegistry()
     registry.load_plugins(str(plugin_manifest))
     YOLO26Detection = NodeRegistry.get("cuvis_ai_ultralytics.node.YOLO26Detection")
+    YOLOPreprocess = NodeRegistry.get("cuvis_ai_ultralytics.node.YOLOPreprocess")
     YOLOPostprocess = NodeRegistry.get("cuvis_ai_ultralytics.node.YOLOPostprocess")
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -148,6 +149,7 @@ def main(
         half_precision=half_precision,
         name="yolo26_det",
     )
+    yolo_pre = YOLOPreprocess(stride=yolo_det.stride, name="yolo_pre")
     yolo_post = YOLOPostprocess(
         confidence_threshold=float(confidence_threshold),
         iou_threshold=float(iou_threshold),
@@ -165,10 +167,11 @@ def main(
     pipeline.connect(
         (cu3s_data.outputs.cube, false_rgb.inputs.cube),
         (cu3s_data.outputs.wavelengths, false_rgb.inputs.wavelengths),
-        (false_rgb.outputs.rgb_image, yolo_det.inputs.rgb_image),
+        (false_rgb.outputs.rgb_image, yolo_pre.inputs.rgb_image),
+        (yolo_pre.outputs.preprocessed, yolo_det.inputs.preprocessed),
         (yolo_det.outputs.raw_preds, yolo_post.inputs.raw_preds),
-        (yolo_det.outputs.model_input_hw, yolo_post.inputs.model_input_hw),
-        (yolo_det.outputs.orig_hw, yolo_post.inputs.orig_hw),
+        (yolo_pre.outputs.model_input_hw, yolo_post.inputs.model_input_hw),
+        (yolo_pre.outputs.orig_hw, yolo_post.inputs.orig_hw),
         (false_rgb.outputs.rgb_image, bbox_overlay.inputs.rgb_image),
         (yolo_post.outputs.bboxes, bbox_overlay.inputs.bboxes),
         (yolo_post.outputs.category_ids, bbox_overlay.inputs.category_ids),
