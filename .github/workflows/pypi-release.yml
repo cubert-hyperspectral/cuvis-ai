@@ -108,14 +108,14 @@ jobs:
         run: uv run pip-licenses --format=markdown --with-authors > licenses.md || true
 
       - name: Upload dist packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dist-packages
           path: dist/
           retention-days: 7
 
       - name: Upload compliance artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: compliance-reports
           path: |
