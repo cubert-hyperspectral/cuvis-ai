@@ -517,4 +517,195 @@ class DetectionCocoJsonNode(Node):
             pass
 
 
-__all__ = ["DetectionCocoJsonNode", "TrackingCocoJsonNode"]
+class ByteTrackCocoJson(Node):
+    """Write tracking outputs (bbox + track_id) into COCO detection JSON."""
+
+    INPUT_SPECS = {
+        "frame_id": PortSpec(dtype=torch.int64, shape=(1,), description="Frame identifier [1]."),
+        "bboxes": PortSpec(
+            dtype=torch.float32, shape=(1, -1, 4), description="Boxes [1,N,4] xyxy."
+        ),
+        "category_ids": PortSpec(dtype=torch.int64, shape=(1, -1), description="Class IDs [1,N]."),
+        "confidences": PortSpec(dtype=torch.float32, shape=(1, -1), description="Scores [1,N]."),
+        "track_ids": PortSpec(dtype=torch.int64, shape=(1, -1), description="Track IDs [1,N]."),
+        "orig_hw": PortSpec(dtype=torch.int64, shape=(1, 2), description="[H,W] for metadata."),
+    }
+
+    OUTPUT_SPECS = {}
+
+    def __init__(
+        self,
+        output_json_path: str,
+        category_id_to_name: dict[int, str] | None = None,
+        write_empty_frames: bool = True,
+        atomic_write: bool = True,
+        flush_interval: int = 0,
+        **kwargs: Any,
+    ) -> None:
+        if not output_json_path:
+            raise ValueError("output_json_path must be a non-empty path.")
+        if flush_interval < 0:
+            raise ValueError("flush_interval must be >= 0.")
+
+        self.output_json_path = Path(output_json_path)
+        self.category_id_to_name: dict[int, str] = (
+            dict(category_id_to_name) if category_id_to_name is not None else {0: "object"}
+        )
+        self.write_empty_frames = bool(write_empty_frames)
+        self.atomic_write = bool(atomic_write)
+        self.flush_interval = int(flush_interval)
+        self._frames_by_id: dict[int, dict[str, Any]] = {}
+        self._dirty = False
+        self._frames_since_flush = 0
+
+        self.output_json_path.parent.mkdir(parents=True, exist_ok=True)
+
+        super().__init__(
+            output_json_path=output_json_path,
+            category_id_to_name=self.category_id_to_name,
+            write_empty_frames=write_empty_frames,
+            atomic_write=atomic_write,
+            flush_interval=flush_interval,
+            **kwargs,
+        )
+
+    def forward(
+        self,
+        frame_id: torch.Tensor,
+        bboxes: torch.Tensor,
+        category_ids: torch.Tensor,
+        confidences: torch.Tensor,
+        track_ids: torch.Tensor,
+        orig_hw: torch.Tensor,
+        context: Context | None = None,  # noqa: ARG002
+        **_: Any,
+    ) -> dict[str, Any]:
+        frame_idx = TrackingCocoJsonNode._parse_frame_id(frame_id)
+        ids_1d = TrackingCocoJsonNode._parse_vector(category_ids, port_name="category_ids")
+        scores_1d = TrackingCocoJsonNode._parse_vector(confidences, port_name="confidences")
+        track_ids_1d = TrackingCocoJsonNode._parse_vector(track_ids, port_name="track_ids")
+        TrackingCocoJsonNode._validate_alignment(ids_1d, scores_1d)
+        TrackingCocoJsonNode._validate_alignment(ids_1d, track_ids_1d)
+
+        h, w = int(orig_hw[0, 0]), int(orig_hw[0, 1])
+        boxes_2d = bboxes[0] if bboxes.ndim == 3 else bboxes
+
+        n = int(ids_1d.numel())
+        detections: list[dict[str, Any]] = []
+        for i in range(n):
+            x1, y1, x2, y2 = boxes_2d[i].cpu().tolist()
+            bw = float(x2 - x1)
+            bh = float(y2 - y1)
+            detections.append(
+                {
+                    "category_id": int(ids_1d[i].item()),
+                    "bbox": [float(x1), float(y1), bw, bh],
+                    "area": bw * bh,
+                    "score": float(scores_1d[i].item()),
+                    "track_id": int(track_ids_1d[i].item()),
+                }
+            )
+
+        if not detections and not self.write_empty_frames:
+            return {}
+
+        self._frames_by_id[frame_idx] = {
+            "frame_idx": frame_idx,
+            "height": h,
+            "width": w,
+            "detections": detections,
+        }
+        self._dirty = True
+        self._frames_since_flush += 1
+
+        if self.flush_interval > 0 and self._frames_since_flush >= self.flush_interval:
+            self._flush_json()
+
+        return {}
+
+    def _flush_json(self) -> None:
+        frames = [self._frames_by_id[idx] for idx in sorted(self._frames_by_id.keys())]
+
+        images = [
+            {
+                "id": int(frame["frame_idx"]),
+                "file_name": f"frame_{int(frame['frame_idx']):06d}",
+                "height": int(frame["height"]),
+                "width": int(frame["width"]),
+            }
+            for frame in frames
+        ]
+
+        annotations = []
+        ann_id = 1
+        for frame in frames:
+            frame_idx = int(frame["frame_idx"])
+            for det in frame["detections"]:
+                annotations.append(
+                    {
+                        "id": ann_id,
+                        "image_id": frame_idx,
+                        "category_id": det["category_id"],
+                        "bbox": det["bbox"],
+                        "area": det["area"],
+                        "iscrowd": 0,
+                        "score": det["score"],
+                        "track_id": det["track_id"],
+                    }
+                )
+                ann_id += 1
+
+        categories = [
+            {"id": cat_id, "name": name}
+            for cat_id, name in sorted(self.category_id_to_name.items())
+        ]
+
+        payload = {
+            "info": {"description": "ByteTrack tracking results", "version": "1.0"},
+            "images": images,
+            "annotations": annotations,
+            "categories": categories,
+        }
+
+        if self.atomic_write:
+            self._write_json_atomic(payload)
+        else:
+            self._write_json_direct(payload)
+
+        self._dirty = False
+        self._frames_since_flush = 0
+
+    def _write_json_direct(self, payload: dict[str, Any]) -> None:
+        with self.output_json_path.open("w", encoding="utf-8") as handle:
+            json.dump(payload, handle, indent=2)
+            handle.write("\n")
+
+    def _write_json_atomic(self, payload: dict[str, Any]) -> None:
+        tmp_fd, tmp_path = tempfile.mkstemp(
+            dir=str(self.output_json_path.parent),
+            prefix=f".{self.output_json_path.stem}_",
+            suffix=".tmp",
+        )
+        try:
+            with os.fdopen(tmp_fd, "w", encoding="utf-8") as handle:
+                json.dump(payload, handle, indent=2)
+                handle.write("\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(tmp_path, self.output_json_path)
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+
+    def close(self) -> None:
+        if self._dirty:
+            self._flush_json()
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            pass
+
+
+__all__ = ["DetectionCocoJsonNode", "TrackingCocoJsonNode", "ByteTrackCocoJson"]
