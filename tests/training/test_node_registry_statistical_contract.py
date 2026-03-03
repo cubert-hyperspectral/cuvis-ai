@@ -29,6 +29,7 @@ REQUIRED_ARG_DEFAULTS: dict[str, object] = {
     "channel": 0,
     "normal_class_ids": [0],
     "min_wavelength_nm": 450.0,
+    "output_json_path": "test_output.json",
 }
 
 SUPERVISED_SELECTOR_CLASSES = {
