@@ -1,4 +1,4 @@
-"""Data preparation nodes for CU3S hyperspectral and video pipelines."""
+"""Data preparation nodes for CU3S hyperspectral pipelines."""
 
 from typing import Any
 
@@ -35,6 +35,12 @@ class CU3SDataNode(Node):
             dtype=torch.int32,
             shape=(-1, -1),
             description="Wavelengths for each channel [B, C]",
+        ),
+        "mesu_index": PortSpec(
+            dtype=torch.int64,
+            shape=(-1,),
+            description="Measurement/frame index per batch element [B]",
+            optional=True,
         ),
     }
     OUTPUT_SPECS = {
@@ -142,25 +148,3 @@ class LentilsAnomalyDataNode(CU3SDataNode):
             result["mask"] = mapped["mask"]
 
         return result
-
-
-class VideoFrameNode(Node):
-    """Passthrough source node that receives RGB frames from the batch."""
-
-    INPUT_SPECS = {
-        "rgb_image": PortSpec(
-            dtype=torch.float32,
-            shape=(-1, -1, -1, 3),
-            description="RGB frame [B, H, W, 3] in [0, 1].",
-        ),
-    }
-    OUTPUT_SPECS = {
-        "rgb_image": PortSpec(
-            dtype=torch.float32,
-            shape=(-1, -1, -1, 3),
-            description="RGB frame [B, H, W, 3] in [0, 1].",
-        ),
-    }
-
-    def forward(self, rgb_image: torch.Tensor, **_: Any) -> dict[str, torch.Tensor]:
-        return {"rgb_image": rgb_image}

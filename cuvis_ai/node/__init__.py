@@ -28,7 +28,6 @@ from cuvis_ai.node.channel_selector import (
     SupervisedWindowedSelector,
     TopKIndices,
 )
-from cuvis_ai.node.data import VideoFrameNode
 from cuvis_ai.node.dimensionality_reduction import TrainablePCA
 from cuvis_ai.node.json_reader import DetectionJsonReader
 from cuvis_ai.node.json_writer import ByteTrackCocoJson, DetectionCocoJsonNode, TrackingCocoJsonNode
@@ -41,7 +40,13 @@ from cuvis_ai.node.pipeline_visualization import (
     PipelineComparisonVisualizer,
 )
 from cuvis_ai.node.preprocessors import BandpassByWavelength, SpatialRotateNode
-from cuvis_ai.node.video import ToVideoNode
+from cuvis_ai.node.video import (
+    ToVideoNode,
+    VideoFrameDataModule,
+    VideoFrameDataset,
+    VideoFrameNode,
+    VideoIterator,
+)
 
 __all__ = [
     "AnomalyMask",
@@ -82,7 +87,10 @@ __all__ = [
     "SupervisedWindowedSelector",
     "ToVideoNode",
     "TopKIndices",
+    "VideoFrameDataModule",
+    "VideoFrameDataset",
     "VideoFrameNode",
+    "VideoIterator",
     "TrackingCocoJsonNode",
     "ByteTrackCocoJson",
     "TrackingOverlayNode",
