@@ -18,10 +18,51 @@ from loguru import logger
 @click.option("--frame-rotation", type=int, default=None)
 @click.option("--end-frame", type=int, default=-1, show_default=True)
 @click.option("--model-name", type=str, default="yolo26n.pt", show_default=True)
-@click.option("--confidence-threshold", type=float, default=0.5, show_default=True)
+@click.option("--confidence-threshold", type=float, default=0.1, show_default=True)
+@click.option("--iou-threshold", type=float, default=0.7, show_default=True, help="YOLO NMS IoU")
+@click.option(
+    "--agnostic-nms",
+    is_flag=True,
+    default=False,
+    help="Enable class-agnostic NMS (off by default).",
+)
+@click.option(
+    "--classes",
+    type=int,
+    multiple=True,
+    help="Limit NMS to these class ids (repeat flag). Default: keep all classes.",
+)
 @click.option("--track-thresh", type=float, default=0.5, show_default=True)
 @click.option("--track-buffer", type=int, default=30, show_default=True)
 @click.option("--match-thresh", type=float, default=0.8, show_default=True)
+@click.option(
+    "--second-score-thresh",
+    type=float,
+    default=0.1,
+    show_default=True,
+    help="Low-score floor used for ByteTrack second association.",
+)
+@click.option(
+    "--second-match-thresh",
+    type=float,
+    default=0.5,
+    show_default=True,
+    help="IoU match threshold for ByteTrack second association stage.",
+)
+@click.option(
+    "--unconfirmed-match-thresh",
+    type=float,
+    default=0.7,
+    show_default=True,
+    help="IoU threshold when matching unconfirmed tracks.",
+)
+@click.option(
+    "--new-track-thresh-offset",
+    type=float,
+    default=0.1,
+    show_default=True,
+    help="Offset in det_thresh = track_thresh + offset for new track activation.",
+)
 @click.option(
     "--output-dir",
     type=click.Path(file_okay=False, path_type=Path),
@@ -43,9 +84,16 @@ def main(
     end_frame: int,
     model_name: str,
     confidence_threshold: float,
+    iou_threshold: float,
+    agnostic_nms: bool,
+    classes: tuple[int, ...],
     track_thresh: float,
     track_buffer: int,
     match_thresh: float,
+    second_score_thresh: float,
+    second_match_thresh: float,
+    unconfirmed_match_thresh: float,
+    new_track_thresh_offset: float,
     output_dir: Path,
     plugins_dir: Path | None,
     bf16: bool,
@@ -64,6 +112,7 @@ def main(
     from cuvis_ai.node.anomaly_visualization import BBoxesOverlayNode
     from cuvis_ai.node.channel_selector import CIETristimulusFalseRGBSelector
     from cuvis_ai.node.data import CU3SDataNode
+    from cuvis_ai.node.json_writer import ByteTrackCocoJson, DetectionCocoJsonNode
     from cuvis_ai.node.video import ToVideoNode
 
     predict_ids = list(range(end_frame)) if end_frame > 0 else None
@@ -85,6 +134,7 @@ def main(
         registry.load_plugins(str(plugins_dir_resolved / yaml_name))
         logger.info("Plugin manifest loaded: {}", plugins_dir_resolved / yaml_name)
 
+    yolo_pre_cls = registry.get("cuvis_ai_ultralytics.node.YOLOPreprocess")
     yolo_cls = registry.get("cuvis_ai_ultralytics.node.YOLO26Detection")
     yolo_post_cls = registry.get("cuvis_ai_ultralytics.node.YOLOPostprocess")
     bytetrack_cls = registry.get("cuvis_ai_bytetrack.node.ByteTrack")
@@ -94,15 +144,34 @@ def main(
     cu3s_data = CU3SDataNode(name="cu3s_data")
     false_rgb = CIETristimulusFalseRGBSelector(name="cie_false_rgb")
     yolo_det = yolo_cls(model_path=model_name, name="yolo26_det")
-    yolo_post = yolo_post_cls(confidence_threshold=confidence_threshold, name="yolo_post")
+    yolo_pre = yolo_pre_cls(stride=int(getattr(yolo_det, "stride", 32)), name="yolo_preprocess")
+    yolo_post = yolo_post_cls(
+        confidence_threshold=confidence_threshold,
+        iou_threshold=iou_threshold,
+        agnostic_nms=agnostic_nms,
+        classes=list(classes) if classes else None,
+        name="yolo_post",
+    )
     tracker = bytetrack_cls(
         track_thresh=track_thresh,
         track_buffer=track_buffer,
         match_thresh=match_thresh,
+        second_score_thresh=second_score_thresh,
+        second_match_thresh=second_match_thresh,
+        unconfirmed_match_thresh=unconfirmed_match_thresh,
+        new_track_thresh_offset=new_track_thresh_offset,
         frame_rate=int(dataset_fps),
         name="bytetrack",
     )
-    bbox_overlay = BBoxesOverlayNode(name="bboxes_overlay")
+    det_json = DetectionCocoJsonNode(
+        output_json_path=str(output_dir / "detection_results.json"),
+        name="detection_coco_json",
+    )
+    track_json = ByteTrackCocoJson(
+        output_json_path=str(output_dir / "tracking_results.json"),
+        name="tracking_coco_json",
+    )
+    bbox_overlay = BBoxesOverlayNode(name="bboxes_overlay", draw_labels=True)
     overlay_path = output_dir / "tracking_overlay.mp4"
     to_video = ToVideoNode(
         output_video_path=str(overlay_path),
@@ -112,20 +181,36 @@ def main(
     )
 
     pipeline.connect(
-        (cu3s_data.outputs.cube, false_rgb.inputs.cube),
-        (cu3s_data.outputs.wavelengths, false_rgb.inputs.wavelengths),
-        (false_rgb.outputs.rgb_image, yolo_det.inputs.rgb_image),
-        (yolo_det.outputs.raw_preds, yolo_post.inputs.raw_preds),
-        (yolo_det.outputs.model_input_hw, yolo_post.inputs.model_input_hw),
-        (yolo_det.outputs.orig_hw, yolo_post.inputs.orig_hw),
-        (yolo_post.outputs.bboxes, tracker.inputs.bboxes),
-        (yolo_post.outputs.category_ids, tracker.inputs.category_ids),
-        (yolo_post.outputs.confidences, tracker.inputs.confidences),
-        (false_rgb.outputs.rgb_image, bbox_overlay.inputs.rgb_image),
-        (tracker.outputs.bboxes, bbox_overlay.inputs.bboxes),
-        (tracker.outputs.track_ids, bbox_overlay.inputs.category_ids),
-        (tracker.outputs.confidences, bbox_overlay.inputs.confidences),
-        (bbox_overlay.outputs.rgb_with_overlay, to_video.inputs.rgb_image),
+        (cu3s_data.outputs.cube, false_rgb.cube),
+        (cu3s_data.outputs.wavelengths, false_rgb.wavelengths),
+        (false_rgb.rgb_image, yolo_pre.rgb_image),
+        (yolo_pre.preprocessed, yolo_det.preprocessed),
+        (yolo_pre.model_input_hw, yolo_post.model_input_hw),
+        (yolo_pre.orig_hw, yolo_post.orig_hw),
+        (yolo_det.raw_preds, yolo_post.raw_preds),
+        (yolo_post.bboxes, tracker.inputs.bboxes),
+        (yolo_post.category_ids, tracker.inputs.category_ids),
+        (yolo_post.confidences, tracker.inputs.confidences),
+        # Detection JSON (pre-tracking)
+        (cu3s_data.outputs.mesu_index, det_json.frame_id),
+        (yolo_post.bboxes, det_json.bboxes),
+        (yolo_post.category_ids, det_json.category_ids),
+        (yolo_post.confidences, det_json.confidences),
+        (yolo_pre.orig_hw, det_json.orig_hw),
+        # Tracking JSON (post-tracking)
+        (cu3s_data.outputs.mesu_index, track_json.frame_id),
+        (tracker.outputs.bboxes, track_json.bboxes),
+        (tracker.outputs.category_ids, track_json.category_ids),
+        (tracker.outputs.confidences, track_json.confidences),
+        (tracker.track_ids, track_json.track_ids),
+        (yolo_pre.orig_hw, track_json.orig_hw),
+        # Video overlay with track ID labels
+        (false_rgb.rgb_image, bbox_overlay.rgb_image),
+        (cu3s_data.outputs.mesu_index, bbox_overlay.frame_id),
+        (tracker.outputs.bboxes, bbox_overlay.bboxes),
+        (tracker.track_ids, bbox_overlay.category_ids),
+        (tracker.outputs.confidences, bbox_overlay.confidences),
+        (bbox_overlay.rgb_with_overlay, to_video.rgb_image),
     )
 
     pipeline.to(device)
@@ -141,7 +226,10 @@ def main(
     with amp_ctx:
         predictor.predict(max_batches=target_frames, collect_outputs=False)
 
-    logger.success("Tracking complete; overlay saved to {}", overlay_path)
+    logger.success("Tracking complete")
+    logger.info("Overlay: {}", overlay_path)
+    logger.info("Detections: {}", output_dir / "detection_results.json")
+    logger.info("Tracks: {}", output_dir / "tracking_results.json")
 
 
 if __name__ == "__main__":

@@ -128,6 +128,104 @@ For `--output-dir <OUT>`:
 - `<OUT>/pipeline/SAM3_HSI_Tracking.png` - graphviz pipeline image
 - `<OUT>/pipeline/SAM3_HSI_Tracking.md` - mermaid pipeline markdown
 
+## YOLO + ByteTrack HSI Tracking
+
+Use `examples/object_tracking/bytetrack/yolo_bytetrack_hsi.py` for YOLO detection +
+ByteTrack multi-object tracking on CU3S hyperspectral recordings.
+
+### What This Script Does
+
+- Loads CU3S frames via `SingleCu3sDataModule` in `predict` mode
+- Builds one pipeline:
+  - `CU3SDataNode -> CIETristimulusFalseRGBSelector -> YOLO26Detection -> YOLOPostprocess -> ByteTrack -> BBoxesOverlayNode -> ToVideoNode`
+- Runs inference through `cuvis_ai_core.training.Predictor`
+- Outputs an overlay video with tracked bounding boxes
+
+### Prerequisites
+
+- CU3S input file (e.g. `Auto_013+01.cu3s`)
+- `cuvis-ai-core` with `Predictor` and datamodule predict-stage support installed
+- Ultralytics plugin: `configs/plugins/ultralytics.yaml`
+- ByteTrack plugin: `configs/plugins/bytetrack.yaml`
+- A YOLO model (default `yolo26n.pt`, auto-downloaded on first run)
+
+### Run
+
+From repo root:
+
+**Bash / Linux / macOS:**
+
+```bash
+uv run python examples/object_tracking/bytetrack/yolo_bytetrack_hsi.py \
+  --cu3s-path "D:\data\your_dataset\Auto_002.cu3s"
+```
+
+**PowerShell (Windows):**
+
+```powershell
+uv run python examples/object_tracking/bytetrack/yolo_bytetrack_hsi.py `
+  --cu3s-path "D:\data\your_dataset\Auto_002.cu3s"
+```
+
+Quick smoke test (10 frames):
+
+```bash
+uv run python examples/object_tracking/bytetrack/yolo_bytetrack_hsi.py \
+  --cu3s-path "D:\data\your_dataset\Auto_002.cu3s" \
+  --end-frame 10
+```
+
+```powershell
+uv run python examples/object_tracking/bytetrack/yolo_bytetrack_hsi.py `
+  --cu3s-path "D:\data\your_dataset\Auto_002.cu3s" `
+  --end-frame 10
+```
+
+With explicit output and tuning:
+
+```bash
+uv run python examples/object_tracking/bytetrack/yolo_bytetrack_hsi.py \
+  --cu3s-path "D:\data\your_dataset\Auto_002.cu3s" \
+  --output-dir "outputs/bytetrack_tracking" \
+  --confidence-threshold 0.3 \
+  --track-thresh 0.4
+```
+
+```powershell
+uv run python examples/object_tracking/bytetrack/yolo_bytetrack_hsi.py `
+  --cu3s-path "D:\data\your_dataset\Auto_002.cu3s" `
+  --output-dir "outputs/bytetrack_tracking" `
+  --confidence-threshold 0.3 `
+  --track-thresh 0.4
+```
+
+Show CLI help:
+
+```bash
+uv run python examples/object_tracking/bytetrack/yolo_bytetrack_hsi.py --help
+```
+
+### Main CLI Options
+
+- `--cu3s-path` required input `.cu3s`
+- `--processing-mode` `Raw|DarkSubtract|Preview|Reflectance|SpectralRadiance` (default `SpectralRadiance`)
+- `--end-frame` limit frames (`-1` means all)
+- `--model-name` YOLO model name/path (default `yolo26n.pt`)
+- `--confidence-threshold` YOLO detection threshold (default `0.5`)
+- `--track-thresh` ByteTrack high-confidence threshold (default `0.5`)
+- `--track-buffer` lost-track buffer in frames (default `30`)
+- `--match-thresh` IoU match threshold (default `0.8`)
+- `--output-dir` output directory (default `./tracking_output`)
+- `--plugins-dir` plugin YAML directory (default `<repo>/configs/plugins/`)
+- `--frame-rotation` optional frame rotation (degrees)
+- `--bf16` enable CUDA bf16 autocast
+
+### Outputs
+
+For `--output-dir <OUT>`:
+
+- `<OUT>/tracking_overlay.mp4` — CIE false RGB frames with tracked bounding box overlays
+
 ## Channel Selector False RGB Workflow (Training)
 
 `examples/object_tracking/channel_selector_false_rgb.py` remains available for
