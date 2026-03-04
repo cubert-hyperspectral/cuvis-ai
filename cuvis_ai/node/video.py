@@ -20,7 +20,18 @@ from torch.utils.data import DataLoader, Dataset
 
 def _import_torchcodec() -> type:
     """Lazy import for torchcodec (requires FFmpeg native libraries at runtime)."""
-    return importlib.import_module("torchcodec.decoders").SimpleVideoDecoder
+    try:
+        return importlib.import_module("torchcodec.decoders").SimpleVideoDecoder
+    except (ImportError, OSError) as exc:
+        msg = (
+            "torchcodec requires FFmpeg system libraries which are not available.\n"
+            "Install FFmpeg for your operating system:\n"
+            "  - Linux (apt):   sudo apt install ffmpeg\n"
+            "  - Linux (conda): conda install -c conda-forge ffmpeg\n"
+            "  - macOS:         brew install ffmpeg\n"
+            "  - Windows:       download from https://ffmpeg.org/download.html and add to PATH"
+        )
+        raise ImportError(msg) from exc
 
 
 # ---------------------------------------------------------------------------
