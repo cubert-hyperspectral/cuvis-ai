@@ -17,7 +17,7 @@ from loguru import logger
 from PIL import Image, ImageDraw, ImageFont
 from torchmetrics.functional.classification import binary_average_precision
 
-from cuvis_ai.utils.torch_draw import draw_box, id_to_color, overlay_instances
+from cuvis_ai.utils.torch_draw import draw_box, draw_text, id_to_color, overlay_instances
 from cuvis_ai.utils.vis_helpers import (
     create_mask_overlay,
     fig_to_array,
@@ -1092,7 +1092,9 @@ def render_bboxes_overlay_torch(
     rgb_image: torch.Tensor,
     bboxes: torch.Tensor,
     category_ids: torch.Tensor,
+    frame_id: torch.Tensor | None = None,
     line_thickness: int = 2,
+    draw_labels: bool = False,
 ) -> torch.Tensor:
     """Render bbox edges on RGB frames using pure torch drawing primitives."""
     out = (rgb_image.clamp(0.0, 1.0) * 255.0).to(torch.uint8).clone()
@@ -1110,6 +1112,16 @@ def render_bboxes_overlay_torch(
     for i in range(n):
         x1, y1, x2, y2 = [int(v) for v in bboxes[0, i].round().tolist()]
         draw_box(frame, (x1, y1, x2, y2), colors[i], thickness=thickness)
+        if draw_labels and int(classes[i].item()) >= 0:
+            label = str(int(classes[i].item()))
+            draw_text(frame, x1, max(0, y1 - 16), label, colors[i], scale=2, bg=True)
+
+    if frame_id is not None:
+        try:
+            fid = int(frame_id.reshape(-1)[0].item())
+            draw_text(frame, 8, 8, f"frame {fid}", (255, 255, 255), scale=2, bg=True)
+        except Exception:
+            pass
 
     return out.to(torch.float32) / 255.0
 
@@ -1133,6 +1145,12 @@ class BBoxesOverlayNode(Node):
             shape=(1, -1),
             description="Category IDs [1, N].",
         ),
+        "frame_id": PortSpec(
+            dtype=torch.int64,
+            shape=(1,),
+            description="Frame index [1].",
+            optional=True,
+        ),
         "confidences": PortSpec(
             dtype=torch.float32,
             shape=(1, -1),
@@ -1149,9 +1167,10 @@ class BBoxesOverlayNode(Node):
         ),
     }
 
-    def __init__(self, line_thickness: int = 2, **kwargs) -> None:
+    def __init__(self, line_thickness: int = 2, draw_labels: bool = False, **kwargs) -> None:
         self.line_thickness = int(line_thickness)
-        super().__init__(line_thickness=line_thickness, **kwargs)
+        self.draw_labels = bool(draw_labels)
+        super().__init__(line_thickness=line_thickness, draw_labels=draw_labels, **kwargs)
 
     @torch.no_grad()
     def forward(
@@ -1159,6 +1178,7 @@ class BBoxesOverlayNode(Node):
         rgb_image: torch.Tensor,
         bboxes: torch.Tensor,
         category_ids: torch.Tensor,
+        frame_id: torch.Tensor | None = None,
         confidences: torch.Tensor | None = None,  # noqa: ARG002
         **_,
     ) -> dict[str, torch.Tensor]:
@@ -1168,7 +1188,9 @@ class BBoxesOverlayNode(Node):
                 rgb_image=rgb_image,
                 bboxes=bboxes,
                 category_ids=category_ids,
+                frame_id=frame_id,
                 line_thickness=self.line_thickness,
+                draw_labels=self.draw_labels,
             )
         }
 
