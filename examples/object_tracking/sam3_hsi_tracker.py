@@ -262,18 +262,14 @@ def main(
         category_name=prompt,
         name="tracking_coco_json",
     )
-    output_mask_port = (
-        sam3_tracker.outputs.confirmed_mask if confirmed_output else sam3_tracker.outputs.mask
-    )
+    output_mask_port = sam3_tracker.confirmed_mask if confirmed_output else sam3_tracker.mask
     output_ids_port = (
-        sam3_tracker.outputs.confirmed_object_ids
-        if confirmed_output
-        else sam3_tracker.outputs.object_ids
+        sam3_tracker.confirmed_object_ids if confirmed_output else sam3_tracker.object_ids
     )
     output_scores_port = (
-        sam3_tracker.outputs.confirmed_detection_scores
+        sam3_tracker.confirmed_detection_scores
         if confirmed_output
-        else sam3_tracker.outputs.detection_scores
+        else sam3_tracker.detection_scores
     )
     logger.info(
         "Sink outputs: {} tracks",
@@ -281,13 +277,13 @@ def main(
     )
 
     pipeline.connect(
-        (cu3s_data.outputs.cube, false_rgb.inputs.cube),
-        (cu3s_data.outputs.wavelengths, false_rgb.inputs.wavelengths),
-        (false_rgb.outputs.rgb_image, sam3_tracker.inputs.rgb_frame),
-        (sam3_tracker.outputs.frame_id, tracking_json.inputs.frame_id),
-        (output_mask_port, tracking_json.inputs.mask),
-        (output_ids_port, tracking_json.inputs.object_ids),
-        (output_scores_port, tracking_json.inputs.detection_scores),
+        (cu3s_data.outputs.cube, false_rgb.cube),
+        (cu3s_data.outputs.wavelengths, false_rgb.wavelengths),
+        (false_rgb.rgb_image, sam3_tracker.rgb_frame),
+        (sam3_tracker.frame_id, tracking_json.frame_id),
+        (output_mask_port, tracking_json.mask),
+        (output_ids_port, tracking_json.object_ids),
+        (output_scores_port, tracking_json.detection_scores),
     )
 
     overlay_node = TrackingOverlayNode(alpha=0.2, name="overlay")
@@ -299,10 +295,10 @@ def main(
         name="to_video",
     )
     pipeline.connect(
-        (false_rgb.outputs.rgb_image, overlay_node.inputs.rgb_image),
-        (output_mask_port, overlay_node.inputs.mask),
-        (output_ids_port, overlay_node.inputs.object_ids),
-        (overlay_node.outputs.rgb_with_overlay, to_video.inputs.rgb_image),
+        (false_rgb.rgb_image, overlay_node.rgb_image),
+        (output_mask_port, overlay_node.mask),
+        (output_ids_port, overlay_node.object_ids),
+        (overlay_node.rgb_with_overlay, to_video.rgb_image),
     )
 
     pipeline_viz_dir = output_dir / "pipeline"

@@ -165,18 +165,18 @@ def main(
     )
 
     pipeline.connect(
-        (cu3s_data.outputs.cube, false_rgb.inputs.cube),
-        (cu3s_data.outputs.wavelengths, false_rgb.inputs.wavelengths),
-        (false_rgb.outputs.rgb_image, yolo_pre.inputs.rgb_image),
-        (yolo_pre.outputs.preprocessed, yolo_det.inputs.preprocessed),
-        (yolo_det.outputs.raw_preds, yolo_post.inputs.raw_preds),
-        (yolo_pre.outputs.model_input_hw, yolo_post.inputs.model_input_hw),
-        (yolo_pre.outputs.orig_hw, yolo_post.inputs.orig_hw),
-        (false_rgb.outputs.rgb_image, bbox_overlay.inputs.rgb_image),
-        (yolo_post.outputs.bboxes, bbox_overlay.inputs.bboxes),
-        (yolo_post.outputs.category_ids, bbox_overlay.inputs.category_ids),
-        (yolo_post.outputs.confidences, bbox_overlay.inputs.confidences),
-        (bbox_overlay.outputs.rgb_with_overlay, to_video.inputs.rgb_image),
+        (cu3s_data.outputs.cube, false_rgb.cube),
+        (cu3s_data.outputs.wavelengths, false_rgb.wavelengths),
+        (false_rgb.rgb_image, yolo_pre.rgb_image),
+        (yolo_pre.preprocessed, yolo_det.preprocessed),
+        (yolo_det.raw_preds, yolo_post.raw_preds),
+        (yolo_pre.model_input_hw, yolo_post.model_input_hw),
+        (yolo_pre.orig_hw, yolo_post.orig_hw),
+        (false_rgb.rgb_image, bbox_overlay.rgb_image),
+        (yolo_post.bboxes, bbox_overlay.bboxes),
+        (yolo_post.category_ids, bbox_overlay.category_ids),
+        (yolo_post.confidences, bbox_overlay.confidences),
+        (bbox_overlay.rgb_with_overlay, to_video.rgb_image),
     )
 
     pipeline_viz_dir = output_video_path.parent / "pipeline"
