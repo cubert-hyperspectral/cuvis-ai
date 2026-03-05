@@ -296,8 +296,9 @@ class ChannelSelectorBase(Node):
                 torch.minimum(self.running_min, frame_lo, out=self.running_min)
                 torch.maximum(self.running_max, frame_hi, out=self.running_max)
 
-        if not torch.isnan(self.running_min).any():
-            self._statistically_initialized = True
+        if torch.isnan(self.running_min).any():
+            raise RuntimeError(f"{type(self).__name__}.statistical_initialization received no data")
+        self._statistically_initialized = True
 
     # ------------------------------------------------------------------
     # Convenience helpers

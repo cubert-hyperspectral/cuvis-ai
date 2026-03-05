@@ -5,25 +5,28 @@ are valid and execute without errors.
 """
 
 import subprocess
+import sys
 
 import pytest
 
 pytestmark = pytest.mark.integration
 
-# Basic CLI commands that should always work (--help flags)
+# Basic CLI commands that should always work (--help flags).
+# Use sys.executable -m to avoid "Failed to canonicalize script path"
+# on some Windows/uv environments.
 CLI_COMMANDS_BASIC = [
-    "uv run pytest --version",
-    "uv run ruff --version",
-    "uv run restore-pipeline --help",
-    "uv run restore-trainrun --help",
+    [sys.executable, "-m", "pytest", "--version"],
+    ["uv", "run", "ruff", "--version"],
+    ["uv", "run", "restore-pipeline", "--help"],
+    ["uv", "run", "restore-trainrun", "--help"],
 ]
 
 
-@pytest.mark.parametrize("command", CLI_COMMANDS_BASIC)
+@pytest.mark.parametrize("command", CLI_COMMANDS_BASIC, ids=lambda c: " ".join(c))
 def test_basic_cli_commands(command):
     """Test that basic CLI commands execute successfully."""
-    result = subprocess.run(command.split(), capture_output=True, text=True, timeout=30)
-    assert result.returncode == 0, f"Command failed: {command}\n{result.stderr}"
+    result = subprocess.run(command, capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, f"Command failed: {' '.join(command)}\n{result.stderr}"
 
 
 def test_restore_pipeline_help():

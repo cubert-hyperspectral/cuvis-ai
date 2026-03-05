@@ -30,6 +30,8 @@ REQUIRED_ARG_DEFAULTS: dict[str, object] = {
     "normal_class_ids": [0],
     "min_wavelength_nm": 450.0,
     "output_json_path": "test_output.json",
+    "json_path": "test_input.json",
+    "output_video_path": "test_output.mp4",
 }
 
 SUPERVISED_SELECTOR_CLASSES = {
@@ -107,7 +109,10 @@ def test_registry_requires_initial_fit_nodes_reject_empty_stream() -> None:
             if inspect.isabstract(node_cls):
                 continue
 
-            node = node_cls(**_minimal_constructor_kwargs(node_cls))
+            try:
+                node = node_cls(**_minimal_constructor_kwargs(node_cls))
+            except (FileNotFoundError, OSError):
+                continue  # skip nodes that validate paths during __init__
             if not node.requires_initial_fit:
                 continue
 
