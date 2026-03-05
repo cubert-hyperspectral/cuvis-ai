@@ -317,6 +317,10 @@ def main(
 
     pipeline.to(device)
 
+    # Enable per-node profiling (skip first 3 warm-up frames)
+    pipeline.set_profiling(enabled=True, synchronize_cuda=(device == "cuda"), skip_first_n=3)
+    logger.info("Profiling enabled (synchronize_cuda={}, skip_first_n=3)", device == "cuda")
+
     predictor = Predictor(pipeline=pipeline, datamodule=datamodule)
 
     amp_ctx = (
@@ -334,6 +338,63 @@ def main(
         raise RuntimeError(f"Expected tracking JSON was not created: {json_path}")
     if not overlay_path.exists():
         raise RuntimeError(f"Expected overlay video was not created: {overlay_path}")
+
+    # --- Profiling summary ---
+    profiling_stats = pipeline.get_profiling_summary()
+    if profiling_stats:
+        logger.info("--- Profiling Summary ({} frames, skip_first_n=3) ---", target_frames)
+        header = (
+            f"{'Node':<40} {'Stage':<10} {'Count':>6} {'Mean(ms)':>10} "
+            f"{'Std(ms)':>10} {'Min(ms)':>10} {'Max(ms)':>10} "
+            f"{'Median(ms)':>10} {'Total(s)':>10}"
+        )
+        logger.info(header)
+        logger.info("-" * len(header))
+        total_pipeline_ms = 0.0
+        for s in sorted(profiling_stats, key=lambda x: x.total_ms, reverse=True):
+            total_pipeline_ms += s.total_ms
+            logger.info(
+                f"{s.node_name:<40} {s.stage:<10} {s.count:>6} {s.mean_ms:>10.2f} "
+                f"{s.std_ms:>10.2f} {s.min_ms:>10.2f} {s.max_ms:>10.2f} "
+                f"{s.median_ms:>10.2f} {s.total_ms / 1000:>10.3f}"
+            )
+        logger.info("-" * len(header))
+        logger.info(
+            f"{'TOTAL':<40} {'':10} {'':<6} {'':<10} {'':<10} {'':<10} {'':<10} {'':<10} {total_pipeline_ms / 1000:>10.3f}"
+        )
+        if profiling_stats:
+            avg_frame_ms = (
+                total_pipeline_ms / profiling_stats[0].count if profiling_stats[0].count > 0 else 0
+            )
+            logger.info(
+                f"Average per-frame pipeline time: {avg_frame_ms:.2f} ms ({1000 / avg_frame_ms:.1f} FPS)"
+                if avg_frame_ms > 0
+                else ""
+            )
+        # Write profiling summary to file
+        profiling_path = output_dir / "profiling_summary.txt"
+        with open(profiling_path, "w") as f:
+            f.write(f"Profiling Summary ({target_frames} frames, skip_first_n=3)\n")
+            f.write(header + "\n")
+            f.write("-" * len(header) + "\n")
+            for s in sorted(profiling_stats, key=lambda x: x.total_ms, reverse=True):
+                f.write(
+                    f"{s.node_name:<40} {s.stage:<10} {s.count:>6} {s.mean_ms:>10.2f} "
+                    f"{s.std_ms:>10.2f} {s.min_ms:>10.2f} {s.max_ms:>10.2f} "
+                    f"{s.median_ms:>10.2f} {s.total_ms / 1000:>10.3f}\n"
+                )
+            f.write("-" * len(header) + "\n")
+            f.write(
+                f"{'TOTAL':<40} {'':10} {'':<6} {'':<10} {'':<10} {'':<10} {'':<10} {'':<10} {total_pipeline_ms / 1000:>10.3f}\n"
+            )
+            if profiling_stats and profiling_stats[0].count > 0:
+                avg_ms = total_pipeline_ms / profiling_stats[0].count
+                f.write(
+                    f"Average per-frame pipeline time: {avg_ms:.2f} ms ({1000 / avg_ms:.1f} FPS)\n"
+                )
+        logger.info("Profiling saved: {}", profiling_path)
+    else:
+        logger.warning("No profiling stats collected.")
 
     logger.success("Tracking complete")
     logger.info("Results: {}", json_path)
