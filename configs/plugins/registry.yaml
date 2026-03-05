@@ -21,14 +21,6 @@ plugins:
     provides:
       - cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
 
-  sam3:
-    # SAM3-based video object tracking plugin
-    path: "../.."
-    provides:
-      - cuvis_ai_sam3.node.SAM3TrackerInference
-      - cuvis_ai_sam3.node.SpectralSignatureExtractor
-      - cuvis_ai_sam3.node.TrackingJsonNode
-      - cuvis_ai_sam3.node.TrackingOverlayNode
 
   # ============================================================================
   # Community Plugins
