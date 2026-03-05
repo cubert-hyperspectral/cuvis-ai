@@ -17,7 +17,13 @@ from loguru import logger
 from PIL import Image, ImageDraw, ImageFont
 from torchmetrics.functional.classification import binary_average_precision
 
-from cuvis_ai.utils.torch_draw import draw_box, draw_text, id_to_color, overlay_instances
+from cuvis_ai.utils.torch_draw import (
+    draw_box,
+    draw_sparkline,
+    draw_text,
+    id_to_color,
+    overlay_instances,
+)
 from cuvis_ai.utils.vis_helpers import (
     create_mask_overlay,
     fig_to_array,
@@ -1095,6 +1101,8 @@ def render_bboxes_overlay_torch(
     frame_id: torch.Tensor | None = None,
     line_thickness: int = 2,
     draw_labels: bool = False,
+    spectral_signatures: torch.Tensor | None = None,
+    sparkline_height: int = 24,
 ) -> torch.Tensor:
     """Render bbox edges on RGB frames using pure torch drawing primitives."""
     out = (rgb_image.clamp(0.0, 1.0) * 255.0).to(torch.uint8).clone()
@@ -1115,6 +1123,27 @@ def render_bboxes_overlay_torch(
         if draw_labels and int(classes[i].item()) >= 0:
             label = str(int(classes[i].item()))
             draw_text(frame, x1, max(0, y1 - 16), label, colors[i], scale=2, bg=True)
+
+    # Draw spectral sparklines inside each bbox (bottom region)
+    if spectral_signatures is not None:
+        sigs = spectral_signatures[0]  # [N, C]
+        sh = max(4, int(sparkline_height))
+        n_sigs = min(n, int(sigs.shape[0]))
+        for i in range(n_sigs):
+            x1, y1, x2, y2 = [int(v) for v in bboxes[0, i].round().tolist()]
+            bw = x2 - x1
+            if bw < 4 or (y2 - y1) < sh + 4:
+                continue
+            spark_y = y2 - sh - thickness  # just inside the bottom edge
+            draw_sparkline(
+                frame,
+                x1 + thickness,
+                spark_y,
+                bw - 2 * thickness,
+                sh,
+                sigs[i],
+                colors[i],
+            )
 
     if frame_id is not None:
         try:
@@ -1157,6 +1186,12 @@ class BBoxesOverlayNode(Node):
             description="Optional confidences [1, N].",
             optional=True,
         ),
+        "spectral_signatures": PortSpec(
+            dtype=torch.float32,
+            shape=(1, -1, -1),
+            description="Per-bbox spectral signatures [1, N, C]. Optional.",
+            optional=True,
+        ),
     }
 
     OUTPUT_SPECS = {
@@ -1167,10 +1202,25 @@ class BBoxesOverlayNode(Node):
         ),
     }
 
-    def __init__(self, line_thickness: int = 2, draw_labels: bool = False, **kwargs) -> None:
+    def __init__(
+        self,
+        line_thickness: int = 2,
+        draw_labels: bool = False,
+        draw_sparklines: bool = False,
+        sparkline_height: int = 24,
+        **kwargs,
+    ) -> None:
         self.line_thickness = int(line_thickness)
         self.draw_labels = bool(draw_labels)
-        super().__init__(line_thickness=line_thickness, draw_labels=draw_labels, **kwargs)
+        self.draw_sparklines = bool(draw_sparklines)
+        self.sparkline_height = int(sparkline_height)
+        super().__init__(
+            line_thickness=line_thickness,
+            draw_labels=draw_labels,
+            draw_sparklines=draw_sparklines,
+            sparkline_height=sparkline_height,
+            **kwargs,
+        )
 
     @torch.no_grad()
     def forward(
@@ -1180,9 +1230,11 @@ class BBoxesOverlayNode(Node):
         category_ids: torch.Tensor,
         frame_id: torch.Tensor | None = None,
         confidences: torch.Tensor | None = None,  # noqa: ARG002
+        spectral_signatures: torch.Tensor | None = None,
         **_,
     ) -> dict[str, torch.Tensor]:
         """Overlay bbox edges with deterministic per-class colors."""
+        sigs = spectral_signatures if self.draw_sparklines else None
         return {
             "rgb_with_overlay": render_bboxes_overlay_torch(
                 rgb_image=rgb_image,
@@ -1191,6 +1243,8 @@ class BBoxesOverlayNode(Node):
                 frame_id=frame_id,
                 line_thickness=self.line_thickness,
                 draw_labels=self.draw_labels,
+                spectral_signatures=sigs,
+                sparkline_height=self.sparkline_height,
             )
         }
 

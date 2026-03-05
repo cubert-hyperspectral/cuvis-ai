@@ -40,6 +40,7 @@ from cuvis_ai.node.pipeline_visualization import (
     PipelineComparisonVisualizer,
 )
 from cuvis_ai.node.preprocessors import BandpassByWavelength, SpatialRotateNode
+from cuvis_ai.node.spectral_extractor import BBoxSpectralExtractor
 from cuvis_ai.node.video import (
     ToVideoNode,
     VideoFrameDataModule,
@@ -52,6 +53,7 @@ __all__ = [
     "AnomalyMask",
     "BandpassByWavelength",
     "BBoxesOverlayNode",
+    "BBoxSpectralExtractor",
     "BinaryAnomalyLabelMapper",
     "CameraEmulationFalseRGBSelector",
     "ChannelSelectorBase",

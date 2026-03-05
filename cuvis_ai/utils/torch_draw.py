@@ -290,10 +290,102 @@ def overlay_instances(
     return out
 
 
+@torch.no_grad()
+def draw_sparkline(
+    img: torch.Tensor,
+    x1: int,
+    y1: int,
+    width: int,
+    height: int,
+    values: torch.Tensor,
+    color: torch.Tensor | tuple[int, int, int],
+    bg_alpha: float = 0.5,
+) -> None:
+    """Render a filled area sparkline chart on a uint8 HWC image (in-place).
+
+    Draws a mini filled area chart of ``values`` within the rectangle
+    ``(x1, y1, x1+width, y1+height)``. The values are min-max normalized
+    internally; the chart is filled from the curve down to the bottom edge.
+
+    Parameters
+    ----------
+    img : Tensor
+        ``(H, W, 3)`` uint8 image, modified in-place.
+    x1, y1 : int
+        Top-left corner of the sparkline region.
+    width, height : int
+        Dimensions of the sparkline region in pixels.
+    values : Tensor
+        ``(C,)`` float — the spectral signature or any 1-D signal.
+    color : Tensor or tuple
+        RGB color for the filled area.
+    bg_alpha : float
+        Background darkening factor (0=black, 1=no darkening).
+    """
+    if img.ndim != 3 or img.shape[-1] != 3 or img.dtype != torch.uint8:
+        raise ValueError(
+            f"Expected image shape (H, W, 3) uint8, got {tuple(img.shape)} {img.dtype}"
+        )
+
+    h, w = int(img.shape[0]), int(img.shape[1])
+    num_vals = int(values.numel())
+    if num_vals < 2 or width < 2 or height < 2:
+        return
+
+    # Clamp region to image bounds
+    rx1 = max(0, int(x1))
+    ry1 = max(0, int(y1))
+    rx2 = min(w, int(x1) + int(width))
+    ry2 = min(h, int(y1) + int(height))
+    if rx2 <= rx1 or ry2 <= ry1:
+        return
+
+    rw = rx2 - rx1
+    rh = ry2 - ry1
+
+    # Darken background region for readability
+    region = img[ry1:ry2, rx1:rx2, :]
+    darkened = (region.to(torch.float32) * bg_alpha).clamp(0, 255).to(torch.uint8)
+    img[ry1:ry2, rx1:rx2, :] = darkened
+
+    # Min-max normalize values to [0, 1]
+    vals = values.to(torch.float32).detach()
+    v_min = vals.min()
+    v_max = vals.max()
+    v_range = v_max - v_min
+    if v_range < 1e-12:
+        # Flat signal — draw a horizontal line at mid-height
+        norm_vals = torch.full_like(vals, 0.5)
+    else:
+        norm_vals = (vals - v_min) / v_range
+
+    # Map each column to a band index and compute y-position
+    color_t = _as_color_tensor(color, img.device)
+    for col in range(rw):
+        # Map column to band index (linear interpolation)
+        band_idx_f = col * (num_vals - 1) / max(1, rw - 1)
+        band_lo = int(band_idx_f)
+        band_hi = min(band_lo + 1, num_vals - 1)
+        frac = band_idx_f - band_lo
+        val = float(norm_vals[band_lo]) * (1.0 - frac) + float(norm_vals[band_hi]) * frac
+
+        # y=0 at top of region, y=rh-1 at bottom
+        # val=1 → top of region, val=0 → bottom
+        curve_y = int(round((1.0 - val) * (rh - 1)))
+        curve_y = max(0, min(curve_y, rh - 1))
+
+        # Fill from curve_y down to bottom
+        abs_x = rx1 + col
+        abs_y_start = ry1 + curve_y
+        if abs_y_start < ry2:
+            img[abs_y_start:ry2, abs_x, :] = color_t
+
+
 __all__ = [
     "mask_edge",
     "draw_box",
     "draw_text",
+    "draw_sparkline",
     "id_to_color",
     "overlay_instances",
 ]

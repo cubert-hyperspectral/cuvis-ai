@@ -5,6 +5,7 @@ import torch
 
 from cuvis_ai.utils.torch_draw import (
     draw_box,
+    draw_sparkline,
     draw_text,
     id_to_color,
     mask_edge,
@@ -118,6 +119,41 @@ def test_overlay_instances_cuda_output_device() -> None:
     mask[2:8, 3:9] = True
     out = overlay_instances(img, [(1, mask)], draw_ids=False)
     assert out.device.type == "cuda"
+
+
+def test_draw_sparkline_modifies_region() -> None:
+    img = torch.zeros((32, 48, 3), dtype=torch.uint8)
+    values = torch.linspace(0.1, 1.0, 10)
+    draw_sparkline(img, 4, 4, 20, 16, values, (255, 128, 0))
+    # The sparkline region should have non-zero pixels
+    assert torch.any(img[4:20, 4:24, :] > 0)
+
+
+def test_draw_sparkline_out_of_bounds() -> None:
+    img = torch.zeros((10, 12, 3), dtype=torch.uint8)
+    values = torch.linspace(0.0, 1.0, 8)
+    # Sparkline extends beyond image boundaries — should not crash
+    draw_sparkline(img, 8, 6, 20, 20, values, (0, 255, 0))
+    assert img.shape == (10, 12, 3)
+
+
+def test_draw_sparkline_empty_values() -> None:
+    img = torch.zeros((16, 16, 3), dtype=torch.uint8)
+    original = img.clone()
+    # Single element — should be a no-op
+    draw_sparkline(img, 2, 2, 10, 8, torch.tensor([0.5]), (255, 0, 0))
+    assert torch.equal(img, original)
+    # Empty tensor — should be a no-op
+    draw_sparkline(img, 2, 2, 10, 8, torch.tensor([]), (255, 0, 0))
+    assert torch.equal(img, original)
+
+
+def test_draw_sparkline_flat_signal() -> None:
+    img = torch.full((20, 30, 3), 128, dtype=torch.uint8)
+    values = torch.ones(10) * 0.5
+    # Flat signal should draw a horizontal line at mid-height without crashing
+    draw_sparkline(img, 2, 2, 20, 12, values, (255, 0, 0))
+    assert img.shape == (20, 30, 3)
 
 
 @pytest.mark.gpu
