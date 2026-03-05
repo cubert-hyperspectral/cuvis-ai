@@ -16,23 +16,6 @@ from cuvis_ai.node.preprocessors import SpatialRotateNode
 B, H, W, C = 2, 6, 10, 20
 
 
-# -- helpers -----------------------------------------------------------------
-
-
-def _make_cube_with_marker():
-    """Cube where [b, 0, 0, :] = 1.0 and rest = 0.0 — a known corner pixel."""
-    cube = torch.zeros(B, H, W, C, dtype=torch.float32)
-    cube[:, 0, 0, :] = 1.0
-    return cube
-
-
-def _make_mask_with_rect():
-    """Mask with foreground at rows [1:4], cols [3:7]."""
-    mask = torch.zeros(B, H, W, dtype=torch.int32)
-    mask[:, 1:4, 3:7] = 1
-    return mask
-
-
 # -- rotation correctness ---------------------------------------------------
 
 
@@ -63,9 +46,21 @@ def test_rotate_cube_180(create_test_cube):
     assert torch.equal(out["cube"][:, 0, 0, :], cube[:, H - 1, W - 1, :])
 
 
-def test_mask_rotates_with_cube():
-    cube = _make_cube_with_marker()
-    mask = _make_mask_with_rect()
+def test_mask_rotates_with_cube(create_test_cube):
+    # Cube with known corner marker at [b, 0, 0, :]
+    cube, _ = create_test_cube(
+        batch_size=B,
+        height=H,
+        width=W,
+        num_channels=C,
+        mode="random",
+        dtype=torch.float32,
+    )
+    cube[:, 0, 0, :] = 1.0
+
+    # Mask with foreground at rows [1:4], cols [3:7]
+    mask = torch.zeros(B, H, W, dtype=torch.int32)
+    mask[:, 1:4, 3:7] = 1
 
     node = SpatialRotateNode(rotation=90)
     out = node.forward(cube=cube, mask=mask)
@@ -87,9 +82,16 @@ def test_mask_rotates_with_cube():
     assert torch.all(rotated_cube[:, W - 1, 0, :] == 1.0)
 
 
-def test_no_wavelengths_port():
+def test_no_wavelengths_port(create_test_cube):
     """SpatialRotateNode only handles spatial data, not wavelengths."""
-    cube = torch.zeros(B, H, W, C, dtype=torch.float32)
+    cube, _ = create_test_cube(
+        batch_size=B,
+        height=H,
+        width=W,
+        num_channels=C,
+        mode="random",
+        dtype=torch.float32,
+    )
     node = SpatialRotateNode(rotation=90)
     out = node.forward(cube=cube)
     assert "wavelengths" not in out
@@ -98,15 +100,29 @@ def test_no_wavelengths_port():
 # -- passthrough -------------------------------------------------------------
 
 
-def test_passthrough_none_rotation():
-    cube = _make_cube_with_marker()
+def test_passthrough_none_rotation(create_test_cube):
+    cube, _ = create_test_cube(
+        batch_size=B,
+        height=H,
+        width=W,
+        num_channels=C,
+        mode="random",
+        dtype=torch.float32,
+    )
     node = SpatialRotateNode(rotation=None)
     out = node.forward(cube=cube)
     assert out["cube"] is cube
 
 
-def test_passthrough_zero_rotation():
-    cube = _make_cube_with_marker()
+def test_passthrough_zero_rotation(create_test_cube):
+    cube, _ = create_test_cube(
+        batch_size=B,
+        height=H,
+        width=W,
+        num_channels=C,
+        mode="random",
+        dtype=torch.float32,
+    )
     node = SpatialRotateNode(rotation=0)
     out = node.forward(cube=cube)
     assert out["cube"] is cube
@@ -129,16 +145,31 @@ def test_rotation_aliases():
 # -- optional inputs ---------------------------------------------------------
 
 
-def test_optional_inputs_omitted():
-    cube = torch.zeros(B, H, W, C, dtype=torch.float32)
+def test_optional_inputs_omitted(create_test_cube):
+    cube, _ = create_test_cube(
+        batch_size=B,
+        height=H,
+        width=W,
+        num_channels=C,
+        mode="random",
+        dtype=torch.float32,
+    )
     node = SpatialRotateNode(rotation=90)
     out = node.forward(cube=cube)
     assert set(out.keys()) == {"cube"}
 
 
-def test_cube_and_mask_only():
-    cube = torch.zeros(B, H, W, C, dtype=torch.float32)
-    mask = _make_mask_with_rect()
+def test_cube_and_mask_only(create_test_cube):
+    cube, _ = create_test_cube(
+        batch_size=B,
+        height=H,
+        width=W,
+        num_channels=C,
+        mode="random",
+        dtype=torch.float32,
+    )
+    mask = torch.zeros(B, H, W, dtype=torch.int32)
+    mask[:, 1:4, 3:7] = 1
     node = SpatialRotateNode(rotation=90)
     out = node.forward(cube=cube, mask=mask)
     assert set(out.keys()) == {"cube", "mask"}

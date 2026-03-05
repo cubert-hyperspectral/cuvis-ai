@@ -251,6 +251,50 @@ def create_test_cube():
     return _create
 
 
+@pytest.fixture(scope="session")
+def create_test_bboxes():
+    """Factory fixture for creating bounding-box tensors in xyxy format.
+
+    Returns:
+        Factory function that creates a ``[B, N, 4]`` float32 tensor of bboxes.
+
+    Examples:
+        >>> bboxes = create_test_bboxes(n=3, height=64, width=64)
+        >>> assert bboxes.shape == (1, 3, 4)
+    """
+
+    def _create(
+        n: int = 5,
+        batch_size: int = 1,
+        height: int = 64,
+        width: int = 64,
+        seed: int = 0,
+    ) -> torch.Tensor:
+        """Create deterministic xyxy bounding boxes within image bounds.
+
+        Boxes are evenly spaced along the diagonal and sized to ~25 % of the
+        image dimension so they don't overlap excessively.
+        """
+        _rng = torch.Generator().manual_seed(seed)  # noqa: F841 — seed for reproducibility
+        box_h = max(4, height // 4)
+        box_w = max(4, width // 4)
+        boxes = []
+        for i in range(n):
+            cx = int((i + 0.5) / n * width)
+            cy = int((i + 0.5) / n * height)
+            x1 = max(0, cx - box_w // 2)
+            y1 = max(0, cy - box_h // 2)
+            x2 = min(width, x1 + box_w)
+            y2 = min(height, y1 + box_h)
+            boxes.append([x1, y1, x2, y2])
+        bboxes = torch.tensor([boxes], dtype=torch.float32)
+        if batch_size > 1:
+            bboxes = bboxes.expand(batch_size, -1, -1).clone()
+        return bboxes
+
+    return _create
+
+
 # Rest of the file remains unchanged (SyntheticAnomalyDataModule, etc.)
 class _SyntheticDictDataset(Dataset):
     """Dataset that returns batch dicts with cube, mask, and wavelengths.
