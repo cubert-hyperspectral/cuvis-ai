@@ -1,18 +1,11 @@
-"""YOLO26 + ByteTrack CU3S tracking pipeline with optional spectral association.
+"""YOLO26 + ByteTrack RGB video tracking pipeline.
 
-Reads a CU3S hyperspectral cube, runs YOLO detection on false-RGB, and tracks
-with ByteTrack.  When ``--association-mode`` is set to ``spectral_cost`` or
-``spectral_post_gate``, a BBoxSpectralExtractor feeds per-detection spectral
-signatures into the tracker for spectral-aware association.
+Reads an MP4 (or other cv2-compatible) video file, runs YOLO detection and
+ByteTrack association, and writes COCO-format detection/tracking JSONs plus
+an overlay video with frame IDs and track IDs.
 
-Example (baseline, 60 frames):
-    uv run python examples/object_tracking/bytetrack/yolo_bytetrack_hsi.py \\
-        --cu3s-path cube.cu3s --end-frame 60
-
-Example (spectral cost):
-    uv run python examples/object_tracking/bytetrack/yolo_bytetrack_hsi.py \\
-        --cu3s-path cube.cu3s --association-mode spectral_cost \\
-        --spectral-cost-weight 0.3 --end-frame 60
+Example (60 frames):
+    uv run python examples/object_tracking/bytetrack/yolo_bytetrack_rgb.py --video-path "D:\\data\\XMR_notarget_Busstation\\20260226\\Auto_013+01-trustimulus.mp4" --output-dir tracking_output --end-frame 60
 """
 
 from __future__ import annotations
@@ -27,9 +20,11 @@ from loguru import logger
 
 @click.command()
 @click.option(
-    "--cu3s-path", type=click.Path(exists=True, dir_okay=False, path_type=Path), required=True
+    "--video-path",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    required=True,
+    help="Path to an MP4 (or other cv2-compatible) video file.",
 )
-@click.option("--processing-mode", type=str, default="SpectralRadiance", show_default=True)
 @click.option("--frame-rotation", type=int, default=None)
 @click.option("--end-frame", type=int, default=-1, show_default=True)
 @click.option("--model-name", type=str, default="yolo26n.pt", show_default=True)
@@ -92,72 +87,8 @@ from loguru import logger
     help="Directory containing ultralytics.yaml and bytetrack.yaml",
 )
 @click.option("--bf16", is_flag=True, default=False)
-# -- Spectral association options ------------------------------------------
-@click.option(
-    "--association-mode",
-    type=click.Choice(["baseline", "spectral_cost", "spectral_post_gate"], case_sensitive=False),
-    default="baseline",
-    show_default=True,
-    help="ByteTrack association strategy.",
-)
-@click.option(
-    "--spectral-cost-weight",
-    type=float,
-    default=0.3,
-    show_default=True,
-    help="Weight for spectral cost in all association stages.",
-)
-@click.option(
-    "--prototype-ema-beta",
-    type=float,
-    default=0.1,
-    show_default=True,
-    help="EMA weight for track spectral prototypes.",
-)
-@click.option(
-    "--prototype-min-sim",
-    type=float,
-    default=0.5,
-    show_default=True,
-    help="Min cosine similarity for prototype matching.",
-)
-@click.option(
-    "--prototype-min-det-score",
-    type=float,
-    default=0.3,
-    show_default=True,
-    help="Min detection score to update prototype.",
-)
-@click.option(
-    "--spectral-center-crop",
-    type=float,
-    default=0.65,
-    show_default=True,
-    help="Center-crop scale for spectral extraction.",
-)
-@click.option(
-    "--spectral-sim-floor",
-    type=float,
-    default=0.4,
-    show_default=True,
-    help="Similarity floor for post-gate mode.",
-)
-@click.option(
-    "--draw-spectral-sparklines/--no-draw-spectral-sparklines",
-    default=False,
-    show_default=True,
-    help="Draw spectral sparklines on overlay bboxes.",
-)
-@click.option(
-    "--sparkline-height",
-    type=int,
-    default=24,
-    show_default=True,
-    help="Pixel height of sparkline bars in overlay.",
-)
 def main(
-    cu3s_path: Path,
-    processing_mode: str,
+    video_path: Path,
     frame_rotation: int | None,
     end_frame: int,
     model_name: str,
@@ -175,15 +106,6 @@ def main(
     output_dir: Path,
     plugins_dir: Path | None,
     bf16: bool,
-    association_mode: str,
-    spectral_cost_weight: float,
-    prototype_ema_beta: float,
-    prototype_min_sim: float,
-    prototype_min_det_score: float,
-    spectral_center_crop: float,
-    spectral_sim_floor: float,
-    draw_spectral_sparklines: bool,
-    sparkline_height: int,
 ) -> None:
     if end_frame == 0 or end_frame < -1:
         raise click.BadParameter("--end-frame must be -1 or positive")
@@ -191,31 +113,34 @@ def main(
     device = "cuda" if torch.cuda.is_available() else "cpu"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    from cuvis_ai_core.data.datasets import SingleCu3sDataModule
     from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
     from cuvis_ai_core.training import Predictor
     from cuvis_ai_core.utils.node_registry import NodeRegistry
 
     from cuvis_ai.node.anomaly_visualization import BBoxesOverlayNode
-    from cuvis_ai.node.channel_selector import CIETristimulusFalseRGBSelector
-    from cuvis_ai.node.data import CU3SDataNode
     from cuvis_ai.node.json_writer import ByteTrackCocoJson, DetectionCocoJsonNode
-    from cuvis_ai.node.spectral_extractor import BBoxSpectralExtractor
-    from cuvis_ai.node.video import ToVideoNode
+    from cuvis_ai.node.video import ToVideoNode, VideoFrameDataModule, VideoFrameNode
 
-    use_spectral = association_mode != "baseline"
-
-    predict_ids = list(range(end_frame)) if end_frame > 0 else None
-    datamodule = SingleCu3sDataModule(
-        cu3s_file_path=str(cu3s_path),
-        processing_mode=processing_mode,
+    # -- Data module -----------------------------------------------------------
+    datamodule = VideoFrameDataModule(
+        video_path=str(video_path),
+        end_frame=end_frame,
         batch_size=1,
-        predict_ids=predict_ids,
     )
     datamodule.setup(stage="predict")
-    target_frames = len(datamodule.predict_ds)
-    dataset_fps = float(getattr(datamodule.predict_ds, "fps", None) or 10.0)
 
+    if datamodule.predict_ds is None:
+        raise RuntimeError("Predict dataset was not initialized.")
+
+    target_frames = len(datamodule.predict_ds)
+    if target_frames <= 0:
+        raise click.ClickException("No frames available for prediction.")
+
+    dataset_fps = datamodule.fps
+    logger.info("Video: {}", video_path)
+    logger.info("Frames to process: {} (FPS {:.1f})", target_frames, dataset_fps)
+
+    # -- Plugins ---------------------------------------------------------------
     _repo_root = Path(__file__).parents[3]
     plugins_dir_resolved = (plugins_dir or (_repo_root / "configs" / "plugins")).resolve()
 
@@ -229,10 +154,10 @@ def main(
     yolo_post_cls = registry.get("cuvis_ai_ultralytics.node.YOLOPostprocess")
     bytetrack_cls = registry.get("cuvis_ai_bytetrack.node.ByteTrack")
 
-    pipeline = CuvisPipeline("YOLO_ByteTrack_HSI")
+    # -- Pipeline --------------------------------------------------------------
+    pipeline = CuvisPipeline("YOLO_ByteTrack_RGB")
 
-    cu3s_data = CU3SDataNode(name="cu3s_data")
-    false_rgb = CIETristimulusFalseRGBSelector(name="cie_false_rgb")
+    video_frame = VideoFrameNode(name="video_frame")
     yolo_det = yolo_cls(model_path=model_name, name="yolo26_det")
     yolo_pre = yolo_pre_cls(stride=int(getattr(yolo_det, "stride", 32)), name="yolo_preprocess")
     yolo_post = yolo_post_cls(
@@ -242,29 +167,17 @@ def main(
         classes=list(classes) if classes else None,
         name="yolo_post",
     )
-    tracker_kwargs: dict = {
-        "track_thresh": track_thresh,
-        "track_buffer": track_buffer,
-        "match_thresh": match_thresh,
-        "second_score_thresh": second_score_thresh,
-        "second_match_thresh": second_match_thresh,
-        "unconfirmed_match_thresh": unconfirmed_match_thresh,
-        "new_track_thresh_offset": new_track_thresh_offset,
-        "frame_rate": int(dataset_fps),
-        "name": "bytetrack",
-    }
-    if use_spectral:
-        tracker_kwargs.update(
-            association_mode=association_mode,
-            spectral_cost_weight_first=spectral_cost_weight,
-            spectral_cost_weight_second=spectral_cost_weight,
-            spectral_cost_weight_unconfirmed=spectral_cost_weight,
-            prototype_ema_beta=prototype_ema_beta,
-            prototype_min_sim=prototype_min_sim,
-            prototype_min_det_score=prototype_min_det_score,
-            spectral_sim_floor_post_gate=spectral_sim_floor,
-        )
-    tracker = bytetrack_cls(**tracker_kwargs)
+    tracker = bytetrack_cls(
+        track_thresh=track_thresh,
+        track_buffer=track_buffer,
+        match_thresh=match_thresh,
+        second_score_thresh=second_score_thresh,
+        second_match_thresh=second_match_thresh,
+        unconfirmed_match_thresh=unconfirmed_match_thresh,
+        new_track_thresh_offset=new_track_thresh_offset,
+        frame_rate=int(dataset_fps),
+        name="bytetrack",
+    )
     det_json = DetectionCocoJsonNode(
         output_json_path=str(output_dir / "detection_results.json"),
         name="detection_coco_json",
@@ -273,32 +186,18 @@ def main(
         output_json_path=str(output_dir / "tracking_results.json"),
         name="tracking_coco_json",
     )
-    if use_spectral:
-        spectral_extractor = BBoxSpectralExtractor(
-            center_crop_scale=spectral_center_crop,
-            name="spectral_extractor",
-        )
-
-    bbox_overlay = BBoxesOverlayNode(
-        name="bboxes_overlay",
-        draw_labels=True,
-        draw_sparklines=draw_spectral_sparklines and use_spectral,
-        sparkline_height=sparkline_height,
-    )
+    bbox_overlay = BBoxesOverlayNode(name="bboxes_overlay", draw_labels=True)
     overlay_path = output_dir / "tracking_overlay.mp4"
     to_video = ToVideoNode(
         output_video_path=str(overlay_path),
         frame_rate=dataset_fps,
         frame_rotation=frame_rotation,
-        # codec="VP90",
         name="to_video",
     )
 
-    connections = [
-        # CU3S → false RGB → YOLO
-        (cu3s_data.outputs.cube, false_rgb.cube),
-        (cu3s_data.outputs.wavelengths, false_rgb.wavelengths),
-        (false_rgb.rgb_image, yolo_pre.rgb_image),
+    pipeline.connect(
+        # Video → YOLO
+        (video_frame.outputs.rgb_image, yolo_pre.rgb_image),
         (yolo_pre.preprocessed, yolo_det.preprocessed),
         (yolo_pre.model_input_hw, yolo_post.model_input_hw),
         (yolo_pre.orig_hw, yolo_post.orig_hw),
@@ -308,44 +207,28 @@ def main(
         (yolo_post.category_ids, tracker.inputs.category_ids),
         (yolo_post.confidences, tracker.inputs.confidences),
         # Detection JSON (pre-tracking)
-        (cu3s_data.outputs.mesu_index, det_json.frame_id),
+        (video_frame.outputs.frame_id, det_json.frame_id),
         (yolo_post.bboxes, det_json.bboxes),
         (yolo_post.category_ids, det_json.category_ids),
         (yolo_post.confidences, det_json.confidences),
         (yolo_pre.orig_hw, det_json.orig_hw),
         # Tracking JSON (post-tracking)
-        (cu3s_data.outputs.mesu_index, track_json.frame_id),
+        (video_frame.outputs.frame_id, track_json.frame_id),
         (tracker.outputs.bboxes, track_json.bboxes),
         (tracker.outputs.category_ids, track_json.category_ids),
         (tracker.outputs.confidences, track_json.confidences),
         (tracker.track_ids, track_json.track_ids),
         (yolo_pre.orig_hw, track_json.orig_hw),
-        # Video overlay with track ID labels
-        (false_rgb.rgb_image, bbox_overlay.rgb_image),
-        (cu3s_data.outputs.mesu_index, bbox_overlay.frame_id),
+        # Video overlay with track ID labels and frame ID
+        (video_frame.outputs.rgb_image, bbox_overlay.rgb_image),
+        (video_frame.outputs.frame_id, bbox_overlay.frame_id),
         (tracker.outputs.bboxes, bbox_overlay.bboxes),
         (tracker.track_ids, bbox_overlay.category_ids),
         (tracker.outputs.confidences, bbox_overlay.confidences),
         (bbox_overlay.rgb_with_overlay, to_video.rgb_image),
-    ]
+    )
 
-    if use_spectral:
-        connections.extend(
-            [
-                # Spectral extractor: cube + bboxes → signatures + valid
-                (cu3s_data.outputs.cube, spectral_extractor.cube),
-                (yolo_post.bboxes, spectral_extractor.bboxes),
-                (spectral_extractor.spectral_signatures, tracker.inputs.spectral_signatures),
-                (spectral_extractor.spectral_valid, tracker.inputs.spectral_valid),
-            ]
-        )
-        if draw_spectral_sparklines:
-            connections.append(
-                (spectral_extractor.spectral_signatures, bbox_overlay.spectral_signatures),
-            )
-
-    pipeline.connect(*connections)
-
+    # -- Run -------------------------------------------------------------------
     pipeline.to(device)
     predictor = Predictor(pipeline=pipeline, datamodule=datamodule)
 
@@ -355,12 +238,7 @@ def main(
         else contextlib.nullcontext()
     )
 
-    logger.info(
-        "Starting tracking ({} frames) on {} [mode={}]",
-        target_frames,
-        device,
-        association_mode,
-    )
+    logger.info("Starting tracking ({} frames) on {}", target_frames, device)
     with amp_ctx:
         predictor.predict(max_batches=target_frames, collect_outputs=False)
 

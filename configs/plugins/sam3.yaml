@@ -1,0 +1,9 @@
+# ByteTrack Plugin Manifest
+plugins:
+  sam3:
+    # SAM3-based video object tracking plugin
+    path: "../../../../cuvis-ai-sam3/sam3-init"
+    provides:
+      - cuvis_ai_sam3.node.SAM3TrackerInference
+      - cuvis_ai_sam3.node.SpectralSignatureExtractor
+
