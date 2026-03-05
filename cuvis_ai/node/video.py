@@ -207,31 +207,47 @@ class ToVideoNode(Node):
 # VideoIterator — frame-level access to MP4/AVI files via torchcodec
 # ---------------------------------------------------------------------------
 class VideoIterator:
-    """Iterate over frames of an MP4/AVI video via torchcodec."""
+    """Iterate over frames of an MP4/AVI video.
+
+    Tries torchcodec (random-access, GPU-friendly) first; falls back to
+    OpenCV ``cv2.VideoCapture`` when torchcodec/FFmpeg is unavailable.
+    """
 
     def __init__(self, source_path: str) -> None:
         self.source_path = source_path
         assert Path(source_path).exists(), f"Video file {source_path} does not exist"
-
-        _SimpleVideoDecoder = _import_torchcodec()
-        self.video_decoder = _SimpleVideoDecoder(source_path)
-        self.num_frames: int = len(self.video_decoder)
-
-        self.enable_random_access = True
-        if self.num_frames < 0:
-            logger.error(
-                "Cannot determine number of frames. Random access is disabled: {}",
-                source_path,
-            )
-            self.enable_random_access = False
-            self.num_frames = 0
-
-        self.frame_rate: float = self.video_decoder.metadata.average_fps
         self.basename: str = Path(source_path).stem
+        self._backend: str = "torchcodec"
 
-        first_frame = self.video_decoder[0]
-        self.image_width: int = first_frame.shape[2]
-        self.image_height: int = first_frame.shape[1]
+        try:
+            _SimpleVideoDecoder = _import_torchcodec()
+            self.video_decoder = _SimpleVideoDecoder(source_path)
+            self.num_frames: int = len(self.video_decoder)
+            self.enable_random_access = True
+            if self.num_frames < 0:
+                logger.error(
+                    "Cannot determine number of frames. Random access is disabled: {}",
+                    source_path,
+                )
+                self.enable_random_access = False
+                self.num_frames = 0
+            self.frame_rate: float = self.video_decoder.metadata.average_fps
+            first_frame = self.video_decoder[0]
+            self.image_width: int = first_frame.shape[2]
+            self.image_height: int = first_frame.shape[1]
+        except ImportError as err:
+            logger.info("torchcodec unavailable, falling back to cv2.VideoCapture")
+            self._backend = "cv2"
+            self.video_decoder = None  # type: ignore[assignment]
+            cap = cv2.VideoCapture(source_path)
+            if not cap.isOpened():
+                raise RuntimeError(f"cv2.VideoCapture failed to open {source_path}") from err
+            self.num_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            self.frame_rate = float(cap.get(cv2.CAP_PROP_FPS)) or 10.0
+            self.image_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            self.image_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            self.enable_random_access = True
+            cap.release()
 
     def __len__(self) -> int:
         return self.num_frames
@@ -241,6 +257,9 @@ class VideoIterator:
             yield self.get_frame(frame_id)
 
     def get_frame(self, frame_id: int) -> dict[str, Any]:
+        if self._backend == "cv2":
+            return self._get_frame_cv2(frame_id)
+
         try:
             frame = self.video_decoder[frame_id].permute(1, 2, 0).numpy()
         except Exception as e:
@@ -251,6 +270,16 @@ class VideoIterator:
             frame = frame.astype(np.uint8)
 
         frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        return {"frame_id": frame_id, "image": frame_bgr, "basename": self.basename}
+
+    def _get_frame_cv2(self, frame_id: int) -> dict[str, Any]:
+        cap = cv2.VideoCapture(self.source_path)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_id)
+        ok, frame_bgr = cap.read()
+        cap.release()
+        if not ok or frame_bgr is None:
+            logger.error("cv2: Error reading frame {}", frame_id)
+            return {"frame_id": frame_id, "image": np.zeros((1, 1, 3), dtype=np.uint8)}
         return {"frame_id": frame_id, "image": frame_bgr, "basename": self.basename}
 
 
@@ -274,7 +303,10 @@ class VideoFrameDataset(Dataset):
         bgr = frame_data["image"]
         rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
         rgb_f32 = torch.from_numpy(rgb.astype(np.float32) / 255.0)
-        return {"rgb_image": rgb_f32}
+        return {
+            "rgb_image": rgb_f32,
+            "frame_id": torch.tensor(idx, dtype=torch.int64),
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -317,6 +349,12 @@ class VideoFrameNode(Node):
             shape=(-1, -1, -1, 3),
             description="RGB frame [B, H, W, 3] in [0, 1].",
         ),
+        "frame_id": PortSpec(
+            dtype=torch.int64,
+            shape=(-1,),
+            description="Frame index [B].",
+            optional=True,
+        ),
     }
     OUTPUT_SPECS = {
         "rgb_image": PortSpec(
@@ -324,10 +362,23 @@ class VideoFrameNode(Node):
             shape=(-1, -1, -1, 3),
             description="RGB frame [B, H, W, 3] in [0, 1].",
         ),
+        "frame_id": PortSpec(
+            dtype=torch.int64,
+            shape=(-1,),
+            description="Frame index [B].",
+        ),
     }
 
-    def forward(self, rgb_image: torch.Tensor, **_: Any) -> dict[str, torch.Tensor]:
-        return {"rgb_image": rgb_image}
+    def forward(
+        self,
+        rgb_image: torch.Tensor,
+        frame_id: torch.Tensor | None = None,
+        **_: Any,
+    ) -> dict[str, torch.Tensor]:
+        result: dict[str, torch.Tensor] = {"rgb_image": rgb_image}
+        if frame_id is not None:
+            result["frame_id"] = frame_id
+        return result
 
 
 __all__ = [
