@@ -1,47 +1,72 @@
 """Hyperparameter sweep runner for YOLO + ByteTrack HSI pipeline.
 
-Runs `yolo_bytetrack_hsi.py` over a predefined grid of detection and tracking
-thresholds, records outputs per run, computes simple tracking/detection metrics,
-and writes aggregate CSV/Parquet plus an interactive HTML table.
+Runs `yolo_bytetrack_hsi.py` over a predefined grid of detection, tracking,
+and spectral thresholds, records per-run metrics JSON, and prints progress.
+
+Sweep stages:
+  A  — baseline threshold sweep (association_mode=baseline, no spectral params)
+  B  — spectral sweep on a reduced threshold subset
+  AB — run both stages sequentially
+
+Use `regenerate_bytetrack_sweep_html.py` afterwards to collect all run results
+into aggregate CSV/Parquet and an interactive HTML table.
+
+Supports parallel execution via --num-workers (default 1 = sequential).
 """
 
 from __future__ import annotations
 
 import argparse
-import html
+import concurrent.futures
 import itertools
 import json
 import math
 import re
 import subprocess
 import sys
+import threading
 import time
 from collections.abc import Iterable
 from dataclasses import dataclass
-from numbers import Integral, Real
 from pathlib import Path
 from typing import Any
 
-import pandas as pd
-
-# Optional: plotly is only used for color scales; HTML interactivity relies on DataTables JS.
-try:
-    import plotly.express as px  # noqa: F401
-except ImportError:  # pragma: no cover - plotly is optional
-    px = None
-
-
 # === Sweep space ===
-CONFIDENCE_VALUES = [0.01, 0.04, 0.05, 0.10, 0.20, 0.30, 0.50]
-IOU_VALUES = [0.10, 0.60]
-TRACK_THRESH_VALUES = [0.10, 0.60]
-MATCH_THRESH_VALUES = [0.10, 0.60]
-TRACK_BUFFER_VALUES = [10, 30, 60]
-AGNOSTIC_VALUES = [False, True]
+# Two-phase strategy:
+#   Phase 1 — sweep primary detection & tracking thresholds (secondary fixed at defaults)
+#   Phase 2 — take best Phase 1 combos, uncomment secondary param grids below
+
+# --- Phase 1: primary params (~375 runs) ---
+CONFIDENCE_VALUES = [0.15, 0.20, 0.25]
+IOU_VALUES = [0.65, 0.75, 0.85, 0.90, 0.95]
+TRACK_THRESH_VALUES = [0.15, 0.25, 0.30, 0.35, 0.45]
+MATCH_THRESH_VALUES = [0.4, 0.5, 0.60, 0.70, 0.80]
+TRACK_BUFFER_VALUES = [30]
+AGNOSTIC_VALUES = [False]
+
+# --- Phase 1 defaults for secondary params (single value = no sweep) ---
 SECOND_SCORE_THRESH_VALUES = [0.10]
 SECOND_MATCH_THRESH_VALUES = [0.50]
 UNCONFIRMED_MATCH_THRESH_VALUES = [0.70]
 NEW_TRACK_THRESH_OFFSET_VALUES = [0.10]
+
+# --- Phase 2: uncomment to sweep secondary params ---
+# TRACK_BUFFER_VALUES = [30, 40, 60]
+# SECOND_SCORE_THRESH_VALUES = [0.05, 0.10, 0.15, 0.20]
+# SECOND_MATCH_THRESH_VALUES = [0.35, 0.45, 0.50, 0.55, 0.60]
+# UNCONFIRMED_MATCH_THRESH_VALUES = [0.55, 0.60, 0.65, 0.70]
+# NEW_TRACK_THRESH_OFFSET_VALUES = [0.05, 0.10]
+
+# --- Stage B: spectral params ---
+# Reduced baseline grid for Stage B (best combos from Stage A).
+STAGE_B_CONFIDENCE_VALUES = [0.15, 0.20]
+STAGE_B_IOU_VALUES = [0.75, 0.85]
+STAGE_B_TRACK_THRESH_VALUES = [0.25, 0.35]
+STAGE_B_MATCH_THRESH_VALUES = [0.50, 0.70]
+# Spectral grid
+ASSOCIATION_MODE_VALUES = ["spectral_cost", "spectral_post_gate"]
+SPECTRAL_COST_WEIGHT_VALUES = [0.2, 0.3, 0.5]
+PROTOTYPE_EMA_BETA_VALUES = [0.05, 0.1, 0.2]
 
 
 # === Helpers ===
@@ -61,8 +86,11 @@ def _build_run_id(
     second_match_thresh: float,
     unconfirmed_match_thresh: float,
     new_track_thresh_offset: float,
+    association_mode: str = "baseline",
+    spectral_cost_weight: float | None = None,
+    prototype_ema_beta: float | None = None,
 ) -> str:
-    return (
+    parts = (
         f"conf{_fmt_float_token(confidence_threshold)}"
         f"_iou{_fmt_float_token(iou_threshold)}"
         f"_tt{_fmt_float_token(track_thresh)}"
@@ -74,6 +102,14 @@ def _build_run_id(
         f"_u2{_fmt_float_token(unconfirmed_match_thresh)}"
         f"_nt{_fmt_float_token(new_track_thresh_offset)}"
     )
+    if association_mode != "baseline":
+        mode_abbr = "sc" if association_mode == "spectral_cost" else "spg"
+        parts += f"_am{mode_abbr}"
+        if spectral_cost_weight is not None:
+            parts += f"_scw{_fmt_float_token(spectral_cost_weight)}"
+        if prototype_ema_beta is not None:
+            parts += f"_ema{_fmt_float_token(prototype_ema_beta)}"
+    return parts
 
 
 def _ensure_dir(path: Path) -> None:
@@ -115,6 +151,9 @@ def _compute_metrics(det_json_path: Path, track_json_path: Path) -> dict[str, An
         "avg_tracks_per_frame": sum(track_counts.values()) / n_frames,
         "max_tracks_per_frame": max(track_counts.values(), default=0),
         "frames_with_zero_tracks": sum(1 for v in track_counts.values() if v == 0),
+        # Unique track IDs observed over the full clip.
+        "tracks_whole_video": len(track_ids),
+        # Backward-compatible legacy name.
         "unique_track_ids": len(track_ids),
         "total_annotations_det": len(det_data.get("annotations", [])),
         "total_annotations_track": len(track_data.get("annotations", [])),
@@ -134,22 +173,58 @@ class RunParams:
     second_match_thresh: float
     unconfirmed_match_thresh: float
     new_track_thresh_offset: float
+    association_mode: str = "baseline"
+    spectral_cost_weight: float | None = None
+    prototype_ema_beta: float | None = None
 
 
-def _generate_grid() -> Iterable[RunParams]:
-    for conf, iou, tt, mt, tb, agn, s2, m2, u2, nt in itertools.product(
-        CONFIDENCE_VALUES,
-        IOU_VALUES,
-        TRACK_THRESH_VALUES,
-        MATCH_THRESH_VALUES,
-        TRACK_BUFFER_VALUES,
-        AGNOSTIC_VALUES,
-        SECOND_SCORE_THRESH_VALUES,
-        SECOND_MATCH_THRESH_VALUES,
-        UNCONFIRMED_MATCH_THRESH_VALUES,
-        NEW_TRACK_THRESH_OFFSET_VALUES,
-    ):
-        yield RunParams(conf, iou, tt, mt, tb, agn, s2, m2, u2, nt)
+def _generate_grid(stage: str = "A") -> Iterable[RunParams]:
+    """Generate sweep grid.
+
+    stage "A": baseline threshold sweep (association_mode=baseline).
+    stage "B": reduced threshold subset x spectral grid.
+    stage "AB": both stages concatenated.
+    """
+    if stage in ("A", "AB"):
+        for conf, iou, tt, mt, tb, agn, s2, m2, u2, nt in itertools.product(
+            CONFIDENCE_VALUES,
+            IOU_VALUES,
+            TRACK_THRESH_VALUES,
+            MATCH_THRESH_VALUES,
+            TRACK_BUFFER_VALUES,
+            AGNOSTIC_VALUES,
+            SECOND_SCORE_THRESH_VALUES,
+            SECOND_MATCH_THRESH_VALUES,
+            UNCONFIRMED_MATCH_THRESH_VALUES,
+            NEW_TRACK_THRESH_OFFSET_VALUES,
+        ):
+            yield RunParams(conf, iou, tt, mt, tb, agn, s2, m2, u2, nt)
+
+    if stage in ("B", "AB"):
+        for conf, iou, tt, mt, am, scw, ema in itertools.product(
+            STAGE_B_CONFIDENCE_VALUES,
+            STAGE_B_IOU_VALUES,
+            STAGE_B_TRACK_THRESH_VALUES,
+            STAGE_B_MATCH_THRESH_VALUES,
+            ASSOCIATION_MODE_VALUES,
+            SPECTRAL_COST_WEIGHT_VALUES,
+            PROTOTYPE_EMA_BETA_VALUES,
+        ):
+            yield RunParams(
+                confidence_threshold=conf,
+                iou_threshold=iou,
+                track_thresh=tt,
+                match_thresh=mt,
+                track_buffer=TRACK_BUFFER_VALUES[0],
+                agnostic_nms=False,
+                second_score_thresh=SECOND_SCORE_THRESH_VALUES[0],
+                second_match_thresh=SECOND_MATCH_THRESH_VALUES[0],
+                unconfirmed_match_thresh=UNCONFIRMED_MATCH_THRESH_VALUES[0],
+                new_track_thresh_offset=NEW_TRACK_THRESH_OFFSET_VALUES[0],
+                association_mode=am,
+                spectral_cost_weight=scw,
+                prototype_ema_beta=ema,
+            )
 
 
 def _run_command(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess:
@@ -162,378 +237,204 @@ def _maybe_filter(run_id: str, pattern: str | None) -> bool:
     return re.search(pattern, run_id) is not None
 
 
-def _ensure_web_preview(overlay_path: Path, codec: str = "VP90") -> Path | None:
-    """Create a browser-friendly `.webm` preview next to the overlay if possible."""
-    if not overlay_path.exists():
+def _format_duration(seconds: float | None) -> str:
+    if seconds is None or seconds < 0 or not math.isfinite(seconds):
+        return "--:--:--"
+    whole = int(seconds)
+    h, rem = divmod(whole, 3600)
+    m, s = divmod(rem, 60)
+    return f"{h:02d}:{m:02d}:{s:02d}"
+
+
+def _estimate_eta(elapsed: float, completed: int, total: int) -> float | None:
+    if completed <= 0 or total <= 0 or completed > total:
         return None
+    avg = elapsed / completed
+    return avg * (total - completed)
 
-    preview_path = overlay_path.with_suffix(".webm")
-    if preview_path.exists() and preview_path.stat().st_mtime >= overlay_path.stat().st_mtime:
-        return preview_path
 
-    try:
-        import cv2
-    except Exception:
-        return None
+def _build_cmd(
+    script_path: Path,
+    cu3s_path: Path,
+    run_dir: Path,
+    max_frames: int,
+    model_name: str,
+    params: RunParams,
+    plugins_dir: Path | None,
+    bf16: bool,
+) -> list[str]:
+    """Build the subprocess command for a single run."""
+    cmd = [
+        sys.executable,
+        str(script_path),
+        "--cu3s-path",
+        str(cu3s_path),
+        "--output-dir",
+        str(run_dir),
+        "--end-frame",
+        str(max_frames),
+        "--model-name",
+        model_name,
+        "--confidence-threshold",
+        str(params.confidence_threshold),
+        "--iou-threshold",
+        str(params.iou_threshold),
+        "--track-thresh",
+        str(params.track_thresh),
+        "--match-thresh",
+        str(params.match_thresh),
+        "--track-buffer",
+        str(params.track_buffer),
+        "--second-score-thresh",
+        str(params.second_score_thresh),
+        "--second-match-thresh",
+        str(params.second_match_thresh),
+        "--unconfirmed-match-thresh",
+        str(params.unconfirmed_match_thresh),
+        "--new-track-thresh-offset",
+        str(params.new_track_thresh_offset),
+        "--association-mode",
+        params.association_mode,
+        "--classes",
+        "0",
+    ]
+    if params.association_mode != "baseline":
+        if params.spectral_cost_weight is not None:
+            cmd.extend(["--spectral-cost-weight", str(params.spectral_cost_weight)])
+        if params.prototype_ema_beta is not None:
+            cmd.extend(["--prototype-ema-beta", str(params.prototype_ema_beta)])
+    if params.agnostic_nms:
+        cmd.append("--agnostic-nms")
+    if plugins_dir:
+        cmd.extend(["--plugins-dir", str(plugins_dir)])
+    if bf16:
+        cmd.append("--bf16")
+    return cmd
 
-    cap = cv2.VideoCapture(str(overlay_path))
-    if not cap.isOpened():
-        cap.release()
-        return None
 
-    fps = float(cap.get(cv2.CAP_PROP_FPS) or 10.0)
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    if width <= 0 or height <= 0:
-        cap.release()
-        return None
+def _execute_single_run(
+    index: int,
+    total_runs: int,
+    params: RunParams,
+    script_path: Path,
+    cu3s_path: Path,
+    output_root: Path,
+    max_frames: int,
+    model_name: str,
+    plugins_dir: Path | None,
+    bf16: bool,
+    overwrite: bool,
+    resume: bool,
+    verbose: bool,
+    repo_root: Path,
+) -> dict[str, Any]:
+    """Execute one sweep run and return its result dict."""
+    run_id = _build_run_id(**params.__dict__)
+    run_dir = output_root / run_id
+    _ensure_dir(run_dir)
 
-    writer = cv2.VideoWriter(
-        str(preview_path),
-        cv2.VideoWriter_fourcc(*codec),
-        fps,
-        (width, height),
+    det_path = run_dir / "detection_results.json"
+    track_path = run_dir / "tracking_results.json"
+
+    should_run = True
+    if det_path.exists() and track_path.exists() and not overwrite:
+        should_run = False
+    if not overwrite and resume and track_path.exists():
+        should_run = False
+
+    start_ts = time.time()
+    status = "skipped"
+    stdout = stderr = ""
+    cmd: list[str] | None = None
+
+    if should_run:
+        cmd = _build_cmd(
+            script_path,
+            cu3s_path,
+            run_dir,
+            max_frames,
+            model_name,
+            params,
+            plugins_dir,
+            bf16,
+        )
+        proc = _run_command(cmd, cwd=repo_root)
+        stdout, stderr = proc.stdout, proc.stderr
+        status = "ok" if proc.returncode == 0 else f"fail({proc.returncode})"
+
+    wall_time = time.time() - start_ts
+
+    # Compute metrics if outputs exist (even for skipped/existing runs).
+    metrics: dict[str, Any] = {}
+    if not status.startswith("fail"):
+        try:
+            metrics = _compute_metrics(det_path, track_path)
+            if status == "skipped":
+                status = "existing"
+        except Exception as exc:
+            status = f"metrics_failed: {exc}"
+
+    # Persist per-run metadata.
+    (run_dir / "run_meta.json").write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "params": params.__dict__,
+                "command": cmd,
+                "status": status,
+                "stdout_tail": stdout[-400:],
+                "stderr_tail": stderr[-400:],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
     )
-    if not writer.isOpened():
-        writer.release()
-        cap.release()
-        return None
+    (run_dir / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
 
-    try:
-        while True:
-            ok, frame = cap.read()
-            if not ok:
-                break
-            writer.write(frame)
-    finally:
-        writer.release()
-        cap.release()
-
-    return preview_path if preview_path.exists() else None
-
-
-def _write_interactive_table(df: pd.DataFrame, output_html: Path) -> None:
-    """Render a sortable/filterable HTML table via DataTables (client-side)."""
-    preferred_order = [
-        "run_id",
-        "status",
-        "unique_track_ids",
-        "max_tracks_per_frame",
-        "avg_tracks_per_frame",
-        "avg_dets_per_frame",
-        "frames_with_zero_tracks",
-        "frames_with_zero_dets",
-        "confidence_threshold",
-        "iou_threshold",
-        "track_thresh",
-        "match_thresh",
-        "track_buffer",
-        "agnostic_nms",
-        "second_score_thresh",
-        "second_match_thresh",
-        "unconfirmed_match_thresh",
-        "new_track_thresh_offset",
-        "wall_time_sec",
-        "frames",
-        "total_annotations_det",
-        "total_annotations_track",
-        "overlay_path",
-        "detection_json",
-        "tracking_json",
-    ]
-    existing_columns = list(df.columns)
-    hidden_columns = {"overlay_web_path"}
-    columns = [c for c in preferred_order if c in existing_columns] + [
-        c for c in existing_columns if c not in preferred_order and c not in hidden_columns
-    ]
-
-    header_meta = {
-        "run_id": ("Run", "Sweep run identifier"),
-        "status": ("St", "Run status"),
-        "unique_track_ids": ("IDs", "Unique tracking IDs in the run"),
-        "max_tracks_per_frame": ("MaxTrk", "Maximum tracked boxes in any frame"),
-        "avg_tracks_per_frame": ("AvgTrk", "Average tracked boxes per frame"),
-        "avg_dets_per_frame": ("AvgDet", "Average detections per frame"),
-        "frames_with_zero_tracks": ("ZeroTrk", "Frames without any track"),
-        "frames_with_zero_dets": ("ZeroDet", "Frames without any detection"),
-        "confidence_threshold": ("Conf", "YOLO confidence threshold"),
-        "iou_threshold": ("IoU", "YOLO NMS IoU threshold"),
-        "track_thresh": ("TThr", "ByteTrack track threshold"),
-        "match_thresh": ("MThr", "ByteTrack match threshold"),
-        "track_buffer": ("Buf", "ByteTrack track buffer"),
-        "agnostic_nms": ("Agn", "Class-agnostic NMS enabled"),
-        "second_score_thresh": ("S2Floor", "Second-association low score floor"),
-        "second_match_thresh": ("S2IoU", "Second-association IoU threshold"),
-        "unconfirmed_match_thresh": ("UncIoU", "Unconfirmed-track match threshold"),
-        "new_track_thresh_offset": ("NewOff", "det_thresh = track_thresh + offset"),
-        "wall_time_sec": ("Time", "Run wall time in seconds"),
-        "frames": ("Frames", "Processed frame count"),
-        "total_annotations_det": ("DetAnn", "Total detection annotations"),
-        "total_annotations_track": ("TrkAnn", "Total tracking annotations"),
-        "overlay_path": ("Video", "Overlay MP4 path"),
-        "detection_json": ("DetJSON", "Detections JSON path"),
-        "tracking_json": ("TrkJSON", "Tracking JSON path"),
+    result = {
+        "run_id": run_id,
+        "status": status,
+        "wall_time_sec": wall_time,
+        **params.__dict__,
+        **metrics,
     }
+    if verbose and stdout:
+        result["stdout_tail"] = stdout[-400:]
+    if verbose and stderr:
+        result["stderr_tail"] = stderr[-400:]
+    return result
 
-    def _to_file_uri(value: Any) -> str:
-        if not isinstance(value, str) or not value:
-            return ""
-        try:
-            p = Path(value)
-            if p.is_absolute():
-                return p.as_uri()
-        except Exception:  # pragma: no cover
-            pass
-        return value.replace("\\", "/")
 
-    def _format_value(val: Any) -> str:
-        if val is None:
-            return ""
-        if isinstance(val, bool):
-            return "True" if val else "False"
-        if isinstance(val, str):
-            return val
-        try:
-            if pd.isna(val):
-                return ""
-        except Exception:  # pragma: no cover
-            pass
-        if isinstance(val, Integral):
-            return str(int(val))
-        if isinstance(val, Real):
-            fval = float(val)
-            if math.isfinite(fval):
-                return f"{fval:.2f}"
-            return str(val)
-        return str(val)
+# -- Thread-safe progress printer --
+_print_lock = threading.Lock()
 
-    numeric_cols = set(df.select_dtypes(include=["number"]).columns.tolist())
 
-    header_cells = []
-    for col in columns:
-        short, tip = header_meta.get(col, (col, col))
-        header_cells.append(
-            f'<th data-col-id="{html.escape(col, quote=True)}" data-bs-toggle="tooltip" data-bs-title="{html.escape(tip, quote=True)}">{html.escape(short, quote=False)}</th>'
+def _print_progress(
+    index: int,
+    total_runs: int,
+    result: dict[str, Any],
+    overall_start: float,
+    completed: int,
+) -> None:
+    """Print a single-run completion line (thread-safe)."""
+    overall_elapsed = time.time() - overall_start
+    eta = _estimate_eta(overall_elapsed, completed, total_runs)
+    percent = (completed / total_runs) * 100.0
+    status = result["status"]
+    wall = result.get("wall_time_sec", 0.0)
+    run_id = result["run_id"]
+    metrics_line = ""
+    if "unique_track_ids" in result:
+        metrics_line = " | ids={} maxTrk={} avgTrk={:.1f} avgDet={:.1f}".format(
+            result.get("unique_track_ids", 0),
+            result.get("max_tracks_per_frame", 0),
+            float(result.get("avg_tracks_per_frame", 0.0)),
+            float(result.get("avg_dets_per_frame", 0.0)),
         )
-    filter_cells = [f'<th data-col-id="{html.escape(col, quote=True)}"></th>' for col in columns]
-
-    body_rows = []
-    for _, row in df.iterrows():
-        overlay_uri = _to_file_uri(row.get("overlay_web_path")) or _to_file_uri(
-            row.get("overlay_path")
+    with _print_lock:
+        print(
+            f"[{completed}/{total_runs} | {percent:5.1f}% | elapsed={_format_duration(overall_elapsed)} | eta={_format_duration(eta)}] {run_id} -> {status} ({wall:.1f}s){metrics_line}"
         )
-        overlay_raw_uri = _to_file_uri(row.get("overlay_path"))
-        run_id = _format_value(row.get("run_id", ""))
-        cells = []
-        for col in columns:
-            val = row[col]
-            if col == "overlay_path":
-                cells.append(
-                    '<td><button type="button" class="btn btn-sm btn-outline-primary open-video-btn">Play</button></td>'
-                )
-            elif col in {"detection_json", "tracking_json"} and isinstance(val, str):
-                href = _to_file_uri(val)
-                cells.append(f'<td><a href="{html.escape(href, quote=True)}">open</a></td>')
-            else:
-                cell_text = _format_value(val)
-                is_numeric = col in numeric_cols and not isinstance(val, bool)
-                cell_cls = "numeric-cell" if is_numeric else ""
-                cells.append(
-                    f'<td class="{cell_cls}" title="Click metric to preview video">{html.escape(cell_text, quote=False)}</td>'
-                )
-        body_rows.append(
-            '<tr data-video="{}" data-video-raw="{}" data-run-id="{}">{}</tr>'.format(
-                html.escape(overlay_uri, quote=True),
-                html.escape(overlay_raw_uri, quote=True),
-                html.escape(run_id, quote=True),
-                "".join(cells),
-            )
-        )
-
-    html_doc = f"""<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ByteTrack Sweep Results</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
-  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css">
-  <style>
-    body {{
-      background: #f8f9fa;
-      font-size: 13px;
-    }}
-    #results {{
-      width: 100%;
-    }}
-    #results th, #results td {{
-      white-space: nowrap;
-      padding: 0.30rem 0.45rem;
-      vertical-align: middle;
-      font-variant-numeric: tabular-nums;
-    }}
-    #results td.numeric-cell {{
-      color: #0d6efd;
-      cursor: pointer;
-    }}
-    #results td.numeric-cell:hover {{
-      text-decoration: underline;
-    }}
-    .dataTables_wrapper .dataTables_filter input {{
-      margin-left: 0.5rem;
-    }}
-    #overlayVideo {{
-      width: 100%;
-      max-height: 75vh;
-      background: #000;
-    }}
-  </style>
-  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
-  <script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
-</head>
-<body>
-  <div class="container-fluid py-3">
-    <h5 class="mb-3">ByteTrack Sweep Results</h5>
-    <div class="card shadow-sm">
-      <div class="card-body p-2">
-        <table id="results" class="table table-striped table-hover table-sm">
-          <thead>
-            <tr>{"".join(header_cells)}</tr>
-            <tr class="filters">{"".join(filter_cells)}</tr>
-          </thead>
-          <tbody>
-            {"".join(body_rows)}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <div class="modal fade" id="overlayModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-centered">
-      <div class="modal-content bg-dark text-light">
-        <div class="modal-header py-2">
-          <h6 class="modal-title" id="overlayModalLabel">Overlay Preview</h6>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body p-0">
-          <video id="overlayVideo" controls autoplay></video>
-          <div id="overlayError" class="alert alert-warning m-2 d-none" role="alert">
-            This video cannot be played in the browser codec pipeline. Use the file path in the table to open it in a local player.
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    $(document).ready(function() {{
-        const table = $('#results').DataTable({{
-            pageLength: 25,
-            order: [[0, 'asc']],
-            scrollX: true,
-            orderCellsTop: true
-        }});
-
-        const tooltipList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-        tooltipList.forEach((el) => new bootstrap.Tooltip(el));
-
-        const nonFilterableCols = new Set(['overlay_path', 'detection_json', 'tracking_json']);
-        table.columns().every(function(colIdx) {{
-            const colHeader = $(table.column(colIdx).header());
-            const colId = (colHeader.data('col-id') || '').toString();
-            const filterCell = $('.filters th').eq(colIdx);
-            filterCell.empty();
-
-            if (nonFilterableCols.has(colId)) {{
-                return;
-            }}
-
-            const rawData = table
-                .column(colIdx)
-                .data()
-                .toArray()
-                .map((x) => $('<div>').html(String(x)).text().trim())
-                .filter((x) => x.length > 0);
-            const uniqueValues = Array.from(new Set(rawData)).sort((a, b) => a.localeCompare(b, undefined, {{ numeric: true }}));
-
-            if (uniqueValues.length > 0 && uniqueValues.length <= 25) {{
-                const select = $('<select class="form-select form-select-sm"><option value="">All</option></select>');
-                uniqueValues.forEach((v) => {{
-                    select.append(`<option value="${{v.replace(/"/g, '&quot;')}}">${{v}}</option>`);
-                }});
-                select.appendTo(filterCell).on('change', function() {{
-                    const val = $(this).val();
-                    const escaped = $.fn.dataTable.util.escapeRegex(val);
-                    table.column(colIdx).search(val ? '^' + escaped + '$' : '', true, false).draw();
-                }});
-            }} else {{
-                const input = $('<input type="text" class="form-control form-control-sm" placeholder="filter">');
-                input.appendTo(filterCell).on('keyup change', function() {{
-                    table.column(colIdx).search(this.value).draw();
-                }});
-            }}
-        }});
-
-        const modalEl = document.getElementById('overlayModal');
-        const modal = new bootstrap.Modal(modalEl, {{ backdrop: true, keyboard: true }});
-        const videoEl = document.getElementById('overlayVideo');
-        const titleEl = document.getElementById('overlayModalLabel');
-        const errorEl = document.getElementById('overlayError');
-        let rawFallbackTried = false;
-        let fallbackRawSrc = '';
-
-        function openVideo(rowEl) {{
-            const videoSrc = rowEl.getAttribute('data-video');
-            fallbackRawSrc = rowEl.getAttribute('data-video-raw') || '';
-            rawFallbackTried = false;
-            if (!videoSrc) return;
-            errorEl.classList.add('d-none');
-            videoEl.src = videoSrc;
-            titleEl.textContent = rowEl.getAttribute('data-run-id') || 'Overlay Preview';
-            modal.show();
-            videoEl.play().catch(() => {{}});
-        }}
-
-        $('#results tbody').on('click', 'td.numeric-cell', function() {{
-            const row = this.closest('tr');
-            if (!row) return;
-            openVideo(row);
-        }});
-
-        $('#results tbody').on('click', 'button.open-video-btn', function(event) {{
-            event.preventDefault();
-            event.stopPropagation();
-            const row = this.closest('tr');
-            if (!row) return;
-            openVideo(row);
-        }});
-
-        videoEl.addEventListener('error', function() {{
-            if (!rawFallbackTried && fallbackRawSrc && videoEl.src !== fallbackRawSrc) {{
-                rawFallbackTried = true;
-                videoEl.src = fallbackRawSrc;
-                videoEl.play().catch(() => {{}});
-                return;
-            }}
-            errorEl.classList.remove('d-none');
-        }});
-
-        modalEl.addEventListener('hidden.bs.modal', function () {{
-            videoEl.pause();
-            videoEl.removeAttribute('src');
-            videoEl.load();
-            errorEl.classList.add('d-none');
-            rawFallbackTried = false;
-            fallbackRawSrc = '';
-        }});
-    }});
-  </script>
-</body>
-</html>"""
-    output_html.write_text(html_doc, encoding="utf-8")
 
 
 def main() -> int:
@@ -556,6 +457,12 @@ def main() -> int:
         type=int,
         default=60,
         help="Limit number of frames to process (end_frame). Default: 60.",
+    )
+    parser.add_argument(
+        "--num-workers",
+        type=int,
+        default=1,
+        help="Number of parallel jobs. Default: 1 (sequential).",
     )
     parser.add_argument(
         "--limit-runs",
@@ -581,20 +488,16 @@ def main() -> int:
     )
     parser.add_argument("--bf16", action="store_true", help="Enable bf16 autocast for inference.")
     parser.add_argument(
+        "--sweep-stage",
+        type=str,
+        choices=["A", "B", "AB"],
+        default="A",
+        help="Sweep stage: A=baseline, B=spectral, AB=both. Default: A.",
+    )
+    parser.add_argument(
         "--verbose",
         action="store_true",
         help="Print extra per-run details (command and output tails).",
-    )
-    parser.add_argument(
-        "--generate-web-previews",
-        action="store_true",
-        help="Generate browser-friendly .webm previews from overlay MP4 files.",
-    )
-    parser.add_argument(
-        "--web-preview-codec",
-        type=str,
-        default="VP90",
-        help="FourCC codec for generated web previews (default: VP90).",
     )
     args = parser.parse_args()
 
@@ -603,14 +506,11 @@ def main() -> int:
 
     _ensure_dir(args.output_root)
 
-    rows: list[dict[str, Any]] = []
-
-    grid_iter: Iterable[RunParams] | list[RunParams] = _generate_grid()
+    grid_iter: Iterable[RunParams] | list[RunParams] = _generate_grid(stage=args.sweep_stage)
     if args.grid_filter:
         grid_iter = [
             gp for gp in grid_iter if _maybe_filter(_build_run_id(**gp.__dict__), args.grid_filter)
         ]
-
     if args.limit_runs is not None:
         grid_iter = list(itertools.islice(grid_iter, args.limit_runs))
 
@@ -620,216 +520,68 @@ def main() -> int:
         print("No runs executed or found after filtering.")
         return 0
 
-    print(f"Scheduled runs: {total_runs}")
+    num_workers = max(1, args.num_workers)
+    print(f"Scheduled runs: {total_runs} (workers: {num_workers})")
     overall_start = time.time()
     ok_count = 0
     fail_count = 0
     skip_count = 0
-    preview_count = 0
-    preview_fail_count = 0
+    completed = 0
 
-    for index, params in enumerate(grid_items, start=1):
-        run_id = _build_run_id(
-            params.confidence_threshold,
-            params.iou_threshold,
-            params.track_thresh,
-            params.match_thresh,
-            params.track_buffer,
-            params.agnostic_nms,
-            params.second_score_thresh,
-            params.second_match_thresh,
-            params.unconfirmed_match_thresh,
-            params.new_track_thresh_offset,
-        )
-        print(f"[{index}/{total_runs}] {run_id}")
-        run_dir = args.output_root / run_id
-        _ensure_dir(run_dir)
-
-        det_path = run_dir / "detection_results.json"
-        track_path = run_dir / "tracking_results.json"
-        overlay_path = run_dir / "tracking_overlay.mp4"
-
-        should_run = True
-        if det_path.exists() and track_path.exists() and not args.overwrite:
-            should_run = False
-        if not args.overwrite and args.resume and track_path.exists():
-            should_run = False
-
-        start_ts = time.time()
-        status = "skipped"
-        stdout = stderr = ""
-        cmd: list[str] | None = None
-
-        if should_run:
-            cmd = [
-                sys.executable,
-                str(script_path),
-                "--cu3s-path",
-                str(args.cu3s_path),
-                "--output-dir",
-                str(run_dir),
-                "--end-frame",
-                str(args.max_frames),
-                "--model-name",
-                args.model_name,
-                "--confidence-threshold",
-                str(params.confidence_threshold),
-                "--iou-threshold",
-                str(params.iou_threshold),
-                "--track-thresh",
-                str(params.track_thresh),
-                "--match-thresh",
-                str(params.match_thresh),
-                "--track-buffer",
-                str(params.track_buffer),
-                "--second-score-thresh",
-                str(params.second_score_thresh),
-                "--second-match-thresh",
-                str(params.second_match_thresh),
-                "--unconfirmed-match-thresh",
-                str(params.unconfirmed_match_thresh),
-                "--new-track-thresh-offset",
-                str(params.new_track_thresh_offset),
-                "--classes",
-                "0",
-            ]
-            if params.agnostic_nms:
-                cmd.append("--agnostic-nms")
-            if args.plugins_dir:
-                cmd.extend(["--plugins-dir", str(args.plugins_dir)])
-            if args.bf16:
-                cmd.append("--bf16")
-
-            if args.verbose:
-                print(f"  cmd: {' '.join(cmd)}")
-            proc = _run_command(cmd, cwd=repo_root)
-            stdout, stderr = proc.stdout, proc.stderr
-            status = "ok" if proc.returncode == 0 else f"fail({proc.returncode})"
-            if proc.returncode != 0:
-                fail_count += 1
-                if args.verbose:
-                    if stdout:
-                        print(f"  stdout_tail: {stdout[-400:]}")
-                    if stderr:
-                        print(f"  stderr_tail: {stderr[-400:]}")
-                # Record failure and continue to next run without metrics.
-                rows.append(
-                    {
-                        "run_id": run_id,
-                        "status": status,
-                        "wall_time_sec": time.time() - start_ts,
-                        "stderr_tail": stderr[-400:],
-                        "stdout_tail": stdout[-400:],
-                        **params.__dict__,
-                    }
-                )
-                run_elapsed = time.time() - start_ts
-                overall_elapsed = time.time() - overall_start
-                print(
-                    f"  -> {status} | run={run_elapsed:.1f}s | elapsed={overall_elapsed:.1f}s | ok={ok_count} fail={fail_count} skipped={skip_count}"
-                )
-                continue
-
-        # Attempt metrics even if skipped (assuming prior successful run).
-        metrics = {}
-        try:
-            metrics = _compute_metrics(det_path, track_path)
-            status = status if status != "skipped" else "existing"
-        except Exception as exc:  # pylint: disable=broad-except
-            status = f"metrics_failed: {exc}"
-
-        overlay_web_path = ""
-        if args.generate_web_previews:
-            preview_path = _ensure_web_preview(overlay_path, codec=args.web_preview_codec)
-            if preview_path is not None:
-                overlay_web_path = str(preview_path)
-                preview_count += 1
-            elif overlay_path.exists():
-                preview_fail_count += 1
-
-        rows.append(
-            {
-                "run_id": run_id,
-                "status": status,
-                "wall_time_sec": time.time() - start_ts,
-                "overlay_path": str(overlay_path),
-                "overlay_web_path": overlay_web_path,
-                "detection_json": str(det_path),
-                "tracking_json": str(track_path),
-                **params.__dict__,
-                **metrics,
-            }
-        )
-
-        # Persist per-run metrics for traceability.
-        (run_dir / "run_meta.json").write_text(
-            json.dumps(
-                {
-                    "run_id": run_id,
-                    "params": params.__dict__,
-                    "command": cmd if should_run else None,
-                    "status": status,
-                    "stdout_tail": stdout[-400:],
-                    "stderr_tail": stderr[-400:],
-                },
-                indent=2,
-            ),
-            encoding="utf-8",
-        )
-        (run_dir / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
-
+    def _on_result(index: int, result: dict[str, Any]) -> None:
+        nonlocal ok_count, fail_count, skip_count, completed
+        completed += 1
+        status = result["status"]
         if status.startswith("ok"):
             ok_count += 1
         elif status.startswith("fail") or status.startswith("metrics_failed"):
             fail_count += 1
         else:
             skip_count += 1
+        _print_progress(index, total_runs, result, overall_start, completed)
 
-        if args.verbose:
-            if stdout:
-                print(f"  stdout_tail: {stdout[-400:]}")
-            if stderr:
-                print(f"  stderr_tail: {stderr[-400:]}")
-        if metrics:
-            print(
-                "  metrics: unique_ids={} max_tracks={} avg_tracks={:.3f} avg_dets={:.3f} zero_track_frames={}".format(
-                    metrics.get("unique_track_ids", 0),
-                    metrics.get("max_tracks_per_frame", 0),
-                    float(metrics.get("avg_tracks_per_frame", 0.0)),
-                    float(metrics.get("avg_dets_per_frame", 0.0)),
-                    metrics.get("frames_with_zero_tracks", 0),
-                )
+    common_kwargs = {
+        "script_path": script_path,
+        "cu3s_path": args.cu3s_path,
+        "output_root": args.output_root,
+        "max_frames": args.max_frames,
+        "model_name": args.model_name,
+        "plugins_dir": args.plugins_dir,
+        "bf16": args.bf16,
+        "overwrite": args.overwrite,
+        "resume": args.resume,
+        "verbose": args.verbose,
+        "repo_root": repo_root,
+    }
+
+    if num_workers == 1:
+        for index, params in enumerate(grid_items, start=1):
+            result = _execute_single_run(
+                index=index, total_runs=total_runs, params=params, **common_kwargs
             )
-        run_elapsed = time.time() - start_ts
-        overall_elapsed = time.time() - overall_start
-        print(
-            f"  -> {status} | run={run_elapsed:.1f}s | elapsed={overall_elapsed:.1f}s | ok={ok_count} fail={fail_count} skipped={skip_count}"
-        )
-        if args.generate_web_previews:
-            print(f"  previews: ready={preview_count} failed={preview_fail_count}")
+            _on_result(index, result)
+    else:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as pool:
+            futures = {
+                pool.submit(
+                    _execute_single_run,
+                    index=index,
+                    total_runs=total_runs,
+                    params=params,
+                    **common_kwargs,
+                ): index
+                for index, params in enumerate(grid_items, start=1)
+            }
+            for future in concurrent.futures.as_completed(futures):
+                index = futures[future]
+                result = future.result()
+                _on_result(index, result)
 
-    df = pd.DataFrame(rows)
-    csv_path = args.output_root / "sweep_metrics.csv"
-    parquet_path = args.output_root / "sweep_metrics.parquet"
-    html_path = args.output_root / "results.html"
-
-    df.to_csv(csv_path, index=False)
-    try:
-        df.to_parquet(parquet_path, index=False)
-    except Exception:  # pragma: no cover - pyarrow/fastparquet may be missing
-        parquet_path = None
-    _write_interactive_table(df, html_path)
-
-    manifest_path = args.output_root / "sweep_manifest.json"
-    manifest_path.write_text(json.dumps(rows, indent=2), encoding="utf-8")
-
-    print(f"Wrote {len(rows)} rows to {csv_path}")
-    if parquet_path:
-        print(f"Wrote Parquet: {parquet_path}")
-    print(f"Interactive table: {html_path}")
-    print(f"Final counts -> ok={ok_count}, fail={fail_count}, skipped={skip_count}")
-    if args.generate_web_previews:
-        print(f"Web previews -> ready={preview_count}, failed={preview_fail_count}")
+    elapsed = _format_duration(time.time() - overall_start)
+    print(f"Done in {elapsed} -> ok={ok_count}, fail={fail_count}, skipped={skip_count}")
+    print(
+        f"Run `regenerate_bytetrack_sweep_html.py --results-root {args.output_root}` to build the results table."
+    )
     return 0
 
 

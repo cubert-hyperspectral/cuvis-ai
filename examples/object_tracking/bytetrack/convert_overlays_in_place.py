@@ -7,12 +7,31 @@ inference or the sweep.
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
+import math
 import os
+import time
 from pathlib import Path
 
 
 def _iter_overlay_files(root: Path, pattern: str) -> list[Path]:
     return sorted(p for p in root.rglob(pattern) if p.is_file())
+
+
+def _format_duration(seconds: float | None) -> str:
+    if seconds is None or seconds < 0 or not math.isfinite(seconds):
+        return "--:--:--"
+    whole = int(seconds)
+    h, rem = divmod(whole, 3600)
+    m, s = divmod(rem, 60)
+    return f"{h:02d}:{m:02d}:{s:02d}"
+
+
+def _estimate_eta(elapsed: float, completed: int, total: int) -> float | None:
+    if completed <= 0 or total <= 0 or completed > total:
+        return None
+    avg = elapsed / completed
+    return avg * (total - completed)
 
 
 def _transcode_in_place(
@@ -21,11 +40,6 @@ def _transcode_in_place(
     keep_backup: bool,
     dry_run: bool,
 ) -> tuple[bool, str]:
-    try:
-        import cv2
-    except Exception as exc:
-        return False, f"cv2 import failed: {exc}"
-
     if len(codec) != 4:
         return False, "codec must be 4 chars (FourCC)"
 
@@ -34,6 +48,11 @@ def _transcode_in_place(
 
     if dry_run:
         return True, "dry-run"
+
+    try:
+        import cv2
+    except Exception as exc:
+        return False, f"cv2 import failed: {exc}"
 
     cap = cv2.VideoCapture(str(src_path))
     if not cap.isOpened():
@@ -89,6 +108,22 @@ def _transcode_in_place(
     return True, f"ok ({frames} frames)"
 
 
+def _transcode_job(
+    idx: int,
+    src_path: Path,
+    codec: str,
+    keep_backup: bool,
+    dry_run: bool,
+) -> tuple[int, Path, bool, str]:
+    ok, msg = _transcode_in_place(
+        src_path=src_path,
+        codec=codec,
+        keep_backup=keep_backup,
+        dry_run=dry_run,
+    )
+    return idx, src_path, ok, msg
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Transcode existing tracking_overlay.mp4 files in place."
@@ -108,8 +143,8 @@ def main() -> int:
     parser.add_argument(
         "--codec",
         type=str,
-        default="AV01",
-        help="FourCC output codec (default: AV01).",
+        default="VP90",
+        help="FourCC output codec (default: VP90).",
     )
     parser.add_argument(
         "--keep-backup",
@@ -127,11 +162,21 @@ def main() -> int:
         default=None,
         help="Convert only first N files after sorting.",
     )
+    parser.add_argument(
+        "--jobs",
+        type=int,
+        default=1,
+        help="Number of parallel conversion jobs (default: 1).",
+    )
     args = parser.parse_args()
 
     root = args.root.resolve()
     if not root.exists():
         print(f"Root does not exist: {root}")
+        return 1
+
+    if args.jobs < 1:
+        print("--jobs must be >= 1")
         return 1
 
     overlays = _iter_overlay_files(root, args.pattern)
@@ -142,26 +187,107 @@ def main() -> int:
         print("No matching overlay files found.")
         return 0
 
-    print(f"Found {len(overlays)} file(s) under {root}")
+    print(f"Found {len(overlays)} file(s) under {root}", flush=True)
+    if args.jobs > 1:
+        print(f"Running with {args.jobs} parallel job(s)", flush=True)
+
     ok_count = 0
     fail_count = 0
+    started = time.time()
+    total = len(overlays)
 
-    for idx, path in enumerate(overlays, start=1):
-        print(f"[{idx}/{len(overlays)}] {path}")
-        ok, msg = _transcode_in_place(
-            src_path=path,
-            codec=args.codec,
-            keep_backup=args.keep_backup,
-            dry_run=args.dry_run,
-        )
-        if ok:
-            ok_count += 1
-            print(f"  -> {msg}")
-        else:
-            fail_count += 1
-            print(f"  -> FAILED: {msg}")
+    if args.jobs == 1:
+        for idx, path in enumerate(overlays, start=1):
+            elapsed = time.time() - started
+            percent = ((idx - 1) / total) * 100.0
+            eta = _estimate_eta(elapsed, idx - 1, total)
+            print(
+                f"[{idx}/{total} | {percent:5.1f}% | elapsed={_format_duration(elapsed)} | eta={_format_duration(eta)}] {path}",
+                flush=True,
+            )
+            ok, msg = _transcode_in_place(
+                src_path=path,
+                codec=args.codec,
+                keep_backup=args.keep_backup,
+                dry_run=args.dry_run,
+            )
+            if ok:
+                ok_count += 1
+                print(f"  -> {msg}", flush=True)
+            else:
+                fail_count += 1
+                print(f"  -> FAILED: {msg}", flush=True)
 
-    print(f"Done. success={ok_count} failed={fail_count}")
+            elapsed = time.time() - started
+            percent = (idx / total) * 100.0
+            eta = _estimate_eta(elapsed, idx, total)
+            print(
+                "  progress: {} done | elapsed={} | eta={} | success={} failed={}".format(
+                    f"{percent:5.1f}%",
+                    _format_duration(elapsed),
+                    _format_duration(eta),
+                    ok_count,
+                    fail_count,
+                ),
+                flush=True,
+            )
+    else:
+        futures: dict[concurrent.futures.Future[tuple[int, Path, bool, str]], Path] = {}
+        with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as executor:
+            for idx, path in enumerate(overlays, start=1):
+                future = executor.submit(
+                    _transcode_job,
+                    idx,
+                    path,
+                    args.codec,
+                    args.keep_backup,
+                    args.dry_run,
+                )
+                futures[future] = path
+
+            completed = 0
+            for future in concurrent.futures.as_completed(futures):
+                completed += 1
+                try:
+                    idx, path, ok, msg = future.result()
+                except Exception as exc:
+                    idx = -1
+                    path = futures[future]
+                    ok = False
+                    msg = f"worker exception: {exc}"
+
+                if ok:
+                    ok_count += 1
+                else:
+                    fail_count += 1
+
+                elapsed = time.time() - started
+                percent = (completed / total) * 100.0
+                eta = _estimate_eta(elapsed, completed, total)
+                run_label = f"{idx}/{total}" if idx > 0 else "?"
+                status = msg if ok else f"FAILED: {msg}"
+                print(
+                    f"[{completed}/{total} | {percent:5.1f}% | elapsed={_format_duration(elapsed)} | eta={_format_duration(eta)}] "
+                    f"run={run_label} {path}",
+                    flush=True,
+                )
+                print(f"  -> {status}", flush=True)
+                print(
+                    "  progress: {} done | elapsed={} | eta={} | success={} failed={}".format(
+                        f"{percent:5.1f}%",
+                        _format_duration(elapsed),
+                        _format_duration(eta),
+                        ok_count,
+                        fail_count,
+                    ),
+                    flush=True,
+                )
+
+    total_elapsed = time.time() - started
+    print(
+        f"Done. success={ok_count} failed={fail_count} elapsed={_format_duration(total_elapsed)}",
+        flush=True,
+    )
     return 0 if fail_count == 0 else 2
 
 
