@@ -28,7 +28,7 @@ from loguru import logger
 @click.option("--frame-rotation", type=int, default=None)
 @click.option("--end-frame", type=int, default=-1, show_default=True)
 @click.option("--model-name", type=str, default="yolo26n.pt", show_default=True)
-@click.option("--confidence-threshold", type=float, default=0.1, show_default=True)
+@click.option("--confidence-threshold", type=float, default=0.2, show_default=True)
 @click.option("--iou-threshold", type=float, default=0.7, show_default=True, help="YOLO NMS IoU")
 @click.option(
     "--agnostic-nms",
@@ -229,7 +229,13 @@ def main(
     )
 
     # -- Run -------------------------------------------------------------------
+    pipeline_png = output_dir / f"{pipeline.name}.png"
+    pipeline.visualize(
+        format="render_graphviz", output_path=str(pipeline_png), show_execution_stage=True
+    )
+
     pipeline.to(device)
+    pipeline.set_profiling(enabled=True, synchronize_cuda=(device == "cuda"), skip_first_n=3)
     predictor = Predictor(pipeline=pipeline, datamodule=datamodule)
 
     amp_ctx = (
@@ -241,6 +247,10 @@ def main(
     logger.info("Starting tracking ({} frames) on {}", target_frames, device)
     with amp_ctx:
         predictor.predict(max_batches=target_frames, collect_outputs=False)
+
+    summary = pipeline.format_profiling_summary(total_frames=target_frames)
+    logger.info("\n{}", summary)
+    (output_dir / "profiling_summary.txt").write_text(summary)
 
     logger.success("Tracking complete")
     logger.info("Overlay: {}", overlay_path)

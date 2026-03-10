@@ -1,18 +1,15 @@
-"""YOLO26 + ByteTrack CU3S tracking pipeline with optional spectral association.
+"""YOLO26 + DeepEIoU CU3S tracking pipeline.
 
 Reads a CU3S hyperspectral cube, runs YOLO detection on false-RGB, and tracks
-with ByteTrack.  When ``--association-mode`` is set to ``spectral_cost`` or
-``spectral_post_gate``, a BBoxSpectralExtractor feeds per-detection spectral
-signatures into the tracker for spectral-aware association.
+with DeepEIoU (EIoU-only mode in Phase 1 — no ReID embeddings).
 
-Example (baseline, 60 frames):
-    uv run python examples/object_tracking/bytetrack/yolo_bytetrack_hsi.py \\
-        --cu3s-path cube.cu3s --end-frame 60
+Example (10 frames):
+    uv run python examples/object_tracking/deepeiou/yolo_deepeiou_hsi.py \\
+        --cu3s-path cube.cu3s --end-frame 10
 
-Example (spectral cost):
-    uv run python examples/object_tracking/bytetrack/yolo_bytetrack_hsi.py \\
-        --cu3s-path cube.cu3s --association-mode spectral_cost \\
-        --spectral-cost-weight 0.3 --end-frame 60
+Example (full sequence):
+    uv run python examples/object_tracking/deepeiou/yolo_deepeiou_hsi.py \\
+        --cu3s-path cube.cu3s
 """
 
 from __future__ import annotations
@@ -87,7 +84,7 @@ def _append_metrics(info_path: Path, tracking_json_path: Path) -> None:
 @click.option("--frame-rotation", type=int, default=None)
 @click.option("--end-frame", type=int, default=-1, show_default=True)
 @click.option("--model-name", type=str, default="yolo26n.pt", show_default=True)
-@click.option("--confidence-threshold", type=float, default=0.2, show_default=True)
+@click.option("--confidence-threshold", type=float, default=0.5, show_default=True)
 @click.option("--iou-threshold", type=float, default=0.7, show_default=True, help="YOLO NMS IoU")
 @click.option(
     "--agnostic-nms",
@@ -101,37 +98,14 @@ def _append_metrics(info_path: Path, tracking_json_path: Path) -> None:
     multiple=True,
     help="Limit NMS to these class ids (repeat flag). Default: keep all classes.",
 )
-@click.option("--track-thresh", type=float, default=0.5, show_default=True)
-@click.option("--track-buffer", type=int, default=30, show_default=True)
+@click.option("--track-high-thresh", type=float, default=0.6, show_default=True)
+@click.option("--track-low-thresh", type=float, default=0.1, show_default=True)
+@click.option("--new-track-thresh", type=float, default=0.7, show_default=True)
+@click.option("--track-buffer", type=int, default=60, show_default=True)
 @click.option("--match-thresh", type=float, default=0.8, show_default=True)
-@click.option(
-    "--second-score-thresh",
-    type=float,
-    default=0.1,
-    show_default=True,
-    help="Low-score floor used for ByteTrack second association.",
-)
-@click.option(
-    "--second-match-thresh",
-    type=float,
-    default=0.5,
-    show_default=True,
-    help="IoU match threshold for ByteTrack second association stage.",
-)
-@click.option(
-    "--unconfirmed-match-thresh",
-    type=float,
-    default=0.7,
-    show_default=True,
-    help="IoU threshold when matching unconfirmed tracks.",
-)
-@click.option(
-    "--new-track-thresh-offset",
-    type=float,
-    default=0.1,
-    show_default=True,
-    help="Offset in det_thresh = track_thresh + offset for new track activation.",
-)
+@click.option("--with-reid/--no-reid", default=False, show_default=True)
+@click.option("--proximity-thresh", type=float, default=0.5, show_default=True)
+@click.option("--appearance-thresh", type=float, default=0.25, show_default=True)
 @click.option(
     "--output-dir",
     type=click.Path(file_okay=False, path_type=Path),
@@ -143,103 +117,14 @@ def _append_metrics(info_path: Path, tracking_json_path: Path) -> None:
     type=click.Path(exists=False, file_okay=False, path_type=Path),
     default=None,
     show_default=True,
-    help="Directory containing ultralytics.yaml and bytetrack.yaml",
+    help="Directory containing ultralytics.yaml and deepeiou.yaml",
 )
 @click.option("--bf16", is_flag=True, default=False)
-# -- Spectral association options ------------------------------------------
-@click.option(
-    "--association-mode",
-    type=click.Choice(["baseline", "spectral_cost", "spectral_post_gate"], case_sensitive=False),
-    default="baseline",
-    show_default=True,
-    help="ByteTrack association strategy.",
-)
-@click.option(
-    "--spectral-cost-weight",
-    type=float,
-    default=0.3,
-    show_default=True,
-    help="Weight for spectral cost in all association stages.",
-)
-@click.option(
-    "--prototype-ema-beta",
-    type=float,
-    default=0.1,
-    show_default=True,
-    help="EMA weight for track spectral prototypes.",
-)
-@click.option(
-    "--prototype-min-sim",
-    type=float,
-    default=0.5,
-    show_default=True,
-    help="Min cosine similarity for prototype matching.",
-)
-@click.option(
-    "--prototype-min-det-score",
-    type=float,
-    default=0.3,
-    show_default=True,
-    help="Min detection score to update prototype.",
-)
-@click.option(
-    "--spectral-center-crop",
-    type=float,
-    default=0.65,
-    show_default=True,
-    help="Center-crop scale for spectral extraction.",
-)
-@click.option(
-    "--spectral-sim-floor",
-    type=float,
-    default=0.4,
-    show_default=True,
-    help="Similarity floor for post-gate mode.",
-)
-@click.option(
-    "--prototype-decay/--no-prototype-decay",
-    default=False,
-    show_default=True,
-    help="Enable prototype staleness decay for lost tracks.",
-)
-@click.option(
-    "--prototype-decay-half-life",
-    type=float,
-    default=10.0,
-    show_default=True,
-    help="Half-life (frames) for prototype decay.",
-)
-@click.option(
-    "--spectral-std-weighting/--no-spectral-std-weighting",
-    default=False,
-    show_default=True,
-    help="Use spectral std to modulate spectral cost weight per-detection.",
-)
-@click.option(
-    "--spectral-std-alpha",
-    type=float,
-    default=1.0,
-    show_default=True,
-    help="Scaling factor for std confidence: 1/(1+alpha*mean_std).",
-)
 @click.option(
     "--hide-untracked/--show-untracked",
     default=True,
     show_default=True,
     help="Hide bboxes without a track ID (track_id=-1) from the overlay.",
-)
-@click.option(
-    "--draw-spectral-sparklines/--no-draw-spectral-sparklines",
-    default=False,
-    show_default=True,
-    help="Draw spectral sparklines on overlay bboxes.",
-)
-@click.option(
-    "--sparkline-height",
-    type=int,
-    default=24,
-    show_default=True,
-    help="Pixel height of sparkline bars in overlay.",
 )
 def main(
     cu3s_path: Path,
@@ -251,30 +136,18 @@ def main(
     iou_threshold: float,
     agnostic_nms: bool,
     classes: tuple[int, ...],
-    track_thresh: float,
+    track_high_thresh: float,
+    track_low_thresh: float,
+    new_track_thresh: float,
     track_buffer: int,
     match_thresh: float,
-    second_score_thresh: float,
-    second_match_thresh: float,
-    unconfirmed_match_thresh: float,
-    new_track_thresh_offset: float,
+    with_reid: bool,
+    proximity_thresh: float,
+    appearance_thresh: float,
     output_dir: Path,
     plugins_dir: Path | None,
     bf16: bool,
-    association_mode: str,
-    spectral_cost_weight: float,
-    prototype_ema_beta: float,
-    prototype_min_sim: float,
-    prototype_min_det_score: float,
-    spectral_center_crop: float,
-    spectral_sim_floor: float,
-    prototype_decay: bool,
-    prototype_decay_half_life: float,
-    spectral_std_weighting: bool,
-    spectral_std_alpha: float,
     hide_untracked: bool,
-    draw_spectral_sparklines: bool,
-    sparkline_height: int,
 ) -> None:
     if end_frame == 0 or end_frame < -1:
         raise click.BadParameter("--end-frame must be -1 or positive")
@@ -282,24 +155,20 @@ def main(
     device = "cuda" if torch.cuda.is_available() else "cpu"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Write experiment context file alongside outputs.
     _write_experiment_info(
         output_dir,
         cu3s_path=cu3s_path,
         model_name=model_name,
         confidence_threshold=confidence_threshold,
         iou_threshold=iou_threshold,
-        association_mode=association_mode,
-        track_thresh=track_thresh,
+        track_high_thresh=track_high_thresh,
+        track_low_thresh=track_low_thresh,
+        new_track_thresh=new_track_thresh,
         track_buffer=track_buffer,
         match_thresh=match_thresh,
-        second_score_thresh=second_score_thresh,
-        spectral_cost_weight=spectral_cost_weight,
-        spectral_sim_floor=spectral_sim_floor,
-        prototype_decay=prototype_decay,
-        prototype_decay_half_life=prototype_decay_half_life,
-        spectral_std_weighting=spectral_std_weighting,
-        spectral_std_alpha=spectral_std_alpha,
+        with_reid=with_reid,
+        proximity_thresh=proximity_thresh,
+        appearance_thresh=appearance_thresh,
         end_frame=end_frame,
         device=device,
     )
@@ -313,10 +182,7 @@ def main(
     from cuvis_ai.node.channel_selector import CIETristimulusFalseRGBSelector
     from cuvis_ai.node.data import CU3SDataNode
     from cuvis_ai.node.json_writer import ByteTrackCocoJson, DetectionCocoJsonNode
-    from cuvis_ai.node.spectral_extractor import BBoxSpectralExtractor
     from cuvis_ai.node.video import ToVideoNode
-
-    use_spectral = association_mode != "baseline"
 
     predict_ids = list(range(end_frame)) if end_frame > 0 else None
     datamodule = SingleCu3sDataModule(
@@ -333,16 +199,16 @@ def main(
     plugins_dir_resolved = (plugins_dir or (_repo_root / "configs" / "plugins")).resolve()
 
     registry = NodeRegistry()
-    for yaml_name in ("ultralytics.yaml", "bytetrack.yaml"):
+    for yaml_name in ("ultralytics.yaml", "deepeiou.yaml"):
         registry.load_plugins(str(plugins_dir_resolved / yaml_name))
         logger.info("Plugin manifest loaded: {}", plugins_dir_resolved / yaml_name)
 
     yolo_pre_cls = registry.get("cuvis_ai_ultralytics.node.YOLOPreprocess")
     yolo_cls = registry.get("cuvis_ai_ultralytics.node.YOLO26Detection")
     yolo_post_cls = registry.get("cuvis_ai_ultralytics.node.YOLOPostprocess")
-    bytetrack_cls = registry.get("cuvis_ai_bytetrack.node.ByteTrack")
+    deepeiou_cls = registry.get("cuvis_ai_deepeiou.node.DeepEIoUTrack")
 
-    pipeline = CuvisPipeline("YOLO_ByteTrack_HSI")
+    pipeline = CuvisPipeline("YOLO_DeepEIoU_HSI")
 
     cu3s_data = CU3SDataNode(name="cu3s_data")
     false_rgb = CIETristimulusFalseRGBSelector(name="cie_false_rgb")
@@ -355,33 +221,18 @@ def main(
         classes=list(classes) if classes else None,
         name="yolo_post",
     )
-    tracker_kwargs: dict = {
-        "track_thresh": track_thresh,
-        "track_buffer": track_buffer,
-        "match_thresh": match_thresh,
-        "second_score_thresh": second_score_thresh,
-        "second_match_thresh": second_match_thresh,
-        "unconfirmed_match_thresh": unconfirmed_match_thresh,
-        "new_track_thresh_offset": new_track_thresh_offset,
-        "frame_rate": int(dataset_fps),
-        "name": "bytetrack",
-    }
-    if use_spectral:
-        tracker_kwargs.update(
-            association_mode=association_mode,
-            spectral_cost_weight_first=spectral_cost_weight,
-            spectral_cost_weight_second=spectral_cost_weight,
-            spectral_cost_weight_unconfirmed=spectral_cost_weight,
-            prototype_ema_beta=prototype_ema_beta,
-            prototype_min_sim=prototype_min_sim,
-            prototype_min_det_score=prototype_min_det_score,
-            spectral_sim_floor_post_gate=spectral_sim_floor,
-            prototype_decay_enabled=prototype_decay,
-            prototype_decay_half_life=prototype_decay_half_life,
-            spectral_std_weighting_enabled=spectral_std_weighting,
-            spectral_std_alpha=spectral_std_alpha,
-        )
-    tracker = bytetrack_cls(**tracker_kwargs)
+    tracker = deepeiou_cls(
+        track_high_thresh=track_high_thresh,
+        track_low_thresh=track_low_thresh,
+        new_track_thresh=new_track_thresh,
+        track_buffer=track_buffer,
+        match_thresh=match_thresh,
+        frame_rate=int(dataset_fps),
+        with_reid=with_reid,
+        proximity_thresh=proximity_thresh,
+        appearance_thresh=appearance_thresh,
+        name="deepeiou",
+    )
     det_json = DetectionCocoJsonNode(
         output_json_path=str(output_dir / "detection_results.json"),
         name="detection_coco_json",
@@ -390,17 +241,10 @@ def main(
         output_json_path=str(output_dir / "tracking_results.json"),
         name="tracking_coco_json",
     )
-    if use_spectral:
-        spectral_extractor = BBoxSpectralExtractor(
-            center_crop_scale=spectral_center_crop,
-            name="spectral_extractor",
-        )
 
     bbox_overlay = BBoxesOverlayNode(
         name="bboxes_overlay",
         draw_labels=True,
-        draw_sparklines=draw_spectral_sparklines and use_spectral,
-        sparkline_height=sparkline_height,
         hide_untracked=hide_untracked,
     )
     overlay_path = output_dir / "tracking_overlay.mp4"
@@ -408,7 +252,6 @@ def main(
         output_video_path=str(overlay_path),
         frame_rate=dataset_fps,
         frame_rotation=frame_rotation,
-        # codec="VP90",
         name="to_video",
     )
 
@@ -421,7 +264,7 @@ def main(
         (yolo_pre.model_input_hw, yolo_post.model_input_hw),
         (yolo_pre.orig_hw, yolo_post.orig_hw),
         (yolo_det.raw_preds, yolo_post.raw_preds),
-        # YOLO → ByteTrack
+        # YOLO → DeepEIoU
         (yolo_post.bboxes, tracker.inputs.bboxes),
         (yolo_post.category_ids, tracker.inputs.category_ids),
         (yolo_post.confidences, tracker.inputs.confidences),
@@ -447,25 +290,6 @@ def main(
         (bbox_overlay.rgb_with_overlay, to_video.rgb_image),
     ]
 
-    if use_spectral:
-        connections.extend(
-            [
-                # Spectral extractor: cube + bboxes → signatures + valid
-                (cu3s_data.outputs.cube, spectral_extractor.cube),
-                (yolo_post.bboxes, spectral_extractor.bboxes),
-                (spectral_extractor.spectral_signatures, tracker.inputs.spectral_signatures),
-                (spectral_extractor.spectral_valid, tracker.inputs.spectral_valid),
-            ]
-        )
-        if spectral_std_weighting:
-            connections.append(
-                (spectral_extractor.spectral_std, tracker.inputs.spectral_std),
-            )
-        if draw_spectral_sparklines:
-            connections.append(
-                (spectral_extractor.spectral_signatures, bbox_overlay.spectral_signatures),
-            )
-
     pipeline.connect(*connections)
 
     pipeline_png = output_dir / f"{pipeline.name}.png"
@@ -484,10 +308,10 @@ def main(
     )
 
     logger.info(
-        "Starting tracking ({} frames) on {} [mode={}]",
+        "Starting DeepEIoU tracking ({} frames) on {} [with_reid={}]",
         target_frames,
         device,
-        association_mode,
+        with_reid,
     )
     with amp_ctx:
         predictor.predict(max_batches=target_frames, collect_outputs=False)
@@ -501,7 +325,6 @@ def main(
     logger.info("Detections: {}", output_dir / "detection_results.json")
     logger.info("Tracks: {}", output_dir / "tracking_results.json")
 
-    # Append diagnostic metrics to experiment_info.txt.
     _append_metrics(output_dir / "experiment_info.txt", output_dir / "tracking_results.json")
 
 

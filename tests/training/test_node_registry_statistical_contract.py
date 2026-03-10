@@ -32,6 +32,7 @@ REQUIRED_ARG_DEFAULTS: dict[str, object] = {
     "output_json_path": "test_output.json",
     "json_path": "test_input.json",
     "output_video_path": "test_output.mp4",
+    "output_dir": "test_output_dir",
 }
 
 SUPERVISED_SELECTOR_CLASSES = {

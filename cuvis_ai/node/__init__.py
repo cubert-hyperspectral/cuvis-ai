@@ -29,17 +29,23 @@ from cuvis_ai.node.channel_selector import (
     TopKIndices,
 )
 from cuvis_ai.node.dimensionality_reduction import TrainablePCA
-from cuvis_ai.node.json_reader import DetectionJsonReader
+from cuvis_ai.node.json_reader import DetectionJsonReader, TrackingResultsReader
 from cuvis_ai.node.json_writer import ByteTrackCocoJson, DetectionCocoJsonNode, TrackingCocoJsonNode
 from cuvis_ai.node.labels import BinaryAnomalyLabelMapper
 from cuvis_ai.node.losses import DistinctnessLoss, ForegroundContrastLoss
 from cuvis_ai.node.normalization import IdentityNormalizer, MinMaxNormalizer, SigmoidNormalizer
+from cuvis_ai.node.numpy_writer import NumpyFeatureWriterNode
 from cuvis_ai.node.pipeline_visualization import (
     CubeRGBVisualizer,
     PCAVisualization,
     PipelineComparisonVisualizer,
 )
-from cuvis_ai.node.preprocessors import BandpassByWavelength, SpatialRotateNode
+from cuvis_ai.node.preprocessors import (
+    BandpassByWavelength,
+    BBoxRoiCropNode,
+    ChannelNormalizeNode,
+    SpatialRotateNode,
+)
 from cuvis_ai.node.spectral_extractor import BBoxSpectralExtractor
 from cuvis_ai.node.video import (
     ToVideoNode,
@@ -53,8 +59,10 @@ __all__ = [
     "AnomalyMask",
     "BandpassByWavelength",
     "BBoxesOverlayNode",
+    "BBoxRoiCropNode",
     "BBoxSpectralExtractor",
     "BinaryAnomalyLabelMapper",
+    "ChannelNormalizeNode",
     "CameraEmulationFalseRGBSelector",
     "ChannelSelectorBase",
     "ChannelSelectorFalseRGBViz",
@@ -75,6 +83,7 @@ __all__ = [
     "MaskOverlayNode",
     "MinMaxNormalizer",
     "NormMode",
+    "NumpyFeatureWriterNode",
     "PCAVisualization",
     "PipelineComparisonVisualizer",
     "RangeAverageFalseRGBSelector",
@@ -96,5 +105,6 @@ __all__ = [
     "TrackingCocoJsonNode",
     "ByteTrackCocoJson",
     "TrackingOverlayNode",
+    "TrackingResultsReader",
     "TrainablePCA",
 ]

@@ -89,6 +89,11 @@ def _build_run_id(
     association_mode: str = "baseline",
     spectral_cost_weight: float | None = None,
     prototype_ema_beta: float | None = None,
+    spectral_sim_floor: float | None = None,
+    prototype_decay_enabled: bool = False,
+    prototype_decay_half_life: float | None = None,
+    spectral_std_weighting_enabled: bool = False,
+    spectral_std_alpha: float | None = None,
 ) -> str:
     parts = (
         f"conf{_fmt_float_token(confidence_threshold)}"
@@ -109,6 +114,12 @@ def _build_run_id(
             parts += f"_scw{_fmt_float_token(spectral_cost_weight)}"
         if prototype_ema_beta is not None:
             parts += f"_ema{_fmt_float_token(prototype_ema_beta)}"
+        if spectral_sim_floor is not None:
+            parts += f"_sf{_fmt_float_token(spectral_sim_floor)}"
+        if prototype_decay_enabled:
+            parts += f"_pd{_fmt_float_token(prototype_decay_half_life or 10.0)}"
+        if spectral_std_weighting_enabled:
+            parts += f"_sw{_fmt_float_token(spectral_std_alpha or 1.0)}"
     return parts
 
 
@@ -176,6 +187,11 @@ class RunParams:
     association_mode: str = "baseline"
     spectral_cost_weight: float | None = None
     prototype_ema_beta: float | None = None
+    spectral_sim_floor: float | None = None
+    prototype_decay_enabled: bool = False
+    prototype_decay_half_life: float | None = None
+    spectral_std_weighting_enabled: bool = False
+    spectral_std_alpha: float | None = None
 
 
 def _generate_grid(stage: str = "A") -> Iterable[RunParams]:
@@ -303,6 +319,16 @@ def _build_cmd(
             cmd.extend(["--spectral-cost-weight", str(params.spectral_cost_weight)])
         if params.prototype_ema_beta is not None:
             cmd.extend(["--prototype-ema-beta", str(params.prototype_ema_beta)])
+        if params.spectral_sim_floor is not None:
+            cmd.extend(["--spectral-sim-floor", str(params.spectral_sim_floor)])
+        if params.prototype_decay_enabled:
+            cmd.append("--prototype-decay")
+            if params.prototype_decay_half_life is not None:
+                cmd.extend(["--prototype-decay-half-life", str(params.prototype_decay_half_life)])
+        if params.spectral_std_weighting_enabled:
+            cmd.append("--spectral-std-weighting")
+            if params.spectral_std_alpha is not None:
+                cmd.extend(["--spectral-std-alpha", str(params.spectral_std_alpha)])
     if params.agnostic_nms:
         cmd.append("--agnostic-nms")
     if plugins_dir:

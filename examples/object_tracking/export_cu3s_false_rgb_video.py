@@ -198,6 +198,12 @@ def export_false_rgb_video(
         (cu3s_data.outputs.wavelengths, false_rgb.wavelengths),
         (false_rgb.rgb_image, to_video.rgb_image),
     )
+
+    pipeline_png = Path(output_video_path).parent / f"{pipeline.name}.png"
+    pipeline.visualize(
+        format="render_graphviz", output_path=str(pipeline_png), show_execution_stage=True
+    )
+
     pipeline.to(device)
 
     logger.info(

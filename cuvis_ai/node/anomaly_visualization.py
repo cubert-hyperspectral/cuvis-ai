@@ -1001,6 +1001,12 @@ class TrackingOverlayNode(Node):
             "If absent, IDs are derived from unique non-zero mask values.",
             optional=True,
         ),
+        "frame_id": PortSpec(
+            dtype=torch.int64,
+            shape=(1,),
+            description="Frame / measurement index to render as text overlay.",
+            optional=True,
+        ),
     }
 
     OUTPUT_SPECS = {
@@ -1034,6 +1040,7 @@ class TrackingOverlayNode(Node):
         rgb_image: torch.Tensor,
         mask: torch.Tensor,
         object_ids: torch.Tensor | None = None,
+        frame_id: torch.Tensor | None = None,
         **_,
     ) -> dict[str, torch.Tensor]:
         """Render coloured per-object mask overlays onto *rgb_image*.
@@ -1048,6 +1055,9 @@ class TrackingOverlayNode(Node):
             Active object IDs ``[1, N]`` int64.  When provided, only these IDs
             are rendered and the ordering is preserved.  When absent, all
             non-zero unique values in *mask* are used.
+        frame_id : torch.Tensor or None
+            Frame / measurement index ``[1]`` int64.  When provided, the frame
+            number is rendered in the top-left corner.
 
         Returns
         -------
@@ -1089,6 +1099,10 @@ class TrackingOverlayNode(Node):
             draw_edges=self.draw_contours,
             draw_ids=self.draw_ids,
         )
+
+        if frame_id is not None:
+            fid = int(frame_id.reshape(-1)[0].item())
+            draw_text(rendered, 8, 8, f"frame {fid}", (255, 255, 255), scale=2, bg=True)
 
         out = rendered.to(torch.float32) / 255.0  # [H, W, 3]
         return {"rgb_with_overlay": out.unsqueeze(0)}  # [1, H, W, 3]
@@ -1208,17 +1222,20 @@ class BBoxesOverlayNode(Node):
         draw_labels: bool = False,
         draw_sparklines: bool = False,
         sparkline_height: int = 24,
+        hide_untracked: bool = False,
         **kwargs,
     ) -> None:
         self.line_thickness = int(line_thickness)
         self.draw_labels = bool(draw_labels)
         self.draw_sparklines = bool(draw_sparklines)
         self.sparkline_height = int(sparkline_height)
+        self.hide_untracked = bool(hide_untracked)
         super().__init__(
             line_thickness=line_thickness,
             draw_labels=draw_labels,
             draw_sparklines=draw_sparklines,
             sparkline_height=sparkline_height,
+            hide_untracked=hide_untracked,
             **kwargs,
         )
 
@@ -1234,6 +1251,14 @@ class BBoxesOverlayNode(Node):
         **_,
     ) -> dict[str, torch.Tensor]:
         """Overlay bbox edges with deterministic per-class colors."""
+        # Optionally filter out untracked detections (category_id / track_id < 0).
+        if self.hide_untracked and category_ids.numel() > 0:
+            mask = category_ids[0] >= 0  # [N]
+            bboxes = bboxes[:, mask]
+            category_ids = category_ids[:, mask]
+            if spectral_signatures is not None:
+                spectral_signatures = spectral_signatures[:, mask]
+
         sigs = spectral_signatures if self.draw_sparklines else None
         return {
             "rgb_with_overlay": render_bboxes_overlay_torch(

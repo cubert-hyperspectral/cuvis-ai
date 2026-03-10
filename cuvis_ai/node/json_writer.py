@@ -8,31 +8,11 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-import numpy as np
-import pycocotools.mask as mask_util
 import torch
+from cuvis_ai_core.data.rle import coco_rle_area, coco_rle_encode, coco_rle_to_bbox
 from cuvis_ai_core.node import Node
 from cuvis_ai_schemas.execution import Context
 from cuvis_ai_schemas.pipeline import PortSpec
-
-
-def _encode_mask_to_rle(mask_2d: torch.Tensor) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Encode a single binary mask [H, W] to COCO RLE for JSON and metrics."""
-    mask_np = mask_2d.to(dtype=torch.uint8).detach().cpu().numpy()
-    encoded = mask_util.encode(np.asfortranarray(mask_np))
-
-    counts = encoded["counts"]
-    if isinstance(counts, bytes):
-        counts_str = counts.decode("utf-8")
-    elif isinstance(counts, str):
-        counts_str = counts
-    else:
-        counts_str = str(counts)
-
-    size = [int(v) for v in encoded["size"]]
-    rle_json = {"size": size, "counts": counts_str}
-    rle_metrics = {"size": size, "counts": counts_str.encode("utf-8")}
-    return rle_json, rle_metrics
 
 
 class TrackingCocoJsonNode(Node):
@@ -146,9 +126,10 @@ class TrackingCocoJsonNode(Node):
         for obj_id in export_obj_ids:
             obj_mask = mask_2d.eq(obj_id)
 
-            rle_json, rle_metrics = _encode_mask_to_rle(obj_mask)
-            bbox = mask_util.toBbox(rle_metrics).tolist()
-            area = int(mask_util.area(rle_metrics))
+            mask_np = obj_mask.to(dtype=torch.uint8).detach().cpu().numpy()
+            rle_json = coco_rle_encode(mask_np)
+            bbox = coco_rle_to_bbox(rle_json)
+            area = coco_rle_area(rle_json)
 
             objects.append(
                 {
