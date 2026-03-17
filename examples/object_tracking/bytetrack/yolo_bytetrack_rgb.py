@@ -18,6 +18,29 @@ import torch
 from loguru import logger
 
 
+def _resolve_run_output_dir(
+    *,
+    output_root: Path,
+    source_path: Path,
+    out_basename: str | None,
+) -> Path:
+    resolved_basename = source_path.stem
+    if out_basename is not None:
+        candidate = out_basename.strip()
+        if not candidate:
+            raise click.BadParameter(
+                "--out-basename must not be empty or whitespace only",
+                param_hint="--out-basename",
+            )
+        if "/" in candidate or "\\" in candidate:
+            raise click.BadParameter(
+                "--out-basename must be a folder name, not a path",
+                param_hint="--out-basename",
+            )
+        resolved_basename = candidate
+    return output_root / resolved_basename
+
+
 @click.command()
 @click.option(
     "--video-path",
@@ -78,6 +101,16 @@ from loguru import logger
     type=click.Path(file_okay=False, path_type=Path),
     default=Path("./tracking_output"),
     show_default=True,
+    help=(
+        "Parent output directory. Final run folder is "
+        "<output-dir>/<out-basename or input-file-stem>."
+    ),
+)
+@click.option(
+    "--out-basename",
+    type=str,
+    default=None,
+    help="Optional leaf run-folder name under --output-dir (must not include '/' or '\\').",
 )
 @click.option(
     "--plugins-dir",
@@ -104,6 +137,7 @@ def main(
     unconfirmed_match_thresh: float,
     new_track_thresh_offset: float,
     output_dir: Path,
+    out_basename: str | None,
     plugins_dir: Path | None,
     bf16: bool,
 ) -> None:
@@ -111,7 +145,13 @@ def main(
         raise click.BadParameter("--end-frame must be -1 or positive")
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    output_dir.mkdir(parents=True, exist_ok=True)
+    run_output_dir = _resolve_run_output_dir(
+        output_root=output_dir,
+        source_path=video_path,
+        out_basename=out_basename,
+    )
+    run_output_dir.mkdir(parents=True, exist_ok=True)
+    logger.info("Output run directory: {}", run_output_dir)
 
     from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
     from cuvis_ai_core.training import Predictor
@@ -179,15 +219,15 @@ def main(
         name="bytetrack",
     )
     det_json = DetectionCocoJsonNode(
-        output_json_path=str(output_dir / "detection_results.json"),
+        output_json_path=str(run_output_dir / "detection_results.json"),
         name="detection_coco_json",
     )
     track_json = ByteTrackCocoJson(
-        output_json_path=str(output_dir / "tracking_results.json"),
+        output_json_path=str(run_output_dir / "tracking_results.json"),
         name="tracking_coco_json",
     )
     bbox_overlay = BBoxesOverlayNode(name="bboxes_overlay", draw_labels=True)
-    overlay_path = output_dir / "tracking_overlay.mp4"
+    overlay_path = run_output_dir / "tracking_overlay.mp4"
     to_video = ToVideoNode(
         output_video_path=str(overlay_path),
         frame_rate=dataset_fps,
@@ -229,7 +269,7 @@ def main(
     )
 
     # -- Run -------------------------------------------------------------------
-    pipeline_png = output_dir / f"{pipeline.name}.png"
+    pipeline_png = run_output_dir / f"{pipeline.name}.png"
     pipeline.visualize(
         format="render_graphviz", output_path=str(pipeline_png), show_execution_stage=True
     )
@@ -250,12 +290,12 @@ def main(
 
     summary = pipeline.format_profiling_summary(total_frames=target_frames)
     logger.info("\n{}", summary)
-    (output_dir / "profiling_summary.txt").write_text(summary)
+    (run_output_dir / "profiling_summary.txt").write_text(summary)
 
-    logger.success("Tracking complete")
+    logger.success("Tracking complete -> {}", run_output_dir)
     logger.info("Overlay: {}", overlay_path)
-    logger.info("Detections: {}", output_dir / "detection_results.json")
-    logger.info("Tracks: {}", output_dir / "tracking_results.json")
+    logger.info("Detections: {}", run_output_dir / "detection_results.json")
+    logger.info("Tracks: {}", run_output_dir / "tracking_results.json")
 
 
 if __name__ == "__main__":

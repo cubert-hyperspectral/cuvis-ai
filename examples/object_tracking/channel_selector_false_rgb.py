@@ -39,13 +39,14 @@ from cuvis_ai.node.anomaly_visualization import (
     MaskOverlayNode,
 )
 from cuvis_ai.node.channel_mixer import LearnableChannelMixer
-from cuvis_ai.node.channel_selector import RangeAverageFalseRGBSelector
+from cuvis_ai.node.channel_selector import CIETristimulusFalseRGBSelector, NormMode
 from cuvis_ai.node.data import CU3SDataNode
 from cuvis_ai.node.losses import DistinctnessLoss, ForegroundContrastLoss
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.normalization import MinMaxNormalizer
 from cuvis_ai.node.preprocessors import SpatialRotateNode
 from cuvis_ai.node.video import ToVideoNode
+from cuvis_ai.utils.false_rgb_sampling import initialize_false_rgb_sampled_fixed
 
 # ---------------------------------------------------------------------------
 # Inspect mode
@@ -108,11 +109,18 @@ def inspect_dataset(cfg: DictConfig) -> None:
 
     cu3s_data = CU3SDataNode(name="cu3s_data")
     rotate = SpatialRotateNode(rotation=90, name="spatial_rotate")
-    false_rgb = RangeAverageFalseRGBSelector(
-        red_range=(580.0, 650.0),
-        green_range=(500.0, 580.0),
-        blue_range=(420.0, 500.0),
-        name="range_average_false_rgb",
+    false_rgb = CIETristimulusFalseRGBSelector(
+        norm_mode=NormMode.STATISTICAL,
+        name="cie_false_rgb",
+    )
+    sample_positions = initialize_false_rgb_sampled_fixed(
+        false_rgb,
+        dataset,
+        sample_fraction=0.05,
+    )
+    logger.info(
+        "False-RGB sampled-fixed calibration: sample_fraction=0.05, sample_count={}",
+        len(sample_positions),
     )
     mask_overlay = MaskOverlayNode(name="mask_overlay")
     to_video = ToVideoNode(

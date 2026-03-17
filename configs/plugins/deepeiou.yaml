@@ -1,8 +1,8 @@
 # DeepEIoU Plugin Manifest
 #
 # Load alongside ultralytics.yaml for YOLO + DeepEIoU pipeline:
-#   uv run python examples/object_tracking/deepeiou/yolo_deepeiou_hsi.py \
-#     --cu3s-path path/to/file.cu3s
+#   uv run python examples/object_tracking/deepeiou/yolo_deepeiou_reid_hsi.py \
+#     --cu3s-path path/to/file.cu3s --no-reid
 
 plugins:
   deepeiou:

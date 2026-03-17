@@ -1,9 +1,24 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 import torch
 
 from cuvis_ai.node.channel_selector import ChannelSelectorBase, RangeAverageFalseRGBSelector
+from examples.object_tracking.export_cu3s_false_rgb_video import _create_false_rgb_node
+
+
+def _make_three_band_cube(r: float, g: float, b: float) -> torch.Tensor:
+    """Build a tiny 3-band BHWC cube with per-channel spatial variation."""
+    return torch.tensor(
+        [
+            [
+                [[r, g, b], [r + 1.0, g + 1.0, b + 1.0]],
+                [[r + 2.0, g + 2.0, b + 2.0], [r + 3.0, g + 3.0, b + 3.0]],
+            ]
+        ],
+        dtype=torch.float32,
+    )
 
 
 def test_range_average_false_rgb_selector_averages_bands_in_ranges(create_test_cube) -> None:
@@ -96,3 +111,82 @@ def test_range_average_false_rgb_selector_accepts_batched_wavelengths(create_tes
     out = node.forward(cube=cube, wavelengths=wavelengths)
     assert out["rgb_image"].shape == (2, 4, 4, 3)
     assert isinstance(out["band_info"], dict)
+
+
+def test_running_bounds_freeze_after_20_frames_blocks_late_outlier_updates() -> None:
+    wavelengths = np.array([620.0, 530.0, 450.0], dtype=np.float32)
+    node = RangeAverageFalseRGBSelector(
+        red_range=(618.0, 622.0),
+        green_range=(528.0, 532.0),
+        blue_range=(448.0, 452.0),
+    )
+
+    base = _make_three_band_cube(10.0, 20.0, 30.0)
+    for _ in range(20):
+        node.forward(cube=base, wavelengths=wavelengths)
+    max_after_20 = node.running_max.clone()
+
+    late_outlier = _make_three_band_cube(10.0, 20.0, 300.0)
+    node.forward(cube=late_outlier, wavelengths=wavelengths)
+
+    assert torch.allclose(node.running_max, max_after_20, atol=1e-7, rtol=0.0)
+
+
+def test_running_bounds_with_no_freeze_updates_on_late_outlier() -> None:
+    wavelengths = np.array([620.0, 530.0, 450.0], dtype=np.float32)
+    node = RangeAverageFalseRGBSelector(
+        red_range=(618.0, 622.0),
+        green_range=(528.0, 532.0),
+        blue_range=(448.0, 452.0),
+        freeze_running_bounds_after_frames=None,
+    )
+
+    base = _make_three_band_cube(10.0, 20.0, 30.0)
+    for _ in range(20):
+        node.forward(cube=base, wavelengths=wavelengths)
+    max_after_20 = node.running_max.clone()
+
+    late_outlier = _make_three_band_cube(10.0, 20.0, 300.0)
+    node.forward(cube=late_outlier, wavelengths=wavelengths)
+
+    assert node.running_max[2] > max_after_20[2]
+
+
+def test_running_mode_warmup_outputs_per_frame_percentile_even_with_freeze_enabled() -> None:
+    wavelengths = np.array([620.0, 530.0, 450.0], dtype=np.float32)
+    node = RangeAverageFalseRGBSelector(
+        red_range=(618.0, 622.0),
+        green_range=(528.0, 532.0),
+        blue_range=(448.0, 452.0),
+    )
+
+    prefill = _make_three_band_cube(5.0, 10.0, 15.0)
+    for _ in range(ChannelSelectorBase._WARMUP_FRAMES - 1):
+        node.forward(cube=prefill, wavelengths=wavelengths)
+
+    target = _make_three_band_cube(40.0, 80.0, 120.0)
+    raw_target = node._compute_raw_rgb(target, wavelengths)
+    expected = node._per_frame_percentile_normalize(raw_target)
+    expected = ChannelSelectorBase._srgb_gamma(expected)
+
+    out = node.forward(cube=target, wavelengths=wavelengths)
+    assert torch.allclose(out["rgb_image"], expected, atol=1e-6, rtol=1e-6)
+
+
+def test_freeze_running_bounds_after_frames_validation() -> None:
+    with pytest.raises(ValueError, match="freeze_running_bounds_after_frames"):
+        RangeAverageFalseRGBSelector(freeze_running_bounds_after_frames=0)
+    with pytest.raises(ValueError, match="freeze_running_bounds_after_frames"):
+        RangeAverageFalseRGBSelector(freeze_running_bounds_after_frames=-5)
+    with pytest.raises(ValueError, match="freeze_running_bounds_after_frames"):
+        RangeAverageFalseRGBSelector(freeze_running_bounds_after_frames=2.5)
+    with pytest.raises(ValueError, match="freeze_running_bounds_after_frames"):
+        RangeAverageFalseRGBSelector(freeze_running_bounds_after_frames="20")
+
+
+def test_export_false_rgb_node_propagates_freeze_running_bounds_parameter() -> None:
+    node = _create_false_rgb_node(
+        "cie_tristimulus",
+        freeze_running_bounds_after_frames=7,
+    )
+    assert node.freeze_running_bounds_after_frames == 7

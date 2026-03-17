@@ -1,38 +1,10 @@
-"""SAM3 bbox-prompt propagation: CU3S -> false RGB -> SAM3 streaming -> overlay + JSON.
+"""SAM3 bbox-prompt propagation for CU3S or RGB video.
 
-Uses bounding boxes from a COCO-format JSON as prompts.  Specify which
-detections to track with ``--detection ID@FRAME`` (repeatable).  The ID is
-either a ``track_id`` (from a tracking JSON) or a 1-based detection rank by
-score (from a detection JSON).  FRAME is the image_id where the bbox is read.
+Exactly one of ``--cu3s-path`` or ``--video-path`` is required.
 
-``--start-frame`` controls where the video begins (default 0) — frames before
-the prompt frame are rendered without masks so context is visible.
-
-Examples::
-
-    # Best detection on frame 0 (default), video from frame 0
-    uv run python examples/object_tracking/sam3/sam3_bbox_propagation.py `
-        --cu3s-path "D:\\data\\Auto_013+01.cu3s" `
-        --detection-json "D:\\data\\detection_results.json" `
-        --output-dir "D:\\experiments\\sam3\\bbox_propagation" `
-        --max-frames 100
-
-    # Track ID 2 from frame 76, video starts at frame 0
-    uv run python examples/object_tracking/sam3/sam3_bbox_propagation.py `
-        --cu3s-path "D:\\data\\Auto_013+01.cu3s" `
-        --detection-json "D:\\experiments\\deepeiou\\reid\\tracking_results.json" `
-        --detection 2@76 `
-        --output-dir "D:\\experiments\\sam3\\bbox_propagation" `
-        --max-frames 200
-
-    # Multiple detections, video starts at frame 50
-    uv run python examples/object_tracking/sam3/sam3_bbox_propagation.py `
-        --cu3s-path "D:\\data\\Auto_013+01.cu3s" `
-        --detection-json "D:\\experiments\\deepeiou\\reid\\tracking_results.json" `
-        --detection 2@76 --detection 5@76 `
-        --start-frame 50 `
-        --output-dir "D:\\experiments\\sam3\\bbox_propagation" `
-        --max-frames 200
+Uses bounding boxes from a COCO-format JSON as prompts. Specify detections
+with ``--detection ID@FRAME`` (repeatable). ``ID`` is matched against
+``track_id`` when available; otherwise it is treated as 1-based rank by score.
 """
 
 from __future__ import annotations
@@ -45,12 +17,40 @@ from pathlib import Path
 import click
 import torch
 from loguru import logger
+from sam3_source_context import (
+    PROCESSING_MODES,
+    build_source_context,
+    resolve_end_frame,
+    resolve_plugin_manifest,
+    resolve_processing_mode,
+    validate_source_and_window,
+)
 
-PROCESSING_MODES = ("Raw", "DarkSubtract", "Preview", "Reflectance", "SpectralRadiance")
+
+def _resolve_run_output_dir(
+    *,
+    output_root: Path,
+    source_path: Path,
+    out_basename: str | None,
+) -> Path:
+    resolved_basename = source_path.stem
+    if out_basename is not None:
+        candidate = out_basename.strip()
+        if not candidate:
+            raise click.BadParameter(
+                "--out-basename must not be empty or whitespace only",
+                param_hint="--out-basename",
+            )
+        if "/" in candidate or "\\" in candidate:
+            raise click.BadParameter(
+                "--out-basename must be a folder name, not a path",
+                param_hint="--out-basename",
+            )
+        resolved_basename = candidate
+    return output_root / resolved_basename
 
 
 def _parse_detection_spec(spec: str) -> tuple[int, int]:
-    """Parse ``ID@FRAME`` into ``(track_or_rank_id, frame_idx)``."""
     m = re.fullmatch(r"(\d+)@(\d+)", spec.strip())
     if not m:
         raise click.BadParameter(
@@ -63,27 +63,9 @@ def _extract_bbox_prompts(
     detection_json: Path,
     detections: list[tuple[int, int]],
 ) -> tuple[list[dict], int]:
-    """Extract bbox prompts from a COCO-format JSON.
-
-    Parameters
-    ----------
-    detections
-        List of ``(id, frame_idx)`` tuples.  ``id`` is matched against
-        ``track_id`` first; if not present, it's treated as a 1-based
-        detection rank by score.
-
-    Returns
-    -------
-    prompts
-        List of ``{"obj_id": int, "bbox_xywh": [x, y, w, h]}`` dicts
-        with normalised coordinates.
-    prompt_frame_idx
-        The frame index where prompts are applied (all must share the same frame).
-    """
     data = json.loads(detection_json.read_text(encoding="utf-8"))
     images = {img["id"]: img for img in data["images"]}
 
-    # All detections must reference the same frame
     frame_indices = sorted({frame for _, frame in detections})
     if len(frame_indices) != 1:
         raise click.ClickException(
@@ -98,13 +80,7 @@ def _extract_bbox_prompts(
 
     frame_annots = [a for a in data["annotations"] if a["image_id"] == frame_idx]
     has_track_ids = any("track_id" in a for a in frame_annots)
-
-    if has_track_ids:
-        by_track = {a["track_id"]: a for a in frame_annots if "track_id" in a}
-    else:
-        by_track = {}
-
-    # Sort by score for rank-based fallback
+    by_track = {a["track_id"]: a for a in frame_annots if "track_id" in a} if has_track_ids else {}
     frame_annots_by_score = sorted(frame_annots, key=lambda a: a.get("score", 0.0), reverse=True)
 
     prompts = []
@@ -113,7 +89,6 @@ def _extract_bbox_prompts(
             a = by_track[det_id]
             obj_id = det_id
         else:
-            # Treat as 1-based rank
             rank = det_id - 1
             if rank < 0 or rank >= len(frame_annots_by_score):
                 raise click.ClickException(
@@ -138,7 +113,16 @@ def _extract_bbox_prompts(
 
 @click.command()
 @click.option(
-    "--cu3s-path", type=click.Path(exists=True, dir_okay=False, path_type=Path), required=True
+    "--cu3s-path",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    default=None,
+    help="Path to a .cu3s file. False-RGB frames are generated on the fly.",
+)
+@click.option(
+    "--video-path",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    default=None,
+    help="Path to an MP4 (or other cv2-compatible) video file.",
 )
 @click.option(
     "--detection-json", type=click.Path(exists=True, dir_okay=False, path_type=Path), required=True
@@ -155,28 +139,37 @@ def _extract_bbox_prompts(
     "detection_specs",
     type=str,
     multiple=True,
-    help="Detection to track: ID@FRAME (e.g. 2@76). Repeatable. "
-    "Default: best detection on frame 0 (1@0).",
+    help="Detection to track: ID@FRAME (e.g. 2@76). Repeatable. Default: best on frame 0 (1@0).",
 )
+@click.option("--start-frame", type=int, default=0, show_default=True)
 @click.option(
-    "--start-frame",
+    "--end-frame",
     type=int,
-    default=0,
+    default=-1,
     show_default=True,
-    help="First frame to include in the video (default 0).",
+    help="Stop at this source frame index (exclusive). -1 means all frames.",
 )
 @click.option(
     "--max-frames",
     type=int,
-    default=-1,
-    show_default=True,
-    help="Maximum number of frames to process from start-frame.",
+    default=None,
+    help="Deprecated alias for frame window length from --start-frame.",
 )
 @click.option(
     "--output-dir",
     type=click.Path(file_okay=False, path_type=Path),
     default=Path("D:/experiments/sam3/bbox_propagation"),
     show_default=True,
+    help=(
+        "Parent output directory. Final run folder is "
+        "<output-dir>/<out-basename or input-file-stem>."
+    ),
+)
+@click.option(
+    "--out-basename",
+    type=str,
+    default=None,
+    help="Optional leaf run-folder name under --output-dir (must not include '/' or '\\').",
 )
 @click.option("--checkpoint-path", type=click.Path(dir_okay=False, path_type=Path), default=None)
 @click.option(
@@ -187,138 +180,172 @@ def _extract_bbox_prompts(
 )
 @click.option("--bf16", is_flag=True, default=False)
 def main(
-    cu3s_path: Path,
+    cu3s_path: Path | None,
+    video_path: Path | None,
     detection_json: Path,
     processing_mode: str,
     frame_rotation: int | None,
     detection_specs: tuple[str, ...],
     start_frame: int,
-    max_frames: int,
+    end_frame: int,
+    max_frames: int | None,
     output_dir: Path,
+    out_basename: str | None,
     checkpoint_path: Path | None,
     plugins_yaml: Path,
     bf16: bool,
 ) -> None:
-    """Run SAM3 bbox-prompt propagation on a CU3S file."""
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    output_dir.mkdir(parents=True, exist_ok=True)
-    if start_frame < 0:
-        raise click.ClickException("--start-frame must be >= 0.")
+    effective_end_frame = resolve_end_frame(
+        start_frame=start_frame,
+        end_frame=end_frame,
+        max_frames=max_frames,
+    )
+    validate_source_and_window(
+        cu3s_path=cu3s_path,
+        video_path=video_path,
+        start_frame=start_frame,
+        end_frame=effective_end_frame,
+    )
+    source_path = cu3s_path if cu3s_path is not None else video_path
+    assert source_path is not None
+    run_output_dir = _resolve_run_output_dir(
+        output_root=output_dir,
+        source_path=source_path,
+        out_basename=out_basename,
+    )
+    run_output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Parse detection specs (default: best detection on frame 0)
+    resolved_mode = resolve_processing_mode(processing_mode)
+    if video_path is not None:
+        logger.info("Ignoring --processing-mode because --video-path is set")
+
+    logger.info("Source type: {}", "cu3s" if cu3s_path is not None else "video")
+    logger.info("Output run directory: {}", run_output_dir)
+    logger.info("Device: {}", device)
+
     if not detection_specs:
         detection_specs = ("1@0",)
     detections = [_parse_detection_spec(s) for s in detection_specs]
-
     logger.info("Extracting bbox prompts from {}", detection_json)
-    prompts, prompt_frame_idx = _extract_bbox_prompts(detection_json, detections)
-
-    if start_frame > prompt_frame_idx:
+    prompts, prompt_frame_idx_source = _extract_bbox_prompts(detection_json, detections)
+    if start_frame > prompt_frame_idx_source:
         raise click.ClickException(
-            f"--start-frame ({start_frame}) must be <= prompt frame ({prompt_frame_idx})."
+            f"--start-frame ({start_frame}) must be <= prompt frame ({prompt_frame_idx_source})."
         )
 
-    from cuvis_ai_core.data.datasets import SingleCu3sDataModule
     from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
     from cuvis_ai_core.training import Predictor
     from cuvis_ai_core.utils.node_registry import NodeRegistry
 
     from cuvis_ai.node.anomaly_visualization import TrackingOverlayNode
-    from cuvis_ai.node.channel_selector import RangeAverageFalseRGBSelector
-    from cuvis_ai.node.data import CU3SDataNode
     from cuvis_ai.node.json_writer import TrackingCocoJsonNode
     from cuvis_ai.node.video import ToVideoNode
 
-    predict_ids = list(range(start_frame, start_frame + max_frames)) if max_frames > 0 else None
-    datamodule = SingleCu3sDataModule(
-        cu3s_file_path=str(cu3s_path),
-        processing_mode=processing_mode,
-        batch_size=1,
-        predict_ids=predict_ids,
+    source_context = build_source_context(
+        cu3s_path=cu3s_path,
+        video_path=video_path,
+        processing_mode=resolved_mode,
+        start_frame=start_frame,
+        end_frame=effective_end_frame,
     )
-    datamodule.setup(stage="predict")
-    target_frames = len(datamodule.predict_ds)
-    dataset_fps = float(getattr(datamodule.predict_ds, "fps", None) or 10.0)
+    if len(prompts) != 1:
+        raise click.ClickException(
+            "SAM3 bbox propagation currently supports exactly one prompt bbox."
+        )
 
-    manifest = plugins_yaml
-    if not manifest.is_absolute():
-        manifest = (Path(__file__).resolve().parents[3] / manifest).resolve()
+    prompt_frame_idx_local = prompt_frame_idx_source - start_frame
+    if prompt_frame_idx_local < 0 or prompt_frame_idx_local >= source_context.target_frames:
+        raise click.ClickException(
+            "Prompt frame is outside the streamed window after start-frame slicing: "
+            f"source={prompt_frame_idx_source}, start={start_frame}, local={prompt_frame_idx_local}, "
+            f"target_frames={source_context.target_frames}."
+        )
+
+    plugin_manifest = resolve_plugin_manifest(plugins_yaml)
     registry = NodeRegistry()
-    registry.load_plugins(str(manifest))
-    sam3_cls = registry.get("cuvis_ai_sam3.node.SAM3ObjectTracker")
+    registry.load_plugins(str(plugin_manifest))
+    sam3_cls = registry.get("cuvis_ai_sam3.node.SAM3StreamingPropagation")
 
-    pipeline = CuvisPipeline("SAM3_Bbox_Propagation")
+    pipeline_name = (
+        "SAM3_Bbox_Propagation_HSI"
+        if source_context.source_type == "cu3s"
+        else "SAM3_Bbox_Propagation_Video"
+    )
+    pipeline = CuvisPipeline(pipeline_name)
 
-    cu3s_data = CU3SDataNode(name="cu3s_data")
-    false_rgb = RangeAverageFalseRGBSelector(name="false_rgb")
+    bbox_prompt = prompts[0]["bbox_xywh"]
+    bbox_prompt_obj_id = int(prompts[0]["obj_id"])
     sam3_node = sam3_cls(
-        num_frames=target_frames,
+        num_frames=source_context.target_frames,
         checkpoint_path=str(checkpoint_path) if checkpoint_path else None,
-        prompt_frame_idx=prompt_frame_idx,
-        prompt_bboxes=prompts,
-        name="sam3_object_tracker",
+        prompt_type="bbox",
+        prompt_frame_idx=prompt_frame_idx_local,
+        prompt_bboxes_xywh=[bbox_prompt],
+        prompt_bbox_labels=[1],
+        prompt_obj_id=bbox_prompt_obj_id,
+        name="sam3_streaming",
     )
     tracking_json = TrackingCocoJsonNode(
-        output_json_path=str(output_dir / "tracking_results.json"),
+        output_json_path=str(run_output_dir / "tracking_results.json"),
         category_name="person",
         name="tracking_coco_json",
     )
     overlay_node = TrackingOverlayNode(alpha=0.2, name="overlay")
-    overlay_path = output_dir / "tracking_overlay.mp4"
+    overlay_path = run_output_dir / "tracking_overlay.mp4"
     to_video = ToVideoNode(
         output_video_path=str(overlay_path),
-        frame_rate=dataset_fps,
+        frame_rate=source_context.dataset_fps,
         frame_rotation=frame_rotation,
         name="to_video",
     )
 
-    pipeline.connect(
-        (cu3s_data.outputs.cube, false_rgb.cube),
-        (cu3s_data.outputs.wavelengths, false_rgb.wavelengths),
-        (cu3s_data.outputs.mesu_index, sam3_node.frame_id),
-        (false_rgb.rgb_image, sam3_node.rgb_frame),
-        (cu3s_data.outputs.mesu_index, tracking_json.frame_id),
-        (sam3_node.mask, tracking_json.mask),
-        (sam3_node.object_ids, tracking_json.object_ids),
-        (sam3_node.detection_scores, tracking_json.detection_scores),
-        (false_rgb.rgb_image, overlay_node.rgb_image),
-        (cu3s_data.outputs.mesu_index, overlay_node.frame_id),
-        (sam3_node.mask, overlay_node.mask),
-        (sam3_node.object_ids, overlay_node.object_ids),
-        (overlay_node.rgb_with_overlay, to_video.rgb_image),
+    connections = list(source_context.source_connections)
+    connections.extend(
+        [
+            (source_context.source_rgb_port, sam3_node.rgb_frame),
+            (source_context.source_frame_id_port, tracking_json.frame_id),
+            (sam3_node.mask, tracking_json.mask),
+            (sam3_node.object_ids, tracking_json.object_ids),
+            (sam3_node.detection_scores, tracking_json.detection_scores),
+            (source_context.source_rgb_port, overlay_node.rgb_image),
+            (source_context.source_frame_id_port, overlay_node.frame_id),
+            (sam3_node.mask, overlay_node.mask),
+            (sam3_node.object_ids, overlay_node.object_ids),
+            (overlay_node.rgb_with_overlay, to_video.rgb_image),
+        ]
     )
+    pipeline.connect(*connections)
 
-    pipeline_png = output_dir / f"{pipeline.name}.png"
+    pipeline_png = run_output_dir / f"{pipeline.name}.png"
     pipeline.visualize(
         format="render_graphviz", output_path=str(pipeline_png), show_execution_stage=True
     )
 
     pipeline.to(device)
     pipeline.set_profiling(enabled=True, synchronize_cuda=(device == "cuda"), skip_first_n=3)
-    predictor = Predictor(pipeline=pipeline, datamodule=datamodule)
+    predictor = Predictor(pipeline=pipeline, datamodule=source_context.datamodule)
 
     amp_ctx = (
         torch.autocast(device_type="cuda", dtype=torch.bfloat16)
         if bf16 and device == "cuda"
         else contextlib.nullcontext()
     )
-
     logger.info(
-        "Starting bbox propagation ({} prompts on frame {}, {} frames from {})...",
-        len(prompts),
-        prompt_frame_idx,
-        target_frames,
-        start_frame,
+        "Starting bbox propagation (source prompt frame {}, local prompt frame {}, {} frames)...",
+        prompt_frame_idx_source,
+        prompt_frame_idx_local,
+        source_context.target_frames,
     )
     with amp_ctx:
-        predictor.predict(max_batches=target_frames, collect_outputs=False)
+        predictor.predict(max_batches=source_context.target_frames, collect_outputs=False)
 
-    summary = pipeline.format_profiling_summary(total_frames=target_frames)
+    summary = pipeline.format_profiling_summary(total_frames=source_context.target_frames)
     logger.info("\n{}", summary)
-    (output_dir / "profiling_summary.txt").write_text(summary)
+    (run_output_dir / "profiling_summary.txt").write_text(summary)
 
-    logger.success("Done")
-    logger.info("JSON: {}", output_dir / "tracking_results.json")
+    logger.success("Done -> {}", run_output_dir)
+    logger.info("JSON: {}", run_output_dir / "tracking_results.json")
     logger.info("Overlay: {}", overlay_path)
 
 

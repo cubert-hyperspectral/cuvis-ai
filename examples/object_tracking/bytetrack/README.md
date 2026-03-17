@@ -18,6 +18,18 @@ VideoFrameNode → YOLOPreprocess → YOLO26Detection → YOLOPostprocess (NMS) 
 
 The HSI variant replaces `VideoFrameNode` with `CU3SDataNode → CIETristimulusFalseRGBSelector` and optionally adds `BBoxSpectralExtractor` for spectral-aware tracking.
 
+## Run folder naming
+
+- `--output-dir` is the parent/root directory.
+- Final run folder is `<output-dir>/<out-basename or input-file-stem>`.
+- Default basename:
+  - RGB script: `Path(video_path).stem`
+  - HSI script: `Path(cu3s_path).stem`
+- Use `--out-basename` to override the default stem.
+- `--out-basename` must be a single folder name (not a path).
+- Re-running on the same input stem reuses the same run folder unless you change
+  `--out-basename` or `--output-dir`.
+
 ## Quick start (RGB video)
 
 ```powershell
@@ -44,13 +56,15 @@ uv run python examples/object_tracking/bytetrack/yolo_bytetrack_hsi.py `
   --association-mode spectral_cost `
   --spectral-cost-weight 0.3 `
   --output-dir tracking_output `
+  --out-basename spectral_run01 `
   --end-frame 60
 ```
 
 Outputs:
-- `tracking_output/detection_results.json` — COCO-format detections (pre-tracking)
-- `tracking_output/tracking_results.json` — COCO-format tracks (post-tracking)
-- `tracking_output/tracking_overlay.mp4` — overlay video with frame IDs (top-left) and track IDs (bbox labels)
+- `tracking_output/<run_name>/detection_results.json` — COCO-format detections (pre-tracking)
+- `tracking_output/<run_name>/tracking_results.json` — COCO-format tracks (post-tracking)
+- `tracking_output/<run_name>/tracking_overlay.mp4` — overlay video with frame IDs (top-left) and track IDs (bbox labels)
+  - `<run_name>` defaults to the input stem, or `--out-basename` if provided
 
 ## Threshold reference
 

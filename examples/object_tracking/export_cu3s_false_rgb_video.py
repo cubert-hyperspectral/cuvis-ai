@@ -1,15 +1,9 @@
-"""Export a CU3S sequence to false-RGB MP4 using cuvis.ai nodes.
-
-Supports multiple false-RGB generation methods:
-- range_average: per-channel wavelength-range averaging (default)
-- cie_tristimulus: CIE 1931 XYZ -> sRGB conversion
-- camera_emulation: Gaussian camera sensitivity curves
-- baseline: fixed wavelength band selection (650/550/450 nm)
+"""Export a CU3S sequence to false-RGB MP4 using CIE tristimulus conversion.
 
 Pipeline:
 1. CU3SDataNode: normalizes CU3S tensors and extracts wavelengths
-2. False RGB node (method-dependent): spectral -> 3-channel conversion
-3. ToVideoNode: stream-write RGB frames to MP4
+2. CIETristimulusFalseRGBSelector: spectral -> 3-channel conversion
+3. ToVideoNode: stream-write RGB frames to MP4 (optionally overlays frame ID)
 
 Examples
 --------
@@ -20,6 +14,14 @@ CLI — single method export (CIE tristimulus, SpectralRadiance mode)::
         --output-video-path "D:\\data\\XMR_notarget_Busstation\\20260226\\Auto_013+01.mp4" `
         --method cie_tristimulus `
         --processing-mode SpectralRadiance
+
+CLI — with frame ID overlay::
+
+    uv run python examples/object_tracking/export_cu3s_false_rgb_video.py `
+        --cu3s-file-path "D:\\data\\XMR_notarget_Busstation\\20260226\\Auto_013+01.cu3s" `
+        --output-video-path "D:\\data\\XMR_notarget_Busstation\\20260226\\Auto_013+01.mp4" `
+        --method cie_tristimulus `
+        --overlay-frame-id
 
 CLI — compare all methods side-by-side::
 
@@ -36,14 +38,18 @@ Python API::
         output_video_path=r"D:\\data\\XMR_notarget_Busstation\\20260226\\Auto_013+01.mp4",
         method="cie_tristimulus",
         processing_mode="SpectralRadiance",
+        overlay_frame_id=True,
     )
 """
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
+from typing import Any
 
 import click
+import numpy as np
 import torch
 from cuvis_ai_core.data.datasets import SingleCu3sDataModule
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
@@ -51,17 +57,16 @@ from cuvis_ai_core.training import Predictor
 from loguru import logger
 
 from cuvis_ai.node.channel_selector import (
-    CameraEmulationFalseRGBSelector,
     ChannelSelectorBase,
     CIETristimulusFalseRGBSelector,
-    FixedWavelengthSelector,
-    RangeAverageFalseRGBSelector,
+    NormMode,
 )
 from cuvis_ai.node.data import CU3SDataNode
 from cuvis_ai.node.video import ToVideoNode
 
-SUPPORTED_METHODS = ("range_average", "cie_tristimulus", "camera_emulation", "baseline")
+SUPPORTED_METHODS = ("cie_tristimulus",)
 PROCESSING_MODES = ("Raw", "DarkSubtract", "Preview", "Reflectance", "SpectralRadiance")
+NORMALIZATION_MODES = ("sampled_fixed", "running", "per_frame")
 
 
 def _resolve_processing_mode(processing_mode: str) -> str:
@@ -75,9 +80,82 @@ def _resolve_processing_mode(processing_mode: str) -> str:
     return resolved
 
 
+def _resolve_normalization_mode(normalization_mode: str) -> str:
+    """Resolve CLI/user input into a canonical normalization mode string."""
+    lookup = {name.lower(): name for name in NORMALIZATION_MODES}
+    resolved = lookup.get(normalization_mode.strip().lower())
+    if resolved is None:
+        raise click.BadParameter(
+            "Invalid normalization_mode "
+            f"'{normalization_mode}'. Supported: {', '.join(NORMALIZATION_MODES)}"
+        )
+    return resolved
+
+
+def _validate_sample_fraction(sample_fraction: float) -> float:
+    """Validate the sampled-fixed calibration fraction."""
+    if not (0.0 < sample_fraction <= 1.0):
+        raise ValueError(f"sample_fraction must be in (0, 1], got {sample_fraction}")
+    return float(sample_fraction)
+
+
+def _uniform_sample_positions(total_frames: int, sample_fraction: float) -> list[int]:
+    """Return deterministic, uniformly spaced frame positions in [0, total_frames)."""
+    if total_frames <= 0:
+        raise ValueError("total_frames must be > 0")
+    fraction = _validate_sample_fraction(sample_fraction)
+    sample_count = max(1, int(math.ceil(total_frames * fraction)))
+    if sample_count >= total_frames:
+        return list(range(total_frames))
+    if sample_count == 1:
+        return [0]
+    # Even spacing across the full range, including both ends.
+    return [int((i * (total_frames - 1)) // (sample_count - 1)) for i in range(sample_count)]
+
+
+def _build_statistical_sample_stream(
+    predict_ds: Any,
+    sample_positions: list[int],
+) -> Any:
+    """Yield sampled BHWC cubes and wavelengths for selector statistical initialization."""
+    for pos in sample_positions:
+        sample = predict_ds[pos]
+        cube_raw = sample["cube"]
+        if isinstance(cube_raw, torch.Tensor):
+            cube_t = cube_raw.to(dtype=torch.float32)
+        else:
+            cube_t = torch.from_numpy(np.asarray(cube_raw)).to(dtype=torch.float32)
+        if cube_t.ndim != 3:
+            raise ValueError(
+                f"Expected sampled cube with shape [H, W, C], got {tuple(cube_t.shape)}"
+            )
+
+        wavelengths_raw = sample["wavelengths"]
+        if isinstance(wavelengths_raw, torch.Tensor):
+            wavelengths_np = wavelengths_raw.detach().cpu().numpy().ravel()
+        else:
+            wavelengths_np = np.asarray(wavelengths_raw).ravel()
+
+        yield {
+            "cube": cube_t.unsqueeze(0),  # [1, H, W, C]
+            "wavelengths": wavelengths_np,
+        }
+
+
+def _resolve_selector_norm_mode(normalization_mode: str) -> NormMode:
+    """Map export normalization mode to selector norm mode."""
+    if normalization_mode == "sampled_fixed":
+        return NormMode.STATISTICAL
+    if normalization_mode == "running":
+        return NormMode.RUNNING
+    return NormMode.PER_FRAME
+
+
 def _create_false_rgb_node(
     method: str,
     *,
+    norm_mode: str | NormMode = NormMode.RUNNING,
+    freeze_running_bounds_after_frames: int | None = 20,
     red_low: float = 580.0,
     red_high: float = 650.0,
     green_low: float = 500.0,
@@ -91,41 +169,30 @@ def _create_false_rgb_node(
     g_sigma: float = 35.0,
     b_sigma: float = 30.0,
 ) -> ChannelSelectorBase:
-    """Create the appropriate false RGB node for the given method."""
-    if method == "range_average":
-        return RangeAverageFalseRGBSelector(
-            red_range=(red_low, red_high),
-            green_range=(green_low, green_high),
-            blue_range=(blue_low, blue_high),
-            name="range_average_false_rgb",
-        )
-    elif method == "cie_tristimulus":
-        return CIETristimulusFalseRGBSelector(name="cie_tristimulus_false_rgb")
-    elif method == "camera_emulation":
-        return CameraEmulationFalseRGBSelector(
-            r_peak=r_peak,
-            g_peak=g_peak,
-            b_peak=b_peak,
-            r_sigma=r_sigma,
-            g_sigma=g_sigma,
-            b_sigma=b_sigma,
-            name="camera_emulation_false_rgb",
-        )
-    elif method == "baseline":
-        return FixedWavelengthSelector(name="baseline_false_rgb")
-    else:
+    """Create the CIE tristimulus false RGB node."""
+    if method != "cie_tristimulus":
         raise click.BadParameter(f"Unknown method '{method}'. Supported: {SUPPORTED_METHODS}")
+    return CIETristimulusFalseRGBSelector(
+        norm_mode=norm_mode,
+        freeze_running_bounds_after_frames=freeze_running_bounds_after_frames,
+        name="cie_tristimulus_false_rgb",
+    )
 
 
 def export_false_rgb_video(
     cu3s_file_path: str,
     output_video_path: str,
-    method: str = "range_average",
+    method: str = "cie_tristimulus",
     frame_rate: float | None = None,
     frame_rotation: int | None = None,
     max_num_frames: int = -1,
     batch_size: int = 1,
     processing_mode: str = "Raw",
+    normalization_mode: str = "sampled_fixed",
+    sample_fraction: float = 0.05,
+    freeze_running_bounds_after_frames: int | None = 20,
+    save_pipeline_config: bool = False,
+    overlay_frame_id: bool = False,
     red_low: float = 580.0,
     red_high: float = 650.0,
     green_low: float = 500.0,
@@ -141,6 +208,8 @@ def export_false_rgb_video(
 ) -> Path:
     """Run CU3S -> false RGB -> MP4 export pipeline."""
     resolved_mode = _resolve_processing_mode(processing_mode)
+    resolved_norm_mode = _resolve_normalization_mode(normalization_mode)
+    resolved_sample_fraction = _validate_sample_fraction(sample_fraction)
 
     predict_ids = list(range(max_num_frames)) if max_num_frames > 0 else None
     datamodule = SingleCu3sDataModule(
@@ -171,8 +240,11 @@ def export_false_rgb_video(
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     cu3s_data = CU3SDataNode(name="cu3s_data")
+    selector_norm_mode = _resolve_selector_norm_mode(resolved_norm_mode)
     false_rgb = _create_false_rgb_node(
         method,
+        norm_mode=selector_norm_mode,
+        freeze_running_bounds_after_frames=freeze_running_bounds_after_frames,
         red_low=red_low,
         red_high=red_high,
         green_low=green_low,
@@ -186,6 +258,17 @@ def export_false_rgb_video(
         g_sigma=g_sigma,
         b_sigma=b_sigma,
     )
+
+    sampled_positions: list[int] = []
+    sampled_mesu_ids: list[int] = []
+    if resolved_norm_mode == "sampled_fixed":
+        sampled_positions = _uniform_sample_positions(target_frames, resolved_sample_fraction)
+        sampled_mesu_ids = [
+            int(datamodule.predict_ds.measurement_indices[pos]) for pos in sampled_positions
+        ]
+        sample_stream = _build_statistical_sample_stream(datamodule.predict_ds, sampled_positions)
+        false_rgb.statistical_initialization(sample_stream)
+
     to_video = ToVideoNode(
         output_video_path=output_video_path,
         frame_rate=resolved_frame_rate,
@@ -193,11 +276,14 @@ def export_false_rgb_video(
         name="to_video",
     )
 
-    pipeline.connect(
+    connections = [
         (cu3s_data.outputs.cube, false_rgb.cube),
         (cu3s_data.outputs.wavelengths, false_rgb.wavelengths),
         (false_rgb.rgb_image, to_video.rgb_image),
-    )
+    ]
+    if overlay_frame_id:
+        connections.append((cu3s_data.outputs.mesu_index, to_video.frame_id))
+    pipeline.connect(*connections)
 
     pipeline_png = Path(output_video_path).parent / f"{pipeline.name}.png"
     pipeline.visualize(
@@ -216,23 +302,20 @@ def export_false_rgb_video(
         f"dataset_fps={dataset_fps}, "
         f"frame_rotation={frame_rotation}, "
         f"processing_mode={resolved_mode}, "
-        f"max_num_frames={max_num_frames}"
+        f"normalization_mode={resolved_norm_mode}, "
+        f"sample_fraction={resolved_sample_fraction}, "
+        f"freeze_running_bounds_after_frames={freeze_running_bounds_after_frames}, "
+        f"save_pipeline_config={save_pipeline_config}, "
+        f"max_num_frames={max_num_frames}, "
+        f"overlay_frame_id={overlay_frame_id}"
     )
-    if method == "range_average":
+    if resolved_norm_mode == "sampled_fixed":
         logger.info(
-            "Channel ranges: "
-            f"R=[{red_low}, {red_high}] "
-            f"G=[{green_low}, {green_high}] "
-            f"B=[{blue_low}, {blue_high}]"
+            "Sampled-fixed calibration: "
+            f"sample_count={len(sampled_positions)}, "
+            f"sample_pos_span={sampled_positions[0]}..{sampled_positions[-1]}, "
+            f"sample_mesu_span={sampled_mesu_ids[0]}..{sampled_mesu_ids[-1]}"
         )
-    elif method == "camera_emulation":
-        logger.info(
-            "Camera emulation: "
-            f"R peak={r_peak} sigma={r_sigma}, "
-            f"G peak={g_peak} sigma={g_sigma}, "
-            f"B peak={b_peak} sigma={b_sigma}"
-        )
-
     predictor = Predictor(pipeline=pipeline, datamodule=datamodule)
     predictor.predict(max_batches=None, collect_outputs=False)
 
@@ -240,10 +323,13 @@ def export_false_rgb_video(
     if not output_path.exists():
         raise RuntimeError(f"Expected output video was not created: {output_video_path}")
 
-    # Save pipeline config (YAML + .pt weights) alongside the video.
-    pipeline_config_path = output_path.with_suffix(".yaml")
-    pipeline.save_to_file(str(pipeline_config_path))
-    logger.info(f"Pipeline config saved: {pipeline_config_path}")
+    if save_pipeline_config:
+        # Save pipeline config (YAML + .pt weights) alongside the video.
+        pipeline_config_path = output_path.with_suffix(".yaml")
+        pipeline.save_to_file(str(pipeline_config_path))
+        logger.info(f"Pipeline config saved: {pipeline_config_path}")
+    else:
+        logger.info("Skipping pipeline config save (--no-save-pipeline-config).")
 
     logger.success(f"Video export complete: {output_video_path}")
     return output_path
@@ -257,6 +343,10 @@ def export_compare_all(
     max_num_frames: int = -1,
     batch_size: int = 1,
     processing_mode: str = "Raw",
+    normalization_mode: str = "sampled_fixed",
+    sample_fraction: float = 0.05,
+    freeze_running_bounds_after_frames: int | None = 20,
+    save_pipeline_config: bool = False,
 ) -> dict[str, Path]:
     """Export false RGB videos for all methods into a comparison directory."""
     output_dir_path = Path(output_dir)
@@ -275,6 +365,10 @@ def export_compare_all(
             max_num_frames=max_num_frames,
             batch_size=batch_size,
             processing_mode=processing_mode,
+            normalization_mode=normalization_mode,
+            sample_fraction=sample_fraction,
+            freeze_running_bounds_after_frames=freeze_running_bounds_after_frames,
+            save_pipeline_config=save_pipeline_config,
         )
 
     logger.success(f"All methods exported to {output_dir_path}")
@@ -297,7 +391,7 @@ def export_compare_all(
 @click.option(
     "--method",
     type=click.Choice(SUPPORTED_METHODS, case_sensitive=False),
-    default="range_average",
+    default="cie_tristimulus",
     show_default=True,
 )
 @click.option(
@@ -320,6 +414,12 @@ def export_compare_all(
 )
 @click.option("--batch-size", type=int, default=1, show_default=True)
 @click.option(
+    "--overlay-frame-id",
+    is_flag=True,
+    default=False,
+    help="Render the measurement index (frame ID) as text in the top-left corner of each frame.",
+)
+@click.option(
     "--max-num-frames",
     type=int,
     default=-1,
@@ -331,6 +431,33 @@ def export_compare_all(
     type=click.Choice(PROCESSING_MODES, case_sensitive=False),
     default="Raw",
     show_default=True,
+)
+@click.option(
+    "--normalization-mode",
+    type=click.Choice(NORMALIZATION_MODES, case_sensitive=False),
+    default="sampled_fixed",
+    show_default=True,
+    help="RGB normalization strategy for export.",
+)
+@click.option(
+    "--sample-fraction",
+    type=float,
+    default=0.05,
+    show_default=True,
+    help="Fraction of frames used for sampled-fixed calibration (0,1].",
+)
+@click.option(
+    "--freeze-running-bounds-after",
+    type=int,
+    default=20,
+    show_default=True,
+    help="Freeze running normalization bounds after N frames (<=0 disables freezing).",
+)
+@click.option(
+    "--save-pipeline-config/--no-save-pipeline-config",
+    default=False,
+    show_default=True,
+    help="Save pipeline config files (.yaml + .pt) next to the output video.",
 )
 # range_average-specific options
 @click.option("--red-low", type=float, default=580.0, show_default=True)
@@ -366,8 +493,13 @@ def main(
     frame_rate: float | None,
     frame_rotation: int | None,
     batch_size: int,
+    overlay_frame_id: bool,
     max_num_frames: int,
     processing_mode: str,
+    normalization_mode: str,
+    sample_fraction: float,
+    freeze_running_bounds_after: int,
+    save_pipeline_config: bool,
     red_low: float,
     red_high: float,
     green_low: float,
@@ -382,6 +514,15 @@ def main(
     b_sigma: float,
 ) -> None:
     """Export CU3S sequence to false-RGB MP4."""
+    try:
+        _validate_sample_fraction(sample_fraction)
+    except ValueError as exc:
+        raise click.BadParameter(str(exc), param_hint="--sample-fraction") from exc
+
+    freeze_running_bounds_after_frames = (
+        None if freeze_running_bounds_after <= 0 else freeze_running_bounds_after
+    )
+
     if compare_all:
         export_compare_all(
             cu3s_file_path=str(cu3s_file_path),
@@ -391,6 +532,10 @@ def main(
             max_num_frames=max_num_frames,
             batch_size=batch_size,
             processing_mode=processing_mode,
+            normalization_mode=normalization_mode,
+            sample_fraction=sample_fraction,
+            freeze_running_bounds_after_frames=freeze_running_bounds_after_frames,
+            save_pipeline_config=save_pipeline_config,
         )
     else:
         if not output_video_path:
@@ -404,6 +549,11 @@ def main(
             max_num_frames=max_num_frames,
             batch_size=batch_size,
             processing_mode=processing_mode,
+            normalization_mode=normalization_mode,
+            sample_fraction=sample_fraction,
+            freeze_running_bounds_after_frames=freeze_running_bounds_after_frames,
+            save_pipeline_config=save_pipeline_config,
+            overlay_frame_id=overlay_frame_id,
             red_low=red_low,
             red_high=red_high,
             green_low=green_low,

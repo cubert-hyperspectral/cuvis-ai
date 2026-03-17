@@ -25,21 +25,24 @@ All channel selectors share a common RGB normalization strategy in
   wider range than the others.
 
 - **Three modes** (``NormMode``):
-  ``running`` (default) — warmup + min/max accumulation. The first N frames use
-      per-frame normalization (visually good immediately) while silently
-      building global percentile bounds. After warmup the accumulated bounds are
-      used, giving temporal stability identical to ``statistical`` mode.
+  ``running`` (default) — warmup + percentile accumulation with optional freeze.
+      The first warmup frames use per-frame normalization (visually good
+      immediately) while accumulating global bounds. After warmup, accumulated
+      bounds are used. By default, accumulation is frozen after 20 frames to
+      prevent late outliers from changing brightness; set
+      ``freeze_running_bounds_after_frames=None`` to keep legacy unbounded
+      accumulation.
   ``statistical`` — pre-computed global percentiles via ``StatisticalTrainer``.
       Use when exact global stats matter and a full first pass is acceptable.
   ``per_frame`` — each frame normalized independently; no inter-frame state.
       Use for unrelated images or single-frame pipelines.
 
 - **Why warmup + accumulation** (not EMA): Exponential moving averages have
-  recency bias — for long videos the early-frame statistics are forgotten. The
-  min/max accumulation bounds only ever *expand* (min-of-lows, max-of-highs),
-  so they converge to the exact same result as a full statistical-init pass
-  without requiring a separate first pass. The warmup period ensures the first
-  few frames look natural before enough data has been accumulated.
+  recency bias — for long videos the early-frame statistics are forgotten.
+  Min/max accumulation bounds only ever *expand* (min-of-lows, max-of-highs)
+  during the accumulation window, giving stable normalization without recency
+  drift. The warmup period ensures the first few frames look natural before
+  enough data has been accumulated.
 """
 
 from __future__ import annotations
@@ -87,6 +90,10 @@ class ChannelSelectorBase(Node):
         Apply sRGB gamma curve after normalization.  Default ``True``.
         Lifts midtones so linear [0, 1] values appear natural on standard
         displays.
+    freeze_running_bounds_after_frames : int | None
+        When ``norm_mode='running'``, stop updating ``running_min/running_max``
+        after this many forward calls. ``None`` keeps legacy behavior (never
+        freeze). Default ``20``.
 
     Ports
     -----
@@ -138,15 +145,27 @@ class ChannelSelectorBase(Node):
         self,
         norm_mode: str | NormMode = NormMode.RUNNING,
         apply_gamma: bool = True,
+        freeze_running_bounds_after_frames: int | None = 20,
         **kwargs: Any,
     ) -> None:
+        if freeze_running_bounds_after_frames is not None:
+            if (
+                isinstance(freeze_running_bounds_after_frames, bool)
+                or not isinstance(freeze_running_bounds_after_frames, int)
+                or freeze_running_bounds_after_frames < 1
+            ):
+                raise ValueError(
+                    "freeze_running_bounds_after_frames must be an integer >= 1 or None"
+                )
         super().__init__(
             norm_mode=str(norm_mode) if isinstance(norm_mode, NormMode) else norm_mode,
             apply_gamma=apply_gamma,
+            freeze_running_bounds_after_frames=freeze_running_bounds_after_frames,
             **kwargs,
         )
         self.norm_mode = NormMode(norm_mode)
         self.apply_gamma = apply_gamma
+        self.freeze_running_bounds_after_frames = freeze_running_bounds_after_frames
 
         # Per-channel [3] running bounds for normalization.
         self.register_buffer("running_min", torch.full((3,), float("nan")))
@@ -228,23 +247,27 @@ class ChannelSelectorBase(Node):
     def _running_normalize(self, rgb: torch.Tensor) -> torch.Tensor:
         """Warmup + min/max accumulation hybrid normalization.
 
-        Always accumulates per-frame percentile bounds (monotonic: bounds only
-        expand).  During the warmup period the output uses per-frame
-        normalization so the first frames look natural.  After warmup, switches
-        to the accumulated bounds for temporal stability.
+        During warmup, output uses per-frame percentile normalization while
+        accumulating bounds. After warmup, output uses accumulated bounds. If
+        ``freeze_running_bounds_after_frames`` is set, accumulation stops after
+        that many forward calls.
         """
         flat = rgb.reshape(-1, 3).float()  # quantile() requires float/double
         frame_lo = torch.quantile(flat, self._NORM_QUANTILE_LOW, dim=0)  # [3]
         frame_hi = torch.quantile(flat, self._NORM_QUANTILE_HIGH, dim=0)  # [3]
 
-        if torch.isnan(self.running_min).any():
-            self.running_min.copy_(frame_lo)
-            self.running_max.copy_(frame_hi)
-        else:
-            torch.minimum(self.running_min, frame_lo, out=self.running_min)
-            torch.maximum(self.running_max, frame_hi, out=self.running_max)
-
         self._norm_frame_count += 1
+        should_update_bounds = (
+            self.freeze_running_bounds_after_frames is None
+            or self._norm_frame_count <= self.freeze_running_bounds_after_frames
+        )
+        if should_update_bounds:
+            if torch.isnan(self.running_min).any():
+                self.running_min.copy_(frame_lo)
+                self.running_max.copy_(frame_hi)
+            else:
+                torch.minimum(self.running_min, frame_lo, out=self.running_min)
+                torch.maximum(self.running_max, frame_hi, out=self.running_max)
 
         if self._norm_frame_count <= self._WARMUP_FRAMES:
             return self._per_frame_percentile_normalize(rgb)

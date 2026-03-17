@@ -6,12 +6,12 @@ with ByteTrack.  When ``--association-mode`` is set to ``spectral_cost`` or
 signatures into the tracker for spectral-aware association.
 
 Example (baseline, 60 frames):
-    uv run python examples/object_tracking/bytetrack/yolo_bytetrack_hsi.py \\
+    uv run python examples/object_tracking/bytetrack/yolo_bytetrack_hsi.py `
         --cu3s-path cube.cu3s --end-frame 60
 
 Example (spectral cost):
-    uv run python examples/object_tracking/bytetrack/yolo_bytetrack_hsi.py \\
-        --cu3s-path cube.cu3s --association-mode spectral_cost \\
+    uv run python examples/object_tracking/bytetrack/yolo_bytetrack_hsi.py `
+        --cu3s-path cube.cu3s --association-mode spectral_cost `
         --spectral-cost-weight 0.3 --end-frame 60
 """
 
@@ -24,6 +24,8 @@ from pathlib import Path
 import click
 import torch
 from loguru import logger
+
+from cuvis_ai.utils.false_rgb_sampling import initialize_false_rgb_sampled_fixed
 
 
 def _write_experiment_info(output_dir: Path, **params: object) -> None:
@@ -77,6 +79,29 @@ def _append_metrics(info_path: Path, tracking_json_path: Path) -> None:
     ]
     with info_path.open("a", encoding="utf-8") as f:
         f.write("\n".join(lines))
+
+
+def _resolve_run_output_dir(
+    *,
+    output_root: Path,
+    source_path: Path,
+    out_basename: str | None,
+) -> Path:
+    resolved_basename = source_path.stem
+    if out_basename is not None:
+        candidate = out_basename.strip()
+        if not candidate:
+            raise click.BadParameter(
+                "--out-basename must not be empty or whitespace only",
+                param_hint="--out-basename",
+            )
+        if "/" in candidate or "\\" in candidate:
+            raise click.BadParameter(
+                "--out-basename must be a folder name, not a path",
+                param_hint="--out-basename",
+            )
+        resolved_basename = candidate
+    return output_root / resolved_basename
 
 
 @click.command()
@@ -137,6 +162,16 @@ def _append_metrics(info_path: Path, tracking_json_path: Path) -> None:
     type=click.Path(file_okay=False, path_type=Path),
     default=Path("./tracking_output"),
     show_default=True,
+    help=(
+        "Parent output directory. Final run folder is "
+        "<output-dir>/<out-basename or input-file-stem>."
+    ),
+)
+@click.option(
+    "--out-basename",
+    type=str,
+    default=None,
+    help="Optional leaf run-folder name under --output-dir (must not include '/' or '\\').",
 )
 @click.option(
     "--plugins-dir",
@@ -259,6 +294,7 @@ def main(
     unconfirmed_match_thresh: float,
     new_track_thresh_offset: float,
     output_dir: Path,
+    out_basename: str | None,
     plugins_dir: Path | None,
     bf16: bool,
     association_mode: str,
@@ -280,11 +316,17 @@ def main(
         raise click.BadParameter("--end-frame must be -1 or positive")
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    output_dir.mkdir(parents=True, exist_ok=True)
+    run_output_dir = _resolve_run_output_dir(
+        output_root=output_dir,
+        source_path=cu3s_path,
+        out_basename=out_basename,
+    )
+    run_output_dir.mkdir(parents=True, exist_ok=True)
+    logger.info("Output run directory: {}", run_output_dir)
 
     # Write experiment context file alongside outputs.
     _write_experiment_info(
-        output_dir,
+        run_output_dir,
         cu3s_path=cu3s_path,
         model_name=model_name,
         confidence_threshold=confidence_threshold,
@@ -310,7 +352,7 @@ def main(
     from cuvis_ai_core.utils.node_registry import NodeRegistry
 
     from cuvis_ai.node.anomaly_visualization import BBoxesOverlayNode
-    from cuvis_ai.node.channel_selector import CIETristimulusFalseRGBSelector
+    from cuvis_ai.node.channel_selector import CIETristimulusFalseRGBSelector, NormMode
     from cuvis_ai.node.data import CU3SDataNode
     from cuvis_ai.node.json_writer import ByteTrackCocoJson, DetectionCocoJsonNode
     from cuvis_ai.node.spectral_extractor import BBoxSpectralExtractor
@@ -345,7 +387,19 @@ def main(
     pipeline = CuvisPipeline("YOLO_ByteTrack_HSI")
 
     cu3s_data = CU3SDataNode(name="cu3s_data")
-    false_rgb = CIETristimulusFalseRGBSelector(name="cie_false_rgb")
+    false_rgb = CIETristimulusFalseRGBSelector(
+        norm_mode=NormMode.STATISTICAL,
+        name="cie_false_rgb",
+    )
+    sample_positions = initialize_false_rgb_sampled_fixed(
+        false_rgb,
+        datamodule.predict_ds,
+        sample_fraction=0.05,
+    )
+    logger.info(
+        "False-RGB sampled-fixed calibration: sample_fraction=0.05, sample_count={}",
+        len(sample_positions),
+    )
     yolo_det = yolo_cls(model_path=model_name, name="yolo26_det")
     yolo_pre = yolo_pre_cls(stride=int(getattr(yolo_det, "stride", 32)), name="yolo_preprocess")
     yolo_post = yolo_post_cls(
@@ -383,11 +437,11 @@ def main(
         )
     tracker = bytetrack_cls(**tracker_kwargs)
     det_json = DetectionCocoJsonNode(
-        output_json_path=str(output_dir / "detection_results.json"),
+        output_json_path=str(run_output_dir / "detection_results.json"),
         name="detection_coco_json",
     )
     track_json = ByteTrackCocoJson(
-        output_json_path=str(output_dir / "tracking_results.json"),
+        output_json_path=str(run_output_dir / "tracking_results.json"),
         name="tracking_coco_json",
     )
     if use_spectral:
@@ -403,7 +457,7 @@ def main(
         sparkline_height=sparkline_height,
         hide_untracked=hide_untracked,
     )
-    overlay_path = output_dir / "tracking_overlay.mp4"
+    overlay_path = run_output_dir / "tracking_overlay.mp4"
     to_video = ToVideoNode(
         output_video_path=str(overlay_path),
         frame_rate=dataset_fps,
@@ -468,7 +522,7 @@ def main(
 
     pipeline.connect(*connections)
 
-    pipeline_png = output_dir / f"{pipeline.name}.png"
+    pipeline_png = run_output_dir / f"{pipeline.name}.png"
     pipeline.visualize(
         format="render_graphviz", output_path=str(pipeline_png), show_execution_stage=True
     )
@@ -494,15 +548,17 @@ def main(
 
     summary = pipeline.format_profiling_summary(total_frames=target_frames)
     logger.info("\n{}", summary)
-    (output_dir / "profiling_summary.txt").write_text(summary)
+    (run_output_dir / "profiling_summary.txt").write_text(summary)
 
-    logger.success("Tracking complete")
+    logger.success("Tracking complete -> {}", run_output_dir)
     logger.info("Overlay: {}", overlay_path)
-    logger.info("Detections: {}", output_dir / "detection_results.json")
-    logger.info("Tracks: {}", output_dir / "tracking_results.json")
+    logger.info("Detections: {}", run_output_dir / "detection_results.json")
+    logger.info("Tracks: {}", run_output_dir / "tracking_results.json")
 
     # Append diagnostic metrics to experiment_info.txt.
-    _append_metrics(output_dir / "experiment_info.txt", output_dir / "tracking_results.json")
+    _append_metrics(
+        run_output_dir / "experiment_info.txt", run_output_dir / "tracking_results.json"
+    )
 
 
 if __name__ == "__main__":

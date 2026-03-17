@@ -1,7 +1,0 @@
-# SAM3 Plugin Configuration (local development)
-plugins:
-  sam3:
-    path: "../../../../cuvis-ai-sam3"
-    provides:
-      - cuvis_ai_sam3.node.SAM3TrackerInference
-

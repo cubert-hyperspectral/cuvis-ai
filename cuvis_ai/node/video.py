@@ -16,6 +16,8 @@ from cuvis_ai_core.node import Node
 from cuvis_ai_schemas.execution import Context
 from cuvis_ai_schemas.pipeline import PortSpec
 
+from cuvis_ai.utils.torch_draw import draw_text
+
 
 # ---------------------------------------------------------------------------
 # ToVideoNode — write RGB frame batches to MP4 via OpenCV
@@ -47,7 +49,13 @@ class ToVideoNode(Node):
             dtype=torch.float32,
             shape=(-1, -1, -1, 3),
             description="RGB frames [B, H, W, 3] in [0, 1] or [0, 255]",
-        )
+        ),
+        "frame_id": PortSpec(
+            dtype=torch.int64,
+            shape=(-1,),
+            description="Frame / measurement index [B] to render as text overlay.",
+            optional=True,
+        ),
     }
 
     OUTPUT_SPECS = {
@@ -150,13 +158,17 @@ class ToVideoNode(Node):
     def forward(
         self,
         rgb_image: torch.Tensor,
+        frame_id: torch.Tensor | None = None,
         context: Context | None = None,  # noqa: ARG002
         **_: Any,
     ) -> dict[str, str]:
         """Append incoming RGB frames to the configured video file."""
         rgb_u8 = self._to_uint8_batch(rgb_image)
 
-        for frame in rgb_u8:
+        for b, frame in enumerate(rgb_u8):
+            if frame_id is not None and b < len(frame_id):
+                fid = int(frame_id[b].item())
+                draw_text(frame, 8, 8, f"frame {fid}", (255, 255, 255), scale=2, bg=True)
             frame = self._rotate_frame(frame)
             height, width = int(frame.shape[0]), int(frame.shape[1])
             if self._writer is None:
