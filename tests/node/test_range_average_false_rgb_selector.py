@@ -184,9 +184,26 @@ def test_freeze_running_bounds_after_frames_validation() -> None:
         RangeAverageFalseRGBSelector(freeze_running_bounds_after_frames="20")
 
 
+def test_running_warmup_frames_validation() -> None:
+    with pytest.raises(ValueError, match="running_warmup_frames"):
+        RangeAverageFalseRGBSelector(running_warmup_frames=-1)
+    with pytest.raises(ValueError, match="running_warmup_frames"):
+        RangeAverageFalseRGBSelector(running_warmup_frames=2.5)
+    with pytest.raises(ValueError, match="running_warmup_frames"):
+        RangeAverageFalseRGBSelector(running_warmup_frames=True)
+
+
 def test_export_false_rgb_node_propagates_freeze_running_bounds_parameter() -> None:
     node = _create_false_rgb_node(
         "cie_tristimulus",
         freeze_running_bounds_after_frames=7,
     )
     assert node.freeze_running_bounds_after_frames == 7
+
+
+def test_export_false_rgb_node_propagates_running_warmup_parameter() -> None:
+    node = _create_false_rgb_node(
+        "cie_tristimulus",
+        running_warmup_frames=3,
+    )
+    assert node.running_warmup_frames == 3

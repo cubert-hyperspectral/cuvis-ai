@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+- Added SAM3 tracking workflow updates across propagation scripts and examples, including batch processing support for full-folder video runs.
+- Added TrackEval preparation/evaluation tooling updates for aligned HOTA benchmarking workflows.
+- Added occlusion and Poisson inpainting utilities with corresponding tests and object-tracking example integrations.
+- Expanded channel-selector false-RGB export and training pipeline capabilities, docs, and test coverage.
+- Updated plugin and trainrun configs to match the current SAM3 and channel-selector runtime paths.
+
 ## 0.4.0 - 2026-02-27
 
 - Added reusable `WelfordAccumulator` utility (`cuvis_ai.utils.welford`) for streaming mean/variance/covariance

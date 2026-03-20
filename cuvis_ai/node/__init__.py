@@ -17,6 +17,7 @@ from cuvis_ai.node.channel_selector import (
     ChannelSelectorBase,
     CIETristimulusFalseRGBSelector,
     CIRSelector,
+    FastRGBSelector,
     FixedWavelengthSelector,
     HighContrastSelector,
     NormMode,
@@ -35,6 +36,12 @@ from cuvis_ai.node.labels import BinaryAnomalyLabelMapper
 from cuvis_ai.node.losses import DistinctnessLoss, ForegroundContrastLoss
 from cuvis_ai.node.normalization import IdentityNormalizer, MinMaxNormalizer, SigmoidNormalizer
 from cuvis_ai.node.numpy_writer import NumpyFeatureWriterNode
+from cuvis_ai.node.occlusion import (
+    OcclusionNodeBase,
+    PoissonCubeOcclusionNode,
+    PoissonOcclusionNode,
+    SolidOcclusionNode,
+)
 from cuvis_ai.node.pipeline_visualization import (
     CubeRGBVisualizer,
     PCAVisualization,
@@ -69,6 +76,7 @@ __all__ = [
     "ChannelWeightsViz",
     "CIETristimulusFalseRGBSelector",
     "CIRSelector",
+    "FastRGBSelector",
     "ConcreteChannelMixer",
     "CubeRGBVisualizer",
     "DetectionCocoJsonNode",
@@ -84,12 +92,16 @@ __all__ = [
     "MinMaxNormalizer",
     "NormMode",
     "NumpyFeatureWriterNode",
+    "OcclusionNodeBase",
+    "PoissonCubeOcclusionNode",
+    "PoissonOcclusionNode",
     "PCAVisualization",
     "PipelineComparisonVisualizer",
     "RangeAverageFalseRGBSelector",
     "RGBAnomalyMask",
     "ScoreHeatmapVisualizer",
     "SigmoidNormalizer",
+    "SolidOcclusionNode",
     "SoftChannelSelector",
     "SpatialRotateNode",
     "SupervisedCIRSelector",

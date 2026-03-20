@@ -198,6 +198,7 @@ experiments/
 !configs/pipeline/anomaly/rx/channel_selector.pt
 configs/**/*.png
 .claude/
+.cursor/
 *.code-workspace
 
 # Windows artifacts

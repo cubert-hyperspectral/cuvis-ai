@@ -2,21 +2,22 @@
 
 Exactly one of ``--cu3s-path`` or ``--video-path`` is required.
 
-Creates a binary mask from a detection bbox and uses it as a SAM3 mask prompt.
-Specify the detection with ``--detection ID@FRAME``.
+Accepts a pre-made binary mask PNG (255=foreground) as the SAM3 prompt.
+Specify the mask with ``--prompt-mask-path``, the source frame index with
+``--prompt-frame-idx``, and optionally the object ID with ``--prompt-obj-id``.
 """
 
 from __future__ import annotations
 
 import contextlib
-import json
-import re
+import shutil
 from pathlib import Path
 
 import click
-import cv2
-import numpy as np
 import torch
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.training import Predictor
+from cuvis_ai_core.utils.node_registry import NodeRegistry
 from loguru import logger
 from sam3_source_context import (
     PROCESSING_MODES,
@@ -24,97 +25,13 @@ from sam3_source_context import (
     resolve_end_frame,
     resolve_plugin_manifest,
     resolve_processing_mode,
+    resolve_run_output_dir,
     validate_source_and_window,
 )
 
-
-def _resolve_run_output_dir(
-    *,
-    output_root: Path,
-    source_path: Path,
-    out_basename: str | None,
-) -> Path:
-    resolved_basename = source_path.stem
-    if out_basename is not None:
-        candidate = out_basename.strip()
-        if not candidate:
-            raise click.BadParameter(
-                "--out-basename must not be empty or whitespace only",
-                param_hint="--out-basename",
-            )
-        if "/" in candidate or "\\" in candidate:
-            raise click.BadParameter(
-                "--out-basename must be a folder name, not a path",
-                param_hint="--out-basename",
-            )
-        resolved_basename = candidate
-    return output_root / resolved_basename
-
-
-def _parse_detection_spec(spec: str) -> tuple[int, int]:
-    m = re.fullmatch(r"(\d+)@(\d+)", spec.strip())
-    if not m:
-        raise click.BadParameter(
-            f"Invalid detection spec '{spec}'. Expected format: ID@FRAME (e.g. 2@76)."
-        )
-    return int(m.group(1)), int(m.group(2))
-
-
-def _create_mask_from_detection(
-    detection_json: Path, output_dir: Path, det_id: int, frame_idx: int
-) -> tuple[Path, int]:
-    data = json.loads(detection_json.read_text(encoding="utf-8"))
-    images = {img["id"]: img for img in data["images"]}
-
-    if frame_idx not in images:
-        raise click.ClickException(f"Frame {frame_idx} not found in {detection_json}.")
-
-    frame_annots = [a for a in data["annotations"] if a["image_id"] == frame_idx]
-    has_track_ids = any("track_id" in a for a in frame_annots)
-
-    if has_track_ids:
-        by_track = {a["track_id"]: a for a in frame_annots if "track_id" in a}
-        if det_id in by_track:
-            a = by_track[det_id]
-            obj_id = det_id
-        else:
-            raise click.ClickException(
-                f"Track ID {det_id} not found on frame {frame_idx}. "
-                f"Available: {sorted(by_track.keys())}"
-            )
-    else:
-        frame_annots.sort(key=lambda ann: ann.get("score", 0.0), reverse=True)
-        rank = det_id - 1
-        if rank < 0 or rank >= len(frame_annots):
-            raise click.ClickException(
-                f"Detection rank {det_id} out of range on frame {frame_idx} "
-                f"(have {len(frame_annots)} detections)."
-            )
-        a = frame_annots[rank]
-        obj_id = det_id
-
-    img = images[frame_idx]
-    w_img, h_img = img["width"], img["height"]
-    x, y, w, h = a["bbox"]
-
-    mask = np.zeros((h_img, w_img), dtype=np.uint8)
-    x1, y1 = max(0, int(round(x))), max(0, int(round(y)))
-    x2, y2 = min(w_img, int(round(x + w))), min(h_img, int(round(y + h)))
-    mask[y1:y2, x1:x2] = 255
-
-    mask_path = output_dir / "prompt_mask.png"
-    cv2.imwrite(str(mask_path), mask)
-    logger.info(
-        "  obj_id={} mask: bbox=[{}, {}, {}, {}] pixels, score={:.3f} -> {}",
-        obj_id,
-        x1,
-        y1,
-        x2,
-        y2,
-        a.get("score", 0),
-        mask_path,
-    )
-    return mask_path, obj_id
+from cuvis_ai.node.anomaly_visualization import TrackingOverlayNode
+from cuvis_ai.node.json_writer import TrackingCocoJsonNode
+from cuvis_ai.node.video import ToVideoNode
 
 
 @click.command()
@@ -131,7 +48,23 @@ def _create_mask_from_detection(
     help="Path to an MP4 (or other cv2-compatible) video file.",
 )
 @click.option(
-    "--detection-json", type=click.Path(exists=True, dir_okay=False, path_type=Path), required=True
+    "--prompt-mask-path",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    required=True,
+    help="Pre-made binary mask PNG (255=foreground, 0=background).",
+)
+@click.option(
+    "--prompt-frame-idx",
+    type=int,
+    required=True,
+    help="Source frame index where the mask prompt applies.",
+)
+@click.option(
+    "--prompt-obj-id",
+    type=int,
+    default=1,
+    show_default=True,
+    help="Object ID to assign to the prompted mask.",
 )
 @click.option(
     "--processing-mode",
@@ -140,14 +73,6 @@ def _create_mask_from_detection(
     show_default=True,
 )
 @click.option("--frame-rotation", type=int, default=None)
-@click.option(
-    "--detection",
-    "detection_spec",
-    type=str,
-    default="1@0",
-    show_default=True,
-    help="Detection to use: ID@FRAME (e.g. 2@76).",
-)
 @click.option("--start-frame", type=int, default=0, show_default=True)
 @click.option(
     "--end-frame",
@@ -186,13 +111,52 @@ def _create_mask_from_detection(
     show_default=True,
 )
 @click.option("--bf16", is_flag=True, default=False)
+@click.option(
+    "--compile", "compile_model", is_flag=True, default=False, help="Enable torch.compile."
+)
+@click.option(
+    "--score-threshold-detection",
+    type=float,
+    default=0.5,
+    show_default=True,
+    help="SAM3 detector score threshold (lower increases recall).",
+)
+@click.option(
+    "--new-det-thresh",
+    type=float,
+    default=0.7,
+    show_default=True,
+    help="SAM3 new-track threshold (lower admits weaker new tracks).",
+)
+@click.option(
+    "--det-nms-thresh",
+    type=float,
+    default=0.1,
+    show_default=True,
+    help="SAM3 detector NMS IoU threshold (higher is less suppressive).",
+)
+@click.option(
+    "--overlap-suppress-thresh",
+    type=float,
+    default=0.7,
+    show_default=True,
+    help="SAM3 overlap suppression threshold (higher is less suppressive).",
+)
+@click.option(
+    "--max-tracker-states",
+    type=int,
+    default=5,
+    show_default=True,
+    help="Maximum number of active tracker states.",
+)
 def main(
     cu3s_path: Path | None,
     video_path: Path | None,
-    detection_json: Path,
+    prompt_mask_path: Path,
+    prompt_frame_idx: int,
+    prompt_obj_id: int,
     processing_mode: str,
     frame_rotation: int | None,
-    detection_spec: str,
     start_frame: int,
     end_frame: int,
     max_frames: int | None,
@@ -201,8 +165,13 @@ def main(
     checkpoint_path: Path | None,
     plugins_yaml: Path,
     bf16: bool,
+    compile_model: bool,
+    score_threshold_detection: float,
+    new_det_thresh: float,
+    det_nms_thresh: float,
+    overlap_suppress_thresh: float,
+    max_tracker_states: int,
 ) -> None:
-    device = "cuda" if torch.cuda.is_available() else "cpu"
     effective_end_frame = resolve_end_frame(
         start_frame=start_frame,
         end_frame=end_frame,
@@ -216,35 +185,49 @@ def main(
     )
     source_path = cu3s_path if cu3s_path is not None else video_path
     assert source_path is not None
-    run_output_dir = _resolve_run_output_dir(
+    run_output_dir = resolve_run_output_dir(
         output_root=output_dir,
         source_path=source_path,
         out_basename=out_basename,
     )
     run_output_dir.mkdir(parents=True, exist_ok=True)
+    for option_name, value in (
+        ("--score-threshold-detection", score_threshold_detection),
+        ("--new-det-thresh", new_det_thresh),
+        ("--det-nms-thresh", det_nms_thresh),
+        ("--overlap-suppress-thresh", overlap_suppress_thresh),
+    ):
+        if not (0.0 <= float(value) <= 1.0):
+            raise click.BadParameter(f"{option_name} must be in [0, 1].")
+    if max_tracker_states < 1:
+        raise click.BadParameter("--max-tracker-states must be >= 1.")
 
     resolved_mode = resolve_processing_mode(processing_mode)
     if video_path is not None:
         logger.info("Ignoring --processing-mode because --video-path is set")
 
-    det_id, prompt_frame_idx_source = _parse_detection_spec(detection_spec)
-    if start_frame > prompt_frame_idx_source:
+    if start_frame > prompt_frame_idx:
         raise click.ClickException(
-            f"--start-frame ({start_frame}) must be <= prompt frame ({prompt_frame_idx_source})."
+            f"--start-frame ({start_frame}) must be <= prompt frame ({prompt_frame_idx})."
+        )
+    if start_frame > 0:
+        trimmed_prefix = start_frame
+        prompt_lead = prompt_frame_idx - start_frame
+        logger.warning(
+            "Using --start-frame={} trims {} leading frames before the prompt frame {} "
+            "(local prompt index={}). This can alter SAM3 prompt association and cause "
+            "identity switches. For best stability, prefer --start-frame 0 and trim "
+            "outputs after propagation.",
+            start_frame,
+            trimmed_prefix,
+            prompt_frame_idx,
+            prompt_lead,
         )
 
-    logger.info("Creating mask prompt from {}", detection_json)
-    mask_path, obj_id = _create_mask_from_detection(
-        detection_json, run_output_dir, det_id=det_id, frame_idx=prompt_frame_idx_source
-    )
-
-    from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
-    from cuvis_ai_core.training import Predictor
-    from cuvis_ai_core.utils.node_registry import NodeRegistry
-
-    from cuvis_ai.node.anomaly_visualization import TrackingOverlayNode
-    from cuvis_ai.node.json_writer import TrackingCocoJsonNode
-    from cuvis_ai.node.video import ToVideoNode
+    # Archive the prompt mask into the run output directory
+    archived_mask = run_output_dir / "prompt_mask.png"
+    if prompt_mask_path.resolve() != archived_mask.resolve():
+        shutil.copy2(prompt_mask_path, archived_mask)
 
     source_context = build_source_context(
         cu3s_path=cu3s_path,
@@ -253,35 +236,53 @@ def main(
         start_frame=start_frame,
         end_frame=effective_end_frame,
     )
-    prompt_frame_idx_local = prompt_frame_idx_source - start_frame
+    prompt_frame_idx_local = prompt_frame_idx - start_frame
     if prompt_frame_idx_local < 0 or prompt_frame_idx_local >= source_context.target_frames:
         raise click.ClickException(
             "Prompt frame is outside the streamed window after start-frame slicing: "
-            f"source={prompt_frame_idx_source}, start={start_frame}, local={prompt_frame_idx_local}, "
+            f"source={prompt_frame_idx}, start={start_frame}, local={prompt_frame_idx_local}, "
             f"target_frames={source_context.target_frames}."
         )
 
     plugin_manifest = resolve_plugin_manifest(plugins_yaml)
     registry = NodeRegistry()
     registry.load_plugins(str(plugin_manifest))
-    sam3_cls = registry.get("cuvis_ai_sam3.node.SAM3StreamingPropagation")
+    sam3_cls = registry.get("cuvis_ai_sam3.node.SAM3MaskPropagation")
 
     pipeline_name = (
         "SAM3_Mask_Propagation_HSI"
         if source_context.source_type == "cu3s"
         else "SAM3_Mask_Propagation_Video"
     )
-    pipeline = CuvisPipeline(pipeline_name)
+    input_frame_id_offset = start_frame if source_context.source_type == "video" else 0
 
     sam3_node = sam3_cls(
         num_frames=source_context.target_frames,
         checkpoint_path=str(checkpoint_path) if checkpoint_path else None,
-        prompt_type="mask",
-        prompt_frame_idx=prompt_frame_idx_local,
-        prompt_mask_path=str(mask_path),
-        prompt_obj_id=obj_id,
+        compile_model=compile_model,
+        prompt_frame_id=prompt_frame_idx,
+        input_frame_id_offset=input_frame_id_offset,
+        prompt_mask_path=str(prompt_mask_path),
+        prompt_obj_id=prompt_obj_id,
+        score_threshold_detection=float(score_threshold_detection),
+        new_det_thresh=float(new_det_thresh),
+        det_nms_thresh=float(det_nms_thresh),
+        overlap_suppress_thresh=float(overlap_suppress_thresh),
+        max_tracker_states=int(max_tracker_states),
         name="sam3_streaming",
     )
+
+    logger.info(
+        "Mask propagation: obj_id={}, source prompt frame {}, local prompt frame {}, {} frames",
+        prompt_obj_id,
+        prompt_frame_idx,
+        prompt_frame_idx_local,
+        source_context.target_frames,
+    )
+
+    # -- build pipeline ------------------------------------------------
+    pipeline = CuvisPipeline(pipeline_name)
+
     tracking_json = TrackingCocoJsonNode(
         output_json_path=str(run_output_dir / "tracking_results.json"),
         category_name="person",
@@ -300,6 +301,7 @@ def main(
     connections.extend(
         [
             (source_context.source_rgb_port, sam3_node.rgb_frame),
+            (source_context.source_frame_id_port, sam3_node.inputs.frame_id),
             (source_context.source_frame_id_port, tracking_json.frame_id),
             (sam3_node.mask, tracking_json.mask),
             (sam3_node.object_ids, tracking_json.object_ids),
@@ -318,6 +320,8 @@ def main(
         format="render_graphviz", output_path=str(pipeline_png), show_execution_stage=True
     )
 
+    # -- predict -------------------------------------------------------
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     pipeline.to(device)
     pipeline.set_profiling(enabled=True, synchronize_cuda=(device == "cuda"), skip_first_n=3)
     predictor = Predictor(pipeline=pipeline, datamodule=source_context.datamodule)
@@ -328,10 +332,7 @@ def main(
         else contextlib.nullcontext()
     )
     logger.info(
-        "Starting mask propagation (obj_id={}, source prompt frame {}, local prompt frame {}, {} frames)...",
-        obj_id,
-        prompt_frame_idx_source,
-        prompt_frame_idx_local,
+        "Starting mask propagation ({} frames)...",
         source_context.target_frames,
     )
     with amp_ctx:

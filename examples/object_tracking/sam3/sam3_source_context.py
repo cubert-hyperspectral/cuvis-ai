@@ -3,10 +3,15 @@
 Supports selecting exactly one source type:
 - CU3S (with false-RGB conversion)
 - RGB video (direct frames)
+
+Also provides shared utilities for output directory resolution and detection
+JSON parsing.
 """
 
 from __future__ import annotations
 
+import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -93,6 +98,81 @@ def resolve_end_frame(
             param_hint="--end-frame",
         )
     return derived_end
+
+
+def resolve_run_output_dir(
+    *,
+    output_root: Path,
+    source_path: Path,
+    out_basename: str | None,
+) -> Path:
+    """Resolve the per-run output directory from ``--output-dir`` and ``--out-basename``."""
+    resolved_basename = source_path.stem
+    if out_basename is not None:
+        candidate = out_basename.strip()
+        if not candidate:
+            raise click.BadParameter(
+                "--out-basename must not be empty or whitespace only",
+                param_hint="--out-basename",
+            )
+        if "/" in candidate or "\\" in candidate:
+            raise click.BadParameter(
+                "--out-basename must be a folder name, not a path",
+                param_hint="--out-basename",
+            )
+        resolved_basename = candidate
+    return output_root / resolved_basename
+
+
+def parse_detection_spec(spec: str) -> tuple[int, int]:
+    """Parse ``ID@FRAME`` string into ``(det_id, frame_idx)``."""
+    m = re.fullmatch(r"(\d+)@(\d+)", spec.strip())
+    if not m:
+        raise click.BadParameter(
+            f"Invalid detection spec '{spec}'. Expected format: ID@FRAME (e.g. 2@76)."
+        )
+    return int(m.group(1)), int(m.group(2))
+
+
+def load_detection_annotation(
+    detection_json: Path,
+    det_id: int,
+    frame_idx: int,
+) -> tuple[dict, int]:
+    """Look up a single annotation from a COCO tracking/detection JSON.
+
+    Matches *det_id* against ``track_id`` when available; otherwise treats it
+    as a 1-based rank by descending score.
+
+    Returns ``(annotation_dict, obj_id)`` where *annotation_dict* contains at
+    least ``bbox``, ``score``, ``image_id``.
+    """
+    data = json.loads(detection_json.read_text(encoding="utf-8"))
+    images = {img["id"]: img for img in data["images"]}
+
+    if frame_idx not in images:
+        raise click.ClickException(f"Frame {frame_idx} not found in {detection_json}.")
+
+    frame_annots = [a for a in data["annotations"] if a["image_id"] == frame_idx]
+    has_track_ids = any("track_id" in a for a in frame_annots)
+
+    if has_track_ids:
+        by_track = {a["track_id"]: a for a in frame_annots if "track_id" in a}
+        if det_id in by_track:
+            return by_track[det_id], det_id
+        raise click.ClickException(
+            f"Track ID {det_id} not found on frame {frame_idx}. "
+            f"Available: {sorted(by_track.keys())}"
+        )
+
+    frame_annots.sort(key=lambda ann: ann.get("score", 0.0), reverse=True)
+    rank = det_id - 1
+    if rank < 0 or rank >= len(frame_annots):
+        raise click.ClickException(
+            f"Detection rank {det_id} out of range on frame {frame_idx} "
+            f"(have {len(frame_annots)} detections)."
+        )
+    return frame_annots[rank], det_id
 
 
 def build_source_context(

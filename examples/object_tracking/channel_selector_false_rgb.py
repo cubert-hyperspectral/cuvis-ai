@@ -49,6 +49,19 @@ from cuvis_ai.node.video import ToVideoNode
 from cuvis_ai.utils.false_rgb_sampling import initialize_false_rgb_sampled_fixed
 
 # ---------------------------------------------------------------------------
+# Shared helpers
+# ---------------------------------------------------------------------------
+
+
+def resolve_spatial_rotation(cfg: DictConfig) -> int:
+    """Resolve spatial rotation from config; defaults to 90 for backward compatibility."""
+    rotation = int(cfg.get("spatial_rotation", 90))
+    if rotation not in {0, 90, 180, 270}:
+        raise ValueError(f"Unsupported spatial_rotation={rotation}. Use one of: 0, 90, 180, 270.")
+    return rotation
+
+
+# ---------------------------------------------------------------------------
 # Inspect mode
 # ---------------------------------------------------------------------------
 
@@ -58,6 +71,8 @@ def inspect_dataset(cfg: DictConfig) -> None:
 
     output_dir = Path(cfg.output_dir) / "inspect"
     output_dir.mkdir(parents=True, exist_ok=True)
+    spatial_rotation = resolve_spatial_rotation(cfg)
+    logger.info(f"Using spatial_rotation={spatial_rotation} (inspect mode)")
 
     data_cfg = OmegaConf.to_container(cfg.data, resolve=True)
 
@@ -108,7 +123,7 @@ def inspect_dataset(cfg: DictConfig) -> None:
     pipeline = CuvisPipeline("FalseRGB_Inspect")
 
     cu3s_data = CU3SDataNode(name="cu3s_data")
-    rotate = SpatialRotateNode(rotation=90, name="spatial_rotate")
+    rotate = SpatialRotateNode(rotation=spatial_rotation, name="spatial_rotate")
     false_rgb = CIETristimulusFalseRGBSelector(
         norm_mode=NormMode.STATISTICAL,
         name="cie_false_rgb",
@@ -192,23 +207,70 @@ def run_experiment_mixer(cfg: DictConfig) -> None:
     """Build pipeline, train mixer with fg/bg contrast loss, save results."""
 
     output_dir = Path(cfg.output_dir)
+    spatial_rotation = resolve_spatial_rotation(cfg)
+    mixer_inference_normalization = str(
+        cfg.get("mixer_inference_normalization", "batchnorm_sigmoid")
+    )
+    mixer_use_activation = bool(cfg.get("mixer_use_activation", True))
+    mixer_normalize_output = bool(cfg.get("mixer_normalize_output", True))
+    post_mixer_normalizer = str(cfg.get("post_mixer_normalizer", "none"))
+    if post_mixer_normalizer not in {"none", "minmax_per_frame"}:
+        raise ValueError(
+            f"Unsupported post_mixer_normalizer={post_mixer_normalizer!r}. "
+            "Use one of: none, minmax_per_frame."
+        )
+    logger.info(f"Using spatial_rotation={spatial_rotation} (train mode)")
+    logger.info(
+        f"Using mixer_inference_normalization={mixer_inference_normalization} "
+        "(applies during inference when normalize_output=True)"
+    )
+    logger.info(
+        f"Using mixer_use_activation={mixer_use_activation}, "
+        f"mixer_normalize_output={mixer_normalize_output}, "
+        f"post_mixer_normalizer={post_mixer_normalizer}"
+    )
 
     # Setup datamodule
     datamodule = SingleCu3sDataModule(**cfg.data)
     datamodule.setup(stage="fit")
 
+    # Infer spectral channel count from training data to avoid hardcoded mismatches.
+    first_batch = next(iter(datamodule.train_dataloader()), None)
+    if first_batch is None:
+        raise RuntimeError("Training dataloader is empty; cannot infer input channel count.")
+    wavelengths = first_batch.get("wavelengths")
+    cube = first_batch.get("cube")
+    if wavelengths is not None:
+        input_channels = int(wavelengths.shape[-1])
+    elif cube is not None and cube.ndim >= 2:
+        input_channels = int(cube.shape[1] if cube.ndim >= 4 else cube.shape[-1])
+    else:
+        raise RuntimeError(
+            "Could not infer input channel count from training batch (missing wavelengths/cube)."
+        )
+    logger.info(f"Detected spectral channels for mixer: {input_channels}")
+
     # Build pipeline
     pipeline = CuvisPipeline("Channel_Selector_FalseRGB")
 
     data_node = CU3SDataNode(name="cu3s_data")
-    rotate = SpatialRotateNode(rotation=90, name="spatial_rotate")
+    rotate = SpatialRotateNode(rotation=spatial_rotation, name="spatial_rotate")
     normalizer = MinMaxNormalizer(eps=1.0e-6, use_running_stats=True)
     mixer = LearnableChannelMixer(
-        input_channels=51,
+        input_channels=input_channels,
         output_channels=3,
         init_method="pca",
-        normalize_output=True,
+        use_activation=mixer_use_activation,
+        normalize_output=mixer_normalize_output,
+        inference_normalization=mixer_inference_normalization,
     )
+    post_mixer_norm = None
+    if post_mixer_normalizer == "minmax_per_frame":
+        post_mixer_norm = MinMaxNormalizer(
+            eps=1.0e-6,
+            use_running_stats=False,
+            name="post_mixer_norm",
+        )
 
     contrast_loss = ForegroundContrastLoss(
         name="foreground_contrast",
@@ -247,31 +309,41 @@ def run_experiment_mixer(cfg: DictConfig) -> None:
     )
 
     # Connect pipeline
-    pipeline.connect(
+    connections = [
         # Rotate data immediately after loading
         (data_node.outputs.cube, rotate.inputs.cube),
         (data_node.outputs.mask, rotate.inputs.mask),
         # Processing flow
         (rotate.outputs.cube, normalizer.data),
         (normalizer.normalized, mixer.data),
-        # Loss flow
-        (mixer.rgb, contrast_loss.rgb),
-        (rotate.outputs.mask, contrast_loss.mask),
+        # Distinctness loss and weight visualization always use raw mixer weights.
         (mixer.weights, distinctness_loss.selection_weights),
-        # Visualization flow (mesu_index for frame-identified TensorBoard tags)
-        (mixer.rgb, viz.rgb_output),
-        (rotate.outputs.mask, viz.mask),
-        (data_node.outputs.mesu_index, viz.mesu_index),
-        (viz.artifacts, tensorboard_node.artifacts),
-        # Weight visualization (bar chart + heatmap of mixing weights)
         (mixer.weights, weight_viz.weights),
         (data_node.outputs.wavelengths, weight_viz.wavelengths),
         (weight_viz.artifacts, tensorboard_node.artifacts),
-        # Video export (INFERENCE only — skipped during training)
-        (mixer.rgb, mask_overlay.rgb_image),
-        (rotate.outputs.mask, mask_overlay.mask),
-        (mask_overlay.rgb_with_overlay, to_video.rgb_image),
+    ]
+    rgb_for_loss_and_video = mixer.rgb
+    if post_mixer_norm is not None:
+        connections.append((mixer.rgb, post_mixer_norm.data))
+        rgb_for_loss_and_video = post_mixer_norm.normalized
+
+    connections.extend(
+        [
+            # Loss flow
+            (rgb_for_loss_and_video, contrast_loss.rgb),
+            (rotate.outputs.mask, contrast_loss.mask),
+            # Visualization flow (mesu_index for frame-identified TensorBoard tags)
+            (rgb_for_loss_and_video, viz.rgb_output),
+            (rotate.outputs.mask, viz.mask),
+            (data_node.outputs.mesu_index, viz.mesu_index),
+            (viz.artifacts, tensorboard_node.artifacts),
+            # Video export (INFERENCE only — skipped during training)
+            (rgb_for_loss_and_video, mask_overlay.rgb_image),
+            (rotate.outputs.mask, mask_overlay.mask),
+            (mask_overlay.rgb_with_overlay, to_video.rgb_image),
+        ]
     )
+    pipeline.connect(*connections)
 
     # Visualize pipeline graph
     pipeline.visualize(

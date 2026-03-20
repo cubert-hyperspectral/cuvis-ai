@@ -2,6 +2,18 @@
 
 This folder contains object-tracking workflows for hyperspectral CU3S recordings.
 
+## Table of Contents
+
+- [Export CU3S to False-RGB Video](#export-cu3s-to-false-rgb-video)
+- [Synthetic Occlusion (Poisson)](#synthetic-occlusion-poisson)
+- [Render Tracking Overlay](#render-tracking-overlay)
+- [TrackEval Metric Nodes](#trackeval-metric-nodes)
+- [SAM3 Text Tracking](#sam3-text-tracking)
+- [SAM3 Streaming Propagation](#sam3-streaming-propagation)
+- [YOLO + ByteTrack HSI Tracking](#yolo--bytetrack-hsi-tracking)
+- [YOLO + DeepEIoU HSI Tracking](#yolo--deepeiou-hsi-tracking)
+- [Channel Selector False RGB Workflow (Training)](#channel-selector-false-rgb-workflow-training)
+
 ## Export CU3S to False-RGB Video
 
 Use `examples/object_tracking/export_cu3s_false_rgb_video.py` to convert a CU3S hyperspectral
@@ -17,10 +29,10 @@ The false-RGB node is selected by `--method`:
 
 | Method | Node | Description |
 |---|---|---|
-| `range_average` | `RangeAverageFalseRGBSelector` | Per-channel wavelength-range averaging (default) |
 | `cie_tristimulus` | `CIETristimulusFalseRGBSelector` | CIE 1931 XYZ → sRGB conversion |
-| `camera_emulation` | `CameraEmulationFalseRGBSelector` | Gaussian camera sensitivity curves |
-| `baseline` | `FixedWavelengthSelector` | Fixed band selection (650 / 550 / 450 nm) |
+| `cir` | `CIRSelector` | NIR→R, Red→G, Green→B false color |
+| `fast_rgb` | `FastRGBSelector` | cuvis-next parity fast range averaging + parity scaling |
+| `cuvis-plugin` | `FastRGBSelector` | cuvis user-plugin XML parity (`fast_rgb` ranges/normalization from XML) |
 
 ### Run
 
@@ -28,8 +40,8 @@ The false-RGB node is selected by `--method`:
 
 ```powershell
 uv run python examples/object_tracking/export_cu3s_false_rgb_video.py `
-  --cu3s-file-path "D:\data\XMR_notarget_Busstation\20260226\Auto_001+01.cu3s" `
-  --output-video-path "D:\data\XMR_notarget_Busstation\20260226\Auto_001+01.mp4" `
+  --cu3s-path "D:\data\XMR_notarget_Busstation\20260226\Auto_001+01.cu3s" `
+  --output-dir "D:\experiments\sam3\false_rgb_export" `
   --method cie_tristimulus
 ```
 
@@ -42,9 +54,10 @@ Equivalent explicit command:
 
 ```powershell
 uv run python examples/object_tracking/export_cu3s_false_rgb_video.py `
-  --cu3s-file-path "D:\data\XMR_notarget_Busstation\20260226\Auto_001+01.cu3s" `
-  --output-video-path "D:\data\XMR_notarget_Busstation\20260226\Auto_001+01.mp4" `
-  --method cie_tristimulus `
+  --cu3s-path "D:\data\XMR_notarget_Busstation\20260226\Auto_001+01.cu3s" `
+  --output-dir "D:\experiments\video_creation\20260318\video_creation\cir" `
+  --out-basename "Auto_001+01_cir" `
+  --method cir `
   --normalization-mode sampled_fixed `
   --sample-fraction 0.05
 ```
@@ -53,18 +66,20 @@ uv run python examples/object_tracking/export_cu3s_false_rgb_video.py `
 
 ```powershell
 uv run python examples/object_tracking/export_cu3s_false_rgb_video.py `
-  --cu3s-file-path "D:\data\XMR_notarget_Busstation\20260226\Auto_001+01.cu3s" `
-  --output-video-path "D:\data\XMR_notarget_Busstation\20260226\Auto_001+01.mp4" `
+  --cu3s-path "D:\data\XMR_notarget_Busstation\20260226\Auto_001+01.cu3s" `
+  --output-dir "D:\experiments\sam3\false_rgb_export" `
   --method cie_tristimulus `
   --overlay-frame-id
 ```
 
-**Compare all four methods side-by-side (exports to a directory):**
+**cuvis-plugin XML parity export:**
 
 ```powershell
 uv run python examples/object_tracking/export_cu3s_false_rgb_video.py `
-  --cu3s-file-path "D:\data\XMR_notarget_Busstation\20260226\Auto_001+01.cu3s" `
-  --compare-all "D:\data\XMR_notarget_Busstation\20260226\compare_methods"
+  --cu3s-path "D:\data\XMR_notarget_Busstation\20260226\Auto_001+01.cu3s" `
+  --output-dir "D:\experiments\sam3\false_rgb_export" `
+  --method cuvis-plugin `
+  --plugin-xml-path "C:\Users\nima.ghorbani\CuvisNEXT\invisible_ink.xml"
 ```
 
 Show CLI help:
@@ -75,30 +90,125 @@ uv run python examples/object_tracking/export_cu3s_false_rgb_video.py --help
 
 ### Main CLI Options
 
-- `--cu3s-file-path` required input `.cu3s` file
-- `--output-video-path` target `.mp4` path (required unless `--compare-all` is used)
-- `--method` `range_average|cie_tristimulus|camera_emulation|baseline` (default `range_average`)
-- `--compare-all` export all methods into this directory instead of a single file
+- `--cu3s-path` required input `.cu3s` file
+- `--output-dir` parent/root output directory
+- `--out-basename` optional run-folder basename; defaults to `Path(cu3s_path).stem`
+- `--method` `cie_tristimulus|cir|fast_rgb|cuvis-plugin|fastrgb` (default `cie_tristimulus`; `fastrgb` aliases `fast_rgb`)
+- `--plugin-xml-path` cuvis user-plugin XML path (required for `--method cuvis-plugin`)
 - `--processing-mode` `Raw|DarkSubtract|Preview|Reflectance|SpectralRadiance` (default `Raw`)
-- `--normalization-mode` `sampled_fixed|running|per_frame` (default `sampled_fixed`)
+- `--normalization-mode` `sampled_fixed|running|per_frame|live_running_fixed` (default `sampled_fixed`)
 - `--sample-fraction` fraction of frames used for sampled-fixed calibration (default `0.05`, valid `(0,1]`)
 - `--freeze-running-bounds-after` freeze running normalization bounds after N frames (default `20`, use `<=0` to disable)
+- `--running-warmup-frames` running-mode warmup frame count (default `10`)
+- `--fast-rgb-normalization-strength` optional FastRGB normalization override
 - `--frame-rate` output FPS (default: use session FPS, fallback 10.0)
 - `--frame-rotation` rotation in degrees; `+90` = anticlockwise, `-90` = clockwise
 - `--max-num-frames` maximum frames to write (`-1` = all frames)
 - `--batch-size` dataloader batch size (default `1`)
 - `--overlay-frame-id` render measurement index as text in the top-left corner of each frame
-- `--red-low` / `--red-high` / `--green-low` / `--green-high` / `--blue-low` / `--blue-high` wavelength ranges for `range_average` (nm)
-- `--r-peak` / `--g-peak` / `--b-peak` peak wavelengths for `camera_emulation` (nm)
-- `--r-sigma` / `--g-sigma` / `--b-sigma` Gaussian sigmas for `camera_emulation` (nm)
+- `--red-low` / `--red-high` / `--green-low` / `--green-high` / `--blue-low` / `--blue-high` wavelength ranges for `fast_rgb` (nm)
+
+For `--method fast_rgb` and `--method cuvis-plugin`, legacy selector normalization controls are ignored:
+`--normalization-mode`, `--sample-fraction`, `--freeze-running-bounds-after`, and
+`--running-warmup-frames`.
 
 ### Outputs
 
-Next to the output `.mp4`:
+For `--output-dir <ROOT>`, the script writes to:
+`<RUN> = <ROOT>/<out-basename or Path(cu3s_path).stem>`
 
-- `<name>.mp4` — false-RGB video
-- `SAM3_FalseRGB_Export.png` — graphviz pipeline diagram
-- `SAM3_FalseRGB_Export.yaml` — saved pipeline config (nodes + weights)
+- `<RUN>/<Path(cu3s_path).stem>.mp4` — false-RGB video
+- `<RUN>/SAM3_FalseRGB_Export.png` — graphviz pipeline diagram
+- `<RUN>/SAM3_FalseRGB_Export.yaml` — saved pipeline config (nodes + weights)
+
+---
+
+## Synthetic Occlusion (Poisson)
+
+Use `examples/object_tracking/occlusion/occlude_data.py` to generate synthetic occlusions from
+tracking masks/bboxes on CU3S data with pure-PyTorch Poisson filling (no OpenCV roundtrip).
+
+### Pipeline
+
+`--occlude-target rgb` (default):
+
+```
+CU3SDataNode -> CIETristimulusFalseRGBSelector -> PoissonOcclusionNode(rgb) -> ToVideoNode
+```
+
+`--occlude-target cube`:
+
+```
+CU3SDataNode -> PoissonOcclusionNode(cube) -> CIETristimulusFalseRGBSelector -> ToVideoNode
+```
+
+### Run
+
+Initial Phase-03 style run (occlude tracks 2 and 9 on frames 70..120):
+
+```powershell
+uv run python examples/object_tracking/occlusion/occlude_data.py `
+  --cu3s-path "D:\data\XMR_notarget_Busstation\20260226\Auto_013+01.cu3s" `
+  --tracking-json "D:\experiments\sam3\20260316\video_tracker_parity_unlimited_states_confirmed\tracking_results.json" `
+  --track-ids "2,9" `
+  --occlusion-start-frame 70 --occlusion-end-frame 120 `
+  --start-frame 0 --end-frame 301 `
+  --occlusion-shape bbox --bbox-mode static --static-bbox-scale 1.2 `
+  --output-video-path "D:\experiments\sam3\20260318\ALL_5448\phase03\occluded_videos\static_bbox_poisson_rgb_tid2_9_occ070_120.mp4"
+```
+
+Use mask occlusion (tighter to target masks, less collateral occlusion on nearby tracks):
+
+```powershell
+uv run python examples/object_tracking/occlusion/occlude_data.py `
+  --cu3s-path "D:\data\XMR_notarget_Busstation\20260226\Auto_013+01.cu3s" `
+  --tracking-json "D:\experiments\sam3\20260316\video_tracker_parity_unlimited_states_confirmed\tracking_results.json" `
+  --track-ids "2,9" `
+  --occlusion-start-frame 70 --occlusion-end-frame 120 `
+  --start-frame 0 --end-frame 301 `
+  --occlusion-shape mask `
+  --output-video-path "D:\experiments\sam3\20260318\ALL_5448\phase03\occluded_videos\mask_poisson_rgb_tid2_9_occ070_120.mp4"
+```
+
+Show CLI help:
+
+```powershell
+uv run python examples/object_tracking/occlusion/occlude_data.py --help
+```
+
+### Main CLI Options
+
+- `--cu3s-path` required input `.cu3s`
+- `--tracking-json` required COCO tracking JSON with `track_id` and `segmentation`
+- `--track-ids` comma-separated occlusion target track IDs
+- `--occlusion-start-frame` / `--occlusion-end-frame` inclusive occlusion window
+- `--start-frame` / `--end-frame` streamed source frame range (`--end-frame` is exclusive)
+- `--occlusion-shape` `bbox|mask`
+- `--bbox-mode` `static|dynamic` (used when shape is `bbox`)
+- `--static-bbox-scale` scale factor for static union bbox (default `1.2`)
+- `--static-bbox-padding-px` extra static bbox padding in pixels
+- `--static-full-width-x` optionally stretch static bbox to full frame width
+- `--occlude-target` `rgb|cube` (default `rgb`)
+- `--max-iter` Poisson CG max iterations
+- `--tol` Poisson CG convergence tolerance
+- `--processing-mode` `Raw|DarkSubtract|Preview|Reflectance|SpectralRadiance` (default `SpectralRadiance`)
+- `--sample-fraction` false-RGB calibration frame fraction (default `0.05`)
+- `--frame-rate` output FPS override
+- `--frame-rotation` output rotation
+- `--overlay-frame-id` render frame index text in output
+- `--output-video-path` output MP4 path
+
+### Outputs
+
+For `--output-video-path <OUT>.mp4`, the script writes:
+
+- `<OUT>.mp4` - occluded false-RGB video
+- `<OUT>.profiling_summary.txt` - per-node runtime profiling summary in the same directory
+
+### Notes
+
+- Static bbox mode can occlude nearby objects if trajectories overlap the static union box.
+- Prefer `--occlusion-shape mask` or `--bbox-mode dynamic` when tighter occlusion regions are needed.
 
 ---
 
@@ -192,7 +302,7 @@ It instantiates and finalizes:
 ```powershell
 uv run python examples/object_tracking/trackeval/evaluate_tracking.py `
   --gt "D:\data\XMR_notarget_Busstation\20260226\Auto_013+01.json" `
-  --pred "D:\experiments\deepeiou\202060313\video_tracker_reid\Auto_013+01\tracking_results.json" `
+  --pred "D:\experiments\deepeiou\20260313\video_tracker_reid\Auto_013+01\tracking_results.json" `
   --match-threshold 0.5 `
   --plugins-manifest "configs/plugins/trackeval.yaml"
 ```
@@ -220,10 +330,10 @@ Expected output (printed):
 
 ---
 
-## SAM3 Tracking
+## SAM3 Text Tracking
 
-Use `examples/object_tracking/sam3/sam3_tracker.py` for end-to-end SAM3 tracking from exactly one
-source:
+Use `examples/object_tracking/sam3/sam3_text_propagation.py` for end-to-end
+text-prompt SAM3 tracking from exactly one source:
 
 - `--cu3s-path` for hyperspectral CU3S input (converted to false-RGB on the fly)
 - `--video-path` for RGB video input
@@ -234,15 +344,15 @@ source:
   - CU3S via `SingleCu3sDataModule -> CU3SDataNode -> CIETristimulusFalseRGBSelector`
   - video via `VideoFrameDataModule -> VideoFrameNode`
 - Builds one shared pipeline:
-  - `source RGB -> SAM3TrackerInference`
-  - Confirmed-output sink: `TrackingCocoJsonNode` (COCO JSON with RLE masks, bboxes, scores)
-  - Overlay sink: `TrackingOverlayNode -> ToVideoNode` (MP4)
+  - `source RGB -> SAM3TextPropagation`
+  - `SAM3TextPropagation -> TrackingCocoJsonNode`
+  - `SAM3TextPropagation + source RGB -> TrackingOverlayNode -> ToVideoNode`
 - Preserves source frame IDs in outputs:
   - CU3S mode uses `mesu_index`
-  - video mode uses the original video `frame_id`, even when `--start-frame` skips frames
-- Runs inference through `cuvis_ai_core.training.Predictor` (no manual node forwarding)
-- Enables automatic per-node runtime profiling (CUDA-synchronised, skip first 3 warm-up frames)
-- Saves pipeline visualizations as PNG and Mermaid markdown
+  - video mode uses the original video `frame_id`, including when `--start-frame` is used
+- Runs inference through `cuvis_ai_core.training.Predictor`
+- Saves one graphviz pipeline image (no Mermaid output)
+- Writes per-node profiling summary
 
 ### Prerequisites
 
@@ -252,27 +362,14 @@ source:
 - `cuvis-ai-core` with `Predictor` and datamodule predict-stage support installed in the environment
 - SAM3 plugin available and discoverable from `configs/plugins/sam3.yaml`
 
-Current local plugin manifest (`configs/plugins/sam3.yaml`):
-
-```yaml
-plugins:
-  sam3:
-    path: "../../../../cuvis-ai-sam3/sam3-init"
-    provides:
-      - cuvis_ai_sam3.node.SAM3TrackerInference
-      - cuvis_ai_sam3.node.SAM3StreamingPropagation
-      - cuvis_ai_sam3.node.SAM3ObjectTracker
-      - cuvis_ai_sam3.node.SpectralSignatureExtractor
-```
-
-If your plugin checkout is at a different path, update `path` accordingly.
+Required class for this script: `cuvis_ai_sam3.node.SAM3TextPropagation`.
 
 ### Run
 
 **CU3S mode:**
 
 ```powershell
-uv run python examples/object_tracking/sam3/sam3_tracker.py `
+uv run python examples/object_tracking/sam3/sam3_text_propagation.py `
   --cu3s-path "D:\data\your_dataset\Auto_013+01.cu3s" `
   --plugins-yaml "configs/plugins/sam3.yaml"
 ```
@@ -280,38 +377,31 @@ uv run python examples/object_tracking/sam3/sam3_tracker.py `
 **Video mode:**
 
 ```powershell
-uv run python examples/object_tracking/sam3/sam3_tracker.py `
+uv run python examples/object_tracking/sam3/sam3_text_propagation.py `
   --video-path "D:\data\your_dataset\Auto_013+01-tristimulus.mp4" `
   --plugins-yaml "configs/plugins/sam3.yaml"
 ```
 
-**Quick smoke test with frame range (10 frames starting at frame 25):**
+**Quick smoke test with frame window (10 frames from frame 25):**
 
 ```powershell
-uv run python examples/object_tracking/sam3/sam3_tracker.py `
+uv run python examples/object_tracking/sam3/sam3_text_propagation.py `
   --video-path "D:\data\your_dataset\Auto_013+01-tristimulus.mp4" `
   --plugins-yaml "configs/plugins/sam3.yaml" `
   --start-frame 25 `
-  --end-frame 35
+  --max-frames 10
 ```
 
-**With bf16, explicit output, and tuned thresholds (CU3S mode):**
+**With bf16, compile, and explicit thresholds (CU3S mode):**
 
 ```powershell
-uv run python examples/object_tracking/sam3/sam3_tracker.py `
-  --cu3s-path "D:\data\your_dataset\Auto_013+01.cu3s" `
-  --plugins-yaml "configs/plugins/sam3.yaml" `
-  --output-dir "D:\experiments\sam3" `
-  --out-basename "v1_sam3_tracker" `
-  --start-frame 0 `
-  --end-frame 350 `
-  --bf16
+n
 ```
 
 Show CLI help:
 
 ```powershell
-uv run python examples/object_tracking/sam3/sam3_tracker.py --help
+uv run python examples/object_tracking/sam3/sam3_text_propagation.py --help
 ```
 
 ### Main CLI Options
@@ -320,14 +410,15 @@ uv run python examples/object_tracking/sam3/sam3_tracker.py --help
 - `--cu3s-path` input `.cu3s`
 - `--video-path` input video file
 - `--processing-mode` `Raw|DarkSubtract|Preview|Reflectance|SpectralRadiance` (default `SpectralRadiance`, CU3S mode only)
-- `--start-frame` first frame to process (default `0`)
+- `--start-frame` first source frame to process (default `0`)
 - `--end-frame` exclusive stop frame (`-1` means all remaining frames)
-- `--prompt` text prompt for tracker initialization (default `person`)
-- `--output-dir` parent/root output directory (default `./tracking_output`)
+- `--max-frames` deprecated alias for frame window length from `--start-frame`
+- `--prompt` text prompt for SAM3 detector (default `person`)
+- `--output-dir` parent/root output directory
 - `--out-basename` optional run-folder basename; defaults to
   `Path(cu3s_path).stem` in CU3S mode or `Path(video_path).stem` in video mode
 - `--checkpoint-path` optional tracker checkpoint path
-- `--plugins-yaml` plugin manifest path (default `plugins.yaml` relative to script)
+- `--plugins-yaml` plugin manifest path (default `configs/plugins/sam3.yaml`)
 - `--bf16` enable CUDA bf16 autocast
 - `--compile` enable `torch.compile`
 - `--score-threshold-detection` SAM3 detector score threshold (default `0.5`)
@@ -335,78 +426,54 @@ uv run python examples/object_tracking/sam3/sam3_tracker.py --help
 - `--det-nms-thresh` detector NMS IoU threshold (default `0.1`)
 - `--overlap-suppress-thresh` overlap suppression threshold (default `0.7`)
 - `--max-tracker-states` max active tracker states (default `5`)
-- `--confirmed-output / --tentative-output` use confirmed vs tentative tracker outputs (default confirmed)
-- `--progress-log-interval` emit progress log every N frames (default `50`)
 
 ### Outputs
 
 For `--output-dir <ROOT>`, the script writes to:
 `<RUN> = <ROOT>/<out-basename or input-file-stem>`
 
-- `<RUN>/tracking_results.json` - COCO instance segmentation output (confirmed stream)
-- `<RUN>/tracking_overlay.mp4` - overlay video (always produced)
-- `<RUN>/pipeline/SAM3_HSI_Tracking.png` or `<RUN>/pipeline/SAM3_Video_Tracking.png` - graphviz pipeline image
-- `<RUN>/pipeline/SAM3_HSI_Tracking.md` or `<RUN>/pipeline/SAM3_Video_Tracking.md` - mermaid pipeline markdown
+- `<RUN>/tracking_results.json` - COCO instance segmentation output
+- `<RUN>/tracking_overlay.mp4` - overlay video
+- `<RUN>/SAM3_Text_Propagation_HSI.png` or `<RUN>/SAM3_Text_Propagation_Video.png` - graphviz pipeline image
 - `<RUN>/profiling_summary.txt` - per-node runtime profiling breakdown
-
-Default basename is only the input stem, so running different SAM3 modes on the
-same input reuses the same folder unless you change `--out-basename` or
-`--output-dir`.
-
-### Profiling
-
-The script automatically enables per-node pipeline profiling (with CUDA synchronisation and
-3 warm-up frames skipped). After inference completes, a table is printed and saved to
-`<RUN>/profiling_summary.txt`.
-
-Example CU3S run: 350 frames from `Auto_013+01.cu3s` (SpectralRadiance, bf16, CUDA):
-
-| Node | Count | Mean (ms) | Median (ms) | Min (ms) | Max (ms) | Total (s) | % |
-|---|---|---|---|---|---|---|---|
-| sam3_tracker | 347 | 9,552 | 6,619 | 481 | 165,439 | 3,314.6 | 99.2 |
-| cie_false_rgb | 347 | 44 | 27 | 3 | 2,557 | 15.1 | 0.5 |
-| overlay | 347 | 11 | 10 | 5 | 77 | 3.9 | 0.1 |
-| tracking_coco_json | 347 | 11 | 11 | 6 | 45 | 3.7 | 0.1 |
-| to_video | 347 | 8 | 8 | 6 | 11 | 2.6 | 0.1 |
-| cu3s_data | 347 | 0.1 | 0.1 | 0.1 | 0.2 | 0.04 | 0.0 |
-| **TOTAL** | | | | | | **3,340** | |
-
-Average per-frame: **9,626 ms** (0.1 FPS). SAM3 tracker dominates at 99.2% of pipeline time.
-The large std/max reflects tracker state growth — early frames ~480 ms (1 state),
-later frames up to 165 s (5 states, 11 tracked objects).
 
 ## SAM3 Streaming Propagation
 
 Four scripts demonstrate SAM3's streaming propagation with different prompt types.
 All use the same pipeline pattern and produce an overlay video with frame IDs rendered in the top-left corner.
 
-- **Text prompt** → `SAM3StreamingPropagation` (tracks prompt-matching objects)
-- **Bbox / Point / Mask prompt** → `SAM3StreamingPropagation` (tracks explicitly prompted objects)
+- **Text prompt** → `SAM3TextPropagation` (tracks prompt-matching objects)
+- **Bbox prompt** → `SAM3BboxPropagation` (tracks a single bbox-prompted object)
+- **Point prompt** → `SAM3PointPropagation` (tracks a single point-prompted object)
+- **Mask prompt** → `SAM3MaskPropagation` (tracks a single mask-prompted object)
 
 Temporal propagation state is preserved across the streamed sequence.
 
 ### Prerequisites
 
-- CU3S input file
+- Exactly one source input:
+  - a CU3S file (for example `Auto_013+01.cu3s`)
+  - or a video file (for example `Auto_013+01-tristimulus.mp4`)
 - SAM3 plugin: `configs/plugins/sam3.yaml`
-- For bbox/point/mask prompts: a COCO-format detection or tracking JSON (e.g. from ByteTrack/DeepEIoU)
+- For bbox/point prompts: a COCO-format detection or tracking JSON (e.g. from ByteTrack/DeepEIoU)
+- For mask prompt: a binary prompt mask PNG (`--prompt-mask-path`) and source prompt frame index (`--prompt-frame-idx`)
 
 ### Run Folder Naming
 
 - `--output-dir` is the parent/root directory.
 - Final run folder is `<output-dir>/<out-basename or input-file-stem>`.
-- Default basename for all four scripts is `Path(cu3s_path).stem`.
+- Default basename is `Path(cu3s_path).stem` in CU3S mode or `Path(video_path).stem` in video mode.
 - Use `--out-basename` to override the default stem.
 - `--out-basename` must be a single folder name (not a path).
-- Re-running multiple propagation modes on the same CU3S input reuses the same
+- Re-running multiple propagation modes on the same input reuses the same
   folder unless you change `--out-basename` or `--output-dir`.
 
 ### Detection spec: `--detection ID@FRAME`
 
-Bbox, point, and mask scripts use `--detection ID@FRAME` to select which detection to use as a prompt:
+Bbox and point scripts use `--detection ID@FRAME` to select which detection to use as a prompt:
 
 - **ID** is matched against `track_id` first (from tracking JSONs); if not found, treated as a 1-based rank by detection score
-- **FRAME** is the source `image_id` where the bbox/point/mask is read from
+- **FRAME** is the source `image_id` where the bbox/point is read from
 - Default: `1@0` (best detection on frame 0)
 - `--start-frame` controls where the video begins (independent of prompt frame), must be `<= FRAME`
 - Scripts convert source prompt frame to stream-local frame automatically: `local_prompt_frame = FRAME - start_frame`
@@ -414,7 +481,7 @@ Bbox, point, and mask scripts use `--detection ID@FRAME` to select which detecti
 
 Examples: `--detection 1@0` (best detection, frame 0), `--detection 2@76` (track ID 2, frame 76).
 
-For bbox propagation, exactly one `--detection` value is currently supported.
+For bbox propagation, use exactly one `--detection` value.
 
 Bbox propagation ID semantics:
 - If `--detection ID@FRAME` provides an ID, outputs reuse that ID (`track_id=ID`) for the selected bbox object.
@@ -472,41 +539,55 @@ uv run python examples/object_tracking/sam3/sam3_point_propagation.py `
 
 Uses the center of the detection bbox as a positive point prompt.
 
-#### Mask prompt (validated window: `track_id=14@frame=290`)
+#### Mask prompt (pre-made mask PNG at frame 290)
 
 ```powershell
 uv run python examples/object_tracking/sam3/sam3_mask_propagation.py `
   --cu3s-path "D:\data\XMR_notarget_Busstation\20260226\Auto_013+01.cu3s" `
-  --detection-json "D:\experiments\sam3\20260316\video_tracker_parity_unlimited_states_confirmed\tracking_results.json" `
-  --detection 14@290 `
+  --prompt-mask-path "D:\experiments\sam3\20260318\sam3\prompt_mask.png" `
+  --prompt-frame-idx 290 `
+  --prompt-obj-id 14 `
   --start-frame 290 `
   --max-frames 100 `
   --output-dir "D:\experiments\sam3\20260316" `
-  --out-basename "mask_propagation_id14_f290_100f" `
+  --out-basename "mask_propagation_obj14_f290_100f" `
   --plugins-yaml "configs/plugins/sam3.yaml" `
   --bf16
 ```
 
-Creates a binary mask PNG from the detection bbox and uses it as a mask prompt.
+Uses a provided binary mask PNG (`255=foreground`, `0=background`) as the prompt.
 
 ### Shared CLI Options
 
-- `--cu3s-path` required input `.cu3s`
-- `--processing-mode` `Raw|DarkSubtract|Preview|Reflectance|SpectralRadiance` (default `SpectralRadiance`)
-- `--start-frame` first frame to include in the video (default `0`)
-- `--max-frames` maximum frames to process from start-frame (default `-1` = all)
-- `--detection` detection spec `ID@FRAME` — which detection to prompt with (bbox/point/mask scripts only; bbox currently supports one value)
+- Source options: exactly one required
+- `--cu3s-path` input `.cu3s`
+- `--video-path` input video file
+- `--processing-mode` `Raw|DarkSubtract|Preview|Reflectance|SpectralRadiance` (default `SpectralRadiance`, CU3S mode only)
+- `--start-frame` first source frame to process (default `0`)
+- `--end-frame` exclusive stop frame (`-1` means all remaining frames)
+- `--max-frames` deprecated alias for frame window length from `--start-frame`
 - `--output-dir` parent/root output directory
-- `--out-basename` optional run-folder basename; defaults to `Path(cu3s_path).stem`
+- `--out-basename` optional run-folder basename; defaults to input file stem
 - `--plugins-yaml` plugin manifest path (default `configs/plugins/sam3.yaml`)
 - `--checkpoint-path` optional SAM3 checkpoint path
 - `--bf16` enable CUDA bf16 autocast
+- `--compile` enable `torch.compile`
+- `--score-threshold-detection` SAM3 detector score threshold (default `0.5`)
+- `--new-det-thresh` new-track threshold (default `0.7`)
+- `--det-nms-thresh` detector NMS IoU threshold (default `0.1`)
+- `--overlap-suppress-thresh` overlap suppression threshold (default `0.7`)
+- `--max-tracker-states` max active tracker states (default `5`)
 - `--frame-rotation` optional frame rotation (degrees)
+
+Prompt-specific options:
+- Text: `--prompt`
+- Bbox/Point: `--detection-json` and `--detection ID@FRAME`
+- Mask: `--prompt-mask-path`, `--prompt-frame-idx`, `--prompt-obj-id`
 
 ### Outputs
 
 For `--output-dir <ROOT>`, each script writes to:
-`<RUN> = <ROOT>/<out-basename or Path(cu3s_path).stem>`
+`<RUN> = <ROOT>/<out-basename or input-file-stem>`
 
 - `<RUN>/tracking_results.json` — COCO instance segmentation JSON
 - `<RUN>/tracking_overlay.mp4` — overlay video with colored masks and frame IDs

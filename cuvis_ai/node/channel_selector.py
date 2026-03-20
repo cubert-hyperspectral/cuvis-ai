@@ -94,6 +94,10 @@ class ChannelSelectorBase(Node):
         When ``norm_mode='running'``, stop updating ``running_min/running_max``
         after this many forward calls. ``None`` keeps legacy behavior (never
         freeze). Default ``20``.
+    running_warmup_frames : int
+        Number of initial ``running`` frames to normalize per-frame while
+        collecting bounds. Set to ``0`` for fully stable live rendering from
+        the first frame. Default ``10``.
 
     Ports
     -----
@@ -146,6 +150,7 @@ class ChannelSelectorBase(Node):
         norm_mode: str | NormMode = NormMode.RUNNING,
         apply_gamma: bool = True,
         freeze_running_bounds_after_frames: int | None = 20,
+        running_warmup_frames: int = _WARMUP_FRAMES,
         **kwargs: Any,
     ) -> None:
         if freeze_running_bounds_after_frames is not None:
@@ -157,15 +162,23 @@ class ChannelSelectorBase(Node):
                 raise ValueError(
                     "freeze_running_bounds_after_frames must be an integer >= 1 or None"
                 )
+        if (
+            isinstance(running_warmup_frames, bool)
+            or not isinstance(running_warmup_frames, int)
+            or running_warmup_frames < 0
+        ):
+            raise ValueError("running_warmup_frames must be an integer >= 0")
         super().__init__(
             norm_mode=str(norm_mode) if isinstance(norm_mode, NormMode) else norm_mode,
             apply_gamma=apply_gamma,
             freeze_running_bounds_after_frames=freeze_running_bounds_after_frames,
+            running_warmup_frames=running_warmup_frames,
             **kwargs,
         )
         self.norm_mode = NormMode(norm_mode)
         self.apply_gamma = apply_gamma
         self.freeze_running_bounds_after_frames = freeze_running_bounds_after_frames
+        self.running_warmup_frames = running_warmup_frames
 
         # Per-channel [3] running bounds for normalization.
         self.register_buffer("running_min", torch.full((3,), float("nan")))
@@ -247,8 +260,9 @@ class ChannelSelectorBase(Node):
     def _running_normalize(self, rgb: torch.Tensor) -> torch.Tensor:
         """Warmup + min/max accumulation hybrid normalization.
 
-        During warmup, output uses per-frame percentile normalization while
-        accumulating bounds. After warmup, output uses accumulated bounds. If
+        During warmup (``running_warmup_frames``), output uses per-frame
+        percentile normalization while accumulating bounds. After warmup,
+        output uses accumulated bounds. If
         ``freeze_running_bounds_after_frames`` is set, accumulation stops after
         that many forward calls.
         """
@@ -269,7 +283,7 @@ class ChannelSelectorBase(Node):
                 torch.minimum(self.running_min, frame_lo, out=self.running_min)
                 torch.maximum(self.running_max, frame_hi, out=self.running_max)
 
-        if self._norm_frame_count <= self._WARMUP_FRAMES:
+        if self._norm_frame_count <= self.running_warmup_frames:
             return self._per_frame_percentile_normalize(rgb)
         return self._apply_accumulated_stats(rgb)
 
@@ -556,6 +570,181 @@ class RangeAverageFalseRGBSelector(ChannelSelectorBase):
         return {"rgb_image": rgb, "band_info": band_info}
 
 
+class FastRGBSelector(ChannelSelectorBase):
+    """cuvis-next parity FastRGB renderer.
+
+    This selector mirrors the cuvis `fast_rgb` user-plugin behavior:
+    - Per-channel contiguous spectral range averaging.
+    - Dynamic per-frame normalization by global RGB mean when enabled.
+    - Static reflectance-style scaling when normalization is disabled.
+    - 8-bit quantization before returning float RGB in [0, 1].
+    """
+
+    _REFLECTANCE_100 = 10000.0
+
+    def __init__(
+        self,
+        red_range: tuple[float, float] = (580.0, 650.0),
+        green_range: tuple[float, float] = (500.0, 580.0),
+        blue_range: tuple[float, float] = (420.0, 500.0),
+        normalization_strength: float = 0.75,
+        **kwargs: Any,
+    ) -> None:
+        for name, rng in {
+            "red_range": red_range,
+            "green_range": green_range,
+            "blue_range": blue_range,
+        }.items():
+            if len(rng) != 2 or rng[0] > rng[1]:
+                raise ValueError(f"{name} must be (min_nm, max_nm) with min_nm <= max_nm")
+
+        # FastRGB has its own scaling path; disable base normalization/gamma.
+        kwargs.pop("norm_mode", None)
+        kwargs.pop("apply_gamma", None)
+        super().__init__(
+            norm_mode=NormMode.PER_FRAME,
+            apply_gamma=False,
+            red_range=red_range,
+            green_range=green_range,
+            blue_range=blue_range,
+            normalization_strength=float(normalization_strength),
+            **kwargs,
+        )
+        self.red_range = red_range
+        self.green_range = green_range
+        self.blue_range = blue_range
+        self.normalization_strength = float(normalization_strength)
+
+        self.register_buffer(
+            "_ranges",
+            torch.tensor(
+                [
+                    [red_range[0], red_range[1]],
+                    [green_range[0], green_range[1]],
+                    [blue_range[0], blue_range[1]],
+                ],
+                dtype=torch.float32,
+            ),
+        )
+        self.register_buffer("_channel_bounds", None, persistent=False)
+        self.register_buffer("_channel_valid", None, persistent=False)
+        self._cached_wl_key: tuple[float, ...] | None = None
+
+    @staticmethod
+    def _prepare_wavelengths_tensor(
+        wavelengths: Any,
+        device: torch.device,
+    ) -> torch.Tensor:
+        """Convert wavelengths input to 1D float32 tensor on target device."""
+        if isinstance(wavelengths, torch.Tensor):
+            wavelengths_t = wavelengths
+        else:
+            wavelengths_t = torch.as_tensor(wavelengths)
+
+        if wavelengths_t.ndim == 2:
+            wavelengths_t = wavelengths_t[0]
+        if wavelengths_t.ndim != 1:
+            raise ValueError(f"Expected 1D wavelengths [C], got shape {tuple(wavelengths_t.shape)}")
+
+        return wavelengths_t.to(device=device, dtype=torch.float32)
+
+    def _ensure_channel_bounds(self, wavelengths: Any, device: torch.device) -> None:
+        """Resolve and cache contiguous index bounds for each RGB range."""
+        wavelengths_t = self._prepare_wavelengths_tensor(wavelengths, device=device)
+        wl_key = tuple(wavelengths_t.tolist())
+        if self._channel_bounds is not None and self._cached_wl_key == wl_key:
+            return
+
+        ranges_t = self._ranges.to(device=wavelengths_t.device, dtype=wavelengths_t.dtype)
+        bounds = torch.zeros((3, 2), dtype=torch.int64, device=device)
+        valid = torch.zeros((3,), dtype=torch.bool, device=device)
+
+        for c in range(3):
+            low_nm = ranges_t[c, 0]
+            high_nm = ranges_t[c, 1]
+            mask = (wavelengths_t >= low_nm) & (wavelengths_t <= high_nm)
+            idx = torch.where(mask)[0]
+            if idx.numel() > 0:
+                valid[c] = True
+                bounds[c, 0] = idx[0].to(torch.int64)
+                bounds[c, 1] = idx[-1].to(torch.int64)
+
+        self._channel_bounds = bounds
+        self._channel_valid = valid
+        self._cached_wl_key = wl_key
+
+    def _compute_raw_rgb(self, cube: torch.Tensor, wavelengths: Any) -> torch.Tensor:
+        """Compute unscaled FastRGB channel means from contiguous wavelength ranges."""
+        self._ensure_channel_bounds(wavelengths, device=cube.device)
+
+        channels: list[torch.Tensor] = []
+        for c in range(3):
+            if bool(self._channel_valid[c].item()):
+                low = int(self._channel_bounds[c, 0].item())
+                high = int(self._channel_bounds[c, 1].item())
+                channels.append(cube[..., low : high + 1].mean(dim=-1))
+            else:
+                channels.append(torch.zeros_like(cube[..., 0]))
+        return torch.stack(channels, dim=-1)
+
+    @staticmethod
+    def _quantize_to_u8(rgb_scaled: torch.Tensor) -> torch.Tensor:
+        """Round-to-nearest-even and clamp to uint8 domain."""
+        return torch.round(rgb_scaled).clamp_(0.0, 255.0).to(torch.uint8)
+
+    def _fast_rgb_scale(self, raw_rgb: torch.Tensor) -> tuple[torch.Tensor, float]:
+        """Apply cuvis parity scaling and return quantized float RGB in [0,1]."""
+        if self.normalization_strength > 1.0e-3:
+            avg_val = float(raw_rgb.mean().item())
+            factor = 0.0 if avg_val <= 1.0e-12 else (self.normalization_strength * 128.0) / avg_val
+        else:
+            factor = 255.0 / self._REFLECTANCE_100
+
+        rgb_u8 = self._quantize_to_u8(raw_rgb * factor)
+        rgb = rgb_u8.to(dtype=torch.float32) / 255.0
+        return rgb, factor
+
+    def forward(
+        self,
+        cube: torch.Tensor,
+        wavelengths: Any,
+        context: Context | None = None,  # noqa: ARG002
+        **_: Any,
+    ) -> dict[str, Any]:
+        """Render fast_rgb output with cuvis-next parity scaling."""
+        wavelengths_t = self._prepare_wavelengths_tensor(wavelengths, device=cube.device)
+        raw_rgb = self._compute_raw_rgb(cube, wavelengths_t)
+        rgb, factor = self._fast_rgb_scale(raw_rgb)
+
+        channel_indices: list[list[int]] = []
+        missing_channels: list[str] = []
+        channel_names = ["red", "green", "blue"]
+        for c in range(3):
+            if bool(self._channel_valid[c].item()):
+                low = int(self._channel_bounds[c, 0].item())
+                high = int(self._channel_bounds[c, 1].item())
+                channel_indices.append(list(range(low, high + 1)))
+            else:
+                channel_indices.append([])
+                missing_channels.append(channel_names[c])
+
+        band_info = {
+            "strategy": "fast_rgb",
+            "band_indices": channel_indices,
+            "band_wavelengths_nm": [wavelengths_t[idxs].tolist() for idxs in channel_indices],
+            "ranges_nm": {
+                "red": [float(self.red_range[0]), float(self.red_range[1])],
+                "green": [float(self.green_range[0]), float(self.green_range[1])],
+                "blue": [float(self.blue_range[0]), float(self.blue_range[1])],
+            },
+            "aggregation": "mean",
+            "normalization_strength": float(self.normalization_strength),
+            "applied_scale_factor": float(factor),
+            "missing_channels": missing_channels,
+        }
+        return {"rgb_image": rgb, "band_info": band_info}
+
+
 class HighContrastSelector(ChannelSelectorBase):
     """Data-driven band selection using spatial variance + Laplacian energy.
 
@@ -671,6 +860,26 @@ class CIRSelector(ChannelSelectorBase):
         self.red_nm = red_nm
         self.green_nm = green_nm
 
+    def _resolve_band_indices(self, wavelengths: Any) -> tuple[int, int, int]:
+        """Resolve nearest spectral indices for CIR channel mapping."""
+        wavelengths_np = np.asarray(wavelengths, dtype=np.float32).ravel()
+        if wavelengths_np.ndim != 1:
+            raise ValueError(f"Expected 1D wavelengths [C], got shape {wavelengths_np.shape}")
+
+        # CIR mapping: NIR -> R, Red -> G, Green -> B
+        nir_idx = self._nearest_band_index(wavelengths_np, self.nir_nm)
+        red_idx = self._nearest_band_index(wavelengths_np, self.red_nm)
+        green_idx = self._nearest_band_index(wavelengths_np, self.green_nm)
+        return nir_idx, red_idx, green_idx
+
+    def _compute_raw_rgb(self, cube: torch.Tensor, wavelengths: Any) -> torch.Tensor:
+        """Compose unnormalized CIR RGB tensor [B, H, W, 3]."""
+        nir_idx, red_idx, green_idx = self._resolve_band_indices(wavelengths)
+        return torch.stack(
+            [cube[..., nir_idx], cube[..., red_idx], cube[..., green_idx]],
+            dim=-1,
+        )
+
     def forward(
         self,
         cube: torch.Tensor,
@@ -692,15 +901,10 @@ class CIRSelector(ChannelSelectorBase):
         dict[str, Any]
             Dictionary with "rgb_image" and "band_info" keys.
         """
-        wavelengths_np = np.asarray(wavelengths, dtype=np.float32)
-
-        # CIR mapping: NIR -> R, Red -> G, Green -> B
-        nir_idx = self._nearest_band_index(wavelengths_np, self.nir_nm)
-        red_idx = self._nearest_band_index(wavelengths_np, self.red_nm)
-        green_idx = self._nearest_band_index(wavelengths_np, self.green_nm)
-
+        wavelengths_np = np.asarray(wavelengths, dtype=np.float32).ravel()
+        nir_idx, red_idx, green_idx = self._resolve_band_indices(wavelengths_np)
         indices = [nir_idx, red_idx, green_idx]
-        rgb = self._compose_rgb(cube, indices)
+        rgb = self._normalize_rgb(self._compute_raw_rgb(cube, wavelengths_np))
 
         band_info = {
             "strategy": "cir_false_color",
@@ -1945,6 +2149,7 @@ __all__ = [
     "CIETristimulusFalseRGBSelector",
     "NormMode",
     "CIRSelector",
+    "FastRGBSelector",
     "FixedWavelengthSelector",
     "HighContrastSelector",
     "RangeAverageFalseRGBSelector",

@@ -8,6 +8,11 @@ defaults:
 name: channel_selector_false_rgb
 mode: train
 output_dir: ./outputs/${name}
+spatial_rotation: 90
+mixer_inference_normalization: batchnorm_sigmoid
+mixer_use_activation: true
+mixer_normalize_output: true
+post_mixer_normalizer: none
 
 training:
   seed: 42
@@ -32,7 +37,7 @@ training:
           patience: 15
           mode: min
           min_delta: 1.0e-06
-      model_checkpoint:
+      checkpoint:
         dirpath: ${output_dir}/checkpoints
         monitor: train/foreground_contrast
         filename: '{epoch:02d}'
