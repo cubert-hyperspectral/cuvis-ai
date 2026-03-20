@@ -4,6 +4,8 @@
 
 - Added SAM3 tracking workflow updates across propagation scripts and examples, including batch processing support for full-folder video runs.
 - Added TrackEval preparation/evaluation tooling updates for aligned HOTA benchmarking workflows.
+- Updated TrackEval example evaluator to pass prediction frame IDs into metric nodes when
+  supported by the plugin.
 - Added occlusion and Poisson inpainting utilities with corresponding tests and object-tracking example integrations.
 - Expanded channel-selector false-RGB export and training pipeline capabilities, docs, and test coverage.
 - Updated plugin and trainrun configs to match the current SAM3 and channel-selector runtime paths.

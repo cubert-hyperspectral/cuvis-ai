@@ -74,8 +74,10 @@ class DetectionJsonReader(Node):
         for ann in anns:
             x, y, w, h = ann["bbox"]
             bboxes.append([x, y, x + w, y + h])
-            cats.append(int(ann.get("category_id", 0)))
-            scores.append(float(ann.get("score", 0.0)))
+            category_id = ann.get("category_id", 0)
+            score = ann.get("score", 0.0)
+            cats.append(int(category_id) if category_id is not None else 0)
+            scores.append(float(score) if score is not None else 0.0)
 
         bboxes_t = (
             torch.tensor([bboxes], dtype=torch.float32)
@@ -118,7 +120,26 @@ class TrackingResultsReader(Node):
        list of RLE dicts.  Emits ``mask`` label map and ``object_ids``.
 
     Optional outputs are ``None`` when the format doesn't provide them.
+
+    **Frame synchronization**: When the optional ``frame_id`` input is connected
+    (e.g. from ``CU3SDataNode.mesu_index``), the reader looks up detections for
+    that specific frame instead of cursor-advancing.  This guarantees that the
+    emitted bboxes/masks correspond to the same frame as the cube data.  When
+    ``frame_id`` is not connected, the reader uses the internal cursor (legacy
+    behavior).
     """
+
+    INPUT_SPECS = {
+        "frame_id": PortSpec(
+            dtype=torch.int64,
+            shape=(1,),
+            description=(
+                "Frame index to look up. When connected, disables cursor "
+                "and emits detections for this specific frame."
+            ),
+            optional=True,
+        ),
+    }
 
     OUTPUT_SPECS = {
         "frame_id": PortSpec(dtype=torch.int64, shape=(1,), description="Frame index."),
@@ -250,29 +271,55 @@ class TrackingResultsReader(Node):
     def reset(self) -> None:
         self._cursor = 0
 
-    def forward(self, context: Context | None = None, **_: Any) -> dict[str, Any]:  # noqa: ARG002
-        if self._cursor >= len(self._frame_ids):
-            raise StopIteration("No more frames in tracking JSON")
-
-        frame_id = self._frame_ids[self._cursor]
-        self._cursor += 1
+    def forward(
+        self,
+        frame_id: torch.Tensor | None = None,
+        context: Context | None = None,  # noqa: ARG002
+        **_: Any,
+    ) -> dict[str, Any]:
+        if frame_id is not None:
+            # Lookup mode: emit detections for the requested frame
+            fid = int(frame_id.item())
+        else:
+            # Cursor mode (legacy): advance cursor sequentially
+            if self._cursor >= len(self._frame_ids):
+                raise StopIteration("No more frames in tracking JSON")
+            fid = self._frame_ids[self._cursor]
+            self._cursor += 1
 
         if self._format == "coco_bbox":
-            return self._emit_coco_bbox(frame_id)
+            return self._emit_coco_bbox(fid)
         else:
-            return self._emit_video_coco(frame_id)
+            return self._emit_video_coco(fid)
 
     def _emit_coco_bbox(self, frame_id: int) -> dict[str, Any]:
-        img = self._images[frame_id]
+        img = self._images.get(frame_id)
+        empty_mask = torch.empty((1, 0, 0), dtype=torch.int32)
+        empty_oids = torch.empty((1, 0), dtype=torch.int64)
+        if img is None:
+            # Frame not in JSON — return empty detections
+            return {
+                "frame_id": torch.tensor([frame_id], dtype=torch.int64),
+                "orig_hw": torch.tensor([[0, 0]], dtype=torch.int64),
+                "bboxes": torch.empty((1, 0, 4), dtype=torch.float32),
+                "category_ids": torch.empty((1, 0), dtype=torch.int64),
+                "confidences": torch.empty((1, 0), dtype=torch.float32),
+                "track_ids": torch.empty((1, 0), dtype=torch.int64),
+                "mask": empty_mask,
+                "object_ids": empty_oids,
+            }
         anns = self._annotations_by_img.get(frame_id, [])
 
         bboxes, cats, scores, tids = [], [], [], []
         for ann in anns:
             x, y, w, h = ann["bbox"]
             bboxes.append([x, y, x + w, y + h])
-            cats.append(int(ann.get("category_id", 0)))
-            scores.append(float(ann.get("score", 0.0)))
-            tids.append(int(ann.get("track_id", -1)))
+            category_id = ann.get("category_id", 0)
+            score = ann.get("score", 0.0)
+            track_id = ann.get("track_id", -1)
+            cats.append(int(category_id) if category_id is not None else 0)
+            scores.append(float(score) if score is not None else 0.0)
+            tids.append(int(track_id) if track_id is not None else -1)
 
         n = len(bboxes)
         bboxes_t = (
@@ -302,8 +349,8 @@ class TrackingResultsReader(Node):
             "category_ids": cats_t,
             "confidences": scores_t,
             "track_ids": tids_t,
-            "mask": None,
-            "object_ids": None,
+            "mask": empty_mask,
+            "object_ids": empty_oids,
         }
 
     def _rles_to_label_map(
@@ -345,10 +392,10 @@ class TrackingResultsReader(Node):
         return {
             "frame_id": torch.tensor([frame_id], dtype=torch.int64),
             "orig_hw": torch.tensor([[h, w]], dtype=torch.int64),
-            "bboxes": None,
-            "category_ids": None,
-            "confidences": None,
-            "track_ids": None,
+            "bboxes": torch.empty((1, 0, 4), dtype=torch.float32),
+            "category_ids": torch.empty((1, 0), dtype=torch.int64),
+            "confidences": torch.empty((1, 0), dtype=torch.float32),
+            "track_ids": torch.empty((1, 0), dtype=torch.int64),
             "mask": mask_t,
             "object_ids": oids_t,
         }

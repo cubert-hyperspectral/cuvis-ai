@@ -94,7 +94,7 @@ def main(
     identity_node = identity_cls(match_threshold=match_threshold, name="identity")
 
     pipeline = CuvisPipeline("TrackEval", strict_runtime_io_validation=False)
-    pipeline.connect(
+    connections = [
         # HOTA
         (gt_reader.outputs.frame_id, hota_node.frame_id),
         (gt_reader.outputs.bboxes, hota_node.gt_bboxes),
@@ -114,7 +114,16 @@ def main(
         (gt_reader.outputs.track_ids, identity_node.gt_track_ids),
         (pred_reader.outputs.bboxes, identity_node.pred_bboxes),
         (pred_reader.outputs.track_ids, identity_node.pred_track_ids),
-    )
+    ]
+
+    if hasattr(hota_node, "pred_frame_id"):
+        connections.append((pred_reader.outputs.frame_id, hota_node.pred_frame_id))
+    if hasattr(clear_node, "pred_frame_id"):
+        connections.append((pred_reader.outputs.frame_id, clear_node.pred_frame_id))
+    if hasattr(identity_node, "pred_frame_id"):
+        connections.append((pred_reader.outputs.frame_id, identity_node.pred_frame_id))
+
+    pipeline.connect(*connections)
 
     predictor = Predictor(
         pipeline=pipeline,
