@@ -183,9 +183,18 @@ class MinMaxNormalizer(_ScoreNormalizerBase):
 
     TRAINABLE_BUFFERS = ("running_min", "running_max")
 
-    def __init__(self, eps: float = 1e-6, use_running_stats: bool = True, **kwargs) -> None:
+    def __init__(
+        self,
+        eps: float = 1e-6,
+        use_running_stats: bool = True,
+        max_initialization_frames: int | None = None,
+        **kwargs,
+    ) -> None:
         self.eps = float(eps)
         self.use_running_stats = use_running_stats
+        if max_initialization_frames is not None and max_initialization_frames < 1:
+            raise ValueError("max_initialization_frames must be >= 1 or None")
+        self.max_initialization_frames = max_initialization_frames
         super().__init__(eps=eps, use_running_stats=use_running_stats, **kwargs)
 
         # Running statistics for global normalization
@@ -209,27 +218,47 @@ class MinMaxNormalizer(_ScoreNormalizerBase):
         self.running_max.fill_(float("nan"))
         self._statistically_initialized = False
 
-        all_mins = []
-        all_maxs = []
+        seen_frames = 0
+        running_min = None
+        running_max = None
 
         for batch_data in input_stream:
             # Extract data from port-based dict
             x = batch_data.get("data")
             if x is not None:
+                if self.max_initialization_frames is not None:
+                    remaining = self.max_initialization_frames - seen_frames
+                    if remaining <= 0:
+                        break
+                    # Limit to exact number of frames (slice along batch dimension).
+                    if x.shape[0] > remaining:
+                        x = x[:remaining]
+
                 # Flatten spatial dimensions
                 flat = x.reshape(x.shape[0], -1)
                 batch_min = flat.min()
                 batch_max = flat.max()
-                all_mins.append(batch_min)
-                all_maxs.append(batch_max)
+                running_min = (
+                    batch_min if running_min is None else torch.minimum(running_min, batch_min)
+                )
+                running_max = (
+                    batch_max if running_max is None else torch.maximum(running_max, batch_max)
+                )
+                seen_frames += x.shape[0]
 
-        if not all_mins:
+                if (
+                    self.max_initialization_frames is not None
+                    and seen_frames >= self.max_initialization_frames
+                ):
+                    break
+
+        if running_min is None or running_max is None:
             raise RuntimeError(
                 "MinMaxNormalizer.statistical_initialization() did not receive any data."
             )
 
-        self.running_min.copy_(torch.stack(all_mins).min())
-        self.running_max.copy_(torch.stack(all_maxs).max())
+        self.running_min.copy_(running_min)
+        self.running_max.copy_(running_max)
         self._statistically_initialized = True
 
     def _is_initialized(self) -> bool:
