@@ -72,6 +72,40 @@ def test_minmax_normalizer_fit():
     assert normalizer.running_max is not None
 
 
+def test_minmax_normalizer_max_initialization_frames_limits_stats():
+    """Test that max_initialization_frames limits which frames contribute to global min/max."""
+    max_frames = 6
+    batch_size = 4
+
+    normalizer = MinMaxNormalizer(
+        use_running_stats=True,
+        max_initialization_frames=max_frames,
+    )
+
+    batches_consumed = 0
+    frame_idx = 0
+
+    def data_iterator():
+        nonlocal batches_consumed, frame_idx
+        for _ in range(3):  # enough to exceed max_frames
+            batches_consumed += 1
+            vals = torch.arange(frame_idx, frame_idx + batch_size, dtype=torch.float32).view(
+                batch_size, 1, 1, 1
+            )
+            x = vals.expand(batch_size, 2, 2, 1).contiguous()  # B,H,W,C
+            frame_idx += batch_size
+            yield {"data": x}
+
+    normalizer.statistical_initialization(data_iterator())
+
+    # First `max_frames` frames are 0..5 -> global min=0, max=5
+    assert normalizer.running_min.item() == 0.0
+    assert normalizer.running_max.item() == 5.0
+
+    # For batch_size=4 and max_frames=6, we should only need 2 batches
+    assert batches_consumed == 2
+
+
 def test_graph_identifies_statistical_nodes():
     """Test that graph identifies nodes requiring initialization."""
     pipeline = CuvisPipeline("test_graph")
