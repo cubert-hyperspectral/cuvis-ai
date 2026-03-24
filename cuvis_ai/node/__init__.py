@@ -29,12 +29,14 @@ from cuvis_ai.node.channel_selector import (
     SupervisedWindowedSelector,
     TopKIndices,
 )
+from cuvis_ai.node.conversion import DecisionToMask
 from cuvis_ai.node.dimensionality_reduction import TrainablePCA
 from cuvis_ai.node.json_reader import DetectionJsonReader, TrackingResultsReader
 from cuvis_ai.node.json_writer import ByteTrackCocoJson, DetectionCocoJsonNode, TrackingCocoJsonNode
 from cuvis_ai.node.labels import BinaryAnomalyLabelMapper
 from cuvis_ai.node.losses import DistinctnessLoss, ForegroundContrastLoss
 from cuvis_ai.node.normalization import IdentityNormalizer, MinMaxNormalizer, SigmoidNormalizer
+from cuvis_ai.node.numpy_reader import NpyReader
 from cuvis_ai.node.numpy_writer import NumpyFeatureWriterNode
 from cuvis_ai.node.occlusion import (
     OcclusionNodeBase,
@@ -54,6 +56,7 @@ from cuvis_ai.node.preprocessors import (
     SpatialRotateNode,
 )
 from cuvis_ai.node.spectral_extractor import BBoxSpectralExtractor
+from cuvis_ai.node.spectral_angle_mapper import SpectralAngleMapper
 from cuvis_ai.node.video import (
     ToVideoNode,
     VideoFrameDataModule,
@@ -81,6 +84,7 @@ __all__ = [
     "CubeRGBVisualizer",
     "DetectionCocoJsonNode",
     "DetectionJsonReader",
+    "DecisionToMask",
     "DistinctnessLoss",
     "FixedWavelengthSelector",
     "ForegroundContrastLoss",
@@ -92,6 +96,7 @@ __all__ = [
     "MinMaxNormalizer",
     "NormMode",
     "NumpyFeatureWriterNode",
+    "NpyReader",
     "OcclusionNodeBase",
     "PoissonCubeOcclusionNode",
     "PoissonOcclusionNode",
@@ -104,6 +109,7 @@ __all__ = [
     "SolidOcclusionNode",
     "SoftChannelSelector",
     "SpatialRotateNode",
+    "SpectralAngleMapper",
     "SupervisedCIRSelector",
     "SupervisedFullSpectrumSelector",
     "SupervisedSelectorBase",

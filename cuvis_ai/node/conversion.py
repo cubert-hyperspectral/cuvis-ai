@@ -1,8 +1,8 @@
-"""RX Logit Head for Anomaly Detection
+"""Conversion nodes for anomaly and segmentation pipelines.
 
-This module provides a trainable head that converts RX anomaly scores into
-logits for binary anomaly classification. It can be trained end-to-end with
-binary cross-entropy loss.
+This module provides:
+- ``ScoreToLogit``: affine conversion from anomaly scores to logits
+- ``DecisionToMask``: combine binary decisions with identity IDs into masks
 """
 
 import torch
@@ -147,7 +147,9 @@ class ScoreToLogit(Node):
     def reset(self) -> None:
         """Reset all statistics and accumulators."""
         self._welford.reset()
-        self._statistically_initialized = False
+        # Keep explicit init_scale/init_bias usable in inference-only runs.
+        # Statistical flows still transition through update()/finalize().
+        self._statistically_initialized = True
 
     def forward(self, scores: torch.Tensor, **_) -> dict[str, torch.Tensor]:
         """Transform RX scores to logits.
@@ -207,3 +209,43 @@ class ScoreToLogit(Node):
             Binary predictions (0=normal, 1=anomaly), shape (B, H, W, 1)
         """
         return (logits > 0).float()
+
+
+class DecisionToMask(Node):
+    """Combine binary decisions and identity labels into a single int32 mask.
+
+    The output mask keeps per-pixel identity IDs where the decision is True and
+    sets all non-matching pixels to 0.
+    """
+
+    INPUT_SPECS = {
+        "decisions": PortSpec(
+            dtype=torch.bool,
+            shape=(-1, -1, -1, 1),
+            description="Binary decisions [B, H, W, 1]",
+        ),
+        "identity_mask": PortSpec(
+            dtype=torch.int32,
+            shape=(-1, -1, -1),
+            description="Identity labels [B, H, W], 1-based IDs",
+        ),
+    }
+
+    OUTPUT_SPECS = {
+        "mask": PortSpec(
+            dtype=torch.int32,
+            shape=(-1, -1, -1),
+            description="Final mask [B, H, W], 0=background, 1..N=identity",
+        )
+    }
+
+    @torch.no_grad()
+    def forward(
+        self,
+        decisions: torch.Tensor,
+        identity_mask: torch.Tensor,
+        **_,
+    ) -> dict[str, torch.Tensor]:
+        """Apply decisions to identities and return the final segmentation mask."""
+        mask = identity_mask.to(torch.int32) * decisions.squeeze(-1).to(torch.int32)
+        return {"mask": mask}
