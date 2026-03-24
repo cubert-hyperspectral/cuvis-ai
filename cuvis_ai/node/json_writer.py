@@ -561,6 +561,7 @@ class ByteTrackCocoJson(Node):
         context: Context | None = None,  # noqa: ARG002
         **_: Any,
     ) -> dict[str, Any]:
+        """Record one frame of tracked detections and optionally flush the JSON."""
         frame_idx = TrackingCocoJsonNode._parse_frame_id(frame_id)
         ids_1d = TrackingCocoJsonNode._parse_vector(category_ids, port_name="category_ids")
         scores_1d = TrackingCocoJsonNode._parse_vector(confidences, port_name="confidences")
@@ -605,6 +606,7 @@ class ByteTrackCocoJson(Node):
         return {}
 
     def _flush_json(self) -> None:
+        """Assemble accumulated frames into a COCO detection payload and write it."""
         frames = [self._frames_by_id[idx] for idx in sorted(self._frames_by_id.keys())]
 
         images = [
@@ -657,11 +659,13 @@ class ByteTrackCocoJson(Node):
         self._frames_since_flush = 0
 
     def _write_json_direct(self, payload: dict[str, Any]) -> None:
+        """Write the payload directly to the configured output path."""
         with self.output_json_path.open("w", encoding="utf-8") as handle:
             json.dump(payload, handle, indent=2)
             handle.write("\n")
 
     def _write_json_atomic(self, payload: dict[str, Any]) -> None:
+        """Write the payload atomically via a temporary file and rename."""
         tmp_fd, tmp_path = tempfile.mkstemp(
             dir=str(self.output_json_path.parent),
             prefix=f".{self.output_json_path.stem}_",
@@ -679,10 +683,12 @@ class ByteTrackCocoJson(Node):
                 os.remove(tmp_path)
 
     def close(self) -> None:
+        """Flush pending detections to disk if the node is dirty."""
         if self._dirty:
             self._flush_json()
 
     def __del__(self) -> None:
+        """Best-effort flush when the node is garbage-collected."""
         try:
             self.close()
         except Exception:

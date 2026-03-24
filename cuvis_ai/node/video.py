@@ -236,6 +236,7 @@ class VideoFrameNode(Node):
         frame_id: torch.Tensor | None = None,
         **_: Any,
     ) -> dict[str, torch.Tensor]:
+        """Pass through RGB frames and optional frame IDs from the batch."""
         result: dict[str, torch.Tensor] = {"rgb_image": rgb_image}
         if frame_id is not None:
             result["frame_id"] = frame_id

@@ -136,6 +136,7 @@ class OcclusionNodeBase(Node, abc.ABC):
         output_key: str,
         frame_id: torch.Tensor,
     ) -> dict[str, torch.Tensor]:
+        """Apply occlusion to one batch element when the frame is in range."""
         frame_idx = int(frame_id[0].item())
 
         if frame_idx < self.occlusion_start_frame or frame_idx > self.occlusion_end_frame:
@@ -156,6 +157,7 @@ class OcclusionNodeBase(Node, abc.ABC):
         frame_id: torch.Tensor,
         **_,
     ) -> dict[str, torch.Tensor]:
+        """Conditionally occlude an RGB batch using tracking-derived masks."""
         return self._forward_tensor(data=rgb_image, output_key="rgb_image", frame_id=frame_id)
 
 
@@ -331,6 +333,7 @@ class PoissonOcclusionNode(OcclusionNodeBase):
         frame_h: int,
         frame_w: int,
     ) -> list[tuple[np.ndarray, list]]:
+        """Return resized masks or static bbox placeholders for the requested frame."""
         if self.occlusion_shape == "bbox" and self.bbox_mode == "static":
             if not self._static_bboxes_by_track:
                 return []
@@ -344,6 +347,7 @@ class PoissonOcclusionNode(OcclusionNodeBase):
         frame_h: int,
         frame_w: int,
     ) -> tuple[int, int, int, int]:
+        """Convert an xywh box to clipped integer coordinates for the frame."""
         x, y, w, h = bbox_xywh
         x0 = max(0, int(round(x)))
         y0 = max(0, int(round(y)))
@@ -360,6 +364,7 @@ class PoissonOcclusionNode(OcclusionNodeBase):
         frame_h: int,
         frame_w: int,
     ) -> np.ndarray:
+        """Merge all occluders into one boolean mask covering the target frame."""
         combined_mask = np.zeros((frame_h, frame_w), dtype=bool)
         for binary_mask, bbox_xywh in masks:
             if self.occlusion_shape == "bbox":
@@ -376,6 +381,7 @@ class PoissonOcclusionNode(OcclusionNodeBase):
         frame: torch.Tensor,
         masks: list[tuple[np.ndarray, list]],
     ) -> torch.Tensor:
+        """Fill the occluded region with Poisson inpainting or a solid color."""
         frame_h, frame_w = frame.shape[:2]
         combined_mask = self._build_combined_mask(masks, frame_h, frame_w)
         if not np.any(combined_mask):
@@ -399,6 +405,7 @@ class PoissonOcclusionNode(OcclusionNodeBase):
         cube: torch.Tensor | None = None,
         **_,
     ) -> dict[str, torch.Tensor]:
+        """Occlude either the provided RGB batch or cube batch for the current frame."""
         if self.input_key == "rgb_image":
             if rgb_image is None:
                 raise ValueError(
@@ -459,4 +466,5 @@ class PoissonCubeOcclusionNode(PoissonOcclusionNode):
         frame_id: torch.Tensor,
         **_,
     ) -> dict[str, torch.Tensor]:
+        """Apply cube-only occlusion using the parent implementation."""
         return super().forward(frame_id=frame_id, cube=cube)

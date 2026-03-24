@@ -59,6 +59,7 @@ class DetectionJsonReader(Node):
         self._cursor = 0
 
     def forward(self, context: Context | None = None, **_: Any) -> dict[str, Any]:  # noqa: ARG002
+        """Emit detections for the next frame in the detection JSON stream."""
         if self._cursor >= len(self._frame_ids):
             raise StopIteration("No more frames in detection JSON")
 
@@ -217,6 +218,7 @@ class TrackingResultsReader(Node):
     # -- Format-specific init --------------------------------------------------
 
     def _init_coco_bbox(self, data: dict) -> None:
+        """Index COCO bbox annotations by image ID for per-frame lookup."""
         self._images = {int(img["id"]): img for img in data.get("images", [])}
         self._annotations_by_img: dict[int, list[dict]] = {}
         for ann in data.get("annotations", []):
@@ -224,6 +226,7 @@ class TrackingResultsReader(Node):
         self._frame_ids = sorted(self._images.keys())
 
     def _init_video_coco(self, data: dict) -> None:
+        """Index SAM-style video COCO segmentations by frame and track ID."""
         videos = data.get("videos", [])
         annotations = data.get("annotations", [])
         if not videos:
@@ -262,13 +265,16 @@ class TrackingResultsReader(Node):
 
     @property
     def num_frames(self) -> int:
+        """Return the number of frames addressable by this reader."""
         return len(self._frame_ids)
 
     @property
     def format(self) -> str:
+        """Return the detected tracking JSON format identifier."""
         return self._format
 
     def reset(self) -> None:
+        """Rewind sequential reads to the first available frame."""
         self._cursor = 0
 
     def forward(
@@ -277,6 +283,7 @@ class TrackingResultsReader(Node):
         context: Context | None = None,  # noqa: ARG002
         **_: Any,
     ) -> dict[str, Any]:
+        """Emit tracking tensors for an explicit frame or the next cursor frame."""
         if frame_id is not None:
             # Lookup mode: emit detections for the requested frame
             fid = int(frame_id.item())
@@ -293,6 +300,7 @@ class TrackingResultsReader(Node):
             return self._emit_video_coco(fid)
 
     def _emit_coco_bbox(self, frame_id: int) -> dict[str, Any]:
+        """Build bbox-style tracking outputs for one frame."""
         img = self._images.get(frame_id)
         empty_mask = torch.empty((1, 0, 0), dtype=torch.int32)
         empty_oids = torch.empty((1, 0), dtype=torch.int64)
@@ -375,6 +383,7 @@ class TrackingResultsReader(Node):
         return mask_t, oids_t
 
     def _emit_video_coco(self, frame_id: int) -> dict[str, Any]:
+        """Build mask-style tracking outputs for one frame."""
         obj_rles = self._mask_data.get(frame_id, {})
         h, w = self._mask_hw
 

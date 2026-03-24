@@ -41,6 +41,7 @@ _FONT_5x7: dict[str, list[str]] = {
 def _as_color_tensor(
     color: torch.Tensor | tuple[int, int, int], device: torch.device
 ) -> torch.Tensor:
+    """Normalize an RGB color input to a uint8 tensor on the target device."""
     color_t = torch.as_tensor(color, dtype=torch.uint8, device=device)
     if color_t.shape != (3,):
         raise ValueError(f"Expected color shape (3,), got {tuple(color_t.shape)}")
@@ -48,6 +49,7 @@ def _as_color_tensor(
 
 
 def _glyph(text: str, device: torch.device) -> torch.Tensor:
+    """Render text into a 5x7 bitmap tensor using the built-in glyph table."""
     if not text:
         return torch.zeros((7, 0), dtype=torch.uint8, device=device)
 
