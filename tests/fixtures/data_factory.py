@@ -1,6 +1,7 @@
 """Test data factory fixtures for creating hyperspectral cubes."""
 
 import functools
+import json
 from collections.abc import Generator
 from pathlib import Path
 from typing import Literal
@@ -291,6 +292,49 @@ def create_test_bboxes():
         if batch_size > 1:
             bboxes = bboxes.expand(batch_size, -1, -1).clone()
         return bboxes
+
+    return _create
+
+
+@pytest.fixture
+def coco_bbox_json_factory(tmp_path: Path):
+    """Factory fixture for writing minimal COCO-style tracking JSON files."""
+
+    def _create(
+        frames: dict[int, list[dict[str, object]]],
+        *,
+        filename: str = "tracking.json",
+        image_hw: tuple[int, int] = (64, 64),
+    ) -> Path:
+        height, width = image_hw
+        images = [
+            {"id": frame_id, "width": width, "height": height} for frame_id in sorted(frames.keys())
+        ]
+
+        annotations: list[dict[str, object]] = []
+        ann_id = 1
+        for frame_id, detections in sorted(frames.items()):
+            for det in detections:
+                annotations.append(
+                    {
+                        "id": ann_id,
+                        "image_id": frame_id,
+                        "category_id": int(det.get("category_id", 1)),
+                        "bbox": det.get("bbox", [0, 0, 0, 0]),
+                        "score": float(det.get("score", 1.0)),
+                        "track_id": int(det.get("track_id", -1)),
+                    }
+                )
+                ann_id += 1
+
+        payload = {
+            "images": images,
+            "annotations": annotations,
+            "categories": [{"id": 1, "name": "object"}],
+        }
+        out_path = tmp_path / filename
+        out_path.write_text(json.dumps(payload), encoding="utf-8")
+        return out_path
 
     return _create
 

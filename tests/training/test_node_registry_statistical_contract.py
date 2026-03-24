@@ -31,6 +31,11 @@ REQUIRED_ARG_DEFAULTS: dict[str, object] = {
     "min_wavelength_nm": 450.0,
     "output_json_path": "test_output.json",
     "json_path": "test_input.json",
+    "file_path": "missing.npy",
+    "tracking_json_path": "missing_tracking.json",
+    "track_ids": [1],
+    "occlusion_start_frame": 0,
+    "occlusion_end_frame": 0,
     "output_video_path": "test_output.mp4",
     "output_dir": "test_output_dir",
 }

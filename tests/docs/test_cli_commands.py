@@ -59,7 +59,7 @@ def test_restore_trainrun_help():
 def test_mkdocs_build():
     """Test that documentation builds successfully."""
     result = subprocess.run(
-        ["uv", "run", "python", "-m", "mkdocs", "build"],
+        ["uv", "run", "--extra", "docs", "python", "-m", "mkdocs", "build"],
         capture_output=True,
         text=True,
         timeout=120,

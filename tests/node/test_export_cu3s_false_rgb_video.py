@@ -5,6 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 from click.testing import CliRunner
 
 import examples.object_tracking.export_cu3s_false_rgb_video as export_mod
@@ -31,11 +32,8 @@ def test_uniform_sample_positions_uses_ceiling_count() -> None:
 
 
 def test_uniform_sample_positions_invalid_fraction_raises() -> None:
-    try:
+    with pytest.raises(ValueError, match="sample_fraction"):
         export_mod._uniform_sample_positions(total_frames=10, sample_fraction=0.0)
-        assert False, "Expected ValueError for sample_fraction=0.0"
-    except ValueError as exc:
-        assert "sample_fraction" in str(exc)
 
 
 def test_parse_plugin_fast_rgb_config_resolves_evaluated_ranges() -> None:
@@ -78,11 +76,8 @@ def test_parse_plugin_fast_rgb_config_missing_reference_raises() -> None:
         encoding="utf-8",
     )
 
-    try:
+    with pytest.raises(ValueError, match="not found"):
         export_mod._parse_plugin_fast_rgb_config(xml_path)
-        assert False, "Expected ValueError for unresolved XML reference"
-    except ValueError as exc:
-        assert "not found" in str(exc)
 
 
 class _FakePredictDataset:
