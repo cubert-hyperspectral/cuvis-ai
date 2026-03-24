@@ -2,13 +2,19 @@
 
 ## [Unreleased]
 
-- Added SAM3 tracking workflow updates across propagation scripts and examples, including batch processing support for full-folder video runs.
-- Added TrackEval preparation/evaluation tooling updates for aligned HOTA benchmarking workflows.
-- Updated TrackEval example evaluator to pass prediction frame IDs into metric nodes when
-  supported by the plugin.
-- Added occlusion and Poisson inpainting utilities with corresponding tests and object-tracking example integrations.
-- Expanded channel-selector false-RGB export and training pipeline capabilities, docs, and test coverage.
-- Updated plugin and trainrun configs to match the current SAM3 and channel-selector runtime paths.
+- Added SAM3 tracking workflow updates across propagation scripts and examples, including batch processing for full-folder video runs, per-node profiling, threshold/name-suffix options, and frame-lookup support in `TrackingResultsReader`.
+- Added TrackEval preparation/evaluation tooling updates for aligned HOTA benchmarking workflows, including prediction frame-id passthrough in evaluator pipelines when supported by the metric plugin.
+- Added ByteTrack and tracker workflow expansion: spectral-aware association, COCO JSON sinks, threshold/JSON sweep tooling, spectral re-ID validation, RT-DETR/YOLO integration points, and overlay/transcoding helpers for rendered tracking outputs.
+- Added DeepEIOU plugin integration plus related preprocessing, NumPy writer, and tracking overlay renderer updates.
+- Added Spectral Angle Mapper (SPAM) pipeline nodes and tooling for spectral-angle-based workflows.
+- Added occlusion and Poisson inpainting utilities with tests and object-tracking example integrations.
+- Added `BBoxSpectralExtractor`, sparkline visualization helpers, and richer `BBoxesOverlayNode` annotations (`draw_labels`, `frame_id`).
+- Refactored and consolidated video/tracking utilities (including `cuvis_ai/node/video.py`), moved SAM3 examples into a dedicated subdirectory, and adopted shorthand port syntax across updated examples.
+- Updated ByteTrack and tracking documentation, including multi-pipeline usage and FFmpeg/torchcodec setup guidance.
+- Updated plugin/trainrun configs to match current SAM3 and channel-selector runtime paths.
+- Fixed SAM3 batch-runner control flow and mask-overlay color handling.
+- Fixed JSON reader robustness and pre-push regressions in manifest sync, CLI commands, and statistical-contract tests.
+- Fixed video/tracking fallback and output handling: `VideoIterator` now falls back to OpenCV when torchcodec is unavailable, `output_video_path` naming is normalized, and ByteTrack JSON output path heuristics were hardened.
 
 ## 0.4.0 - 2026-02-27
 
