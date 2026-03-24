@@ -74,6 +74,10 @@ def main(cfg: DictConfig) -> None:
         splits_csv=cfg.data.splits_csv,
         batch_size=cfg.data.batch_size,
         processing_mode=cfg.data.processing_mode,
+        num_workers=6,
+        pin_memory=True,
+        persistent_workers=True,
+        worker_multiprocessing_context="spawn",
     )
     datamodule.setup(stage="fit")
 
