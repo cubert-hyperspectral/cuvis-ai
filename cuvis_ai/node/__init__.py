@@ -55,8 +55,8 @@ from cuvis_ai.node.preprocessors import (
     ChannelNormalizeNode,
     SpatialRotateNode,
 )
-from cuvis_ai.node.spectral_extractor import BBoxSpectralExtractor
 from cuvis_ai.node.spectral_angle_mapper import SpectralAngleMapper
+from cuvis_ai.node.spectral_extractor import BBoxSpectralExtractor
 from cuvis_ai.node.video import (
     ToVideoNode,
     VideoFrameDataModule,

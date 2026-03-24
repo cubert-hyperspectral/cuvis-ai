@@ -958,8 +958,7 @@ class MaskOverlayNode(Node):
         parsed_overlay_color = tuple(float(channel) for channel in overlay_color)
         if any(channel < 0.0 or channel > 1.0 for channel in parsed_overlay_color):
             raise ValueError(
-                "overlay_color channels must be within [0, 1], got "
-                f"{parsed_overlay_color}"
+                f"overlay_color channels must be within [0, 1], got {parsed_overlay_color}"
             )
 
         self.overlay_color = parsed_overlay_color

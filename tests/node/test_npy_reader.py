@@ -46,4 +46,3 @@ def test_device_transfer(tmp_path) -> None:
     out = node.forward()["data"]
 
     assert out.device.type == target_device.type
-

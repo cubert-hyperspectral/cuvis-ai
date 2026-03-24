@@ -51,4 +51,3 @@ def test_shape_output() -> None:
     out = DecisionToMask().forward(decisions=decisions, identity_mask=identity_mask)["mask"]
     assert out.shape == (2, 4, 5)
     assert out.dtype == torch.int32
-

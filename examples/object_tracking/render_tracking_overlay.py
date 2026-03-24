@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import torch
 from loguru import logger
@@ -40,11 +41,14 @@ from cuvis_ai.node.json_reader import TrackingResultsReader
 from cuvis_ai.node.video import ToVideoNode, VideoFrameDataset, VideoIterator
 from cuvis_ai.utils.false_rgb_sampling import initialize_false_rgb_sampled_fixed
 
+if TYPE_CHECKING:
+    from cuvis_ai.node.channel_selector import CIETristimulusFalseRGBSelector
+
 _SUPPORTED_METHODS = ("cie_tristimulus",)
 _PROCESSING_MODES = ("Raw", "DarkSubtract", "Preview", "Reflectance", "SpectralRadiance")
 
 
-def _make_false_rgb_node(method: str):
+def _make_false_rgb_node(method: str) -> CIETristimulusFalseRGBSelector:
     from cuvis_ai.node.channel_selector import CIETristimulusFalseRGBSelector, NormMode
 
     if method != "cie_tristimulus":

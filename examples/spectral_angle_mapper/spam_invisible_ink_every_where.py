@@ -258,8 +258,7 @@ def main() -> int:
             )
             if bootstrap_result.returncode != 0:
                 print(
-                    "Bootstrap SPAM pipeline failed; see log: "
-                    f"{template_dir / 'bootstrap.log'}",
+                    f"Bootstrap SPAM pipeline failed; see log: {template_dir / 'bootstrap.log'}",
                     file=sys.stderr,
                 )
                 return bootstrap_result.returncode
@@ -298,9 +297,7 @@ def main() -> int:
         try:
             fps = infer_fps(cu3s_path)
         except Exception as exc:  # noqa: BLE001
-            print(
-                f"[{idx}/{len(cu3s_files)}] FPS detection failed ({exc}); using fallback 10.0"
-            )
+            print(f"[{idx}/{len(cu3s_files)}] FPS detection failed ({exc}); using fallback 10.0")
             fps = 10.0
 
         cmd = _restore_command(

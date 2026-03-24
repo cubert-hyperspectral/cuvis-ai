@@ -151,9 +151,7 @@ def _parse_overlay_color(raw: str) -> tuple[float, float, float]:
     try:
         channels = tuple(float(piece) for piece in parts)
     except ValueError as exc:
-        raise click.BadParameter(
-            f"--overlay-color values must be numeric, got: {raw!r}"
-        ) from exc
+        raise click.BadParameter(f"--overlay-color values must be numeric, got: {raw!r}") from exc
 
     if all(0.0 <= channel <= 1.0 for channel in channels):
         return channels

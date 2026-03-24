@@ -70,4 +70,3 @@ class NpyReader(Node):
 
 
 __all__ = ["NpyReader"]
-
