@@ -9,6 +9,7 @@ transposition bugs that would be invisible with square images.
 
 from __future__ import annotations
 
+import pytest
 import torch
 
 from cuvis_ai.node.anomaly_visualization import MaskOverlayNode
@@ -97,6 +98,37 @@ def test_mask_overlay_node_at_known_location():
     result = out["rgb_with_overlay"]
     assert result.shape == rgb.shape
     _assert_overlay_at_known_location(rgb, result, mask)
+
+
+def test_mask_overlay_node_white_color_affects_all_channels():
+    """Verify custom overlay_color updates all channels for foreground pixels."""
+    rgb, mask = _make_rgb_and_mask()
+    node = MaskOverlayNode(alpha=1.0, overlay_color=(1.0, 1.0, 1.0))
+    result = node.forward(rgb_image=rgb, mask=mask)["rgb_with_overlay"]
+
+    fg_mask = mask[0] > 0
+    fg_output = result[0][fg_mask]
+    expected_fg = torch.ones(3, dtype=torch.float32)
+
+    assert torch.allclose(fg_output[0], expected_fg, atol=1e-6), (
+        f"Foreground pixel value wrong. Expected {expected_fg.tolist()}, got {fg_output[0].tolist()}"
+    )
+    assert torch.allclose(result[0][~fg_mask], rgb[0][~fg_mask]), "Background pixels were modified"
+
+
+@pytest.mark.parametrize(
+    "overlay_color",
+    [
+        (1.0, 0.0),
+        (1.0, 0.0, 0.0, 1.0),
+        (-0.1, 0.0, 0.0),
+        (0.0, 1.1, 0.0),
+    ],
+)
+def test_mask_overlay_node_rejects_invalid_overlay_color(overlay_color):
+    """MaskOverlayNode validates overlay_color length and channel range."""
+    with pytest.raises(ValueError, match="overlay_color"):
+        MaskOverlayNode(overlay_color=overlay_color)
 
 
 # ===================================================================

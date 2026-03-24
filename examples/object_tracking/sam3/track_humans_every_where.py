@@ -27,21 +27,9 @@ def parse_args() -> argparse.Namespace:
         help="Text prompt for SAM3 detector.",
     )
     parser.add_argument(
-        "--save-pipeline-yaml",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Save pipeline YAML config in each run output directory.",
-    )
-    parser.add_argument(
         "--compile",
         action="store_true",
         help="Enable torch.compile inside sam3_text_propagation.py.",
-    )
-    parser.add_argument(
-        "--runner",
-        choices=("uv", "python"),
-        default="python",
-        help="How to invoke sam3_text_propagation.py (default: python).",
     )
     parser.add_argument(
         "--dry-run",
@@ -60,14 +48,13 @@ def collect_videos(input_base: Path) -> list[Path]:
 
 def build_command(
     *,
-    runner: str,
     video_path: Path,
     plugins_yaml: Path,
     output_dir: Path,
+    out_basename: str | None,
     start_frame: int,
     max_tracker_states: int,
     prompt: str,
-    save_pipeline_yaml: bool,
     compile_model: bool,
 ) -> list[str]:
     script_path = Path("examples/object_tracking/sam3/sam3_text_propagation.py")
@@ -87,13 +74,13 @@ def build_command(
         "--prompt",
         prompt,
     ]
-    common_args.append("--save-pipeline-yaml" if save_pipeline_yaml else "--no-save-pipeline-yaml")
+    if out_basename is not None:
+        common_args.extend(["--out-basename", out_basename])
+    common_args.append("--save-pipeline-yaml")
     common_args.append("--no-save-pipeline-weights")
     if compile_model:
         common_args.append("--compile")
-    if runner == "uv":
-        return ["uv", "run", "python", *common_args]
-    return [sys.executable, *common_args]
+    return ["uv", "run", "python", *common_args]
 
 
 def main() -> int:
@@ -124,10 +111,11 @@ def main() -> int:
     for idx, video in enumerate(videos, start=1):
         relative_dir = video.parent.relative_to(input_base)
         target_output_dir = output_base / relative_dir
+        out_basename = "." if video.stem == "spam_result" else None
         if not args.dry_run:
             target_output_dir.mkdir(parents=True, exist_ok=True)
 
-        run_dir = target_output_dir / video.stem
+        run_dir = target_output_dir if out_basename == "." else (target_output_dir / video.stem)
         if run_dir.exists() and not args.force:
             print(f"[{idx}/{len(videos)}] Output exists, skipping: {run_dir}")
             continue
@@ -135,17 +123,19 @@ def main() -> int:
         print()
         print(f"[{idx}/{len(videos)}] Processing: {video}")
         print(f"             Output dir : {target_output_dir}")
-        print(f"             Out base   : {video.stem} (default)")
+        if out_basename is None:
+            print(f"             Out base   : {video.stem} (default)")
+        else:
+            print("             Out base   : . (write directly to output dir)")
 
         cmd = build_command(
-            runner=args.runner,
             video_path=video,
             plugins_yaml=args.plugins_yaml,
             output_dir=target_output_dir,
+            out_basename=out_basename,
             start_frame=args.start_frame,
             max_tracker_states=args.max_tracker_states,
             prompt=args.prompt,
-            save_pipeline_yaml=args.save_pipeline_yaml,
             compile_model=args.compile,
         )
         print(f"             Command    : {subprocess.list2cmdline(cmd)}")

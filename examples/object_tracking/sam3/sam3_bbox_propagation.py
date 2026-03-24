@@ -61,11 +61,13 @@ def _extract_bbox_prompts(
         x, y, w, h = annotation["bbox"]
         bbox_norm = [x / w_img, y / h_img, w / w_img, h / h_img]
         prompts.append({"obj_id": obj_id, "bbox_xywh": bbox_norm})
+        score = annotation.get("score")
+        score_text = f"{float(score):.3f}" if isinstance(score, int | float) else "n/a"
         logger.info(
-            "  obj_id={} bbox: [{:.3f}, {:.3f}, {:.3f}, {:.3f}] score={:.3f}",
+            "  obj_id={} bbox: [{:.3f}, {:.3f}, {:.3f}, {:.3f}] score={}",
             obj_id,
             *bbox_norm,
-            annotation.get("score", 0),
+            score_text,
         )
 
     return prompts, frame_idx

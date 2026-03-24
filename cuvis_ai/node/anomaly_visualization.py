@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import matplotlib
 
 # Use non-interactive backend to avoid GUI/threading issues in tests
@@ -916,6 +918,8 @@ class MaskOverlayNode(Node):
     ----------
     alpha : float, optional
         Blend factor for the overlay colour (default: 0.4).
+    overlay_color : tuple[float, float, float], optional
+        RGB overlay colour in [0, 1] (default: red ``(1, 0, 0)``).
     """
 
     INPUT_SPECS = {
@@ -943,11 +947,24 @@ class MaskOverlayNode(Node):
     def __init__(
         self,
         alpha: float = 0.4,
+        overlay_color: Sequence[float] = (1.0, 0.0, 0.0),
         **kwargs,
     ) -> None:
-        self.overlay_color = (1.0, 0.0, 0.0)
+        if len(overlay_color) != 3:
+            raise ValueError(
+                f"overlay_color must contain exactly 3 channels (R, G, B), got {overlay_color}"
+            )
+
+        parsed_overlay_color = tuple(float(channel) for channel in overlay_color)
+        if any(channel < 0.0 or channel > 1.0 for channel in parsed_overlay_color):
+            raise ValueError(
+                "overlay_color channels must be within [0, 1], got "
+                f"{parsed_overlay_color}"
+            )
+
+        self.overlay_color = parsed_overlay_color
         self.alpha = alpha
-        super().__init__(alpha=alpha, **kwargs)
+        super().__init__(alpha=alpha, overlay_color=self.overlay_color, **kwargs)
 
     @torch.no_grad()
     def forward(
