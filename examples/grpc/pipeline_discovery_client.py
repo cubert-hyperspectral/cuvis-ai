@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import click
 import yaml
 from cuvis_ai_schemas.grpc.v1 import cuvis_ai_pb2
 from workflow_utils import build_stub, config_search_paths, create_session_with_search_paths
@@ -13,37 +14,37 @@ from workflow_utils import build_stub, config_search_paths, create_session_with_
 def main() -> None:
     stub = build_stub()
 
-    response = stub.ListAvailablePipelinees(cuvis_ai_pb2.ListAvailablePipelineesRequest())
+    response = stub.ListAvailablePipelines(cuvis_ai_pb2.ListAvailablePipelinesRequest())
 
-    print(f"Found {len(response.pipelinees)} pipeline(es):")
-    for pipeline in response.pipelinees:
-        print(f"  {pipeline.name}")
+    print(f"Found {len(response.pipelines)} pipeline(s):")
+    for pipeline in response.pipelines:
+        print(f"  {pipeline.pipeline_path}")
         print(f"    Description: {pipeline.metadata.description}")
-        print(f"    Tags: {', '.join(pipeline.tags)}")
-        print(f"    Has weights: {pipeline.has_weights}")
+        print(f"    Tags: {', '.join(pipeline.metadata.tags)}")
+        print(f"    Has weights: {bool(pipeline.weights_path)}")
 
-    if not response.pipelinees:
-        print("No pipelinees found")
+    if not response.pipelines:
+        print("No pipelines found")
         return
 
-    anomaly_response = stub.ListAvailablePipelinees(
-        cuvis_ai_pb2.ListAvailablePipelineesRequest(filter_tag="anomaly")
+    anomaly_response = stub.ListAvailablePipelines(
+        cuvis_ai_pb2.ListAvailablePipelinesRequest(filter_tag="anomaly")
     )
-    print(f"\nPipelinees with 'anomaly' tag: {len(anomaly_response.pipelinees)}")
-    for pipeline in anomaly_response.pipelinees:
-        print(f"  - {pipeline.name}")
+    print(f"\nPipelines with 'anomaly' tag: {len(anomaly_response.pipelines)}")
+    for pipeline in anomaly_response.pipelines:
+        print(f"  - {pipeline.pipeline_path}")
 
-    selected_pipeline_name = response.pipelinees[0].name
+    selected_pipeline_path = response.pipelines[0].pipeline_path
     info_response = stub.GetPipelineInfo(
-        cuvis_ai_pb2.GetPipelineInfoRequest(pipeline_name=selected_pipeline_name)
+        cuvis_ai_pb2.GetPipelineInfoRequest(pipeline_path=selected_pipeline_path)
     )
 
     pipeline_info = info_response.pipeline_info
-    print(f"\nPipeline details: {pipeline_info.name}")
+    print(f"\nPipeline details: {pipeline_info.pipeline_path}")
     print(f"  Path: {pipeline_info.path}")
     print(f"  Description: {pipeline_info.metadata.description}")
-    print(f"  Tags: {', '.join(pipeline_info.tags)}")
-    print(f"  Has weights: {pipeline_info.has_weights}")
+    print(f"  Tags: {', '.join(pipeline_info.metadata.tags)}")
+    print(f"  Has weights: {bool(pipeline_info.weights_path)}")
 
     # Load the selected pipeline + weights into a fresh session
     session_id = create_session_with_search_paths(stub, config_search_paths())
@@ -56,7 +57,7 @@ def main() -> None:
             pipeline=cuvis_ai_pb2.PipelineConfig(config_bytes=pipeline_bytes),
         )
     )
-    if pipeline_info.has_weights:
+    if pipeline_info.weights_path:
         stub.LoadPipelineWeights(
             cuvis_ai_pb2.LoadPipelineWeightsRequest(
                 session_id=session_id,
@@ -65,7 +66,7 @@ def main() -> None:
             )
         )
     print(f"\nSession created: {session_id}")
-    if pipeline_info.has_weights:
+    if pipeline_info.weights_path:
         print(f"  (Weights loaded from {pipeline_info.weights_path})")
 
     inputs_response = stub.GetPipelineInputs(
@@ -81,5 +82,10 @@ def main() -> None:
     stub.CloseSession(cuvis_ai_pb2.CloseSessionRequest(session_id=session_id))
 
 
-if __name__ == "__main__":
+@click.command()
+def cli() -> None:
     main()
+
+
+if __name__ == "__main__":
+    cli()

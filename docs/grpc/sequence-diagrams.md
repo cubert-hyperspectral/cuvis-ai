@@ -279,12 +279,12 @@ sequenceDiagram
   participant Client
   participant CuvisAIService
 
-  Client->>CuvisAIService: ListAvailablePipelinees()
-  CuvisAIService-->>Client: ListAvailablePipelineesResponse(pipelines[])
+  Client->>CuvisAIService: ListAvailablePipelines()
+  CuvisAIService-->>Client: ListAvailablePipelinesResponse(pipelines[])
 
   loop For Each Pipeline
-    Client->>CuvisAIService: GetPipelineInfo(pipeline_name)
-    CuvisAIService-->>Client: GetPipelineInfoResponse(metadata, requirements)
+    Client->>CuvisAIService: GetPipelineInfo(pipeline_path)
+    CuvisAIService-->>Client: GetPipelineInfoResponse(pipeline_info)
   end
 
   Client->>CuvisAIService: GetTrainingCapabilities()
@@ -298,7 +298,7 @@ sequenceDiagram
 
 **Discovery Methods:**
 
-1. **ListAvailablePipelinees**: Returns list of all registered pipeline types
+1. **ListAvailablePipelines**: Returns list of all registered pipeline types
 2. **GetPipelineInfo**: Returns metadata, description, and requirements for a specific pipeline
 3. **GetTrainingCapabilities**: Returns supported optimizers, schedulers, and callbacks with parameter schemas
 4. **ValidateConfig**: Pre-validates configuration before applying to session

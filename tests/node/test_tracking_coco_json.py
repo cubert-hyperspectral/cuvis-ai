@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 import torch
 
-from cuvis_ai.node.json_writer import TrackingCocoJsonNode
+from cuvis_ai.node.json_writer import CocoTrackMaskWriter
 
 
 def _build_inputs(
@@ -30,7 +30,7 @@ def _read_json(path: Path) -> dict:
 
 def test_tracking_coco_json_writes_valid_json_after_each_frame(tmp_path: Path) -> None:
     json_path = tmp_path / "tracking_results.json"
-    node = TrackingCocoJsonNode(
+    node = CocoTrackMaskWriter(
         output_json_path=str(json_path), category_name="person", flush_interval=1
     )
 
@@ -58,18 +58,24 @@ def test_tracking_coco_json_writes_valid_json_after_each_frame(tmp_path: Path) -
     for frame in frames:
         node.forward(**frame)
         parsed = _read_json(json_path)
-        assert set(parsed.keys()) == {"info", "images", "annotations", "categories"}
+        assert set(parsed.keys()) == {"info", "videos", "annotations", "categories"}
+        assert parsed["videos"][0]["length"] == len(parsed["videos"][0]["frame_indices"])
 
     node.close()
     parsed = _read_json(json_path)
-    assert [image["id"] for image in parsed["images"]] == [0, 1, 2]
+    assert parsed["videos"][0]["frame_indices"] == [0, 1, 2]
     assert len(parsed["annotations"]) == 2
     assert parsed["categories"] == [{"id": 1, "name": "person"}]
+    for ann in parsed["annotations"]:
+        assert len(ann["segmentations"]) == 3
+        assert len(ann["detection_scores"]) == 3
+        assert len(ann["bboxes"]) == 3
+        assert len(ann["areas"]) == 3
 
 
 def test_tracking_coco_json_replaces_existing_frame_idempotently(tmp_path: Path) -> None:
     json_path = tmp_path / "tracking_results.json"
-    node = TrackingCocoJsonNode(output_json_path=str(json_path), category_name="person")
+    node = CocoTrackMaskWriter(output_json_path=str(json_path), category_name="person")
 
     node.forward(
         **_build_inputs(
@@ -90,15 +96,14 @@ def test_tracking_coco_json_replaces_existing_frame_idempotently(tmp_path: Path)
 
     node.close()
     parsed = _read_json(json_path)
-    assert len(parsed["images"]) == 1
-    assert parsed["images"][0]["id"] == 4
+    assert parsed["videos"][0]["frame_indices"] == [4]
     assert len(parsed["annotations"]) == 1
-    assert parsed["annotations"][0]["score"] == pytest.approx(0.91)
+    assert parsed["annotations"][0]["detection_scores"] == pytest.approx([0.91])
 
 
 def test_tracking_coco_json_writes_empty_frame_entry(tmp_path: Path) -> None:
     json_path = tmp_path / "tracking_results.json"
-    node = TrackingCocoJsonNode(output_json_path=str(json_path), category_name="person")
+    node = CocoTrackMaskWriter(output_json_path=str(json_path), category_name="person")
 
     node.forward(
         **_build_inputs(
@@ -111,14 +116,15 @@ def test_tracking_coco_json_writes_empty_frame_entry(tmp_path: Path) -> None:
 
     node.close()
     parsed = _read_json(json_path)
-    assert len(parsed["images"]) == 1
-    assert parsed["images"][0]["id"] == 7
+    assert parsed["videos"][0]["frame_indices"] == [7]
+    assert parsed["videos"][0]["height"] == 3
+    assert parsed["videos"][0]["width"] == 4
     assert parsed["annotations"] == []
 
 
 def test_tracking_coco_json_validates_alignment(tmp_path: Path) -> None:
     json_path = tmp_path / "tracking_results.json"
-    node = TrackingCocoJsonNode(output_json_path=str(json_path), category_name="person")
+    node = CocoTrackMaskWriter(output_json_path=str(json_path), category_name="person")
 
     with pytest.raises(ValueError, match="identical lengths"):
         node.forward(
@@ -133,7 +139,7 @@ def test_tracking_coco_json_validates_alignment(tmp_path: Path) -> None:
 
 def test_tracking_coco_json_ignores_background_id_zero(tmp_path: Path) -> None:
     json_path = tmp_path / "tracking_results.json"
-    node = TrackingCocoJsonNode(output_json_path=str(json_path), category_name="person")
+    node = CocoTrackMaskWriter(output_json_path=str(json_path), category_name="person")
 
     node.forward(
         **_build_inputs(
@@ -149,12 +155,12 @@ def test_tracking_coco_json_ignores_background_id_zero(tmp_path: Path) -> None:
     assert len(parsed["annotations"]) == 1
     ann = parsed["annotations"][0]
     assert ann["track_id"] == 1
-    assert ann["score"] == pytest.approx(0.95)
+    assert ann["detection_scores"] == pytest.approx([0.95])
 
 
 def test_tracking_coco_json_atomic_write_is_parseable(tmp_path: Path) -> None:
     json_path = tmp_path / "tracking_results.json"
-    node = TrackingCocoJsonNode(
+    node = CocoTrackMaskWriter(
         output_json_path=str(json_path),
         category_name="person",
         atomic_write=True,
@@ -174,16 +180,15 @@ def test_tracking_coco_json_atomic_write_is_parseable(tmp_path: Path) -> None:
             )
         )
         parsed = _read_json(json_path)
-        assert "images" in parsed
+        assert "videos" in parsed
         assert "annotations" in parsed
 
     node.close()
 
 
 def test_tracking_coco_json_deferred_write_on_close(tmp_path: Path) -> None:
-    """Default flush_interval=0 writes nothing until close() is called."""
     json_path = tmp_path / "tracking_results.json"
-    node = TrackingCocoJsonNode(output_json_path=str(json_path), category_name="person")
+    node = CocoTrackMaskWriter(output_json_path=str(json_path), category_name="person")
 
     node.forward(
         **_build_inputs(
@@ -199,14 +204,13 @@ def test_tracking_coco_json_deferred_write_on_close(tmp_path: Path) -> None:
     node.close()
     assert json_path.exists()
     parsed = _read_json(json_path)
-    assert len(parsed["images"]) == 1
+    assert parsed["videos"][0]["frame_indices"] == [0]
     assert len(parsed["annotations"]) == 1
 
 
 def test_tracking_coco_json_close_is_idempotent(tmp_path: Path) -> None:
-    """Calling close() multiple times must not error or corrupt the file."""
     json_path = tmp_path / "tracking_results.json"
-    node = TrackingCocoJsonNode(output_json_path=str(json_path), category_name="person")
+    node = CocoTrackMaskWriter(output_json_path=str(json_path), category_name="person")
 
     node.forward(
         **_build_inputs(
@@ -220,13 +224,12 @@ def test_tracking_coco_json_close_is_idempotent(tmp_path: Path) -> None:
     node.close()
     node.close()
     parsed = _read_json(json_path)
-    assert len(parsed["images"]) == 1
+    assert parsed["videos"][0]["frame_indices"] == [0]
 
 
 def test_tracking_coco_json_flush_interval(tmp_path: Path) -> None:
-    """flush_interval=3 writes after every 3rd frame."""
     json_path = tmp_path / "tracking_results.json"
-    node = TrackingCocoJsonNode(
+    node = CocoTrackMaskWriter(
         output_json_path=str(json_path), category_name="person", flush_interval=3
     )
 
@@ -251,14 +254,14 @@ def test_tracking_coco_json_flush_interval(tmp_path: Path) -> None:
     )
     assert json_path.exists()
     parsed = _read_json(json_path)
-    assert len(parsed["images"]) == 3
+    assert parsed["videos"][0]["frame_indices"] == [0, 1, 2]
 
     node.close()
 
 
 def test_tracking_coco_json_validates_flush_interval(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="flush_interval"):
-        TrackingCocoJsonNode(
+        CocoTrackMaskWriter(
             output_json_path=str(tmp_path / "test.json"),
             flush_interval=-1,
         )

@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Added SAM3 text-propagation pipeline configs and a new gRPC client (`examples/grpc/sam3/sam3_text_propagation_client.py`) supporting CU3S/video inputs plus plugin-manifest bootstrap.
+- Reorganized AdaCLIP gRPC examples under `examples/grpc/adaclip/` and updated gRPC workflow/docs utilities around explicit config resolution and session search paths.
+- Refined tracking output tooling with JSON IO/overlay updates, new CLI output-dir helpers, and expanded tracking regression tests.
 - Added SAM3 tracking workflow updates across propagation scripts and examples, including batch processing for full-folder video runs, per-node profiling, threshold/name-suffix options, and frame-lookup support in `TrackingResultsReader`.
 - Added TrackEval preparation/evaluation tooling updates for aligned HOTA benchmarking workflows, including prediction frame-id passthrough in evaluator pipelines when supported by the metric plugin.
 - Added ByteTrack and tracker workflow expansion: spectral-aware association, COCO JSON sinks, threshold/JSON sweep tooling, spectral re-ID validation, RT-DETR/YOLO integration points, and overlay/transcoding helpers for rendered tracking outputs.

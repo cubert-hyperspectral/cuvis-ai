@@ -24,7 +24,6 @@ Usage (ReID, CU3S):
 from __future__ import annotations
 
 import contextlib
-import datetime
 from pathlib import Path
 
 import click
@@ -32,84 +31,12 @@ import torch
 from loguru import logger
 from torch.utils.data import Subset
 
+from cuvis_ai.utils.cli_helpers import (
+    append_tracking_metrics,
+    resolve_run_output_dir,
+    write_experiment_info,
+)
 from cuvis_ai.utils.false_rgb_sampling import initialize_false_rgb_sampled_fixed
-
-
-def _write_experiment_info(output_dir: Path, **params: object) -> None:
-    """Write an ``experiment_info.txt`` alongside outputs for traceability."""
-    lines = [
-        f"Experiment: {output_dir.name}",
-        f"Date: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-        "",
-        "Parameters:",
-    ]
-    for k, v in params.items():
-        lines.append(f"  {k}: {v}")
-    lines.append("")
-    (output_dir / "experiment_info.txt").write_text("\n".join(lines), encoding="utf-8")
-
-
-def _append_metrics(info_path: Path, tracking_json_path: Path) -> None:
-    """Append diagnostic metrics to the experiment info file."""
-    import collections
-    import json
-
-    try:
-        data = json.loads(tracking_json_path.read_text(encoding="utf-8"))
-    except Exception:
-        return
-
-    annots = data.get("annotations", [])
-    frame_ids = [int(img["id"]) for img in data.get("images", [])]
-    n_frames = len(frame_ids)
-    frame_tracks: dict[int, set[int]] = collections.defaultdict(set)
-    all_ids: set[int] = set()
-    for a in annots:
-        tid = a.get("track_id", -1)
-        if tid == -1:
-            continue
-        frame_tracks[a["image_id"]].add(tid)
-        all_ids.add(tid)
-
-    counts = [len(frame_tracks.get(frame_id, set())) for frame_id in frame_ids]
-    avg = sum(counts) / len(counts) if counts else 0.0
-    mx = max(counts) if counts else 0
-    zeros = sum(1 for c in counts if c == 0)
-
-    lines = [
-        "Results:",
-        f"  frames: {n_frames}",
-        f"  unique_track_ids: {len(all_ids)}",
-        f"  avg_tracks_per_frame: {avg:.1f}",
-        f"  max_tracks_per_frame: {mx}",
-        f"  zero_track_frames: {zeros}",
-        "",
-    ]
-    with info_path.open("a", encoding="utf-8") as f:
-        f.write("\n".join(lines))
-
-
-def _resolve_run_output_dir(
-    *,
-    output_root: Path,
-    source_path: Path,
-    out_basename: str | None,
-) -> Path:
-    resolved_basename = source_path.stem
-    if out_basename is not None:
-        candidate = out_basename.strip()
-        if not candidate:
-            raise click.BadParameter(
-                "--out-basename must not be empty or whitespace only",
-                param_hint="--out-basename",
-            )
-        if "/" in candidate or "\\" in candidate:
-            raise click.BadParameter(
-                "--out-basename must be a folder name, not a path",
-                param_hint="--out-basename",
-            )
-        resolved_basename = candidate
-    return output_root / resolved_basename
 
 
 @click.command()
@@ -264,7 +191,7 @@ def main(
     source_path = cu3s_path if source_type == "cu3s" else video_path
     assert source_path is not None
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    run_output_dir = _resolve_run_output_dir(
+    run_output_dir = resolve_run_output_dir(
         output_root=output_dir,
         source_path=source_path,
         out_basename=out_basename,
@@ -290,7 +217,7 @@ def main(
         f"YOLO_DeepEIoU{'_ReID' if with_reid else ''}_{'HSI' if source_type == 'cu3s' else 'RGB'}"
     )
 
-    _write_experiment_info(
+    write_experiment_info(
         run_output_dir,
         source_type=source_type,
         cu3s_path=cu3s_path,
@@ -327,7 +254,7 @@ def main(
     from cuvis_ai.node.anomaly_visualization import BBoxesOverlayNode
     from cuvis_ai.node.channel_selector import CIETristimulusFalseRGBSelector, NormMode
     from cuvis_ai.node.data import CU3SDataNode
-    from cuvis_ai.node.json_writer import ByteTrackCocoJson, DetectionCocoJsonNode
+    from cuvis_ai.node.json_writer import CocoTrackBBoxWriter, DetectionCocoJsonNode
     from cuvis_ai.node.video import ToVideoNode, VideoFrameDataModule, VideoFrameNode
 
     datamodule: object
@@ -446,7 +373,7 @@ def main(
         output_json_path=str(run_output_dir / "detection_results.json"),
         name="detection_coco_json",
     )
-    track_json = ByteTrackCocoJson(
+    track_json = CocoTrackBBoxWriter(
         output_json_path=str(run_output_dir / "tracking_results.json"),
         name="tracking_coco_json",
     )
@@ -593,7 +520,7 @@ def main(
     if write_features:
         logger.info("Features: {}", run_output_dir / "features")
 
-    _append_metrics(
+    append_tracking_metrics(
         run_output_dir / "experiment_info.txt", run_output_dir / "tracking_results.json"
     )
 

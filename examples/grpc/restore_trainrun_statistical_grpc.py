@@ -13,6 +13,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal
 
+import click
 from cuvis_ai_schemas.grpc.v1 import cuvis_ai_pb2
 from cuvis_ai_schemas.training import TrainRunConfig
 from loguru import logger
@@ -156,81 +157,64 @@ def restore_trainrun_statistical_grpc(
         logger.info("Session closed.")
 
 
-def main() -> None:
-    """CLI entry point."""
-    import argparse
-
-    parser = argparse.ArgumentParser(
-        description="Restore and reproduce statistical training runs from saved configurations using gRPC",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""\
-Examples:
-  # Display trainrun info
-  python restore_trainrun_statistical_grpc.py --trainrun-path outputs/adaclip_supervised_cir/trained_models/adaclip_supervised_cir_trainrun.yaml
-
-  # Re-run statistical training
-  python restore_trainrun_statistical_grpc.py --trainrun-path outputs/.../trainrun.yaml --mode train
-
-  # Re-run training with custom weights
-  python restore_trainrun_statistical_grpc.py --trainrun-path outputs/.../trainrun.yaml --mode train --weights-path outputs/my_weights.pt
-
-  # Run validation only
-  python restore_trainrun_statistical_grpc.py --trainrun-path outputs/.../trainrun.yaml --mode validate
-
-  # Use custom gRPC server
-  python restore_trainrun_statistical_grpc.py --trainrun-path outputs/.../trainrun.yaml --mode info --server localhost:50052
-        """,
-    )
-
-    parser.add_argument(
-        "--trainrun-path",
-        type=str,
-        required=True,
-        help="Path to trainrun YAML file (should have empty loss_nodes for statistical training)",
-    )
-    parser.add_argument(
-        "--mode",
-        type=str,
-        choices=["info", "train", "validate", "test"],
-        default="info",
-        help="Execution mode (default: info)",
-    )
-    parser.add_argument(
-        "--weights-path",
-        type=str,
-        default=None,
-        help="Path to weights (.pt) file",
-    )
-    parser.add_argument(
-        "--server",
-        type=str,
-        default="localhost:50051",
-        help="gRPC server address (default: localhost:50051)",
-    )
-    parser.add_argument(
-        "--device",
-        type=str,
-        default="auto",
-        choices=["auto", "cpu", "cuda"],
-        help="Device to run on (default: auto)",
-    )
-    parser.add_argument(
-        "--override",
-        action="append",
-        help="Override config values in dot notation (e.g., data.batch_size=16). Can be specified multiple times.",
-    )
-
-    args = parser.parse_args()
-
+@click.command()
+@click.option(
+    "--trainrun-path",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    required=True,
+    help="Path to trainrun YAML file (should have empty loss_nodes for statistical training).",
+)
+@click.option(
+    "--mode",
+    type=click.Choice(["info", "train", "validate", "test"], case_sensitive=False),
+    default="info",
+    show_default=True,
+    help="Execution mode.",
+)
+@click.option(
+    "--weights-path",
+    type=click.Path(dir_okay=False, path_type=Path),
+    default=None,
+    help="Path to weights (.pt) file.",
+)
+@click.option(
+    "--server",
+    "server_address",
+    type=str,
+    default="localhost:50051",
+    show_default=True,
+    help="gRPC server address.",
+)
+@click.option(
+    "--device",
+    type=click.Choice(["auto", "cpu", "cuda"], case_sensitive=False),
+    default="auto",
+    show_default=True,
+    help="Device to run on.",
+)
+@click.option(
+    "--override",
+    "overrides",
+    multiple=True,
+    help="Override config values in dot notation (e.g., data.batch_size=16). Repeatable.",
+)
+def cli(
+    trainrun_path: Path,
+    mode: str,
+    weights_path: Path | None,
+    server_address: str,
+    device: str,
+    overrides: tuple[str, ...],
+) -> None:
     restore_trainrun_statistical_grpc(
-        trainrun_path=args.trainrun_path,
-        mode=args.mode,
-        weights_path=args.weights_path,
-        server_address=args.server,
-        device=args.device,
-        overrides=args.override,
+        trainrun_path=trainrun_path,
+        mode=mode,
+        weights_path=weights_path,
+        server_address=server_address,
+        device=device,
+        overrides=list(overrides) if overrides else None,
     )
 
 
 if __name__ == "__main__":
-    main()
+    cli()

@@ -26,7 +26,7 @@ from sam3_source_context import (
 )
 
 from cuvis_ai.node.anomaly_visualization import TrackingOverlayNode
-from cuvis_ai.node.json_writer import TrackingCocoJsonNode
+from cuvis_ai.node.json_writer import CocoTrackMaskWriter
 from cuvis_ai.node.video import ToVideoNode
 
 
@@ -86,12 +86,6 @@ from cuvis_ai.node.video import ToVideoNode
     type=str,
     default=None,
     help="Optional leaf run-folder name under --output-dir (must not include '/' or '\\').",
-)
-@click.option(
-    "--save-pipeline-yaml/--no-save-pipeline-yaml",
-    default=True,
-    show_default=True,
-    help="Save pipeline YAML config in run output directory.",
 )
 @click.option(
     "--save-pipeline-weights/--no-save-pipeline-weights",
@@ -156,7 +150,6 @@ def main(
     max_frames: int | None,
     output_dir: Path,
     out_basename: str | None,
-    save_pipeline_yaml: bool,
     save_pipeline_weights: bool,
     checkpoint_path: Path | None,
     plugins_yaml: Path,
@@ -197,8 +190,6 @@ def main(
             raise click.BadParameter(f"{option_name} must be in [0, 1].")
     if max_tracker_states < 1:
         raise click.BadParameter("--max-tracker-states must be >= 1.")
-    if save_pipeline_weights and not save_pipeline_yaml:
-        raise click.BadParameter("--save-pipeline-weights requires --save-pipeline-yaml.")
 
     resolved_mode = resolve_processing_mode(processing_mode)
     if video_path is not None:
@@ -229,13 +220,10 @@ def main(
         if source_context.source_type == "cu3s"
         else "SAM3_Text_Propagation_Video"
     )
-    input_frame_id_offset = start_frame if source_context.source_type == "video" else 0
 
     sam3_node = sam3_cls(
-        num_frames=source_context.target_frames,
         checkpoint_path=str(checkpoint_path) if checkpoint_path else None,
         compile_model=compile_model,
-        input_frame_id_offset=input_frame_id_offset,
         prompt_text=prompt,
         score_threshold_detection=float(score_threshold_detection),
         new_det_thresh=float(new_det_thresh),
@@ -248,7 +236,7 @@ def main(
     # -- build pipeline ------------------------------------------------
     pipeline = CuvisPipeline(pipeline_name)
 
-    tracking_json = TrackingCocoJsonNode(
+    tracking_json = CocoTrackMaskWriter(
         output_json_path=str(run_output_dir / "tracking_results.json"),
         category_name=prompt,
         name="tracking_coco_json",
@@ -285,25 +273,22 @@ def main(
         format="render_graphviz", output_path=str(pipeline_png), show_execution_stage=True
     )
     pipeline_yaml = run_output_dir / f"{pipeline.name}.yaml"
-    if save_pipeline_yaml:
-        if save_pipeline_weights:
-            pipeline.save_to_file(str(pipeline_yaml))
-            logger.info(
-                "Pipeline config saved (YAML + weights): {}, {}",
-                pipeline_yaml,
-                pipeline_yaml.with_suffix(".pt"),
-            )
-        else:
-            with pipeline_yaml.open("w", encoding="utf-8") as f:
-                yaml.dump(
-                    pipeline.serialize().to_dict(),
-                    f,
-                    default_flow_style=False,
-                    sort_keys=False,
-                )
-            logger.info("Pipeline config saved (YAML only): {}", pipeline_yaml)
+    if save_pipeline_weights:
+        pipeline.save_to_file(str(pipeline_yaml))
+        logger.info(
+            "Pipeline config saved (YAML + weights): {}, {}",
+            pipeline_yaml,
+            pipeline_yaml.with_suffix(".pt"),
+        )
     else:
-        logger.info("Skipping pipeline config save (--no-save-pipeline-yaml)")
+        with pipeline_yaml.open("w", encoding="utf-8") as f:
+            yaml.dump(
+                pipeline.serialize().to_dict(),
+                f,
+                default_flow_style=False,
+                sort_keys=False,
+            )
+        logger.info("Pipeline config saved (YAML only): {}", pipeline_yaml)
 
     # -- predict -------------------------------------------------------
     device = "cuda" if torch.cuda.is_available() else "cpu"

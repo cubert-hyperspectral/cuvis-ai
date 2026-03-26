@@ -17,28 +17,7 @@ import click
 import torch
 from loguru import logger
 
-
-def _resolve_run_output_dir(
-    *,
-    output_root: Path,
-    source_path: Path,
-    out_basename: str | None,
-) -> Path:
-    resolved_basename = source_path.stem
-    if out_basename is not None:
-        candidate = out_basename.strip()
-        if not candidate:
-            raise click.BadParameter(
-                "--out-basename must not be empty or whitespace only",
-                param_hint="--out-basename",
-            )
-        if "/" in candidate or "\\" in candidate:
-            raise click.BadParameter(
-                "--out-basename must be a folder name, not a path",
-                param_hint="--out-basename",
-            )
-        resolved_basename = candidate
-    return output_root / resolved_basename
+from cuvis_ai.utils.cli_helpers import resolve_run_output_dir
 
 
 @click.command()
@@ -145,7 +124,7 @@ def main(
         raise click.BadParameter("--end-frame must be -1 or positive")
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    run_output_dir = _resolve_run_output_dir(
+    run_output_dir = resolve_run_output_dir(
         output_root=output_dir,
         source_path=video_path,
         out_basename=out_basename,
@@ -158,7 +137,7 @@ def main(
     from cuvis_ai_core.utils.node_registry import NodeRegistry
 
     from cuvis_ai.node.anomaly_visualization import BBoxesOverlayNode
-    from cuvis_ai.node.json_writer import ByteTrackCocoJson, DetectionCocoJsonNode
+    from cuvis_ai.node.json_writer import CocoTrackBBoxWriter, DetectionCocoJsonNode
     from cuvis_ai.node.video import ToVideoNode, VideoFrameDataModule, VideoFrameNode
 
     # -- Data module -----------------------------------------------------------
@@ -222,7 +201,7 @@ def main(
         output_json_path=str(run_output_dir / "detection_results.json"),
         name="detection_coco_json",
     )
-    track_json = ByteTrackCocoJson(
+    track_json = CocoTrackBBoxWriter(
         output_json_path=str(run_output_dir / "tracking_results.json"),
         name="tracking_coco_json",
     )

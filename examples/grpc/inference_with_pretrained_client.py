@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import click
 import numpy as np
 from cuvis_ai_core.grpc import helpers
 from cuvis_ai_schemas.grpc.v1 import cuvis_ai_pb2
@@ -67,5 +68,10 @@ def main() -> None:
     print("Session closed.")
 
 
-if __name__ == "__main__":
+@click.command()
+def cli() -> None:
     main()
+
+
+if __name__ == "__main__":
+    cli()

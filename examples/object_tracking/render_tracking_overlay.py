@@ -1,51 +1,47 @@
-"""Render overlay video from tracking results (bboxes or masks).
-
-Reads a tracking JSON and a source (MP4 video or CU3S file), applies bbox and/or mask overlays
-using cuvis-ai nodes, and writes the result to an MP4 file.
-
-Supports tracking JSON formats:
-  - COCO bbox tracking (DeepEIoU / ByteTrack output with track_id)
-  - Video COCO (segmentations list per annotation)
-
-Source modes:
-  - --video-path: render overlays on an existing MP4
-  - --cu3s-file-path: generate false-RGB frames from a CU3S file on the fly and render overlays
-    (default method: cie_tristimulus)
-
-Usage — video mode:
-    uv run python examples/object_tracking/render_tracking_overlay.py `
-        --video-path path/to/source.mp4 `
-        --tracking-json path/to/tracking_results.json
-
-Usage — CU3S mode:
-    uv run python examples/object_tracking/render_tracking_overlay.py `
-        --cu3s-file-path path/to/recording.cu3s `
-        --tracking-json path/to/tracking_results.json `
-        --method cie_tristimulus
-"""
+"""Render tracking overlays on video or CU3S using one pipeline run."""
 
 from __future__ import annotations
 
 import argparse
 import sys
+from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import torch
+import yaml
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.training import Predictor
 from loguru import logger
-from torch.utils.data import DataLoader
-from tqdm import tqdm
+from torch.utils.data import Subset
 
 from cuvis_ai.node.anomaly_visualization import BBoxesOverlayNode, TrackingOverlayNode
+from cuvis_ai.node.data import CU3SDataNode
 from cuvis_ai.node.json_reader import TrackingResultsReader
-from cuvis_ai.node.video import ToVideoNode, VideoFrameDataset, VideoIterator
+from cuvis_ai.node.video import ToVideoNode, VideoFrameDataModule, VideoFrameNode
 from cuvis_ai.utils.false_rgb_sampling import initialize_false_rgb_sampled_fixed
 
 if TYPE_CHECKING:
     from cuvis_ai.node.channel_selector import CIETristimulusFalseRGBSelector
 
+from cuvis_ai_core.data.datasets import SingleCu3sDataModule
+
 _SUPPORTED_METHODS = ("cie_tristimulus",)
 _PROCESSING_MODES = ("Raw", "DarkSubtract", "Preview", "Reflectance", "SpectralRadiance")
+_OVERLAY_MODES = ("mask", "bbox")
+
+
+@dataclass
+class SourceContext:
+    """Runtime source context used to wire and execute the overlay pipeline."""
+
+    source_type: str
+    datamodule: Any
+    source_connections: list[tuple[object, object]]
+    source_rgb_port: Any
+    source_frame_id_port: Any
+    dataset_fps: float
+    target_frames: int
 
 
 def _make_false_rgb_node(method: str) -> CIETristimulusFalseRGBSelector:
@@ -67,11 +63,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     source = p.add_mutually_exclusive_group(required=True)
     source.add_argument("--video-path", default=None, help="Path to the source MP4 video.")
     source.add_argument(
-        "--cu3s-file-path",
+        "--cu3s-path",
         default=None,
         help="Path to a .cu3s file. False-RGB frames are generated on the fly.",
     )
     p.add_argument("--tracking-json", required=True, help="Path to tracking results JSON.")
+    p.add_argument(
+        "--overlay-mode",
+        choices=_OVERLAY_MODES,
+        default="mask",
+        help="Overlay mode to render. Select explicitly; default is mask.",
+    )
     p.add_argument(
         "--output-video-path",
         default=None,
@@ -105,45 +107,160 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Render object ID labels on masks.",
     )
     p.add_argument("--start-frame", type=int, default=0, help="First frame to render (inclusive).")
-    p.add_argument("--end-frame", type=int, default=-1, help="Last frame to render (-1 = end).")
+    p.add_argument(
+        "--end-frame",
+        type=int,
+        default=-1,
+        help="Stop at this source frame index (exclusive). -1 means source end.",
+    )
     p.add_argument(
         "--frame-rate", type=float, default=None, help="Output FPS (default: same as source)."
     )
     return p.parse_args(argv)
 
 
-def _apply_overlays(
-    rgb: torch.Tensor,
-    track: dict,
-    bbox_overlay: BBoxesOverlayNode | None,
-    mask_overlay: TrackingOverlayNode | None,
-) -> torch.Tensor:
-    """Apply bbox and/or mask overlays to an rgb frame tensor."""
-    if bbox_overlay is not None and track.get("bboxes") is not None:
-        category_ids = (
-            track["track_ids"] if track.get("track_ids") is not None else track["category_ids"]
-        )
-        result = bbox_overlay.forward(
-            rgb_image=rgb,
-            bboxes=track["bboxes"],
-            category_ids=category_ids,
-            frame_id=track["frame_id"],
-        )
-        rgb = result["rgb_with_overlay"]
+def _validate_frame_window(start_frame: int, end_frame: int) -> None:
+    if start_frame < 0:
+        raise ValueError("--start-frame must be zero or positive.")
+    if end_frame == 0 or end_frame < -1:
+        raise ValueError("--end-frame must be -1 or positive.")
+    if end_frame != -1 and end_frame <= start_frame:
+        raise ValueError("--end-frame must be greater than --start-frame.")
 
-    if mask_overlay is not None and track.get("mask") is not None:
-        result = mask_overlay.forward(
-            rgb_image=rgb,
-            mask=track["mask"],
-            object_ids=track.get("object_ids"),
-        )
-        rgb = result["rgb_with_overlay"]
 
-    return rgb
+def _resolve_frame_rate(requested_fps: float | None, dataset_fps: float | None) -> float:
+    if requested_fps is not None and requested_fps > 0:
+        return float(requested_fps)
+    if dataset_fps is not None and float(dataset_fps) > 0:
+        return float(dataset_fps)
+    logger.warning("Could not determine FPS from source metadata; falling back to 10.0 FPS.")
+    return 10.0
+
+
+def _build_cu3s_source_context(args: argparse.Namespace) -> SourceContext:
+    cu3s_path = Path(args.cu3s_path)
+    if not cu3s_path.exists():
+        raise FileNotFoundError(f"CU3S file not found: {cu3s_path}")
+
+    probe_dm = SingleCu3sDataModule(
+        cu3s_file_path=str(cu3s_path),
+        processing_mode=args.processing_mode,
+        batch_size=1,
+    )
+    probe_dm.setup(stage="predict")
+    if probe_dm.predict_ds is None:
+        raise RuntimeError("Predict dataset was not initialized.")
+    total_available = len(probe_dm.predict_ds)
+    if total_available <= 0:
+        raise RuntimeError("No frames available in CU3S source.")
+
+    if args.start_frame >= total_available:
+        raise ValueError(
+            f"--start-frame ({args.start_frame}) must be < available CU3S frames ({total_available})."
+        )
+
+    effective_end = min(args.end_frame, total_available) if args.end_frame > 0 else total_available
+    if effective_end <= args.start_frame:
+        raise ValueError(
+            f"Selected CU3S frame window is empty: start={args.start_frame}, end={effective_end}."
+        )
+
+    predict_ids: list[int] | None = None
+    if args.start_frame > 0 or effective_end < total_available:
+        predict_ids = list(range(args.start_frame, effective_end))
+
+    datamodule = SingleCu3sDataModule(
+        cu3s_file_path=str(cu3s_path),
+        processing_mode=args.processing_mode,
+        batch_size=1,
+        predict_ids=predict_ids,
+    )
+    datamodule.setup(stage="predict")
+    if datamodule.predict_ds is None:
+        raise RuntimeError("Predict dataset was not initialized.")
+
+    target_frames = len(datamodule.predict_ds)
+    if target_frames <= 0:
+        raise RuntimeError("No frames available for selected CU3S frame window.")
+
+    cu3s_data = CU3SDataNode(name="cu3s_data")
+    false_rgb = _make_false_rgb_node(args.method)
+    initialize_false_rgb_sampled_fixed(
+        false_rgb,
+        datamodule.predict_ds,
+        sample_fraction=0.05,
+    )
+
+    fps = _resolve_frame_rate(
+        requested_fps=args.frame_rate,
+        dataset_fps=getattr(datamodule.predict_ds, "fps", None),
+    )
+    return SourceContext(
+        source_type="cu3s",
+        datamodule=datamodule,
+        source_connections=[
+            (cu3s_data.outputs.cube, false_rgb.cube),
+            (cu3s_data.outputs.wavelengths, false_rgb.wavelengths),
+        ],
+        source_rgb_port=false_rgb.rgb_image,
+        source_frame_id_port=cu3s_data.outputs.mesu_index,
+        dataset_fps=fps,
+        target_frames=target_frames,
+    )
+
+
+def _build_video_source_context(args: argparse.Namespace) -> SourceContext:
+    video_path = Path(args.video_path)
+    if not video_path.exists():
+        raise FileNotFoundError(f"Video not found: {video_path}")
+
+    datamodule = VideoFrameDataModule(
+        video_path=str(video_path),
+        end_frame=args.end_frame if args.end_frame > 0 else -1,
+        batch_size=1,
+    )
+    datamodule.setup(stage="predict")
+    if datamodule.predict_ds is None:
+        raise RuntimeError("Predict dataset was not initialized.")
+
+    total_available = len(datamodule.predict_ds)
+    if total_available <= 0:
+        raise RuntimeError("No frames available in video source.")
+    if args.start_frame >= total_available:
+        raise ValueError(
+            f"--start-frame ({args.start_frame}) must be < available video frames ({total_available})."
+        )
+
+    if args.start_frame > 0:
+        datamodule.predict_ds = Subset(
+            datamodule.predict_ds, range(args.start_frame, total_available)
+        )
+
+    target_frames = len(datamodule.predict_ds)
+    if target_frames <= 0:
+        raise RuntimeError("No frames available for selected video frame window.")
+
+    video_frame = VideoFrameNode(name="video_frame")
+    fps = _resolve_frame_rate(
+        requested_fps=args.frame_rate,
+        dataset_fps=(
+            getattr(datamodule, "fps", None) or getattr(datamodule.predict_ds, "fps", None)
+        ),
+    )
+    return SourceContext(
+        source_type="video",
+        datamodule=datamodule,
+        source_connections=[],
+        source_rgb_port=video_frame.outputs.rgb_image,
+        source_frame_id_port=video_frame.outputs.frame_id,
+        dataset_fps=fps,
+        target_frames=target_frames,
+    )
 
 
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
+    _validate_frame_window(args.start_frame, args.end_frame)
 
     tracking_json = Path(args.tracking_json)
     if not tracking_json.exists():
@@ -157,148 +274,91 @@ def main(argv: list[str] | None = None) -> None:
     )
     output.parent.mkdir(parents=True, exist_ok=True)
 
-    # -- Shared nodes ----------------------------------------------------------
-
-    reader = TrackingResultsReader(json_path=str(tracking_json))
-    logger.info("Tracking format: {} ({} frames)", reader.format, reader.num_frames)
-
-    has_bboxes = reader.format == "coco_bbox"
-    has_masks = reader.format == "video_coco"
-
-    bbox_overlay = (
-        BBoxesOverlayNode(
-            line_thickness=args.line_thickness,
-            draw_labels=args.draw_labels,
-        )
-        if has_bboxes
-        else None
+    expected_format = "video_coco" if args.overlay_mode == "mask" else "coco_bbox"
+    reader = TrackingResultsReader(
+        json_path=str(tracking_json),
+        required_format=expected_format,
     )
 
-    mask_overlay = (
-        TrackingOverlayNode(
+    try:
+        source_context = (
+            _build_cu3s_source_context(args)
+            if args.cu3s_path is not None
+            else _build_video_source_context(args)
+        )
+    except (FileNotFoundError, RuntimeError, ValueError) as exc:
+        logger.error("{}", exc)
+        sys.exit(1)
+
+    pipeline = CuvisPipeline("Tracking_Overlay_Render")
+    to_video = ToVideoNode(output_video_path=str(output), frame_rate=source_context.dataset_fps)
+
+    connections = list(source_context.source_connections)
+    connections.append((source_context.source_frame_id_port, reader.inputs.frame_id))
+
+    if args.overlay_mode == "bbox":
+        overlay = BBoxesOverlayNode(
+            line_thickness=args.line_thickness,
+            draw_labels=args.draw_labels,
+            name="bbox_overlay",
+        )
+        connections.extend(
+            [
+                (source_context.source_rgb_port, overlay.rgb_image),
+                (reader.outputs.bboxes, overlay.bboxes),
+                (reader.outputs.track_ids, overlay.category_ids),
+                (reader.outputs.confidences, overlay.confidences),
+                (reader.outputs.frame_id, overlay.frame_id),
+                (overlay.rgb_with_overlay, to_video.rgb_image),
+            ]
+        )
+    elif args.overlay_mode == "mask":
+        overlay = TrackingOverlayNode(
             alpha=args.mask_alpha,
             draw_contours=args.draw_contours,
             draw_ids=args.draw_ids,
+            name="mask_overlay",
         )
-        if has_masks
-        else None
-    )
-
-    # -- Source: CU3S ----------------------------------------------------------
-
-    if args.cu3s_file_path is not None:
-        from cuvis_ai_core.data.datasets import SingleCu3sDataModule
-
-        from cuvis_ai.node.data import CU3SDataNode
-
-        cu3s_path = Path(args.cu3s_file_path)
-        if not cu3s_path.exists():
-            logger.error("CU3S file not found: {}", cu3s_path)
-            sys.exit(1)
-
-        predict_ids = (
-            list(range(args.start_frame, args.end_frame))
-            if args.end_frame > 0
-            else (
-                list(range(args.start_frame, reader.num_frames)) if args.start_frame > 0 else None
-            )
+        connections.extend(
+            [
+                (source_context.source_rgb_port, overlay.rgb_image),
+                (reader.outputs.mask, overlay.mask),
+                (reader.outputs.object_ids, overlay.object_ids),
+                (reader.outputs.frame_id, overlay.frame_id),
+                (overlay.rgb_with_overlay, to_video.rgb_image),
+            ]
         )
-
-        datamodule = SingleCu3sDataModule(
-            cu3s_file_path=str(cu3s_path),
-            processing_mode=args.processing_mode,
-            batch_size=1,
-            predict_ids=predict_ids,
-        )
-        datamodule.setup(stage="predict")
-
-        dataset_fps = getattr(datamodule.predict_ds, "fps", None)
-        if args.frame_rate is not None and args.frame_rate > 0:
-            fps = float(args.frame_rate)
-        elif dataset_fps is not None and dataset_fps > 0:
-            fps = float(dataset_fps)
-        else:
-            fps = 10.0
-            logger.warning(
-                "Could not determine FPS from session metadata; falling back to 10.0 FPS."
-            )
-
-        cu3s_node = CU3SDataNode(name="cu3s_data")
-        false_rgb = _make_false_rgb_node(args.method)
-        sample_positions = initialize_false_rgb_sampled_fixed(
-            false_rgb,
-            datamodule.predict_ds,
-            sample_fraction=0.05,
-        )
-        logger.info(
-            "False-RGB sampled-fixed calibration: sample_fraction=0.05, sample_count={}",
-            len(sample_positions),
-        )
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        cu3s_node.to(device)
-        false_rgb.to(device)
-
-        video_writer = ToVideoNode(output_video_path=str(output), frame_rate=fps)
-
-        total = min(reader.num_frames, len(datamodule.predict_ds))
-        loader = DataLoader(datamodule.predict_ds, batch_size=1, num_workers=0)
-
-        for batch in tqdm(loader, total=total, desc="Rendering overlay (CU3S)", unit="frame"):
-            cu3s_out = cu3s_node.forward(
-                **{k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
-            )
-            rgb_out = false_rgb.forward(cube=cu3s_out["cube"], wavelengths=cu3s_out["wavelengths"])
-            rgb = rgb_out["rgb_image"]  # [1, H, W, 3] float32 0-1
-
-            try:
-                track = reader.forward()
-            except StopIteration:
-                break
-
-            rgb = _apply_overlays(rgb, track, bbox_overlay, mask_overlay)
-            video_writer.forward(rgb_image=rgb)
-
-        video_writer.close()
-        logger.info("Overlay video written to: {}", output)
-        return
-
-    # -- Source: MP4 -----------------------------------------------------------
-
-    video_path = Path(args.video_path)
-    if not video_path.exists():
-        logger.error("Video not found: {}", video_path)
+    else:
+        logger.error("Unsupported overlay mode: {}", args.overlay_mode)
         sys.exit(1)
 
-    video_iter = VideoIterator(str(video_path))
-    dataset = VideoFrameDataset(video_iter, end_frame=args.end_frame if args.end_frame > 0 else -1)
-    fps = args.frame_rate if args.frame_rate is not None else video_iter.frame_rate
+    pipeline.connect(*connections)
 
-    video_writer = ToVideoNode(output_video_path=str(output), frame_rate=fps)
+    pipeline_png = output.parent / f"{pipeline.name}.png"
+    pipeline.visualize(
+        format="render_graphviz",
+        output_path=str(pipeline_png),
+        show_execution_stage=True,
+    )
 
-    total = min(reader.num_frames, len(dataset))
-    if args.end_frame > 0:
-        total = min(total, args.end_frame - args.start_frame)
+    pipeline_yaml = output.parent / f"{pipeline.name}.yaml"
+    with pipeline_yaml.open("w", encoding="utf-8") as stream:
+        yaml.dump(pipeline.serialize().to_dict(), stream, default_flow_style=False, sort_keys=False)
 
-    if args.start_frame > 0:
-        reader._cursor = args.start_frame
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    pipeline.to(device)
+    pipeline.set_profiling(enabled=True, synchronize_cuda=(device == "cuda"), skip_first_n=3)
 
-    for i in tqdm(range(total), desc="Rendering overlay", unit="frame"):
-        frame_idx = args.start_frame + i
-        if frame_idx >= len(dataset):
-            break
+    predictor = Predictor(pipeline=pipeline, datamodule=source_context.datamodule)
+    predictor.predict(max_batches=source_context.target_frames, collect_outputs=False)
 
-        frame_data = dataset[frame_idx]
-        rgb = frame_data["rgb_image"].unsqueeze(0)  # [1, H, W, 3]
+    summary = pipeline.format_profiling_summary(total_frames=source_context.target_frames)
+    profiling_path = output.parent / "profiling_summary.txt"
+    profiling_path.write_text(summary, encoding="utf-8")
 
-        try:
-            track = reader.forward()
-        except StopIteration:
-            break
+    if not output.exists():
+        raise RuntimeError(f"Expected output video was not created: {output}")
 
-        rgb = _apply_overlays(rgb, track, bbox_overlay, mask_overlay)
-        video_writer.forward(rgb_image=rgb)
-
-    video_writer.close()
     logger.info("Overlay video written to: {}", output)
 
 

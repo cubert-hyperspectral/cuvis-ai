@@ -3,8 +3,8 @@
 Exactly one of ``--cu3s-path`` or ``--video-path`` is required.
 
 Accepts a pre-made binary mask PNG (255=foreground) as the SAM3 prompt.
-Specify the mask with ``--prompt-mask-path``, the source frame index with
-``--prompt-frame-idx``, and optionally the object ID with ``--prompt-obj-id``.
+Specify the mask with ``--prompt-mask-path`` and optionally the object ID with
+``--prompt-obj-id``. Prompt frame is always ``--start-frame``.
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ from sam3_source_context import (
 )
 
 from cuvis_ai.node.anomaly_visualization import TrackingOverlayNode
-from cuvis_ai.node.json_writer import TrackingCocoJsonNode
+from cuvis_ai.node.json_writer import CocoTrackMaskWriter
 from cuvis_ai.node.video import ToVideoNode
 
 
@@ -52,12 +52,6 @@ from cuvis_ai.node.video import ToVideoNode
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
     required=True,
     help="Pre-made binary mask PNG (255=foreground, 0=background).",
-)
-@click.option(
-    "--prompt-frame-idx",
-    type=int,
-    required=True,
-    help="Source frame index where the mask prompt applies.",
 )
 @click.option(
     "--prompt-obj-id",
@@ -153,7 +147,6 @@ def main(
     cu3s_path: Path | None,
     video_path: Path | None,
     prompt_mask_path: Path,
-    prompt_frame_idx: int,
     prompt_obj_id: int,
     processing_mode: str,
     frame_rotation: int | None,
@@ -206,24 +199,6 @@ def main(
     if video_path is not None:
         logger.info("Ignoring --processing-mode because --video-path is set")
 
-    if start_frame > prompt_frame_idx:
-        raise click.ClickException(
-            f"--start-frame ({start_frame}) must be <= prompt frame ({prompt_frame_idx})."
-        )
-    if start_frame > 0:
-        trimmed_prefix = start_frame
-        prompt_lead = prompt_frame_idx - start_frame
-        logger.warning(
-            "Using --start-frame={} trims {} leading frames before the prompt frame {} "
-            "(local prompt index={}). This can alter SAM3 prompt association and cause "
-            "identity switches. For best stability, prefer --start-frame 0 and trim "
-            "outputs after propagation.",
-            start_frame,
-            trimmed_prefix,
-            prompt_frame_idx,
-            prompt_lead,
-        )
-
     # Archive the prompt mask into the run output directory
     archived_mask = run_output_dir / "prompt_mask.png"
     if prompt_mask_path.resolve() != archived_mask.resolve():
@@ -236,13 +211,6 @@ def main(
         start_frame=start_frame,
         end_frame=effective_end_frame,
     )
-    prompt_frame_idx_local = prompt_frame_idx - start_frame
-    if prompt_frame_idx_local < 0 or prompt_frame_idx_local >= source_context.target_frames:
-        raise click.ClickException(
-            "Prompt frame is outside the streamed window after start-frame slicing: "
-            f"source={prompt_frame_idx}, start={start_frame}, local={prompt_frame_idx_local}, "
-            f"target_frames={source_context.target_frames}."
-        )
 
     plugin_manifest = resolve_plugin_manifest(plugins_yaml)
     registry = NodeRegistry()
@@ -254,14 +222,10 @@ def main(
         if source_context.source_type == "cu3s"
         else "SAM3_Mask_Propagation_Video"
     )
-    input_frame_id_offset = start_frame if source_context.source_type == "video" else 0
 
     sam3_node = sam3_cls(
-        num_frames=source_context.target_frames,
         checkpoint_path=str(checkpoint_path) if checkpoint_path else None,
         compile_model=compile_model,
-        prompt_frame_id=prompt_frame_idx,
-        input_frame_id_offset=input_frame_id_offset,
         prompt_mask_path=str(prompt_mask_path),
         prompt_obj_id=prompt_obj_id,
         score_threshold_detection=float(score_threshold_detection),
@@ -273,17 +237,15 @@ def main(
     )
 
     logger.info(
-        "Mask propagation: obj_id={}, source prompt frame {}, local prompt frame {}, {} frames",
+        "Mask propagation: obj_id={}, {} frames",
         prompt_obj_id,
-        prompt_frame_idx,
-        prompt_frame_idx_local,
         source_context.target_frames,
     )
 
     # -- build pipeline ------------------------------------------------
     pipeline = CuvisPipeline(pipeline_name)
 
-    tracking_json = TrackingCocoJsonNode(
+    tracking_json = CocoTrackMaskWriter(
         output_json_path=str(run_output_dir / "tracking_results.json"),
         category_name="person",
         name="tracking_coco_json",

@@ -32,7 +32,11 @@ from cuvis_ai.node.channel_selector import (
 from cuvis_ai.node.conversion import DecisionToMask
 from cuvis_ai.node.dimensionality_reduction import TrainablePCA
 from cuvis_ai.node.json_reader import DetectionJsonReader, TrackingResultsReader
-from cuvis_ai.node.json_writer import ByteTrackCocoJson, DetectionCocoJsonNode, TrackingCocoJsonNode
+from cuvis_ai.node.json_writer import (
+    CocoTrackBBoxWriter,
+    CocoTrackMaskWriter,
+    DetectionCocoJsonNode,
+)
 from cuvis_ai.node.labels import BinaryAnomalyLabelMapper
 from cuvis_ai.node.losses import DistinctnessLoss, ForegroundContrastLoss
 from cuvis_ai.node.normalization import IdentityNormalizer, MinMaxNormalizer, SigmoidNormalizer
@@ -120,8 +124,8 @@ __all__ = [
     "VideoFrameDataset",
     "VideoFrameNode",
     "VideoIterator",
-    "TrackingCocoJsonNode",
-    "ByteTrackCocoJson",
+    "CocoTrackMaskWriter",
+    "CocoTrackBBoxWriter",
     "TrackingOverlayNode",
     "TrackingResultsReader",
     "TrainablePCA",

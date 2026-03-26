@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import argparse
 from pathlib import Path
 
+import click
 import numpy as np
 from cuvis_ai_core.grpc import helpers
 from cuvis_ai_schemas.grpc.v1 import cuvis_ai_pb2
@@ -18,30 +18,14 @@ from workflow_utils import (
 )
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="cuvis.ai gRPC end-to-end client")
-    parser.add_argument("--target", default="localhost:50051", help="gRPC target host:port")
-    parser.add_argument(
-        "--trainrun",
-        default="deep_svdd",
-        help="Trainrun name (under configs/trainrun) to resolve with Hydra",
-    )
-    parser.add_argument(
-        "--pipeline-out",
-        default=str(Path("outputs") / "demo_pipeline.yaml"),
-        help="Path to save the trained pipeline (YAML).",
-    )
-    parser.add_argument(
-        "--trainrun-out",
-        default=str(Path("outputs") / "demo_trainrun.yaml"),
-        help="Path to save the composed trainrun config (for RestoreTrainRun).",
-    )
-    return parser.parse_args()
-
-
-def main() -> None:
-    args = parse_args()
-    stub = build_stub(args.target)
+def main(
+    *,
+    target: str,
+    trainrun: str,
+    pipeline_out: Path,
+    trainrun_out: Path,
+) -> None:
+    stub = build_stub(target)
 
     # 1) Create session + register config search paths
     session_id = create_session_with_search_paths(stub, config_search_paths())
@@ -51,7 +35,7 @@ def main() -> None:
     resolved, config_dict = resolve_trainrun_config(
         stub,
         session_id,
-        args.trainrun,
+        trainrun,
         overrides=["training.trainer.max_epochs=2"],
     )
     print(
@@ -80,8 +64,8 @@ def main() -> None:
         print(f"[gradient] {format_progress(progress)}")
 
     # 5) Save pipeline + composed trainrun for reproducibility
-    pipeline_path = str(Path(args.pipeline_out).resolve())
-    trainrun_path = str(Path(args.trainrun_out).resolve())
+    pipeline_path = str(pipeline_out.resolve())
+    trainrun_path = str(trainrun_out.resolve())
 
     save_pipeline = stub.SavePipeline(
         cuvis_ai_pb2.SavePipelineRequest(
@@ -115,5 +99,48 @@ def main() -> None:
     print("Session closed.")
 
 
+@click.command()
+@click.option(
+    "--target",
+    type=str,
+    default="localhost:50051",
+    show_default=True,
+    help="gRPC target host:port.",
+)
+@click.option(
+    "--trainrun",
+    type=str,
+    default="deep_svdd",
+    show_default=True,
+    help="Trainrun name (under configs/trainrun) to resolve with Hydra.",
+)
+@click.option(
+    "--pipeline-out",
+    type=click.Path(dir_okay=False, path_type=Path),
+    default=Path("outputs") / "demo_pipeline.yaml",
+    show_default=True,
+    help="Path to save the trained pipeline (YAML).",
+)
+@click.option(
+    "--trainrun-out",
+    type=click.Path(dir_okay=False, path_type=Path),
+    default=Path("outputs") / "demo_trainrun.yaml",
+    show_default=True,
+    help="Path to save the composed trainrun config (for RestoreTrainRun).",
+)
+def cli(
+    target: str,
+    trainrun: str,
+    pipeline_out: Path,
+    trainrun_out: Path,
+) -> None:
+    main(
+        target=target,
+        trainrun=trainrun,
+        pipeline_out=pipeline_out,
+        trainrun_out=trainrun_out,
+    )
+
+
 if __name__ == "__main__":
-    main()
+    cli()

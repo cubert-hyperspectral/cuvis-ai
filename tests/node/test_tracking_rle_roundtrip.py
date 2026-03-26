@@ -1,22 +1,15 @@
-"""Roundtrip tests: TrackingCocoJsonNode writer → TrackingResultsReader reader.
-
-The writer outputs COCO bbox+segmentation format (``images`` + ``annotations``),
-which the reader detects as ``coco_bbox``.  In this mode the reader returns
-bboxes/track_ids/scores (mask and object_ids are None).  These tests verify
-the bbox/track roundtrip and that RLE segmentations are valid in the JSON.
-"""
+"""Roundtrip tests for CocoTrackMaskWriter and TrackingResultsReader."""
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
-import pytest
 import torch
 from cuvis_ai_core.data.rle import coco_rle_decode
 
 from cuvis_ai.node.json_reader import TrackingResultsReader
-from cuvis_ai.node.json_writer import TrackingCocoJsonNode
+from cuvis_ai.node.json_writer import CocoTrackMaskWriter
 
 
 def _build_inputs(
@@ -33,29 +26,26 @@ def _build_inputs(
     }
 
 
-def test_roundtrip_single_object_bbox(tmp_path: Path) -> None:
-    """Write one frame, read back via coco_bbox path, verify bbox and track_id."""
+def test_roundtrip_single_object_mask(tmp_path: Path) -> None:
     json_path = tmp_path / "tracking.json"
-    writer = TrackingCocoJsonNode(output_json_path=str(json_path), category_name="person")
+    writer = CocoTrackMaskWriter(output_json_path=str(json_path), category_name="person")
 
     mask_2d = torch.tensor([[0, 1, 1], [0, 1, 0]], dtype=torch.int32)
     writer.forward(**_build_inputs(0, mask_2d, [1], [0.9]))
     writer.close()
 
     reader = TrackingResultsReader(json_path=str(json_path))
-    assert reader.format == "coco_bbox"
+    assert reader.format == "video_coco"
     out = reader.forward()
 
-    assert out["bboxes"] is not None
-    assert out["track_ids"] is not None
-    assert out["track_ids"][0, 0].item() == 1
-    assert out["confidences"][0, 0].item() == pytest.approx(0.9)
+    assert out["object_ids"][0].tolist() == [1]
+    assert out["mask"].shape == (1, 2, 3)
+    assert torch.equal(out["mask"][0], mask_2d)
 
 
-def test_roundtrip_multi_object_bbox(tmp_path: Path) -> None:
-    """Two objects roundtrip through bbox path."""
+def test_roundtrip_multi_object_mask(tmp_path: Path) -> None:
     json_path = tmp_path / "tracking.json"
-    writer = TrackingCocoJsonNode(output_json_path=str(json_path), category_name="person")
+    writer = CocoTrackMaskWriter(output_json_path=str(json_path), category_name="person")
 
     mask_2d = torch.tensor(
         [[1, 1, 0, 0], [1, 0, 0, 0], [0, 0, 0, 2], [0, 0, 2, 2]],
@@ -67,25 +57,23 @@ def test_roundtrip_multi_object_bbox(tmp_path: Path) -> None:
     reader = TrackingResultsReader(json_path=str(json_path))
     out = reader.forward()
 
-    track_ids = out["track_ids"][0].tolist()
-    assert 1 in track_ids
-    assert 2 in track_ids
+    assert sorted(out["object_ids"][0].tolist()) == [1, 2]
+    assert torch.equal(out["mask"][0], mask_2d)
 
 
 def test_rle_segmentation_valid_in_json(tmp_path: Path) -> None:
-    """Verify the RLE segmentation stored in JSON can be decoded back to a mask."""
     json_path = tmp_path / "tracking.json"
-    writer = TrackingCocoJsonNode(output_json_path=str(json_path), category_name="person")
+    writer = CocoTrackMaskWriter(output_json_path=str(json_path), category_name="person")
 
     mask_2d = torch.tensor([[0, 1, 1], [0, 1, 0]], dtype=torch.int32)
     writer.forward(**_build_inputs(0, mask_2d, [1], [0.9]))
     writer.close()
 
-    with json_path.open() as f:
+    with json_path.open(encoding="utf-8") as f:
         data = json.load(f)
 
     ann = data["annotations"][0]
-    rle = ann["segmentation"]
+    rle = ann["segmentations"][0]
     decoded = coco_rle_decode(rle)
 
     assert decoded.shape == (2, 3)
@@ -94,9 +82,8 @@ def test_rle_segmentation_valid_in_json(tmp_path: Path) -> None:
 
 
 def test_rle_non_square_mask_in_json(tmp_path: Path) -> None:
-    """Non-square mask (3×7) RLE roundtrip through JSON."""
     json_path = tmp_path / "tracking.json"
-    writer = TrackingCocoJsonNode(output_json_path=str(json_path), category_name="person")
+    writer = CocoTrackMaskWriter(output_json_path=str(json_path), category_name="person")
 
     mask_2d = torch.zeros((3, 7), dtype=torch.int32)
     mask_2d[0, :] = 1
@@ -104,10 +91,10 @@ def test_rle_non_square_mask_in_json(tmp_path: Path) -> None:
     writer.forward(**_build_inputs(0, mask_2d, [1], [0.95]))
     writer.close()
 
-    with json_path.open() as f:
+    with json_path.open(encoding="utf-8") as f:
         data = json.load(f)
 
-    rle = data["annotations"][0]["segmentation"]
+    rle = data["annotations"][0]["segmentations"][0]
     decoded = coco_rle_decode(rle)
 
     assert decoded.shape == (3, 7)
@@ -116,9 +103,8 @@ def test_rle_non_square_mask_in_json(tmp_path: Path) -> None:
 
 
 def test_roundtrip_empty_frame(tmp_path: Path) -> None:
-    """Empty frame (no objects) roundtrips through bbox path."""
     json_path = tmp_path / "tracking.json"
-    writer = TrackingCocoJsonNode(
+    writer = CocoTrackMaskWriter(
         output_json_path=str(json_path),
         category_name="person",
         write_empty_frames=True,
@@ -131,5 +117,6 @@ def test_roundtrip_empty_frame(tmp_path: Path) -> None:
     reader = TrackingResultsReader(json_path=str(json_path))
     out = reader.forward()
 
-    assert out["bboxes"].shape == (1, 0, 4)
-    assert out["track_ids"].shape == (1, 0)
+    assert out["object_ids"].shape == (1, 0)
+    assert out["mask"].shape == (1, 4, 4)
+    assert torch.count_nonzero(out["mask"]).item() == 0

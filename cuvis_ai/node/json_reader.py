@@ -183,10 +183,19 @@ class TrackingResultsReader(Node):
         ),
     }
 
-    def __init__(self, json_path: str, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        json_path: str,
+        required_format: str | None = None,
+        **kwargs: Any,
+    ) -> None:
         self.json_path = Path(json_path)
         if not self.json_path.exists():
             raise FileNotFoundError(f"JSON not found: {self.json_path}")
+        if required_format is not None and required_format not in {"coco_bbox", "video_coco"}:
+            raise ValueError(
+                "required_format must be one of {'coco_bbox', 'video_coco'} when provided."
+            )
 
         with self.json_path.open("r", encoding="utf-8") as f:
             data = json.load(f)
@@ -205,15 +214,24 @@ class TrackingResultsReader(Node):
                 "or video COCO (videos+annotations)."
             )
 
+        self._required_format = required_format
+        self._format_mismatch_msg: str | None = None
+        if self._required_format is not None and self._format != self._required_format:
+            self._format_mismatch_msg = (
+                f"Tracking JSON format is '{self._format}', "
+                f"but required_format is '{self._required_format}'."
+            )
+
         self._cursor = 0
         logger.info(
-            "[TrackingResultsReader] format={}, frames={}, path={}",
+            "[TrackingResultsReader] format={}, required_format={}, frames={}, path={}",
             self._format,
+            self._required_format,
             len(self._frame_ids),
             self.json_path,
         )
 
-        super().__init__(json_path=str(self.json_path), **kwargs)
+        super().__init__(json_path=str(self.json_path), required_format=required_format, **kwargs)
 
     # -- Format-specific init --------------------------------------------------
 
@@ -284,6 +302,9 @@ class TrackingResultsReader(Node):
         **_: Any,
     ) -> dict[str, Any]:
         """Emit tracking tensors for an explicit frame or the next cursor frame."""
+        if self._format_mismatch_msg is not None:
+            raise ValueError(self._format_mismatch_msg)
+
         if frame_id is not None:
             # Lookup mode: emit detections for the requested frame
             fid = int(frame_id.item())

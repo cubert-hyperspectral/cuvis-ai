@@ -79,6 +79,7 @@ from cuvis_ai.node.channel_selector import (
 )
 from cuvis_ai.node.data import CU3SDataNode
 from cuvis_ai.node.video import ToVideoNode
+from cuvis_ai.utils.cli_helpers import resolve_run_output_dir
 
 SUPPORTED_METHODS = ("cie_tristimulus", "cir", "fast_rgb", "cuvis-plugin")
 METHOD_ALIASES: dict[str, str] = {"fastrgb": "fast_rgb"}
@@ -294,30 +295,6 @@ def _resolve_method(method: str) -> str:
     if alias is not None:
         return alias
     raise click.BadParameter(f"Unknown method '{method}'. Supported: {', '.join(METHOD_CHOICES)}")
-
-
-def _resolve_run_output_dir(
-    *,
-    output_root: Path,
-    source_path: Path,
-    out_basename: str | None,
-) -> Path:
-    """Resolve per-run output directory from --output-dir and --out-basename."""
-    resolved_basename = source_path.stem
-    if out_basename is not None:
-        candidate = out_basename.strip()
-        if not candidate:
-            raise click.BadParameter(
-                "--out-basename must not be empty or whitespace only",
-                param_hint="--out-basename",
-            )
-        if "/" in candidate or "\\" in candidate:
-            raise click.BadParameter(
-                "--out-basename must be a folder name, not a path",
-                param_hint="--out-basename",
-            )
-        resolved_basename = candidate
-    return output_root / resolved_basename
 
 
 def _resolve_normalization_mode(normalization_mode: str) -> str:
@@ -915,7 +892,7 @@ def main(
         None if freeze_running_bounds_after <= 0 else freeze_running_bounds_after
     )
 
-    run_output_dir = _resolve_run_output_dir(
+    run_output_dir = resolve_run_output_dir(
         output_root=output_dir,
         source_path=cu3s_path,
         out_basename=out_basename,

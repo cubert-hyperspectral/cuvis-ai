@@ -5,8 +5,10 @@ from __future__ import annotations
 import json
 from collections.abc import Iterable
 from pathlib import Path
+from typing import Any
 
 import grpc
+import yaml
 from cuvis_ai_schemas.grpc.v1 import cuvis_ai_pb2, cuvis_ai_pb2_grpc
 
 CONFIG_ROOT = Path(__file__).resolve().parents[2] / "configs"
@@ -123,12 +125,48 @@ def format_progress(progress: cuvis_ai_pb2.TrainResponse) -> str:
     return " | ".join(parts)
 
 
+def load_manifest_bytes(path: Path) -> bytes:
+    """Load a plugin YAML manifest, resolve relative plugin paths, and return JSON bytes."""
+    manifest = yaml.safe_load(path.read_text(encoding="utf-8"))
+    plugins = manifest.get("plugins", {}) if isinstance(manifest, dict) else {}
+    for plugin_config in plugins.values():
+        if not isinstance(plugin_config, dict):
+            continue
+        plugin_path = plugin_config.get("path")
+        if isinstance(plugin_path, str) and plugin_path:
+            resolved = Path(plugin_path)
+            if not resolved.is_absolute():
+                plugin_config["path"] = str((path.parent / resolved).resolve())
+    return json.dumps(manifest).encode("utf-8")
+
+
+def normalize_pipeline_bytes(config_bytes: bytes) -> bytes:
+    """Unwrap Hydra group wrappers until a PipelineConfig payload with ``nodes`` is reached."""
+    payload: Any = json.loads(config_bytes.decode("utf-8"))
+
+    for _ in range(6):
+        if isinstance(payload, dict) and "nodes" in payload:
+            return json.dumps(payload).encode("utf-8")
+        if isinstance(payload, dict) and len(payload) == 1:
+            candidate = next(iter(payload.values()))
+            if isinstance(candidate, dict):
+                payload = candidate
+                continue
+        break
+
+    raise ValueError(
+        "Resolved pipeline config could not be normalized to a PipelineConfig payload."
+    )
+
+
 __all__ = [
     "CONFIG_ROOT",
-    "config_search_paths",
-    "build_stub",
-    "create_session_with_search_paths",
-    "resolve_trainrun_config",
     "apply_trainrun_config",
+    "build_stub",
+    "config_search_paths",
+    "create_session_with_search_paths",
     "format_progress",
+    "load_manifest_bytes",
+    "normalize_pipeline_bytes",
+    "resolve_trainrun_config",
 ]

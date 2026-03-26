@@ -9,6 +9,7 @@ This client demonstrates running AdaCLIP anomaly detection on lentils dataset vi
 
 from __future__ import annotations
 
+import click
 import numpy as np
 from cuvis_ai.data.datasets import SingleCu3sDataset
 from cuvis_ai_core.grpc import helpers
@@ -119,34 +120,39 @@ def main(
     print("Session closed.")
 
 
-if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser(
-        description="Run AdaCLIP baseline inference on lentils dataset via gRPC"
-    )
-    parser.add_argument(
-        "--lentils-path",
-        type=str,
-        default="path/to/lentils/dataset",
-        help="Path to lentils dataset directory",
-    )
-    parser.add_argument(
-        "--server",
-        type=str,
-        default="localhost:50051",
-        help="gRPC server address (default: localhost:50051)",
-    )
-    parser.add_argument(
-        "--max-samples",
-        type=int,
-        default=None,
-        help="Maximum number of samples to process",
-    )
-
-    args = parser.parse_args()
+@click.command()
+@click.option(
+    "--lentils-path",
+    type=str,
+    default="path/to/lentils/dataset",
+    show_default=True,
+    help="Path to lentils dataset directory.",
+)
+@click.option(
+    "--server",
+    "server_address",
+    type=str,
+    default="localhost:50051",
+    show_default=True,
+    help="gRPC server address.",
+)
+@click.option(
+    "--max-samples",
+    type=int,
+    default=None,
+    help="Maximum number of samples to process.",
+)
+def cli(
+    lentils_path: str,
+    server_address: str,
+    max_samples: int | None,
+) -> None:
     main(
-        lentils_path=args.lentils_path,
-        server_address=args.server,
-        max_samples=args.max_samples,
+        lentils_path=lentils_path,
+        server_address=server_address,
+        max_samples=max_samples,
     )
+
+
+if __name__ == "__main__":
+    cli()

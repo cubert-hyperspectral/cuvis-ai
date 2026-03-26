@@ -1,14 +1,15 @@
-"""AdaCLIP supervised full-spectrum example using gRPC.
+"""AdaCLIP CIR false-color example using gRPC.
 
-This client demonstrates running AdaCLIP with supervised full-spectrum band selection via gRPC:
-  - Resolves the adaclip_supervised_full_spectrum trainrun config
-  - Applies the config to build the pipeline (with supervised full-spectrum band selector)
+This client demonstrates running AdaCLIP with CIR false-color band selection via gRPC:
+  - Resolves the adaclip_cir_false_color trainrun config
+  - Applies the config to build the pipeline (with CIR false-color band selector)
   - Runs statistical training
   - Performs inference with sample data
 """
 
 from __future__ import annotations
 
+import click
 import numpy as np
 from cuvis_ai_core.grpc import helpers
 from cuvis_ai_schemas.grpc.v1 import cuvis_ai_pb2
@@ -27,11 +28,11 @@ def main(server_address: str = "localhost:50051") -> None:
     session_id = create_session_with_search_paths(stub, config_search_paths())
     print(f"Session created: {session_id}")
 
-    # Resolve the adaclip_supervised_full_spectrum trainrun config
+    # Resolve the adaclip_cir_false_color trainrun config
     resolved, config_dict = resolve_trainrun_config(
         stub,
         session_id,
-        "adaclip_supervised_full_spectrum",
+        "adaclip_cir_false_color",
         overrides=[],
     )
     print(
@@ -41,7 +42,7 @@ def main(server_address: str = "localhost:50051") -> None:
 
     # Apply the trainrun config (builds the pipeline on the server)
     apply_trainrun_config(stub, session_id, resolved.config_bytes)
-    print("Applied AdaCLIP supervised full-spectrum trainrun config")
+    print("Applied AdaCLIP CIR false-color trainrun config")
 
     # Statistical training
     print("Starting statistical training...")
@@ -85,5 +86,18 @@ def main(server_address: str = "localhost:50051") -> None:
     print("Session closed.")
 
 
+@click.command()
+@click.option(
+    "--server",
+    "server_address",
+    type=str,
+    default="localhost:50051",
+    show_default=True,
+    help="gRPC server address.",
+)
+def cli(server_address: str) -> None:
+    main(server_address=server_address)
+
+
 if __name__ == "__main__":
-    main()
+    cli()

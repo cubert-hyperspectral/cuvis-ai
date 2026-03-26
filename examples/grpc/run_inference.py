@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import click
 from cuvis_ai.data.datasets import SingleCu3sDataset
 from cuvis_ai_core.grpc import helpers
 from cuvis_ai_schemas.grpc.v1 import cuvis_ai_pb2
@@ -152,85 +153,75 @@ def run_inference(
     logger.info("Session closed.")
 
 
-def main() -> None:
-    """CLI entry point."""
-    import argparse
-
-    parser = argparse.ArgumentParser(
-        description="Restore trained pipeline for inference using gRPC",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""\
-Examples:
-  # Display pipeline info
-  python run_inference.py --pipeline-path configs/pipeline/anomaly/rx/channel_selector.yaml
-
-  # Restore pipeline with custom weights
-  python run_inference.py --pipeline-path configs/pipeline/anomaly/rx/channel_selector.yaml --weights-path outputs/my_weights.pt
-
-  # Override config values
-  python run_inference.py --pipeline-path configs/pipeline/anomaly/rx/channel_selector.yaml --override nodes.10.params.output_dir=outputs/my_tb
-
-  # Use custom gRPC server
-  python run_inference.py --pipeline-path configs/pipeline/anomaly/rx/channel_selector.yaml --server localhost:50052
-        """,
-    )
-
-    parser.add_argument(
-        "--pipeline-path",
-        type=str,
-        required=True,
-        help="Path to pipeline YAML file",
-    )
-    parser.add_argument(
-        "--weights-path",
-        type=str,
-        required=True,
-        help="Path to weights (.pt) file",
-    )
-    parser.add_argument(
-        "--cu3s-file-path",
-        type=str,
-        required=True,
-        help="Path to .cu3s file for inference",
-    )
-    parser.add_argument(
-        "--server",
-        type=str,
-        default="localhost:50051",
-        help="gRPC server address (default: localhost:50051)",
-    )
-    parser.add_argument(
-        "--device",
-        type=str,
-        default="auto",
-        choices=["auto", "cpu", "cuda"],
-        help="Device to run on (default: auto)",
-    )
-    parser.add_argument(
-        "--override",
-        action="append",
-        help="Override config values in dot notation (e.g., nodes.10.params.output_dir=outputs/my_tb). Can be specified multiple times.",
-    )
-    parser.add_argument(
-        "--processing-mode",
-        type=str,
-        default="Reflectance",
-        choices=["Raw", "Reflectance"],
-        help="Cuvis processing mode (default: Reflectance)",
-    )
-
-    args = parser.parse_args()
-
+@click.command()
+@click.option(
+    "--pipeline-path",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    required=True,
+    help="Path to pipeline YAML file.",
+)
+@click.option(
+    "--weights-path",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    required=True,
+    help="Path to weights (.pt) file.",
+)
+@click.option(
+    "--cu3s-file-path",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    required=True,
+    help="Path to .cu3s file for inference.",
+)
+@click.option(
+    "--server",
+    "server_address",
+    type=str,
+    default="localhost:50051",
+    show_default=True,
+    help="gRPC server address.",
+)
+@click.option(
+    "--device",
+    type=click.Choice(["auto", "cpu", "cuda"], case_sensitive=False),
+    default="auto",
+    show_default=True,
+    help="Device to run on.",
+)
+@click.option(
+    "--override",
+    "config_overrides",
+    multiple=True,
+    help=(
+        "Override config values in dot notation (e.g., "
+        "nodes.10.params.output_dir=outputs/my_tb). Repeat the option to pass multiple overrides."
+    ),
+)
+@click.option(
+    "--processing-mode",
+    type=click.Choice(["Raw", "Reflectance"], case_sensitive=False),
+    default="Reflectance",
+    show_default=True,
+    help="Cuvis processing mode.",
+)
+def cli(
+    pipeline_path: Path,
+    weights_path: Path,
+    cu3s_file_path: Path,
+    server_address: str,
+    device: str,
+    config_overrides: tuple[str, ...],
+    processing_mode: str,
+) -> None:
     run_inference(
-        pipeline_path=args.pipeline_path,
-        weights_path=args.weights_path,
-        server_address=args.server,
-        device=args.device,
-        config_overrides=args.override,
-        cu3s_file_path=args.cu3s_file_path,
-        processing_mode=args.processing_mode,
+        pipeline_path=pipeline_path,
+        weights_path=weights_path,
+        server_address=server_address,
+        device=device,
+        config_overrides=list(config_overrides) if config_overrides else None,
+        cu3s_file_path=cu3s_file_path,
+        processing_mode=processing_mode,
     )
 
 
 if __name__ == "__main__":
-    main()
+    cli()

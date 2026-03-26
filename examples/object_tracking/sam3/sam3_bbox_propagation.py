@@ -3,8 +3,9 @@
 Exactly one of ``--cu3s-path`` or ``--video-path`` is required.
 
 Uses bounding boxes from a COCO-format JSON as prompts. Specify detections
-with ``--detection ID@FRAME`` (repeatable). ``ID`` is matched against
+with ``--detection ID`` (repeatable). ``ID`` is matched against
 ``track_id`` when available; otherwise it is treated as 1-based rank by score.
+Prompt frame is always ``--start-frame``.
 """
 
 from __future__ import annotations
@@ -32,23 +33,17 @@ from sam3_source_context import (
 )
 
 from cuvis_ai.node.anomaly_visualization import TrackingOverlayNode
-from cuvis_ai.node.json_writer import TrackingCocoJsonNode
+from cuvis_ai.node.json_writer import CocoTrackMaskWriter
 from cuvis_ai.node.video import ToVideoNode
 
 
 def _extract_bbox_prompts(
     detection_json: Path,
-    detections: list[tuple[int, int]],
+    detection_ids: list[int],
+    frame_idx: int,
 ) -> tuple[list[dict], int]:
     data = json.loads(detection_json.read_text(encoding="utf-8"))
     images = {img["id"]: img for img in data["images"]}
-
-    frame_indices = sorted({frame for _, frame in detections})
-    if len(frame_indices) != 1:
-        raise click.ClickException(
-            f"All --detection specs must reference the same frame. Got frames: {frame_indices}"
-        )
-    frame_idx = frame_indices[0]
 
     if frame_idx not in images:
         raise click.ClickException(f"Frame {frame_idx} not found in {detection_json}.")
@@ -56,7 +51,7 @@ def _extract_bbox_prompts(
     w_img, h_img = img["width"], img["height"]
 
     prompts = []
-    for det_id, _ in detections:
+    for det_id in detection_ids:
         annotation, obj_id = load_detection_annotation(detection_json, det_id, frame_idx)
         x, y, w, h = annotation["bbox"]
         bbox_norm = [x / w_img, y / h_img, w / w_img, h / h_img]
@@ -101,7 +96,7 @@ def _extract_bbox_prompts(
     "detection_specs",
     type=str,
     multiple=True,
-    help="Detection to track: ID@FRAME (e.g. 2@76). Repeatable. Default: best on frame 0 (1@0).",
+    help="Detection to track: ID (e.g. 2). Repeatable. Default: best on start frame (1).",
 )
 @click.option("--start-frame", type=int, default=0, show_default=True)
 @click.option(
@@ -239,14 +234,14 @@ def main(
     logger.info("Output run directory: {}", run_output_dir)
 
     if not detection_specs:
-        detection_specs = ("1@0",)
-    detections = [parse_detection_spec(s) for s in detection_specs]
+        detection_specs = ("1",)
+    detection_ids = [parse_detection_spec(s) for s in detection_specs]
     logger.info("Extracting bbox prompts from {}", detection_json)
-    prompts, prompt_frame_idx_source = _extract_bbox_prompts(detection_json, detections)
-    if start_frame > prompt_frame_idx_source:
-        raise click.ClickException(
-            f"--start-frame ({start_frame}) must be <= prompt frame ({prompt_frame_idx_source})."
-        )
+    prompts, _ = _extract_bbox_prompts(
+        detection_json=detection_json,
+        detection_ids=detection_ids,
+        frame_idx=start_frame,
+    )
 
     source_context = build_source_context(
         cu3s_path=cu3s_path,
@@ -260,21 +255,6 @@ def main(
             "SAM3 bbox propagation currently supports exactly one prompt bbox."
         )
 
-    prompt_frame_idx_local = prompt_frame_idx_source - start_frame
-    if prompt_frame_idx_local < 0 or prompt_frame_idx_local >= source_context.target_frames:
-        raise click.ClickException(
-            "Prompt frame is outside the streamed window after start-frame slicing: "
-            f"source={prompt_frame_idx_source}, start={start_frame}, local={prompt_frame_idx_local}, "
-            f"target_frames={source_context.target_frames}."
-        )
-    if start_frame > 0 and prompt_frame_idx_local == 0:
-        logger.warning(
-            "Prompt frame equals the first streamed frame (--start-frame={}). "
-            "This removes pre-prompt temporal context and can reduce propagation stability. "
-            "For more stable tracking, prefer --start-frame 0 and use --end-frame to cap runtime.",
-            start_frame,
-        )
-
     plugin_manifest = resolve_plugin_manifest(plugins_yaml)
     registry = NodeRegistry()
     registry.load_plugins(str(plugin_manifest))
@@ -285,16 +265,12 @@ def main(
         if source_context.source_type == "cu3s"
         else "SAM3_Bbox_Propagation_Video"
     )
-    input_frame_id_offset = start_frame if source_context.source_type == "video" else 0
 
     bbox_prompt = prompts[0]["bbox_xywh"]
     bbox_prompt_obj_id = int(prompts[0]["obj_id"])
     sam3_node = sam3_cls(
-        num_frames=source_context.target_frames,
         checkpoint_path=str(checkpoint_path) if checkpoint_path else None,
         compile_model=compile_model,
-        prompt_frame_id=prompt_frame_idx_source,
-        input_frame_id_offset=input_frame_id_offset,
         prompt_bboxes_xywh=[bbox_prompt],
         prompt_bbox_labels=[1],
         prompt_obj_id=bbox_prompt_obj_id,
@@ -309,7 +285,7 @@ def main(
     # -- build pipeline ------------------------------------------------
     pipeline = CuvisPipeline(pipeline_name)
 
-    tracking_json = TrackingCocoJsonNode(
+    tracking_json = CocoTrackMaskWriter(
         output_json_path=str(run_output_dir / "tracking_results.json"),
         category_name="person",
         name="tracking_coco_json",
@@ -358,8 +334,7 @@ def main(
         else contextlib.nullcontext()
     )
     logger.info(
-        "Starting bbox propagation (source frame {}, {} frames)...",
-        prompt_frame_idx_source,
+        "Starting bbox propagation ({} frames)...",
         source_context.target_frames,
     )
     with amp_ctx:

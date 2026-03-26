@@ -435,6 +435,8 @@ For `--output-dir <ROOT>`, the script writes to:
 - `<RUN>/tracking_results.json` - COCO instance segmentation output
 - `<RUN>/tracking_overlay.mp4` - overlay video
 - `<RUN>/SAM3_Text_Propagation_HSI.png` or `<RUN>/SAM3_Text_Propagation_Video.png` - graphviz pipeline image
+- `<RUN>/SAM3_Text_Propagation_HSI.yaml` or `<RUN>/SAM3_Text_Propagation_Video.yaml` - pipeline YAML (always written)
+- `<RUN>/SAM3_Text_Propagation_HSI.pt` or `<RUN>/SAM3_Text_Propagation_Video.pt` - optional weights (written only with `--save-pipeline-weights`)
 - `<RUN>/profiling_summary.txt` - per-node runtime profiling breakdown
 
 ## SAM3 Streaming Propagation
@@ -456,7 +458,7 @@ Temporal propagation state is preserved across the streamed sequence.
   - or a video file (for example `Auto_013+01-tristimulus.mp4`)
 - SAM3 plugin: `configs/plugins/sam3.yaml`
 - For bbox/point prompts: a COCO-format detection or tracking JSON (e.g. from ByteTrack/DeepEIoU)
-- For mask prompt: a binary prompt mask PNG (`--prompt-mask-path`) and source prompt frame index (`--prompt-frame-idx`)
+- For mask prompt: a binary prompt mask PNG (`--prompt-mask-path`)
 
 ### Run Folder Naming
 
@@ -468,23 +470,21 @@ Temporal propagation state is preserved across the streamed sequence.
 - Re-running multiple propagation modes on the same input reuses the same
   folder unless you change `--out-basename` or `--output-dir`.
 
-### Detection spec: `--detection ID@FRAME`
+### Prompt Frame Contract
 
-Bbox and point scripts use `--detection ID@FRAME` to select which detection to use as a prompt:
+- SAM3 prompt is always applied on the first streamed frame.
+- `--start-frame` therefore defines the prompt frame for all four scripts.
+- Bbox/point scripts use detection ID only: `--detection ID`.
+- Mask script has no separate prompt-frame argument; prompt frame is `--start-frame`.
 
-- **ID** is matched against `track_id` first (from tracking JSONs); if not found, treated as a 1-based rank by detection score
-- **FRAME** is the source `image_id` where the bbox/point is read from
-- Default: `1@0` (best detection on frame 0)
-- `--start-frame` controls where the video begins (independent of prompt frame), must be `<= FRAME`
-- Scripts convert source prompt frame to stream-local frame automatically: `local_prompt_frame = FRAME - start_frame`
-- Frames before the prompt frame are rendered without masks so temporal context is visible
-
-Examples: `--detection 1@0` (best detection, frame 0), `--detection 2@76` (track ID 2, frame 76).
+Detection ID semantics for bbox/point:
+- `ID` is matched against `track_id` first; if missing, it is interpreted as 1-based rank by score on `--start-frame`.
+- Default: `1` (best detection on `--start-frame`).
 
 For bbox propagation, use exactly one `--detection` value.
 
 Bbox propagation ID semantics:
-- If `--detection ID@FRAME` provides an ID, outputs reuse that ID (`track_id=ID`) for the selected bbox object.
+- If `--detection ID` provides an ID, outputs reuse that ID (`track_id=ID`) for the selected bbox object.
 - If no explicit bbox object ID is provided at node level, outputs use the SAM-selected object ID.
 
 ### Scripts
@@ -505,13 +505,13 @@ uv run python examples/object_tracking/sam3/sam3_text_propagation.py `
 
 Default prompt is `person`. Change with `--prompt "car"` as needed.
 
-#### Bbox prompt (validated window: `track_id=14@frame=290`)
+#### Bbox prompt (validated window: `track_id=14` on `--start-frame 290`)
 
 ```powershell
 uv run python examples/object_tracking/sam3/sam3_bbox_propagation.py `
   --cu3s-path "D:\data\XMR_notarget_Busstation\20260226\Auto_013+01.cu3s" `
   --detection-json "D:\experiments\sam3\20260316\video_tracker_parity_unlimited_states_confirmed\tracking_results.json" `
-  --detection 14@290 `
+  --detection 14 `
   --start-frame 290 `
   --max-frames 100 `
   --output-dir "D:\experiments\sam3\20260316" `
@@ -522,13 +522,13 @@ uv run python examples/object_tracking/sam3/sam3_bbox_propagation.py `
 
 This mode tracks a single object for the prompted bbox and writes that object with the requested detection ID in output JSON.
 
-#### Point prompt (validated window: `track_id=14@frame=290`)
+#### Point prompt (validated window: `track_id=14` on `--start-frame 290`)
 
 ```powershell
 uv run python examples/object_tracking/sam3/sam3_point_propagation.py `
   --cu3s-path "D:\data\XMR_notarget_Busstation\20260226\Auto_013+01.cu3s" `
   --detection-json "D:\experiments\sam3\20260316\video_tracker_parity_unlimited_states_confirmed\tracking_results.json" `
-  --detection 14@290 `
+  --detection 14 `
   --start-frame 290 `
   --max-frames 100 `
   --output-dir "D:\experiments\sam3\20260316" `
@@ -545,7 +545,6 @@ Uses the center of the detection bbox as a positive point prompt.
 uv run python examples/object_tracking/sam3/sam3_mask_propagation.py `
   --cu3s-path "D:\data\XMR_notarget_Busstation\20260226\Auto_013+01.cu3s" `
   --prompt-mask-path "D:\experiments\sam3\20260318\sam3\prompt_mask.png" `
-  --prompt-frame-idx 290 `
   --prompt-obj-id 14 `
   --start-frame 290 `
   --max-frames 100 `
@@ -581,8 +580,8 @@ Uses a provided binary mask PNG (`255=foreground`, `0=background`) as the prompt
 
 Prompt-specific options:
 - Text: `--prompt`
-- Bbox/Point: `--detection-json` and `--detection ID@FRAME`
-- Mask: `--prompt-mask-path`, `--prompt-frame-idx`, `--prompt-obj-id`
+- Bbox/Point: `--detection-json` and `--detection ID`
+- Mask: `--prompt-mask-path`, `--prompt-obj-id`
 
 ### Outputs
 

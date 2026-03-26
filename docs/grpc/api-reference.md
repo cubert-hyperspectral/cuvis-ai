@@ -1434,9 +1434,11 @@ message ListAvailablePipelinesResponse {
 }
 
 message PipelineInfo {
-  string name = 1;
-  PipelineMetadata metadata = 2;
-  repeated string tags = 3;
+  string pipeline_path = 1;  // Relative path from server pipeline root (includes .yaml)
+  string path = 2;           // Absolute path on server
+  PipelineMetadata metadata = 3;
+  string weights_path = 6;
+  string yaml_content = 7;
 }
 ```
 
@@ -1450,9 +1452,10 @@ response = stub.ListAvailablePipelines(
 
 print("Available pipelines:")
 for pipeline in response.pipelines:
-    print(f"  - {pipeline.name}")
+    print(f"  - {pipeline.pipeline_path}")
     print(f"    Description: {pipeline.metadata.description}")
-    print(f"    Tags: {', '.join(pipeline.tags)}")
+    print(f"    Tags: {', '.join(pipeline.metadata.tags)}")
+    print(f"    Has weights: {bool(pipeline.weights_path)}")
 ```
 
 **Use Cases:**
@@ -1469,16 +1472,16 @@ for pipeline in response.pipelines:
 **Request:**
 ```protobuf
 message GetPipelineInfoRequest {
-  string pipeline_name = 1;
+  string pipeline_path = 1;  // Relative path with extension (e.g. "anomaly/deep_svdd/deep_svdd.yaml")
 }
 ```
+
+`pipeline_path` must be a relative path (not absolute), use `/` separators, and include the `.yaml` extension.
 
 **Response:**
 ```protobuf
 message GetPipelineInfoResponse {
-  PipelineInfo info = 1;
-  map<string, TensorSpec> required_inputs = 2;
-  map<string, TensorSpec> outputs = 3;
+  PipelineInfo pipeline_info = 1;
 }
 ```
 
@@ -1486,14 +1489,14 @@ message GetPipelineInfoResponse {
 ```python
 response = stub.GetPipelineInfo(
     cuvis_ai_pb2.GetPipelineInfoRequest(
-        pipeline_name="deep_svdd_anomaly"
+        pipeline_path="anomaly/deep_svdd/deep_svdd.yaml"
     )
 )
 
-print(f"Pipeline: {response.info.name}")
-print(f"Description: {response.info.metadata.description}")
-print(f"Required inputs: {list(response.required_inputs.keys())}")
-print(f"Outputs: {list(response.outputs.keys())}")
+print(f"Pipeline: {response.pipeline_info.pipeline_path}")
+print(f"Description: {response.pipeline_info.metadata.description}")
+print(f"Tags: {', '.join(response.pipeline_info.metadata.tags)}")
+print(f"Has weights: {bool(response.pipeline_info.weights_path)}")
 ```
 
 ---

@@ -1,4 +1,4 @@
-"""Tests for DetectionJsonReader + ByteTrackCocoJson round-trip with DeepEIoU.
+"""Tests for DetectionJsonReader + CocoTrackBBoxWriter round-trip with DeepEIoU.
 
 These are cuvis-ai-tracking-side tests verifying the JSON I/O nodes work
 correctly with DeepEIoU tracking output (same writer as ByteTrack, different
@@ -13,7 +13,7 @@ from pathlib import Path
 import torch
 
 from cuvis_ai.node.json_reader import DetectionJsonReader
-from cuvis_ai.node.json_writer import ByteTrackCocoJson
+from cuvis_ai.node.json_writer import CocoTrackBBoxWriter
 
 
 def _write_sample_detection_json(path: Path, n_frames: int = 3, n_dets: int = 2) -> None:
@@ -75,7 +75,7 @@ def test_tracking_json_round_trip(tmp_path: Path) -> None:
     _write_sample_detection_json(src, n_frames=2, n_dets=1)
 
     reader = DetectionJsonReader(json_path=str(src))
-    writer = ByteTrackCocoJson(
+    writer = CocoTrackBBoxWriter(
         output_json_path=str(out),
         category_id_to_name={1: "person"},
         flush_interval=1,

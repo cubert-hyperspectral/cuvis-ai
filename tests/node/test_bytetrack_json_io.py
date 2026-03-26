@@ -1,4 +1,4 @@
-"""Tests for DetectionJsonReader and ByteTrackCocoJson."""
+"""Tests for DetectionJsonReader and CocoTrackBBoxWriter."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pathlib import Path
 import torch
 
 from cuvis_ai.node.json_reader import DetectionJsonReader
-from cuvis_ai.node.json_writer import ByteTrackCocoJson
+from cuvis_ai.node.json_writer import CocoTrackBBoxWriter
 
 
 def _write_sample_json(path: Path) -> None:
@@ -46,9 +46,9 @@ def test_detection_json_reader_iterates_frames(tmp_path: Path) -> None:
     assert out1["bboxes"].shape == (1, 1, 4)
 
 
-def test_bytetrack_coco_json_writes_track_ids(tmp_path: Path) -> None:
+def test_coco_track_bbox_writer_writes_track_ids(tmp_path: Path) -> None:
     out_path = tmp_path / "tracking.json"
-    node = ByteTrackCocoJson(
+    node = CocoTrackBBoxWriter(
         output_json_path=str(out_path), category_id_to_name={5: "obj"}, flush_interval=1
     )
 

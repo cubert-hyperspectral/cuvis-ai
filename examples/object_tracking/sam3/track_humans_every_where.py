@@ -76,8 +76,6 @@ def build_command(
     ]
     if out_basename is not None:
         common_args.extend(["--out-basename", out_basename])
-    common_args.append("--save-pipeline-yaml")
-    common_args.append("--no-save-pipeline-weights")
     if compile_model:
         common_args.append("--compile")
     return ["uv", "run", "python", *common_args]

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import click
 from cuvis_ai_schemas.grpc.v1 import cuvis_ai_pb2
 from workflow_utils import (
     apply_trainrun_config,
@@ -92,5 +93,10 @@ def main() -> None:
     print("Session closed.")
 
 
-if __name__ == "__main__":
+@click.command()
+def cli() -> None:
     main()
+
+
+if __name__ == "__main__":
+    cli()

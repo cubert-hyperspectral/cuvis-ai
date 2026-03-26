@@ -9,6 +9,7 @@ This client demonstrates running AdaCLIP with CIR false-RG band selection via gR
 
 from __future__ import annotations
 
+import click
 import numpy as np
 from cuvis_ai_core.grpc import helpers
 from cuvis_ai_schemas.grpc.v1 import cuvis_ai_pb2
@@ -85,5 +86,18 @@ def main(server_address: str = "localhost:50051") -> None:
     print("Session closed.")
 
 
+@click.command()
+@click.option(
+    "--server",
+    "server_address",
+    type=str,
+    default="localhost:50051",
+    show_default=True,
+    help="gRPC server address.",
+)
+def cli(server_address: str) -> None:
+    main(server_address=server_address)
+
+
 if __name__ == "__main__":
-    main()
+    cli()

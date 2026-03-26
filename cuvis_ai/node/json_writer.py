@@ -1,4 +1,4 @@
-"""JSON sink nodes for tracking outputs."""
+"""JSON sink nodes for detection and tracking outputs."""
 
 from __future__ import annotations
 
@@ -15,8 +15,133 @@ from cuvis_ai_schemas.execution import Context
 from cuvis_ai_schemas.pipeline import PortSpec
 
 
-class TrackingCocoJsonNode(Node):
-    """Write frame-wise tracking outputs into COCO instance-segmentation JSON."""
+class _BaseJsonWriterNode(Node):
+    """Shared JSON write lifecycle for sink nodes."""
+
+    OUTPUT_SPECS = {}
+
+    def __init__(
+        self,
+        output_json_path: str,
+        atomic_write: bool = True,
+        flush_interval: int = 0,
+        **kwargs: Any,
+    ) -> None:
+        if not output_json_path:
+            raise ValueError("output_json_path must be a non-empty path.")
+        if flush_interval < 0:
+            raise ValueError("flush_interval must be >= 0.")
+
+        self.output_json_path = Path(output_json_path)
+        self.atomic_write = bool(atomic_write)
+        self.flush_interval = int(flush_interval)
+        self._dirty = False
+        self._frames_since_flush = 0
+
+        self.output_json_path.parent.mkdir(parents=True, exist_ok=True)
+
+        super().__init__(
+            output_json_path=output_json_path,
+            atomic_write=atomic_write,
+            flush_interval=flush_interval,
+            **kwargs,
+        )
+
+    def _mark_dirty_and_maybe_flush(self) -> None:
+        self._dirty = True
+        self._frames_since_flush += 1
+        if self.flush_interval > 0 and self._frames_since_flush >= self.flush_interval:
+            self._flush_json()
+
+    def _finish_flush(self) -> None:
+        self._dirty = False
+        self._frames_since_flush = 0
+
+    def _write_json_direct(self, payload: dict[str, Any]) -> None:
+        with self.output_json_path.open("w", encoding="utf-8") as handle:
+            json.dump(payload, handle, indent=2)
+            handle.write("\n")
+
+    def _write_json_atomic(self, payload: dict[str, Any]) -> None:
+        tmp_fd, tmp_path = tempfile.mkstemp(
+            dir=str(self.output_json_path.parent),
+            prefix=f".{self.output_json_path.stem}_",
+            suffix=".tmp",
+        )
+        try:
+            with os.fdopen(tmp_fd, "w", encoding="utf-8") as handle:
+                json.dump(payload, handle, indent=2)
+                handle.write("\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(tmp_path, self.output_json_path)
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+
+    def _write_payload(self, payload: dict[str, Any]) -> None:
+        if self.atomic_write:
+            self._write_json_atomic(payload)
+        else:
+            self._write_json_direct(payload)
+
+    def _flush_json(self) -> None:
+        raise NotImplementedError
+
+    def close(self) -> None:
+        if self._dirty:
+            self._flush_json()
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            pass
+
+
+class _BaseCocoTrackWriter(_BaseJsonWriterNode):
+    """Shared tensor parsing helpers for tracking writers."""
+
+    @staticmethod
+    def _parse_frame_id(frame_id: torch.Tensor) -> int:
+        if frame_id.numel() != 1:
+            raise ValueError("frame_id must contain exactly one scalar value.")
+        return int(frame_id.reshape(-1)[0].item())
+
+    @staticmethod
+    def _parse_mask(mask: torch.Tensor) -> torch.Tensor:
+        if mask.ndim == 3:
+            if mask.shape[0] != 1:
+                raise ValueError(
+                    f"mask must have shape [1, H, W] or [H, W], got {tuple(mask.shape)}."
+                )
+            return mask[0]
+        if mask.ndim == 2:
+            return mask
+        raise ValueError(f"mask must have shape [1, H, W] or [H, W], got {tuple(mask.shape)}.")
+
+    @staticmethod
+    def _parse_vector(tensor: torch.Tensor, port_name: str) -> torch.Tensor:
+        if tensor.ndim == 2:
+            if tensor.shape[0] != 1:
+                raise ValueError(
+                    f"{port_name} must have shape [1, N] or [N], got {tuple(tensor.shape)}."
+                )
+            return tensor[0]
+        if tensor.ndim == 1:
+            return tensor
+        raise ValueError(f"{port_name} must have shape [1, N] or [N], got {tuple(tensor.shape)}.")
+
+    @staticmethod
+    def _validate_alignment(
+        lhs: torch.Tensor, rhs: torch.Tensor, lhs_name: str, rhs_name: str
+    ) -> None:
+        if int(lhs.numel()) != int(rhs.numel()):
+            raise ValueError(f"{lhs_name} and {rhs_name} must have identical lengths.")
+
+
+class CocoTrackMaskWriter(_BaseCocoTrackWriter):
+    """Write mask tracking outputs into video_coco JSON."""
 
     INPUT_SPECS = {
         "frame_id": PortSpec(
@@ -41,8 +166,6 @@ class TrackingCocoJsonNode(Node):
         ),
     }
 
-    OUTPUT_SPECS = {}
-
     def __init__(
         self,
         output_json_path: str,
@@ -52,32 +175,38 @@ class TrackingCocoJsonNode(Node):
         flush_interval: int = 0,
         **kwargs: Any,
     ) -> None:
-        if not output_json_path:
-            raise ValueError("output_json_path must be a non-empty path.")
         if not category_name:
             raise ValueError("category_name must be a non-empty string.")
-        if flush_interval < 0:
-            raise ValueError("flush_interval must be >= 0.")
 
-        self.output_json_path = Path(output_json_path)
         self.category_name = category_name
         self.write_empty_frames = bool(write_empty_frames)
-        self.atomic_write = bool(atomic_write)
-        self.flush_interval = int(flush_interval)
-        self._frames_by_id: dict[int, dict[str, Any]] = {}
-        self._dirty = False
-        self._frames_since_flush = 0
-
-        self.output_json_path.parent.mkdir(parents=True, exist_ok=True)
+        self._frame_hw_by_id: dict[int, tuple[int, int]] = {}
+        self._track_segmentations: dict[int, dict[int, dict[str, Any]]] = {}
+        self._track_scores: dict[int, dict[int, float]] = {}
+        self._track_bboxes: dict[int, dict[int, list[float]]] = {}
+        self._track_areas: dict[int, dict[int, float]] = {}
 
         super().__init__(
             output_json_path=output_json_path,
-            category_name=category_name,
-            write_empty_frames=write_empty_frames,
             atomic_write=atomic_write,
             flush_interval=flush_interval,
+            category_name=category_name,
+            write_empty_frames=write_empty_frames,
             **kwargs,
         )
+
+    def _drop_frame(self, frame_idx: int) -> None:
+        self._frame_hw_by_id.pop(frame_idx, None)
+        for store in (
+            self._track_segmentations,
+            self._track_scores,
+            self._track_bboxes,
+            self._track_areas,
+        ):
+            for track_id in list(store.keys()):
+                store[track_id].pop(frame_idx, None)
+                if not store[track_id]:
+                    del store[track_id]
 
     def forward(
         self,
@@ -88,31 +217,31 @@ class TrackingCocoJsonNode(Node):
         context: Context | None = None,  # noqa: ARG002
         **_: Any,
     ) -> dict[str, Any]:
-        """Update one frame entry and rewrite the COCO JSON payload."""
         frame_idx = self._parse_frame_id(frame_id)
         mask_2d = self._parse_mask(mask)
         ids_1d = self._parse_vector(object_ids, port_name="object_ids")
-        det_scores_1d = self._parse_vector(detection_scores, port_name="detection_scores")
-        self._validate_alignment(ids_1d, det_scores_1d)
+        scores_1d = self._parse_vector(detection_scores, port_name="detection_scores")
+        self._validate_alignment(ids_1d, scores_1d, "object_ids", "detection_scores")
 
         frame_height = int(mask_2d.shape[0])
         frame_width = int(mask_2d.shape[1])
 
+        # Replacing an existing frame should be idempotent.
+        self._drop_frame(frame_idx)
+
         object_ids_list = ids_1d.to(dtype=torch.int64).cpu().tolist()
-        detection_scores_list = det_scores_1d.to(dtype=torch.float32).cpu().tolist()
+        detection_scores_list = scores_1d.to(dtype=torch.float32).cpu().tolist()
         score_by_obj_id: dict[int, float] = {
             int(obj_id): float(score)
             for obj_id, score in zip(object_ids_list, detection_scores_list, strict=False)
             if int(obj_id) > 0
         }
-
         present_obj_ids = {
             int(obj_id)
             for obj_id in mask_2d.to(dtype=torch.int64).unique().cpu().tolist()
             if int(obj_id) > 0
         }
 
-        # Preserve incoming object_ids ordering, but skip duplicates and IDs not present in this frame.
         export_obj_ids: list[int] = []
         seen_obj_ids: set[int] = set()
         for obj_id in object_ids_list:
@@ -122,174 +251,94 @@ class TrackingCocoJsonNode(Node):
             seen_obj_ids.add(oid)
             export_obj_ids.append(oid)
 
-        objects: list[dict[str, Any]] = []
-        for obj_id in export_obj_ids:
-            obj_mask = mask_2d.eq(obj_id)
+        if not export_obj_ids and not self.write_empty_frames:
+            return {}
+
+        self._frame_hw_by_id[frame_idx] = (frame_height, frame_width)
+
+        for oid in export_obj_ids:
+            obj_mask = mask_2d.eq(oid)
+            if not bool(torch.any(obj_mask)):
+                continue
 
             mask_np = obj_mask.to(dtype=torch.uint8).detach().cpu().numpy()
             rle_json = coco_rle_encode(mask_np)
             bbox = coco_rle_to_bbox(rle_json)
             area = coco_rle_area(rle_json)
 
-            objects.append(
-                {
-                    "object_id": obj_id,
-                    "detection_score": float(score_by_obj_id.get(obj_id, 0.0)),
-                    "segmentation": rle_json,
-                    "bbox": bbox,
-                    "area": area,
-                }
-            )
+            self._track_segmentations.setdefault(oid, {})[frame_idx] = rle_json
+            self._track_scores.setdefault(oid, {})[frame_idx] = float(score_by_obj_id.get(oid, 0.0))
+            self._track_bboxes.setdefault(oid, {})[frame_idx] = bbox
+            self._track_areas.setdefault(oid, {})[frame_idx] = area
 
-        if not objects and not self.write_empty_frames:
-            return {}
-
-        self._frames_by_id[frame_idx] = {
-            "frame_idx": frame_idx,
-            "height": frame_height,
-            "width": frame_width,
-            "objects": objects,
-        }
-        self._dirty = True
-        self._frames_since_flush += 1
-
-        if self.flush_interval > 0 and self._frames_since_flush >= self.flush_interval:
-            self._flush_json()
-
+        self._mark_dirty_and_maybe_flush()
         return {}
 
-    @staticmethod
-    def _parse_frame_id(frame_id: torch.Tensor) -> int:
-        """Extract a scalar integer frame index from a single-element tensor."""
-        if frame_id.numel() != 1:
-            raise ValueError("frame_id must contain exactly one scalar value.")
-        return int(frame_id.reshape(-1)[0].item())
-
-    @staticmethod
-    def _parse_mask(mask: torch.Tensor) -> torch.Tensor:
-        """Squeeze a [1, H, W] or [H, W] mask tensor to 2-D."""
-        if mask.ndim == 3:
-            if mask.shape[0] != 1:
-                raise ValueError(
-                    f"mask must have shape [1, H, W] or [H, W], got {tuple(mask.shape)}."
-                )
-            return mask[0]
-        if mask.ndim == 2:
-            return mask
-        raise ValueError(f"mask must have shape [1, H, W] or [H, W], got {tuple(mask.shape)}.")
-
-    @staticmethod
-    def _parse_vector(tensor: torch.Tensor, port_name: str) -> torch.Tensor:
-        """Squeeze a [1, N] or [N] vector tensor to 1-D, raising on invalid shape."""
-        if tensor.ndim == 2:
-            if tensor.shape[0] != 1:
-                raise ValueError(
-                    f"{port_name} must have shape [1, N] or [N], got {tuple(tensor.shape)}."
-                )
-            return tensor[0]
-        if tensor.ndim == 1:
-            return tensor
-        raise ValueError(f"{port_name} must have shape [1, N] or [N], got {tuple(tensor.shape)}.")
-
-    @staticmethod
-    def _validate_alignment(object_ids: torch.Tensor, detection_scores: torch.Tensor) -> None:
-        """Verify that object_ids and detection_scores have matching lengths."""
-        if int(object_ids.numel()) != int(detection_scores.numel()):
-            raise ValueError("object_ids and detection_scores must have identical lengths.")
-
     def _flush_json(self) -> None:
-        """Assemble all accumulated frames into a COCO-format dict and write to disk."""
-        frames = [self._frames_by_id[idx] for idx in sorted(self._frames_by_id.keys())]
-
-        images = [
-            {
-                "id": int(frame["frame_idx"]),
-                "file_name": f"frame_{int(frame['frame_idx']):06d}",
-                "height": int(frame["height"]),
-                "width": int(frame["width"]),
-            }
-            for frame in frames
-        ]
+        frame_indices = sorted(self._frame_hw_by_id.keys())
+        first_frame = frame_indices[0] if frame_indices else 0
+        frame_h, frame_w = self._frame_hw_by_id.get(first_frame, (0, 0))
 
         annotations = []
         ann_id = 1
-        for frame in frames:
-            frame_idx = int(frame["frame_idx"])
-            for obj in frame["objects"]:
-                annotations.append(
-                    {
-                        "id": ann_id,
-                        "image_id": frame_idx,
-                        "category_id": 1,
-                        "segmentation": obj["segmentation"],
-                        "bbox": obj["bbox"],
-                        "area": obj["area"],
-                        "score": obj["detection_score"],
-                        "iscrowd": 0,
-                        "track_id": obj["object_id"],
-                    }
-                )
-                ann_id += 1
+        for track_id in sorted(self._track_segmentations.keys()):
+            per_frame_seg = self._track_segmentations.get(track_id, {})
+            per_frame_scores = self._track_scores.get(track_id, {})
+            per_frame_bboxes = self._track_bboxes.get(track_id, {})
+            per_frame_areas = self._track_areas.get(track_id, {})
+
+            segmentations: list[dict[str, Any] | None] = []
+            detection_scores: list[float | None] = []
+            bboxes: list[list[float] | None] = []
+            areas: list[float | None] = []
+            for fid in frame_indices:
+                seg = per_frame_seg.get(fid)
+                if seg is None:
+                    segmentations.append(None)
+                    detection_scores.append(None)
+                    bboxes.append(None)
+                    areas.append(None)
+                    continue
+                segmentations.append(seg)
+                detection_scores.append(float(per_frame_scores.get(fid, 0.0)))
+                bboxes.append(per_frame_bboxes.get(fid))
+                areas.append(float(per_frame_areas.get(fid, 0.0)))
+
+            annotations.append(
+                {
+                    "id": ann_id,
+                    "track_id": int(track_id),
+                    "category_id": 1,
+                    "segmentations": segmentations,
+                    "detection_scores": detection_scores,
+                    "bboxes": bboxes,
+                    "areas": areas,
+                }
+            )
+            ann_id += 1
 
         payload = {
-            "info": {"description": "SAM3 HSI tracking results", "version": "1.0"},
-            "images": images,
+            "info": {"description": "Mask tracking results", "version": "1.0"},
+            "videos": [
+                {
+                    "id": 1,
+                    "name": self.output_json_path.stem,
+                    "frame_indices": frame_indices,
+                    "start_frame": int(first_frame if frame_indices else 0),
+                    "length": int(len(frame_indices)),
+                    "height": int(frame_h),
+                    "width": int(frame_w),
+                }
+            ],
             "annotations": annotations,
             "categories": [{"id": 1, "name": self.category_name}],
         }
-        if self.atomic_write:
-            self._write_json_atomic(payload)
-        else:
-            self._write_json_direct(payload)
-
-        self._dirty = False
-        self._frames_since_flush = 0
-
-    def _write_json_direct(self, payload: dict[str, Any]) -> None:
-        """Write the JSON payload directly to the output file."""
-        with self.output_json_path.open("w", encoding="utf-8") as handle:
-            json.dump(payload, handle, indent=2)
-            handle.write("\n")
-
-    def _write_json_atomic(self, payload: dict[str, Any]) -> None:
-        """Write the JSON payload atomically via a temporary file and rename."""
-        tmp_fd, tmp_path = tempfile.mkstemp(
-            dir=str(self.output_json_path.parent),
-            prefix=f".{self.output_json_path.stem}_",
-            suffix=".tmp",
-        )
-        try:
-            with os.fdopen(tmp_fd, "w", encoding="utf-8") as handle:
-                json.dump(payload, handle, indent=2)
-                handle.write("\n")
-                handle.flush()
-                os.fsync(handle.fileno())
-            os.replace(tmp_path, self.output_json_path)
-        finally:
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
-
-    def close(self) -> None:
-        """Write final COCO JSON if any frames are pending."""
-        if self._dirty:
-            self._flush_json()
-
-    def __del__(self) -> None:
-        """Best-effort cleanup to flush pending data."""
-        try:
-            self.close()
-        except Exception:
-            pass
+        self._write_payload(payload)
+        self._finish_flush()
 
 
-class DetectionCocoJsonNode(Node):
-    """Write frame-wise detection outputs into COCO detection JSON.
-
-    Unlike :class:`TrackingCocoJsonNode` (segmentation masks + track IDs), this
-    node writes COCO **detection** format: bounding boxes, scores, and category IDs
-    only — no masks, no track IDs. Reusable by any detection plugin (YOLO, RT-DETR,
-    future models).
-    """
+class DetectionCocoJsonNode(_BaseJsonWriterNode):
+    """Write frame-wise detections into COCO detection JSON."""
 
     INPUT_SPECS = {
         "frame_id": PortSpec(
@@ -319,8 +368,6 @@ class DetectionCocoJsonNode(Node):
         ),
     }
 
-    OUTPUT_SPECS = {}
-
     def __init__(
         self,
         output_json_path: str,
@@ -330,30 +377,18 @@ class DetectionCocoJsonNode(Node):
         flush_interval: int = 0,
         **kwargs: Any,
     ) -> None:
-        if not output_json_path:
-            raise ValueError("output_json_path must be a non-empty path.")
-        if flush_interval < 0:
-            raise ValueError("flush_interval must be >= 0.")
-
-        self.output_json_path = Path(output_json_path)
         self.category_id_to_name: dict[int, str] = (
             dict(category_id_to_name) if category_id_to_name is not None else {0: "person"}
         )
         self.write_empty_frames = bool(write_empty_frames)
-        self.atomic_write = bool(atomic_write)
-        self.flush_interval = int(flush_interval)
         self._frames_by_id: dict[int, dict[str, Any]] = {}
-        self._dirty = False
-        self._frames_since_flush = 0
-
-        self.output_json_path.parent.mkdir(parents=True, exist_ok=True)
 
         super().__init__(
             output_json_path=output_json_path,
-            category_id_to_name=self.category_id_to_name,
-            write_empty_frames=write_empty_frames,
             atomic_write=atomic_write,
             flush_interval=flush_interval,
+            category_id_to_name=self.category_id_to_name,
+            write_empty_frames=write_empty_frames,
             **kwargs,
         )
 
@@ -367,14 +402,12 @@ class DetectionCocoJsonNode(Node):
         context: Context | None = None,  # noqa: ARG002
         **_: Any,
     ) -> dict[str, Any]:
-        """Update one frame entry and rewrite the COCO detection JSON payload."""
-        frame_idx = TrackingCocoJsonNode._parse_frame_id(frame_id)
-        ids_1d = TrackingCocoJsonNode._parse_vector(category_ids, port_name="category_ids")
-        scores_1d = TrackingCocoJsonNode._parse_vector(confidences, port_name="confidences")
+        frame_idx = _BaseCocoTrackWriter._parse_frame_id(frame_id)
+        ids_1d = _BaseCocoTrackWriter._parse_vector(category_ids, port_name="category_ids")
+        scores_1d = _BaseCocoTrackWriter._parse_vector(confidences, port_name="confidences")
+        _BaseCocoTrackWriter._validate_alignment(ids_1d, scores_1d, "category_ids", "confidences")
 
         h, w = int(orig_hw[0, 0]), int(orig_hw[0, 1])
-
-        # Squeeze bboxes [1, N, 4] → [N, 4]
         boxes_2d = bboxes[0] if bboxes.ndim == 3 else bboxes
 
         n = int(ids_1d.numel())
@@ -401,16 +434,10 @@ class DetectionCocoJsonNode(Node):
             "width": w,
             "detections": detections,
         }
-        self._dirty = True
-        self._frames_since_flush += 1
-
-        if self.flush_interval > 0 and self._frames_since_flush >= self.flush_interval:
-            self._flush_json()
-
+        self._mark_dirty_and_maybe_flush()
         return {}
 
     def _flush_json(self) -> None:
-        """Assemble all accumulated frames into COCO detection format and write to disk."""
         frames = [self._frames_by_id[idx] for idx in sorted(self._frames_by_id.keys())]
 
         images = [
@@ -447,59 +474,17 @@ class DetectionCocoJsonNode(Node):
         ]
 
         payload = {
-            "info": {"description": "RT-DETR detection results", "version": "1.0"},
+            "info": {"description": "Detection results", "version": "1.0"},
             "images": images,
             "annotations": annotations,
             "categories": categories,
         }
-
-        if self.atomic_write:
-            self._write_json_atomic(payload)
-        else:
-            self._write_json_direct(payload)
-
-        self._dirty = False
-        self._frames_since_flush = 0
-
-    def _write_json_direct(self, payload: dict[str, Any]) -> None:
-        """Write the JSON payload directly to the output file."""
-        with self.output_json_path.open("w", encoding="utf-8") as handle:
-            json.dump(payload, handle, indent=2)
-            handle.write("\n")
-
-    def _write_json_atomic(self, payload: dict[str, Any]) -> None:
-        """Write the JSON payload atomically via a temporary file and rename."""
-        tmp_fd, tmp_path = tempfile.mkstemp(
-            dir=str(self.output_json_path.parent),
-            prefix=f".{self.output_json_path.stem}_",
-            suffix=".tmp",
-        )
-        try:
-            with os.fdopen(tmp_fd, "w", encoding="utf-8") as handle:
-                json.dump(payload, handle, indent=2)
-                handle.write("\n")
-                handle.flush()
-                os.fsync(handle.fileno())
-            os.replace(tmp_path, self.output_json_path)
-        finally:
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
-
-    def close(self) -> None:
-        """Write final COCO JSON if any frames are pending."""
-        if self._dirty:
-            self._flush_json()
-
-    def __del__(self) -> None:
-        """Best-effort cleanup to flush pending data."""
-        try:
-            self.close()
-        except Exception:
-            pass
+        self._write_payload(payload)
+        self._finish_flush()
 
 
-class ByteTrackCocoJson(Node):
-    """Write tracking outputs (bbox + track_id) into COCO detection JSON."""
+class CocoTrackBBoxWriter(_BaseCocoTrackWriter):
+    """Write tracked bbox outputs into COCO tracking JSON."""
 
     INPUT_SPECS = {
         "frame_id": PortSpec(dtype=torch.int64, shape=(1,), description="Frame identifier [1]."),
@@ -512,8 +497,6 @@ class ByteTrackCocoJson(Node):
         "orig_hw": PortSpec(dtype=torch.int64, shape=(1, 2), description="[H,W] for metadata."),
     }
 
-    OUTPUT_SPECS = {}
-
     def __init__(
         self,
         output_json_path: str,
@@ -523,30 +506,18 @@ class ByteTrackCocoJson(Node):
         flush_interval: int = 0,
         **kwargs: Any,
     ) -> None:
-        if not output_json_path:
-            raise ValueError("output_json_path must be a non-empty path.")
-        if flush_interval < 0:
-            raise ValueError("flush_interval must be >= 0.")
-
-        self.output_json_path = Path(output_json_path)
         self.category_id_to_name: dict[int, str] = (
             dict(category_id_to_name) if category_id_to_name is not None else {0: "object"}
         )
         self.write_empty_frames = bool(write_empty_frames)
-        self.atomic_write = bool(atomic_write)
-        self.flush_interval = int(flush_interval)
         self._frames_by_id: dict[int, dict[str, Any]] = {}
-        self._dirty = False
-        self._frames_since_flush = 0
-
-        self.output_json_path.parent.mkdir(parents=True, exist_ok=True)
 
         super().__init__(
             output_json_path=output_json_path,
-            category_id_to_name=self.category_id_to_name,
-            write_empty_frames=write_empty_frames,
             atomic_write=atomic_write,
             flush_interval=flush_interval,
+            category_id_to_name=self.category_id_to_name,
+            write_empty_frames=write_empty_frames,
             **kwargs,
         )
 
@@ -561,13 +532,12 @@ class ByteTrackCocoJson(Node):
         context: Context | None = None,  # noqa: ARG002
         **_: Any,
     ) -> dict[str, Any]:
-        """Record one frame of tracked detections and optionally flush the JSON."""
-        frame_idx = TrackingCocoJsonNode._parse_frame_id(frame_id)
-        ids_1d = TrackingCocoJsonNode._parse_vector(category_ids, port_name="category_ids")
-        scores_1d = TrackingCocoJsonNode._parse_vector(confidences, port_name="confidences")
-        track_ids_1d = TrackingCocoJsonNode._parse_vector(track_ids, port_name="track_ids")
-        TrackingCocoJsonNode._validate_alignment(ids_1d, scores_1d)
-        TrackingCocoJsonNode._validate_alignment(ids_1d, track_ids_1d)
+        frame_idx = self._parse_frame_id(frame_id)
+        ids_1d = self._parse_vector(category_ids, port_name="category_ids")
+        scores_1d = self._parse_vector(confidences, port_name="confidences")
+        track_ids_1d = self._parse_vector(track_ids, port_name="track_ids")
+        self._validate_alignment(ids_1d, scores_1d, "category_ids", "confidences")
+        self._validate_alignment(ids_1d, track_ids_1d, "category_ids", "track_ids")
 
         h, w = int(orig_hw[0, 0]), int(orig_hw[0, 1])
         boxes_2d = bboxes[0] if bboxes.ndim == 3 else bboxes
@@ -597,16 +567,10 @@ class ByteTrackCocoJson(Node):
             "width": w,
             "detections": detections,
         }
-        self._dirty = True
-        self._frames_since_flush += 1
-
-        if self.flush_interval > 0 and self._frames_since_flush >= self.flush_interval:
-            self._flush_json()
-
+        self._mark_dirty_and_maybe_flush()
         return {}
 
     def _flush_json(self) -> None:
-        """Assemble accumulated frames into a COCO detection payload and write it."""
         frames = [self._frames_by_id[idx] for idx in sorted(self._frames_by_id.keys())]
 
         images = [
@@ -644,55 +608,13 @@ class ByteTrackCocoJson(Node):
         ]
 
         payload = {
-            "info": {"description": "ByteTrack tracking results", "version": "1.0"},
+            "info": {"description": "BBox tracking results", "version": "1.0"},
             "images": images,
             "annotations": annotations,
             "categories": categories,
         }
-
-        if self.atomic_write:
-            self._write_json_atomic(payload)
-        else:
-            self._write_json_direct(payload)
-
-        self._dirty = False
-        self._frames_since_flush = 0
-
-    def _write_json_direct(self, payload: dict[str, Any]) -> None:
-        """Write the payload directly to the configured output path."""
-        with self.output_json_path.open("w", encoding="utf-8") as handle:
-            json.dump(payload, handle, indent=2)
-            handle.write("\n")
-
-    def _write_json_atomic(self, payload: dict[str, Any]) -> None:
-        """Write the payload atomically via a temporary file and rename."""
-        tmp_fd, tmp_path = tempfile.mkstemp(
-            dir=str(self.output_json_path.parent),
-            prefix=f".{self.output_json_path.stem}_",
-            suffix=".tmp",
-        )
-        try:
-            with os.fdopen(tmp_fd, "w", encoding="utf-8") as handle:
-                json.dump(payload, handle, indent=2)
-                handle.write("\n")
-                handle.flush()
-                os.fsync(handle.fileno())
-            os.replace(tmp_path, self.output_json_path)
-        finally:
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
-
-    def close(self) -> None:
-        """Flush pending detections to disk if the node is dirty."""
-        if self._dirty:
-            self._flush_json()
-
-    def __del__(self) -> None:
-        """Best-effort flush when the node is garbage-collected."""
-        try:
-            self.close()
-        except Exception:
-            pass
+        self._write_payload(payload)
+        self._finish_flush()
 
 
-__all__ = ["DetectionCocoJsonNode", "TrackingCocoJsonNode", "ByteTrackCocoJson"]
+__all__ = ["DetectionCocoJsonNode", "CocoTrackMaskWriter", "CocoTrackBBoxWriter"]

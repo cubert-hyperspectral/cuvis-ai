@@ -95,7 +95,8 @@ pipeline = builder.build_from_config("configs/pipeline/my_pipeline.yaml")
 
 **YAML Format:**
 ```yaml
-name: RX_Anomaly_Detector
+metadata:
+  name: RX_Anomaly_Detector
 
 nodes:
   - name: data_loader

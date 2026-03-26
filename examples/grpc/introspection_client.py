@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import click
 from cuvis_ai_schemas.grpc.v1 import cuvis_ai_pb2
 from workflow_utils import (
     CONFIG_ROOT,
@@ -68,5 +69,10 @@ def main() -> None:
     stub.CloseSession(cuvis_ai_pb2.CloseSessionRequest(session_id=session_id))
 
 
-if __name__ == "__main__":
+@click.command()
+def cli() -> None:
     main()
+
+
+if __name__ == "__main__":
+    cli()
