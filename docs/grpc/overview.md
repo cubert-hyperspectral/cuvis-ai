@@ -353,7 +353,7 @@ Release all resources and clean up GPU memory.
 
 **Helper Utilities:**
 
-The `examples/grpc/workflow_utils.py` module provides convenience functions:
+The `cuvis_ai/utils/grpc_workflow.py` module provides convenience functions:
 - `build_stub()` - Create configured gRPC stub
 - `create_session_with_search_paths()` - Combine phases 1-2
 - `resolve_trainrun_config()` - Hydra config resolution

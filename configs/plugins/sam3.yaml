@@ -1,0 +1,12 @@
+# SAM3 Plugin Manifest
+plugins:
+  sam3:
+    # SAM3-based video object tracking plugin
+    path: "../../../../cuvis-ai-sam3/sam3-init"
+    provides:
+      - cuvis_ai_sam3.node.SAM3TrackerInference
+      - cuvis_ai_sam3.node.SAM3TextPropagation
+      - cuvis_ai_sam3.node.SAM3BboxPropagation
+      - cuvis_ai_sam3.node.SAM3PointPropagation
+      - cuvis_ai_sam3.node.SAM3MaskPropagation
+      - cuvis_ai_sam3.node.SAM3EverythingLabel

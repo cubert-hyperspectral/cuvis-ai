@@ -138,7 +138,7 @@ CUVIS.AI follows an **explicit configuration workflow:**
 from pathlib import Path
 import numpy as np
 from cuvis_ai_core.grpc import cuvis_ai_pb2, helpers
-from workflow_utils import (
+from cuvis_ai.utils.grpc_workflow import (
     build_stub,
     config_search_paths,
     create_session_with_search_paths,
@@ -269,10 +269,10 @@ For production deployment, you typically **train once** and **infer many times**
 """Restore trained pipeline for inference using gRPC."""
 
 from pathlib import Path
-from cuvis_ai.data.datasets import SingleCu3sDataset
+from cuvis_ai_core.data.datasets import SingleCu3sDataset
 from cuvis_ai_core.grpc import cuvis_ai_pb2, helpers
 from torch.utils.data import DataLoader
-from workflow_utils import (
+from cuvis_ai.utils.grpc_workflow import (
     build_stub,
     config_search_paths,
     create_session_with_search_paths,
@@ -402,20 +402,20 @@ For production, use the provided CLI script:
 
 ```bash
 # Run inference on CU3S file
-uv run python examples/grpc/run_inference.py \
+uv run python examples/grpc/core/run_inference.py \
   --pipeline-path outputs/trained_models/channel_selector.yaml \
   --weights-path outputs/trained_models/channel_selector.pt \
   --cu3s-file-path data/lentils/Demo_000.cu3s
 
 # With custom processing mode
-uv run python examples/grpc/run_inference.py \
+uv run python examples/grpc/core/run_inference.py \
   --pipeline-path outputs/trained_models/channel_selector.yaml \
   --weights-path outputs/trained_models/channel_selector.pt \
   --cu3s-file-path data/lentils/Demo_000.cu3s \
   --processing-mode Raw
 
 # With config overrides
-uv run python examples/grpc/run_inference.py \
+uv run python examples/grpc/core/run_inference.py \
   --pipeline-path outputs/trained_models/channel_selector.yaml \
   --weights-path outputs/trained_models/channel_selector.pt \
   --cu3s-file-path data/lentils/Demo_000.cu3s \
@@ -468,7 +468,7 @@ resolve_trainrun_config(
 The server resolves configs from multiple directories:
 
 ```python
-from workflow_utils import config_search_paths
+from cuvis_ai.utils.grpc_workflow import config_search_paths
 
 paths = config_search_paths()
 # Returns:
@@ -535,11 +535,11 @@ The server automatically cleans up inactive sessions after a timeout (default: 1
 
 ---
 
-## Workflow Utilities (workflow_utils.py)
+## Workflow Utilities (grpc_workflow.py)
 
 ### Helper Functions
 
-The `examples/grpc/workflow_utils.py` module centralizes common operations:
+The `cuvis_ai/utils/grpc_workflow.py` module centralizes common operations:
 
 **1. Build Stub**
 ```python
@@ -905,41 +905,41 @@ You've learned how to use CUVIS.AI's gRPC service for distributed training and i
 
 **End-to-End Training:**
 ```bash
-uv run python examples/grpc/complete_workflow_client.py \
+uv run python examples/grpc/core/complete_workflow_client.py \
   --trainrun deep_svdd \
   --pipeline-out outputs/trained_pipeline.yaml \
   --trainrun-out outputs/trainrun_config.yaml
 ```
-[View full source: examples/grpc/complete_workflow_client.py](../../examples/grpc/complete_workflow_client.py)
+[View full source: examples/grpc/core/complete_workflow_client.py](../../examples/grpc/core/complete_workflow_client.py)
 
 **Gradient Training:**
 ```bash
-uv run python examples/grpc/gradient_training_client.py
+uv run python examples/grpc/deep_svdd/gradient_training_client.py
 ```
-[View full source: examples/grpc/gradient_training_client.py](../../examples/grpc/gradient_training_client.py)
+[View full source: examples/grpc/deep_svdd/gradient_training_client.py](../../examples/grpc/deep_svdd/gradient_training_client.py)
 
 **Statistical Training:**
 ```bash
-uv run python examples/grpc/statistical_training_client.py
+uv run python examples/grpc/rx/statistical_training_client.py
 ```
-[View full source: examples/grpc/statistical_training_client.py](../../examples/grpc/statistical_training_client.py)
+[View full source: examples/grpc/rx/statistical_training_client.py](../../examples/grpc/rx/statistical_training_client.py)
 
 **Inference:**
 ```bash
-uv run python examples/grpc/run_inference.py \
+uv run python examples/grpc/core/run_inference.py \
   --pipeline-path outputs/trained_models/channel_selector.yaml \
   --weights-path outputs/trained_models/channel_selector.pt \
   --cu3s-file-path data/lentils/Demo_000.cu3s
 ```
-[View full source: examples/grpc/run_inference.py](../../examples/grpc/run_inference.py)
+[View full source: examples/grpc/core/run_inference.py](../../examples/grpc/core/run_inference.py)
 
 **Restore TrainRun:**
 ```bash
-uv run python examples/grpc/restore_trainrun_grpc.py \
+uv run python examples/grpc/core/restore_trainrun_grpc.py \
   --trainrun-path outputs/channel_selector/trained_models/trainrun.yaml \
   --mode validate
 ```
-[View full source: examples/grpc/restore_trainrun_grpc.py](../../examples/grpc/restore_trainrun_grpc.py)
+[View full source: examples/grpc/core/restore_trainrun_grpc.py](../../examples/grpc/core/restore_trainrun_grpc.py)
 
 ---
 

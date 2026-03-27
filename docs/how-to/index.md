@@ -41,6 +41,12 @@ Practical guides for common tasks and workflows in CUVIS.AI.
 
     Track training progress and visualize results
 
+-   :material-timer-outline: **[Profiling & Performance](profiling.md)**
+
+    ---
+
+    Measure per-node execution time to identify pipeline bottlenecks
+
 -   :material-gpu: **[GPU Acceleration](../reference/gpu_acceleration_guide.md)**
 
     ---

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import matplotlib
 
 # Use non-interactive backend to avoid GUI/threading issues in tests
@@ -14,9 +16,65 @@ from cuvis_ai_schemas.enums import ArtifactType, ExecutionStage
 from cuvis_ai_schemas.execution import Artifact, Context
 from cuvis_ai_schemas.pipeline import PortSpec
 from loguru import logger
+from PIL import Image, ImageDraw, ImageFont
 from torchmetrics.functional.classification import binary_average_precision
 
-from cuvis_ai.utils.vis_helpers import fig_to_array, tensor_to_numpy
+from cuvis_ai.utils.torch_draw import (
+    draw_box,
+    draw_sparkline,
+    draw_text,
+    id_to_color,
+    overlay_instances,
+)
+from cuvis_ai.utils.vis_helpers import (
+    create_mask_overlay,
+    fig_to_array,
+    tensor_to_numpy,
+)
+
+
+class ImageArtifactVizBase(Node):
+    """Base class for visualization nodes that produce image artifacts."""
+
+    OUTPUT_SPECS = {
+        "artifacts": PortSpec(
+            dtype=list,
+            shape=(),
+            description="List of Artifact objects for TensorBoard",
+        )
+    }
+
+    def __init__(
+        self,
+        max_samples: int = 4,
+        log_every_n_batches: int = 1,
+        execution_stages: set[ExecutionStage] | None = None,
+        **kwargs,
+    ) -> None:
+        self.max_samples = max_samples
+        self.log_every_n_batches = log_every_n_batches
+        self._batch_counter = 0
+        if execution_stages is None:
+            execution_stages = {ExecutionStage.TRAIN, ExecutionStage.VAL, ExecutionStage.TEST}
+        super().__init__(
+            execution_stages=execution_stages,
+            **kwargs,
+        )
+
+    def _should_log(self) -> bool:
+        """Increment batch counter and return True if this batch should be logged."""
+        self._batch_counter += 1
+        return (self._batch_counter - 1) % self.log_every_n_batches == 0
+
+    @staticmethod
+    def _normalize_image(img: np.ndarray) -> np.ndarray:
+        """Normalize image to [0, 1] range."""
+        img_min, img_max = img.min(), img.max()
+        if img_max > img_min:
+            img = (img - img_min) / (img_max - img_min)
+        else:
+            img = np.zeros_like(img)
+        return np.clip(img, 0.0, 1.0).astype(np.float32)
 
 
 class AnomalyMask(Node):
@@ -728,8 +786,732 @@ class RGBAnomalyMask(Node):
         return {"artifacts": artifacts}
 
 
+class ChannelSelectorFalseRGBViz(ImageArtifactVizBase):
+    """Visualize false RGB output from channel selectors with optional mask overlay.
+
+    Produces per-sample image artifacts:
+    - ``false_rgb_sample_{b}``: Normalized false RGB image [H, W, 3]
+    - ``mask_overlay_sample_{b}``: False RGB with red alpha-blend on foreground pixels (if mask provided)
+
+    Parameters
+    ----------
+    mask_overlay_alpha : float, optional
+        Alpha value for red mask overlay on foreground pixels (default: 0.4).
+    max_samples : int, optional
+        Maximum number of batch elements to visualize (default: 4).
+    log_every_n_batches : int, optional
+        Log every N-th batch (default: 1).
+    """
+
+    INPUT_SPECS = {
+        "rgb_output": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 3),
+            description="False RGB output from channel selector [B, H, W, 3]",
+        ),
+        "mask": PortSpec(
+            dtype=torch.int32,
+            shape=(-1, -1, -1),
+            description="Segmentation mask [B, H, W] where >0 is foreground",
+            optional=True,
+        ),
+        "mesu_index": PortSpec(
+            dtype=torch.int64,
+            shape=(-1,),
+            description="Measurement index per batch element [B] for artifact naming",
+            optional=True,
+        ),
+    }
+
+    def __init__(
+        self,
+        mask_overlay_alpha: float = 0.4,
+        max_samples: int = 4,
+        log_every_n_batches: int = 1,
+        **kwargs,
+    ) -> None:
+        self.mask_overlay_alpha = mask_overlay_alpha
+        super().__init__(
+            max_samples=max_samples,
+            log_every_n_batches=log_every_n_batches,
+            mask_overlay_alpha=mask_overlay_alpha,
+            **kwargs,
+        )
+
+    def forward(
+        self,
+        rgb_output: torch.Tensor,
+        context: Context,
+        mask: torch.Tensor | None = None,
+        mesu_index: torch.Tensor | None = None,
+    ) -> dict[str, list[Artifact]]:
+        """Generate false RGB and mask overlay artifacts.
+
+        Parameters
+        ----------
+        rgb_output : torch.Tensor
+            False RGB tensor [B, H, W, 3].
+        context : Context
+            Execution context with stage, epoch, batch_idx.
+        mask : torch.Tensor | None
+            Optional segmentation mask [B, H, W].
+        mesu_index : torch.Tensor | None
+            Optional measurement indices [B] for frame-identified artifact naming.
+
+        Returns
+        -------
+        dict[str, list[Artifact]]
+            Dictionary with "artifacts" key containing image artifacts.
+        """
+        if not self._should_log():
+            return {"artifacts": []}
+
+        batch_size = min(rgb_output.shape[0], self.max_samples)
+        artifacts = []
+
+        for b in range(batch_size):
+            # Use mesu_index for naming if available, otherwise fall back to batch index
+            frame_id = f"mesu_{mesu_index[b].item()}" if mesu_index is not None else f"sample_{b}"
+
+            # Normalized false RGB
+            rgb_np = self._normalize_image(rgb_output[b].detach().cpu().numpy())
+
+            artifact_rgb = Artifact(
+                name=f"false_rgb_{frame_id}",
+                value=rgb_np,
+                el_id=b,
+                desc=f"False RGB for {frame_id}",
+                type=ArtifactType.IMAGE,
+                stage=context.stage,
+                epoch=context.epoch,
+                batch_idx=context.batch_idx,
+            )
+            artifacts.append(artifact_rgb)
+
+            # Mask overlay (if mask provided and has foreground)
+            if mask is not None and mask[b].any():
+                overlay = create_mask_overlay(
+                    torch.from_numpy(rgb_np), mask[b].cpu(), alpha=self.mask_overlay_alpha
+                ).numpy()
+                artifact_overlay = Artifact(
+                    name=f"mask_overlay_{frame_id}",
+                    value=overlay,
+                    el_id=b,
+                    desc=f"False RGB with mask overlay for {frame_id}",
+                    type=ArtifactType.IMAGE,
+                    stage=context.stage,
+                    epoch=context.epoch,
+                    batch_idx=context.batch_idx,
+                )
+                artifacts.append(artifact_overlay)
+
+        return {"artifacts": artifacts}
+
+
+class MaskOverlayNode(Node):
+    """Alpha-blend a coloured mask overlay onto RGB frames.
+
+    Pure PyTorch processing node (no matplotlib, no gradients).  When *mask* is
+    ``None`` or entirely zero the input RGB is passed through unchanged.
+
+    Parameters
+    ----------
+    alpha : float, optional
+        Blend factor for the overlay colour (default: 0.4).
+    overlay_color : tuple[float, float, float], optional
+        RGB overlay colour in [0, 1] (default: red ``(1, 0, 0)``).
+    """
+
+    INPUT_SPECS = {
+        "rgb_image": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 3),
+            description="RGB frames [B, H, W, 3] in [0, 1]",
+        ),
+        "mask": PortSpec(
+            dtype=torch.int32,
+            shape=(-1, -1, -1),
+            description="Segmentation mask [B, H, W] where >0 is foreground",
+            optional=True,
+        ),
+    }
+
+    OUTPUT_SPECS = {
+        "rgb_with_overlay": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 3),
+            description="RGB frames with mask overlay [B, H, W, 3] in [0, 1]",
+        ),
+    }
+
+    def __init__(
+        self,
+        alpha: float = 0.4,
+        overlay_color: Sequence[float] = (1.0, 0.0, 0.0),
+        **kwargs,
+    ) -> None:
+        if len(overlay_color) != 3:
+            raise ValueError(
+                f"overlay_color must contain exactly 3 channels (R, G, B), got {overlay_color}"
+            )
+
+        parsed_overlay_color = tuple(float(channel) for channel in overlay_color)
+        if any(channel < 0.0 or channel > 1.0 for channel in parsed_overlay_color):
+            raise ValueError(
+                f"overlay_color channels must be within [0, 1], got {parsed_overlay_color}"
+            )
+
+        self.overlay_color = parsed_overlay_color
+        self.alpha = alpha
+        super().__init__(alpha=alpha, overlay_color=self.overlay_color, **kwargs)
+
+    @torch.no_grad()
+    def forward(
+        self,
+        rgb_image: torch.Tensor,
+        mask: torch.Tensor | None = None,
+        **_,
+    ) -> dict[str, torch.Tensor]:
+        """Apply mask overlay to RGB frames."""
+        if mask is None or not mask.any():
+            return {"rgb_with_overlay": rgb_image}
+        return {
+            "rgb_with_overlay": create_mask_overlay(
+                rgb_image, mask, alpha=self.alpha, color=self.overlay_color
+            )
+        }
+
+
+class TrackingOverlayNode(Node):
+    """Alpha-blend per-object coloured masks onto RGB frames.
+
+    Converts a SAM3-style label map (``mask``) into per-object binary masks and
+    renders a coloured overlay with optional contour lines and object-ID labels
+    using :func:`cuvis_ai.utils.torch_draw.overlay_instances`.
+
+    Parameters
+    ----------
+    alpha : float
+        Blend factor for the overlay colour (default 0.4).
+    draw_contours : bool
+        Draw contour outlines on mask edges (default True).
+    draw_ids : bool
+        Render numeric object-ID labels above each mask (default True).
+    """
+
+    INPUT_SPECS = {
+        "rgb_image": PortSpec(
+            dtype=torch.float32,
+            shape=(1, -1, -1, 3),
+            description="Single RGB frame [1, H, W, 3] in [0, 1].",
+        ),
+        "mask": PortSpec(
+            dtype=torch.int32,
+            shape=(1, -1, -1),
+            description="SAM3 label map [1, H, W]; pixel value = object ID, 0 = background.",
+        ),
+        "object_ids": PortSpec(
+            dtype=torch.int64,
+            shape=(1, -1),
+            description="Active object IDs [1, N] for deterministic ordering. "
+            "If absent, IDs are derived from unique non-zero mask values.",
+            optional=True,
+        ),
+        "frame_id": PortSpec(
+            dtype=torch.int64,
+            shape=(1,),
+            description="Frame / measurement index to render as text overlay.",
+            optional=True,
+        ),
+    }
+
+    OUTPUT_SPECS = {
+        "rgb_with_overlay": PortSpec(
+            dtype=torch.float32,
+            shape=(1, -1, -1, 3),
+            description="RGB frame with coloured mask overlays [1, H, W, 3] in [0, 1].",
+        ),
+    }
+
+    def __init__(
+        self,
+        alpha: float = 0.4,
+        draw_contours: bool = True,
+        draw_ids: bool = True,
+        **kwargs,
+    ) -> None:
+        self.alpha = float(alpha)
+        self.draw_contours = bool(draw_contours)
+        self.draw_ids = bool(draw_ids)
+        super().__init__(
+            alpha=alpha,
+            draw_contours=draw_contours,
+            draw_ids=draw_ids,
+            **kwargs,
+        )
+
+    @torch.no_grad()
+    def forward(
+        self,
+        rgb_image: torch.Tensor,
+        mask: torch.Tensor,
+        object_ids: torch.Tensor | None = None,
+        frame_id: torch.Tensor | None = None,
+        **_,
+    ) -> dict[str, torch.Tensor]:
+        """Render coloured per-object mask overlays onto *rgb_image*.
+
+        Parameters
+        ----------
+        rgb_image : torch.Tensor
+            Single RGB frame ``[1, H, W, 3]`` float32 in ``[0, 1]``.
+        mask : torch.Tensor
+            SAM3 label map ``[1, H, W]`` int32.
+        object_ids : torch.Tensor or None
+            Active object IDs ``[1, N]`` int64.  When provided, only these IDs
+            are rendered and the ordering is preserved.  When absent, all
+            non-zero unique values in *mask* are used.
+        frame_id : torch.Tensor or None
+            Frame / measurement index ``[1]`` int64.  When provided, the frame
+            number is rendered in the top-left corner.
+
+        Returns
+        -------
+        dict
+            ``{"rgb_with_overlay": torch.Tensor [1, H, W, 3] float32 in [0, 1]}``
+        """
+        frame_u8 = (rgb_image[0].clamp(0.0, 1.0) * 255.0).to(torch.uint8)  # [H, W, 3]
+        # Align mask/object-id tensors to the image device. Some upstream nodes can
+        # emit CPU tensors even when the visualization path runs on CUDA.
+        mask_t = mask[0].to(frame_u8.device)  # [H, W] int32
+        present_ids_t = torch.unique(mask_t)
+        present_ids_t = present_ids_t[present_ids_t > 0]
+
+        if object_ids is not None:
+            # Some trackers include background label 0 in object_ids; never render it.
+            filtered_ids = object_ids[0].to(mask_t.device)
+            filtered_ids = filtered_ids[filtered_ids > 0]
+            if present_ids_t.numel() > 0:
+                filtered_ids = filtered_ids[torch.isin(filtered_ids, present_ids_t)]
+            else:
+                filtered_ids = filtered_ids[:0]
+            ids = []
+            seen: set[int] = set()
+            for raw_id in filtered_ids.tolist():
+                obj_id = int(raw_id)
+                if obj_id in seen:
+                    continue
+                seen.add(obj_id)
+                ids.append(obj_id)
+        else:
+            ids = [int(v) for v in present_ids_t.tolist()]
+
+        per_obj_masks: list[tuple[int, torch.Tensor]] = [(oid, mask_t == oid) for oid in ids]
+
+        rendered = overlay_instances(
+            frame_u8,
+            per_obj_masks,
+            alpha=self.alpha,
+            draw_edges=self.draw_contours,
+            draw_ids=self.draw_ids,
+        )
+
+        if frame_id is not None:
+            fid = int(frame_id.reshape(-1)[0].item())
+            draw_text(rendered, 8, 8, f"frame {fid}", (255, 255, 255), scale=2, bg=True)
+
+        out = rendered.to(torch.float32) / 255.0  # [H, W, 3]
+        return {"rgb_with_overlay": out.unsqueeze(0)}  # [1, H, W, 3]
+
+
+def render_bboxes_overlay_torch(
+    rgb_image: torch.Tensor,
+    bboxes: torch.Tensor,
+    category_ids: torch.Tensor,
+    frame_id: torch.Tensor | None = None,
+    line_thickness: int = 2,
+    draw_labels: bool = False,
+    spectral_signatures: torch.Tensor | None = None,
+    sparkline_height: int = 24,
+) -> torch.Tensor:
+    """Render bbox edges on RGB frames using pure torch drawing primitives."""
+    out = (rgb_image.clamp(0.0, 1.0) * 255.0).to(torch.uint8).clone()
+    frame = out[0]  # [H, W, 3]
+
+    num_boxes = int(bboxes.shape[1])
+    if num_boxes == 0:
+        return out.to(torch.float32) / 255.0
+
+    classes = category_ids[0].to(torch.int64)
+    colors = id_to_color(classes)
+    n = min(num_boxes, int(colors.shape[0]))
+    thickness = max(1, int(line_thickness))
+
+    for i in range(n):
+        x1, y1, x2, y2 = [int(v) for v in bboxes[0, i].round().tolist()]
+        draw_box(frame, (x1, y1, x2, y2), colors[i], thickness=thickness)
+        if draw_labels and int(classes[i].item()) >= 0:
+            label = str(int(classes[i].item()))
+            draw_text(frame, x1, max(0, y1 - 16), label, colors[i], scale=2, bg=True)
+
+    # Draw spectral sparklines inside each bbox (bottom region)
+    if spectral_signatures is not None:
+        sigs = spectral_signatures[0]  # [N, C]
+        sh = max(4, int(sparkline_height))
+        n_sigs = min(n, int(sigs.shape[0]))
+        for i in range(n_sigs):
+            x1, y1, x2, y2 = [int(v) for v in bboxes[0, i].round().tolist()]
+            bw = x2 - x1
+            if bw < 4 or (y2 - y1) < sh + 4:
+                continue
+            spark_y = y2 - sh - thickness  # just inside the bottom edge
+            draw_sparkline(
+                frame,
+                x1 + thickness,
+                spark_y,
+                bw - 2 * thickness,
+                sh,
+                sigs[i],
+                colors[i],
+            )
+
+    if frame_id is not None:
+        try:
+            fid = int(frame_id.reshape(-1)[0].item())
+            draw_text(frame, 8, 8, f"frame {fid}", (255, 255, 255), scale=2, bg=True)
+        except Exception:
+            pass
+
+    return out.to(torch.float32) / 255.0
+
+
+class BBoxesOverlayNode(Node):
+    """Torch-only bounding-box overlay renderer for YOLO-style detections."""
+
+    INPUT_SPECS = {
+        "rgb_image": PortSpec(
+            dtype=torch.float32,
+            shape=(1, -1, -1, 3),
+            description="RGB frame [1, H, W, 3] in [0, 1].",
+        ),
+        "bboxes": PortSpec(
+            dtype=torch.float32,
+            shape=(1, -1, 4),
+            description="Bounding boxes [1, N, 4] in xyxy.",
+        ),
+        "category_ids": PortSpec(
+            dtype=torch.int64,
+            shape=(1, -1),
+            description="Category IDs [1, N].",
+        ),
+        "frame_id": PortSpec(
+            dtype=torch.int64,
+            shape=(1,),
+            description="Frame index [1].",
+            optional=True,
+        ),
+        "confidences": PortSpec(
+            dtype=torch.float32,
+            shape=(1, -1),
+            description="Optional confidences [1, N].",
+            optional=True,
+        ),
+        "spectral_signatures": PortSpec(
+            dtype=torch.float32,
+            shape=(1, -1, -1),
+            description="Per-bbox spectral signatures [1, N, C]. Optional.",
+            optional=True,
+        ),
+    }
+
+    OUTPUT_SPECS = {
+        "rgb_with_overlay": PortSpec(
+            dtype=torch.float32,
+            shape=(1, -1, -1, 3),
+            description="RGB frame with bbox overlays [1, H, W, 3] in [0, 1].",
+        ),
+    }
+
+    def __init__(
+        self,
+        line_thickness: int = 2,
+        draw_labels: bool = False,
+        draw_sparklines: bool = False,
+        sparkline_height: int = 24,
+        hide_untracked: bool = False,
+        **kwargs,
+    ) -> None:
+        self.line_thickness = int(line_thickness)
+        self.draw_labels = bool(draw_labels)
+        self.draw_sparklines = bool(draw_sparklines)
+        self.sparkline_height = int(sparkline_height)
+        self.hide_untracked = bool(hide_untracked)
+        super().__init__(
+            line_thickness=line_thickness,
+            draw_labels=draw_labels,
+            draw_sparklines=draw_sparklines,
+            sparkline_height=sparkline_height,
+            hide_untracked=hide_untracked,
+            **kwargs,
+        )
+
+    @torch.no_grad()
+    def forward(
+        self,
+        rgb_image: torch.Tensor,
+        bboxes: torch.Tensor,
+        category_ids: torch.Tensor,
+        frame_id: torch.Tensor | None = None,
+        confidences: torch.Tensor | None = None,  # noqa: ARG002
+        spectral_signatures: torch.Tensor | None = None,
+        **_,
+    ) -> dict[str, torch.Tensor]:
+        """Overlay bbox edges with deterministic per-class colors."""
+        # Optionally filter out untracked detections (category_id / track_id < 0).
+        if self.hide_untracked and category_ids.numel() > 0:
+            mask = category_ids[0] >= 0  # [N]
+            bboxes = bboxes[:, mask]
+            category_ids = category_ids[:, mask]
+            if spectral_signatures is not None:
+                spectral_signatures = spectral_signatures[:, mask]
+
+        sigs = spectral_signatures if self.draw_sparklines else None
+        return {
+            "rgb_with_overlay": render_bboxes_overlay_torch(
+                rgb_image=rgb_image,
+                bboxes=bboxes,
+                category_ids=category_ids,
+                frame_id=frame_id,
+                line_thickness=self.line_thickness,
+                draw_labels=self.draw_labels,
+                spectral_signatures=sigs,
+                sparkline_height=self.sparkline_height,
+            )
+        }
+
+
+def _diverging_colormap(t: torch.Tensor) -> torch.Tensor:
+    """Map values in [0, 1] to a blue-white-red diverging colormap.
+
+    Pure-torch implementation (no matplotlib). Produces colours similar to
+    ``RdBu_r``: 0 → blue, 0.5 → white, 1 → red.
+
+    Parameters
+    ----------
+    t : Tensor
+        Values in [0, 1], arbitrary shape.
+
+    Returns
+    -------
+    Tensor
+        RGB in [0, 1] with shape ``(*t.shape, 3)``.
+    """
+    t = t.clamp(0.0, 1.0).unsqueeze(-1)  # [..., 1]
+    # Blue end, white midpoint, red end
+    blue = t.new_tensor([0.23, 0.30, 0.75])
+    white = t.new_tensor([1.0, 1.0, 1.0])
+    red = t.new_tensor([0.75, 0.15, 0.15])
+    # Piecewise linear interpolation
+    low = torch.lerp(blue, white, (t * 2.0).clamp(0.0, 1.0))  # t in [0, 0.5]
+    high = torch.lerp(white, red, (t * 2.0 - 1.0).clamp(0.0, 1.0))  # t in [0.5, 1]
+    return torch.where(t < 0.5, low, high)
+
+
+class ChannelWeightsViz(ImageArtifactVizBase):
+    """Visualize channel mixer weights as a heatmap.
+
+    Produces a ``[K, C]`` mixing matrix heatmap with output channels on the
+    y-axis and input channels on the x-axis. Uses a diverging blue-white-red
+    colormap centred at zero so positive/negative contributions are immediately
+    visible.
+
+    Implemented in pure PyTorch (no matplotlib) so it adds negligible overhead
+    to the training loop.
+
+    Parameters
+    ----------
+    max_samples : int, optional
+        Ignored (weights are per-model, not per-sample). Kept for base class
+        compatibility. Default: 1.
+    log_every_n_batches : int, optional
+        Log every N-th batch (default: 1).
+    cell_height : int, optional
+        Pixel height per matrix row (default: 40).
+    cell_width : int, optional
+        Pixel width per matrix column (default: 6).
+    """
+
+    INPUT_SPECS = {
+        "weights": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1),
+            description="Mixing matrix weights [K, C]",
+        ),
+        "wavelengths": PortSpec(
+            dtype=np.int32,
+            shape=(-1,),
+            description="Wavelengths [C] in nm",
+            optional=True,
+        ),
+    }
+
+    def __init__(
+        self,
+        max_samples: int = 1,
+        log_every_n_batches: int = 1,
+        cell_height: int = 60,
+        cell_width: int = 12,
+        **kwargs,
+    ) -> None:
+        super().__init__(
+            max_samples=max_samples,
+            log_every_n_batches=log_every_n_batches,
+            **kwargs,
+        )
+        self.cell_height = cell_height
+        self.cell_width = cell_width
+
+    def forward(
+        self,
+        weights: torch.Tensor,
+        context: Context,
+        wavelengths: np.ndarray | None = None,
+    ) -> dict[str, list[Artifact]]:
+        """Generate mixing matrix heatmap artifact.
+
+        Pure-torch rendering with R/G/B indicator bars, grid lines, and a
+        diverging colorbar — no matplotlib for training-loop speed.
+
+        Parameters
+        ----------
+        weights : Tensor
+            Mixing matrix ``[K, C]``.
+        context : Context
+            Execution context with stage, epoch, batch_idx.
+        wavelengths : ndarray, optional
+            Wavelengths ``[C]`` in nm (reserved for future use).
+
+        Returns
+        -------
+        dict[str, list[Artifact]]
+            Dictionary with ``"artifacts"`` key.
+        """
+        if not self._should_log():
+            return {"artifacts": []}
+
+        w = weights.detach().float()
+        if w.ndim == 1:
+            w = w.unsqueeze(0)  # [1, C]
+
+        K, C = w.shape
+        vmax = w.abs().max().clamp_min(1e-8)
+        t = (w / vmax + 1.0) * 0.5  # [K, C] in [0, 1], 0.5 = zero
+
+        # Colormap the heatmap → [K, C, 3]
+        heatmap = _diverging_colormap(t)
+
+        # Build upscaled heatmap canvas with 1px black grid lines
+        ch, cw = self.cell_height, self.cell_width
+        grid_h = K * ch + (K + 1)
+        grid_w = C * cw + (C + 1)
+        canvas = torch.zeros(grid_h, grid_w, 3)  # black grid lines
+        for r in range(K):
+            y0 = 1 + r * (ch + 1)
+            for c in range(C):
+                x0 = 1 + c * (cw + 1)
+                canvas[y0 : y0 + ch, x0 : x0 + cw] = heatmap[r, c]
+
+        # Left margin: colored R/G/B indicator bars
+        indicator_w = max(ch // 3, 8)
+        _channel_colors = torch.tensor(
+            [
+                [1.0, 0.0, 0.0],  # R
+                [0.0, 0.7, 0.0],  # G
+                [0.0, 0.0, 1.0],  # B
+            ]
+        )
+        indicator = torch.ones(grid_h, indicator_w, 3)  # white background
+        for r in range(min(K, len(_channel_colors))):
+            y0 = 1 + r * (ch + 1)
+            indicator[y0 : y0 + ch, :] = _channel_colors[r]
+
+        # Right margin: colorbar gradient (top=positive/red, bottom=negative/blue)
+        cbar_w = max(ch // 3, 8)
+        cbar_t = torch.linspace(1.0, 0.0, grid_h).unsqueeze(1)  # [grid_h, 1]
+        cbar = _diverging_colormap(cbar_t).expand(grid_h, cbar_w, 3).contiguous()
+
+        # Assemble: [indicator | gap | heatmap | gap | colorbar]
+        gap = torch.ones(grid_h, 2, 3)  # 2px white gap
+        full = torch.cat([indicator, gap, canvas, gap, cbar], dim=1)
+
+        # Convert to uint8 numpy [H, W, 3]
+        heatmap_np = (full * 255).clamp(0, 255).byte().cpu().numpy()
+
+        # --- Text annotations via PIL (fast, no matplotlib) ---
+        vmax_val = vmax.item()
+        heat_h, heat_w = heatmap_np.shape[:2]
+        left_margin, top_margin = 30, 5
+        bottom_margin, right_margin = 45, 50
+
+        canvas_img = Image.new(
+            "RGB",
+            (left_margin + heat_w + right_margin, top_margin + heat_h + bottom_margin),
+            (255, 255, 255),
+        )
+        canvas_img.paste(Image.fromarray(heatmap_np), (left_margin, top_margin))
+        draw = ImageDraw.Draw(canvas_img)
+        font = ImageFont.load_default()
+
+        # Y-axis: R / G / B labels (centered on each row)
+        row_labels = ["R", "G", "B"] if K == 3 else [str(i) for i in range(K)]
+        for r in range(K):
+            y_center = top_margin + 1 + r * (ch + 1) + ch // 2
+            draw.text((6, y_center - 5), row_labels[r], fill=(0, 0, 0), font=font)
+
+        # X-axis: wavelength tick labels (every Nth to avoid overlap)
+        # heatmap grid starts after: indicator_w + 2px gap + 1px border
+        heatmap_x0 = left_margin + indicator_w + 2 + 1
+        if wavelengths is not None and len(wavelengths) == C:
+            step = max(1, C // 15)
+            for i in range(0, C, step):
+                x = heatmap_x0 + i * (cw + 1) + cw // 2
+                y = top_margin + heat_h + 2
+                label = str(int(wavelengths[i]))
+                draw.text((x - len(label) * 3, y), label, fill=(0, 0, 0), font=font)
+
+        # Colorbar scale: +vmax at top, 0 at middle, -vmax at bottom
+        cbar_x = left_margin + heat_w + 4
+        draw.text((cbar_x, top_margin), f"+{vmax_val:.2f}", fill=(0, 0, 0), font=font)
+        draw.text((cbar_x, top_margin + heat_h // 2 - 5), "0", fill=(0, 0, 0), font=font)
+        draw.text((cbar_x, top_margin + heat_h - 10), f"-{vmax_val:.2f}", fill=(0, 0, 0), font=font)
+
+        img_np = np.array(canvas_img)
+
+        stage = context.stage.name.lower() if context.stage else "unknown"
+        return {
+            "artifacts": [
+                Artifact(
+                    name="mixing_matrix",
+                    value=img_np,
+                    el_id=0,
+                    desc=f"Mixing matrix — {stage} epoch {context.epoch}",
+                    type=ArtifactType.IMAGE,
+                    stage=context.stage,
+                    epoch=context.epoch,
+                    batch_idx=context.batch_idx,
+                )
+            ],
+        }
+
+
 __all__ = [
+    "ImageArtifactVizBase",
+    "ChannelWeightsViz",
+    "BBoxesOverlayNode",
     "AnomalyMask",
     "RGBAnomalyMask",
     "ScoreHeatmapVisualizer",
+    "ChannelSelectorFalseRGBViz",
+    "MaskOverlayNode",
+    "TrackingOverlayNode",
 ]

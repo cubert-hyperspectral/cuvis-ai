@@ -255,9 +255,9 @@ channel = grpc.insecure_channel("localhost:50051", options=options)
 
 ### Helper Utilities
 
-**Recommended approach:** Use helper functions from `workflow_utils.py`:
+**Recommended approach:** Use helper functions from `grpc_workflow.py`:
 
-**File:** `examples/grpc/workflow_utils.py`
+**File:** `cuvis_ai/utils/grpc_workflow.py`
 
 ```python
 from cuvis_ai_core.grpc import cuvis_ai_pb2, cuvis_ai_pb2_grpc
@@ -348,7 +348,7 @@ def apply_trainrun_config(
 
 **Create session:**
 ```python
-from workflow_utils import build_stub, create_session_with_search_paths
+from cuvis_ai.utils.grpc_workflow import build_stub, create_session_with_search_paths
 
 stub = build_stub("localhost:50051")
 session_id = create_session_with_search_paths(stub)
@@ -368,7 +368,7 @@ stub.CloseSession(cuvis_ai_pb2.CloseSessionRequest(session_id=session_id))
 
 **Resolve config with overrides:**
 ```python
-from workflow_utils import resolve_trainrun_config, apply_trainrun_config
+from cuvis_ai.utils.grpc_workflow import resolve_trainrun_config, apply_trainrun_config
 
 # Resolve trainrun config
 resolved, config_dict = resolve_trainrun_config(
@@ -664,10 +664,10 @@ for progress in stub.Train(
 
 ### Example 1: Statistical Training
 
-**File:** `examples/grpc/statistical_training_client.py`
+**File:** `examples/grpc/rx/statistical_training_client.py`
 
 ```python
-from workflow_utils import (
+from cuvis_ai.utils.grpc_workflow import (
     build_stub, create_session_with_search_paths,
     resolve_trainrun_config, apply_trainrun_config, format_progress
 )
@@ -711,10 +711,10 @@ print("Done!")
 
 ### Example 2: Gradient Training
 
-**File:** `examples/grpc/gradient_training_client.py`
+**File:** `examples/grpc/deep_svdd/gradient_training_client.py`
 
 ```python
-from workflow_utils import (
+from cuvis_ai.utils.grpc_workflow import (
     build_stub, create_session_with_search_paths,
     resolve_trainrun_config, apply_trainrun_config, format_progress
 )
@@ -761,10 +761,10 @@ stub.CloseSession(cuvis_ai_pb2.CloseSessionRequest(session_id=session_id))
 
 ### Example 3: Complete Workflow
 
-**File:** `examples/grpc/complete_workflow_client.py`
+**File:** `examples/grpc/core/complete_workflow_client.py`
 
 ```python
-from workflow_utils import (
+from cuvis_ai.utils.grpc_workflow import (
     build_stub, create_session_with_search_paths,
     resolve_trainrun_config, apply_trainrun_config, format_progress
 )
@@ -826,10 +826,10 @@ stub.CloseSession(cuvis_ai_pb2.CloseSessionRequest(session_id=session_id))
 
 ### Example 4: Inference with Pretrained Model
 
-**File:** `examples/grpc/run_inference.py`
+**File:** `examples/grpc/core/run_inference.py`
 
 ```python
-from workflow_utils import build_stub, create_session_with_search_paths
+from cuvis_ai.utils.grpc_workflow import build_stub, create_session_with_search_paths
 from cuvis_ai_core.grpc import cuvis_ai_pb2, helpers
 from cuvis_ai.datamodule.cu3s_dataset import SingleCu3sDataset
 from torch.utils.data import DataLoader
@@ -910,10 +910,10 @@ if __name__ == "__main__":
 
 ### Example 5: Restore TrainRun
 
-**File:** `examples/grpc/restore_trainrun_grpc.py`
+**File:** `examples/grpc/core/restore_trainrun_grpc.py`
 
 ```python
-from workflow_utils import build_stub, create_session_with_search_paths, format_progress
+from cuvis_ai.utils.grpc_workflow import build_stub, create_session_with_search_paths, format_progress
 from cuvis_ai_core.grpc import cuvis_ai_pb2
 from pathlib import Path
 from typing import Literal
@@ -1309,9 +1309,9 @@ channel = grpc.insecure_channel(
 - **Tutorials**:
   - [gRPC Workflow Tutorial](../tutorials/grpc-workflow.md) - Comprehensive end-to-end guide
 - **Examples**:
-  - `examples/grpc/workflow_utils.py` - Helper utilities
-  - `examples/grpc/statistical_training_client.py` - Statistical training
-  - `examples/grpc/gradient_training_client.py` - Gradient training
-  - `examples/grpc/complete_workflow_client.py` - End-to-end workflow
-  - `examples/grpc/run_inference.py` - Inference with pretrained models
-  - `examples/grpc/restore_trainrun_grpc.py` - TrainRun restoration
+  - `cuvis_ai/utils/grpc_workflow.py` - Helper utilities
+  - `examples/grpc/rx/statistical_training_client.py` - Statistical training
+  - `examples/grpc/deep_svdd/gradient_training_client.py` - Gradient training
+  - `examples/grpc/core/complete_workflow_client.py` - End-to-end workflow
+  - `examples/grpc/core/run_inference.py` - Inference with pretrained models
+  - `examples/grpc/core/restore_trainrun_grpc.py` - TrainRun restoration

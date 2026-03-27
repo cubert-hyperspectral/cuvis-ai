@@ -258,7 +258,7 @@ Use gRPC for remote inference:
 uv run python -m cuvis_ai.grpc.production_server
 
 # Run gRPC client (in another terminal)
-python examples/grpc/adaclip_client.py
+python examples/grpc/adaclip/adaclip_client.py
 ```
 
 ## Working with Custom Data
