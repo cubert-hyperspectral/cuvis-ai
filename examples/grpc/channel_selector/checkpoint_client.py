@@ -8,7 +8,8 @@ from pathlib import Path
 import click
 import yaml
 from cuvis_ai_schemas.grpc.v1 import cuvis_ai_pb2
-from workflow_utils import (
+
+from cuvis_ai.utils.grpc_workflow import (
     build_stub,
     config_search_paths,
     create_session_with_search_paths,
@@ -23,7 +24,7 @@ def main() -> None:
     # Train a pipeline (quick pass) using resolved trainrun
     session_id = create_session_with_search_paths(stub, search_paths)
 
-    # Direct gRPC call to resolve trainrun config (alternative: workflow_utils.resolve_trainrun_config)
+    # Direct gRPC call to resolve trainrun config (alternative: grpc_workflow.resolve_trainrun_config)
     config_path = (
         "channel_selector"
         if "channel_selector".startswith("trainrun/")
@@ -38,7 +39,7 @@ def main() -> None:
         )
     )
 
-    # Direct gRPC call to apply trainrun config (alternative: workflow_utils.apply_trainrun_config)
+    # Direct gRPC call to apply trainrun config (alternative: grpc_workflow.apply_trainrun_config)
     stub.SetTrainRunConfig(
         cuvis_ai_pb2.SetTrainRunConfigRequest(
             session_id=session_id,

@@ -5,14 +5,11 @@ Supports CU3S or RGB video sources and writes tracking results as video_coco JSO
 
 from __future__ import annotations
 
-import json
-import sys
 from pathlib import Path
 
 import click
 import numpy as np
 import torch
-import yaml
 from cuvis_ai_core.data.datasets import SingleCu3sDataset
 from cuvis_ai_core.data.video import VideoFrameDataset, VideoIterator
 from cuvis_ai_core.grpc import helpers
@@ -21,15 +18,12 @@ from torch.utils.data import DataLoader, Subset
 from tqdm import tqdm
 
 from cuvis_ai.node.json_writer import CocoTrackMaskWriter
-
-_GRPC_EXAMPLES_DIR = Path(__file__).resolve().parents[1]
-if str(_GRPC_EXAMPLES_DIR) not in sys.path:
-    sys.path.insert(0, str(_GRPC_EXAMPLES_DIR))
-
-from workflow_utils import (  # noqa: E402
+from cuvis_ai.utils.grpc_workflow import (
     build_stub,
     config_search_paths,
     create_session_with_search_paths,
+    load_manifest_bytes,
+    normalize_pipeline_bytes,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -41,23 +35,6 @@ DEFAULT_VIDEO_PIPELINE = "configs/pipeline/sam3/sam3_text_propagation_video.yaml
 def repo_path(path: Path | str) -> Path:
     path = Path(path)
     return path if path.is_absolute() else (REPO_ROOT / path).resolve()
-
-
-def load_manifest_bytes(path: Path) -> bytes:
-    manifest = yaml.safe_load(path.read_text())
-    for plugin in manifest["plugins"].values():
-        plugin_path = Path(plugin["path"])
-        plugin["path"] = str(
-            plugin_path if plugin_path.is_absolute() else (path.parent / plugin_path).resolve()
-        )
-    return json.dumps(manifest).encode()
-
-
-def normalize_pipeline_bytes(config_bytes: bytes) -> bytes:
-    payload = json.loads(config_bytes)
-    while "nodes" not in payload:
-        payload = next(iter(payload.values()))
-    return json.dumps(payload).encode()
 
 
 def pick(outputs: dict[str, cuvis_ai_pb2.Tensor], name: str) -> cuvis_ai_pb2.Tensor:

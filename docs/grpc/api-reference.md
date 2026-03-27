@@ -56,10 +56,10 @@ channel = grpc.secure_channel("production-server:50051", credentials, options=op
 
 ### Helper Utilities
 
-The `examples/grpc/workflow_utils.py` module provides convenience functions that simplify common operations:
+The `cuvis_ai/utils/grpc_workflow.py` module provides convenience functions that simplify common operations:
 
 ```python
-from examples.grpc.workflow_utils import (
+from cuvis_ai.utils.grpc_workflow import (
     build_stub,                         # Create configured stub
     config_search_paths,                # Build Hydra search paths
     create_session_with_search_paths,   # Session + search paths
@@ -169,7 +169,7 @@ stub.SetSessionSearchPaths(
 
 **Helper Function:**
 ```python
-from examples.grpc.workflow_utils import config_search_paths, create_session_with_search_paths
+from cuvis_ai.utils.grpc_workflow import config_search_paths, create_session_with_search_paths
 
 # Get standard search paths
 paths = config_search_paths(extra_paths=["/custom/configs"])
@@ -245,7 +245,7 @@ The configuration service integrates with Hydra for powerful config composition,
 message ResolveConfigRequest {
   string session_id = 1;
   string config_type = 2;        // "trainrun", "pipeline", "training", "data"
-  string path = 3;                // Relative path in search paths
+  string path = 3;                // Relative path in search paths or an absolute server path
   repeated string overrides = 4;  // Hydra override syntax
 }
 ```
@@ -320,7 +320,7 @@ overrides = [
 
 **Helper Function:**
 ```python
-from examples.grpc.workflow_utils import resolve_trainrun_config
+from cuvis_ai.utils.grpc_workflow import resolve_trainrun_config
 
 # Resolve trainrun config (returns response + parsed dict)
 resolved, config_dict = resolve_trainrun_config(
@@ -398,7 +398,7 @@ print("TrainRun config applied, pipeline built")
 
 **Helper Function:**
 ```python
-from examples.grpc.workflow_utils import apply_trainrun_config
+from cuvis_ai.utils.grpc_workflow import apply_trainrun_config
 
 apply_trainrun_config(stub, session_id, resolved.config_bytes)
 ```
@@ -928,7 +928,7 @@ for progress in stub.Train(
 
 **Helper Function:**
 ```python
-from examples.grpc.workflow_utils import format_progress
+from cuvis_ai.utils.grpc_workflow import format_progress
 
 for progress in stub.Train(...):
     print(format_progress(progress))
@@ -1435,7 +1435,7 @@ message ListAvailablePipelinesResponse {
 
 message PipelineInfo {
   string pipeline_path = 1;  // Relative path from server pipeline root (includes .yaml)
-  string path = 2;           // Absolute path on server
+  string resolved_path = 2;  // Concrete absolute server path for follow-on calls like ResolveConfig
   PipelineMetadata metadata = 3;
   string weights_path = 6;
   string yaml_content = 7;
@@ -1476,7 +1476,7 @@ message GetPipelineInfoRequest {
 }
 ```
 
-`pipeline_path` must be a relative path (not absolute), use `/` separators, and include the `.yaml` extension.
+`pipeline_path` must be a relative path (not absolute), use `/` separators, and include the `.yaml` extension. `PipelineInfo.resolved_path` is the concrete server-side file path returned by discovery and can be passed into `ResolveConfigRequest.path` when you want config bytes for `LoadPipeline`.
 
 **Response:**
 ```protobuf
@@ -1494,6 +1494,7 @@ response = stub.GetPipelineInfo(
 )
 
 print(f"Pipeline: {response.pipeline_info.pipeline_path}")
+print(f"Resolved path: {response.pipeline_info.resolved_path}")
 print(f"Description: {response.pipeline_info.metadata.description}")
 print(f"Tags: {', '.join(response.pipeline_info.metadata.tags)}")
 print(f"Has weights: {bool(response.pipeline_info.weights_path)}")

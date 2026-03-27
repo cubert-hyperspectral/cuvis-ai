@@ -6,7 +6,12 @@ import json
 
 import click
 from cuvis_ai_schemas.grpc.v1 import cuvis_ai_pb2
-from workflow_utils import build_stub, config_search_paths, create_session_with_search_paths
+
+from cuvis_ai.utils.grpc_workflow import (
+    build_stub,
+    config_search_paths,
+    create_session_with_search_paths,
+)
 
 
 def main() -> None:

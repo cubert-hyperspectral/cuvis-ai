@@ -13,7 +13,8 @@ import click
 import numpy as np
 from cuvis_ai_core.grpc import helpers
 from cuvis_ai_schemas.grpc.v1 import cuvis_ai_pb2
-from workflow_utils import (
+
+from cuvis_ai.utils.grpc_workflow import (
     apply_trainrun_config,
     build_stub,
     config_search_paths,

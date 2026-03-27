@@ -11,11 +11,12 @@ from __future__ import annotations
 
 import click
 import numpy as np
-from cuvis_ai.data.datasets import SingleCu3sDataset
+from cuvis_ai_core.data.datasets import SingleCu3sDataset
 from cuvis_ai_core.grpc import helpers
 from cuvis_ai_schemas.grpc.v1 import cuvis_ai_pb2
 from torch.utils.data import DataLoader
-from workflow_utils import (
+
+from cuvis_ai.utils.grpc_workflow import (
     build_stub,
     config_search_paths,
     create_session_with_search_paths,

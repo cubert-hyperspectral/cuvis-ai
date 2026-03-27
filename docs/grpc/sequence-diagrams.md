@@ -77,7 +77,7 @@ sequenceDiagram
 9. **CloseSession**: Clean up session resources
 
 **Example Client:**
-- [examples/grpc/complete_workflow_client.py](../../examples/grpc/complete_workflow_client.py)
+- [examples/grpc/core/complete_workflow_client.py](../../examples/grpc/core/complete_workflow_client.py)
 
 ---
 
@@ -142,9 +142,9 @@ sequenceDiagram
   - Reports losses, metrics, and training context
 
 **Example Clients:**
-- [examples/grpc/statistical_training_client.py](../../examples/grpc/statistical_training_client.py)
-- [examples/grpc/gradient_training_client.py](../../examples/grpc/gradient_training_client.py)
-- [examples/grpc/deepsvdd_client.py](../../examples/grpc/deepsvdd_client.py)
+- [examples/grpc/rx/statistical_training_client.py](../../examples/grpc/rx/statistical_training_client.py)
+- [examples/grpc/deep_svdd/gradient_training_client.py](../../examples/grpc/deep_svdd/gradient_training_client.py)
+- [examples/grpc/deep_svdd/deepsvdd_client.py](../../examples/grpc/deep_svdd/deepsvdd_client.py)
 
 ---
 
@@ -189,13 +189,13 @@ sequenceDiagram
 1. **RestoreTrainRun** (Recommended):
    - Loads pipeline config, weights, data config, and training config from saved TrainRun
    - Single call, ensures exact reproducibility
-   - Example: [examples/grpc/restore_trainrun_grpc.py](../../examples/grpc/restore_trainrun_grpc.py)
+   - Example: [examples/grpc/core/restore_trainrun_grpc.py](../../examples/grpc/core/restore_trainrun_grpc.py)
 
 2. **Manual Loading**:
    - Step 1: `ResolveConfig` or provide raw pipeline config
    - Step 2: `LoadPipeline` builds the pipeline graph
    - Step 3: `LoadPipelineWeights` loads trained weights
-   - Example: [examples/grpc/inference_with_pretrained_client.py](../../examples/grpc/inference_with_pretrained_client.py)
+   - Example: [examples/grpc/rx/inference_with_pretrained_client.py](../../examples/grpc/rx/inference_with_pretrained_client.py)
 
 **InputBatch Fields:**
 ```python
@@ -266,7 +266,7 @@ spec = TensorSpec(
 ```
 
 **Example Client:**
-- [examples/grpc/introspection_client.py](../../examples/grpc/introspection_client.py)
+- [examples/grpc/rx/introspection_client.py](../../examples/grpc/rx/introspection_client.py)
 
 ---
 
@@ -322,8 +322,8 @@ GetTrainingCapabilitiesResponse(
 ```
 
 **Example Clients:**
-- [examples/grpc/pipeline_discovery_client.py](../../examples/grpc/pipeline_discovery_client.py)
-- [examples/grpc/capabilities_client.py](../../examples/grpc/capabilities_client.py)
+- [examples/grpc/core/pipeline_discovery_client.py](../../examples/grpc/core/pipeline_discovery_client.py)
+- [examples/grpc/core/capabilities_client.py](../../examples/grpc/core/capabilities_client.py)
 
 ---
 
@@ -374,7 +374,7 @@ sequenceDiagram
 - Optimizer and scheduler states are preserved
 
 **Example Client:**
-- [examples/grpc/resume_training_client.py](../../examples/grpc/resume_training_client.py)
+- [examples/grpc/deep_svdd/resume_training_client.py](../../examples/grpc/deep_svdd/resume_training_client.py)
 
 ---
 
@@ -412,7 +412,7 @@ sequenceDiagram
 - Server processes batch in parallel when possible
 
 **Example Client:**
-- [examples/grpc/run_inference.py](../../examples/grpc/run_inference.py)
+- [examples/grpc/core/run_inference.py](../../examples/grpc/core/run_inference.py)
 
 ---
 

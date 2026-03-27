@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
-
 import click
-import yaml
 from cuvis_ai_schemas.grpc.v1 import cuvis_ai_pb2
-from workflow_utils import build_stub, config_search_paths, create_session_with_search_paths
+
+from cuvis_ai.utils.grpc_workflow import (
+    build_stub,
+    config_search_paths,
+    create_session_with_search_paths,
+)
 
 
 def main() -> None:
@@ -41,20 +42,24 @@ def main() -> None:
 
     pipeline_info = info_response.pipeline_info
     print(f"\nPipeline details: {pipeline_info.pipeline_path}")
-    print(f"  Path: {pipeline_info.path}")
+    print(f"  Resolved path: {pipeline_info.resolved_path}")
     print(f"  Description: {pipeline_info.metadata.description}")
     print(f"  Tags: {', '.join(pipeline_info.metadata.tags)}")
     print(f"  Has weights: {bool(pipeline_info.weights_path)}")
 
     # Load the selected pipeline + weights into a fresh session
     session_id = create_session_with_search_paths(stub, config_search_paths())
-    pipeline_bytes = json.dumps(yaml.safe_load(Path(pipeline_info.path).read_text())).encode(
-        "utf-8"
+    pipeline_config = stub.ResolveConfig(
+        cuvis_ai_pb2.ResolveConfigRequest(
+            session_id=session_id,
+            config_type="pipeline",
+            path=pipeline_info.resolved_path,
+        )
     )
     stub.LoadPipeline(
         cuvis_ai_pb2.LoadPipelineRequest(
             session_id=session_id,
-            pipeline=cuvis_ai_pb2.PipelineConfig(config_bytes=pipeline_bytes),
+            pipeline=cuvis_ai_pb2.PipelineConfig(config_bytes=pipeline_config.config_bytes),
         )
     )
     if pipeline_info.weights_path:

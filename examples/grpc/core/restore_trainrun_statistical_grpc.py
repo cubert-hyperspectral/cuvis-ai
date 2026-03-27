@@ -1,8 +1,11 @@
-"""Restore and reproduce training runs from saved trainrun configurations using gRPC.
+"""Restore and reproduce statistical training runs from saved trainrun configurations using gRPC.
 
-gRPC equivalent of the serialization restore_trainrun.py script.
+This script is specifically for statistical training runs (those with empty loss_nodes).
+For gradient training runs, use restore_trainrun_grpc.py instead.
+
+gRPC equivalent of the serialization restore_trainrun.py script for statistical training.
 This script demonstrates how to restore complete training runs (pipeline + data + training settings)
-and reproduce training, validation, or testing using the gRPC API.
+and reproduce statistical training, validation, or testing using the gRPC API.
 """
 
 from __future__ import annotations
@@ -12,15 +15,17 @@ from typing import Literal
 
 import click
 from cuvis_ai_schemas.grpc.v1 import cuvis_ai_pb2
+from cuvis_ai_schemas.training import TrainRunConfig
 from loguru import logger
-from workflow_utils import (
+
+from cuvis_ai.utils.grpc_workflow import (
     build_stub,
     config_search_paths,
     create_session_with_search_paths,
 )
 
 
-def restore_trainrun_grpc(
+def restore_trainrun_statistical_grpc(
     trainrun_path: str | Path,
     mode: Literal["info", "train", "validate", "test"] = "info",
     weights_path: str | Path | None = None,
@@ -28,16 +33,16 @@ def restore_trainrun_grpc(
     device: str = "auto",
     overrides: list[str] | None = None,
 ) -> None:
-    """Restore and reproduce training run from configuration file using gRPC.
+    """Restore and reproduce statistical training run from configuration file using gRPC.
 
     Parameters
     ----------
     trainrun_path : str | Path
-        Path to trainrun YAML file
+        Path to trainrun YAML file (should have empty loss_nodes for statistical training)
     mode : str
         Execution mode:
         - 'info': Display experiment information only
-        - 'train': Re-run training from scratch
+        - 'train': Re-run statistical training from scratch
         - 'validate': Run validation on trained model
         - 'test': Run test evaluation on trained model
     weights_path : str | Path | None
@@ -74,6 +79,15 @@ def restore_trainrun_grpc(
         session_id = restore_response.session_id
         logger.info(f"Trainrun restored. Session ID: {session_id}")
 
+        # Verify this is a statistical training run
+        trainrun_config = TrainRunConfig.from_proto(restore_response.trainrun)
+        loss_nodes = trainrun_config.loss_nodes
+        if loss_nodes:
+            logger.warning(
+                f"Warning: This trainrun has {len(loss_nodes)} loss node(s). "
+                "Consider using restore_trainrun_grpc.py for gradient training instead."
+            )
+
         if mode == "info":
             logger.info("Info mode - displaying pipeline specifications")
 
@@ -101,14 +115,12 @@ def restore_trainrun_grpc(
 
             return
 
-        # For training modes, we need to execute the training workflow
+        # For training modes, we need to execute the statistical training workflow
         if mode in ["train", "validate", "test"]:
-            logger.info(f"Executing {mode} mode")
+            logger.info(f"Executing {mode} mode with statistical training")
 
-            # Determine trainer type based on the restored configuration
-            # This is a simplified approach - in a real scenario, you might need to inspect
-            # the trainrun configuration to determine the appropriate trainer type
-            trainer_type = cuvis_ai_pb2.TRAINER_TYPE_GRADIENT
+            # Use statistical trainer type
+            trainer_type = cuvis_ai_pb2.TRAINER_TYPE_STATISTICAL
 
             # Execute training
             train_stream = stub.Train(
@@ -151,7 +163,7 @@ def restore_trainrun_grpc(
     "--trainrun-path",
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
     required=True,
-    help="Path to trainrun YAML file.",
+    help="Path to trainrun YAML file (should have empty loss_nodes for statistical training).",
 )
 @click.option(
     "--mode",
@@ -195,7 +207,7 @@ def cli(
     device: str,
     overrides: tuple[str, ...],
 ) -> None:
-    restore_trainrun_grpc(
+    restore_trainrun_statistical_grpc(
         trainrun_path=trainrun_path,
         mode=mode,
         weights_path=weights_path,

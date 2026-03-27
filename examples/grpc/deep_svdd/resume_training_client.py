@@ -12,7 +12,8 @@ from pathlib import Path
 
 import click
 from cuvis_ai_schemas.grpc.v1 import cuvis_ai_pb2
-from workflow_utils import (
+
+from cuvis_ai.utils.grpc_workflow import (
     apply_trainrun_config,
     build_stub,
     config_search_paths,

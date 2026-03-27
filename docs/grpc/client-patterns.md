@@ -38,7 +38,7 @@ stub = cuvis_ai_pb2_grpc.CuvisAIServiceStub(channel)
 
 **Using Helper Utility:**
 ```python
-from examples.grpc.workflow_utils import build_stub
+from cuvis_ai.utils.grpc_workflow import build_stub
 
 # Simplified connection
 stub = build_stub("localhost:50051", max_msg_size=600*1024*1024)
@@ -168,7 +168,7 @@ from contextlib import contextmanager
 @contextmanager
 def grpc_session(stub, search_paths=None):
     """Context manager for safe session lifecycle."""
-    from examples.grpc.workflow_utils import create_session_with_search_paths
+    from cuvis_ai.utils.grpc_workflow import create_session_with_search_paths
 
     session_id = create_session_with_search_paths(stub, search_paths)
     try:
@@ -225,7 +225,7 @@ import concurrent.futures
 
 def run_experiment(stub, trainrun_name, overrides):
     """Run single training experiment."""
-    from examples.grpc.workflow_utils import (
+    from cuvis_ai.utils.grpc_workflow import (
         create_session_with_search_paths,
         resolve_trainrun_config,
         apply_trainrun_config,
@@ -283,7 +283,7 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
 ### Standard Config Resolution
 
 ```python
-from examples.grpc.workflow_utils import (
+from cuvis_ai.utils.grpc_workflow import (
     resolve_trainrun_config,
     apply_trainrun_config,
 )
@@ -318,7 +318,7 @@ import json
 
 def validate_and_train(stub, session_id, trainrun_name, overrides=None):
     """Resolve, validate, and train with error handling."""
-    from examples.grpc.workflow_utils import resolve_trainrun_config
+    from cuvis_ai.utils.grpc_workflow import resolve_trainrun_config
 
     # Resolve config
     resolved, config_dict = resolve_trainrun_config(
@@ -373,7 +373,7 @@ for progress in validate_and_train(stub, session_id, "deep_svdd"):
 ### Two-Phase Training Pattern
 
 ```python
-from examples.grpc.workflow_utils import format_progress
+from cuvis_ai.utils.grpc_workflow import format_progress
 
 def two_phase_training(stub, session_id):
     """Standard two-phase training: statistical then gradient."""
@@ -673,7 +673,7 @@ def safe_inference(stub, session_id, cube, wavelengths):
 3. **Validate configs early** - Use `ValidateConfig` before training
 4. **Filter outputs** - Specify `output_specs` to reduce payload
 5. **Handle errors gracefully** - Check gRPC status codes
-6. **Use helper functions** - Leverage `workflow_utils.py`
+6. **Use helper functions** - Leverage `grpc_workflow.py`
 7. **Monitor training progress** - Process streaming updates
 8. **Save checkpoints** - Periodic `SavePipeline` during training
 9. **Reuse channels** - Don't create new channels for each request
