@@ -154,6 +154,7 @@ def build_source_context(
     cu3s_data_node_cls: type | None = None,
     false_rgb_selector_cls: type | None = None,
     false_rgb_norm_mode: object | None = None,
+    false_rgb_selector_kwargs: dict[str, object] | None = None,
     video_frame_datamodule_cls: type | None = None,
     video_frame_node_cls: type | None = None,
     subset_cls: type = Subset,
@@ -182,7 +183,7 @@ def build_source_context(
 
             false_rgb_selector_cls = CIETristimulusFalseRGBSelector
             false_rgb_norm_mode = NormMode.STATISTICAL
-        if false_rgb_initializer is None:
+        if false_rgb_initializer is None and str(false_rgb_norm_mode) == "statistical":
             from cuvis_ai.utils.false_rgb_sampling import initialize_false_rgb_sampled_fixed
 
             false_rgb_initializer = initialize_false_rgb_sampled_fixed
@@ -212,19 +213,23 @@ def build_source_context(
             raise RuntimeError("Predict dataset was not initialized.")
 
         cu3s_data = cu3s_data_node_cls(name="cu3s_data")
-        false_rgb_kwargs: dict[str, object] = {"name": "cie_false_rgb"}
+        false_rgb_name = "cie_false_rgb"
+        false_rgb_kwargs: dict[str, object] = {"name": false_rgb_name}
         if false_rgb_norm_mode is not None:
             false_rgb_kwargs["norm_mode"] = false_rgb_norm_mode
+        if false_rgb_selector_kwargs:
+            false_rgb_kwargs.update(false_rgb_selector_kwargs)
         false_rgb = false_rgb_selector_cls(**false_rgb_kwargs)
-        sample_positions = false_rgb_initializer(
-            false_rgb,
-            datamodule.predict_ds,
-            sample_fraction=0.05,
-        )
-        logger.info(
-            "False-RGB sampled-fixed calibration: sample_fraction=0.05, sample_count={}",
-            len(sample_positions),
-        )
+        if false_rgb_initializer is not None:
+            sample_positions = false_rgb_initializer(
+                false_rgb,
+                datamodule.predict_ds,
+                sample_fraction=0.05,
+            )
+            logger.info(
+                "False-RGB sampled-fixed calibration: sample_fraction=0.05, sample_count={}",
+                len(sample_positions),
+            )
         source_connections.extend(
             [
                 (cu3s_data.outputs.cube, false_rgb.cube),

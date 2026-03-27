@@ -119,7 +119,9 @@ def create_mask_overlay(
     torch.Tensor
         Blended image, same shape and device as *rgb*, clamped to ``[0, 1]``.
     """
-    fg = (mask > 0).unsqueeze(-1).float()  # [..., 1] for channel broadcast
+    if mask.device != rgb.device:
+        mask = mask.to(rgb.device)
+    fg = (mask > 0).unsqueeze(-1).to(dtype=rgb.dtype)  # [..., 1] for channel broadcast
     tint = torch.tensor(color, dtype=rgb.dtype, device=rgb.device)
     return ((1.0 - alpha * fg) * rgb + alpha * fg * tint).clamp(0.0, 1.0)
 

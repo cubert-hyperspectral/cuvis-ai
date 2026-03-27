@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Added runtime SAM3 mask propagation tooling: `MaskPrompt`, local/gRPC mask-propagation examples, and CU3S/video mask-propagation pipeline YAMLs using scheduled `--prompt <object_id:detection_id@frame_id>` mask updates from detection JSON.
+- Changed local SAM3 mask propagation from archived PNG prompts to detection-JSON-driven label-map prompting, and clarified that gRPC mask propagation sends masks directly through `InputBatch.mask`.
 - Added SAM3 text-propagation pipeline configs and a new gRPC client (`examples/grpc/sam3/sam3_text_propagation_client.py`) supporting CU3S/video inputs plus plugin-manifest bootstrap.
 - Reorganized AdaCLIP gRPC examples under `examples/grpc/adaclip/` and updated gRPC workflow/docs utilities around explicit config resolution and session search paths.
 - Refined tracking output tooling with JSON IO/overlay updates, new CLI output-dir helpers, and expanded tracking regression tests.

@@ -100,6 +100,18 @@ def test_mask_overlay_node_at_known_location():
     _assert_overlay_at_known_location(rgb, result, mask)
 
 
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA required for mixed-device test")
+def test_mask_overlay_node_accepts_cpu_mask_with_cuda_rgb():
+    """MaskOverlayNode should handle masks and RGB tensors arriving on different devices."""
+    rgb, mask = _make_rgb_and_mask()
+    node = MaskOverlayNode(alpha=ALPHA)
+    out = node.forward(rgb_image=rgb.cuda(), mask=mask.cpu())
+
+    result = out["rgb_with_overlay"].cpu()
+    assert result.shape == rgb.shape
+    _assert_overlay_at_known_location(rgb, result, mask)
+
+
 def test_mask_overlay_node_white_color_affects_all_channels():
     """Verify custom overlay_color updates all channels for foreground pixels."""
     rgb, mask = _make_rgb_and_mask()

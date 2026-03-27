@@ -1,16 +1,15 @@
-"""SAM3 mask-prompt propagation for CU3S or RGB video.
+"""SAM3 mask propagation for CU3S or RGB video.
 
 Exactly one of ``--cu3s-path`` or ``--video-path`` is required.
 
-Accepts a pre-made binary mask PNG (255=foreground) as the SAM3 prompt.
-Specify the mask with ``--prompt-mask-path`` and optionally the object ID with
-``--prompt-obj-id``. Prompt frame is always ``--start-frame``.
+Prompt masks are read from a COCO detection JSON via ``MaskPrompt``.
+Use repeatable ``--prompt <object_id:detection_id@frame_id>`` entries to schedule
+mask injections on arbitrary frames.
 """
 
 from __future__ import annotations
 
 import contextlib
-import shutil
 from pathlib import Path
 
 import click
@@ -29,8 +28,10 @@ from sam3_source_context import (
     validate_source_and_window,
 )
 
-from cuvis_ai.node.anomaly_visualization import TrackingOverlayNode
+from cuvis_ai.node.anomaly_visualization import MaskOverlayNode, TrackingOverlayNode
+from cuvis_ai.node.channel_selector import CIETristimulusFalseRGBSelector, NormMode
 from cuvis_ai.node.json_writer import CocoTrackMaskWriter
+from cuvis_ai.node.static_node import MaskPrompt
 from cuvis_ai.node.video import ToVideoNode
 
 
@@ -48,17 +49,16 @@ from cuvis_ai.node.video import ToVideoNode
     help="Path to an MP4 (or other cv2-compatible) video file.",
 )
 @click.option(
-    "--prompt-mask-path",
+    "--detection-json",
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
     required=True,
-    help="Pre-made binary mask PNG (255=foreground, 0=background).",
+    help="COCO detection JSON containing per-frame annotations with segmentation.",
 )
 @click.option(
-    "--prompt-obj-id",
-    type=int,
-    default=1,
-    show_default=True,
-    help="Object ID to assign to the prompted mask.",
+    "--prompt",
+    "prompt_specs",
+    multiple=True,
+    help="Repeatable prompt spec in the form <object_id:detection_id@frame_id>.",
 )
 @click.option(
     "--processing-mode",
@@ -143,11 +143,17 @@ from cuvis_ai.node.video import ToVideoNode
     show_default=True,
     help="Maximum number of active tracker states.",
 )
+@click.option(
+    "--write-prompt-debug-video",
+    is_flag=True,
+    default=False,
+    help="Write prompt_mask_overlay.mp4 showing the source frame stream with prompt masks overlaid.",
+)
 def main(
     cu3s_path: Path | None,
     video_path: Path | None,
-    prompt_mask_path: Path,
-    prompt_obj_id: int,
+    detection_json: Path,
+    prompt_specs: tuple[str, ...],
     processing_mode: str,
     frame_rotation: int | None,
     start_frame: int,
@@ -164,6 +170,7 @@ def main(
     det_nms_thresh: float,
     overlap_suppress_thresh: float,
     max_tracker_states: int,
+    write_prompt_debug_video: bool,
 ) -> None:
     effective_end_frame = resolve_end_frame(
         start_frame=start_frame,
@@ -199,17 +206,27 @@ def main(
     if video_path is not None:
         logger.info("Ignoring --processing-mode because --video-path is set")
 
-    # Archive the prompt mask into the run output directory
-    archived_mask = run_output_dir / "prompt_mask.png"
-    if prompt_mask_path.resolve() != archived_mask.resolve():
-        shutil.copy2(prompt_mask_path, archived_mask)
-
     source_context = build_source_context(
         cu3s_path=cu3s_path,
         video_path=video_path,
         processing_mode=resolved_mode,
         start_frame=start_frame,
         end_frame=effective_end_frame,
+        false_rgb_selector_cls=CIETristimulusFalseRGBSelector if cu3s_path is not None else None,
+        false_rgb_norm_mode=NormMode.RUNNING if cu3s_path is not None else None,
+        false_rgb_selector_kwargs=(
+            {
+                "running_warmup_frames": 0,
+                "freeze_running_bounds_after_frames": 1,
+            }
+            if cu3s_path is not None
+            else None
+        ),
+    )
+    mask_prompt = MaskPrompt(
+        json_path=str(detection_json),
+        prompt_specs=list(prompt_specs),
+        name="mask_prompt",
     )
 
     plugin_manifest = resolve_plugin_manifest(plugins_yaml)
@@ -226,8 +243,6 @@ def main(
     sam3_node = sam3_cls(
         checkpoint_path=str(checkpoint_path) if checkpoint_path else None,
         compile_model=compile_model,
-        prompt_mask_path=str(prompt_mask_path),
-        prompt_obj_id=prompt_obj_id,
         score_threshold_detection=float(score_threshold_detection),
         new_det_thresh=float(new_det_thresh),
         det_nms_thresh=float(det_nms_thresh),
@@ -237,8 +252,8 @@ def main(
     )
 
     logger.info(
-        "Mask propagation: obj_id={}, {} frames",
-        prompt_obj_id,
+        "Mask propagation: {} prompt spec(s), {} frames",
+        len(prompt_specs),
         source_context.target_frames,
     )
 
@@ -258,23 +273,44 @@ def main(
         frame_rotation=frame_rotation,
         name="to_video",
     )
+    prompt_debug_path = run_output_dir / "prompt_mask_overlay.mp4"
 
     connections = list(source_context.source_connections)
     connections.extend(
         [
             (source_context.source_rgb_port, sam3_node.rgb_frame),
             (source_context.source_frame_id_port, sam3_node.inputs.frame_id),
+            (source_context.source_frame_id_port, mask_prompt.frame_id),
+            (mask_prompt.mask, sam3_node.inputs.mask),
             (source_context.source_frame_id_port, tracking_json.frame_id),
-            (sam3_node.mask, tracking_json.mask),
+            (sam3_node.outputs.mask, tracking_json.mask),
             (sam3_node.object_ids, tracking_json.object_ids),
             (sam3_node.detection_scores, tracking_json.detection_scores),
             (source_context.source_rgb_port, overlay_node.rgb_image),
             (source_context.source_frame_id_port, overlay_node.frame_id),
-            (sam3_node.mask, overlay_node.mask),
+            (sam3_node.outputs.mask, overlay_node.mask),
             (sam3_node.object_ids, overlay_node.object_ids),
             (overlay_node.rgb_with_overlay, to_video.rgb_image),
         ]
     )
+
+    if write_prompt_debug_video:
+        prompt_overlay = MaskOverlayNode(alpha=0.45, name="prompt_overlay")
+        prompt_to_video = ToVideoNode(
+            output_video_path=str(prompt_debug_path),
+            frame_rate=source_context.dataset_fps,
+            frame_rotation=frame_rotation,
+            name="prompt_to_video",
+        )
+        connections.extend(
+            [
+                (source_context.source_rgb_port, prompt_overlay.rgb_image),
+                (mask_prompt.mask, prompt_overlay.mask),
+                (prompt_overlay.rgb_with_overlay, prompt_to_video.rgb_image),
+                (source_context.source_frame_id_port, prompt_to_video.frame_id),
+            ]
+        )
+
     pipeline.connect(*connections)
 
     pipeline_png = run_output_dir / f"{pipeline.name}.png"
@@ -307,6 +343,8 @@ def main(
     logger.success("Done -> {}", run_output_dir)
     logger.info("JSON: {}", run_output_dir / "tracking_results.json")
     logger.info("Overlay: {}", overlay_path)
+    if write_prompt_debug_video:
+        logger.info("Prompt Debug Overlay: {}", prompt_debug_path)
 
 
 if __name__ == "__main__":

@@ -61,6 +61,7 @@ from cuvis_ai.node.preprocessors import (
 )
 from cuvis_ai.node.spectral_angle_mapper import SpectralAngleMapper
 from cuvis_ai.node.spectral_extractor import BBoxSpectralExtractor
+from cuvis_ai.node.static_node import MaskPrompt
 from cuvis_ai.node.video import (
     ToVideoNode,
     VideoFrameDataModule,
@@ -97,6 +98,7 @@ __all__ = [
     "ImageArtifactVizBase",
     "LearnableChannelMixer",
     "MaskOverlayNode",
+    "MaskPrompt",
     "MinMaxNormalizer",
     "NormMode",
     "NumpyFeatureWriterNode",
