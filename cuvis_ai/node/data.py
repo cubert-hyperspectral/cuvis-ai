@@ -14,6 +14,7 @@ class CU3SDataNode(Node):
     """General-purpose data node for CU3S hyperspectral sequences.
 
     This node normalizes common CU3S batch inputs for pipelines:
+
     - converts `cube` from uint16 to float32
     - passes optional `mask` through unchanged
     - extracts 1D `wavelengths` from batched input

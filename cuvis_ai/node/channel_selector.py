@@ -574,6 +574,7 @@ class FastRGBSelector(ChannelSelectorBase):
     """cuvis-next parity FastRGB renderer.
 
     This selector mirrors the cuvis `fast_rgb` user-plugin behavior:
+
     - Per-channel contiguous spectral range averaging.
     - Dynamic per-frame normalization by global RGB mean when enabled.
     - Static reflectance-style scaling when normalization is disabled.
@@ -1718,6 +1719,7 @@ class SupervisedCIRSelector(SupervisedSelectorBase):
     """Supervised CIR/NIR band selection with window constraints.
 
     Windows are typically set to:
+
         - NIR: 840-910 nm
         - Red: 650-720 nm
         - Green: 500-570 nm
@@ -1764,6 +1766,7 @@ class SupervisedWindowedSelector(SupervisedSelectorBase):
 
     Similar to :class:`HighContrastSelector`, but uses label-driven scores.
     Default windows:
+
         - Blue: 440-500 nm
         - Green: 500-580 nm
         - Red: 610-700 nm
@@ -1843,6 +1846,7 @@ class SoftChannelSelector(Node):
 
     This node learns to select a subset of input channels using differentiable
     channel selection with temperature annealing. Supports:
+
     - Statistical initialization (uniform or importance-based)
     - Gradient-based optimization with temperature scheduling
     - Entropy and diversity regularization

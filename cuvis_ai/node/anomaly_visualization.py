@@ -82,6 +82,7 @@ class AnomalyMask(Node):
 
     Creates side-by-side visualizations showing ground truth masks, predicted masks,
     and overlay comparisons on hyperspectral cube images. The overlay shows:
+
     - Green: True Positives (correct anomaly detection)
     - Red: False Positives (false alarms)
     - Yellow: False Negatives (missed anomalies)
@@ -506,6 +507,7 @@ class RGBAnomalyMask(Node):
     Similar to AnomalyMask but designed for RGB images (e.g., from band selectors).
     Creates side-by-side visualizations showing ground truth masks, predicted masks,
     and overlay comparisons on RGB images. The overlay shows:
+
     - Green: True Positives (correct anomaly detection)
     - Red: False Positives (false alarms)
     - Yellow: False Negatives (missed anomalies)
@@ -722,6 +724,7 @@ class RGBAnomalyMask(Node):
                 tp
                 / (
                     tp
+
                     + np.logical_and(batch_pred, ~batch_gt).sum()
                     + np.logical_and(~batch_pred, batch_gt).sum()
                     + 1e-8
@@ -790,6 +793,7 @@ class ChannelSelectorFalseRGBViz(ImageArtifactVizBase):
     """Visualize false RGB output from channel selectors with optional mask overlay.
 
     Produces per-sample image artifacts:
+
     - ``false_rgb_sample_{b}``: Normalized false RGB image [H, W, 3]
     - ``mask_overlay_sample_{b}``: False RGB with red alpha-blend on foreground pixels (if mask provided)
 

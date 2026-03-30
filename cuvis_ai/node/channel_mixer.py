@@ -9,6 +9,7 @@ This module provides two mixer variants:
 
 * :class:`LearnableChannelMixer` — 1×1 convolution-based mixer (DRCNN-style,
   Zeegers et al. 2020).
+
 * :class:`ConcreteChannelMixer` — Gumbel-Softmax differentiable band selection
   that learns soft-to-hard channel weighting via temperature annealing.
 """
@@ -36,6 +37,7 @@ class LearnableChannelMixer(Node):
     This node implements a learnable linear combination layer that reduces the number
     of spectral channels through spectral pixel-wise 1x1 convolutions. Based on the
     DRCNN approach, it uses:
+
     - 1x1 convolution (linear combination across spectral dimension)
     - Leaky ReLU activation (a=0.01)
     - Bias parameters
@@ -65,6 +67,7 @@ class LearnableChannelMixer(Node):
         Training always uses ``batchnorm_sigmoid`` for consistency.
     init_method : {"xavier", "kaiming", "pca", "zeros"}, optional
         Weight initialization method (default: "xavier")
+
         - "xavier": Xavier/Glorot uniform initialization
         - "kaiming": Kaiming/He uniform initialization
         - "pca": Initialize from PCA components (requires statistical_initialization)
@@ -76,6 +79,7 @@ class LearnableChannelMixer(Node):
         If None, uses single-layer reduction (input_channels → output_channels).
         If provided, must start with input_channels and end with output_channels.
         Example: [61, 16, 8, 3] means:
+
         - Layer 1: 61 → 16 channels
         - Layer 2: 16 → 8 channels
         - Layer 3: 8 → 3 channels
@@ -523,11 +527,14 @@ class ConcreteChannelMixer(Node):
 
     Notes
     -----
+
     - During training (``context.stage == 'train'``), the node samples
       Gumbel noise and uses the Concrete relaxation with the current
       temperature :math:`\\tau(\\text{epoch})``.
+
     - During validation/test/inference, it uses deterministic weights
       without Gumbel noise.
+
     - The node exposes ``selection_weights`` so that repulsion penalties
       (e.g., DistinctnessLoss) can be attached in the pipeline.
     """
@@ -670,6 +677,7 @@ class ConcreteChannelMixer(Node):
         -------
         dict[str, Tensor]
             Dictionary with:
+
             - ``"rgb"``: [B, H, W, C_out] RGB-like image.
             - ``"selection_weights"``: [C_out, C_in] current weights.
         """

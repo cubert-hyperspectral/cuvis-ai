@@ -1,6 +1,7 @@
 """Conversion nodes for anomaly and segmentation pipelines.
 
 This module provides:
+
 - ``ScoreToLogit``: affine conversion from anomaly scores to logits
 - ``DecisionToMask``: combine binary decisions with identity IDs into masks
 """

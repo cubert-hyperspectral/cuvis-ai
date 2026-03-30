@@ -19,6 +19,7 @@ class DetectionJsonReader(Node):
     """Read COCO detection JSON and emit tensors per frame.
 
     Outputs per call:
+
       - frame_id: int64 [1]
       - bboxes: float32 [1, N, 4] (xyxy)
       - category_ids: int64 [1, N]
@@ -117,6 +118,7 @@ class TrackingResultsReader(Node):
     1. **COCO bbox tracking** — ``images`` + ``annotations`` with ``bbox`` and
        ``track_id`` fields.  Emits ``bboxes``, ``category_ids``, ``confidences``,
        ``track_ids``.
+
     2. **Video COCO** — ``videos`` + ``annotations`` with ``segmentations``
        list of RLE dicts.  Emits ``mask`` label map and ``object_ids``.
 

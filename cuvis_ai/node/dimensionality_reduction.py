@@ -22,6 +22,7 @@ class TrainablePCA(Node):
 
     This node performs Principal Component Analysis (PCA) for dimensionality reduction
     and can be trained end-to-end with gradient descent. It supports:
+
     - Statistical initialization from data
     - Gradient-based fine-tuning with orthogonality constraints
     - Explained variance tracking

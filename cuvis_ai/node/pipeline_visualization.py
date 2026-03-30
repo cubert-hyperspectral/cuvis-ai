@@ -141,6 +141,7 @@ class PCAVisualization(Node):
     """Visualize PCA-projected data with scatter and image plots.
 
     Creates visualizations for each batch element showing:
+
     1. Scatter plot of H*W points in 2D PC space (using first 2 PCs)
     2. Image representation of the 2D projection reshaped to [H, W, 2]
 
@@ -360,6 +361,7 @@ class PipelineComparisonVisualizer(Node):
     """TensorBoard visualization node for comparing pipeline stages.
 
     Creates image artifacts for logging to TensorBoard:
+
     - Input HSI cube visualization (false-color RGB from selected channels)
     - Mixer output (3-channel RGB-like image that downstream model sees)
     - Ground truth anomaly mask

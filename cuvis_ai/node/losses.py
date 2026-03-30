@@ -572,6 +572,7 @@ class IoULoss(LossNode):
         Small constant for numerical stability (default: 1e-6)
     normalize_method : {"sigmoid", "clamp", "minmax"}, optional
         Method to normalize predictions to [0, 1] range (default: "sigmoid")
+
         - "sigmoid": Apply sigmoid activation (good for unbounded scores)
         - "clamp": Clamp to [0, 1] (good for scores already in reasonable range)
         - "minmax": Min-max normalization per batch (good for varying score ranges)
@@ -684,6 +685,7 @@ class ForegroundContrastLoss(LossNode):
     Loss per image::
 
         -||mean_fg - mean_bg||_2
+
         + compactness_weight * Var_fg
         + anchor_weight * (||mean_fg - mean_img||^2 + ||mean_bg - mean_img||^2)
 
@@ -707,10 +709,12 @@ class ForegroundContrastLoss(LossNode):
 
     Notes
     -----
+
     - When ``color_space="oklab"``, the OKLab conversion expects linear RGB
       in [0, 1]. If the upstream RGB has no sRGB gamma curve applied (e.g.
       output of ``LearnableChannelMixer`` with ``normalize_output=True``),
       set ``assume_srgb=False``.
+
     - Vectorized over batch.
     - Fallback loss uses ``0.0 * rgb.sum()`` so it remains connected to
       the model graph.
