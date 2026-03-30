@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Added SAM3 prompt-free segment-everything tooling: `SAM3SegmentEverything`, local CLI wiring, and CU3S/video pipeline YAMLs for per-frame automatic mask generation with overlay/video/JSON outputs.
+- Added runtime SAM3 bbox propagation tooling: `BBoxPrompt`, local/gRPC bbox-propagation examples, and CU3S/video bbox-propagation pipeline YAMLs using scheduled `--prompt <object_id:detection_id@frame_id>` bbox updates from detection JSON.
+- Changed local SAM3 bbox propagation from the archived `--detection` single-seed flow to the same scheduled prompt contract used by mask propagation, including optional bbox prompt debug overlays.
 - Added runtime SAM3 mask propagation tooling: `MaskPrompt`, local/gRPC mask-propagation examples, and CU3S/video mask-propagation pipeline YAMLs using scheduled `--prompt <object_id:detection_id@frame_id>` mask updates from detection JSON.
 - Changed local SAM3 mask propagation from archived PNG prompts to detection-JSON-driven label-map prompting, and clarified that gRPC mask propagation sends masks directly through `InputBatch.mask`.
 - Added SAM3 text-propagation pipeline configs and a new gRPC client (`examples/grpc/sam3/sam3_text_propagation_client.py`) supporting CU3S/video inputs plus plugin-manifest bootstrap.

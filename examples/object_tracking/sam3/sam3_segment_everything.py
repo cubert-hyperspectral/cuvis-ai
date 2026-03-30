@@ -1,10 +1,6 @@
-"""SAM3 bbox propagation for CU3S or RGB video.
+"""SAM3 prompt-free segment-everything for CU3S or RGB video.
 
 Exactly one of ``--cu3s-path`` or ``--video-path`` is required.
-
-Prompt boxes are read from a COCO detection JSON via ``BBoxPrompt``.
-Use repeatable ``--prompt <object_id:detection_id@frame_id>`` entries to schedule
-bbox injections on arbitrary frames.
 """
 
 from __future__ import annotations
@@ -28,10 +24,9 @@ from sam3_source_context import (
     validate_source_and_window,
 )
 
-from cuvis_ai.node.anomaly_visualization import BBoxesOverlayNode, TrackingOverlayNode
+from cuvis_ai.node.anomaly_visualization import TrackingOverlayNode
 from cuvis_ai.node.channel_selector import CIETristimulusFalseRGBSelector, NormMode
 from cuvis_ai.node.json_writer import CocoTrackMaskWriter
-from cuvis_ai.node.static_node import BBoxPrompt
 from cuvis_ai.node.video import ToVideoNode
 
 
@@ -47,18 +42,6 @@ from cuvis_ai.node.video import ToVideoNode
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
     default=None,
     help="Path to an MP4 (or other cv2-compatible) video file.",
-)
-@click.option(
-    "--detection-json",
-    type=click.Path(exists=True, dir_okay=False, path_type=Path),
-    required=True,
-    help="COCO detection JSON containing per-frame annotations with bbox prompts.",
-)
-@click.option(
-    "--prompt",
-    "prompt_specs",
-    multiple=True,
-    help="Repeatable prompt spec in the form <object_id:detection_id@frame_id>.",
 )
 @click.option(
     "--processing-mode",
@@ -84,7 +67,7 @@ from cuvis_ai.node.video import ToVideoNode
 @click.option(
     "--output-dir",
     type=click.Path(file_okay=False, path_type=Path),
-    default=Path("D:/experiments/sam3/bbox_propagation"),
+    default=Path("D:/experiments/sam3/segment_everything"),
     show_default=True,
     help=(
         "Parent output directory. Final run folder is "
@@ -108,52 +91,27 @@ from cuvis_ai.node.video import ToVideoNode
 @click.option(
     "--compile", "compile_model", is_flag=True, default=False, help="Enable torch.compile."
 )
+@click.option("--points-per-side", type=int, default=32, show_default=True)
+@click.option("--points-per-batch", type=int, default=64, show_default=True)
+@click.option("--pred-iou-thresh", type=float, default=0.8, show_default=True)
+@click.option("--stability-score-thresh", type=float, default=0.95, show_default=True)
+@click.option("--stability-score-offset", type=float, default=1.0, show_default=True)
+@click.option("--mask-threshold", type=float, default=0.0, show_default=True)
+@click.option("--box-nms-thresh", type=float, default=0.7, show_default=True)
+@click.option("--crop-n-layers", type=int, default=0, show_default=True)
+@click.option("--crop-nms-thresh", type=float, default=0.7, show_default=True)
+@click.option("--crop-overlap-ratio", type=float, default=512 / 1500, show_default=True)
+@click.option("--crop-n-points-downscale-factor", type=int, default=1, show_default=True)
+@click.option("--min-mask-region-area", type=int, default=0, show_default=True)
 @click.option(
-    "--score-threshold-detection",
-    type=float,
-    default=0.5,
+    "--multimask-output/--single-mask-output",
+    default=True,
     show_default=True,
-    help="SAM3 detector score threshold (lower increases recall).",
-)
-@click.option(
-    "--new-det-thresh",
-    type=float,
-    default=0.7,
-    show_default=True,
-    help="SAM3 new-track threshold (lower admits weaker new tracks).",
-)
-@click.option(
-    "--det-nms-thresh",
-    type=float,
-    default=0.1,
-    show_default=True,
-    help="SAM3 detector NMS IoU threshold (higher is less suppressive).",
-)
-@click.option(
-    "--overlap-suppress-thresh",
-    type=float,
-    default=0.7,
-    show_default=True,
-    help="SAM3 overlap suppression threshold (higher is less suppressive).",
-)
-@click.option(
-    "--max-tracker-states",
-    type=int,
-    default=5,
-    show_default=True,
-    help="Maximum number of active tracker states.",
-)
-@click.option(
-    "--write-prompt-debug-video",
-    is_flag=True,
-    default=False,
-    help="Write prompt_bbox_overlay.mp4 showing the source frame stream with prompt boxes overlaid.",
+    help="Use SAM3 multimask predictions for each sampled point.",
 )
 def main(
     cu3s_path: Path | None,
     video_path: Path | None,
-    detection_json: Path,
-    prompt_specs: tuple[str, ...],
     processing_mode: str,
     frame_rotation: int | None,
     start_frame: int,
@@ -165,12 +123,19 @@ def main(
     plugins_yaml: Path,
     bf16: bool,
     compile_model: bool,
-    score_threshold_detection: float,
-    new_det_thresh: float,
-    det_nms_thresh: float,
-    overlap_suppress_thresh: float,
-    max_tracker_states: int,
-    write_prompt_debug_video: bool,
+    points_per_side: int,
+    points_per_batch: int,
+    pred_iou_thresh: float,
+    stability_score_thresh: float,
+    stability_score_offset: float,
+    mask_threshold: float,
+    box_nms_thresh: float,
+    crop_n_layers: int,
+    crop_nms_thresh: float,
+    crop_overlap_ratio: float,
+    crop_n_points_downscale_factor: int,
+    min_mask_region_area: int,
+    multimask_output: bool,
 ) -> None:
     effective_end_frame = resolve_end_frame(
         start_frame=start_frame,
@@ -191,16 +156,29 @@ def main(
         out_basename=out_basename,
     )
     run_output_dir.mkdir(parents=True, exist_ok=True)
+
     for option_name, value in (
-        ("--score-threshold-detection", score_threshold_detection),
-        ("--new-det-thresh", new_det_thresh),
-        ("--det-nms-thresh", det_nms_thresh),
-        ("--overlap-suppress-thresh", overlap_suppress_thresh),
+        ("--pred-iou-thresh", pred_iou_thresh),
+        ("--stability-score-thresh", stability_score_thresh),
+        ("--box-nms-thresh", box_nms_thresh),
+        ("--crop-nms-thresh", crop_nms_thresh),
     ):
         if not (0.0 <= float(value) <= 1.0):
             raise click.BadParameter(f"{option_name} must be in [0, 1].")
-    if max_tracker_states < 1:
-        raise click.BadParameter("--max-tracker-states must be >= 1.")
+    if points_per_side < 1:
+        raise click.BadParameter("--points-per-side must be >= 1.")
+    if points_per_batch < 1:
+        raise click.BadParameter("--points-per-batch must be >= 1.")
+    if crop_n_layers < 0:
+        raise click.BadParameter("--crop-n-layers must be >= 0.")
+    if crop_n_points_downscale_factor < 1:
+        raise click.BadParameter("--crop-n-points-downscale-factor must be >= 1.")
+    if min_mask_region_area < 0:
+        raise click.BadParameter("--min-mask-region-area must be >= 0.")
+    if stability_score_offset < 0:
+        raise click.BadParameter("--stability-score-offset must be >= 0.")
+    if crop_overlap_ratio < 0:
+        raise click.BadParameter("--crop-overlap-ratio must be >= 0.")
 
     resolved_mode = resolve_processing_mode(processing_mode)
     if video_path is not None:
@@ -223,45 +201,42 @@ def main(
             else None
         ),
     )
-    bbox_prompt = BBoxPrompt(
-        json_path=str(detection_json),
-        prompt_specs=list(prompt_specs),
-        name="bbox_prompt",
-    )
 
     plugin_manifest = resolve_plugin_manifest(plugins_yaml)
     registry = NodeRegistry()
     registry.load_plugins(str(plugin_manifest))
-    sam3_cls = registry.get("cuvis_ai_sam3.node.SAM3BboxPropagation")
+    sam3_cls = registry.get("cuvis_ai_sam3.node.SAM3SegmentEverything")
 
     pipeline_name = (
-        "SAM3_Bbox_Propagation_HSI"
+        "SAM3_Segment_Everything_HSI"
         if source_context.source_type == "cu3s"
-        else "SAM3_Bbox_Propagation_Video"
+        else "SAM3_Segment_Everything_Video"
     )
 
     sam3_node = sam3_cls(
         checkpoint_path=str(checkpoint_path) if checkpoint_path else None,
         compile_model=compile_model,
-        score_threshold_detection=float(score_threshold_detection),
-        new_det_thresh=float(new_det_thresh),
-        det_nms_thresh=float(det_nms_thresh),
-        overlap_suppress_thresh=float(overlap_suppress_thresh),
-        max_tracker_states=int(max_tracker_states),
-        name="sam3_streaming",
-    )
-
-    logger.info(
-        "BBox propagation: {} prompt spec(s), {} frames",
-        len(prompt_specs),
-        source_context.target_frames,
+        points_per_side=int(points_per_side),
+        points_per_batch=int(points_per_batch),
+        pred_iou_thresh=float(pred_iou_thresh),
+        stability_score_thresh=float(stability_score_thresh),
+        stability_score_offset=float(stability_score_offset),
+        mask_threshold=float(mask_threshold),
+        box_nms_thresh=float(box_nms_thresh),
+        crop_n_layers=int(crop_n_layers),
+        crop_nms_thresh=float(crop_nms_thresh),
+        crop_overlap_ratio=float(crop_overlap_ratio),
+        crop_n_points_downscale_factor=int(crop_n_points_downscale_factor),
+        min_mask_region_area=int(min_mask_region_area),
+        multimask_output=bool(multimask_output),
+        name="sam3_segment_everything",
     )
 
     pipeline = CuvisPipeline(pipeline_name)
 
     tracking_json = CocoTrackMaskWriter(
         output_json_path=str(run_output_dir / "tracking_results.json"),
-        category_name="person",
+        category_name="object",
         name="tracking_coco_json",
     )
     overlay_node = TrackingOverlayNode(alpha=0.2, name="overlay")
@@ -272,15 +247,12 @@ def main(
         frame_rotation=frame_rotation,
         name="to_video",
     )
-    prompt_debug_path = run_output_dir / "prompt_bbox_overlay.mp4"
 
     connections = list(source_context.source_connections)
     connections.extend(
         [
             (source_context.source_rgb_port, sam3_node.rgb_frame),
             (source_context.source_frame_id_port, sam3_node.inputs.frame_id),
-            (source_context.source_frame_id_port, bbox_prompt.frame_id),
-            (bbox_prompt.bboxes, sam3_node.inputs.bboxes),
             (source_context.source_frame_id_port, tracking_json.frame_id),
             (sam3_node.outputs.mask, tracking_json.mask),
             (sam3_node.object_ids, tracking_json.object_ids),
@@ -290,28 +262,9 @@ def main(
             (sam3_node.outputs.mask, overlay_node.mask),
             (sam3_node.object_ids, overlay_node.object_ids),
             (overlay_node.rgb_with_overlay, to_video.rgb_image),
+            (source_context.source_frame_id_port, to_video.frame_id),
         ]
     )
-
-    if write_prompt_debug_video:
-        prompt_overlay = BBoxesOverlayNode(draw_labels=True, name="prompt_overlay")
-        prompt_to_video = ToVideoNode(
-            output_video_path=str(prompt_debug_path),
-            frame_rate=source_context.dataset_fps,
-            frame_rotation=frame_rotation,
-            name="prompt_to_video",
-        )
-        connections.extend(
-            [
-                (source_context.source_rgb_port, prompt_overlay.rgb_image),
-                (bbox_prompt.prompt_boxes_xyxy, prompt_overlay.bboxes),
-                (bbox_prompt.prompt_object_ids, prompt_overlay.category_ids),
-                (source_context.source_frame_id_port, prompt_overlay.frame_id),
-                (prompt_overlay.rgb_with_overlay, prompt_to_video.rgb_image),
-                (source_context.source_frame_id_port, prompt_to_video.frame_id),
-            ]
-        )
-
     pipeline.connect(*connections)
 
     pipeline_png = run_output_dir / f"{pipeline.name}.png"
@@ -330,8 +283,9 @@ def main(
         else contextlib.nullcontext()
     )
     logger.info(
-        "Starting bbox propagation ({} frames)...",
+        "Starting segment everything ({} frames, source={})...",
         source_context.target_frames,
+        source_context.source_type,
     )
     with amp_ctx:
         predictor.predict(max_batches=source_context.target_frames, collect_outputs=False)
@@ -343,8 +297,6 @@ def main(
     logger.success("Done -> {}", run_output_dir)
     logger.info("JSON: {}", run_output_dir / "tracking_results.json")
     logger.info("Overlay: {}", overlay_path)
-    if write_prompt_debug_video:
-        logger.info("Prompt Debug Overlay: {}", prompt_debug_path)
 
 
 if __name__ == "__main__":

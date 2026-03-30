@@ -445,7 +445,7 @@ Four scripts demonstrate SAM3's streaming propagation with different prompt type
 All use the same pipeline pattern and produce an overlay video with frame IDs rendered in the top-left corner.
 
 - **Text prompt** → `SAM3TextPropagation` (tracks prompt-matching objects)
-- **Bbox prompt** → `SAM3BboxPropagation` (tracks a single bbox-prompted object)
+- **Bbox prompt** → `SAM3BboxPropagation` (tracks one or more scheduled bbox-prompted objects)
 - **Point prompt** → `SAM3PointPropagation` (tracks a single point-prompted object)
 - **Mask prompt** → `SAM3MaskPropagation` (tracks one or more scheduled mask-prompted objects)
 - **Vocabulary image labeling** → `SAM3EverythingLabel` (runs exhaustive SAM3 image grounding for a configured prompt list and merges the masks into one label map)
@@ -462,7 +462,8 @@ Coverage depends on the prompt vocabulary you configure.
   - a CU3S file (for example `Auto_013+01.cu3s`)
   - or a video file (for example `Auto_013+01-tristimulus.mp4`)
 - SAM3 plugin: `configs/plugins/sam3.yaml`
-- For bbox/point prompts: a COCO-format detection or tracking JSON (e.g. from ByteTrack/DeepEIoU)
+- For point prompt: a COCO-format detection or tracking JSON (e.g. from ByteTrack/DeepEIoU)
+- For bbox prompt: a COCO detection/tracking JSON containing `bbox` entries plus repeatable `--prompt <object_id:detection_id@frame_id>` specs
 - For mask prompt: a COCO detection/tracking JSON containing non-empty `segmentation` masks plus repeatable `--prompt <object_id:detection_id@frame_id>` specs
 
 Mask-prompt JSON requirements:
@@ -482,23 +483,17 @@ Mask-prompt JSON requirements:
 
 ### Prompt Frame Contract
 
-- Text, bbox, and point prompts are applied on the first streamed frame.
-- `--start-frame` therefore defines the prompt frame for the text, bbox, and point scripts.
-- Bbox/point scripts use detection ID only: `--detection ID`.
-- Mask propagation uses scheduled prompt specs: `--prompt <object_id:detection_id@frame_id>`.
-- Mask propagation can inject prompts on multiple arbitrary frames.
-- Frames before the first scheduled mask prompt emit empty tracking outputs and do not initialize SAM3.
+- Text and point prompts are applied on the first streamed frame.
+- `--start-frame` therefore defines the prompt frame for the text and point scripts.
+- Bbox and mask propagation use scheduled prompt specs: `--prompt <object_id:detection_id@frame_id>`.
+- Bbox and mask propagation can inject prompts on multiple arbitrary frames.
+- Frames before the first scheduled bbox or mask prompt emit empty tracking outputs and do not initialize SAM3.
 
-Detection ID semantics for bbox/point/mask:
-- `ID` is matched against `track_id` first; if missing, it is interpreted as 1-based rank by score on `--start-frame`.
-- For mask prompts, the same rule is applied on the `frame_id` encoded in each prompt spec.
-- Default for bbox/point: `1` (best detection on `--start-frame`).
-
-For bbox propagation, use exactly one `--detection` value.
-
-Bbox propagation ID semantics:
-- If `--detection ID` provides an ID, outputs reuse that ID (`track_id=ID`) for the selected bbox object.
-- If no explicit bbox object ID is provided at node level, outputs use the SAM-selected object ID.
+Detection ID semantics for point/bbox/mask:
+- `detection_id` is matched against `track_id` first.
+- If `track_id` is absent on that frame, `detection_id` is interpreted as a 1-based rank by descending `score`.
+- For point propagation, the lookup happens on `--start-frame`.
+- For bbox and mask propagation, the lookup happens on the `frame_id` encoded in each prompt spec.
 
 ### Scripts
 
@@ -518,22 +513,35 @@ uv run python examples/object_tracking/sam3/sam3_text_propagation.py `
 
 Default prompt is `person`. Change with `--prompt "car"` as needed.
 
-#### Bbox prompt (validated window: `track_id=14` on `--start-frame 290`)
+#### Bbox prompt (scheduled multi-frame updates, local video)
 
 ```powershell
 uv run python examples/object_tracking/sam3/sam3_bbox_propagation.py `
-  --cu3s-path "D:\data\XMR_notarget_Busstation\20260226\Auto_013+01.cu3s" `
-  --detection-json "D:\experiments\sam3\20260316\video_tracker_parity_unlimited_states_confirmed\tracking_results.json" `
-  --detection 14 `
-  --start-frame 290 `
-  --max-frames 100 `
-  --output-dir "D:\experiments\sam3\20260316" `
-  --out-basename "bbox_propagation_id14_f290_100f" `
+  --video-path "D:\experiments\20260319\video_creation\tristimulus\XMR_25mm_CubertParkingLotTracking\2026_03_19_11-27-39\Auto_004+01.mp4" `
+  --detection-json "D:\experiments\20260319\sam3\XMR_25mm_CubertParkingLotTracking\RGB\2026_03_19_11-27-39\Auto_004+01\tracking_results.json" `
+  --prompt 2:2@65 `
+  --prompt 1:1@70 `
+  --output-dir "D:\experiments\20260326\bbox_propagation_local\video" `
+  --out-basename "Auto_004+01" `
   --plugins-yaml "configs/plugins/sam3.yaml" `
   --bf16
 ```
 
-This mode tracks a single object for the prompted bbox and writes that object with the requested detection ID in output JSON.
+Each prompt spec selects a bbox annotation from the JSON and injects it into SAM3 as a runtime bbox update on that frame.
+
+#### Bbox prompt (scheduled multi-frame updates, local CU3S)
+
+```powershell
+uv run python examples/object_tracking/sam3/sam3_bbox_propagation.py `
+  --cu3s-path "D:\data\XMR_25mm_CubertParkingLotTracking\2026_03_19_11-27-39\Auto_004+01.cu3s" `
+  --detection-json "D:\experiments\20260319\sam3\XMR_25mm_CubertParkingLotTracking\RGB\2026_03_19_11-27-39\Auto_004+01\tracking_results.json" `
+  --prompt 2:2@65 `
+  --prompt 1:1@70 `
+  --output-dir "D:\experiments\20260326\bbox_propagation_local\cu3s" `
+  --out-basename "Auto_004+01" `
+  --plugins-yaml "configs/plugins/sam3.yaml" `
+  --bf16
+```
 
 #### Point prompt (validated window: `track_id=14` on `--start-frame 290`)
 
@@ -606,8 +614,8 @@ uv run python examples/object_tracking/sam3/sam3_mask_propagation.py `
 
 Prompt-specific options:
 - Text: `--prompt`
-- Bbox/Point: `--detection-json` and `--detection ID`
-- Mask: `--detection-json` and repeatable `--prompt <object_id:detection_id@frame_id>`
+- Point: `--detection-json` and `--detection ID`
+- Bbox/Mask: `--detection-json` and repeatable `--prompt <object_id:detection_id@frame_id>`
 
 ### Outputs
 
@@ -619,9 +627,9 @@ For `--output-dir <ROOT>`, each script writes to:
 - `<RUN>/profiling_summary.txt` — per-node runtime profiling breakdown
 - `<RUN>/<PipelineName>.png` — graphviz pipeline diagram
 
-### gRPC SAM3 Mask Propagation
+### gRPC SAM3 Mask/Bbox Propagation
 
-Use the gRPC client when you want to run the same runtime-mask propagation flow through the server interface instead of a local `Predictor`.
+Use the gRPC clients when you want to run the same runtime mask or bbox propagation flow through the server interface instead of a local `Predictor`.
 
 Server startup:
 
@@ -647,6 +655,17 @@ uv run python examples/grpc/sam3/sam3_mask_propagation_client.py `
   --output-json-path "D:\experiments\20260326\mask_propagation_grpc\video\tracking_results.json"
 ```
 
+gRPC bbox video example:
+
+```powershell
+uv run python examples/grpc/sam3/sam3_bbox_propagation_client.py `
+  --video-path "D:\experiments\20260319\video_creation\tristimulus\XMR_25mm_CubertParkingLotTracking\2026_03_19_11-27-39\Auto_004+01.mp4" `
+  --detection-json "D:\experiments\20260319\sam3\XMR_25mm_CubertParkingLotTracking\RGB\2026_03_19_11-27-39\Auto_004+01\tracking_results.json" `
+  --prompt 2:2@65 `
+  --prompt 1:1@70 `
+  --output-json-path "D:\experiments\20260326\bbox_propagation_grpc\video\tracking_results.json"
+```
+
 gRPC CU3S example:
 
 ```powershell
@@ -658,12 +677,27 @@ uv run python examples/grpc/sam3/sam3_mask_propagation_client.py `
   --output-json-path "D:\experiments\20260326\mask_propagation_grpc\cu3s\tracking_results.json"
 ```
 
+gRPC bbox CU3S example:
+
+```powershell
+uv run python examples/grpc/sam3/sam3_bbox_propagation_client.py `
+  --cu3s-path "D:\data\XMR_25mm_CubertParkingLotTracking\2026_03_19_11-27-39\Auto_004+01.cu3s" `
+  --detection-json "D:\experiments\20260319\sam3\XMR_25mm_CubertParkingLotTracking\RGB\2026_03_19_11-27-39\Auto_004+01\tracking_results.json" `
+  --prompt 2:2@65 `
+  --prompt 1:1@70 `
+  --output-json-path "D:\experiments\20260326\bbox_propagation_grpc\cu3s\tracking_results.json"
+```
+
 gRPC notes:
 - The client sends prompt masks directly through `InputBatch.mask`.
-- The gRPC pipelines do not use `MaskPrompt` internally.
+- The bbox client sends prompt boxes directly through `InputBatch.bboxes`.
+- The gRPC pipelines do not use `MaskPrompt` or `BBoxPrompt` internally.
 - Default pipeline selection is automatic:
   - `--video-path` uses `configs/pipeline/sam3/sam3_mask_propagation_video.yaml`
   - `--cu3s-path` uses `configs/pipeline/sam3/sam3_mask_propagation.yaml`
+- Bbox gRPC defaults are:
+  - `--video-path` uses `configs/pipeline/sam3/sam3_bbox_propagation_video.yaml`
+  - `--cu3s-path` uses `configs/pipeline/sam3/sam3_bbox_propagation.yaml`
 - gRPC runs write tracking JSON only. Overlay video and profiling artifacts are produced by the local scripts.
 
 ---

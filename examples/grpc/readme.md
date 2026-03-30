@@ -61,7 +61,9 @@ Core workflow phases:
 ### `sam3/`
 
 - `examples/grpc/sam3/sam3_text_propagation_client.py`
+- `examples/grpc/sam3/sam3_bbox_propagation_client.py`
 - `examples/grpc/sam3/sam3_mask_propagation_client.py`
+- `examples/grpc/sam3/sam3_segment_everything_client.py`
 
 ## Canonical Commands
 
@@ -101,15 +103,27 @@ uv run python examples/grpc/adaclip/adaclip_lentils_inference.py --help
 
 # sam3
 uv run python examples/grpc/sam3/sam3_text_propagation_client.py --help
+uv run python examples/grpc/sam3/sam3_bbox_propagation_client.py --help
 uv run python examples/grpc/sam3/sam3_mask_propagation_client.py --help
+uv run python examples/grpc/sam3/sam3_segment_everything_client.py --help
 ```
 
-## SAM3 Mask Propagation
+## SAM3 Mask/Bbox Propagation
 
 Runtime mask propagation uses these pipeline configs:
 
 - `configs/pipeline/sam3/sam3_mask_propagation.yaml`
 - `configs/pipeline/sam3/sam3_mask_propagation_video.yaml`
+
+Runtime bbox propagation uses these pipeline configs:
+
+- `configs/pipeline/sam3/sam3_bbox_propagation.yaml`
+- `configs/pipeline/sam3/sam3_bbox_propagation_video.yaml`
+
+Runtime segment-everything uses these pipeline configs:
+
+- `configs/pipeline/sam3/sam3_segment_everything.yaml`
+- `configs/pipeline/sam3/sam3_segment_everything_video.yaml`
 
 The gRPC mask workflow does not use `MaskPrompt` inside the pipeline. Instead, the
 client decodes scheduled segmentations from `--detection-json` and sends prompt
@@ -122,4 +136,27 @@ uv run python examples/grpc/sam3/sam3_mask_propagation_client.py `
   --prompt 2:2@65 `
   --prompt 1:1@70 `
   --output-json-path "D:\experiments\20260326\mask_propagation_grpc\video\Auto_004+01.json"
+```
+
+The gRPC bbox workflow follows the same scheduled prompt contract, but sends
+prompt boxes through `InputBatch.bboxes` instead of prompt masks:
+
+```powershell
+uv run python examples/grpc/sam3/sam3_bbox_propagation_client.py `
+  --video-path "D:\experiments\20260319\video_creation\tristimulus\XMR_25mm_CubertParkingLotTracking\2026_03_19_11-27-39\Auto_004+01.mp4" `
+  --detection-json "D:\experiments\20260319\video_creation\tristimulus\XMR_25mm_CubertParkingLotTracking\2026_03_19_11-27-39\Auto_004+01.json" `
+  --prompt 2:2@65 `
+  --prompt 1:1@70 `
+  --output-json-path "D:\experiments\20260326\bbox_propagation_grpc\video\Auto_004+01.json"
+```
+
+The gRPC segment-everything workflow is prompt-free and simply streams frames
+through `SAM3SegmentEverything`:
+
+```powershell
+uv run python examples/grpc/sam3/sam3_segment_everything_client.py `
+  --video-path "D:\experiments\20260319\video_creation\tristimulus\XMR_25mm_CubertParkingLotTracking\2026_03_19_11-27-39\Auto_004+01.mp4" `
+  --start-frame 70 `
+  --max-frames 1 `
+  --output-json-path "D:\experiments\20260330\segment_everything_grpc\video\Auto_004+01_frame0070.json"
 ```

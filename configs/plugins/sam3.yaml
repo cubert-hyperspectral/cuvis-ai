@@ -9,4 +9,4 @@ plugins:
       - cuvis_ai_sam3.node.SAM3BboxPropagation
       - cuvis_ai_sam3.node.SAM3PointPropagation
       - cuvis_ai_sam3.node.SAM3MaskPropagation
-      - cuvis_ai_sam3.node.SAM3EverythingLabel
+      - cuvis_ai_sam3.node.SAM3SegmentEverything

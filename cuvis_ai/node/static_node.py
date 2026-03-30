@@ -1,4 +1,4 @@
-"""Static nodes and helpers for frame-indexed mask prompt schedules."""
+"""Static nodes and helpers for frame-indexed mask and bbox prompt schedules."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ _PROMPT_SPEC_RE = re.compile(r"\s*(\d+):(\d+)@(\d+)\s*")
 
 @dataclass(frozen=True)
 class MaskPromptSpec:
-    """One prompt-schedule entry."""
+    """One scheduled mask-prompt entry."""
 
     object_id: int
     detection_id: int
@@ -30,18 +30,49 @@ class MaskPromptSpec:
     order: int
 
 
-def parse_mask_prompt_spec(spec: str, order: int = 0) -> MaskPromptSpec:
-    """Parse ``<object_id>:<detection_id>@<frame_id>`` into a typed spec."""
+@dataclass(frozen=True)
+class BBoxPromptSpec:
+    """One scheduled bbox-prompt entry."""
+
+    object_id: int
+    detection_id: int
+    frame_id: int
+    order: int
+
+
+def _parse_prompt_spec(spec: str, order: int = 0) -> tuple[int, int, int, int]:
     match = _PROMPT_SPEC_RE.fullmatch(spec)
     if match is None:
         raise ValueError(
             f"Invalid prompt spec '{spec}'. Expected format <object_id>:<detection_id>@<frame_id>."
         )
+    return (
+        int(match.group(1)),
+        int(match.group(2)),
+        int(match.group(3)),
+        int(order),
+    )
+
+
+def parse_mask_prompt_spec(spec: str, order: int = 0) -> MaskPromptSpec:
+    """Parse ``<object_id>:<detection_id>@<frame_id>`` into a typed mask spec."""
+    object_id, detection_id, frame_id, order_idx = _parse_prompt_spec(spec, order=order)
     return MaskPromptSpec(
-        object_id=int(match.group(1)),
-        detection_id=int(match.group(2)),
-        frame_id=int(match.group(3)),
-        order=int(order),
+        object_id=object_id,
+        detection_id=detection_id,
+        frame_id=frame_id,
+        order=order_idx,
+    )
+
+
+def parse_bbox_prompt_spec(spec: str, order: int = 0) -> BBoxPromptSpec:
+    """Parse ``<object_id>:<detection_id>@<frame_id>`` into a typed bbox spec."""
+    object_id, detection_id, frame_id, order_idx = _parse_prompt_spec(spec, order=order)
+    return BBoxPromptSpec(
+        object_id=object_id,
+        detection_id=detection_id,
+        frame_id=frame_id,
+        order=order_idx,
     )
 
 
@@ -135,21 +166,16 @@ def _decode_segmentation(
     return (mask > 0).astype(np.uint8)
 
 
-def load_mask_prompt_schedule(
-    json_path: str | Path,
-    prompt_specs: Sequence[str] | None,
-) -> tuple[dict[int, np.ndarray], dict[int, tuple[int, int]], tuple[int, int] | None]:
-    """Load detection JSON and build per-frame label-map prompts."""
-    json_file = Path(json_path)
-    if not json_file.exists():
-        raise FileNotFoundError(f"Detection JSON not found: {json_file}")
-
-    with json_file.open("r", encoding="utf-8") as handle:
-        data = json.load(handle)
-
+def _build_frame_metadata(
+    data: dict[str, Any],
+) -> tuple[
+    dict[int, list[dict[str, Any]]],
+    dict[int, tuple[int, int]],
+    tuple[int, int] | None,
+]:
     images = {int(img["id"]): img for img in data.get("images", [])}
     if not images:
-        raise ValueError(f"Detection JSON {json_file} must contain COCO 'images' entries.")
+        raise ValueError("Detection JSON must contain COCO 'images' entries.")
 
     annotations_by_frame: dict[int, list[dict[str, Any]]] = {}
     annotation_hw_by_frame: dict[int, set[tuple[int, int]]] = {}
@@ -174,6 +200,22 @@ def load_mask_prompt_schedule(
     usable_hws = sorted({hw for hw in frame_hw_by_id.values() if hw[0] > 1 and hw[1] > 1})
     unique_hw = usable_hws or sorted(set(frame_hw_by_id.values()))
     default_hw = unique_hw[0] if len(unique_hw) == 1 else None
+    return annotations_by_frame, frame_hw_by_id, default_hw
+
+
+def load_mask_prompt_schedule(
+    json_path: str | Path,
+    prompt_specs: Sequence[str] | None,
+) -> tuple[dict[int, np.ndarray], dict[int, tuple[int, int]], tuple[int, int] | None]:
+    """Load detection JSON and build per-frame label-map prompts."""
+    json_file = Path(json_path)
+    if not json_file.exists():
+        raise FileNotFoundError(f"Detection JSON not found: {json_file}")
+
+    with json_file.open("r", encoding="utf-8") as handle:
+        data = json.load(handle)
+
+    annotations_by_frame, frame_hw_by_id, default_hw = _build_frame_metadata(data)
 
     masks_by_frame: dict[int, np.ndarray] = {}
     for order, raw_spec in enumerate(prompt_specs or []):
@@ -207,6 +249,80 @@ def load_mask_prompt_schedule(
         frame_mask[binary_mask.astype(bool)] = int(spec.object_id)
 
     return masks_by_frame, frame_hw_by_id, default_hw
+
+
+def _annotation_bbox_xyxy(
+    annotation: dict[str, Any],
+    frame_hw: tuple[int, int],
+    *,
+    raw_spec: str,
+) -> tuple[float, float, float, float]:
+    if "bbox" not in annotation:
+        raise ValueError(f"Annotation selected by '{raw_spec}' does not contain a 'bbox' field.")
+
+    bbox = annotation["bbox"]
+    if not isinstance(bbox, list | tuple) or len(bbox) != 4:
+        raise ValueError(f"Annotation selected by '{raw_spec}' has an invalid COCO bbox: {bbox!r}.")
+
+    height, width = frame_hw
+    x_min = max(0.0, min(float(bbox[0]), float(width)))
+    y_min = max(0.0, min(float(bbox[1]), float(height)))
+    x_max = max(x_min, min(float(bbox[0]) + float(bbox[2]), float(width)))
+    y_max = max(y_min, min(float(bbox[1]) + float(bbox[3]), float(height)))
+    if x_max <= x_min or y_max <= y_min:
+        raise ValueError(f"Annotation selected by '{raw_spec}' has a degenerate bbox: {bbox!r}.")
+    return x_min, y_min, x_max, y_max
+
+
+def load_bbox_prompt_schedule(
+    json_path: str | Path,
+    prompt_specs: Sequence[str] | None,
+) -> tuple[
+    dict[int, list[dict[str, float | int]]],
+    dict[int, tuple[int, int]],
+    tuple[int, int] | None,
+]:
+    """Load detection JSON and build per-frame bbox prompts."""
+    json_file = Path(json_path)
+    if not json_file.exists():
+        raise FileNotFoundError(f"Detection JSON not found: {json_file}")
+
+    with json_file.open("r", encoding="utf-8") as handle:
+        data = json.load(handle)
+
+    annotations_by_frame, frame_hw_by_id, default_hw = _build_frame_metadata(data)
+
+    prompts_by_frame: dict[int, dict[int, dict[str, float | int]]] = {}
+    for order, raw_spec in enumerate(prompt_specs or []):
+        spec = parse_bbox_prompt_spec(raw_spec, order=order)
+        if spec.frame_id not in frame_hw_by_id:
+            raise ValueError(
+                f"Frame {spec.frame_id} referenced by '{raw_spec}' is missing in images."
+            )
+        annotation = _select_annotation_for_prompt(
+            annotations_by_frame=annotations_by_frame,
+            detection_id=spec.detection_id,
+            frame_id=spec.frame_id,
+        )
+        x_min, y_min, x_max, y_max = _annotation_bbox_xyxy(
+            annotation,
+            frame_hw_by_id[spec.frame_id],
+            raw_spec=raw_spec,
+        )
+        prompts_by_frame.setdefault(spec.frame_id, {})[spec.object_id] = {
+            "element_id": 0,
+            "object_id": int(spec.object_id),
+            "x_min": float(x_min),
+            "y_min": float(y_min),
+            "x_max": float(x_max),
+            "y_max": float(y_max),
+        }
+
+    return (
+        {frame_id: list(object_map.values()) for frame_id, object_map in prompts_by_frame.items()},
+        frame_hw_by_id,
+        default_hw,
+    )
 
 
 class MaskPrompt(Node):
@@ -277,9 +393,106 @@ class MaskPrompt(Node):
         return {"mask": mask_t}
 
 
+class BBoxPrompt(Node):
+    """Emit scheduled runtime bbox prompts plus overlay-friendly debug tensors."""
+
+    INPUT_SPECS = {
+        "frame_id": PortSpec(dtype=torch.int64, shape=(1,), description="Source frame index [1]."),
+    }
+    OUTPUT_SPECS = {
+        "bboxes": PortSpec(
+            dtype=list,
+            shape=(),
+            description=(
+                "Per-frame list of bbox prompt dicts with keys element_id, object_id, "
+                "x_min, y_min, x_max, y_max."
+            ),
+        ),
+        "prompt_boxes_xyxy": PortSpec(
+            dtype=torch.float32,
+            shape=(1, -1, 4),
+            description="Prompt boxes [1,N,4] in xyxy pixels for optional debug overlay.",
+        ),
+        "prompt_object_ids": PortSpec(
+            dtype=torch.int64,
+            shape=(1, -1),
+            description="Prompt object IDs [1,N] aligned with prompt_boxes_xyxy.",
+        ),
+    }
+
+    def __init__(
+        self,
+        json_path: str,
+        prompt_specs: Sequence[str] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        self.json_path = Path(json_path)
+        self._prompt_specs = [str(spec) for spec in (prompt_specs or [])]
+        self._prompts_by_frame, self._frame_hw_by_id, self._default_hw = load_bbox_prompt_schedule(
+            self.json_path,
+            self._prompt_specs,
+        )
+        super().__init__(json_path=str(self.json_path), prompt_specs=self._prompt_specs, **kwargs)
+
+    def _resolve_frame_hw(self, frame_id: int) -> tuple[int, int]:
+        if frame_id in self._frame_hw_by_id:
+            return self._frame_hw_by_id[frame_id]
+        if self._default_hw is not None:
+            return self._default_hw
+        raise ValueError(
+            f"Frame {frame_id} is missing from {self.json_path} and no default frame size is available."
+        )
+
+    def forward(
+        self,
+        frame_id: torch.Tensor,
+        context: Context | None = None,  # noqa: ARG002
+        **_: Any,
+    ) -> dict[str, torch.Tensor | list[dict[str, float | int]]]:
+        """Emit the scheduled bbox prompt list for ``frame_id`` or an empty list."""
+        if frame_id is None or frame_id.numel() == 0:
+            raise ValueError("BBoxPrompt requires a non-empty frame_id input.")
+
+        current_frame_id = int(frame_id.reshape(-1)[0].item())
+        frame_hw = self._resolve_frame_hw(current_frame_id)
+        prompts = self._prompts_by_frame.get(current_frame_id, [])
+        prompts_out = [dict(prompt) for prompt in prompts]
+
+        if prompts_out:
+            boxes_xyxy = torch.tensor(
+                [
+                    [prompt["x_min"], prompt["y_min"], prompt["x_max"], prompt["y_max"]]
+                    for prompt in prompts_out
+                ],
+                dtype=torch.float32,
+            ).unsqueeze(0)
+            object_ids = torch.tensor(
+                [int(prompt["object_id"]) for prompt in prompts_out],
+                dtype=torch.int64,
+            ).unsqueeze(0)
+        else:
+            boxes_xyxy = torch.zeros((1, 0, 4), dtype=torch.float32)
+            object_ids = torch.zeros((1, 0), dtype=torch.int64)
+
+        if frame_hw[0] <= 0 or frame_hw[1] <= 0:
+            raise ValueError(
+                f"Resolved invalid frame size for frame {current_frame_id}: {frame_hw}."
+            )
+
+        return {
+            "bboxes": prompts_out,
+            "prompt_boxes_xyxy": boxes_xyxy,
+            "prompt_object_ids": object_ids,
+        }
+
+
 __all__ = [
+    "BBoxPrompt",
+    "BBoxPromptSpec",
     "MaskPrompt",
     "MaskPromptSpec",
+    "load_bbox_prompt_schedule",
     "load_mask_prompt_schedule",
+    "parse_bbox_prompt_spec",
     "parse_mask_prompt_spec",
 ]
