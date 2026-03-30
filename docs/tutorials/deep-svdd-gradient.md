@@ -849,7 +849,6 @@ EarlyStoppingConfig(patience=10)  # From 15
 
 - [Two-Phase Training](../concepts/two-phase-training.md) - Deep dive into training strategies
 - [Execution Stages](../concepts/execution-stages.md) - Control when nodes execute
-- [GPU Acceleration](../reference/gpu_acceleration_guide.md) - Speed up training
 
 **Explore related nodes:**
 

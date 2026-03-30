@@ -55,17 +55,7 @@ Pipeline inputs:
   mask: shape=[1, -1, -1], dtype=D_TYPE_UINT8, optional
 ```
 
-**Notes:**
-
-- Shape dimensions of `-1` indicate dynamic sizes
-- `required=true` means input must be provided for inference
-- `required=false` means input is optional
-- Pipeline must be loaded first
-
-**See Also:**
-
-- [GetPipelineOutputs](#getpipelineoutputs)
-- [TensorSpec Data Type](#tensorspec)
+Shape dimensions of `-1` indicate dynamic sizes. Pipeline must be loaded first.
 
 ---
 
@@ -109,13 +99,6 @@ Pipeline outputs:
   detector.scores: shape=[1, -1, -1], dtype=D_TYPE_FLOAT32
   decider.decisions: shape=[1, -1, -1], dtype=D_TYPE_UINT8
 ```
-
-**Use Cases:**
-
-- Discovering available outputs before inference
-- Validating pipeline structure
-- Generating documentation
-- Dynamic UI generation
 
 ---
 
@@ -168,19 +151,7 @@ print("Pipeline in Mermaid format:")
 print(mermaid_text)
 ```
 
-**Supported Formats:**
-
-- `"png"` - PNG image (binary)
-- `"svg"` - SVG image (text/XML)
-- `"dot"` - Graphviz DOT format (text)
-- `"mermaid"` - Mermaid diagram (text)
-
-**Use Cases:**
-
-- Documentation generation
-- Debugging pipeline structure
-- Presenting architecture to stakeholders
-- Automated diagram generation in CI/CD
+**Supported Formats:** `"png"` (binary), `"svg"` (text/XML), `"dot"` (Graphviz), `"mermaid"` (text).
 
 ---
 
@@ -225,12 +196,6 @@ for pipeline in response.pipelines:
     print(f"    Tags: {', '.join(pipeline.metadata.tags)}")
     print(f"    Has weights: {bool(pipeline.weights_path)}")
 ```
-
-**Use Cases:**
-
-- Pipeline discovery for users
-- Dynamic pipeline selection in applications
-- Catalog generation
 
 ---
 
@@ -313,33 +278,7 @@ except grpc.RpcError as e:
 | `UNAVAILABLE` | Service unavailable | Server down, network issue |
 | `DEADLINE_EXCEEDED` | Operation timeout | Long training, slow network |
 
-### Error Examples
-
-**Session Not Found:**
-```
-grpc.StatusCode.NOT_FOUND
-"Session '7f3e4d2c-1a9b-4c8d-9e7f-2b5a6c8d9e0f' not found or expired"
-```
-
-**Message Size Exceeded:**
-```
-grpc.StatusCode.RESOURCE_EXHAUSTED
-"Received message larger than max (100000000 vs. 4194304)"
-Solution: Increase client/server message size limits
-```
-
-**Missing Config:**
-```
-grpc.StatusCode.FAILED_PRECONDITION
-"Cannot train: trainrun config not set. Call SetTrainRunConfig first."
-```
-
-**CUDA Out of Memory:**
-```
-grpc.StatusCode.RESOURCE_EXHAUSTED
-"CUDA out of memory. Tried to allocate 2.00 GiB"
-Solution: Reduce batch size, close unused sessions
-```
+Common error messages include: `"Session not found or expired"` (NOT_FOUND), `"Received message larger than max"` (RESOURCE_EXHAUSTED — increase message size limits), `"Cannot train: trainrun config not set"` (FAILED_PRECONDITION), and `"CUDA out of memory"` (RESOURCE_EXHAUSTED — reduce batch size).
 
 ---
 
@@ -516,16 +455,3 @@ points = cuvis_ai_pb2.Points(
 )
 ```
 
----
-
-## See Also
-
-- [gRPC API Reference](api-reference.md) - Session, configuration, and pipeline management
-- [Training & Inference API](api-training-inference.md) - Training, inference, and profiling operations
-- [Client Patterns](client-patterns.md) - Common usage patterns and best practices
-- [Sequence Diagrams](sequence-diagrams.md) - Visual workflows
-- [gRPC Workflow Tutorial](../tutorials/grpc-workflow.md) - Hands-on tutorial
-- [TrainRun Schema](../config/trainrun-schema.md) - Trainrun configuration reference
-- [Pipeline Schema](../config/pipeline-schema.md) - Pipeline YAML schema
-- [Hydra Composition](../config/hydra-composition.md) - Config composition patterns
-- [Deployment Guide](../deployment/grpc_deployment.md) - Docker, Kubernetes, production

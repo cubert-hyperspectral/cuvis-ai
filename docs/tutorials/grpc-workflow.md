@@ -897,14 +897,14 @@ You've learned how to use CUVIS.AI's gRPC service for distributed training and i
 **Explore gRPC Documentation:**
 
 - [gRPC Overview](../grpc/overview.md) - Architecture and quick start
-- [gRPC API Reference](../grpc/api-reference.md) - Current CuvisAIService API surface
-- [Client Patterns](../grpc/client-patterns.md) - Best practices and common patterns
+- [gRPC API Reference](../grpc/api-session.md) - Current CuvisAIService API surface
+- [Client Connections & Sessions](../grpc/client-connections.md) - Connection management and session patterns
+- [Client Workflows & Error Handling](../grpc/client-workflows.md) - Configuration, training, inference, and error handling
 - [Sequence Diagrams](../grpc/sequence-diagrams.md) - Visual workflows
 
 **Deployment & Production:**
 
 - [gRPC Deployment Guide](../deployment/grpc_deployment.md) - Production deployment patterns
-- [Docker & Kubernetes](../deployment/docker-kubernetes.md) - Container orchestration
 
 **Production Checklist:**
 
@@ -962,6 +962,6 @@ uv run python examples/grpc/core/restore_trainrun_grpc.py \
 
 **Need Help?**
 
-- Check [gRPC Client Patterns](../grpc/client-patterns.md) for common use cases
+- Check [Client Connections & Sessions](../grpc/client-connections.md) and [Client Workflows](../grpc/client-workflows.md) for common use cases
 - See [Deployment Guide](../deployment/grpc_deployment.md) for production deployment
-- See [API Documentation](../grpc/api-reference.md) for full RPC specifications
+- See [API Documentation](../grpc/api-session.md) for full RPC specifications

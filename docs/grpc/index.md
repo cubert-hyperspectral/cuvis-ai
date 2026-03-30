@@ -17,17 +17,23 @@ CUVIS.AI provides gRPC services for remote pipeline execution and deployment sce
 
     Introduction, architecture, and quick start guide
 
--   :material-api: **[gRPC API Reference](api-reference.md)**
+-   :material-api: **[gRPC API Reference](api-session.md)**
 
     ---
 
     Current API surface for the CuvisAIService
 
--   :material-pattern: **[Client Patterns](client-patterns.md)**
+-   :material-pattern: **[Client Connections & Sessions](client-connections.md)**
 
     ---
 
-    Best practices and common usage patterns
+    Connection management and session lifecycle patterns
+
+-   :material-cog-transfer: **[Client Workflows & Error Handling](client-workflows.md)**
+
+    ---
+
+    Configuration, training, inference, and error handling patterns
 
 -   :material-chart-timeline: **[Sequence Diagrams](sequence-diagrams.md)**
 

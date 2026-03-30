@@ -110,4 +110,4 @@ Current gRPC-only differences from local runs:
 
 - [Object Tracking Workflows](object-tracking.md)
 - [gRPC Example Clients](../grpc/example-clients.md)
-- [gRPC API Reference](../grpc/api-reference.md)
+- [gRPC API Reference](../grpc/api-session.md)

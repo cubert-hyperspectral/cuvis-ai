@@ -11,13 +11,19 @@ The cuvis-ai plugin system enables extending the framework with custom nodes and
 
 <div class="grid cards" markdown>
 
--   :material-puzzle: **[Architecture](overview.md)**
+-   :material-puzzle: **[Architecture](architecture.md)**
 
     ---
 
-    NodeRegistry architecture, loading mechanisms, caching, and node registration
+    Plugin architecture, loading mechanisms, caching, and structure
 
--   :material-hammer-wrench: **[Development](development.md)**
+-   :material-cog: **[Internals](internals.md)**
+
+    ---
+
+    Node registration, isolation, versioning, security, and lifecycle
+
+-   :material-hammer-wrench: **[Development Quick Start](dev-quickstart.md)**
 
     ---
 
@@ -29,11 +35,17 @@ The cuvis-ai plugin system enables extending the framework with custom nodes and
 
     Package, distribute, and publish plugins via Git or PyPI
 
--   :material-package-variant: **[Usage](usage.md)**
+-   :material-package-variant: **[Loading Plugins](loading.md)**
 
     ---
 
-    Find, install, and use plugins in pipelines and CLI workflows
+    Find, install, and load plugins from registries
+
+-   :material-play-box: **[Using Plugin Nodes](using-nodes.md)**
+
+    ---
+
+    Use plugin nodes in pipelines and manage versions
 
 </div>
 

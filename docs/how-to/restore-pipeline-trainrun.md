@@ -707,7 +707,7 @@ For your plugin to work with automatic dependency management:
 3. **Follow PEP 621** standard for project metadata
 4. **Test locally** before deploying to Git
 
-For complete plugin development documentation, see [Plugin Development Guide](../plugin-system/development.md).
+For complete plugin development documentation, see [Plugin Development Guide](../plugin-system/dev-quickstart.md).
 
 ---
 

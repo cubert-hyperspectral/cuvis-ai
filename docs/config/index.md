@@ -29,7 +29,7 @@ CUVIS.AI uses Hydra for powerful configuration management with support for compo
 
     Schema for pipeline YAML configurations
 
--   :material-layers: **[Hydra Composition](hydra-composition.md)**
+-   :material-layers: **[Hydra Composition](hydra-basics.md)**
 
     ---
 

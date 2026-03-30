@@ -156,7 +156,7 @@ The CuvisAIService groups its current RPCs into functional areas:
 | **Inference Operations** | Run predictions on trained models |
 | **Discovery & Introspection** | List pipelines, get capabilities, visualize graphs |
 
-For complete method documentation, see the [gRPC API Reference](api-reference.md).
+For complete method documentation, see the [gRPC API Reference](api-session.md).
 
 ---
 
@@ -287,7 +287,7 @@ response = stub.ResolveConfig(
 )
 ```
 
-See [Hydra Composition Patterns](../config/hydra-composition.md) for details.
+See [Hydra Composition Patterns](../config/hydra-basics.md) for details.
 
 ### Streaming Updates: Real-Time Progress
 
@@ -370,7 +370,7 @@ The `cuvis_ai/utils/grpc_workflow.py` module provides convenience functions:
 - `apply_trainrun_config()` - Apply resolved config
 - `format_progress()` - Pretty-print training updates
 
-See [gRPC Client Patterns](client-patterns.md) for complete usage examples.
+See [Client Connections & Sessions](client-connections.md) and [Client Workflows & Error Handling](client-workflows.md) for complete usage examples.
 
 ---
 
@@ -472,8 +472,9 @@ See the [Deployment Guide](../deployment/grpc_deployment.md) for complete instru
 
 ### gRPC Documentation
 
-- [gRPC API Reference](api-reference.md) - Current CuvisAIService API surface
-- [Client Patterns](client-patterns.md) - Common usage patterns and best practices
+- [gRPC API Reference](api-session.md) - Current CuvisAIService API surface
+- [Client Connections & Sessions](client-connections.md) - Connection management and session patterns
+- [Client Workflows & Error Handling](client-workflows.md) - Configuration, training, inference, and error handling
 - [Sequence Diagrams](sequence-diagrams.md) - Visual workflows for all major operations
 
 ### Tutorials & How-To Guides
@@ -483,7 +484,7 @@ See the [Deployment Guide](../deployment/grpc_deployment.md) for complete instru
 ### Configuration
 
 - [TrainRun Schema](../config/trainrun-schema.md) - Complete trainrun configuration reference
-- [Hydra Composition](../config/hydra-composition.md) - Config composition patterns and overrides
+- [Hydra Composition](../config/hydra-basics.md) - Config composition patterns and overrides
 
 ### Deployment
 

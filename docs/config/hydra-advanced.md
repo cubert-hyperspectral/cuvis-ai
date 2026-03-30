@@ -377,87 +377,50 @@ config_dict = OmegaConf.to_container(cfg, resolve=True)
 
 ---
 
-## Troubleshooting
+???+ tip "Troubleshooting"
 
-### Missing Key Error
+    ### Missing Key Error
 
-**Problem:** `KeyError: 'pipeline'`
+    `KeyError: 'pipeline'` — Check defaults list and package directives:
+    ```yaml
+    defaults:
+      - /pipeline/anomaly/rx@pipeline: rx_statistical  # ← Ensure @pipeline part
+    ```
 
-**Solution:** Check defaults list and package directives:
-```yaml
-defaults:
-  - /pipeline/anomaly/rx@pipeline: rx_statistical  # ← Ensure @pipeline part
-```
+    ### Interpolation Error
 
-### Interpolation Error
+    `InterpolationResolutionError` — Ensure referenced key exists:
+    ```yaml
+    name: my_experiment  # ← Must be defined
+    output_dir: ./outputs/${name}
+    ```
 
-**Problem:** `InterpolationResolutionError: Could not resolve ${name}`
+    ### Override Not Applied
 
-**Solution:** Ensure referenced key exists:
-```yaml
-name: my_experiment  # ← Must be defined
-output_dir: ./outputs/${name}
-```
+    Ensure `_self_` is last in defaults:
+    ```yaml
+    defaults:
+      - /pipeline/anomaly/rx@pipeline: rx_statistical
+      - _self_  # ← MUST BE LAST
+    ```
 
-### Override Not Applied
+    ### Package Directive Confusion
 
-**Problem:** Override in config doesn't work.
+    Config appears at wrong level — check package directive:
+    ```yaml
+    # For trainrun configs: # @package _global_
+    # For group-specific:   # @package training
+    ```
 
-**Solution:** Ensure `_self_` is last:
-```yaml
-defaults:
-  - /pipeline/anomaly/rx@pipeline: rx_statistical
-  - _self_  # ← MUST BE LAST
+    ### Circular Dependency
 
-# Overrides below
-pipeline:
-  nodes: [...]
-```
+    `CircularReferenceError` — Avoid circular references:
+    ```yaml
+    # ✗ Circular
+    a: ${b}
+    b: ${a}
 
-### Package Directive Confusion
-
-**Problem:** Config appears at wrong level in hierarchy.
-
-**Solution:** Check package directive:
-```yaml
-# For trainrun configs, use:
-# @package _global_
-
-# For group-specific configs, use:
-# @package training
-# or
-# @package data
-```
-
-### Circular Dependency
-
-**Problem:** `CircularReferenceError`
-
-**Solution:** Avoid circular references:
-```yaml
-# ✗ Circular
-a: ${b}
-b: ${a}
-
-# ✓ Fixed
-a: base_value
-b: ${a}_extended
-```
-
----
-
-## See Also
-
-- **Configuration Guides**:
-  - [Hydra Composition Patterns](hydra-composition.md) - Core composition patterns
-  - [Config Groups](config-groups.md) - Organizing configuration groups
-  - [TrainRun Schema](trainrun-schema.md) - Complete trainrun reference
-  - [Pipeline Schema](pipeline-schema.md) - Pipeline YAML structure
-- **User Guide**:
-  - [Configuration Overview](../user-guide/configuration.md) - Configuration system overview
-- **External Resources**:
-  - [Hydra Documentation](https://hydra.cc/) - Official Hydra docs
-  - [OmegaConf Documentation](https://omegaconf.readthedocs.io/) - OmegaConf reference
-- **Examples**:
-  - `configs/trainrun/` - Example trainrun compositions
-  - `examples/rx_statistical.py` - Using Hydra in code
+    # ✓ Fixed
+    a: base_value
+    b: ${a}_extended
+    ```

@@ -91,97 +91,42 @@ node1 = MyNode()  # Equivalent to ExecutionStage.ALWAYS
 
 ### 2. TRAIN
 
-*Node only executes during training.*
-
-**Use Cases:**
-
-- Training-specific data augmentation
-- Dropout layers
-- Training loss computation
+*Node only executes during training.* Use for: data augmentation, dropout, training loss.
 
 ```python
 class TrainingAugmentation(Node):
     def __init__(self, **kwargs):
         super().__init__(execution_stages={ExecutionStage.TRAIN}, **kwargs)
-
-    def forward(self, image, **_):
-        # Only applies during training
-        image = self.random_flip(image)
-        image = self.color_jitter(image)
-        return {"augmented": image}
 ```
-
----
 
 ### 3. VAL (Validation)
 
-*Node only executes during validation.*
-
-**Use Cases:**
-
-- Validation metrics
-- Validation visualizations
-- Model selection criteria
+*Node only executes during validation.* Use for: validation metrics, model selection criteria.
 
 ```python
 class ValidationMetrics(Node):
     def __init__(self, **kwargs):
         super().__init__(execution_stages={ExecutionStage.VAL}, **kwargs)
-
-    def forward(self, predictions, targets, context, **_):
-        accuracy = (predictions.argmax(dim=1) == targets).float().mean()
-        return {"metrics": [
-            Metric(name="val/accuracy", value=float(accuracy), stage=context.stage)
-        ]}
 ```
-
----
 
 ### 4. TEST
 
-*Node only executes during testing.*
-
-**Use Cases:**
-
-- Final test metrics
-- Performance benchmarking
-- Confusion matrices
+*Node only executes during testing.* Use for: final metrics, performance benchmarking.
 
 ```python
 class TestEvaluator(Node):
     def __init__(self, **kwargs):
         super().__init__(execution_stages={ExecutionStage.TEST}, **kwargs)
-
-    def forward(self, predictions, ground_truth, **_):
-        test_results = self.compute_comprehensive_metrics(predictions, ground_truth)
-        return {"test_results": test_results}
 ```
-
----
 
 ### 5. INFERENCE
 
-*Node only executes during inference/prediction.*
-
-**Use Cases:**
-
-- Production-only post-processing
-- Inference-specific output formatting
-- Deployment-specific optimizations
+*Node only executes during inference/prediction.* Use for: production post-processing, output formatting.
 
 ```python
 class InferencePostProcessor(Node):
     def __init__(self, **kwargs):
         super().__init__(execution_stages={ExecutionStage.INFERENCE}, **kwargs)
-
-    def forward(self, raw_output, **_):
-        probabilities = torch.softmax(raw_output, dim=-1)
-        top_k_probs, top_k_indices = torch.topk(probabilities, k=5, dim=-1)
-
-        return {"formatted_results": {
-            "probabilities": top_k_probs.tolist(),
-            "class_indices": top_k_indices.tolist(),
-        }}
 ```
 
 ---
@@ -287,54 +232,11 @@ inference_context = Context(stage=ExecutionStage.INFERENCE)
 inference_outputs = pipeline.forward(batch=inference_batch, context=inference_context)
 ```
 
-### Using Context in Nodes
-
-```python
-class ContextAwareNode(Node):
-    def forward(self, data, context: Context, **_):
-        if context.stage == ExecutionStage.TRAIN:
-            result = self.train_transform(data)
-        else:
-            result = self.eval_transform(data)
-
-        metadata = {
-            "stage": context.stage.value,
-            "epoch": context.epoch,
-            "batch_idx": context.batch_idx,
-        }
-
-        return {"result": result, "metadata": metadata}
-```
-
 ---
 
 ## Data Flow Patterns
 
-### Pattern 1: Loss and Metric Separation
-
-**Losses compute during train/val/test, metrics only during val/test.**
-
-```python
-class BCELoss(LossNode):
-    # Auto-configured {TRAIN, VAL, TEST}
-    def forward(self, predictions, targets, **_):
-        return {"loss": F.binary_cross_entropy(predictions, targets)}
-
-class AccuracyMetric(Node):
-    def __init__(self, **kwargs):
-        super().__init__(
-            execution_stages={ExecutionStage.VAL, ExecutionStage.TEST},
-            **kwargs
-        )
-
-    def forward(self, predictions, targets, context, **_):
-        accuracy = (predictions.round() == targets).float().mean()
-        return {"metrics": [
-            Metric(name="accuracy", value=float(accuracy), stage=context.stage)
-        ]}
-```
-
-### Pattern 2: Training vs Inference Paths
+### Training vs Inference Paths
 
 ```mermaid
 graph TD
@@ -396,179 +298,129 @@ graph TD
            super().__init__(execution_stages={ExecutionStage.INFERENCE}, **kwargs)
    ```
 
-4. **Document Stage Decisions**
+4. **Document Stage Decisions** — Add docstrings explaining why a node is restricted to specific stages.
 
-   ```python
-   class ValidationOnlyMetric(Node):
-       """Compute expensive metric only during validation.
-
-       This metric requires full dataset aggregation and is too expensive
-       during training. Computed during validation for model selection.
-
-       Execution Stages: VAL, TEST
-       """
-
-       def __init__(self, **kwargs):
-           super().__init__(
-               execution_stages={ExecutionStage.VAL, ExecutionStage.TEST},
-               **kwargs
-           )
-   ```
-
-5. **Test All Stages**
-
-   ```python
-   def test_pipeline_all_stages(pipeline, sample_batch):
-       """Verify pipeline behavior in all stages."""
-       stages = [
-           ExecutionStage.TRAIN,
-           ExecutionStage.VAL,
-           ExecutionStage.TEST,
-           ExecutionStage.INFERENCE,
-       ]
-
-       for stage in stages:
-           context = Context(stage=stage, epoch=0, batch_idx=0)
-           outputs = pipeline.forward(batch=sample_batch, context=context)
-
-           if stage == ExecutionStage.TRAIN:
-               assert "loss" in outputs
-           if stage in {ExecutionStage.VAL, ExecutionStage.TEST}:
-               assert "metrics" in outputs
-           if stage == ExecutionStage.INFERENCE:
-               assert "predictions" in outputs
-   ```
+5. **Test All Stages** — Verify pipeline behavior in TRAIN, VAL, TEST, and INFERENCE stages.
 
 ---
 
-## Troubleshooting
+???+ tip "Troubleshooting"
 
-### Node Not Executing
+    ### Node Not Executing
 
-**Diagnosis:**
-```python
-logger.info(f"Node {node.name} stages: {node.execution_stages}")
-logger.info(f"Current stage: {context.stage}")
-```
+    **Diagnosis:**
+    ```python
+    logger.info(f"Node {node.name} stages: {node.execution_stages}")
+    logger.info(f"Current stage: {context.stage}")
+    ```
 
-**Solution: Verify stage match**
-```python
-# Node restricted to TRAIN
-node = MyNode(execution_stages={ExecutionStage.TRAIN})
+    **Solution: Verify stage match**
+    ```python
+    # Node restricted to TRAIN
+    node = MyNode(execution_stages={ExecutionStage.TRAIN})
 
-# But running VAL - won't execute!
-context = Context(stage=ExecutionStage.VAL)
+    # But running VAL - won't execute!
+    context = Context(stage=ExecutionStage.VAL)
 
-# Fix: Add VAL to stages
-node = MyNode(execution_stages={ExecutionStage.TRAIN, ExecutionStage.VAL})
-```
+    # Fix: Add VAL to stages
+    node = MyNode(execution_stages={ExecutionStage.TRAIN, ExecutionStage.VAL})
+    ```
 
-### Unexpected Node Execution
+    ### Unexpected Node Execution
 
-**Solution: Check parent class constructor**
-```python
-class MyMetric(MetricNode):  # Parent sets VAL/TEST
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)  # Call parent to preserve stages
-        self.threshold = 0.5
-```
+    **Solution: Check parent class constructor**
+    ```python
+    class MyMetric(MetricNode):  # Parent sets VAL/TEST
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)  # Call parent to preserve stages
+            self.threshold = 0.5
+    ```
 
-### Loss Not Computing in Validation
+    ### Loss Not Computing in Validation
 
-**Solution: Use LossNode base class**
-```python
-from cuvis_ai.node.losses import LossNode
+    **Solution: Use LossNode base class**
+    ```python
+    from cuvis_ai.node.losses import LossNode
 
-class MyLoss(LossNode):
-    # Auto-configured {TRAIN, VAL, TEST}
-    def forward(self, predictions, targets, **_):
-        return {"loss": self.compute_loss(predictions, targets)}
-```
+    class MyLoss(LossNode):
+        # Auto-configured {TRAIN, VAL, TEST}
+        def forward(self, predictions, targets, **_):
+            return {"loss": self.compute_loss(predictions, targets)}
+    ```
 
-### Context Not Available in Node
+    ### Context Not Available in Node
 
-**Fix: Add context to INPUT_SPECS**
-```python
-class MyNode(Node):
-    INPUT_SPECS = {
-        "data": PortSpec(dtype=torch.float32, shape=(-1, -1)),
-        "context": PortSpec(dtype=Context, shape=()),  # Add this
-    }
+    **Fix: Add context to INPUT_SPECS**
+    ```python
+    class MyNode(Node):
+        INPUT_SPECS = {
+            "data": PortSpec(dtype=torch.float32, shape=(-1, -1)),
+            "context": PortSpec(dtype=Context, shape=()),  # Add this
+        }
 
-    def forward(self, data, context: Context, **_):
-        if context.stage == ExecutionStage.TRAIN:
-            return {"output": self.train_process(data)}
-        return {"output": self.eval_process(data)}
-```
+        def forward(self, data, context: Context, **_):
+            if context.stage == ExecutionStage.TRAIN:
+                return {"output": self.train_process(data)}
+            return {"output": self.eval_process(data)}
+    ```
 
-Note: Pipeline automatically injects context for nodes declaring it in INPUT_SPECS.
+    Pipeline automatically injects context for nodes declaring it in INPUT_SPECS.
 
-### Stage Enum Comparison Failing
+    ### Stage Enum Comparison Failing
 
-**Solution: Compare enum to enum, not string**
-```python
-# BAD
-if context.stage == "train":  # Never matches!
-    pass
+    **Solution: Compare enum to enum, not string**
+    ```python
+    # BAD
+    if context.stage == "train":  # Never matches!
+        pass
 
-# GOOD
-if context.stage == ExecutionStage.TRAIN:
-    pass
+    # GOOD
+    if context.stage == ExecutionStage.TRAIN:
+        pass
 
-# ALSO GOOD
-if context.stage.value == "train":
-    pass
-```
+    # ALSO GOOD
+    if context.stage.value == "train":
+        pass
+    ```
 
----
+???+ tip "Optimization Tips"
 
-## Optimization Tips
+    1. **Minimize Overhead in High-Frequency Stages**
 
-1. **Minimize Overhead in High-Frequency Stages**
+        ```python
+        # BAD: Expensive visualization in training
+        class BadVisualizer(Node):
+            def __init__(self, **kwargs):
+                super().__init__(execution_stages={ExecutionStage.ALWAYS}, **kwargs)
 
-   ```python
-   # BAD: Expensive visualization in training
-   class BadVisualizer(Node):
-       def __init__(self, **kwargs):
-           super().__init__(execution_stages={ExecutionStage.ALWAYS}, **kwargs)
+            def forward(self, data, **_):
+                expensive_viz = self.render_3d_plot(data)  # Runs every batch!
+                return {"visualization": expensive_viz}
 
-       def forward(self, data, **_):
-           expensive_viz = self.render_3d_plot(data)  # Runs every batch!
-           return {"visualization": expensive_viz}
+        # GOOD: Visualization only during validation
+        class GoodVisualizer(Node):
+            def __init__(self, **kwargs):
+                super().__init__(
+                    execution_stages={ExecutionStage.VAL, ExecutionStage.TEST},
+                    **kwargs
+                )
+        ```
 
-   # GOOD: Visualization only during validation
-   class GoodVisualizer(Node):
-       def __init__(self, **kwargs):
-           super().__init__(
-               execution_stages={ExecutionStage.VAL, ExecutionStage.TEST},
-               **kwargs
-           )
-   ```
+    2. **Reduce Complexity in Inference**
 
-2. **Reduce Complexity in Inference**
+        ```python
+        class AdaptiveProcessor(Node):
+            def forward(self, data, context: Context, **_):
+                if context.stage == ExecutionStage.INFERENCE:
+                    return {"result": self.fast_forward(data)}
+                else:
+                    return {"result": self.full_forward(data)}
+        ```
 
-   ```python
-   class AdaptiveProcessor(Node):
-       def forward(self, data, context: Context, **_):
-           if context.stage == ExecutionStage.INFERENCE:
-               return {"result": self.fast_forward(data)}
-           else:
-               return {"result": self.full_forward(data)}
-   ```
+    3. **Skip Gradients in Non-Training**
 
-3. **Skip Gradients in Non-Training**
-
-   ```python
-   # Automatically handled by trainer
-   with torch.no_grad():
-       outputs = pipeline.forward(batch=val_batch, context=val_context)
-   ```
-
----
-
-## Related Documentation
-
-* → [Node System Deep Dive](node-system-deep-dive.md) - Node lifecycle and implementation
-* → [Pipeline Lifecycle](pipeline-lifecycle.md) - Pipeline states and execution
-* → [Two-Phase Training](two-phase-training.md) - Statistical initialization and gradient training
-* → [Core Concepts Overview](overview.md) - High-level framework concepts
+        ```python
+        # Automatically handled by trainer
+        with torch.no_grad():
+            outputs = pipeline.forward(batch=val_batch, context=val_context)
+        ```

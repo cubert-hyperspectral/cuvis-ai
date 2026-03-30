@@ -171,24 +171,38 @@ nav:
       - Config Groups: config/config-groups.md
       - TrainRun Schema: config/trainrun-schema.md
       - Pipeline Schema: config/pipeline-schema.md
-      - Hydra Composition: config/hydra-composition.md
-      - Hydra Advanced: config/hydra-advanced.md
+      - Hydra Basics: config/hydra-basics.md
+      - Hydra Inheritance & Overrides: config/hydra-inheritance.md
+      - Hydra Sweeps & Advanced: config/hydra-sweeps.md
+      - Hydra CLI & Debugging: config/hydra-advanced.md
   - gRPC & Deployment:
       - Overview: grpc/index.md
       - Architecture: grpc/overview.md
-      - API Reference: grpc/api-reference.md
-      - Training & Inference API: grpc/api-training-inference.md
-      - Types & Errors API: grpc/api-types-errors.md
-      - Client Patterns: grpc/client-patterns.md
+      - API Reference:
+          - Session Management: grpc/api-session.md
+          - Configuration API: grpc/api-config.md
+          - Pipeline API: grpc/api-pipeline.md
+          - Training & Inference: grpc/api-training-inference.md
+          - Types & Errors: grpc/api-types-errors.md
+      - Client Patterns:
+          - Connections & Sessions: grpc/client-connections.md
+          - Workflows & Error Handling: grpc/client-workflows.md
       - Sequence Diagrams: grpc/sequence-diagrams.md
       - Example Clients: grpc/example-clients.md
       - Deployment: deployment/grpc_deployment.md
   - Plugins:
       - Overview: plugin-system/index.md
-      - Architecture: plugin-system/overview.md
-      - Development: plugin-system/development.md
+      - Architecture: plugin-system/architecture.md
+      - Internals: plugin-system/internals.md
+      - Development:
+          - Quick Start: plugin-system/dev-quickstart.md
+          - Advanced Nodes: plugin-system/dev-advanced.md
+          - Testing & Publishing: plugin-system/dev-testing.md
       - Packaging: plugin-system/packaging.md
-      - Usage: plugin-system/usage.md
+      - Usage:
+          - Loading Plugins: plugin-system/loading.md
+          - Using Plugin Nodes: plugin-system/using-nodes.md
+          - Configuration: plugin-system/plugin-config.md
   - Development:
       - Overview: development/index.md
       - Contributing: development/contributing.md
@@ -203,9 +217,6 @@ nav:
       - Training: api/training.md
       - Data: api/data.md
       - Utilities: api/utilities.md
-  - Reference:
-      - Glossary: reference/glossary.md
-      - Changelog: reference/changelog.md
 
 # Extra
 extra:

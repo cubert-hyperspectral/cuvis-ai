@@ -146,12 +146,6 @@ flowchart TD
     style H fill:#f8d7da
 ```
 
-**Validates:**
-
-1. All required ports connected
-2. Port dtype/shape compatibility
-3. No circular dependencies
-4. Valid node configuration
 
 ---
 
@@ -284,35 +278,10 @@ flowchart TD
     style K fill:#fff3cd
 ```
 
-**Step-by-Step Breakdown:**
-
-1. **Batch Distribution:** Input batch is distributed to entry nodes based on port specifications
-2. **Port Resolution:** All input ports are resolved to their connected output ports
-3. **Topological Sorting:** Nodes are sorted by dependency order based on port connections
-4. **Per-Node Execution:**
-   - Gather all inputs from connected upstream output ports
-   - Execute the node's `forward()` method with gathered inputs
-   - Store outputs in port dictionary keyed by `(node_id, port_name)`
-5. **Validation (Parallel):**
-   - Type checking ensures dtype compatibility
-   - Shape validation confirms dimension compatibility
-   - Stage filtering excludes nodes not active in current execution stage
-6. **Result Return:** Complete port output dictionary returned to caller
-
-**Example Port Dictionary:**
+Outputs are returned as a dictionary keyed by `(node_name, port_name)`:
 
 ```python
 outputs = pipeline.forward(batch={"cube": data})
-
-# Returns dictionary with port keys:
-{
-    ("data_node", "cube"): tensor(...),           # Raw data
-    ("normalizer", "normalized"): tensor(...),    # Normalized cube
-    ("rx_detector", "scores"): tensor(...),       # Anomaly scores
-    ("rx_detector", "logits"): tensor(...),       # Logits output
-}
-
-# Access outputs by port:
 scores = outputs[("rx_detector", "scores")]
 ```
 
@@ -367,50 +336,7 @@ pipeline.save_to_file(
 # Generates: outputs/my_pipeline.yaml, outputs/my_pipeline.pt
 ```
 
-**YAML Structure:**
-```yaml
-version: '1.0'
-metadata:
-  name: RX_Anomaly_Detector_v1
-  description: Trained on Lentils dataset
-  tags: [anomaly-detection, production]
-
-nodes:
-  - name: data_loader
-    class_name: cuvis_ai.node.data.LentilsAnomalyDataNode
-    hparams:
-      normal_class_ids: [0, 1]
-
-  - name: rx_detector
-    class_name: cuvis_ai.anomaly.rx_detector.RXGlobal
-    hparams:
-      num_channels: 61
-
-connections:
-  - source: data_loader.outputs.cube
-    target: rx_detector.inputs.data
-```
-
-**PyTorch Checkpoint:**
-```python
-{
-    "state_dict": {
-        "normalizer": {
-            "running_min": tensor(...),
-            "running_max": tensor(...)
-        },
-        "rx_detector": {
-            "mu": tensor(...),
-            "sigma": tensor(...)
-        }
-    },
-    "metadata": {...}
-}
-```
-
-**What Gets Saved:**
-✅ Pipeline structure, node configs, trained weights, statistics, metadata, optimizer/scheduler (optional)
-❌ Training data, intermediate activations, Python code, external plugins
+Generates a YAML config (structure, node hparams, connections) and a `.pt` checkpoint (state_dict with trained weights/statistics, metadata). Training data, intermediate activations, and Python code are **not** saved.
 
 ---
 
@@ -434,29 +360,12 @@ outputs = pipeline.forward(batch=test_data)
 ### With Plugins
 
 ```python
-from cuvis_ai_core.utils.node_registry import NodeRegistry
-
 registry = NodeRegistry()
 registry.load_plugins("plugins.yaml")
 
 builder = PipelineBuilder(node_registry=registry)
 pipeline = builder.build_from_config("outputs/my_pipeline.yaml")
 pipeline.load_state_dict(torch.load("outputs/my_pipeline.pt")["state_dict"])
-```
-
-### Configuration Overrides
-
-```python
-pipeline = CuvisPipeline.load_from_file(
-    config_path="outputs/my_pipeline.yaml",
-    config_overrides={"nodes": [{"hparams": {"threshold": 0.8}}]}
-)
-
-# Or list syntax
-pipeline = CuvisPipeline.load_from_file(
-    config_path="outputs/my_pipeline.yaml",
-    config_overrides=["nodes.0.hparams.threshold=0.8"]
-)
 ```
 
 ---
@@ -572,103 +481,39 @@ outputs = pipeline.forward(batch=data)
 
 ## Best Practices
 
-1. **Validate Early**
-   ```python
-   pipeline = build_pipeline()
-   pipeline.verify()  # Catch errors before training
-   stat_trainer.fit()
-   ```
-
-2. **Check Statistical Initialization**
-   ```python
-   uninit_nodes = [
-       node for node in pipeline.nodes
-       if node.requires_initial_fit and not node._statistically_initialized
-   ]
-   if uninit_nodes:
-       stat_trainer.fit()
-   ```
-
-3. **Save Checkpoints**
-   ```python
-   for epoch in range(num_epochs):
-       train_one_epoch()
-       if (epoch + 1) % save_interval == 0:
-           pipeline.save_to_file(f"checkpoints/epoch_{epoch+1}.yaml")
-   ```
-
-4. **Use Context Managers**
-   ```python
-   with CuvisPipeline.load_from_file("pipeline.yaml") as pipeline:
-       results = process_data(pipeline, test_data)
-   # Auto-cleanup
-   ```
-
-5. **Monitor Performance** (see [Profiling & Performance](../how-to/profiling.md))
-   ```python
-   pipeline.set_profiling(enabled=True, skip_first_n=3)
-   predictor = Predictor(pipeline=pipeline, datamodule=datamodule)
-   predictor.predict()
-   print(pipeline.format_profiling_summary())
-   ```
-
-6. **Version Pipelines**
-   ```python
-   pipeline.save_to_file(
-       "outputs/pipeline_v2.yaml",
-       metadata=PipelineMetadata(
-           name="RX_Detector",
-           version="2.1.0",
-           tags=["v2", "production"]
-       )
-   )
-   ```
+| Practice | How |
+|----------|-----|
+| Validate early | `pipeline.verify()` before training |
+| Check init state | Inspect `node.requires_initial_fit` and `node._statistically_initialized` |
+| Save checkpoints | `pipeline.save_to_file(f"checkpoints/epoch_{epoch+1}.yaml")` periodically |
+| Use context managers | `with CuvisPipeline.load_from_file(...) as pipeline:` for auto-cleanup |
+| Monitor performance | `pipeline.set_profiling(enabled=True)` -- see [Profiling](../how-to/profiling.md) |
+| Version pipelines | Pass `PipelineMetadata(version="2.1.0", tags=[...])` to `save_to_file()` |
 
 ---
 
-## Common Pitfalls
+???+ warning "Common Pitfalls"
 
-1. **Forgetting Statistical Initialization**
-   ```python
-   # Missing: stat_trainer.fit()
-   grad_trainer.fit()  # Error: RXGlobal not initialized!
-   ```
+    **Forgetting Statistical Initialization** -- Call `stat_trainer.fit()` before gradient training.
 
-2. **Type Mismatches**
-   ```python
-   normalizer = MinMaxNormalizer(dtype=torch.float32)
-   rx = RXGlobal(dtype=torch.float64)  # Mismatch!
-   ```
+    ```python
+    stat_trainer.fit()       # Required first!
+    grad_trainer.fit()
+    ```
 
-3. **Cyclic Dependencies**
-   ```python
-   pipeline.connect(
-       (node_a.data, node_b.data),
-       (node_b.result, node_c.data),
-       (node_c.final, node_a.data)  # Cycle!
-   )
-   ```
+    **Type Mismatches** -- All connected nodes must use the same dtype.
 
-4. **Memory Leaks**
-   ```python
-   # Bad: No cleanup
-   for i in range(1000):
-       pipeline = CuvisPipeline.load_from_file("pipeline.yaml")
-       pipeline.forward(batch=data)
+    ```python
+    normalizer = MinMaxNormalizer(dtype=torch.float32)
+    rx = RXGlobal(dtype=torch.float64)  # Mismatch!
+    ```
 
-   # Good: Context manager
-   for i in range(1000):
-       with CuvisPipeline.load_from_file("pipeline.yaml") as pipeline:
-           pipeline.forward(batch=data)
-   ```
+    **Cyclic Dependencies** -- Pipeline graph must be a DAG. Connecting `node_c` back to `node_a` raises `CycleError`.
 
----
+    **Memory Leaks** -- Use context managers when loading pipelines in a loop:
 
-## Related Documentation
-
-* → [Node System Deep Dive](node-system-deep-dive.md) - Pipeline components
-* → [Port System Deep Dive](port-system-deep-dive.md) - Node communication
-* → [Two-Phase Training](two-phase-training.md) - Training workflow
-* → [Execution Stages](execution-stages.md) - Stage-aware execution
-* → [Building Pipelines (Python)](../how-to/build-pipeline-python.md) - Practical guide
-* → [Building Pipelines (YAML)](../how-to/build-pipeline-yaml.md) - Config-based construction
+    ```python
+    for i in range(1000):
+        with CuvisPipeline.load_from_file("pipeline.yaml") as pipeline:
+            pipeline.forward(batch=data)
+    ```

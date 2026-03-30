@@ -101,16 +101,6 @@ stat_trainer.fit()  # Process all batches
 assert pipeline.nodes["rx_detector"]._statistically_initialized
 ```
 
-**What happens during fit():**
-
-1. Iterate through training batches
-2. For each node with `requires_initial_fit=True`:
-   - Pass data through preceding nodes
-   - Call `node.statistical_initialization(input_stream)`
-   - Accumulate statistics (mean, covariance, etc.)
-3. Store statistics as frozen buffers
-4. Mark node as initialized
-
 ### Statistical Nodes
 
 #### RXGlobal (Anomaly Detection)
@@ -271,26 +261,6 @@ flowchart TD
     style X fill:#d4edda
 ```
 
-**Key Steps:**
-
-1. **Node Unfreezing:** Select which nodes to train via `unfreeze_nodes_by_name()`
-2. **Buffer Conversion:** Frozen buffers converted to trainable parameters
-3. **Trainer Creation:** Instantiate `GradientTrainer` with:
-   - Pipeline and datamodule
-   - Loss nodes (compute training objective)
-   - Metric nodes (track performance)
-   - Training config (epochs, accelerator, callbacks)
-   - Optimizer config (learning rate, weight decay)
-4. **Lightning Setup:**
-   - Create `CuvisLightningModule` wrapper
-   - Register loss/metric nodes via port connections
-   - Create PyTorch Lightning `Trainer` instance
-5. **Training Loop:**
-   - **training_step:** Forward pass through pipeline, aggregate losses, backward pass
-   - **validation_step:** Forward pass, compute metrics
-   - **Callbacks:** Early stopping, checkpointing, learning rate scheduling
-6. **Test Evaluation (Optional):** Final evaluation on test set with best checkpoint
-
 ### Unfreezing Nodes
 
 ```python
@@ -305,23 +275,7 @@ trainable_params = sum(p.numel() for p in pipeline.parameters() if p.requires_gr
 print(f"Trainable parameters: {trainable_params:,}")
 ```
 
-**What unfreeze() does:**
-
-The base class `unfreeze()` method uses the `TRAINABLE_BUFFERS` class attribute to know which buffers to promote to `nn.Parameter`:
-
-```python
-class ScoreToLogit(Node):
-    TRAINABLE_BUFFERS = ("scale", "bias")   # Declares trainable buffers
-
-    def __init__(self, init_scale=1.0, init_bias=0.0, **kwargs):
-        super().__init__(**kwargs)
-        self.register_buffer("scale", torch.tensor(init_scale))  # Buffer (frozen)
-        self.register_buffer("bias", torch.tensor(init_bias))    # Buffer (frozen)
-```
-
-On `unfreeze()`, declared buffers are converted: `_buffers → nn.Parameter`. On `freeze()`, they revert: `nn.Parameter → _buffers`. The `__init_subclass__` hook validates `TRAINABLE_BUFFERS` is a tuple of strings at class definition time.
-
-See [Node System Deep Dive: TRAINABLE_BUFFERS](node-system-deep-dive.md#trainable_buffers) for the full mechanism and list of nodes.
+The base class `unfreeze()` promotes buffers listed in `TRAINABLE_BUFFERS` to `nn.Parameter`; `freeze()` reverts them. See [Node System Deep Dive: TRAINABLE_BUFFERS](node-system-deep-dive.md#trainable_buffers) for the full mechanism.
 
 ### Defining Loss Nodes
 
@@ -381,45 +335,6 @@ test_results = grad_trainer.test()
 ## Callbacks
 
 *Hooks into training loop for monitoring, checkpointing, and early stopping.*
-
-### ModelCheckpoint
-
-Automatically save best models:
-
-```python
-from cuvis_ai.config.trainrun import CallbacksConfig, ModelCheckpointConfig
-
-callbacks_config = CallbacksConfig(
-    checkpoint=ModelCheckpointConfig(
-        monitor="metrics_anomaly/iou",
-        mode="max",
-        save_top_k=3,
-        filename="best-{epoch:02d}-{val_iou:.3f}",
-        dirpath="outputs/checkpoints"
-    )
-)
-```
-
-### EarlyStopping
-
-Stop when metric stops improving:
-
-```python
-from cuvis_ai.config.trainrun import EarlyStoppingConfig
-
-callbacks_config = CallbacksConfig(
-    early_stopping=[
-        EarlyStoppingConfig(
-            monitor="val/bce",
-            mode="min",
-            patience=10,
-            min_delta=0.001
-        )
-    ]
-)
-```
-
-### Complete Callback Config
 
 ```python
 training_config = TrainingConfig(
@@ -566,19 +481,7 @@ pipeline.save_to_file(
 # Generates: outputs/trained_pipeline.yaml, outputs/trained_pipeline.pt
 ```
 
-### Option 2: Save Initialization State
-
-```python
-initialization_state = {
-    "rx_mean": pipeline.nodes["rx_detector"].mu.clone(),
-    "rx_cov": pipeline.nodes["rx_detector"].sigma.clone(),
-    "normalizer_min": pipeline.nodes["normalizer"].running_min.clone(),
-    "normalizer_max": pipeline.nodes["normalizer"].running_max.clone(),
-}
-torch.save(initialization_state, "outputs/initialization.pt")
-```
-
-### Load Complete Pipeline
+### Loading a Saved Pipeline
 
 ```python
 pipeline = CuvisPipeline.load_from_file(
@@ -590,144 +493,52 @@ pipeline = CuvisPipeline.load_from_file(
 outputs = pipeline.forward(batch=test_data)
 ```
 
-### Load with Separate Initialization
-
-```python
-init_state = torch.load("outputs/initialization.pt")
-
-pipeline = build_pipeline()
-pipeline.nodes["rx_detector"].mu = init_state["rx_mean"]
-pipeline.nodes["rx_detector"].sigma = init_state["rx_cov"]
-pipeline.nodes["rx_detector"]._statistically_initialized = True
-```
-
 ---
 
 ## Best Practices
 
-1. **Separate Initialization Data**
-
-   Use "normal" samples for initialization, diverse data for training:
-   ```python
-   initialization_ids = [0, 1, 2]      # Clean, representative
-   training_ids = [0, 1, 2, 3, 4, 5]  # Includes anomalies
-   ```
-
-2. **Validate Initialization Quality**
-
-   ```python
-   def validate_initialization(rx_node, validation_data):
-       with torch.no_grad():
-           scores = []
-           for batch in validation_data:
-               outputs = rx_node.forward(data=batch["data"])
-               scores.append(outputs["scores"])
-
-           all_scores = torch.cat(scores)
-           mean_score = all_scores.mean().item()
-
-           if mean_score > 1.0:
-               print("⚠️ Warning: High mean score indicates poor initialization")
-   ```
-
-3. **Detect Data Drift**
-
-   ```python
-   def needs_reinitialization(node, new_data_stats, threshold=0.1):
-       if not node._statistically_initialized:
-           return True
-
-       mean_drift = torch.abs(node.mu - new_data_stats["mean"]).mean()
-       drift_ratio = mean_drift / torch.abs(node.mu).mean()
-
-       return drift_ratio > threshold
-   ```
-
-4. **Version Initialization**
-
-   ```python
-   initialization_meta = {
-       "version": "1.0",
-       "date": "2026-01-29",
-       "source": "data/initialization_v1/",
-       "n_samples": len(initialization_data),
-   }
-   torch.save(initialization_meta, "outputs/initialization_v1_meta.pt")
-   ```
+| Practice | Detail |
+|----------|--------|
+| Separate init data | Use clean, representative samples for Phase 1; diverse data (including anomalies) for Phase 2 |
+| Validate init quality | Run `stat_trainer.validate()` after Phase 1; high mean RX scores indicate poor initialization |
+| Detect data drift | Compare `node.mu` against new data statistics; reinitialize if drift ratio exceeds threshold |
+| Version initialization | Save metadata (version, date, source path, sample count) alongside `.pt` checkpoints |
 
 ---
 
-## Troubleshooting
+???+ tip "Troubleshooting"
 
-### "Node not initialized"
+    **"Node not initialized"** -- Use `StatisticalTrainer` for Phase 1 before Phase 2:
 
-**Solution:** Use `StatisticalTrainer` for Phase 1 before Phase 2
+    ```python
+    stat_trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
+    stat_trainer.fit()   # Phase 1
+    grad_trainer.fit()   # Phase 2
+    ```
 
-```python
-from cuvis_ai_core.training import StatisticalTrainer
+    **Poor Detection Performance** -- Bad initialization data, small sample size, or contaminated data. Inspect calibration statistics and remove outliers:
 
-stat_trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
-stat_trainer.fit()  # Phase 1
+    ```python
+    print(f"Calibration samples: {len(calib_data)}")
+    percentiles = torch.quantile(calib_data, torch.tensor([0.01, 0.99]))
+    clean_data = remove_outliers(calib_data)
+    ```
 
-grad_trainer.fit()  # Phase 2
-```
+    **Gradient Training Degrades Performance** -- Lower the learning rate, freeze more nodes, and add early stopping:
 
-### Poor Detection Performance
+    ```python
+    optimizer_config = OptimizerConfig(lr=0.0001)
+    unfreeze_nodes = ["selector"]  # fewer nodes
+    early_stopping = EarlyStoppingConfig(
+        monitor="val/metrics_anomaly/iou", mode="max", patience=5
+    )
+    ```
 
-**Causes:** Bad initialization data, small sample size, contaminated data
+    **Calibration Takes Too Long** -- Subsample data, increase batch size, or use GPU:
 
-**Solution:**
-```python
-print(f"Calibration samples: {len(calib_data)}")
-print(f"Data range: [{calib_data.min():.2f}, {calib_data.max():.2f}]")
-
-# Check for outliers
-percentiles = torch.quantile(calib_data, torch.tensor([0.01, 0.99]))
-
-# Clean or increase data
-clean_data = remove_outliers(calib_data)
-```
-
-### Gradient Training Degrades Performance
-
-**Solution:**
-```python
-# 1. Reduce learning rate
-optimizer_config = OptimizerConfig(lr=0.0001)
-
-# 2. Freeze some nodes
-unfreeze_nodes = ["selector"]
-
-# 3. Use early stopping
-early_stopping = EarlyStoppingConfig(
-    monitor="val/metrics_anomaly/iou",
-    mode="max",
-    patience=5
-)
-```
-
-### Calibration Takes Too Long
-
-**Solution:**
-```python
-# Option 1: Sample data
-if len(calib_data) > 10000:
+    ```python
     indices = torch.randperm(len(calib_data))[:10000]
     calib_data = calib_data[indices]
-
-# Option 2: Larger batch size
-datamodule = SingleCu3sDataModule(..., batch_size=32)
-
-# Option 3: Use GPU
-pipeline = pipeline.to("cuda")
-```
-
----
-
-## Related Documentation
-
-* → [Pipeline Lifecycle](pipeline-lifecycle.md) - Complete pipeline workflow
-* → [Node System Deep Dive](node-system-deep-dive.md) - Statistical nodes
-* → [Execution Stages](execution-stages.md) - Training vs inference
-* → [RX Tutorial](../tutorials/rx-statistical.md) - Statistical training example
-* → [Channel Selector Tutorial](../tutorials/channel-selector.md) - Two-phase workflow
+    datamodule = SingleCu3sDataModule(..., batch_size=32)
+    pipeline = pipeline.to("cuda")
+    ```

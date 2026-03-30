@@ -47,7 +47,7 @@ Current API documentation for the modules and helpers shipped in this branch.
 
     Helper functions and utilities
 
--   :material-api: **[gRPC API](../grpc/api-reference.md)**
+-   :material-api: **[gRPC API](../grpc/api-session.md)**
 
     ---
 

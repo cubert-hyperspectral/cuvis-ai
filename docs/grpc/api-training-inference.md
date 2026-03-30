@@ -435,7 +435,7 @@ response = stub.GetProfilingSummary(
 
 ## See Also
 
-- [gRPC API Reference](api-reference.md) - Session, configuration, and pipeline management
+- [gRPC API Reference](api-session.md) - Session, configuration, and pipeline management
 - [Types & Errors API](api-types-errors.md) - Introspection, error handling, and data types
-- [Client Patterns](client-patterns.md) - Common usage patterns and best practices
+- [Client Workflows & Error Handling](client-workflows.md) - Training, inference, and error handling patterns
 - [Sequence Diagrams](sequence-diagrams.md) - Visual workflows

@@ -164,24 +164,7 @@ trainer.fit()  # Initializes all statistical nodes (normalizer, rx_node)
 pipeline.unfreeze_nodes_by_name([rx_node.name])
 ```
 
-**Statistical initialization pattern:**
-
-```python
-def statistical_initialization(self, input_stream: InputStream) -> None:
-    """Compute statistics from initialization data."""
-    self.reset()
-
-    for batch_data in input_stream:
-        data_tensor = batch_data["data"]
-        self._update_statistics(data_tensor)  # Welford's algorithm
-
-    # Store as buffers (frozen by default)
-    self.register_buffer("mu", computed_mean)
-    self.register_buffer("sigma", computed_covariance)
-    self._statistically_initialized = True
-```
-
-**Characteristics:** Requires initialization, stores statistics as buffers, can be unfrozen for training
+Requires initialization via `statistical_initialization()`, stores statistics as buffers, can be unfrozen for training.
 
 ---
 
@@ -233,7 +216,6 @@ grad_trainer = GradientTrainer(
 grad_trainer.fit()
 ```
 
-**Characteristics:** Trainable neural networks, GPU-accelerated, require gradient optimization
 
 ---
 
@@ -346,18 +328,7 @@ from cuvis_ai.pipeline.pipeline_builder import PipelineBuilder
 builder = PipelineBuilder(node_registry=registry)
 ```
 
-**Plugin configuration (`plugins.yaml`):**
-
-```yaml
-plugins:
-  adaclip:
-    repo: "https://github.com/cubert-hyperspectral/cuvis-ai-adaclip.git"
-    tag: "v0.1.0"
-    provides:
-      - cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
-```
-
-**Resolution order:** Instance plugins → Built-in registry → Import from module path
+Resolution order: Instance plugins --> Built-in registry --> Import from module path
 
 ---
 
@@ -368,59 +339,22 @@ plugins:
 **Parameters** are trainable (receive gradients). **Buffers** are non-trainable state. Both are serialized and moved with `.to(device)`.
 
 ```python
-# Buffers: statistics, running means, constants
-self.register_buffer("mean", torch.zeros(num_features))
-self.register_buffer("covariance", torch.eye(num_features))
-
-# Parameters: weights, learnable transformations
-self.linear = nn.Linear(in_features, out_features)
-self.register_parameter("custom_weight", nn.Parameter(torch.randn(10)))
-
-# Two-phase: buffer → parameter
-self.register_buffer("scale", torch.ones(1))  # Phase 1: statistical init
-self.scale = nn.Parameter(self.scale.clone())  # Phase 2: unfreeze for training
+self.register_buffer("mean", torch.zeros(num_features))     # Buffer (frozen)
+self.linear = nn.Linear(in_features, out_features)           # Parameter (trainable)
 ```
 
 ### Freeze/Unfreeze Pattern
 
-```python
-from cuvis_ai_core.training import StatisticalTrainer
-
-# Phase 1: Statistical initialization (frozen by default)
-trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
-trainer.fit()  # Computes statistics, stores as buffers
-node.frozen  # True - no gradients, values constant
-
-# Phase 2: Unfreeze for gradient training (optional)
-node.unfreeze()  # Converts buffers → parameters, enables gradient updates
-node.frozen  # False - now trainable
-
-# Benefits: Fast statistical init + optional gradient refinement
-```
+After `StatisticalTrainer.fit()`, statistics live as frozen buffers. Call `node.unfreeze()` to promote them to trainable parameters; `node.freeze()` reverts.
 
 ### TRAINABLE_BUFFERS
 
-The `TRAINABLE_BUFFERS` class attribute declares which buffers should be promoted to `nn.Parameter` on `unfreeze()` and demoted back on `freeze()`. The base class handles the conversion automatically.
-
-**Declaration:**
+Declares which buffers to promote to `nn.Parameter` on `unfreeze()` and demote back on `freeze()`. Validated at class definition time via `__init_subclass__`.
 
 ```python
 class ScoreToLogit(Node):
     TRAINABLE_BUFFERS = ("scale", "bias")
-
-    def __init__(self, init_scale: float = 1.0, init_bias: float = 0.0, **kwargs):
-        super().__init__(**kwargs)
-        self.register_buffer("scale", torch.tensor(init_scale, dtype=torch.float32))
-        self.register_buffer("bias", torch.tensor(init_bias, dtype=torch.float32))
 ```
-
-**Validation:** `__init_subclass__` checks at class definition time that `TRAINABLE_BUFFERS` is a tuple of strings. Invalid declarations raise `TypeError` on import.
-
-**Lifecycle:**
-
-1. After construction: tensors live in `_buffers` — not trainable
-2. After `unfreeze()`: promoted to `nn.Parameter` — trainable, `requires_grad=True`
-3. After `freeze()`: demoted back to buffer — not trainable
 
 **Built-in nodes using TRAINABLE_BUFFERS:**
 
@@ -440,47 +374,30 @@ Nodes with non-buffer learnable state (e.g., `LearnableChannelMixer` with `nn.Co
 
 ### WelfordAccumulator
 
-`WelfordAccumulator` is an `nn.Module` subclass providing numerically stable streaming computation of mean, variance, and optionally covariance. It uses Welford's online algorithm (batch-merge variant).
-
-**Location:** `cuvis_ai.utils.welford`
-
-**Why it exists:** Several nodes need running statistics during statistical initialization (mean, variance, covariance). `WelfordAccumulator` centralizes this pattern with `float64` internal precision and non-persistent buffers.
-
-**Usage:**
+Numerically stable streaming computation of mean, variance, and optionally covariance (`cuvis_ai.utils.welford`). Uses Welford's online algorithm (batch-merge variant) with `float64` internal precision.
 
 ```python
 from cuvis_ai.utils.welford import WelfordAccumulator
 
-# Variance-only mode
-acc = WelfordAccumulator(n_features=61)
-
-# Or with covariance tracking
 acc = WelfordAccumulator(n_features=61, track_covariance=True)
 
-# Feed batches during statistical initialization
 for batch in dataloader:
     pixels = batch["cube"].reshape(-1, 61)  # (N, C)
     acc.update(pixels)
 
-# Read results
-print(acc.count)    # total samples seen
-print(acc.mean)     # shape (61,), float32
-print(acc.var)      # shape (61,), float32, Bessel-corrected
-print(acc.std)      # shape (61,), float32
-
-# Covariance mode only:
-print(acc.cov)      # shape (61, 61), float32
-print(acc.corr)     # shape (61, 61), float32, absolute correlation
+acc.count  # total samples seen
+acc.mean   # (61,), float32
+acc.var    # (61,), float32, Bessel-corrected
+acc.cov    # (61, 61), float32 -- covariance mode only
 ```
 
-**Key properties:**
+| Property | Detail |
+|----------|--------|
+| `nn.Module` subclass | `.to(device)` propagates to accumulator buffers |
+| Non-persistent buffers | `_n`, `_mean`, `_M2` excluded from `state_dict()` |
+| Batch-merge algorithm | Processes entire batches at once, not sample-by-sample |
 
-- **nn.Module subclass**: `.to(device)` on parent nodes automatically propagates to accumulator buffers
-- **Non-persistent buffers**: `_n`, `_mean`, `_M2` are excluded from `state_dict()` — they are transient training state
-- **float64 internal precision**: Accumulation uses `float64` for numerical stability; properties return `float32`
-- **Batch-merge algorithm**: Efficient for large batches — processes entire batches at once, not sample-by-sample
-
-**Used by:** `ZScoreNormalizerGlobal`, `RXGlobal`, `SoftChannelSelector` (via `_compute_band_correlation_matrix`)
+**Used by:** `ZScoreNormalizerGlobal`, `RXGlobal`, `SoftChannelSelector`
 
 ---
 
@@ -488,139 +405,57 @@ print(acc.corr)     # shape (61, 61), float32, absolute correlation
 
 ### 1. Keep Nodes Focused
 
-Single responsibility - one node, one task. Compose complex behavior from simple nodes.
-
-```python
-class NormalizationNode(Node):
-    """Normalizes input data to [0, 1] range."""
-    pass
-
-class AnomalyDetectionNode(Node):
-    """Detects anomalies using RX algorithm."""
-    pass
-```
+Single responsibility -- one node, one task. Compose complex behavior from simple nodes.
 
 ### 2. Trust Port Validation (Don't Over-Validate)
 
-**Port schema validation is automatic** - the pipeline validates data types and shapes. Do NOT duplicate these checks:
+Port schema validation (dtype, shape) is automatic. Only check node-specific state like `_statistically_initialized` in `forward()`:
 
 ```python
-# ❌ BAD: Duplicates automatic port validation
-def forward(self, data: torch.Tensor, **_):
-    if data.ndim != 4:  # Port spec already validates this
-        raise ValueError(f"Expected 4D tensor (BHWC), got {data.shape}")
-    if data.dtype != torch.float32:  # Port spec already validates this
-        raise TypeError(f"Expected float32, got {data.dtype}")
-    return {"output": self.process(data)}
-
 # ✅ GOOD: Trust port specs, only check node-specific state
-INPUT_SPECS = {
-    "data": PortSpec(
-        dtype=torch.float32,
-        shape=(-1, -1, -1, 61),  # Framework validates this
-        description="Hyperspectral cube in BHWC format"
-    )
-}
-
 def forward(self, data: torch.Tensor, **_):
-    # DO check node-specific initialization state (not automatic)
     if not self._statistically_initialized:
         raise RuntimeError(f"{self.__class__.__name__} requires initialization")
     return {"output": self.process(data)}
 ```
 
-**What's automatic:** Port shape/dtype validation
-**What's manual:** Statistical initialization checks (node responsibility)
-
 ### 3. Avoid `.to()` in Forward (Pipeline Handles Device Placement)
 
-**The pipeline automatically moves nodes, parameters, and data to the correct device** when `pipeline.to(device)` is called. Do NOT use `.to()` calls in `forward()`:
+The pipeline moves nodes and data to the correct device via `pipeline.to(device)`. Manual `.to()` calls in `forward()` break multi-device training and add unnecessary overhead.
 
 ```python
-# ❌ BAD: Manual device placement breaks multi-device training
+# ❌ BAD: Manual device placement
 def forward(self, data: torch.Tensor, **_):
     data = data.to("cuda")  # DON'T DO THIS!
-    weights = self.weights.to("cuda")  # DON'T DO THIS!
-    result = torch.matmul(data, weights)
+    result = torch.matmul(data, self.weights)
     return {"output": result}
 
-# ✅ GOOD: Let the pipeline handle device placement
+# ✅ GOOD: data and self.weights are already on the correct device
 def forward(self, data: torch.Tensor, **_):
-    # data and self.weights are already on the correct device
     result = torch.matmul(data, self.weights)
     return {"output": result}
 ```
 
-**Why avoid `.to()` in forward:**
-
-- Breaks multi-device training (model parallelism)
-- Unnecessary overhead (data already on correct device)
-- Pipeline manages device placement via `pipeline.to(device)`
-- The framework ensures consistency across all nodes
-
 ### 4. Document Port Requirements
 
-```python
-INPUT_SPECS = {
-    "data": PortSpec(
-        dtype=torch.float32,
-        shape=(-1, -1, -1, 61),  # BHWC with 61 channels
-        description="Hyperspectral cube in BHWC format, normalized to [0, 1]"
-    )
-}
-```
+Use the `description` field in `PortSpec` to document format, channel count, and normalization expectations.
 
 ### 5. Use Context for Training Metadata
 
-**Context provides training metadata** passed as a parameter to `forward()`. Contains stage, epoch, batch_idx, and global_step:
+Accept a `Context` parameter in `forward()` for stage, epoch, batch_idx, and global_step. Do not add these as separate parameters:
 
 ```python
-from cuvis_ai_schemas.execution import Context, Metric
-from cuvis_ai_schemas.enums import ExecutionStage
-
-# ✅ GOOD: Context passed as parameter
 def forward(self, predictions: torch.Tensor, targets: torch.Tensor,
             context: Context) -> dict:
-    # Context fields
-    stage = context.stage           # ExecutionStage enum: "train", "val", "test", "inference"
-    epoch = context.epoch           # Current epoch (0-indexed)
-    batch_idx = context.batch_idx   # Current batch in epoch (0-indexed)
-    step = context.global_step      # Global step across all epochs (for logging)
-
-    # Use for metrics
     loss_value = self.compute_loss(predictions, targets)
-    metric = Metric(
-        name="loss",
-        value=loss_value,
-        stage=stage,
-        epoch=epoch,
-        batch_idx=batch_idx,
-    )
+    metric = Metric(name="loss", value=loss_value,
+                    stage=context.stage, epoch=context.epoch)
 
-    # Conditional behavior per stage
     if context.stage == ExecutionStage.TRAIN:
         self.update_running_stats(predictions)
 
     return {"metrics": [metric]}
-
-# ❌ BAD: Manual metadata parameters
-def forward(self, predictions: torch.Tensor, targets: torch.Tensor,
-            epoch: int, batch_idx: int, stage: str, **_):  # Don't do this
-    pass
 ```
-
-**Context fields:**
-
-- `stage`: ExecutionStage enum ("train", "val", "test", "inference")
-- `epoch`: Current epoch number (0-indexed)
-- `batch_idx`: Batch index within epoch (0-indexed)
-- `global_step`: Global step counter for monitoring (0-indexed)
-
-**Common use cases:**
-
-- Metric/artifact logging with training metadata
-- Conditional behavior per stage (train vs inference)
-- TensorBoard step tracking via `global_step`
 
 ### 6. Initialize Buffers and Parameters Properly
 
@@ -660,58 +495,24 @@ class GoodNode(Node):
 
 ---
 
-## Troubleshooting
+???+ tip "Troubleshooting"
 
-### "Node not initialized" Error
+    **"Node not initialized"** -- Use `StatisticalTrainer` before inference:
 
-**Problem:** RuntimeError when using statistical nodes without initialization
+    ```python
+    trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
+    trainer.fit()  # Initializes all statistical nodes
+    ```
 
-**Solution:** Use `StatisticalTrainer` to initialize nodes before use
+    **Port Type Mismatch** -- Ensure consistent dtypes across the pipeline:
 
-```python
-from cuvis_ai_core.training import StatisticalTrainer
+    ```python
+    normalizer = MinMaxNormalizer(dtype=torch.float32)
+    rx = RXGlobal(num_channels=61, dtype=torch.float32)
+    ```
 
-rx = RXGlobal(num_channels=61)
-pipeline.add_node(rx)
+    **Shape Mismatch** -- Check that channel dimensions match node expectations:
 
-# Initialize using trainer
-trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
-trainer.fit()  # Initializes rx node
-
-# Now ready for inference
-outputs = rx.forward(data=test_data)
-```
-
-### Port Type Mismatch
-
-**Problem:** PortCompatibilityError with dtype mismatch
-
-**Solution:** Ensure consistent dtypes across pipeline
-
-```python
-normalizer = MinMaxNormalizer(dtype=torch.float32)
-rx = RXGlobal(num_channels=61, dtype=torch.float32)  # Match dtype
-```
-
-### Shape Mismatch
-
-**Problem:** ValueError with unexpected input shape
-
-**Solution:** Check channel dimension matches node expectations
-
-```python
-selector = SoftChannelSelector(
-    n_select=10,
-    input_channels=30  # Match actual input channels
-)
-```
-
----
-
-## Related Documentation
-
-* → [Port System Deep Dive](port-system-deep-dive.md) - Node I/O and data flow
-* → [Pipeline Lifecycle](pipeline-lifecycle.md) - Node integration in pipelines
-* → [Two-Phase Training](two-phase-training.md) - Statistical initialization and gradient training
-* → [Node Catalog](../node-catalog/index.md) - Built-in node reference
-* → [Creating Custom Nodes](../how-to/add-builtin-node.md) - Step-by-step tutorial
+    ```python
+    selector = SoftChannelSelector(n_select=10, input_channels=30)
+    ```

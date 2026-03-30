@@ -62,5 +62,6 @@ Current helper modules used by the tracking, visualization, restore, and gRPC wo
 
 ## Related Pages
 
-- [gRPC Client Patterns](../grpc/client-patterns.md)
+- [Client Connections & Sessions](../grpc/client-connections.md)
+- [Client Workflows & Error Handling](../grpc/client-workflows.md)
 - [Profiling & Performance](../how-to/profiling.md)

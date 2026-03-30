@@ -473,8 +473,9 @@ for progress in stub.Train(request):
 ### gRPC Documentation
 
 - [gRPC Overview](overview.md) - Architecture, quick start, and core concepts
-- [API Reference](api-reference.md) - Complete RPC method documentation
-- [Client Patterns](client-patterns.md) - Common usage patterns and best practices
+- [API Reference](api-session.md) - Complete RPC method documentation
+- [Client Connections & Sessions](client-connections.md) - Connection management and session patterns
+- [Client Workflows & Error Handling](client-workflows.md) - Configuration, training, inference, and error handling
 
 ### Tutorials & Guides
 

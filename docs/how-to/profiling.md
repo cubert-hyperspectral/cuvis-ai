@@ -206,7 +206,7 @@ The **TOTAL** row sums all nodes' total times. The **FPS** line divides total pi
 
 ## gRPC Profiling
 
-Profiling can also be controlled remotely via gRPC. See the [gRPC API Reference](../grpc/api-reference.md#profiling) for details on:
+Profiling can also be controlled remotely via gRPC. See the [gRPC API Reference](../grpc/api-training-inference.md#profiling) for details on:
 
 - **`SetProfiling`** — enable, disable, or reconfigure profiling on a session
 - **`GetProfilingSummary`** — retrieve per-node profiling statistics
