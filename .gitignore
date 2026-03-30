@@ -213,3 +213,4 @@ CLAUDE.md
 output/
 tracking_output/
 .tmp_*/
+data_/*

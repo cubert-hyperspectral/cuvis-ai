@@ -61,7 +61,7 @@ classifiers = [
 
 [project.scripts]
 create-stubs = "tools.generate_node_port_stubs:main"
-download-data = "scripts.download_data:main"
+dataset = "cuvis_ai_core.data.public_datasets:download_data_cli"
 restore-pipeline = "cuvis_ai_core.utils.restore:restore_pipeline_cli"
 restore-trainrun = "cuvis_ai_core.utils.restore:restore_trainrun_cli"
 
