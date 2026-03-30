@@ -5,7 +5,7 @@
 
 # API Reference
 
-Complete API documentation for CUVIS.AI modules and classes.
+Current API documentation for the modules and helpers shipped in this branch.
 
 ## API Modules
 
@@ -51,10 +51,11 @@ Complete API documentation for CUVIS.AI modules and classes.
 
     ---
 
-    Complete gRPC service documentation with all 46 RPC methods
+    Current CuvisAIService API surface
 
 </div>
 
 ---
 
-> **Note:** API documentation is auto-generated from code docstrings using mkdocstrings.
+> **Note:** Curated pages point at current code docstrings and checked-in configs rather than
+> historical API snapshots.

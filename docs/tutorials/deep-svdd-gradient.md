@@ -39,11 +39,13 @@ Learn how to build a deep learning-based anomaly detection pipeline using Deep S
 Deep SVDD extends classical SVDD to deep learning:
 
 **Classical SVDD:** Learns a hypersphere boundary in feature space that encloses normal data:
+
 - Center: $c$ (learned from data)
 - Radius: Minimized to fit normal data tightly
 - Anomaly score: Distance from center
 
 **Deep SVDD:** Adds a neural network encoder:
+
 1. **Encoder** $\phi(x)$: Maps raw data to representation space
 2. **Hypersphere**: Encloses $\phi(x)$ for normal data
 3. **Anomaly score**: $||\\phi(x) - c||^2$
@@ -53,9 +55,11 @@ Deep SVDD extends classical SVDD to deep learning:
 ### Soft Boundary vs Hard Boundary
 
 **Hard Boundary:** All normal data must lie inside the hypersphere
+
 - Problem: Sensitive to outliers in training data
 
 **Soft Boundary (ν-SVDD):** Allow a fraction ν of data to lie outside
+
 - **ν parameter**: Controls expected outlier fraction (e.g., ν=0.1 allows 10% outliers)
 - More robust to noisy training data
 
@@ -116,6 +120,7 @@ bandpass_node = BandpassByWavelength(
 ```
 
 **Why Bandpass?**
+
 - Removes noisy edge channels
 - Focuses on informative spectral range
 - Reduces dimensionality (61 → ~35 channels)
@@ -136,6 +141,7 @@ normalized_pixel = (pixel - mean(pixel)) / ||pixel - mean(pixel)||₂
 ```
 
 **Why Per-Pixel?**
+
 - Makes each pixel comparable in magnitude
 - Removes intensity variation
 - Focuses on spectral shape (not absolute values)
@@ -160,6 +166,7 @@ encoder = ZScoreNormalizerGlobal(
 ```
 
 **What it does:**
+
 - **Statistical Init**: Computes global mean and std from training data
 - **Gradient Training**: Fine-tunes mean/std as learnable parameters
 - Acts as first encoding layer
@@ -186,6 +193,7 @@ Input (B, H, W, 35) → Linear(35 → 128) → ReLU → Linear(128 → 32) → O
 ```
 
 **Why low-dimensional?**
+
 - Easier to learn tight hypersphere
 - Reduces overfitting
 - rep_dim=32 is typical for hyperspectral data
@@ -208,6 +216,7 @@ center_tracker = DeepSVDDCenterTracker(
 ```
 
 **Outputs:**
+
 - `center`: Current hypersphere center [rep_dim]
 - `metrics`: Sphere radius, number of outliers
 
@@ -230,6 +239,7 @@ Loss = (1/n) ∑ max(0, ||φ(x) - c||² - R²) + (1/νn) × R²
 ```
 
 Where:
+
 - R²: Radius term (penalized by ν)
 - max(0, ...): Hinge loss (only penalize if outside radius)
 
@@ -379,6 +389,7 @@ stat_trainer.fit()
 ```
 
 **What Gets Initialized:**
+
 - **Encoder (ZScoreNormalizerGlobal)**: Computes global mean and std
 - **Center Tracker**: Initializes center from projection embeddings
 
@@ -407,6 +418,7 @@ logger.info(f"Unfrozen nodes: {unfreeze_node_names}")
 ```
 
 **Trainable After Unfreezing:**
+
 - ✅ **Encoder** (ZScoreNormalizerGlobal): Mean and std become learnable
 - ✅ **Projection**: Network weights
 - ✅ **Center Tracker**: Center updates via EMA
@@ -495,6 +507,7 @@ grad_trainer.fit()
 ```
 
 **Training Loop:**
+
 1. Forward pass: data → preprocessing → encoder → projection → embeddings
 2. Update center with EMA
 3. Compute soft boundary loss
@@ -538,6 +551,7 @@ logger.info(f"Test results: {test_results}")
 ```
 
 **Expected Performance:**
+
 - IoU: 0.85-0.90 (significantly better than RX ~0.72)
 - Precision: 0.88-0.93
 - Recall: 0.85-0.91
@@ -549,10 +563,12 @@ logger.info(f"Test results: {test_results}")
 ### Center Tracker Metrics
 
 TensorBoard logs center tracker metrics:
+
 - `center_tracker/sphere_radius`: Hypersphere radius
 - `center_tracker/num_outliers`: Count of outliers per batch
 
 **Interpretation:**
+
 - **Small radius**: Tight fit around normal data
 - **Few outliers**: Training data is clean
 - **Many outliers**: May need to adjust ν parameter
@@ -560,6 +576,7 @@ TensorBoard logs center tracker metrics:
 ### Score Heatmaps
 
 Visualize anomaly scores as heatmaps:
+
 - **Blue**: Low scores (normal)
 - **Yellow/Red**: High scores (anomalous)
 - Shows spatial distribution of anomalies
@@ -774,6 +791,7 @@ center_tracker = DeepSVDDCenterTracker(
 ### Issue: Loss Doesn't Decrease
 
 **Possible Causes:**
+
 1. Learning rate too low
 2. ν parameter too restrictive
 3. Encoder not unfrozen
@@ -805,6 +823,7 @@ projection = DeepSVDDProjection(hidden=64)  # From 128
 ### Issue: Overfitting (Train IoU >> Val IoU)
 
 **Solutions:**
+
 1. Add dropout (requires modifying projection network)
 2. Early stopping with patience
 3. Reduce model capacity
@@ -852,6 +871,7 @@ In this tutorial, you learned:
 ✅ Two-phase training for deep learning models
 
 **Key Takeaways:**
+
 - Deep SVDD learns both feature representation and decision boundary
 - Soft boundary (ν-SVDD) is more robust than hard boundary
 - Center tracking adapts to data distribution during training

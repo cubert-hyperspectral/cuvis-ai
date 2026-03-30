@@ -11,6 +11,7 @@
 ## Coming Soon
 
 This guide will cover:
+
 - Structured logging configuration
 - Log aggregation with ELK/EFK stack
 - Metrics collection and exposition
@@ -21,6 +22,7 @@ This guide will cover:
 ---
 
 **Related Pages:**
+
 - [Deployment Overview](index.md)
 - [Monitoring & Visualization](../how-to/monitoring-and-viz.md)
 - [Stress Testing](../reference/stress_testing.md)

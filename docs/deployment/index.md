@@ -40,5 +40,6 @@ Deploy CUVIS.AI pipelines in production environments with confidence.
 ---
 
 **Related Pages:**
+
 - [Configuration Guide](../user-guide/configuration.md)
 - [GPU Acceleration](../reference/gpu_acceleration_guide.md)

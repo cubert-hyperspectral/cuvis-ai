@@ -40,5 +40,6 @@ CUVIS.AI uses Hydra for powerful configuration management with support for compo
 ---
 
 **Related Pages:**
+
 - [Configuration Guide](../user-guide/configuration.md)
 - [Build Pipeline (YAML)](../how-to/build-pipeline-yaml.md)

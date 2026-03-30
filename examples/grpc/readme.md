@@ -1,5 +1,10 @@
 # gRPC Examples (Model-First Layout)
 
+Published docs for the current gRPC surface live in
+[`docs/grpc/example-clients.md`](../../docs/grpc/example-clients.md),
+[`docs/grpc/api-reference.md`](../../docs/grpc/api-reference.md), and
+[`docs/how-to/sam3-workflows.md`](../../docs/how-to/sam3-workflows.md).
+
 Run the local server:
 
 ```bash
@@ -11,6 +16,7 @@ All clients use the same helper module:
 - `cuvis_ai/utils/grpc_workflow.py`
 
 Core workflow phases:
+
 1. `CreateSession`
 2. `SetSessionSearchPaths`
 3. `ResolveConfig`

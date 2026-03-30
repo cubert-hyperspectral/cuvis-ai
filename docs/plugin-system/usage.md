@@ -48,6 +48,7 @@ cuvis-ai maintains official plugins:
 ### Community Plugins
 
 Search GitHub topics:
+
 - **[cuvis-ai-plugin](https://github.com/topics/cuvis-ai-plugin)** topic
 - Search for "cuvis-ai" + domain keywords
 
@@ -144,6 +145,7 @@ registry.load_plugins("my_plugins.yaml")
 Want to add your plugin to the central registry? See the [Contributing Guide](../development/contributing.md#plugin-contribution-workflow) for the submission process.
 
 **Benefits of registry submission:**
+
 - Easier discovery by the community
 - Official "blessed" quality signal
 - Automatic inclusion in central manifest
@@ -210,6 +212,7 @@ registry.load_plugin(
 ```
 
 **Features:**
+
 - Automatic caching in `~/.cuvis_plugins/`
 - Tag verification on subsequent loads
 - Dependency installation from `pyproject.toml`
@@ -241,6 +244,7 @@ registry.load_plugin(
 ```
 
 **Use Cases:**
+
 - Local development and testing
 - Private plugins not on Git
 - Enterprise internal plugins
@@ -324,18 +328,18 @@ pipeline_dict = {
         {
             "class_name": "MinMaxNormalizer",  # Built-in node
             "name": "normalizer",
-            "params": {}
+            "hparams": {}
         },
         {
             "class_name": "AdaCLIPDetector",  # Plugin node
             "name": "adaclip",
-            "params": {
+            "hparams": {
                 "prompt": "plastic wrapper",
                 "threshold": 0.5
             }
         }
     ],
-    "edges": [
+    "connections": [
         {
             "source": "normalizer.output",
             "target": "adaclip.data"
@@ -359,20 +363,20 @@ Create `my_pipeline.yaml`:
 nodes:
   - name: normalizer
     class_name: MinMaxNormalizer
-    params: {}
+    hparams: {}
 
   - name: adaclip_detector
     class_name: AdaCLIPDetector  # From plugin
-    params:
+    hparams:
       prompt: "plastic wrapper"
       threshold: 0.5
 
   - name: threshold_selector
     class_name: ThresholdSelector
-    params:
+    hparams:
       threshold: 0.9
 
-edges:
+connections:
   - source: normalizer.output
     target: adaclip_detector.data
 
@@ -653,7 +657,7 @@ pipeline:
   nodes:
     - name: detector
       class_name: CustomDetector
-      params: ${custom_detector}  # Use plugin config
+      hparams: ${custom_detector}  # Use plugin config
 ```
 
 ## Examples
@@ -684,18 +688,18 @@ pipeline_dict = {
         {
             "class_name": "MinMaxNormalizer",
             "name": "normalizer",
-            "params": {}
+            "hparams": {}
         },
         {
             "class_name": "AdaCLIPDetector",
             "name": "adaclip",
-            "params": {
+            "hparams": {
                 "prompt": "plastic wrapper",
                 "threshold": 0.5
             }
         }
     ],
-    "edges": [
+    "connections": [
         {
             "source": "normalizer.output",
             "target": "adaclip.data"
@@ -730,19 +734,19 @@ registry.load_plugins("plugins.yaml")  # Loads multiple plugins
 pipeline_dict = {
     "nodes": [
         # Built-in nodes
-        {"class_name": "DataLoaderNode", "name": "loader", "params": {"path": "data/"}},
-        {"class_name": "MinMaxNormalizer", "name": "normalizer", "params": {}},
+        {"class_name": "DataLoaderNode", "name": "loader", "hparams": {"path": "data/"}},
+        {"class_name": "MinMaxNormalizer", "name": "normalizer", "hparams": {}},
 
         # Plugin node 1
-        {"class_name": "CustomDetector", "name": "custom", "params": {"threshold": 0.9}},
+        {"class_name": "CustomDetector", "name": "custom", "hparams": {"threshold": 0.9}},
 
         # Plugin node 2
-        {"class_name": "AdaCLIPDetector", "name": "adaclip", "params": {"prompt": "defect"}},
+        {"class_name": "AdaCLIPDetector", "name": "adaclip", "hparams": {"prompt": "defect"}},
 
         # Built-in node
-        {"class_name": "ThresholdSelector", "name": "selector", "params": {"threshold": 0.8}}
+        {"class_name": "ThresholdSelector", "name": "selector", "hparams": {"threshold": 0.8}}
     ],
-    "edges": [
+    "connections": [
         {"source": "loader.data", "target": "normalizer.data"},
         {"source": "normalizer.output", "target": "custom.data"},
         {"source": "normalizer.output", "target": "adaclip.data"},

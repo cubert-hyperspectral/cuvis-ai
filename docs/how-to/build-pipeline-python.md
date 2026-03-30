@@ -9,6 +9,7 @@
 Learn how to build pipelines programmatically in Python using the cuvis-ai framework. This guide demonstrates the recommended pattern used in all cuvis-ai examples.
 
 ## Prerequisites
+
 - cuvis-ai installed
 - Basic understanding of [Pipeline Lifecycle](../concepts/pipeline-lifecycle.md)
 - Familiarity with [Nodes](../concepts/node-system-deep-dive.md)
@@ -220,7 +221,7 @@ loaded_pipeline = CuvisPipeline.load_pipeline(
 # Load with config overrides
 loaded_pipeline = CuvisPipeline.load_pipeline(
     config_path="pipeline.yaml",
-    config_overrides={"nodes.0.params.threshold": 0.8}
+    config_overrides={"nodes.0.hparams.threshold": 0.8}
 )
 
 # To evaluate the loaded pipeline, use a trainer with datamodule
@@ -289,6 +290,7 @@ print(RXNode.INPUT_SPECS["data"].dtype)  # Expected dtype
 ```
 
 ## See Also
+
 - [Build Pipelines in YAML](build-pipeline-yaml.md)
 - [Pipeline Lifecycle](../concepts/pipeline-lifecycle.md)
 - [Node System](../concepts/node-system-deep-dive.md)

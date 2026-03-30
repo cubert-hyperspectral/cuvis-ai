@@ -9,6 +9,7 @@
 Learn how to restore trained pipelines from TrainRun experiments for inference, continued training, or validation. TrainRuns capture complete experiment state including pipeline configuration, data setup, training parameters, and model weights.
 
 ## Prerequisites
+
 - cuvis-ai installed
 - Completed training run with saved TrainRun configuration
 - Basic understanding of [Pipeline Lifecycle](../concepts/pipeline-lifecycle.md)
@@ -142,16 +143,17 @@ uv run restore-trainrun \
   --override data.batch_size=32 \
   --override training.optimizer.lr=0.0001 \
   --override training.trainer.max_epochs=100 \
-  --override nodes.2.params.threshold=0.8
+  --override nodes.2.hparams.threshold=0.8
 ```
 
 **Common overrides:**
+
 - `output_dir` - Change save location
 - `data.batch_size` - Adjust batch size
 - `data.train_ids`, `data.val_ids`, `data.test_ids` - Change data splits
 - `training.optimizer.lr` - Modify learning rate
 - `training.trainer.max_epochs` - Adjust training duration
-- `nodes.N.params.*` - Override node parameters (N = node index)
+- `nodes.N.hparams.*` - Override node constructor arguments (N = node index)
 
 ## Python API Usage
 
@@ -244,6 +246,7 @@ uv run restore-trainrun \
 ```
 
 **Behavior:**
+
 1. Runs statistical initialization (mean, covariance, running stats)
 2. No gradient descent applied
 3. Fast execution (no backpropagation)
@@ -260,6 +263,7 @@ uv run restore-trainrun \
 ```
 
 **Execution flow:**
+
 1. **Phase 1: Statistical initialization**
    - Calibrate statistical parameters
    - Fit normalizers on training data
@@ -353,6 +357,7 @@ uv run restore-trainrun \
 ```
 
 **Behavior:**
+
 - Trainable nodes restored from `.pt` file
 - Statistical nodes skip initialization (already trained)
 - Ready for immediate inference/validation
@@ -367,6 +372,7 @@ uv run restore-trainrun \
 ```
 
 **Behavior:**
+
 - Statistical nodes must run initialization first
 - Trainable nodes start from random initialization
 - Full training required before inference
@@ -420,6 +426,7 @@ training_cfg = TrainingConfig(
 ```
 
 **Checkpoint strategies:**
+
 - `save_top_k=1` - Save only best checkpoint (minimal storage)
 - `save_top_k=3` - Save top 3 checkpoints (moderate storage)
 - `save_top_k=-1` - Save all checkpoints (maximum storage)
@@ -602,6 +609,7 @@ When a plugin is loaded:
 4. **Transparent Process**: Logs what dependencies are being installed
 
 **Requirements:**
+
 - Plugin **must** have a `pyproject.toml` file following [PEP 621](https://peps.python.org/pep-0621/)
 - Plugin dependencies specified in `project.dependencies` section
 
@@ -695,6 +703,7 @@ For your plugin to work with automatic dependency management:
        "scikit-learn>=1.0.0",
    ]
    ```
+
 3. **Follow PEP 621** standard for project metadata
 4. **Test locally** before deploying to Git
 
@@ -719,6 +728,7 @@ uv run restore-trainrun --trainrun-path ... --mode train
 RuntimeError: Error(s) in loading state_dict: size mismatch for selector.weights
 ```
 **Solution:** Pipeline structure changed. Options:
+
 1. Use `strict=False` to load partial weights
 2. Retrain from scratch
 3. Manually adapt weights
@@ -778,6 +788,7 @@ This may indicate version conflicts or missing packages.
 uv could not resolve the dependency tree.
 ```
 **Solution:**
+
 - Review dependency version constraints in your `pyproject.toml`
 - Check for conflicts with main environment dependencies
 
@@ -786,6 +797,7 @@ uv could not resolve the dependency tree.
 ImportError: Failed to import module for 'my_plugin.node.MyNode': No module named 'some_package'
 ```
 **Solution:**
+
 - Ensure the package is listed in your plugin's `pyproject.toml` dependencies
 - Check that `uv pip install` completed successfully
 
@@ -866,9 +878,9 @@ uv run restore-trainrun --trainrun-path ... --mode validate
 ```
 
 ## See Also
+
 - [Build Pipelines in Python](build-pipeline-python.md)
 - [Build Pipelines in YAML](build-pipeline-yaml.md)
 - [TrainRun Schema Reference](../config/trainrun-schema.md)
 - [Pipeline Schema Reference](../config/pipeline-schema.md)
-- [Remote gRPC Usage](remote-grpc.md)
 - [Monitoring and Visualization](monitoring-and-viz.md)

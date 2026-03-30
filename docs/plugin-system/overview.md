@@ -62,6 +62,7 @@ graph TD
 The central registry managing both built-in and plugin nodes.
 
 **Hybrid Architecture:**
+
 - **Class-level registry**: O(1) lookup for built-in nodes via `@register` decorator
 - **Instance-level registry**: Per-session plugin loading for isolation
 - **Benefits**: No overhead for built-ins, flexible plugin management
@@ -83,12 +84,14 @@ AdaCLIPNode = NodeRegistry.get("AdaCLIPDetector", instance=registry)
 Two plugin loading mechanisms:
 
 **Git Plugin Loader:**
+
 - Clones repositories using shallow clone (`depth=1`)
 - Checks out specific Git tags (no branches/commits for reproducibility)
 - Caches plugins in `~/.cuvis_plugins/plugin_name@tag/`
 - Verifies tag matches on subsequent loads
 
 **Local Plugin Loader:**
+
 - Loads plugins from local filesystem paths
 - Supports both absolute and relative paths
 - Ideal for development and private plugins
@@ -111,6 +114,7 @@ Two plugin loading mechanisms:
 ```
 
 **Features:**
+
 - Automatic cache reuse if tag matches
 - Tag verification prevents cache corruption
 - Multiple versions can coexist
@@ -133,6 +137,7 @@ dependencies = [
 ```
 
 **Installation Process:**
+
 - Extracts dependencies using `tomllib` (PEP 621 compliant)
 - Installs via `uv pip install` for speed
 - 300-second timeout with clear error messages
@@ -403,12 +408,14 @@ AdaCLIPDetector = NodeRegistry.get("AdaCLIPDetector", instance=registry)
 ### Node Retrieval Resolution Order
 
 **Instance Mode** (when registry has plugins loaded):
+
 1. Check instance `plugin_registry` for class name
 2. Check instance `plugin_registry` for last component of full path
 3. Check built-in `_builtin_registry` (O(1) lookup)
 4. Try full import path via `importlib`
 
 **Class Mode** (built-ins only):
+
 1. Check built-in registry
 2. Try importlib for full paths
 
@@ -442,13 +449,13 @@ pipeline_dict = {
         {
             "class_name": "AdaCLIPDetector",
             "name": "adaclip_detector",
-            "params": {
+            "hparams": {
                 "prompt": "plastic wrapper",
                 "threshold": 0.5
             }
         }
     ],
-    "edges": [...]
+    "connections": [...]
 }
 
 pipeline = Pipeline.from_dict(pipeline_dict, node_registry=registry)
@@ -522,6 +529,7 @@ Plugins should follow semver with Git tags: `MAJOR.MINOR.PATCH`
 - **PATCH:** Bug fixes
 
 **Examples:**
+
 - `v1.0.0` - Stable release
 - `v2.1.3` - Minor version with patches
 - `v0.1.0-alpha` - Pre-release (alpha)
@@ -655,6 +663,7 @@ clear_package_modules(["cuvis_ai_adaclip", "my_plugin"])
 ```
 
 **Impact:**
+
 - Prevents version conflicts
 - Ensures fresh imports
 - Minimal overhead (<100ms)
@@ -680,6 +689,7 @@ nodes = session.list_available_nodes()
 ```
 
 **Features:**
+
 - Session-based isolation
 - Remote plugin loading
 - Port spec extraction for clients
@@ -697,6 +707,7 @@ Error: Failed to load plugin 'my-plugin'
 ```
 
 **Solutions:**
+
 1. Check Git URL is correct and accessible
 2. Verify tag exists in repository: `git ls-remote --tags <repo_url>`
 3. Ensure `pyproject.toml` exists in plugin root
@@ -711,6 +722,7 @@ NodeNotFoundError: Node 'CustomNode' not found
 ```
 
 **Solutions:**
+
 1. Verify `provides` list in manifest includes full class path
 2. Check class name spelling matches exactly
 3. Ensure plugin loaded successfully (no errors)
@@ -725,6 +737,7 @@ ImportError: cannot import name 'CustomNode' from 'my_plugin.nodes'
 ```
 
 **Solutions:**
+
 1. Verify `__init__.py` files exist in package directories
 2. Check class path in `provides` is correct
 3. Ensure all dependencies installed (check `pyproject.toml`)
@@ -738,6 +751,7 @@ Error: Tag mismatch in cache for plugin 'my-plugin'
 ```
 
 **Solutions:**
+
 1. Clear plugin cache: `NodeRegistry.clear_plugin_cache("my-plugin")`
 2. Or manually delete: `rm -rf ~/.cuvis_plugins/my-plugin@*`
 3. Reload plugin: `registry.load_plugin(...)`
@@ -750,6 +764,7 @@ Error: Dependency conflict: package X requires Y>=2.0, but 1.5 is installed
 ```
 
 **Solutions:**
+
 1. Update conflicting package: `pip install --upgrade <package>`
 2. Use compatible plugin version
 3. Create isolated virtual environment

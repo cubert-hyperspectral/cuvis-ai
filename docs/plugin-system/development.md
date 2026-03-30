@@ -509,13 +509,13 @@ def main():
             {
                 "class_name": "CustomAnomalyDetector",
                 "name": "detector",
-                "params": {
+                "hparams": {
                     "threshold": 0.95,
                     "method": "simple"
                 }
             }
         ],
-        "edges": []
+        "connections": []
     }
 
     pipeline = Pipeline.from_dict(pipeline_dict, node_registry=registry)
@@ -564,6 +564,7 @@ from cuvis_ai_schemas.execution import Context, InputStream, Metric
 ```
 
 **Why this matters:** The `Context` parameter provides execution metadata that nodes can use to:
+
 - Determine the current execution stage (training vs. inference)
 - Access the current epoch and batch index for logging
 - Implement stage-specific behavior (e.g., dropout during training only)
@@ -643,6 +644,7 @@ class VisualizationNode(Node):
 ```
 
 **Available execution stages:**
+
 - `ExecutionStage.ALWAYS` - Default, runs in all stages
 - `ExecutionStage.TRAIN` - Training only
 - `ExecutionStage.VAL` - Validation only
@@ -650,6 +652,7 @@ class VisualizationNode(Node):
 - `ExecutionStage.INFERENCE` - Inference only
 
 **Use cases for stage filtering:**
+
 - Loss nodes: Only needed during training
 - Metric nodes: Only needed during validation/testing
 - Dropout/augmentation: Only active during training
@@ -684,6 +687,7 @@ def __init__(
 ```
 
 **Why this matters:** cuvis-ai uses these parameters to:
+
 - Serialize node configuration when saving pipelines
 - Reconstruct nodes when loading pipelines from YAML
 - Track hyperparameters for experiment logging
@@ -764,12 +768,14 @@ uv run pytest tests/ -v
 ```
 
 **Why uv?** `uv` provides:
+
 - Faster dependency resolution (10-100x faster than pip)
 - Automatic lock file generation (`uv.lock`) for reproducibility
 - Consistent virtual environment handling
 - Improved caching and performance
 
 **uv sync vs uv pip install:**
+
 - `uv sync`: Recommended for development, creates lock file, syncs environment to exact versions
 - `uv pip install -e .`: Alternative for compatibility, works like traditional pip
 
@@ -1110,10 +1116,10 @@ def test_node_in_pipeline():
             {
                 "class_name": "CustomAnomalyDetector",
                 "name": "detector",
-                "params": {"threshold": 0.95}
+                "hparams": {"threshold": 0.95}
             }
         ],
-        "edges": []
+        "connections": []
     }
 
     pipeline = Pipeline.from_dict(pipeline_dict, node_registry=registry)
@@ -1167,6 +1173,7 @@ plugins:
     repo: "https://github.com/your-org/cuvis-ai-my-plugin.git"
     tag: "v0.1.0"
     provides:
+
       - cuvis_ai_plugin.nodes.custom_node.CustomAnomalyDetector
 EOF
 
@@ -1454,6 +1461,7 @@ twine upload --repository-url https://your-pypi.company.com/ dist/*
 **Issue:** Plugin fails to load with import errors.
 
 **Solution:**
+
 1. Verify `pyproject.toml` exists
 2. Check all `__init__.py` files present
 3. Ensure dependencies installed: `uv sync` (or `uv pip install -e .`)
@@ -1464,6 +1472,7 @@ twine upload --repository-url https://your-pypi.company.com/ dist/*
 **Issue:** Node not found after loading plugin.
 
 **Solution:**
+
 1. Check `provides` list in manifest includes full class path
 2. Verify class name spelling matches exactly
 3. Ensure class inherits from `Node`
@@ -1474,6 +1483,7 @@ twine upload --repository-url https://your-pypi.company.com/ dist/*
 **Issue:** Tests fail unexpectedly.
 
 **Solution:**
+
 1. Run with verbose output: `uv run pytest tests/ -v`
 2. Check test data shapes match node expectations
 3. Verify NumPy random seeds for reproducibility
@@ -1484,6 +1494,7 @@ twine upload --repository-url https://your-pypi.company.com/ dist/*
 **Issue:** Node is too slow.
 
 **Solution:**
+
 1. Profile code: `uv run python -m cProfile -o profile.stats your_script.py`
 2. Analyze: `uv run python -m pstats profile.stats`
 3. Vectorize loops using NumPy

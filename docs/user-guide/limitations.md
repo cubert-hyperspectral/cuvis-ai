@@ -11,6 +11,7 @@
 ## Coming Soon
 
 This page will document:
+
 - Current limitations and constraints
 - Platform-specific issues
 - Performance considerations
@@ -21,5 +22,6 @@ This page will document:
 ---
 
 **Related Pages:**
+
 - [Installation](installation.md)
 - [Core Concepts Overview](../concepts/overview.md)

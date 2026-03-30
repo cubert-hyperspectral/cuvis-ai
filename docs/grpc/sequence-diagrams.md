@@ -11,7 +11,7 @@ This document provides visual sequence diagrams for all major cuvis-ai gRPC work
 
 ## Overview
 
-The cuvis-ai gRPC service (`CuvisAIService`) provides 46 RPC methods organized into several functional areas:
+The cuvis-ai gRPC service (`CuvisAIService`) groups its current RPC surface into several functional areas:
 
 - **Session Management**: Create, configure, and close sessions
 - **Configuration**: Resolve, validate, and apply Hydra configs
@@ -77,6 +77,7 @@ sequenceDiagram
 9. **CloseSession**: Clean up session resources
 
 **Example Client:**
+
 - [examples/grpc/core/complete_workflow_client.py](../../examples/grpc/core/complete_workflow_client.py)
 
 ---
@@ -142,6 +143,7 @@ sequenceDiagram
   - Reports losses, metrics, and training context
 
 **Example Clients:**
+
 - [examples/grpc/rx/statistical_training_client.py](../../examples/grpc/rx/statistical_training_client.py)
 - [examples/grpc/deep_svdd/gradient_training_client.py](../../examples/grpc/deep_svdd/gradient_training_client.py)
 - [examples/grpc/deep_svdd/deepsvdd_client.py](../../examples/grpc/deep_svdd/deepsvdd_client.py)
@@ -266,6 +268,7 @@ spec = TensorSpec(
 ```
 
 **Example Client:**
+
 - [examples/grpc/rx/introspection_client.py](../../examples/grpc/rx/introspection_client.py)
 
 ---
@@ -322,6 +325,7 @@ GetTrainingCapabilitiesResponse(
 ```
 
 **Example Clients:**
+
 - [examples/grpc/core/pipeline_discovery_client.py](../../examples/grpc/core/pipeline_discovery_client.py)
 - [examples/grpc/core/capabilities_client.py](../../examples/grpc/core/capabilities_client.py)
 
@@ -374,6 +378,7 @@ sequenceDiagram
 - Optimizer and scheduler states are preserved
 
 **Example Client:**
+
 - [examples/grpc/deep_svdd/resume_training_client.py](../../examples/grpc/deep_svdd/resume_training_client.py)
 
 ---
@@ -412,6 +417,7 @@ sequenceDiagram
 - Server processes batch in parallel when possible
 
 **Example Client:**
+
 - [examples/grpc/core/run_inference.py](../../examples/grpc/core/run_inference.py)
 
 ---
@@ -465,13 +471,14 @@ for progress in stub.Train(request):
 ## See Also
 
 ### gRPC Documentation
+
 - [gRPC Overview](overview.md) - Architecture, quick start, and core concepts
 - [API Reference](api-reference.md) - Complete RPC method documentation
 - [Client Patterns](client-patterns.md) - Common usage patterns and best practices
 
 ### Tutorials & Guides
+
 - [gRPC Tutorial](../tutorials/grpc-workflow.md) - End-to-end hands-on tutorial
-- [How-To: Remote gRPC Access](../how-to/remote-grpc.md) - Detailed deployment guide
 - [gRPC Client Examples](../../examples/grpc/) - All example clients
 
 ---
@@ -479,8 +486,9 @@ for progress in stub.Train(request):
 ## Verification Status
 
 ✅ **All diagrams verified against:**
+
 - Protocol Buffer definitions in `cuvis_ai_core.proto`
 - Production client examples in `examples/grpc/`
-- 46 RPC methods in `CuvisAIService`
+- Current `CuvisAIService` RPC surface
 
 **Last Updated:** 2026-02-04

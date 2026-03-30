@@ -61,6 +61,7 @@ uv run python examples/object_tracking/bytetrack/yolo_bytetrack_hsi.py `
 ```
 
 Outputs:
+
 - `tracking_output/<run_name>/detection_results.json` — COCO-format detections (pre-tracking)
 - `tracking_output/<run_name>/tracking_results.json` — COCO-format tracks (post-tracking)
 - `tracking_output/<run_name>/tracking_overlay.mp4` — overlay video with frame IDs (top-left) and track IDs (bbox labels)
@@ -136,6 +137,7 @@ Key flags:
 | `--bf16` | Enable bfloat16 autocast. |
 
 Each run produces `<output-root>/<run_id>/` containing:
+
 - `detection_results.json`, `tracking_results.json`
 - `tracking_overlay.mp4`
 - `run_meta.json` (params, status, command)
@@ -151,10 +153,12 @@ uv run python examples/object_tracking/bytetrack/regenerate_bytetrack_sweep_html
 ```
 
 Outputs:
+
 - `results.html` — sortable/filterable interactive table
 - `sweep_metrics.csv` — flat CSV for analysis in pandas/Excel
 
 The HTML loads from (in priority order):
+
 1. `sweep_metrics.csv`
 2. `sweep_manifest.json`
 3. Per-run subdirectories (`run_meta.json` + `metrics.json`)
@@ -180,6 +184,7 @@ uv run python examples/object_tracking/bytetrack/convert_overlays_in_place.py `
 ```
 
 Notes:
+
 - The script updates files in place (default pattern: `tracking_overlay.mp4`).
 - With `--keep-backup`, original files are kept as `*.bak.mp4`.
 - Output filenames stay `.mp4`; only the encoded video stream changes.

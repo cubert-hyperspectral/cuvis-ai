@@ -126,14 +126,10 @@ plugins:
 # Page tree
 nav:
   - Home: index.md
-  - Getting Started:
+  - User Guide:
       - Installation: user-guide/installation.md
       - Quickstart: user-guide/quickstart.md
-      - Configuration Basics: user-guide/configuration.md
-      - Core Concepts: concepts/overview.md
-      - Tutorials: tutorials/index.md
-      - How-To Guides: how-to/index.md
-  - User Guide:
+      - Configuration: user-guide/configuration.md
       - Core Concepts:
           - Overview: concepts/overview.md
           - Node System: concepts/node-system-deep-dive.md
@@ -141,16 +137,11 @@ nav:
           - Pipeline Lifecycle: concepts/pipeline-lifecycle.md
           - Two-Phase Training: concepts/two-phase-training.md
           - Execution Stages: concepts/execution-stages.md
-          - Plugin System:
-              - Overview: plugin-system/index.md
-              - Plugin Architecture: plugin-system/overview.md
-              - Plugin Development: plugin-system/development.md
-              - Plugin Usage: plugin-system/usage.md
       - Tutorials:
           - Overview: tutorials/index.md
           - RX Statistical: tutorials/rx-statistical.md
           - Channel Selector: tutorials/channel-selector.md
-          - Deep SVDD Gradient: tutorials/deep-svdd-gradient.md
+          - Deep SVDD: tutorials/deep-svdd-gradient.md
           - AdaCLIP Workflow: tutorials/adaclip-workflow.md
           - gRPC Workflow: tutorials/grpc-workflow.md
       - How-To Guides:
@@ -159,42 +150,50 @@ nav:
           - Build Pipeline (YAML): how-to/build-pipeline-yaml.md
           - Restore Pipeline: how-to/restore-pipeline-trainrun.md
           - Add Built-in Node: how-to/add-builtin-node.md
+          - Object Tracking: how-to/object-tracking.md
+          - SAM3 Workflows: how-to/sam3-workflows.md
           - Monitoring & Visualization: how-to/monitoring-and-viz.md
-          - Profiling & Performance: how-to/profiling.md
-          - GPU Acceleration: reference/gpu_acceleration_guide.md
-          - Remote gRPC: how-to/remote-grpc.md
+          - Profiling: how-to/profiling.md
   - Nodes:
-      - Node Catalog:
-          - Overview: node-catalog/index.md
-          - Data Nodes: node-catalog/data-nodes.md
-          - Preprocessing: node-catalog/preprocessing.md
-          - Selectors: node-catalog/selectors.md
-          - Statistical: node-catalog/statistical.md
-          - Deep Learning: node-catalog/deep-learning.md
-          - Clustering: node-catalog/clustering.md
-          - Output Nodes: node-catalog/output.md
-          - Utility Nodes: node-catalog/utility.md
-  - Advanced Topics:
-      - Configuration:
-          - Overview: config/index.md
-          - Config Groups: config/config-groups.md
-          - TrainRun Schema: config/trainrun-schema.md
-          - Pipeline Schema: config/pipeline-schema.md
-          - Hydra Composition: config/hydra-composition.md
-      - gRPC Services:
-          - Overview: grpc/index.md
-          - API Reference: grpc/api-reference.md
-          - Client Patterns: grpc/client-patterns.md
-          - Deployment: deployment/grpc_deployment.md
-      - Deployment:
-          - Overview: deployment/index.md
-          - Docker & Kubernetes: deployment/docker-kubernetes.md
-          - Logging & Monitoring: deployment/logging-monitoring.md
-          - Stress Testing: reference/stress_testing.md
+      - Overview: node-catalog/index.md
+      - Data: node-catalog/data-nodes.md
+      - Preprocessing: node-catalog/preprocessing.md
+      - Selectors: node-catalog/selectors.md
+      - Statistical: node-catalog/statistical.md
+      - Deep Learning: node-catalog/deep-learning.md
+      - Clustering: node-catalog/clustering.md
+      - Loss & Metrics: node-catalog/loss-metrics.md
+      - Visualization: node-catalog/visualization.md
+      - Output: node-catalog/output.md
+      - Utility: node-catalog/utility.md
+  - Configuration:
+      - Overview: config/index.md
+      - Config Groups: config/config-groups.md
+      - TrainRun Schema: config/trainrun-schema.md
+      - Pipeline Schema: config/pipeline-schema.md
+      - Hydra Composition: config/hydra-composition.md
+      - Hydra Advanced: config/hydra-advanced.md
+  - gRPC & Deployment:
+      - Overview: grpc/index.md
+      - Architecture: grpc/overview.md
+      - API Reference: grpc/api-reference.md
+      - Training & Inference API: grpc/api-training-inference.md
+      - Types & Errors API: grpc/api-types-errors.md
+      - Client Patterns: grpc/client-patterns.md
+      - Sequence Diagrams: grpc/sequence-diagrams.md
+      - Example Clients: grpc/example-clients.md
+      - Deployment: deployment/grpc_deployment.md
+  - Plugins:
+      - Overview: plugin-system/index.md
+      - Architecture: plugin-system/overview.md
+      - Development: plugin-system/development.md
+      - Packaging: plugin-system/packaging.md
+      - Usage: plugin-system/usage.md
   - Development:
       - Overview: development/index.md
       - Contributing: development/contributing.md
       - Docstrings Guide: development/docstrings.md
+      - Documentation Guidelines: development/documentation-guidelines.md
       - Git Hooks: development/git-hooks.md
   - API Reference:
       - Overview: api/index.md
@@ -207,7 +206,6 @@ nav:
   - Reference:
       - Glossary: reference/glossary.md
       - Changelog: reference/changelog.md
-      - Limitations: user-guide/limitations.md
 
 # Extra
 extra:

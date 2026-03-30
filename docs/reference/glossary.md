@@ -11,6 +11,7 @@
 ## Coming Soon
 
 Comprehensive glossary of terms used in CUVIS.AI including:
+
 - Node
 - Port
 - Pipeline
@@ -22,4 +23,5 @@ Comprehensive glossary of terms used in CUVIS.AI including:
 ---
 
 **Related Pages:**
+
 - [Core Concepts Overview](../concepts/overview.md)

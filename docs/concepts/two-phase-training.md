@@ -10,12 +10,14 @@
 Two-phase training combines statistical methods and deep learning. **Phase 1** computes statistics fast and deterministically. **Phase 2** refines parameters via gradients for task-specific optimization.
 
 **Phase 1 Benefits:**
+
 * ⚡ Fast (seconds to minutes)
 * 💾 Memory efficient
 * 🎯 Strong initialization for Phase 2
 * 🔒 Deterministic and reproducible
 
 **Phase 2 Benefits:**
+
 * 📈 Learns task-specific features
 * 🎨 Flexible optimization objectives
 * 🔬 Fine-grained parameter refinement
@@ -100,6 +102,7 @@ assert pipeline.nodes["rx_detector"]._statistically_initialized
 ```
 
 **What happens during fit():**
+
 1. Iterate through training batches
 2. For each node with `requires_initial_fit=True`:
    - Pass data through preceding nodes

@@ -41,6 +41,7 @@ Built-in contributions require more rigorous review and integration testing, but
 **When to use:** When you want to add domain-specific algorithms, experimental methods, or proprietary techniques.
 
 **How:**
+
 1. Follow the [Plugin Development Guide](../plugin-system/development.md) to create your plugin
 2. Implement nodes inheriting from `cuvis_ai_core.node.Node`
 3. Test with cuvis-ai pipelines using local plugin loading
@@ -55,6 +56,7 @@ Built-in contributions require more rigorous review and integration testing, but
 **When to use:** When your node provides general-purpose functionality that benefits all users.
 
 **How:**
+
 1. Follow the [Add Built-in Node Guide](../how-to/add-builtin-node.md)
 2. Submit a pull request with comprehensive tests
 3. Undergo code review and integration testing
@@ -68,6 +70,7 @@ Improve guides, tutorials, API documentation, or fix typos. Documentation PRs ar
 ### 🐛 Bug Reports
 
 Found a bug? [Open an issue](https://github.com/cubert-hyperspectral/cuvis-ai/issues) with:
+
 - Clear description of the problem
 - Steps to reproduce
 - Expected vs actual behavior
@@ -77,6 +80,7 @@ Found a bug? [Open an issue](https://github.com/cubert-hyperspectral/cuvis-ai/is
 ### 💡 Feature Requests
 
 Have an idea for improvement? [Open a discussion](https://github.com/cubert-hyperspectral/cuvis-ai/discussions) to:
+
 - Describe the feature and its use case
 - Explain why it would benefit the community
 - Discuss potential implementation approaches
@@ -92,6 +96,7 @@ This section describes the **complete process** for contributing a plugin to the
 Follow the comprehensive [Plugin Development Guide](../plugin-system/development.md) to create your plugin from scratch.
 
 **Key requirements:**
+
 - **Node Implementation:** Inherit from `cuvis_ai_core.node.Node`
 - **Project Structure:** Create proper `pyproject.toml` with dependencies and metadata
 - **Documentation:** Write comprehensive README with usage examples
@@ -159,6 +164,7 @@ uv run restore-pipeline \
 ```
 
 **Verify:**
+
 - ✅ All dependencies install correctly
 - ✅ Nodes load without errors
 - ✅ Nodes work in actual pipelines
@@ -169,6 +175,7 @@ uv run restore-pipeline \
 Prepare your plugin for public distribution.
 
 **Requirements:**
+
 - **Public GitHub repository** (required for central registry)
 - **Semantic version tag:** `v1.0.0`, `v0.1.0-beta`, `v2.0.0-rc.1`
 - **LICENSE file:** Permissive open source license recommended (MIT, Apache-2.0, BSD)
@@ -255,6 +262,7 @@ Edit `docs/plugin-system/index.md` under the "Community Plugins" section:
 **4.4 (Optional) Add showcase example**
 
 Create `examples/my-plugin/` directory with:
+
 - Sample pipeline configuration using your plugin
 - Example data or instructions
 - README explaining the example
@@ -329,6 +337,7 @@ No significant dependencies beyond cuvis-ai-core requirements.
 The core team will review your submission.
 
 **What we check:**
+
 - ✅ YAML manifest syntax is valid
 - ✅ Plugin loads successfully with NodeRegistry
 - ✅ Plugin follows development best practices
@@ -337,11 +346,13 @@ The core team will review your submission.
 - ✅ Tests exist and pass (if example provided)
 
 **Timeline:**
+
 - Typical review turnaround: 3-5 business days
 - We may request changes to manifest formatting or documentation
 - Once approved, your plugin will be merged into the registry
 
 **Communication:**
+
 - All feedback will be provided through PR comments
 - Please respond to review comments promptly
 - Feel free to ask questions or request clarification
@@ -351,6 +362,7 @@ The core team will review your submission.
 After your plugin is accepted, keep it maintained for the community.
 
 **Ongoing responsibilities:**
+
 - **Respond to issues:** Help users who encounter problems with your plugin
 - **Keep it working:** Ensure compatibility with new cuvis-ai releases
 - **Update registry:** When releasing new versions, submit PRs to update the `tag:` field
@@ -371,6 +383,7 @@ my_plugin:
 ```
 
 **Best practices:**
+
 - Use [GitHub Releases](https://docs.github.com/en/repositories/releasing-projects-on-github) for better visibility
 - Follow [semantic versioning](https://semver.org/) (MAJOR.MINOR.PATCH)
 - Write clear release notes describing changes
@@ -410,6 +423,7 @@ plugins:
 ```
 
 This is particularly useful for:
+
 - Testing changes before publishing
 - Private plugins that won't be on GitHub
 - Quick iterations during development
@@ -613,6 +627,7 @@ When asking for help:
 ### Contact
 
 For private inquiries or collaboration opportunities:
+
 - Email: [contact info from README or website]
 - Open a [GitHub Discussion](https://github.com/cubert-hyperspectral/cuvis-ai/discussions)
 
@@ -636,6 +651,7 @@ We have zero tolerance for harassment, discrimination, or abusive behavior.
 Thank you for contributing to cuvis-ai! Your work helps build a better tool for the hyperspectral imaging community. We're excited to see what you create!
 
 **Quick Links:**
+
 - [Plugin Development Guide](../plugin-system/development.md) - Complete guide to creating plugins
 - [Add Built-in Node Guide](../how-to/add-builtin-node.md) - Contributing to core
 - [Node System Deep Dive](../concepts/node-system-deep-dive.md) - Understanding node architecture

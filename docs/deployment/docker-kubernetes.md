@@ -11,6 +11,7 @@
 ## Coming Soon
 
 This guide will cover:
+
 - Creating Docker images for CUVIS.AI
 - Multi-stage Docker builds
 - Kubernetes deployment manifests
@@ -21,6 +22,7 @@ This guide will cover:
 ---
 
 **Related Pages:**
+
 - [Deployment Overview](index.md)
 - [gRPC Deployment](grpc_deployment.md)
 - [Logging & Monitoring](logging-monitoring.md)

@@ -43,6 +43,7 @@ RX(x) = (x - \mu)^T \Sigma^{-1} (x - \mu)
 $$
 
 Where:
+
 - $x$ is the pixel spectrum
 - $\mu$ is the background mean spectrum
 - $\Sigma$ is the covariance matrix
@@ -52,12 +53,14 @@ Higher scores indicate pixels that are spectrally different from the background.
 ### When to Use RX Detection
 
 ✅ **Use RX when:**
+
 - You need unsupervised anomaly detection
 - Background follows a Gaussian distribution
 - You have hyperspectral or multispectral data
 - You want a fast, interpretable baseline
 
 ❌ **Don't use RX when:**
+
 - Background is highly non-Gaussian
 - You need deep contextual reasoning
 - You have limited initialization data
@@ -65,6 +68,7 @@ Higher scores indicate pixels that are spectrally different from the background.
 ### RX in CUVIS.AI
 
 CUVIS.AI implements RX as a **statistical node** that:
+
 1. Collects background statistics during initialization
 2. Computes covariance and mean from initialization data
 3. Calculates Mahalanobis distance for new data
@@ -119,11 +123,13 @@ data_node = LentilsAnomalyDataNode(
 ```
 
 **What's Happening:**
+
 - `SingleCu3sDataModule`: Loads CU3S hyperspectral data format
 - `LentilsAnomalyDataNode`: Converts multi-class segmentation to binary anomaly labels
 - `normal_class_ids=[0, 1]`: Classes 0 and 1 are background; others are anomalies
 
 **Data Node Outputs:**
+
 - `cube`: Hyperspectral cube [B, H, W, 61] (61 spectral channels)
 - `mask`: Binary anomaly mask [B, H, W, 1]
 - `wavelengths`: Wavelength array [61]
@@ -155,6 +161,7 @@ normalizer_node = MinMaxNormalizer(
 ```
 
 **Why MinMaxNormalizer?**
+
 - Scales data to [0, 1] range
 - Uses running statistics computed during statistical initialization
 - Ensures stable covariance computation for RX
@@ -186,6 +193,7 @@ logit_head = ScoreToLogit(
 ```
 
 **Why ScoreToLogit?**
+
 - Converts raw RX scores to logit space
 - Enables integration with binary cross-entropy losses
 - Makes scores more interpretable for thresholding
@@ -316,6 +324,7 @@ stat_trainer.fit()
 ```
 
 **Key Points:**
+
 - Only nodes with `statistical_initialization()` method are initialized
 - Normalizer and RX detector are initialized; other nodes remain frozen
 - No gradient computation occurs
@@ -382,6 +391,7 @@ Navigate to http://localhost:6006 to see:
 ## Visualization with Sigmoid
 
 **Example Visualization:**
+
 - **Green pixels**: Correct detections (true positives)
 - **Red pixels**: False alarms (false positives)
 - **Blue pixels**: Missed anomalies (false negatives)
@@ -409,6 +419,7 @@ pipeline.save_to_file(
 ```
 
 **Created Files:**
+
 - `RX_Statistical.yaml`: Pipeline structure and configuration
 - `RX_Statistical.pt`: Trained weights (normalizer stats, RX covariance)
 
@@ -433,6 +444,7 @@ trainrun_config.save_to_file("outputs/trained_models/rx_statistical_trainrun.yam
 ```
 
 **TrainRun Config** captures:
+
 - Complete pipeline structure
 - Data configuration
 - Training parameters
@@ -564,6 +576,7 @@ python examples/rx_statistical.py
 **Symptoms:** Poor anomaly detection performance
 
 **Possible Causes:**
+
 1. Insufficient initialization data
 2. Normal classes incorrectly specified
 3. Threshold too high/low
@@ -653,6 +666,7 @@ In this tutorial, you learned:
 ✅ How to save and restore trained pipelines
 
 **Key Takeaways:**
+
 - RX detection is a fast, interpretable baseline for hyperspectral anomaly detection
 - Statistical initialization computes background statistics without gradients
 - Pipeline serialization enables reproducibility and deployment

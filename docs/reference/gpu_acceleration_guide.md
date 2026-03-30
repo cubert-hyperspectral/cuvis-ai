@@ -11,6 +11,7 @@
 ## Coming Soon
 
 This guide will cover:
+
 - GPU requirements and setup
 - CUDA configuration
 - GPU memory management
@@ -21,6 +22,7 @@ This guide will cover:
 ---
 
 **Related Pages:**
+
 - [Installation](../user-guide/installation.md)
 - [Deep Learning Nodes](../node-catalog/deep-learning.md)
 - [Deep SVDD Gradient Tutorial](../tutorials/deep-svdd-gradient.md)

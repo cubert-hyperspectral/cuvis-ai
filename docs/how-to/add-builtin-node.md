@@ -9,6 +9,7 @@
 Learn how to create custom nodes and integrate them into the CUVIS.AI framework. This guide covers node architecture, implementation patterns, testing, and documentation requirements.
 
 ## Prerequisites
+
 - cuvis-ai development environment set up
 - Understanding of [Node System Deep Dive](../concepts/node-system-deep-dive.md)
 - Familiarity with PyTorch `nn.Module`
@@ -87,18 +88,21 @@ class ThresholdFilter(Node):
 ### Port Specification Guidelines
 
 **Shape Dimensions:**
+
 - `-1`: Dynamic dimension (batch size, spatial dimensions)
 - `()`: Scalar value
 - `(C,)`: Fixed-size vector (C channels)
 - `(-1, -1, -1, C)`: BHWC format with fixed channels
 
 **Data Types:**
+
 - `torch.float32`: Standard floating point
 - `torch.int32`: Integer labels/indices
 - `torch.bool`: Binary masks
 - `np.int32`: NumPy arrays (e.g., wavelengths)
 
 **Optional Ports:**
+
 - `optional=True`: Connection not required
 - Useful for conditional inputs or auxiliary outputs
 
@@ -630,17 +634,9 @@ class TestAdaptiveThresholdFilter:
         """Test node can be serialized and deserialized."""
         node = AdaptiveThresholdFilter(num_channels=61, init_threshold=0.7)
 
-        # Serialize to dict
-        config = node.serialize()
-        assert config["class"] == "AdaptiveThresholdFilter"
-        assert config["params"]["num_channels"] == 61
-        assert config["params"]["init_threshold"] == 0.7
-
-        # Deserialize
-        from cuvis_ai_core.node import Node
-        restored = Node.from_config(config)
-        assert isinstance(restored, AdaptiveThresholdFilter)
-        assert restored.num_channels == 61
+        assert node.validate_serialization_support()
+        assert node.num_channels == 61
+        assert node.init_threshold == 0.7
 ```
 
 ### Test Coverage Checklist
@@ -793,16 +789,16 @@ class CNNFeatureExtractor(Node):
 ```yaml
 nodes:
   - name: adaptive_filter
-    class: cuvis_ai.node.filters.AdaptiveThresholdFilter
-    params:
+    class_name: cuvis_ai.node.filters.AdaptiveThresholdFilter
+    hparams:
       num_channels: 61
       init_threshold: 0.5
 
 connections:
-  - from: normalizer.outputs.normalized
-    to: adaptive_filter.inputs.data
-  - from: adaptive_filter.outputs.filtered
-    to: detector.inputs.data
+  - source: normalizer.outputs.normalized
+    target: adaptive_filter.inputs.data
+  - source: adaptive_filter.outputs.filtered
+    target: detector.inputs.data
 ```
 
 ### Add Node in Python
@@ -1067,6 +1063,7 @@ def test_edge_cases():
 ```
 
 ## See Also
+
 - [Node System Deep Dive](../concepts/node-system-deep-dive.md)
 - [Node Catalog](../node-catalog/index.md)
 - [Build Pipelines in Python](build-pipeline-python.md)

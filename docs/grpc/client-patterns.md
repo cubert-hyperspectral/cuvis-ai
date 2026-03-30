@@ -11,7 +11,9 @@ Common patterns and best practices for building robust gRPC clients for CUVIS.AI
 
 ## Overview
 
-This guide documents proven patterns for CUVIS.AI gRPC clients, extracted from 24+ production examples. These patterns cover connection management, session lifecycle, configuration, training, inference, error handling, and production deployment.
+This guide documents proven patterns for CUVIS.AI gRPC clients, extracted from the checked-in
+example client set. These patterns cover connection management, session lifecycle, configuration,
+training, inference, error handling, and production deployment.
 
 **Philosophy:** Start simple, add complexity only when needed. Most workflows use the standard 5-phase pattern with helper utilities.
 
@@ -45,6 +47,7 @@ stub = build_stub("localhost:50051", max_msg_size=600*1024*1024)
 ```
 
 **Notes:**
+
 - Message size limits are **critical** for hyperspectral data (typical cubes: 100-600 MB)
 - Default gRPC limit is 4 MB (too small)
 - Both client and server must have matching limits
@@ -85,6 +88,7 @@ channel = grpc.secure_channel("production-server:50051", credentials, options=op
 ```
 
 **Notes:**
+
 - Always use TLS in production
 - mTLS provides client authentication
 - Keep certificates secure (never commit to git)
@@ -128,6 +132,7 @@ for progress in train_with_retry(stub, session_id, cuvis_ai_pb2.TRAINER_TYPE_GRA
 ```
 
 **Retryable vs Non-Retryable Errors:**
+
 - **Retry:** `UNAVAILABLE`, `DEADLINE_EXCEEDED`, `RESOURCE_EXHAUSTED` (transient)
 - **Don't Retry:** `INVALID_ARGUMENT`, `NOT_FOUND`, `FAILED_PRECONDITION` (permanent)
 
@@ -186,6 +191,7 @@ with grpc_session(stub) as session_id:
 ```
 
 **Benefits:**
+
 - Guaranteed cleanup (even on exceptions)
 - Pythonic resource management
 - Reduced boilerplate
@@ -688,6 +694,7 @@ def safe_inference(stub, session_id, cube, wavelengths):
 **Error:** `grpc._channel._InactiveRpcError: failed to connect to all addresses`
 
 **Solutions:**
+
 1. Verify server is running: `ps aux | grep production_server`
 2. Check port: `netstat -an | grep 50051`
 3. Test connectivity: `telnet localhost 50051`
@@ -711,6 +718,7 @@ stub = build_stub("localhost:50051", max_msg_size=600*1024*1024)
 **Error:** `Session ID not found`
 
 **Solutions:**
+
 1. Session expired (1-hour timeout) - create new session
 2. Server restarted - sessions are not persisted
 3. Verify session ID is correct
@@ -722,6 +730,7 @@ stub = build_stub("localhost:50051", max_msg_size=600*1024*1024)
 **Error:** `CUDA out of memory`
 
 **Solutions:**
+
 1. Reduce batch size in data config
 2. Close unused sessions
 3. Restart server to clear GPU memory
@@ -733,6 +742,7 @@ stub = build_stub("localhost:50051", max_msg_size=600*1024*1024)
 CUVIS.AI supports a plugin system for extending functionality. Plugins can be loaded dynamically at runtime to add custom nodes, data sources, or processing capabilities.
 
 For comprehensive plugin system documentation, see:
+
 - [Plugin System Overview](../plugin-system/overview.md) - Architecture and core concepts
 - [Plugin Registry](../plugin-system/registry.md) - Available plugins
 - [Plugin Development Guide](../plugin-system/development.md) - Creating custom plugins

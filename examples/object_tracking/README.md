@@ -1,5 +1,9 @@
 # Object Tracking Examples
 
+Published docs for the current tracking API live in
+[`docs/how-to/object-tracking.md`](../../docs/how-to/object-tracking.md) and
+[`docs/how-to/sam3-workflows.md`](../../docs/how-to/sam3-workflows.md).
+
 This folder contains object-tracking workflows for hyperspectral CU3S recordings.
 
 ## Table of Contents
@@ -258,14 +262,17 @@ uv run python examples/object_tracking/render_tracking_overlay.py --help
 ### Main CLI Options
 
 **Source (mutually exclusive, one required):**
+
 - `--video-path` path to source MP4
 - `--cu3s-file-path` path to `.cu3s` file (false-RGB generated on the fly)
 
 **CU3S-mode options:**
+
 - `--method` `range_average|cie_tristimulus|camera_emulation|baseline` (default `cie_tristimulus`)
 - `--processing-mode` `Raw|DarkSubtract|Preview|Reflectance|SpectralRadiance` (default `Raw`)
 
 **Common options:**
+
 - `--tracking-json` required path to COCO tracking JSON
 - `--output-video-path` output MP4 path (default: `<tracking_json_dir>/overlay.mp4`)
 - `--start-frame` / `--end-frame` frame range (default: all)
@@ -417,6 +424,7 @@ uv run python examples/object_tracking/sam3/sam3_text_propagation.py --help
 - `--output-dir` parent/root output directory
 - `--out-basename` optional run-folder basename; defaults to
   `Path(cu3s_path).stem` in CU3S mode or `Path(video_path).stem` in video mode
+
 - `--checkpoint-path` optional tracker checkpoint path
 - `--plugins-yaml` plugin manifest path (default `configs/plugins/sam3.yaml`)
 - `--bf16` enable CUDA bf16 autocast
@@ -467,6 +475,7 @@ Coverage depends on the prompt vocabulary you configure.
 - For mask prompt: a COCO detection/tracking JSON containing non-empty `segmentation` masks plus repeatable `--prompt <object_id:detection_id@frame_id>` specs
 
 Mask-prompt JSON requirements:
+
 - The selected annotation must decode to a real mask.
 - If `segmentation` is missing or empty, prompting will fail.
 - Prefer a SAM-style `tracking_results.json` or another source with valid per-frame RLE masks.
@@ -490,6 +499,7 @@ Mask-prompt JSON requirements:
 - Frames before the first scheduled bbox or mask prompt emit empty tracking outputs and do not initialize SAM3.
 
 Detection ID semantics for point/bbox/mask:
+
 - `detection_id` is matched against `track_id` first.
 - If `track_id` is absent on that frame, `detection_id` is interpreted as a 1-based rank by descending `score`.
 - For point propagation, the lookup happens on `--start-frame`.
@@ -613,6 +623,7 @@ uv run python examples/object_tracking/sam3/sam3_mask_propagation.py `
 - `--frame-rotation` optional frame rotation (degrees)
 
 Prompt-specific options:
+
 - Text: `--prompt`
 - Point: `--detection-json` and `--detection ID`
 - Bbox/Mask: `--detection-json` and repeatable `--prompt <object_id:detection_id@frame_id>`
@@ -689,6 +700,7 @@ uv run python examples/grpc/sam3/sam3_bbox_propagation_client.py `
 ```
 
 gRPC notes:
+
 - The client sends prompt masks directly through `InputBatch.mask`.
 - The bbox client sends prompt boxes directly through `InputBatch.bboxes`.
 - The gRPC pipelines do not use `MaskPrompt` or `BBoxPrompt` internally.
@@ -986,6 +998,7 @@ uv run python examples/object_tracking/deepeiou/yolo_deepeiou_reid_hsi.py --help
 - `--output-dir` parent/root output directory (default `./tracking_output`)
 - `--out-basename` optional run-folder basename; defaults to
   `Path(cu3s_path).stem` in CU3S mode or `Path(video_path).stem` in video mode
+
 - `--plugins-dir` plugin YAML directory (default `<repo>/configs/plugins/`)
 - `--bf16` enable CUDA bf16 autocast
 - `--hide-untracked / --show-untracked` hide bboxes without track ID (default: hide)

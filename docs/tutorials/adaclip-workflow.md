@@ -14,6 +14,7 @@ Learn how to use plugin nodes with AdaCLIP for hyperspectral anomaly detection, 
 This tutorial demonstrates **plugin-based anomaly detection** using the AdaCLIP plugin, which adapts CLIP (Contrastive Language-Image Pre-training) for hyperspectral imagery. You'll learn three approaches to reducing 61 hyperspectral channels to 3 RGB-compatible channels for AdaCLIP processing.
 
 **What You'll Learn:**
+
 - Loading external plugin nodes from Git repositories
 - **PCA Baseline** - Statistical-only frozen reduction (fastest)
 - **DRCNN Mixer** - Learnable continuous mixing with gradient optimization
@@ -24,6 +25,7 @@ This tutorial demonstrates **plugin-based anomaly detection** using the AdaCLIP 
 **Time to Complete:** 35-40 minutes (all 3 variants)
 
 **Prerequisites:**
+
 - Completion of [Channel Selector Tutorial](channel-selector.md) - Understanding two-phase training
 - Familiarity with [Plugin System Overview](../plugin-system/overview.md)
 - Python 3.10+, PyTorch 2.0+, CUDA-capable GPU (recommended)
@@ -49,6 +51,7 @@ This tutorial demonstrates **plugin-based anomaly detection** using the AdaCLIP 
 ### Plugin System Integration
 
 Unlike built-in nodes, **plugin nodes** are loaded dynamically from external Git repositories. This allows:
+
 - **Modularity** - Keep experimental/specialized nodes separate from core framework
 - **Versioning** - Pin to specific plugin releases (tags) for reproducibility
 - **Community Extensions** - Share custom nodes without modifying core codebase
@@ -367,6 +370,7 @@ pipeline.connect(
 ```
 
 **TensorBoard will show:**
+
 - HSI input (false-color RGB using channels 0, 20, 40)
 - Mixer output (learned 3-channel representation)
 - Ground truth masks
@@ -521,6 +525,7 @@ Final selected bands (argmax): [8, 31, 54]
 ### Step 4: Temperature Annealing Visualization
 
 The temperature τ controls the "sharpness" of the Gumbel-Softmax distribution:
+
 - **High τ (10.0):** Soft, continuous sampling (exploration)
 - **Low τ (0.1):** Hard, discrete sampling (exploitation)
 
@@ -559,12 +564,14 @@ Run all three approaches and compare:
 ### Qualitative Comparison
 
 **PCA Baseline:**
+
 - ✅ Fastest to train
 - ✅ Interpretable (variance-based)
 - ❌ Task-agnostic (not optimized for anomalies)
 - ❌ Linear projection only
 
 **DRCNN Mixer:**
+
 - ✅ Best quantitative performance
 - ✅ End-to-end optimized
 - ✅ Continuous channel blending
@@ -572,6 +579,7 @@ Run all three approaches and compare:
 - ❌ Requires statistical initialization
 
 **Concrete Selector:**
+
 - ✅ Interpretable selected bands
 - ✅ No statistical phase needed
 - ✅ Discrete, sparse selection
@@ -636,6 +644,7 @@ tensorboard --logdir=outputs/ --port=6006
 ```
 
 **View:**
+
 - Loss curves (IoU loss for DRCNN/Concrete)
 - Metric trends (IoU, precision, recall)
 - Processing pipeline visualizations (HSI → reduction → scores)
@@ -650,6 +659,7 @@ tensorboard --logdir=outputs/ --port=6006
 **Error:** `Plugin 'adaclip' not found or failed to load`
 
 **Solutions:**
+
 1. Check Git repository access:
    ```bash
    git ls-remote https://github.com/cubert-hyperspectral/cuvis-ai-adaclip.git
@@ -676,6 +686,7 @@ tensorboard --logdir=outputs/ --port=6006
 **Error:** `RuntimeError: CUDA out of memory`
 
 **Solutions:**
+
 1. Reduce batch size:
    ```yaml
    data:
@@ -709,6 +720,7 @@ Final selected bands: [31, 31, 31]
 ```
 
 **Solutions:**
+
 1. Increase distinctness loss weight:
    ```python
    distinctness_loss = DistinctnessLoss(
@@ -736,6 +748,7 @@ Final selected bands: [31, 31, 31]
 **Issue:** IoU < 0.5 on validation
 
 **Solutions:**
+
 1. Check normal_class_ids mapping:
    ```python
    data_node = LentilsAnomalyDataNode(
@@ -776,6 +789,7 @@ logger.info(f"Weight change: max_diff={diff.max().item():.6f}")
 ```
 
 **Solutions:**
+
 1. Increase learning rate:
    ```yaml
    training:
@@ -814,6 +828,7 @@ You've learned three approaches to hyperspectral dimensionality reduction for Ad
 3. **Concrete Selector** - Interpretable discrete selection, pure gradient-based (12 min)
 
 **Key Takeaways:**
+
 - Plugin system enables modular extension of CUVIS.AI
 - Dimensionality reduction strategy significantly impacts detection performance
 - DRCNN mixer offers best quantitative metrics
@@ -821,6 +836,7 @@ You've learned three approaches to hyperspectral dimensionality reduction for Ad
 - TensorBoard visualization is essential for debugging end-to-end pipelines
 
 **Performance Ranking (by IoU):**
+
 1. 🥇 DRCNN Mixer (0.7512 test IoU)
 2. 🥈 Concrete Selector (0.7401 test IoU)
 3. 🥉 PCA Baseline (0.6791 test IoU)
@@ -830,17 +846,20 @@ You've learned three approaches to hyperspectral dimensionality reduction for Ad
 ## Next Steps
 
 **Explore Related Topics:**
+
 - [Plugin System Development](../plugin-system/development.md) - Create your own plugin nodes
 - [gRPC Workflow Tutorial](grpc-workflow.md) - Distributed training and inference
 - [Loss & Metrics Nodes](../node-catalog/loss-metrics.md) - IoU loss and distinctness loss details
 
 **Try Advanced Configurations:**
+
 - **Multi-loss training:** Combine IoU + entropy + diversity regularizers
 - **Alternative selectors:** SupervisedCIRSelector, SupervisedWindowedSelector
 - **Custom CLIP models:** Try different ViT backbones (ViT-B-16, ViT-L-14)
 - **Transfer learning:** Fine-tune AdaCLIP prompts for your specific anomaly types
 
 **Production Deployment:**
+
 - [gRPC Deployment Guide](../deployment/grpc_deployment.md) - Deploy trained pipelines
 - [Model Serving Patterns](../grpc/client-patterns.md) - Inference-only clients
 
@@ -869,6 +888,7 @@ python examples/adaclip/concrete_adaclip_gradient_training.py
 ---
 
 **Need Help?**
+
 - Check [Plugin System FAQ](../plugin-system/usage.md#troubleshooting)
 - Review [Band Selection Strategies](../node-catalog/selectors.md)
 - See [Training Configuration](../concepts/two-phase-training.md)

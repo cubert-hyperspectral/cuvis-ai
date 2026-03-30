@@ -68,6 +68,7 @@ graph LR
 *Node executes unconditionally in all stages.*
 
 **Use Cases:**
+
 - Core data transformation
 - Feature extraction
 - Essential preprocessing
@@ -93,6 +94,7 @@ node1 = MyNode()  # Equivalent to ExecutionStage.ALWAYS
 *Node only executes during training.*
 
 **Use Cases:**
+
 - Training-specific data augmentation
 - Dropout layers
 - Training loss computation
@@ -116,6 +118,7 @@ class TrainingAugmentation(Node):
 *Node only executes during validation.*
 
 **Use Cases:**
+
 - Validation metrics
 - Validation visualizations
 - Model selection criteria
@@ -139,6 +142,7 @@ class ValidationMetrics(Node):
 *Node only executes during testing.*
 
 **Use Cases:**
+
 - Final test metrics
 - Performance benchmarking
 - Confusion matrices
@@ -160,6 +164,7 @@ class TestEvaluator(Node):
 *Node only executes during inference/prediction.*
 
 **Use Cases:**
+
 - Production-only post-processing
 - Inference-specific output formatting
 - Deployment-specific optimizations

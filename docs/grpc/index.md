@@ -21,7 +21,7 @@ CUVIS.AI provides gRPC services for remote pipeline execution and deployment sce
 
     ---
 
-    Complete reference for all 46 RPC methods
+    Current API surface for the CuvisAIService
 
 -   :material-pattern: **[Client Patterns](client-patterns.md)**
 
@@ -35,6 +35,12 @@ CUVIS.AI provides gRPC services for remote pipeline execution and deployment sce
 
     Visual workflows for all major operations
 
+-   :material-play-box: **[Example Clients](example-clients.md)**
+
+    ---
+
+    Checked-in client catalog grouped by workflow family
+
 -   :material-cloud-upload: **[Deployment](../deployment/grpc_deployment.md)**
 
     ---
@@ -46,5 +52,6 @@ CUVIS.AI provides gRPC services for remote pipeline execution and deployment sce
 ---
 
 **Related Pages:**
+
 - [gRPC Workflow Tutorial](../tutorials/grpc-workflow.md)
-- [Remote gRPC How-To](../how-to/remote-grpc.md)
+- [SAM3 Workflows](../how-to/sam3-workflows.md)

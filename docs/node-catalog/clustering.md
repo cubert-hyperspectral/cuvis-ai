@@ -5,20 +5,10 @@
 
 # Clustering Nodes
 
-> **Status:** Under Development (Phase 5)
-> **Expected Completion:** Week 5
+This branch does not ship dedicated built-in clustering nodes in `cuvis_ai.node`.
 
-## Coming Soon
+Use the other catalog sections for the currently supported node surface:
 
-This page will document:
-- KMeansNode
-- DBSCANNode
-- ClusteringNode
-- Configuration and usage examples
-- Unsupervised learning pipelines
-
----
-
-**Related Pages:**
-- [Node Catalog](index.md)
 - [Statistical Nodes](statistical.md)
+- [Deep Learning Nodes](deep-learning.md)
+- [Output Nodes](output.md)

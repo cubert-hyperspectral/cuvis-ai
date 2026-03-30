@@ -5,183 +5,168 @@
 
 # Nodes API
 
-Complete API documentation for all node classes and implementations.
+This page is the current API index for node implementations shipped in this branch. It favors the
+live module docstrings over historical inventories.
 
-## Overview
+## Data And IO
 
-Nodes are the building blocks of CUVIS.AI pipelines. This page documents all available node implementations organized by functional category.
-
----
-
-## Anomaly Detection Nodes
-
-Statistical and deep learning methods for detecting anomalies in hyperspectral data.
-
-### RX Detector
-
-::: cuvis_ai.anomaly.rx_detector
-    options:
-      show_root_heading: true
-      heading_level: 4
-
-### LAD Detector
-
-::: cuvis_ai.anomaly.lad_detector
-    options:
-      show_root_heading: true
-      heading_level: 4
-
-### Deep SVDD
-
-::: cuvis_ai.anomaly.deep_svdd
-    options:
-      show_root_heading: true
-      heading_level: 4
-
----
-
-## Binary Decision Nodes
-
-Nodes that convert anomaly scores into binary decisions (anomaly/normal).
-
-### Binary Decider
-
-::: cuvis_ai.deciders.binary_decider
-    options:
-      show_root_heading: true
-      heading_level: 4
-
-### Two-Stage Decider
-
-::: cuvis_ai.deciders.two_stage_decider
-    options:
-      show_root_heading: true
-      heading_level: 4
-
----
-
-## Data & Preprocessing Nodes
-
-Nodes for data loading, normalization, and preprocessing.
-
-### Data Loader
+### Data Nodes
 
 ::: cuvis_ai.node.data
     options:
       show_root_heading: true
-      heading_level: 4
+      heading_level: 3
+
+### JSON Readers
+
+::: cuvis_ai.node.json_reader
+    options:
+      show_root_heading: true
+      heading_level: 3
+
+### NumPy Readers
+
+::: cuvis_ai.node.numpy_reader
+    options:
+      show_root_heading: true
+      heading_level: 3
+
+### Video Nodes
+
+::: cuvis_ai.node.video
+    options:
+      show_root_heading: true
+      heading_level: 3
+
+## Preprocessing And Spectral Tools
 
 ### Normalization
 
 ::: cuvis_ai.node.normalization
     options:
       show_root_heading: true
-      heading_level: 4
+      heading_level: 3
 
 ### Preprocessors
 
 ::: cuvis_ai.node.preprocessors
     options:
       show_root_heading: true
-      heading_level: 4
+      heading_level: 3
+
+### Occlusion
+
+::: cuvis_ai.node.occlusion
+    options:
+      show_root_heading: true
+      heading_level: 3
 
 ### Conversion
 
 ::: cuvis_ai.node.conversion
     options:
       show_root_heading: true
-      heading_level: 4
+      heading_level: 3
 
----
+### Spectral Angle Mapper
 
-## Channel Selection & Mixing Nodes
+::: cuvis_ai.node.spectral_angle_mapper
+    options:
+      show_root_heading: true
+      heading_level: 3
 
-Nodes for selecting and transforming spectral channels.
+### Spectral Extraction
 
-### Channel Selector
+::: cuvis_ai.node.spectral_extractor
+    options:
+      show_root_heading: true
+      heading_level: 3
+
+## Selectors And Trainable Feature Blocks
+
+### Channel Selectors
 
 ::: cuvis_ai.node.channel_selector
     options:
       show_root_heading: true
-      heading_level: 4
+      heading_level: 3
 
-### Channel Mixer
+### Channel Mixers
 
 ::: cuvis_ai.node.channel_mixer
     options:
       show_root_heading: true
-      heading_level: 4
-
----
-
-## Deep Learning Nodes
-
-Nodes implementing deep learning components.
-
-### AdaCLIP
-
-::: cuvis_ai.node.adaclip
-    options:
-      show_root_heading: true
-      heading_level: 4
-
----
-
-## Analysis & Dimensionality Reduction
-
-Nodes for dimensionality reduction and feature extraction.
+      heading_level: 3
 
 ### Dimensionality Reduction
 
 ::: cuvis_ai.node.dimensionality_reduction
     options:
       show_root_heading: true
-      heading_level: 4
+      heading_level: 3
 
----
+### AdaCLIP Nodes
 
-## Visualization Nodes
+::: cuvis_ai.node.adaclip
+    options:
+      show_root_heading: true
+      heading_level: 3
 
-Nodes for creating visualizations and TensorBoard logging.
+## Tracking, Prompting, And Sinks
 
-### Anomaly Visualization
+### Prompt Nodes
+
+::: cuvis_ai.node.static_node
+    options:
+      show_root_heading: true
+      heading_level: 3
+
+### JSON Writers
+
+::: cuvis_ai.node.json_writer
+    options:
+      show_root_heading: true
+      heading_level: 3
+
+### NumPy Writers
+
+::: cuvis_ai.node.numpy_writer
+    options:
+      show_root_heading: true
+      heading_level: 3
+
+## Visualization, Losses, And Labels
+
+### Visualization Nodes
 
 ::: cuvis_ai.node.anomaly_visualization
     options:
       show_root_heading: true
-      heading_level: 4
+      heading_level: 3
 
 ### Pipeline Visualization
 
 ::: cuvis_ai.node.pipeline_visualization
     options:
       show_root_heading: true
-      heading_level: 4
+      heading_level: 3
 
-### Monitor
+### Losses
 
-::: cuvis_ai.node.monitor
+::: cuvis_ai.node.losses
     options:
       show_root_heading: true
-      heading_level: 4
-
----
-
-## Label Processing
-
-Nodes for label conversion and manipulation.
+      heading_level: 3
 
 ### Labels
 
 ::: cuvis_ai.node.labels
     options:
       show_root_heading: true
-      heading_level: 4
-
----
+      heading_level: 3
 
 ## Related Pages
 
-- [Node System Deep Dive](../concepts/node-system-deep-dive.md)
 - [Node Catalog](../node-catalog/index.md)
-- [Add Built-in Node](../how-to/add-builtin-node.md)
+- [Object Tracking Workflows](../how-to/object-tracking.md)
+- [SAM3 Workflows](../how-to/sam3-workflows.md)

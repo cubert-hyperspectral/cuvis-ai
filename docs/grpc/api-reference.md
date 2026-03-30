@@ -5,23 +5,24 @@
 
 # gRPC API Reference
 
-Complete reference documentation for the CuvisAIService with 48 RPC methods.
+Current reference documentation for the `CuvisAIService`.
 
 ---
 
 ## Overview
 
-The CUVIS.AI gRPC service exposes all functionality through a single `CuvisAIService` endpoint with 46 RPC methods organized into 6 functional categories:
+The CUVIS.AI gRPC service exposes its current remote API through a single `CuvisAIService`
+endpoint organized into functional categories:
 
-| Category | Methods | Purpose |
-|----------|---------|---------|
-| [Session Management](#session-management) | 3 | Create, configure, and close isolated execution contexts |
-| [Configuration Management](#configuration-management) | 4 | Resolve, validate, and apply Hydra configurations |
-| [Pipeline Management](#pipeline-management) | 5 | Load, save, and manage pipeline state |
-| [Training Operations](#training-operations) | 3 | Execute statistical and gradient-based training |
-| [Inference Operations](#inference-operations) | 1 | Run predictions on trained pipelines |
-| [Profiling](#profiling) | 2 | Enable runtime profiling and retrieve per-node timing statistics |
-| [Introspection & Discovery](#introspection-discovery) | 6 | Query capabilities, inspect pipelines, visualize graphs |
+| Category | Purpose |
+|----------|---------|
+| [Session Management](#session-management) | Create, configure, and close isolated execution contexts |
+| [Configuration Management](#configuration-management) | Resolve, validate, and apply Hydra configurations |
+| [Pipeline Management](#pipeline-management) | Load, save, and manage pipeline state |
+| [Training Operations](#training-operations) | Execute statistical and gradient-based training |
+| [Inference Operations](#inference-operations) | Run predictions on trained pipelines |
+| [Profiling](#profiling) | Enable runtime profiling and retrieve per-node timing statistics |
+| [Introspection & Discovery](#introspection-discovery) | Query capabilities, inspect pipelines, visualize graphs |
 
 **Protocol Buffers:** All methods use Protocol Buffers (protobuf) for serialization.
 
@@ -105,12 +106,14 @@ print(f"Session created: {session_id}")
 ```
 
 **Notes:**
+
 - Sessions are isolated: separate pipeline, weights, data configs
 - Sessions automatically expire after **1 hour** of inactivity
 - Each session consumes GPU/CPU memory until closed
 - Session IDs are UUIDs (e.g., `"7f3e4d2c-1a9b-4c8d-9e7f-2b5a6c8d9e0f"`)
 
 **See Also:**
+
 - [SetSessionSearchPaths](#setsessionsearchpaths) - Configure Hydra search paths
 - [CloseSession](#closesession) - Release resources
 
@@ -161,6 +164,7 @@ stub.SetSessionSearchPaths(
 ```
 
 **Notes:**
+
 - **Must be called before** `ResolveConfig` for Hydra composition to work
 - Paths must be **absolute paths** (not relative)
 - Use `append=False` (default) to replace existing paths
@@ -179,6 +183,7 @@ session_id = create_session_with_search_paths(stub, search_paths=paths)
 ```
 
 **See Also:**
+
 - [ResolveConfig](#resolveconfig) - Resolve configs using these paths
 - [Hydra Composition Guide](../config/hydra-composition.md)
 
@@ -221,6 +226,7 @@ finally:
 ```
 
 **Notes:**
+
 - **Always close sessions** to free GPU/CPU memory immediately
 - Unclosed sessions expire after 1 hour but hold resources until then
 - Closing releases: pipeline, weights, data loaders, CUDA memory
@@ -228,6 +234,7 @@ finally:
 - No error if session already expired
 
 **See Also:**
+
 - [Client Patterns: Session Management](client-patterns.md#session-management-patterns)
 
 ---
@@ -283,6 +290,7 @@ print(f"Pipeline: {config_dict['pipeline']['name']}")
 ```
 
 **Config Types:**
+
 - `"trainrun"` - Complete training run composition (pipeline + data + training)
 - `"pipeline"` - Pipeline-only configuration
 - `"training"` - Training parameters (optimizer, scheduler, trainer)
@@ -306,13 +314,14 @@ overrides = [
     "data.cu3s_file_path=/data/Lentils_000.cu3s",
 
     # Pipeline node parameters
-    "pipeline.nodes.channel_selector.params.tau_start=8.0",
-    "pipeline.nodes.rx_detector.params.eps=1e-6",
-    "pipeline.nodes.normalizer.params.use_running_stats=true",
+    "pipeline.nodes.channel_selector.hparams.tau_start=8.0",
+    "pipeline.nodes.rx_detector.hparams.eps=1e-6",
+    "pipeline.nodes.normalizer.hparams.use_running_stats=true",
 ]
 ```
 
 **Notes:**
+
 - Requires `SetSessionSearchPaths` to be called first
 - Returns JSON bytes (decode with `.decode("utf-8")` and parse with `json.loads()`)
 - Hydra resolves config group composition, interpolations, and overrides
@@ -332,6 +341,7 @@ resolved, config_dict = resolve_trainrun_config(
 ```
 
 **See Also:**
+
 - [SetTrainRunConfig](#settrainrunconfig) - Apply resolved config
 - [ValidateConfig](#validateconfig) - Pre-validate configs
 - [Hydra Composition Guide](../config/hydra-composition.md)
@@ -384,6 +394,7 @@ print("TrainRun config applied, pipeline built")
 ```
 
 **What This Does:**
+
 1. Parses trainrun configuration JSON
 2. Builds pipeline from pipeline config
 3. Initializes data loader from data config
@@ -391,6 +402,7 @@ print("TrainRun config applied, pipeline built")
 5. Prepares session for training or inference
 
 **Notes:**
+
 - Must be called after `ResolveConfig`
 - Replaces any existing pipeline/config in session
 - After this call, session is ready for `Train()` or `Inference()`
@@ -404,6 +416,7 @@ apply_trainrun_config(stub, session_id, resolved.config_bytes)
 ```
 
 **See Also:**
+
 - [ResolveConfig](#resolveconfig) - Resolve config first
 - [Train](#train) - Execute training after config applied
 
@@ -458,12 +471,14 @@ for warning in validation.warnings:
 ```
 
 **Config Types:**
+
 - `"training"` - Training parameters (optimizer, scheduler, trainer)
 - `"pipeline"` - Pipeline structure and node configs
 - `"data"` - Data loading configuration
 - `"trainrun"` - Complete trainrun composition
 
 **Common Validation Errors:**
+
 - Missing required fields (e.g., `optimizer.lr`)
 - Invalid values (e.g., negative `max_epochs`)
 - Type mismatches (e.g., string for numeric field)
@@ -471,12 +486,14 @@ for warning in validation.warnings:
 - Incompatible node connections in pipeline
 
 **Notes:**
+
 - Validation is **optional** but highly recommended
 - Catches configuration errors before starting training
 - Warnings are informational (config still valid)
 - Errors mean config is invalid and will fail if applied
 
 **See Also:**
+
 - [SetTrainRunConfig](#settrainrunconfig) - Apply config after validation
 - [TrainRun Schema](../config/trainrun-schema.md)
 
@@ -518,12 +535,14 @@ print(f"Adam parameters: {adam_schema}")
 ```
 
 **Use Cases:**
+
 - Dynamic UI generation (list available options)
 - Config validation (check if optimizer exists)
 - Documentation generation
 - Discovery for programmatic workflows
 
 **See Also:**
+
 - [ValidateConfig](#validateconfig) - Validate configs using these capabilities
 
 ---
@@ -575,6 +594,7 @@ print("Pipeline loaded from config")
 ```
 
 **Notes:**
+
 - Pipeline config can be YAML or JSON (server parses both)
 - Builds complete pipeline graph from node definitions and connections
 - Does NOT load weights (use `LoadPipelineWeights` separately)
@@ -582,6 +602,7 @@ print("Pipeline loaded from config")
 - See [Pipeline Schema](../config/pipeline-schema.md) for config format
 
 **See Also:**
+
 - [LoadPipelineWeights](#loadpipelineweights) - Load trained weights
 - [SavePipeline](#savepipeline) - Save pipeline config + weights
 - [Pipeline Schema](../config/pipeline-schema.md)
@@ -630,16 +651,19 @@ if response.unexpected_keys:
 ```
 
 **Strict vs Non-Strict Loading:**
+
 - `strict=True` (default): Fails if weights don't match pipeline exactly
 - `strict=False`: Loads matching weights, ignores mismatches (useful for transfer learning)
 
 **Notes:**
+
 - Must call `LoadPipeline` first to build pipeline structure
 - Weights file is PyTorch `.pt` checkpoint
 - Use `strict=False` for transfer learning or partial weight loading
 - Check `missing_keys` and `unexpected_keys` for debugging
 
 **See Also:**
+
 - [LoadPipeline](#loadpipeline) - Load pipeline config first
 - [SavePipeline](#savepipeline) - Save weights
 
@@ -694,17 +718,20 @@ print(f"Weights saved to: {response.weights_path}")
 ```
 
 **What Gets Saved:**
+
 1. **YAML config** - Complete pipeline structure and node parameters
 2. **Weights file (.pt)** - PyTorch checkpoint with trained weights
 3. **Metadata** - Optional name, description, tags, author
 
 **Notes:**
+
 - Automatically creates weights path by replacing `.yaml` with `.pt`
 - Metadata is embedded in YAML config file
 - Use this for inference-only deployment (no training state)
 - For full reproducibility, use `SaveTrainRun` instead
 
 **See Also:**
+
 - [LoadPipeline](#loadpipeline) + [LoadPipelineWeights](#loadpipelineweights) - Restore pipeline
 - [SaveTrainRun](#savetrainrun) - Save complete trainrun (includes data/training config)
 
@@ -747,6 +774,7 @@ print(f"Weights saved to: {response.weights_path}")
 ```
 
 **What Gets Saved:**
+
 - **Pipeline config** - Complete pipeline structure
 - **Data config** - Data loading configuration (paths, train/val/test splits, batch size)
 - **Training config** - Optimizer, scheduler, trainer parameters
@@ -762,11 +790,13 @@ print(f"Weights saved to: {response.weights_path}")
 | **Use for** | Inference deployment | Reproducibility, resume training |
 
 **Notes:**
+
 - Use `SaveTrainRun` for full reproducibility (can resume training later)
 - Use `SavePipeline` for inference-only deployment (smaller, no training overhead)
 - Trainrun can be restored with `RestoreTrainRun`
 
 **See Also:**
+
 - [RestoreTrainRun](#restoretrainrun) - Restore complete trainrun
 - [SavePipeline](#savepipeline) - Save pipeline only
 
@@ -814,18 +844,21 @@ inference_response = stub.Inference(
 ```
 
 **Key Feature: Automatic Session Creation**
+
 - `RestoreTrainRun` **creates a new session automatically**
 - You don't need to call `CreateSession` first
 - Returns the new `session_id` in response
 - Session has pipeline + weights + configs fully loaded
 
 **Notes:**
+
 - Most convenient way to restore trained models
 - If `weights_path` not specified, looks for `.pt` file next to `.yaml`
 - Use `strict=False` for partial weight loading
 - Remember to `CloseSession` when done
 
 **See Also:**
+
 - [SaveTrainRun](#savetrainrun) - Save trainrun for restoration
 - [Restore Pipeline Guide](../how-to/restore-pipeline-trainrun.md)
 
@@ -917,11 +950,13 @@ for progress in stub.Train(
 ```
 
 **Execution Stages:**
+
 - `EXECUTION_STAGE_TRAIN` - Training loop
 - `EXECUTION_STAGE_VAL` - Validation loop
 - `EXECUTION_STAGE_TEST` - Test loop
 
 **Train Status:**
+
 - `TRAIN_STATUS_RUNNING` - Training in progress
 - `TRAIN_STATUS_COMPLETED` - Training finished successfully
 - `TRAIN_STATUS_FAILED` - Training failed with error
@@ -936,6 +971,7 @@ for progress in stub.Train(...):
 ```
 
 **Notes:**
+
 - Training is **server-side streaming** (client receives updates as they occur)
 - No polling required (updates pushed in real-time)
 - Process stream with for-loop (blocks until training completes)
@@ -943,6 +979,7 @@ for progress in stub.Train(...):
 - Gradient training duration depends on `max_epochs` in training config
 
 **See Also:**
+
 - [GetTrainStatus](#gettrainstatus) - Query training status
 - [Sequence Diagrams](sequence-diagrams.md#2-two-phase-training-workflow)
 
@@ -980,11 +1017,13 @@ if response.message:
 ```
 
 **Use Cases:**
+
 - Checking if training is complete before inference
 - Monitoring training from separate process
 - Debugging training issues
 
 **Notes:**
+
 - Returns last known status (may be stale if training just started)
 - For real-time updates, use `Train` streaming instead
 - Status persists in session until next training call
@@ -1099,18 +1138,21 @@ response = stub.Inference(
 ```
 
 **Output Filtering Benefits:**
+
 - Reduces network payload (important for large tensors)
 - Faster response time (server skips unused computations)
 - Lower memory usage on client
 - Use when you only need subset of pipeline outputs
 
 **Notes:**
+
 - Pipeline must be loaded and trained (or weights loaded) first
 - `InputBatch` supports: cube, wavelengths, mask, bboxes, points, text_prompt
 - Output filtering is optional (omit `output_specs` to get all outputs)
 - Use `helpers.numpy_to_proto()` and `helpers.proto_to_numpy()` for conversions
 
 **See Also:**
+
 - [InputBatch Data Type](#inputbatch)
 - [GetPipelineInputs](#getpipelineinputs) - Query required inputs
 - [GetPipelineOutputs](#getpipelineoutputs) - Query available outputs
@@ -1293,12 +1335,14 @@ Pipeline inputs:
 ```
 
 **Notes:**
+
 - Shape dimensions of `-1` indicate dynamic sizes
 - `required=true` means input must be provided for inference
 - `required=false` means input is optional
 - Pipeline must be loaded first
 
 **See Also:**
+
 - [GetPipelineOutputs](#getpipelineoutputs)
 - [TensorSpec Data Type](#tensorspec)
 
@@ -1346,6 +1390,7 @@ Pipeline outputs:
 ```
 
 **Use Cases:**
+
 - Discovering available outputs before inference
 - Validating pipeline structure
 - Generating documentation
@@ -1403,12 +1448,14 @@ print(mermaid_text)
 ```
 
 **Supported Formats:**
+
 - `"png"` - PNG image (binary)
 - `"svg"` - SVG image (text/XML)
 - `"dot"` - Graphviz DOT format (text)
 - `"mermaid"` - Mermaid diagram (text)
 
 **Use Cases:**
+
 - Documentation generation
 - Debugging pipeline structure
 - Presenting architecture to stakeholders
@@ -1459,6 +1506,7 @@ for pipeline in response.pipelines:
 ```
 
 **Use Cases:**
+
 - Pipeline discovery for users
 - Dynamic pipeline selection in applications
 - Catalog generation
@@ -1752,18 +1800,21 @@ points = cuvis_ai_pb2.Points(
 ## See Also
 
 ### Related Documentation
+
 - [gRPC Overview](overview.md) - Introduction and architecture
 - [Client Patterns](client-patterns.md) - Common usage patterns and best practices
 - [Sequence Diagrams](sequence-diagrams.md) - Visual workflows
 
 ### Tutorials & Guides
+
 - [gRPC Workflow Tutorial](../tutorials/grpc-workflow.md) - Hands-on tutorial
-- [Remote gRPC Access](../how-to/remote-grpc.md) - Detailed how-to guide
 
 ### Configuration
+
 - [TrainRun Schema](../config/trainrun-schema.md) - Trainrun configuration reference
 - [Pipeline Schema](../config/pipeline-schema.md) - Pipeline YAML schema
 - [Hydra Composition](../config/hydra-composition.md) - Config composition patterns
 
 ### Deployment
+
 - [Deployment Guide](../deployment/grpc_deployment.md) - Docker, Kubernetes, production

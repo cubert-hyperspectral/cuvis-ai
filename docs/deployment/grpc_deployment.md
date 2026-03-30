@@ -8,6 +8,7 @@
 This guide covers running the cuvis.ai gRPC service in local, containerized, and clustered environments.
 
 ## Prerequisites
+
 - Python 3.10+
 - PyTorch and PyTorch Lightning dependencies installed via project tooling
 - gRPC runtime (`grpcio`)
@@ -34,9 +35,9 @@ cd proto && buf generate
 
 ## Running the Server
 
-The reference server lives in `examples/grpc/server.py`:
+Start the reference server with the current entrypoint:
 ```bash
-uv run python examples/grpc/server.py
+uv run python -m cuvis_ai.grpc.production_server
 ```
 
 Configure message sizes or thread pool depth as needed:
@@ -76,7 +77,7 @@ COPY . .
 RUN cd proto && buf generate
 
 EXPOSE 50051
-CMD ["uv", "run", "python", "examples/grpc/server.py"]
+CMD ["uv", "run", "python", "-m", "cuvis_ai.grpc.production_server"]
 ```
 
 Build and run:
@@ -137,16 +138,19 @@ spec:
 ```
 
 ## Monitoring and Health
+
 - Enable structured logging with `logging.basicConfig`.
 - Expose Prometheus metrics (e.g., via `prometheus-client` counters/histograms).
 - Add gRPC health checks using `grpc_health.v1.health_pb2_grpc`.
 
 ## Security
+
 - Add an authentication interceptor (token or mTLS).
 - Enforce rate limiting per client to avoid resource exhaustion.
 - Restrict message sizes and concurrency to fit hardware budgets.
 
 ## Troubleshooting
+
 - `NOT_FOUND` errors: verify `session_id` exists and was not closed.
 - Message size exceeded: raise `grpc.max_send_message_length` / `grpc.max_receive_message_length` on both client and server.
 - Slow throughput: increase thread pool size or reduce batch sizes.

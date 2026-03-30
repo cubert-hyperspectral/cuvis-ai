@@ -37,6 +37,7 @@ stateDiagram-v2
 ```
 
 **States:**
+
 1. **Construction**: Add nodes and connections
 2. **Validation**: Verify graph integrity and port compatibility
 3. **Initialization**: Statistical init, GPU transfer
@@ -100,18 +101,18 @@ metadata:
 
 nodes:
   - name: data_loader
-    class: cuvis_ai.node.data.LentilsAnomalyDataNode
-    params:
+    class_name: cuvis_ai.node.data.LentilsAnomalyDataNode
+    hparams:
       normal_class_ids: [0, 1]
 
   - name: rx_detector
-    class: cuvis_ai.anomaly.rx_detector.RXGlobal
-    params:
+    class_name: cuvis_ai.anomaly.rx_detector.RXGlobal
+    hparams:
       num_channels: 61
 
 connections:
-  - from: data_loader.cube
-    to: rx_detector.data
+  - source: data_loader.outputs.cube
+    target: rx_detector.inputs.data
 ```
 
 ---
@@ -146,6 +147,7 @@ flowchart TD
 ```
 
 **Validates:**
+
 1. All required ports connected
 2. Port dtype/shape compatibility
 3. No circular dependencies
@@ -375,18 +377,18 @@ metadata:
 
 nodes:
   - name: data_loader
-    class: cuvis_ai.node.data.LentilsAnomalyDataNode
-    params:
+    class_name: cuvis_ai.node.data.LentilsAnomalyDataNode
+    hparams:
       normal_class_ids: [0, 1]
 
   - name: rx_detector
-    class: cuvis_ai.anomaly.rx_detector.RXGlobal
-    params:
+    class_name: cuvis_ai.anomaly.rx_detector.RXGlobal
+    hparams:
       num_channels: 61
 
 connections:
-  - from: data_loader.cube
-    to: rx_detector.data
+  - source: data_loader.outputs.cube
+    target: rx_detector.inputs.data
 ```
 
 **PyTorch Checkpoint:**
@@ -447,13 +449,13 @@ pipeline.load_state_dict(torch.load("outputs/my_pipeline.pt")["state_dict"])
 ```python
 pipeline = CuvisPipeline.load_from_file(
     config_path="outputs/my_pipeline.yaml",
-    config_overrides={"nodes": [{"params": {"threshold": 0.8}}]}
+    config_overrides={"nodes": [{"hparams": {"threshold": 0.8}}]}
 )
 
 # Or list syntax
 pipeline = CuvisPipeline.load_from_file(
     config_path="outputs/my_pipeline.yaml",
-    config_overrides=["nodes.0.params.threshold=0.8"]
+    config_overrides=["nodes.0.hparams.threshold=0.8"]
 )
 ```
 
