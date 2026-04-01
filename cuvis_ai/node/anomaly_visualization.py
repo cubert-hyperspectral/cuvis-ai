@@ -724,7 +724,6 @@ class RGBAnomalyMask(Node):
                 tp
                 / (
                     tp
-
                     + np.logical_and(batch_pred, ~batch_gt).sum()
                     + np.logical_and(~batch_pred, batch_gt).sum()
                     + 1e-8

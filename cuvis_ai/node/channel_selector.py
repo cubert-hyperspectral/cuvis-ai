@@ -47,6 +47,7 @@ All channel selectors share a common RGB normalization strategy in
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from enum import StrEnum
 from typing import Any, Literal
@@ -61,6 +62,7 @@ from scipy.ndimage import laplace
 from sklearn.metrics import roc_auc_score
 from torch import Tensor
 
+from cuvis_ai.node.colormap import render_scalar_hsv_colormap
 from cuvis_ai.utils.welford import WelfordAccumulator
 
 
@@ -359,6 +361,210 @@ class ChannelSelectorBase(Node):
         bands = [cube[..., idx] for idx in indices]  # each [B, H, W]
         rgb = torch.stack(bands, dim=-1)  # [B, H, W, 3]
         return self._normalize_rgb(rgb)
+
+
+class _NormalizedDifferenceIndexBase(ChannelSelectorBase, ABC):
+    """Abstract base for two-band normalized-difference indices.
+
+    Subclasses define the semantic labels and strategy name, while this base
+    handles nearest-band resolution, stable normalized-difference computation,
+    and delegates RGB rendering to subclasses.
+    """
+
+    OUTPUT_SPECS = {
+        **ChannelSelectorBase.OUTPUT_SPECS,
+        "index_image": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 1),
+            description="Raw normalized-difference index image [B, H, W, 1]",
+        ),
+    }
+
+    def __init__(
+        self,
+        primary_nm: float,
+        secondary_nm: float,
+        eps: float = 1.0e-6,
+        **kwargs: Any,
+    ) -> None:
+        if eps < 0:
+            raise ValueError("eps must be >= 0")
+
+        super().__init__(
+            primary_nm=float(primary_nm),
+            secondary_nm=float(secondary_nm),
+            eps=float(eps),
+            **kwargs,
+        )
+        self.primary_nm = float(primary_nm)
+        self.secondary_nm = float(secondary_nm)
+        self.eps = float(eps)
+
+    @property
+    @abstractmethod
+    def index_name(self) -> str:
+        """Canonical strategy / index name."""
+
+    @property
+    @abstractmethod
+    def primary_label(self) -> str:
+        """Semantic label for the first operand."""
+
+    @property
+    @abstractmethod
+    def secondary_label(self) -> str:
+        """Semantic label for the second operand."""
+
+    @abstractmethod
+    def _render_rgb_from_index(self, index_image: torch.Tensor) -> torch.Tensor:
+        """Render the scalar index image into an RGB image [B, H, W, 3]."""
+
+    def _resolve_band_indices(
+        self,
+        wavelengths: Any,
+    ) -> tuple[np.ndarray, int, int]:
+        """Resolve nearest spectral indices for the two operands."""
+        wavelengths_np = np.asarray(wavelengths, dtype=np.float32)
+        if wavelengths_np.ndim == 2:
+            wavelengths_np = wavelengths_np[0]
+        if wavelengths_np.ndim != 1:
+            raise ValueError(f"Expected 1D wavelengths [C], got shape {wavelengths_np.shape}")
+        wavelengths_np = wavelengths_np.ravel()
+
+        primary_idx = self._nearest_band_index(wavelengths_np, self.primary_nm)
+        secondary_idx = self._nearest_band_index(wavelengths_np, self.secondary_nm)
+        return wavelengths_np, primary_idx, secondary_idx
+
+    def _compute_index_image(self, cube: torch.Tensor, wavelengths: Any) -> torch.Tensor:
+        """Compute the raw normalized-difference image [B, H, W, 1]."""
+        _, primary_idx, secondary_idx = self._resolve_band_indices(wavelengths)
+        primary = cube[..., primary_idx]
+        secondary = cube[..., secondary_idx]
+        numerator = primary - secondary
+        denominator = primary + secondary
+        mask = denominator.abs() > self.eps
+        index = torch.where(mask, numerator / denominator, torch.zeros_like(numerator))
+        return index.unsqueeze(-1)
+
+    def _compute_raw_rgb(self, cube: torch.Tensor, wavelengths: Any) -> torch.Tensor:
+        """Render the scalar index image into RGB."""
+        index_image = self._compute_index_image(cube, wavelengths)
+        return self._render_rgb_from_index(index_image)
+
+    def forward(
+        self,
+        cube: torch.Tensor,
+        wavelengths: Any,
+        context: Context | None = None,  # noqa: ARG002
+        **_: Any,
+    ) -> dict[str, Any]:
+        """Compute raw index image plus RGB render."""
+        wavelengths_np, primary_idx, secondary_idx = self._resolve_band_indices(wavelengths)
+        index_image = self._compute_index_image(cube, wavelengths_np)
+        rgb = self._render_rgb_from_index(index_image)
+
+        band_info = {
+            "strategy": self.index_name,
+            "band_labels": [self.primary_label, self.secondary_label],
+            "band_indices": [primary_idx, secondary_idx],
+            "requested_wavelengths_nm": [self.primary_nm, self.secondary_nm],
+            "resolved_wavelengths_nm": [
+                float(wavelengths_np[primary_idx]),
+                float(wavelengths_np[secondary_idx]),
+            ],
+        }
+        return {
+            "index_image": index_image,
+            "rgb_image": rgb,
+            "band_info": band_info,
+        }
+
+
+class NDVISelector(_NormalizedDifferenceIndexBase):
+    """Normalized Difference Vegetation Index renderer.
+
+    Computes:
+
+    ``(CUBE(nir_nm) - CUBE(red_nm)) / (CUBE(nir_nm) + CUBE(red_nm))``
+
+    Bands are resolved by nearest available sensor wavelength. The raw NDVI map
+    is returned via ``index_image`` and ``rgb_image`` contains a colour-mapped
+    render. The scalar NDVI image is mapped with the HSV-style colormap used
+    by the ``Blood_OXY`` plugin XML.
+    """
+
+    def __init__(
+        self,
+        nir_nm: float = 827.0,
+        red_nm: float = 668.0,
+        colormap_min: float = -0.7,
+        colormap_max: float = 0.5,
+        eps: float = 1.0e-6,
+        **kwargs: Any,
+    ) -> None:
+        if colormap_max <= colormap_min:
+            raise ValueError("colormap_max must be greater than colormap_min")
+        kwargs.setdefault("norm_mode", NormMode.PER_FRAME)
+        kwargs.setdefault("apply_gamma", False)
+        super().__init__(
+            primary_nm=nir_nm,
+            secondary_nm=red_nm,
+            eps=eps,
+            nir_nm=float(nir_nm),
+            red_nm=float(red_nm),
+            colormap_min=float(colormap_min),
+            colormap_max=float(colormap_max),
+            **kwargs,
+        )
+        self.nir_nm = float(nir_nm)
+        self.red_nm = float(red_nm)
+        self.colormap = "hsv"
+        self.colormap_min = float(colormap_min)
+        self.colormap_max = float(colormap_max)
+        self._colormap_range = self.colormap_max - self.colormap_min
+
+    @property
+    def index_name(self) -> str:
+        """Canonical NDVI strategy name."""
+        return "ndvi"
+
+    @property
+    def primary_label(self) -> str:
+        """NDVI primary operand label."""
+        return "nir"
+
+    @property
+    def secondary_label(self) -> str:
+        """NDVI secondary operand label."""
+        return "red"
+
+    def _render_hsv_colormap(self, normalized: torch.Tensor) -> torch.Tensor:
+        """Apply the Blood_OXY-style HSV colormap to normalized values in [0, 1]."""
+        return render_scalar_hsv_colormap(normalized)
+
+    def _render_rgb_from_index(self, index_image: torch.Tensor) -> torch.Tensor:
+        """Render NDVI using the Blood_OXY HSV colormap."""
+        normalized = ((index_image - self.colormap_min) / self._colormap_range).clamp(0.0, 1.0)
+        return self._render_hsv_colormap(normalized)
+
+    def forward(
+        self,
+        cube: torch.Tensor,
+        wavelengths: Any,
+        context: Context | None = None,  # noqa: ARG002
+        **_: Any,
+    ) -> dict[str, Any]:
+        """Compute NDVI plus colour-mapped RGB output."""
+        result = super().forward(cube=cube, wavelengths=wavelengths, context=context, **_)
+        result["band_info"].update(
+            {
+                "rendering": f"{self.colormap}_colormap",
+                "colormap": self.colormap,
+                "colormap_min": self.colormap_min,
+                "colormap_max": self.colormap_max,
+            }
+        )
+        return result
 
 
 class FixedWavelengthSelector(ChannelSelectorBase):
@@ -2156,6 +2362,7 @@ __all__ = [
     "FastRGBSelector",
     "FixedWavelengthSelector",
     "HighContrastSelector",
+    "NDVISelector",
     "RangeAverageFalseRGBSelector",
     "SoftChannelSelector",
     "SupervisedCIRSelector",

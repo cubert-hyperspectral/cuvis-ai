@@ -1,4 +1,4 @@
-"""Trainable PCA node for dimensionality reduction with gradient-based optimization."""
+"""PCA nodes for dimensionality reduction."""
 
 from __future__ import annotations
 
@@ -17,36 +17,8 @@ from cuvis_ai.utils.welford import WelfordAccumulator
 # missing tutorial examples and approved documentation
 
 
-class TrainablePCA(Node):
-    """Trainable PCA node with orthogonality regularization.
-
-    This node performs Principal Component Analysis (PCA) for dimensionality reduction
-    and can be trained end-to-end with gradient descent. It supports:
-
-    - Statistical initialization from data
-    - Gradient-based fine-tuning with orthogonality constraints
-    - Explained variance tracking
-
-    Parameters
-    ----------
-    n_components : int
-        Number of principal components to retain
-    whiten : bool, optional
-        If True, scale components by explained variance (default: False)
-    init_method : {"svd", "random"}, optional
-        Initialization method for components (default: "svd")
-    eps : float, optional
-        Small constant for numerical stability (default: 1e-6)
-
-    Attributes
-    ----------
-    components : nn.Parameter or Tensor
-        Principal components matrix [n_components, n_features]
-    mean : Tensor
-        Feature-wise mean [n_features]
-    explained_variance : Tensor
-        Variance explained by each component [n_components]
-    """
+class PCA(Node):
+    """Project each frame independently onto its principal components."""
 
     INPUT_SPECS = {
         "data": PortSpec(
@@ -76,6 +48,95 @@ class TrainablePCA(Node):
         ),
     }
 
+    def __init__(
+        self,
+        n_components: int,
+        eps: float = 1e-6,
+        **kwargs,
+    ) -> None:
+        self.n_components = int(n_components)
+        self.eps = float(eps)
+
+        super().__init__(n_components=self.n_components, eps=self.eps, **kwargs)
+
+    def _fit_frame(self, frame: Tensor) -> tuple[Tensor, Tensor, Tensor]:
+        """Fit PCA on one HWC frame and return components, mean, and eigenvalues."""
+        if frame.ndim != 3:
+            raise ValueError(f"Expected one frame with shape [H, W, C], got {tuple(frame.shape)}")
+
+        _, _, channel_count = frame.shape
+        if channel_count < self.n_components:
+            raise ValueError(
+                f"Expected at least {self.n_components} channels for PCA, got {channel_count}"
+            )
+
+        flat = frame.reshape(-1, channel_count).to(dtype=torch.float64)
+        if flat.shape[0] < 2:
+            raise ValueError("Per-frame PCA requires at least 2 pixels.")
+
+        mean = flat.mean(dim=0)
+        centered = flat - mean
+        covariance = centered.T @ centered / max(flat.shape[0] - 1, 1)
+
+        eigenvalues, eigenvectors = torch.linalg.eigh(covariance)
+        eigenvalues = eigenvalues.flip(0)
+        eigenvectors = eigenvectors.flip(1)
+
+        components = eigenvectors[:, : self.n_components].T.to(dtype=torch.float32)
+        return (
+            components,
+            mean.to(dtype=torch.float32),
+            eigenvalues[: self.n_components].to(dtype=torch.float32),
+        )
+
+    def _project(self, flat: Tensor, mean: Tensor, components: Tensor) -> Tensor:
+        """Center and project flattened pixels onto PCA components."""
+        mean = mean.to(device=flat.device, dtype=flat.dtype)
+        components = components.to(device=flat.device, dtype=flat.dtype)
+        return (flat - mean) @ components.T
+
+    def _variance_ratio(self, eigenvalues: Tensor) -> Tensor:
+        """Normalize retained eigenvalues to explained-variance ratios."""
+        eigenvalues = eigenvalues.to(dtype=torch.float32)
+        return eigenvalues / (eigenvalues.sum() + self.eps)
+
+    def forward(self, data: Tensor, **_: Any) -> dict[str, Tensor]:
+        """Fit PCA independently on each frame and return the per-frame projection."""
+        if data.ndim != 4:
+            raise ValueError(f"Expected data with shape [B, H, W, C], got {tuple(data.shape)}")
+        if data.shape[0] == 0:
+            raise ValueError("PCA requires a non-empty batch.")
+
+        projected_frames: list[Tensor] = []
+        explained_variance_ratio: Tensor | None = None
+        components: Tensor | None = None
+
+        for frame in data:
+            frame_components, mean, eigenvalues = self._fit_frame(frame)
+            flat = frame.reshape(-1, frame.shape[-1]).to(dtype=torch.float32)
+            projected = self._project(flat, mean, frame_components).reshape(
+                frame.shape[0],
+                frame.shape[1],
+                self.n_components,
+            )
+
+            projected_frames.append(projected.to(dtype=torch.float32))
+            explained_variance_ratio = self._variance_ratio(eigenvalues).to(device=data.device)
+            components = frame_components.to(device=data.device)
+
+        assert explained_variance_ratio is not None
+        assert components is not None
+
+        return {
+            "projected": torch.stack(projected_frames, dim=0),
+            "explained_variance_ratio": explained_variance_ratio,
+            "components": components,
+        }
+
+
+class TrainablePCA(PCA):
+    """Trainable PCA node with orthogonality regularization."""
+
     TRAINABLE_BUFFERS = ("_components",)
 
     def __init__(
@@ -87,10 +148,8 @@ class TrainablePCA(Node):
         eps: float = 1e-6,
         **kwargs,
     ) -> None:
-        self.n_components = n_components
         self.whiten = whiten
         self.init_method = init_method
-        self.eps = eps
 
         super().__init__(
             num_channels=num_channels,
@@ -109,14 +168,7 @@ class TrainablePCA(Node):
         self._statistically_initialized = False
 
     def statistical_initialization(self, input_stream: InputStream) -> None:
-        """Initialize PCA components from data using SVD.
-
-        Parameters
-        ----------
-        input_stream : InputStream
-            Input stream yielding dicts matching INPUT_SPECS (port-based format)
-            Expected format: {"data": tensor} where tensor is BHWC
-        """
+        """Initialize PCA components from data using covariance eigen decomposition."""
         acc = None
         for batch_data in input_stream:
             x = batch_data["data"]
@@ -129,12 +181,11 @@ class TrainablePCA(Node):
         if acc is None or acc.count == 0:
             raise ValueError("No data provided for PCA initialization")
 
-        self._mean = acc.mean  # [C]
+        self._mean = acc.mean.to(dtype=torch.float32)  # [C]
         cov = acc.cov.to(torch.float64)  # [C, C]
 
         # Eigen decomposition on covariance (equivalent to SVD on centered data)
         eigenvalues, eigenvectors = torch.linalg.eigh(cov)
-        # eigh returns ascending order; flip to descending
         eigenvalues = eigenvalues.flip(0)
         eigenvectors = eigenvectors.flip(1)
 
@@ -145,68 +196,43 @@ class TrainablePCA(Node):
         self._statistically_initialized = True
 
     def forward(self, data: Tensor, **_: Any) -> dict[str, Tensor]:
-        """Project data onto principal components.
-
-        Parameters
-        ----------
-        data : Tensor
-            Input tensor [B, H, W, C]
-
-        Returns
-        -------
-        dict[str, Tensor]
-            Dictionary with "projected" key containing PCA-projected data
-        """
+        """Project data onto statistically initialized global components."""
         if not self._statistically_initialized:
             raise RuntimeError("PCA not initialized. Call statistical_initialization() first.")
 
-        B, H, W, C = data.shape
+        if data.ndim != 4:
+            raise ValueError(f"Expected data with shape [B, H, W, C], got {tuple(data.shape)}")
 
-        # Flatten spatial dimensions
-        x_flat = data.reshape(-1, C)  # [B*H*W, C]
+        batch_size, height, width, channels = data.shape
+        flat = data.reshape(-1, channels)
 
-        # Ensure mean is on the same device as input
-        mean = self._mean.to(data.device)
-
-        # Center data
-        x_centered = x_flat - mean  # [B*H*W, C]
-
-        # Ensure components are on the same device as input
         components = (
             self._components.to(data.device)
             if isinstance(self._components, Tensor)
             else self._components
         )
+        projected = self._project(flat, self._mean, components)
 
-        # Project onto components: X_proj = X @ components.T
-        x_proj = x_centered @ components.T  # [B*H*W, n_components]
-
-        # Whiten if requested
         if self.whiten:
-            # Ensure explained_variance is on the same device
-            explained_variance = self._explained_variance.to(data.device)
-            # Scale by 1/sqrt(explained_variance)
+            explained_variance = self._explained_variance.to(
+                device=data.device, dtype=projected.dtype
+            )
             scale = 1.0 / torch.sqrt(explained_variance + self.eps)
-            x_proj = x_proj * scale
+            projected = projected * scale
 
-        # Reshape back to spatial dimensions
-        x_proj = x_proj.reshape(B, H, W, self.n_components)
+        outputs = {
+            "projected": projected.reshape(batch_size, height, width, self.n_components),
+        }
 
-        # Prepare output dictionary
-        outputs = {"projected": x_proj}
-
-        # Add optional outputs for loss/metric nodes
-        # Expose explained variance ratio
         if self._explained_variance.numel() > 0:
-            total_variance = self._explained_variance.sum()
-            variance_ratio = self._explained_variance / (total_variance + self.eps)
-            outputs["explained_variance_ratio"] = variance_ratio.to(data.device)
+            outputs["explained_variance_ratio"] = self._variance_ratio(self._explained_variance).to(
+                data.device
+            )
 
-        # Expose components for loss/metric nodes
         if self._components.numel() > 0:
             outputs["components"] = self._components
 
         return outputs
 
 
-__all__ = ["TrainablePCA"]
+__all__ = ["PCA", "TrainablePCA"]

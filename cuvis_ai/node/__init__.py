@@ -20,6 +20,7 @@ from cuvis_ai.node.channel_selector import (
     FastRGBSelector,
     FixedWavelengthSelector,
     HighContrastSelector,
+    NDVISelector,
     NormMode,
     RangeAverageFalseRGBSelector,
     SoftChannelSelector,
@@ -29,8 +30,9 @@ from cuvis_ai.node.channel_selector import (
     SupervisedWindowedSelector,
     TopKIndices,
 )
+from cuvis_ai.node.colormap import ScalarHSVColormapNode
 from cuvis_ai.node.conversion import DecisionToMask
-from cuvis_ai.node.dimensionality_reduction import TrainablePCA
+from cuvis_ai.node.dimensionality_reduction import PCA, TrainablePCA
 from cuvis_ai.node.json_reader import DetectionJsonReader, TrackingResultsReader
 from cuvis_ai.node.json_writer import (
     CocoTrackBBoxWriter,
@@ -61,7 +63,7 @@ from cuvis_ai.node.preprocessors import (
 )
 from cuvis_ai.node.spectral_angle_mapper import SpectralAngleMapper
 from cuvis_ai.node.spectral_extractor import BBoxSpectralExtractor
-from cuvis_ai.node.static_node import BBoxPrompt, MaskPrompt
+from cuvis_ai.node.static_node import BBoxPrompt, MaskPrompt, TextPrompt
 from cuvis_ai.node.video import (
     ToVideoNode,
     VideoFrameDataModule,
@@ -100,18 +102,22 @@ __all__ = [
     "LearnableChannelMixer",
     "MaskOverlayNode",
     "MaskPrompt",
+    "TextPrompt",
     "MinMaxNormalizer",
+    "NDVISelector",
     "NormMode",
     "NumpyFeatureWriterNode",
     "NpyReader",
     "OcclusionNodeBase",
     "PoissonCubeOcclusionNode",
     "PoissonOcclusionNode",
+    "PCA",
     "PCAVisualization",
     "PipelineComparisonVisualizer",
     "RangeAverageFalseRGBSelector",
     "RGBAnomalyMask",
     "ScoreHeatmapVisualizer",
+    "ScalarHSVColormapNode",
     "SigmoidNormalizer",
     "SolidOcclusionNode",
     "SoftChannelSelector",

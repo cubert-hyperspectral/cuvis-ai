@@ -26,6 +26,7 @@ plugins:
       - cuvis_ai.node.anomaly_visualization.TrackingOverlayNode
       - cuvis_ai.node.channel_mixer.ConcreteChannelMixer
       - cuvis_ai.node.channel_mixer.LearnableChannelMixer
+      - cuvis_ai.node.colormap.ScalarHSVColormapNode
       - cuvis_ai.node.channel_selector.CIETristimulusFalseRGBSelector
       - cuvis_ai.node.channel_selector.CIRSelector
       - cuvis_ai.node.channel_selector.CameraEmulationFalseRGBSelector
@@ -33,6 +34,7 @@ plugins:
       - cuvis_ai.node.channel_selector.FastRGBSelector
       - cuvis_ai.node.channel_selector.FixedWavelengthSelector
       - cuvis_ai.node.channel_selector.HighContrastSelector
+      - cuvis_ai.node.channel_selector.NDVISelector
       - cuvis_ai.node.channel_selector.RangeAverageFalseRGBSelector
       - cuvis_ai.node.channel_selector.SoftChannelSelector
       - cuvis_ai.node.channel_selector.SupervisedCIRSelector
@@ -44,6 +46,7 @@ plugins:
       - cuvis_ai.node.conversion.ScoreToLogit
       - cuvis_ai.node.data.CU3SDataNode
       - cuvis_ai.node.data.LentilsAnomalyDataNode
+      - cuvis_ai.node.dimensionality_reduction.PCA
       - cuvis_ai.node.dimensionality_reduction.TrainablePCA
       - cuvis_ai.node.json_reader.DetectionJsonReader
       - cuvis_ai.node.json_reader.TrackingResultsReader
