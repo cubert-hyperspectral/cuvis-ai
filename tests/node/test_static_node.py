@@ -13,8 +13,10 @@ from cuvis_ai_core.data.rle import coco_rle_encode
 from cuvis_ai.node.static_node import (
     BBoxPrompt,
     MaskPrompt,
+    TextPrompt,
     parse_bbox_prompt_spec,
     parse_mask_prompt_spec,
+    parse_text_prompt_spec,
 )
 
 
@@ -78,6 +80,22 @@ def test_parse_bbox_prompt_spec() -> None:
     assert spec.detection_id == 9
     assert spec.frame_id == 42
     assert spec.order == 2
+
+
+def test_parse_text_prompt_spec() -> None:
+    spec = parse_text_prompt_spec("person@65", order=3)
+
+    assert spec.text == "person"
+    assert spec.frame_id == 65
+    assert spec.order == 3
+
+
+def test_parse_text_prompt_spec_bare_prompt_defaults_to_frame_zero() -> None:
+    spec = parse_text_prompt_spec("car", order=1)
+
+    assert spec.text == "car"
+    assert spec.frame_id == 0
+    assert spec.order == 1
 
 
 def test_mask_prompt_resolves_track_id(tmp_path: Path) -> None:
@@ -216,6 +234,47 @@ def test_mask_prompt_prefers_segmentation_size_over_placeholder_image_size(tmp_p
 
     assert out["mask"].shape == (1, 3, 4)
     assert torch.count_nonzero(out["mask"]).item() == 0
+
+
+def test_text_prompt_emits_prompt_on_scheduled_frame_and_empty_elsewhere() -> None:
+    node = TextPrompt(prompt_specs=["person@5", "car@9"], prompt_mode="scheduled")
+
+    scheduled = node.forward(frame_id=torch.tensor([5], dtype=torch.int64))
+    unscheduled = node.forward(frame_id=torch.tensor([6], dtype=torch.int64))
+    later = node.forward(frame_id=torch.tensor([9], dtype=torch.int64))
+
+    assert scheduled["text_prompt"] == "person"
+    assert unscheduled["text_prompt"] == ""
+    assert later["text_prompt"] == "car"
+
+
+def test_text_prompt_repeat_mode_keeps_latest_prompt_active_until_replaced() -> None:
+    node = TextPrompt(prompt_specs=["person@5", "car@9"], prompt_mode="repeat")
+
+    before = node.forward(frame_id=torch.tensor([4], dtype=torch.int64))
+    first = node.forward(frame_id=torch.tensor([5], dtype=torch.int64))
+    carried = node.forward(frame_id=torch.tensor([6], dtype=torch.int64))
+    replaced = node.forward(frame_id=torch.tensor([9], dtype=torch.int64))
+    later = node.forward(frame_id=torch.tensor([10], dtype=torch.int64))
+
+    assert before["text_prompt"] == ""
+    assert first["text_prompt"] == "person"
+    assert carried["text_prompt"] == "person"
+    assert replaced["text_prompt"] == "car"
+    assert later["text_prompt"] == "car"
+
+
+def test_text_prompt_repeat_mode_keeps_bare_prompt_active_after_frame_zero() -> None:
+    node = TextPrompt(prompt_specs=["person"], prompt_mode="repeat")
+
+    later = node.forward(frame_id=torch.tensor([25], dtype=torch.int64))
+
+    assert later["text_prompt"] == "person"
+
+
+def test_text_prompt_rejects_multiple_distinct_texts_on_same_frame() -> None:
+    with pytest.raises(ValueError, match="same frame"):
+        TextPrompt(prompt_specs=["person@5", "car@5"])
 
 
 def test_bbox_prompt_resolves_track_id(tmp_path: Path) -> None:

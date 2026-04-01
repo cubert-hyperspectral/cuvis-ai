@@ -28,7 +28,7 @@ def _build_inputs(
 
 def test_roundtrip_single_object_mask(tmp_path: Path) -> None:
     json_path = tmp_path / "tracking.json"
-    writer = CocoTrackMaskWriter(output_json_path=str(json_path), category_name="person")
+    writer = CocoTrackMaskWriter(output_json_path=str(json_path), default_category_name="person")
 
     mask_2d = torch.tensor([[0, 1, 1], [0, 1, 0]], dtype=torch.int32)
     writer.forward(**_build_inputs(0, mask_2d, [1], [0.9]))
@@ -45,7 +45,7 @@ def test_roundtrip_single_object_mask(tmp_path: Path) -> None:
 
 def test_roundtrip_multi_object_mask(tmp_path: Path) -> None:
     json_path = tmp_path / "tracking.json"
-    writer = CocoTrackMaskWriter(output_json_path=str(json_path), category_name="person")
+    writer = CocoTrackMaskWriter(output_json_path=str(json_path), default_category_name="person")
 
     mask_2d = torch.tensor(
         [[1, 1, 0, 0], [1, 0, 0, 0], [0, 0, 0, 2], [0, 0, 2, 2]],
@@ -63,7 +63,7 @@ def test_roundtrip_multi_object_mask(tmp_path: Path) -> None:
 
 def test_rle_segmentation_valid_in_json(tmp_path: Path) -> None:
     json_path = tmp_path / "tracking.json"
-    writer = CocoTrackMaskWriter(output_json_path=str(json_path), category_name="person")
+    writer = CocoTrackMaskWriter(output_json_path=str(json_path), default_category_name="person")
 
     mask_2d = torch.tensor([[0, 1, 1], [0, 1, 0]], dtype=torch.int32)
     writer.forward(**_build_inputs(0, mask_2d, [1], [0.9]))
@@ -83,7 +83,7 @@ def test_rle_segmentation_valid_in_json(tmp_path: Path) -> None:
 
 def test_rle_non_square_mask_in_json(tmp_path: Path) -> None:
     json_path = tmp_path / "tracking.json"
-    writer = CocoTrackMaskWriter(output_json_path=str(json_path), category_name="person")
+    writer = CocoTrackMaskWriter(output_json_path=str(json_path), default_category_name="person")
 
     mask_2d = torch.zeros((3, 7), dtype=torch.int32)
     mask_2d[0, :] = 1
@@ -106,7 +106,7 @@ def test_roundtrip_empty_frame(tmp_path: Path) -> None:
     json_path = tmp_path / "tracking.json"
     writer = CocoTrackMaskWriter(
         output_json_path=str(json_path),
-        category_name="person",
+        default_category_name="person",
         write_empty_frames=True,
     )
 

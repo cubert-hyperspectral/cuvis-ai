@@ -14,13 +14,24 @@ def _build_inputs(
     mask_2d: torch.Tensor,
     object_ids: list[int],
     detection_scores: list[float],
+    category_ids: list[int] | None = None,
+    category_semantics: dict[int, str] | None = None,
 ) -> dict[str, torch.Tensor]:
-    return {
+    inputs: dict[str, torch.Tensor] = {
         "frame_id": torch.tensor([frame_idx], dtype=torch.int64),
         "mask": mask_2d.to(dtype=torch.int32).unsqueeze(0),
         "object_ids": torch.tensor([object_ids], dtype=torch.int64),
         "detection_scores": torch.tensor([detection_scores], dtype=torch.float32),
     }
+    if category_ids is not None:
+        inputs["category_ids"] = torch.tensor([category_ids], dtype=torch.int64)
+    if category_semantics is not None:
+        payload = json.dumps(
+            {str(category_id): name for category_id, name in sorted(category_semantics.items())},
+            separators=(",", ":"),
+        ).encode("utf-8")
+        inputs["category_semantics"] = torch.tensor(list(payload), dtype=torch.uint8)
+    return inputs
 
 
 def _read_json(path: Path) -> dict:
@@ -31,7 +42,7 @@ def _read_json(path: Path) -> dict:
 def test_tracking_coco_json_writes_valid_json_after_each_frame(tmp_path: Path) -> None:
     json_path = tmp_path / "tracking_results.json"
     node = CocoTrackMaskWriter(
-        output_json_path=str(json_path), category_name="person", flush_interval=1
+        output_json_path=str(json_path), default_category_name="person", flush_interval=1
     )
 
     frames = (
@@ -75,7 +86,7 @@ def test_tracking_coco_json_writes_valid_json_after_each_frame(tmp_path: Path) -
 
 def test_tracking_coco_json_replaces_existing_frame_idempotently(tmp_path: Path) -> None:
     json_path = tmp_path / "tracking_results.json"
-    node = CocoTrackMaskWriter(output_json_path=str(json_path), category_name="person")
+    node = CocoTrackMaskWriter(output_json_path=str(json_path), default_category_name="person")
 
     node.forward(
         **_build_inputs(
@@ -103,7 +114,7 @@ def test_tracking_coco_json_replaces_existing_frame_idempotently(tmp_path: Path)
 
 def test_tracking_coco_json_writes_empty_frame_entry(tmp_path: Path) -> None:
     json_path = tmp_path / "tracking_results.json"
-    node = CocoTrackMaskWriter(output_json_path=str(json_path), category_name="person")
+    node = CocoTrackMaskWriter(output_json_path=str(json_path), default_category_name="person")
 
     node.forward(
         **_build_inputs(
@@ -124,7 +135,7 @@ def test_tracking_coco_json_writes_empty_frame_entry(tmp_path: Path) -> None:
 
 def test_tracking_coco_json_validates_alignment(tmp_path: Path) -> None:
     json_path = tmp_path / "tracking_results.json"
-    node = CocoTrackMaskWriter(output_json_path=str(json_path), category_name="person")
+    node = CocoTrackMaskWriter(output_json_path=str(json_path), default_category_name="person")
 
     with pytest.raises(ValueError, match="identical lengths"):
         node.forward(
@@ -137,9 +148,70 @@ def test_tracking_coco_json_validates_alignment(tmp_path: Path) -> None:
         )
 
 
+def test_tracking_coco_json_writes_multi_category_tracks_and_header(tmp_path: Path) -> None:
+    json_path = tmp_path / "tracking_results.json"
+    node = CocoTrackMaskWriter(output_json_path=str(json_path), default_category_name="object")
+
+    node.forward(
+        **_build_inputs(
+            frame_idx=0,
+            mask_2d=torch.tensor([[0, 1], [0, 1]], dtype=torch.int32),
+            object_ids=[1],
+            detection_scores=[0.95],
+            category_ids=[1],
+            category_semantics={1: "person"},
+        )
+    )
+    node.forward(
+        **_build_inputs(
+            frame_idx=1,
+            mask_2d=torch.tensor([[2, 2], [0, 1]], dtype=torch.int32),
+            object_ids=[1, 2],
+            detection_scores=[0.93, 0.81],
+            category_ids=[1, 2],
+            category_semantics={1: "person", 2: "car"},
+        )
+    )
+
+    node.close()
+    parsed = _read_json(json_path)
+    assert parsed["categories"] == [{"id": 1, "name": "person"}, {"id": 2, "name": "car"}]
+    annotations_by_track = {ann["track_id"]: ann for ann in parsed["annotations"]}
+    assert annotations_by_track[1]["category_id"] == 1
+    assert annotations_by_track[2]["category_id"] == 2
+
+
+def test_tracking_coco_json_rejects_conflicting_track_category_ids(tmp_path: Path) -> None:
+    json_path = tmp_path / "tracking_results.json"
+    node = CocoTrackMaskWriter(output_json_path=str(json_path), default_category_name="object")
+
+    node.forward(
+        **_build_inputs(
+            frame_idx=0,
+            mask_2d=torch.tensor([[0, 1], [0, 1]], dtype=torch.int32),
+            object_ids=[1],
+            detection_scores=[0.95],
+            category_ids=[1],
+            category_semantics={1: "person"},
+        )
+    )
+
+    with pytest.raises(ValueError, match="conflicting category IDs"):
+        node.forward(
+            **_build_inputs(
+                frame_idx=1,
+                mask_2d=torch.tensor([[0, 1], [0, 1]], dtype=torch.int32),
+                object_ids=[1],
+                detection_scores=[0.94],
+                category_ids=[2],
+                category_semantics={1: "person", 2: "car"},
+            )
+        )
+
+
 def test_tracking_coco_json_ignores_background_id_zero(tmp_path: Path) -> None:
     json_path = tmp_path / "tracking_results.json"
-    node = CocoTrackMaskWriter(output_json_path=str(json_path), category_name="person")
+    node = CocoTrackMaskWriter(output_json_path=str(json_path), default_category_name="person")
 
     node.forward(
         **_build_inputs(
@@ -162,7 +234,7 @@ def test_tracking_coco_json_atomic_write_is_parseable(tmp_path: Path) -> None:
     json_path = tmp_path / "tracking_results.json"
     node = CocoTrackMaskWriter(
         output_json_path=str(json_path),
-        category_name="person",
+        default_category_name="person",
         atomic_write=True,
         flush_interval=1,
     )
@@ -188,7 +260,7 @@ def test_tracking_coco_json_atomic_write_is_parseable(tmp_path: Path) -> None:
 
 def test_tracking_coco_json_deferred_write_on_close(tmp_path: Path) -> None:
     json_path = tmp_path / "tracking_results.json"
-    node = CocoTrackMaskWriter(output_json_path=str(json_path), category_name="person")
+    node = CocoTrackMaskWriter(output_json_path=str(json_path), default_category_name="person")
 
     node.forward(
         **_build_inputs(
@@ -210,7 +282,7 @@ def test_tracking_coco_json_deferred_write_on_close(tmp_path: Path) -> None:
 
 def test_tracking_coco_json_close_is_idempotent(tmp_path: Path) -> None:
     json_path = tmp_path / "tracking_results.json"
-    node = CocoTrackMaskWriter(output_json_path=str(json_path), category_name="person")
+    node = CocoTrackMaskWriter(output_json_path=str(json_path), default_category_name="person")
 
     node.forward(
         **_build_inputs(
@@ -230,7 +302,7 @@ def test_tracking_coco_json_close_is_idempotent(tmp_path: Path) -> None:
 def test_tracking_coco_json_flush_interval(tmp_path: Path) -> None:
     json_path = tmp_path / "tracking_results.json"
     node = CocoTrackMaskWriter(
-        output_json_path=str(json_path), category_name="person", flush_interval=3
+        output_json_path=str(json_path), default_category_name="person", flush_interval=3
     )
 
     for i in range(2):
@@ -265,3 +337,21 @@ def test_tracking_coco_json_validates_flush_interval(tmp_path: Path) -> None:
             output_json_path=str(tmp_path / "test.json"),
             flush_interval=-1,
         )
+
+
+def test_tracking_coco_json_default_category_name_defaults_to_object(tmp_path: Path) -> None:
+    json_path = tmp_path / "tracking_results.json"
+    node = CocoTrackMaskWriter(output_json_path=str(json_path))
+
+    node.forward(
+        **_build_inputs(
+            frame_idx=0,
+            mask_2d=torch.tensor([[0, 1], [0, 1]], dtype=torch.int32),
+            object_ids=[1],
+            detection_scores=[0.95],
+        )
+    )
+
+    node.close()
+    parsed = _read_json(json_path)
+    assert parsed["categories"] == [{"id": 1, "name": "object"}]
