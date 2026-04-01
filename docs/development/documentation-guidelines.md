@@ -128,6 +128,7 @@ Reference:
 ```
 
 **Required Sections:**
+
 - Brief description (1-2 sentences)
 - Detailed explanation
 - Available classes/functions overview
@@ -184,6 +185,7 @@ def forward(self, x: torch.Tensor) -> torch.Tensor:
 ```
 
 **Required Sections:**
+
 - Brief description
 - Args: All parameters with types and descriptions
 - Returns: Return value with type and meaning
@@ -313,6 +315,7 @@ MkDocs generates anchors from headings:
 - Anchor: `#data-loading-with-lentilsanomalydatanode`
 
 Links break when:
+
 1. Heading doesn't exist
 2. Heading text doesn't match link
 3. Heading uses unexpected formatting

@@ -7,6 +7,7 @@ including both statistical methods (RX, LAD) and deep learning approaches
 normal/background reference data.
 
 The module includes:
+
 - Statistical detectors: RX (Reed-Xiaoli) and LAD (Local Anomaly Detector)
 - Deep learning: Deep SVDD with projection networks
 - Preprocessing: Z-score normalization for statistical stability

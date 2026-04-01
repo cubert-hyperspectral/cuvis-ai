@@ -5,36 +5,63 @@
 
 # Utilities API
 
-Helper functions and utilities for CUVIS.AI.
+Current helper modules used by the tracking, visualization, restore, and gRPC workflows.
 
-## Overview
+## Workflow Helpers
 
-This page documents utility modules that provide helper functions for various tasks.
-
----
-
-## Deep SVDD Factory
-
-Utility functions for Deep SVDD channel configuration and model setup.
-
-::: cuvis_ai.utils.deep_svdd_factory
+::: cuvis_ai.utils.grpc_workflow
     options:
       show_root_heading: true
       heading_level: 3
 
----
+::: cuvis_ai.utils.cli_helpers
+    options:
+      show_root_heading: true
+      heading_level: 3
 
-## Visualization Helpers
-
-Helper functions for creating visualizations.
+## Visualization And Drawing Helpers
 
 ::: cuvis_ai.utils.vis_helpers
     options:
       show_root_heading: true
       heading_level: 3
 
----
+::: cuvis_ai.utils.torch_draw
+    options:
+      show_root_heading: true
+      heading_level: 3
+
+## Color And False-RGB Helpers
+
+::: cuvis_ai.utils.color_spaces
+    options:
+      show_root_heading: true
+      heading_level: 3
+
+::: cuvis_ai.utils.false_rgb_sampling
+    options:
+      show_root_heading: true
+      heading_level: 3
+
+## Numerical Utilities
+
+::: cuvis_ai.utils.poisson_inpaint
+    options:
+      show_root_heading: true
+      heading_level: 3
+
+::: cuvis_ai.utils.welford
+    options:
+      show_root_heading: true
+      heading_level: 3
+
+::: cuvis_ai.utils.deep_svdd_factory
+    options:
+      show_root_heading: true
+      heading_level: 3
 
 ## Related Pages
 
-- [Utility Nodes](../node-catalog/utility.md)
+- [Client Connections & Sessions](../grpc/client-connections.md)
+- [Client Workflows & Error Handling](../grpc/client-workflows.md)
+- [Profiling & Performance](../how-to/profiling.md)

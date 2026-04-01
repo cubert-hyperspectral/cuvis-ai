@@ -10,6 +10,7 @@ import torch.nn.functional as F
 from cuvis_ai_core.node import Node
 from cuvis_ai_schemas.enums import ExecutionStage
 from cuvis_ai_schemas.pipeline import PortSpec
+from loguru import logger
 from torch import Tensor
 
 
@@ -571,6 +572,7 @@ class IoULoss(LossNode):
         Small constant for numerical stability (default: 1e-6)
     normalize_method : {"sigmoid", "clamp", "minmax"}, optional
         Method to normalize predictions to [0, 1] range (default: "sigmoid")
+
         - "sigmoid": Apply sigmoid activation (good for unbounded scores)
         - "clamp": Clamp to [0, 1] (good for scores already in reasonable range)
         - "minmax": Min-max normalization per batch (good for varying score ranges)
@@ -677,6 +679,167 @@ class IoULoss(LossNode):
         return {"loss": self.weight * loss}
 
 
+class ForegroundContrastLoss(LossNode):
+    """Maximize visual separation between foreground and background mean colors.
+
+    Loss per image::
+
+        -||mean_fg - mean_bg||_2
+
+        + compactness_weight * Var_fg
+        + anchor_weight * (||mean_fg - mean_img||^2 + ||mean_bg - mean_img||^2)
+
+    Parameters
+    ----------
+    weight : float, optional
+        Overall weight for this loss component (default: 1.0).
+    compactness_weight : float, optional
+        Weight for foreground variance penalty (default: 0.0, disabled).
+    anchor_weight : float, optional
+        Anti-gaming penalty that keeps fg/bg means near the image mean,
+        discouraging extreme color pushes (default: 0.0, disabled).
+    eps : float, optional
+        Small constant for numerical stability in sqrt (default: 1e-6).
+    color_space : ``"rgb"`` or ``"oklab"``, optional
+        Color space in which to compute the fg/bg distance (default: ``"rgb"``).
+    assume_srgb : bool, optional
+        When ``color_space="oklab"``, whether to apply inverse sRGB gamma
+        before OKLab conversion. Ignored when ``color_space="rgb"``.
+        Default: ``True``.
+
+    Notes
+    -----
+
+    - When ``color_space="oklab"``, the OKLab conversion expects linear RGB
+      in [0, 1]. If the upstream RGB has no sRGB gamma curve applied (e.g.
+      output of ``LearnableChannelMixer`` with ``normalize_output=True``),
+      set ``assume_srgb=False``.
+
+    - Vectorized over batch.
+    - Fallback loss uses ``0.0 * rgb.sum()`` so it remains connected to
+      the model graph.
+    """
+
+    INPUT_SPECS = {
+        "rgb": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 3),
+            description="RGB output from channel mixer [B, H, W, 3]",
+        ),
+        "mask": PortSpec(
+            dtype=torch.int32,
+            shape=(-1, -1, -1),
+            description="Segmentation mask [B, H, W] where >0 is foreground",
+        ),
+    }
+
+    OUTPUT_SPECS = {
+        "loss": PortSpec(
+            dtype=torch.float32,
+            shape=(),
+            description="Scalar foreground contrast loss",
+        )
+    }
+
+    def __init__(
+        self,
+        weight: float = 1.0,
+        compactness_weight: float = 0.0,
+        anchor_weight: float = 0.0,
+        eps: float = 1e-6,
+        color_space: str = "rgb",
+        assume_srgb: bool = True,
+        **kwargs,
+    ) -> None:
+        self.weight = float(weight)
+        self.compactness_weight = float(compactness_weight)
+        self.anchor_weight = float(anchor_weight)
+        self.eps = float(eps)
+        self.color_space = str(color_space)
+        self.assume_srgb = bool(assume_srgb)
+
+        if self.color_space not in ("rgb", "oklab"):
+            raise ValueError(f"color_space must be 'rgb' or 'oklab', got '{self.color_space}'")
+
+        super().__init__(
+            weight=self.weight,
+            compactness_weight=self.compactness_weight,
+            anchor_weight=self.anchor_weight,
+            eps=self.eps,
+            color_space=self.color_space,
+            assume_srgb=self.assume_srgb,
+            **kwargs,
+        )
+
+    def forward(self, rgb: Tensor, mask: Tensor, **_: Any) -> dict[str, Tensor]:
+        """Compute foreground/background contrast loss.
+
+        Parameters
+        ----------
+        rgb : Tensor
+            RGB image tensor of shape [B, H, W, 3].
+        mask : Tensor
+            Segmentation mask of shape [B, H, W] where values > 0 are foreground.
+
+        Returns
+        -------
+        dict[str, Tensor]
+            Dictionary with a single key ``"loss"`` containing the scalar loss.
+        """
+        # Optionally convert to OKLab perceptual space
+        if self.color_space == "oklab":
+            from cuvis_ai.utils.color_spaces import rgb_to_oklab
+
+            pixels = rgb_to_oklab(rgb.to(torch.float32), assume_srgb=self.assume_srgb)
+        else:
+            pixels = rgb.to(torch.float32)  # [B, H, W, 3]
+
+        fg = (mask > 0).unsqueeze(-1).to(dtype=pixels.dtype)  # [B, H, W, 1]
+        bg = 1.0 - fg
+
+        fg_count = fg.sum(dim=(1, 2))  # [B, 1]
+        bg_count = bg.sum(dim=(1, 2))  # [B, 1]
+        valid = (fg_count.squeeze(-1) > 0) & (bg_count.squeeze(-1) > 0)  # [B]
+
+        # Passthrough fallback (connected to model graph)
+        if not valid.any():
+            logger.warning(
+                f"ForegroundContrastLoss: all frames skipped — "
+                f"mask shape={list(mask.shape)}, dtype={mask.dtype}, "
+                f"fg_pixels={(mask > 0).sum().item()}, "
+                f"min={mask.min().item()}, max={mask.max().item()}"
+            )
+            return {"loss": 0.0 * rgb.sum()}
+
+        # Masked means (vectorized)
+        fg_sum = (pixels * fg).sum(dim=(1, 2))  # [B, 3]
+        bg_sum = (pixels * bg).sum(dim=(1, 2))  # [B, 3]
+        fg_mean = fg_sum / fg_count.clamp_min(1.0)  # [B, 3]
+        bg_mean = bg_sum / bg_count.clamp_min(1.0)  # [B, 3]
+
+        diff = fg_mean - bg_mean
+        dist = torch.sqrt((diff * diff).sum(dim=-1) + self.eps)  # [B]
+        frame_loss = -dist
+
+        # Compactness (foreground variance): Var = E[x^2] - (E[x])^2
+        if self.compactness_weight > 0.0:
+            fg_sq_sum = ((pixels * pixels) * fg).sum(dim=(1, 2))  # [B, 3]
+            ex2 = fg_sq_sum / fg_count.clamp_min(1.0)  # [B, 3]
+            var = (ex2 - fg_mean * fg_mean).clamp_min(0.0).mean(dim=-1)  # [B]
+            frame_loss = frame_loss + self.compactness_weight * var
+
+        # Anti-gaming anchor: keep fg/bg means near the image mean
+        if self.anchor_weight > 0.0:
+            img_mean = pixels.mean(dim=(1, 2))  # [B, 3]
+            anchor_pen = (fg_mean - img_mean).pow(2).mean(dim=-1) + (bg_mean - img_mean).pow(
+                2
+            ).mean(dim=-1)  # [B]
+            frame_loss = frame_loss + self.anchor_weight * anchor_pen
+
+        loss = self.weight * frame_loss[valid].mean()
+        return {"loss": loss}
+
+
 __all__ = [
     "LossNode",
     "OrthogonalityLoss",
@@ -685,5 +848,7 @@ __all__ = [
     "SelectorEntropyRegularizer",
     "SelectorDiversityRegularizer",
     "DeepSVDDSoftBoundaryLoss",
+    "DistinctnessLoss",
+    "ForegroundContrastLoss",
     "IoULoss",
 ]

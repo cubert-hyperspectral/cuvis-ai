@@ -1,69 +1,186 @@
-Run the gRPC server locally:
+# gRPC Examples (Model-First Layout)
+
+Published docs for the current gRPC surface live in
+[`docs/grpc/example-clients.md`](../../docs/grpc/example-clients.md),
+[`docs/grpc/api-reference.md`](../../docs/grpc/api-reference.md), and
+[`docs/how-to/sam3-workflows.md`](../../docs/how-to/sam3-workflows.md).
+
+Run the local server:
 
 ```bash
 uv run python -m cuvis_ai.grpc.production_server
 ```
 
-All clients now follow the explicit Phase 5 workflow:
-1. CreateSession (empty)
-2. SetSessionSearchPaths (absolute paths to `configs/*`)
-3. ResolveConfig via ConfigService (Hydra composition + overrides)
-4. SetTrainRunConfig with the resolved bytes
-5. Train (statistical or gradient)
-6. SavePipeline/SaveTrainRun or run Inference
+All clients use the same helper module:
 
-`examples/grpc/workflow_utils.py` centralizes stub creation, search-path setup, and TrainRun helpers. Quick starts:
+- `cuvis_ai/utils/grpc_workflow.py`
+
+Core workflow phases:
+
+1. `CreateSession`
+2. `SetSessionSearchPaths`
+3. `ResolveConfig`
+4. `SetTrainRunConfig`
+5. `Train` (statistical / gradient)
+6. `SavePipeline` / `SaveTrainRun` / `Inference`
+
+## Folder Index
+
+### `core/` (model-agnostic)
+
+- `examples/grpc/core/capabilities_client.py`
+- `examples/grpc/core/pipeline_discovery_client.py`
+- `examples/grpc/core/complete_workflow_client.py`
+- `examples/grpc/core/run_inference.py`
+- `examples/grpc/core/restore_trainrun_grpc.py`
+- `examples/grpc/core/restore_trainrun_statistical_grpc.py`
+
+### `deep_svdd/`
+
+- `examples/grpc/deep_svdd/deepsvdd_client.py`
+- `examples/grpc/deep_svdd/gradient_training_client.py`
+- `examples/grpc/deep_svdd/resume_training_client.py`
+
+### `rx/`
+
+- `examples/grpc/rx/statistical_training_client.py`
+- `examples/grpc/rx/inference_with_pretrained_client.py`
+- `examples/grpc/rx/introspection_client.py`
+
+### `channel_selector/`
+
+- `examples/grpc/channel_selector/train_from_scratch_client.py`
+- `examples/grpc/channel_selector/checkpoint_client.py`
+- `examples/grpc/channel_selector/complex_inputs_client.py`
+
+### `adaclip/`
+
+- `examples/grpc/adaclip/adaclip_client.py`
+- `examples/grpc/adaclip/adaclip_high_contrast_client.py`
+- `examples/grpc/adaclip/adaclip_cir_false_color_client.py`
+- `examples/grpc/adaclip/adaclip_cir_false_rg_color_client.py`
+- `examples/grpc/adaclip/adaclip_supervised_cir_client.py`
+- `examples/grpc/adaclip/adaclip_supervised_full_spectrum_client.py`
+- `examples/grpc/adaclip/adaclip_supervised_windowed_false_rgb_client.py`
+- `examples/grpc/adaclip/adaclip_lentils_inference.py`
+
+### `sam3/`
+
+- `examples/grpc/sam3/sam3_text_propagation_client.py`
+- `examples/grpc/sam3/sam3_bbox_propagation_client.py`
+- `examples/grpc/sam3/sam3_mask_propagation_client.py`
+- `examples/grpc/sam3/sam3_segment_everything_client.py`
+
+## Canonical Commands
 
 ```bash
-python examples/grpc/statistical_training_client.py
-python examples/grpc/gradient_training_client.py
-python examples/grpc/complete_workflow_client.py
+# core
+uv run python examples/grpc/core/capabilities_client.py
+uv run python examples/grpc/core/pipeline_discovery_client.py
+uv run python examples/grpc/core/complete_workflow_client.py
+uv run python examples/grpc/core/run_inference.py --help
+uv run python examples/grpc/core/restore_trainrun_grpc.py --help
+uv run python examples/grpc/core/restore_trainrun_statistical_grpc.py --help
+
+# deep_svdd
+uv run python examples/grpc/deep_svdd/deepsvdd_client.py
+uv run python examples/grpc/deep_svdd/gradient_training_client.py
+uv run python examples/grpc/deep_svdd/resume_training_client.py
+
+# rx
+uv run python examples/grpc/rx/statistical_training_client.py
+uv run python examples/grpc/rx/inference_with_pretrained_client.py
+uv run python examples/grpc/rx/introspection_client.py
+
+# channel_selector
+uv run python examples/grpc/channel_selector/train_from_scratch_client.py
+uv run python examples/grpc/channel_selector/checkpoint_client.py
+uv run python examples/grpc/channel_selector/complex_inputs_client.py
+
+# adaclip
+uv run python examples/grpc/adaclip/adaclip_client.py
+uv run python examples/grpc/adaclip/adaclip_high_contrast_client.py
+uv run python examples/grpc/adaclip/adaclip_cir_false_color_client.py
+uv run python examples/grpc/adaclip/adaclip_cir_false_rg_color_client.py
+uv run python examples/grpc/adaclip/adaclip_supervised_cir_client.py
+uv run python examples/grpc/adaclip/adaclip_supervised_full_spectrum_client.py
+uv run python examples/grpc/adaclip/adaclip_supervised_windowed_false_rgb_client.py
+uv run python examples/grpc/adaclip/adaclip_lentils_inference.py --help
+
+# sam3
+uv run python examples/grpc/sam3/sam3_text_propagation_client.py --help
+uv run python examples/grpc/sam3/sam3_bbox_propagation_client.py --help
+uv run python examples/grpc/sam3/sam3_mask_propagation_client.py --help
+uv run python examples/grpc/sam3/sam3_segment_everything_client.py --help
 ```
 
-## Restoring Pipelines and TrainRuns
+## SAM3 Text/Mask/Bbox Propagation
 
-### Restore Pipeline for Inference
+Runtime text propagation uses these pipeline configs:
 
-To restore a trained pipeline and run inference on CU3S data:
+- `configs/pipeline/sam3/sam3_text_propagation.yaml`
+- `configs/pipeline/sam3/sam3_text_propagation_video.yaml`
 
-```bash
-# Run inference on CU3S data (all parameters required)
-uv run python examples/grpc/run_inference.py \
-  --pipeline-path configs/pipeline/anomaly/rx/channel_selector.yaml \
-  --weights-path outputs/my_weights.pt \
-  --cu3s-file-path data/DemoData/Demo_000.cu3s
+Runtime mask propagation uses these pipeline configs:
 
-# Run inference with custom processing mode
-uv run python examples/grpc/run_inference.py \
-  --pipeline-path configs/pipeline/anomaly/rx/channel_selector.yaml \
-  --weights-path outputs/my_weights.pt \
-  --cu3s-file-path data/DemoData/Demo_000.cu3s \
-  --processing-mode Raw
+- `configs/pipeline/sam3/sam3_mask_propagation.yaml`
+- `configs/pipeline/sam3/sam3_mask_propagation_video.yaml`
 
-# Run inference with config overrides
-uv run python examples/grpc/run_inference.py \
-  --pipeline-path configs/pipeline/anomaly/rx/channel_selector.yaml \
-  --weights-path outputs/my_weights.pt \
-  --cu3s-file-path data/DemoData/Demo_000.cu3s \
-  --override nodes.10.params.output_dir=outputs/my_tb
+Runtime bbox propagation uses these pipeline configs:
+
+- `configs/pipeline/sam3/sam3_bbox_propagation.yaml`
+- `configs/pipeline/sam3/sam3_bbox_propagation_video.yaml`
+
+Runtime segment-everything uses these pipeline configs:
+
+- `configs/pipeline/sam3/sam3_segment_everything.yaml`
+- `configs/pipeline/sam3/sam3_segment_everything_video.yaml`
+
+The gRPC text workflow sends scheduled prompt text through `InputBatch.text_prompt`
+only on the requested frames. The server-side `SAM3TextPropagation` node returns
+`mask`, `object_ids`, `detection_scores`, `category_ids`, and `category_semantics`,
+and the client writes category-aware tracking JSON from those outputs:
+
+```powershell
+uv run python examples/grpc/sam3/sam3_text_propagation_client.py `
+  --video-path "D:\experiments\20260319\video_creation\tristimulus\XMR_25mm_CubertParkingLotTracking\2026_03_19_11-27-39\Auto_004+01.mp4" `
+  --prompt "person@65" `
+  --prompt "car@90" `
+  --output-json-path "D:\experiments\20260331\text_propagation_grpc\video\Auto_004+01.json"
 ```
 
-### Restore and Reproduce Training Runs
+The gRPC mask workflow does not use `MaskPrompt` inside the pipeline. Instead, the
+client decodes scheduled segmentations from `--detection-json` and sends prompt
+masks directly through `InputBatch.mask` on the requested frames:
 
-To restore complete training runs and reproduce training, validation, or testing:
-
-```bash
-# Display trainrun info
-uv run python examples/grpc/restore_trainrun_grpc.py --trainrun-path outputs/channel_selector/trained_models/channel_selector_trainrun.yaml
-
-# Re-run training
-uv run python examples/grpc/restore_trainrun_grpc.py --trainrun-path outputs/.../trainrun.yaml --mode train
-
-# Run validation only
-uv run python examples/grpc/restore_trainrun_grpc.py --trainrun-path outputs/.../trainrun.yaml --mode validate
-
-# Override data and training configs
-uv run python examples/grpc/restore_trainrun_grpc.py --trainrun-path outputs/.../trainrun.yaml --mode train --override data.batch_size=16 --override training.optimizer.lr=0.001
+```powershell
+uv run python examples/grpc/sam3/sam3_mask_propagation_client.py `
+  --video-path "D:\experiments\20260319\video_creation\tristimulus\XMR_25mm_CubertParkingLotTracking\2026_03_19_11-27-39\Auto_004+01.mp4" `
+  --detection-json "D:\experiments\20260319\video_creation\tristimulus\XMR_25mm_CubertParkingLotTracking\2026_03_19_11-27-39\Auto_004+01.json" `
+  --prompt 2:2@65 `
+  --prompt 1:1@70 `
+  --output-json-path "D:\experiments\20260326\mask_propagation_grpc\video\Auto_004+01.json"
 ```
 
-Adjust paths in the scripts if your configs or outputs live elsewhere.
+The gRPC bbox workflow follows the same scheduled prompt contract, but sends
+prompt boxes through `InputBatch.bboxes` instead of prompt masks:
+
+```powershell
+uv run python examples/grpc/sam3/sam3_bbox_propagation_client.py `
+  --video-path "D:\experiments\20260319\video_creation\tristimulus\XMR_25mm_CubertParkingLotTracking\2026_03_19_11-27-39\Auto_004+01.mp4" `
+  --detection-json "D:\experiments\20260319\video_creation\tristimulus\XMR_25mm_CubertParkingLotTracking\2026_03_19_11-27-39\Auto_004+01.json" `
+  --prompt 2:2@65 `
+  --prompt 1:1@70 `
+  --output-json-path "D:\experiments\20260326\bbox_propagation_grpc\video\Auto_004+01.json"
+```
+
+The gRPC segment-everything workflow is prompt-free and simply streams frames
+through `SAM3SegmentEverything`:
+
+```powershell
+uv run python examples/grpc/sam3/sam3_segment_everything_client.py `
+  --video-path "D:\experiments\20260319\video_creation\tristimulus\XMR_25mm_CubertParkingLotTracking\2026_03_19_11-27-39\Auto_004+01.mp4" `
+  --start-frame 70 `
+  --max-frames 1 `
+  --output-json-path "D:\experiments\20260330\segment_everything_grpc\video\Auto_004+01_frame0070.json"
+```

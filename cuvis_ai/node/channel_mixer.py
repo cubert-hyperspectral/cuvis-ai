@@ -9,6 +9,7 @@ This module provides two mixer variants:
 
 * :class:`LearnableChannelMixer` — 1×1 convolution-based mixer (DRCNN-style,
   Zeegers et al. 2020).
+
 * :class:`ConcreteChannelMixer` — Gumbel-Softmax differentiable band selection
   that learns soft-to-hard channel weighting via temperature annealing.
 """
@@ -36,6 +37,7 @@ class LearnableChannelMixer(Node):
     This node implements a learnable linear combination layer that reduces the number
     of spectral channels through spectral pixel-wise 1x1 convolutions. Based on the
     DRCNN approach, it uses:
+
     - 1x1 convolution (linear combination across spectral dimension)
     - Leaky ReLU activation (a=0.01)
     - Bias parameters
@@ -58,11 +60,14 @@ class LearnableChannelMixer(Node):
     use_activation : bool, optional
         Whether to apply Leaky ReLU activation (default: True, as per DRCNN paper)
     normalize_output : bool, optional
-        Whether to apply per-channel min-max normalization to [0, 1] range (default: True).
-        This matches the behavior of band selectors and ensures compatibility with AdaClip.
-        When True, each output channel is normalized independently using per-batch statistics.
+        Whether to apply output normalization to [0, 1] range (default: True).
+        During training this uses BatchNorm2d + sigmoid.
+    inference_normalization : {"batchnorm_sigmoid", "per_frame_minmax", "sigmoid_only", "none"}, optional
+        Inference-time normalization mode used when ``normalize_output=True``.
+        Training always uses ``batchnorm_sigmoid`` for consistency.
     init_method : {"xavier", "kaiming", "pca", "zeros"}, optional
         Weight initialization method (default: "xavier")
+
         - "xavier": Xavier/Glorot uniform initialization
         - "kaiming": Kaiming/He uniform initialization
         - "pca": Initialize from PCA components (requires statistical_initialization)
@@ -74,6 +79,7 @@ class LearnableChannelMixer(Node):
         If None, uses single-layer reduction (input_channels → output_channels).
         If provided, must start with input_channels and end with output_channels.
         Example: [61, 16, 8, 3] means:
+
         - Layer 1: 61 → 16 channels
         - Layer 2: 16 → 8 channels
         - Layer 3: 8 → 3 channels
@@ -129,7 +135,13 @@ class LearnableChannelMixer(Node):
             dtype=torch.float32,
             shape=(-1, -1, -1, "output_channels"),
             description="Reduced channel output (e.g., RGB-like) [B, H, W, output_channels]",
-        )
+        ),
+        "weights": PortSpec(
+            dtype=torch.float32,
+            shape=("output_channels", -1),
+            description="Last-layer mixing weights [output_channels, hidden_dim]",
+            optional=True,
+        ),
     }
 
     def __init__(
@@ -140,6 +152,9 @@ class LearnableChannelMixer(Node):
         use_bias: bool = True,
         use_activation: bool = True,
         normalize_output: bool = True,
+        inference_normalization: Literal[
+            "batchnorm_sigmoid", "per_frame_minmax", "sigmoid_only", "none"
+        ] = "batchnorm_sigmoid",
         init_method: Literal["xavier", "kaiming", "pca", "zeros"] = "xavier",
         eps: float = 1e-6,
         reduction_scheme: list[int] | None = None,
@@ -151,8 +166,15 @@ class LearnableChannelMixer(Node):
         self.use_bias = use_bias
         self.use_activation = use_activation
         self.normalize_output = normalize_output
+        self.inference_normalization = str(inference_normalization)
         self.init_method = init_method
         self.eps = eps
+        valid_norm_modes = {"batchnorm_sigmoid", "per_frame_minmax", "sigmoid_only", "none"}
+        if self.inference_normalization not in valid_norm_modes:
+            raise ValueError(
+                f"inference_normalization must be one of {sorted(valid_norm_modes)}, "
+                f"got '{self.inference_normalization}'"
+            )
 
         # Determine reduction scheme: if None, use single-layer (backward compatible)
         # If provided, use multi-layer gradual reduction (e.g., [61, 16, 8, 3])
@@ -185,6 +207,7 @@ class LearnableChannelMixer(Node):
             use_bias=use_bias,
             use_activation=use_activation,
             normalize_output=normalize_output,
+            inference_normalization=self.inference_normalization,
             init_method=init_method,
             eps=eps,
             reduction_scheme=reduction_scheme,
@@ -206,6 +229,11 @@ class LearnableChannelMixer(Node):
                 bias=use_bias,
             )
             self.convs.append(conv)
+
+        # Output normalization: BatchNorm + sigmoid replaces per-image min-max
+        # BatchNorm tracks running mean/var during training → consistent normalization at eval
+        if self.normalize_output:
+            self.output_bn = nn.BatchNorm2d(output_channels, affine=True)
 
         # Leaky ReLU activation (as per DRCNN paper)
         # Note: Leaky ReLU with a=0.01 can be very aggressive, killing most negative values
@@ -240,6 +268,15 @@ class LearnableChannelMixer(Node):
             # Initialize bias to zero (as per DRCNN paper)
             if self.use_bias:
                 nn.init.zeros_(conv.bias)
+
+    def _per_frame_minmax_bchw(self, tensor: Tensor) -> Tensor:
+        """Per-frame, per-channel min-max normalization for BCHW tensors."""
+        B, C, H, W = tensor.shape
+        flat = tensor.view(B, C, -1)
+        mins = flat.min(dim=-1, keepdim=True).values
+        maxs = flat.max(dim=-1, keepdim=True).values
+        scaled = (flat - mins) / (maxs - mins).clamp_min(self.eps)
+        return scaled.view(B, C, H, W)
 
     @property
     def requires_initial_fit(self) -> bool:
@@ -406,34 +443,26 @@ class LearnableChannelMixer(Node):
                 if i < len(self.convs) - 1 or not self.normalize_output:
                     mixed = self.activation(mixed)
 
+        # Apply output normalization while still in BCHW format.
+        if self.normalize_output:
+            norm_mode = "batchnorm_sigmoid"
+            if context is not None and context.stage == ExecutionStage.INFERENCE:
+                norm_mode = self.inference_normalization
+
+            if norm_mode == "batchnorm_sigmoid":
+                mixed = self.output_bn(mixed)  # BatchNorm2d: BCHW -> BCHW
+                mixed = torch.sigmoid(mixed)  # Map to (0, 1)
+            elif norm_mode == "per_frame_minmax":
+                mixed = self._per_frame_minmax_bchw(mixed)
+            elif norm_mode == "sigmoid_only":
+                mixed = torch.sigmoid(mixed)
+            elif norm_mode == "none":
+                pass
+            else:
+                raise RuntimeError(f"Unsupported inference_normalization mode: {norm_mode}")
+
         # Convert back from BCHW to BHWC
         mixed_bhwc = mixed.permute(0, 2, 3, 1)  # [B, H, W, C_out]
-
-        # DEBUG disabled: previously saved output_before_norm tensor here (_save_debug_tensor).
-        # for b in range(B):
-        #     self._save_debug_tensor(mixed_bhwc[b], "output_before_norm", context, frame_idx=b)
-
-        # Apply per-channel normalization to [0, 1] range (matching band selector behavior)
-        # This ensures compatibility with AdaClip preprocessing
-        if self.normalize_output:
-            # Per-image, per-channel min/max normalization to [0, 1]
-            # This ensures each image is normalized independently for visual consistency
-            # Shape: [B, H, W, C_out]
-            B_norm, H_norm, W_norm, C_norm = mixed_bhwc.shape
-            # Reshape to [B, H*W, C] for easier per-image processing
-            mixed_flat = mixed_bhwc.view(B_norm, H_norm * W_norm, C_norm)
-            # Compute min/max per image, per channel: [B, 1, C]
-            rgb_min = mixed_flat.amin(dim=1, keepdim=True)  # [B, 1, C]
-            rgb_max = mixed_flat.amax(dim=1, keepdim=True)  # [B, 1, C]
-            denom = (rgb_max - rgb_min).clamp_min(self.eps)
-            # Normalize: [B, H*W, C]
-            mixed_normalized = (mixed_flat - rgb_min) / denom
-            # Reshape back and clamp
-            mixed_bhwc = mixed_normalized.view(B_norm, H_norm, W_norm, C_norm).clamp_(0.0, 1.0)
-
-        # DEBUG disabled: previously saved output_after_norm tensor here (_save_debug_tensor).
-        # for b in range(B):
-        #     self._save_debug_tensor(mixed_bhwc[b], "output_after_norm", context, frame_idx=b)
 
         # DEBUG: Print output info
         if hasattr(self, "_debug") and self._debug:
@@ -443,7 +472,8 @@ class LearnableChannelMixer(Node):
                 f"mean={mixed_bhwc.mean().item():.4f}, requires_grad={mixed_bhwc.requires_grad}"
             )
 
-        return {"rgb": mixed_bhwc}
+        last_layer_weights = self.convs[-1].weight.squeeze(-1).squeeze(-1)
+        return {"rgb": mixed_bhwc, "weights": last_layer_weights}
 
 
 def _sample_gumbel(shape: tuple[int, ...], device: torch.device, eps: float = 1e-10) -> Tensor:
@@ -497,11 +527,14 @@ class ConcreteChannelMixer(Node):
 
     Notes
     -----
+
     - During training (``context.stage == 'train'``), the node samples
       Gumbel noise and uses the Concrete relaxation with the current
       temperature :math:`\\tau(\\text{epoch})``.
+
     - During validation/test/inference, it uses deterministic weights
       without Gumbel noise.
+
     - The node exposes ``selection_weights`` so that repulsion penalties
       (e.g., DistinctnessLoss) can be attached in the pipeline.
     """
@@ -644,6 +677,7 @@ class ConcreteChannelMixer(Node):
         -------
         dict[str, Tensor]
             Dictionary with:
+
             - ``"rgb"``: [B, H, W, C_out] RGB-like image.
             - ``"selection_weights"``: [C_out, C_in] current weights.
         """

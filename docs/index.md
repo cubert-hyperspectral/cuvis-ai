@@ -21,6 +21,7 @@ CUVIS.AI is a modular, low-code/no-code framework for building reproducible mach
 
 
 !!! tip "Ready to get started?"
+
     - Start with the [Installation Guide](user-guide/installation.md), then follow the [Quickstart](user-guide/quickstart.md).
     - Want to contribute? See the [Contributing Guide](development/contributing.md).
     - Found an issue? [Report bugs / request features](https://github.com/cubert-hyperspectral/cuvis-ai/issues)

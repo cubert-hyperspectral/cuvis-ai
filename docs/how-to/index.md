@@ -7,6 +7,11 @@
 
 Practical guides for common tasks and workflows in CUVIS.AI.
 
+High-traffic workflow guides:
+
+- [Object Tracking Workflows](object-tracking.md)
+- [SAM3 Workflows](sam3-workflows.md)
+
 ## Available Guides
 
 <div class="grid cards" markdown>
@@ -41,16 +46,22 @@ Practical guides for common tasks and workflows in CUVIS.AI.
 
     Track training progress and visualize results
 
--   :material-gpu: **[GPU Acceleration](../reference/gpu_acceleration_guide.md)**
+-   :material-timer-outline: **[Profiling & Performance](profiling.md)**
 
     ---
 
-    Configure and optimize GPU usage for training
+    Measure per-node execution time to identify pipeline bottlenecks
 
--   :material-cloud-upload: **[Remote gRPC](remote-grpc.md)**
+-   :material-target-account: **[Object Tracking Workflows](object-tracking.md)**
 
     ---
 
-    Deploy and access pipelines remotely via gRPC
+    Export, overlay, benchmark, and multi-object tracking workflows
+
+-   :material-image-search: **[SAM3 Workflows](sam3-workflows.md)**
+
+    ---
+
+    Local and gRPC SAM3 propagation and segment-everything flows
 
 </div>

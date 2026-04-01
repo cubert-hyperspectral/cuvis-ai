@@ -41,7 +41,8 @@ Built-in contributions require more rigorous review and integration testing, but
 **When to use:** When you want to add domain-specific algorithms, experimental methods, or proprietary techniques.
 
 **How:**
-1. Follow the [Plugin Development Guide](../plugin-system/development.md) to create your plugin
+
+1. Follow the [Plugin Development Guide](../plugin-system/dev-quickstart.md) to create your plugin
 2. Implement nodes inheriting from `cuvis_ai_core.node.Node`
 3. Test with cuvis-ai pipelines using local plugin loading
 4. Publish to GitHub and submit to the central registry (see [Plugin Contribution Workflow](#plugin-contribution-workflow) below)
@@ -55,6 +56,7 @@ Built-in contributions require more rigorous review and integration testing, but
 **When to use:** When your node provides general-purpose functionality that benefits all users.
 
 **How:**
+
 1. Follow the [Add Built-in Node Guide](../how-to/add-builtin-node.md)
 2. Submit a pull request with comprehensive tests
 3. Undergo code review and integration testing
@@ -68,6 +70,7 @@ Improve guides, tutorials, API documentation, or fix typos. Documentation PRs ar
 ### 🐛 Bug Reports
 
 Found a bug? [Open an issue](https://github.com/cubert-hyperspectral/cuvis-ai/issues) with:
+
 - Clear description of the problem
 - Steps to reproduce
 - Expected vs actual behavior
@@ -77,6 +80,7 @@ Found a bug? [Open an issue](https://github.com/cubert-hyperspectral/cuvis-ai/is
 ### 💡 Feature Requests
 
 Have an idea for improvement? [Open a discussion](https://github.com/cubert-hyperspectral/cuvis-ai/discussions) to:
+
 - Describe the feature and its use case
 - Explain why it would benefit the community
 - Discuss potential implementation approaches
@@ -89,9 +93,10 @@ This section describes the **complete process** for contributing a plugin to the
 
 ### Step 1: Develop Your Plugin
 
-Follow the comprehensive [Plugin Development Guide](../plugin-system/development.md) to create your plugin from scratch.
+Follow the comprehensive [Plugin Development Guide](../plugin-system/dev-quickstart.md) to create your plugin from scratch.
 
 **Key requirements:**
+
 - **Node Implementation:** Inherit from `cuvis_ai_core.node.Node`
 - **Project Structure:** Create proper `pyproject.toml` with dependencies and metadata
 - **Documentation:** Write comprehensive README with usage examples
@@ -159,6 +164,7 @@ uv run restore-pipeline \
 ```
 
 **Verify:**
+
 - ✅ All dependencies install correctly
 - ✅ Nodes load without errors
 - ✅ Nodes work in actual pipelines
@@ -169,49 +175,12 @@ uv run restore-pipeline \
 Prepare your plugin for public distribution.
 
 **Requirements:**
+
 - **Public GitHub repository** (required for central registry)
 - **Semantic version tag:** `v1.0.0`, `v0.1.0-beta`, `v2.0.0-rc.1`
 - **LICENSE file:** Permissive open source license recommended (MIT, Apache-2.0, BSD)
 
-**Create comprehensive README:**
-```markdown
-# My Custom Plugin
-
-Brief description of your plugin and its purpose.
-
-## Installation
-
-\`\`\`yaml
-plugins:
-  my_plugin:
-    repo: "https://github.com/yourorg/my-plugin.git"
-    tag: "v1.0.0"
-    provides:
-      - my_plugin.nodes.CustomDetector
-\`\`\`
-
-## Nodes Provided
-
-### CustomDetector
-
-Description of the node, its inputs, outputs, and parameters.
-
-## Usage Example
-
-\`\`\`python
-# Example pipeline configuration
-...
-\`\`\`
-
-## Dependencies
-
-- numpy>=1.20.0
-- scikit-learn>=1.0.0
-
-## License
-
-MIT License
-```
+**Create a comprehensive README** covering: installation (plugins YAML snippet), nodes provided, usage example, dependencies, and license.
 
 **Create Git tag:**
 ```bash
@@ -255,6 +224,7 @@ Edit `docs/plugin-system/index.md` under the "Community Plugins" section:
 **4.4 (Optional) Add showcase example**
 
 Create `examples/my-plugin/` directory with:
+
 - Sample pipeline configuration using your plugin
 - Example data or instructions
 - README explaining the example
@@ -263,162 +233,44 @@ Create `examples/my-plugin/` directory with:
 
 Submit your plugin registration for review.
 
-**PR title format:**
-```
-plugin: add [my-plugin] to registry
-```
+**PR title format:** `plugin: add [my-plugin] to registry`
 
-**PR description template:**
-```markdown
-## Plugin Information
+**PR description should include:** plugin name, repository URL, version, purpose, nodes provided, example usage YAML, testing performed, and dependencies.
 
-**Name:** my-plugin
-**Repository:** https://github.com/yourorg/my-plugin
-**Version:** v1.0.0
+**Checklist:**
 
-## Purpose
-
-Brief description of what the plugin does and why it's useful.
-
-## Nodes Provided
-
-- `CustomDetector`: Description of this node
-- `HelperNode`: Description of this node
-
-## Example Usage
-
-\`\`\`yaml
-plugins:
-  my_plugin:
-    repo: "https://github.com/yourorg/my-plugin.git"
-    tag: "v1.0.0"
-    provides:
-      - my_plugin.nodes.CustomDetector
-
-# Use in pipeline
-nodes:
-  detector:
-    _target_: CustomDetector
-    threshold: 0.75
-\`\`\`
-
-## Testing Performed
-
-- [x] Plugin loads successfully with NodeRegistry
-- [x] All tests pass (`pytest tests/`)
-- [x] Tested with example pipeline (attached in examples/)
-- [x] Documentation is comprehensive
-
-## Dependencies
-
-No significant dependencies beyond cuvis-ai-core requirements.
-
-## Checklist
-
-- [x] Added entry to `configs/plugins/registry.yaml`
-- [x] Added documentation to `docs/plugin-system/index.md`
-- [x] Included LICENSE file (MIT)
-- [x] README has installation and usage examples
-- [ ] Added showcase example in `examples/` (optional)
-```
+- [ ] Added entry to `configs/plugins/registry.yaml`
+- [ ] Added documentation to `docs/plugin-system/index.md`
+- [ ] Included LICENSE file
+- [ ] README has installation and usage examples
+- [ ] (Optional) Added showcase example in `examples/`
 
 **Add label:** `plugin-contribution`
 
 ### Step 6: Review Process
 
-The core team will review your submission.
-
-**What we check:**
-- ✅ YAML manifest syntax is valid
-- ✅ Plugin loads successfully with NodeRegistry
-- ✅ Plugin follows development best practices
-- ✅ Appropriate open source licensing
-- ✅ Documentation is comprehensive and clear
-- ✅ Tests exist and pass (if example provided)
-
-**Timeline:**
-- Typical review turnaround: 3-5 business days
-- We may request changes to manifest formatting or documentation
-- Once approved, your plugin will be merged into the registry
-
-**Communication:**
-- All feedback will be provided through PR comments
-- Please respond to review comments promptly
-- Feel free to ask questions or request clarification
+The core team will review your submission (typical turnaround: 3-5 business days). We check YAML syntax validity, successful NodeRegistry loading, licensing, documentation, and tests. All feedback is provided through PR comments.
 
 ### Step 7: Post-Acceptance Maintenance
 
-After your plugin is accepted, keep it maintained for the community.
-
-**Ongoing responsibilities:**
-- **Respond to issues:** Help users who encounter problems with your plugin
-- **Keep it working:** Ensure compatibility with new cuvis-ai releases
-- **Update registry:** When releasing new versions, submit PRs to update the `tag:` field
-
-**Releasing updates:**
-```bash
-# Create new version tag
-git tag -a v1.1.0 -m "Add new feature X"
-git push origin v1.1.0
-
-# Update registry (submit PR)
-# Edit configs/plugins/registry.yaml:
-my_plugin:
-  repo: "https://github.com/yourorg/my-plugin.git"
-  tag: "v1.1.0"  # Update to new version
-  provides:
-    - my_plugin.nodes.CustomDetector
-```
-
-**Best practices:**
-- Use [GitHub Releases](https://docs.github.com/en/repositories/releasing-projects-on-github) for better visibility
-- Follow [semantic versioning](https://semver.org/) (MAJOR.MINOR.PATCH)
-- Write clear release notes describing changes
-- Update your plugin's README when adding features
+Keep your plugin compatible with new cuvis-ai releases. When releasing new versions, submit PRs to update the `tag:` field in `configs/plugins/registry.yaml`. Follow [semantic versioning](https://semver.org/).
 
 ---
 
 ## Important Requirements for Plugins
 
-When developing and submitting plugins, ensure they meet these requirements:
+- Only Git tags supported (no branches/commits) for reproducibility
+- Valid tag formats: `v1.2.3`, `v0.1.0-alpha`, `2.0.0-rc.1` (semantic versioning)
+- Proper `pyproject.toml` with all dependencies declared
+- Comprehensive README with usage examples
+- Permissive open source license (MIT, Apache-2.0, BSD preferred)
+- Loading test passes (NodeRegistry can import all provided classes)
 
-- ✅ **Only Git tags supported** (no branches/commits) for reproducibility
-- ✅ **Valid tag formats:** `v1.2.3`, `v0.1.0-alpha`, `2.0.0-rc.1` (semantic versioning)
-- ✅ **Proper `pyproject.toml`** with all dependencies declared
-- ✅ **Comprehensive README** with usage examples and API documentation
-- ✅ **Permissive open source license** (MIT, Apache-2.0, BSD preferred)
-- ✅ **Loading test passes** (NodeRegistry can import all provided classes)
-
-**Local development support:**
-
-During development, you can use local directory paths instead of Git repositories:
-
-```yaml
-plugins:
-  # Production plugin from Git
-  production_plugin:
-    repo: "https://github.com/org/plugin.git"
-    tag: "v1.0.0"
-    provides:
-      - production_plugin.nodes.Node1
-
-  # Local plugin for development
-  dev_plugin:
-    path: "../my-plugin"  # Relative or absolute directory path
-    provides:
-      - dev_plugin.nodes.TestNode
-```
-
-This is particularly useful for:
-- Testing changes before publishing
-- Private plugins that won't be on GitHub
-- Quick iterations during development
+During development, you can use local directory paths (`path: "../my-plugin"`) instead of Git repositories in your `plugins.yaml`.
 
 ---
 
 ## Development Environment Setup
-
-To contribute to cuvis-ai core or develop plugins, set up your development environment.
 
 ### Prerequisites
 
@@ -440,34 +292,16 @@ uv sync --all-extras --dev
 
 ### Set Up Git Hooks
 
-We use pre-commit hooks to ensure code quality:
-
 ```bash
-# Install pre-commit hooks
 pre-commit install
-
-# Run manually on all files (optional)
-pre-commit run --all-files
 ```
 
 ### Running Tests
 
 ```bash
-# Run all tests
-pytest -v
-
-# Run specific test file
-pytest tests/test_node_registry.py -v
-
-# Run with coverage
-pytest --cov=cuvis_ai_core --cov-report=html
+pytest -v                                      # All tests
+pytest --cov=cuvis_ai_core --cov-report=html   # With coverage
 ```
-
-### IDE Setup
-
-**VS Code:** Install recommended extensions (Python, Pylance, Ruff)
-
-**PyCharm:** Configure interpreter to use the uv-managed virtual environment
 
 ---
 
@@ -475,13 +309,7 @@ pytest --cov=cuvis_ai_core --cov-report=html
 
 ### Style Guide
 
-We follow **PEP 8** with enforcement through **Ruff**:
-
-- Line length: 100 characters (not the PEP 8 default of 79)
-- Use double quotes for strings
-- 4 spaces for indentation (no tabs)
-
-The pre-commit hooks will automatically format your code.
+We follow **PEP 8** with enforcement through **Ruff** (line length: 100, double quotes, 4-space indent). Pre-commit hooks auto-format your code.
 
 ### Type Hints
 
@@ -570,51 +398,13 @@ docs(plugin-system): update contribution workflow
 fix(pipeline): resolve memory leak in batch processing
 ```
 
-### PR Description
-
-Your PR description should include:
-
-1. **What:** Brief summary of changes
-2. **Why:** Motivation and context
-3. **How:** Implementation approach (if non-obvious)
-4. **Testing:** What tests were added/modified
-5. **Breaking changes:** Any backwards-incompatible changes
-6. **Screenshots:** If UI changes (for docs/examples)
-
 ### Before Submitting
-
-Checklist:
 
 - [ ] All tests pass: `pytest -v`
 - [ ] Pre-commit hooks pass: `pre-commit run --all-files`
 - [ ] Documentation updated (if applicable)
-- [ ] Docstrings added for new functions/classes
-- [ ] Type hints included
+- [ ] Docstrings and type hints included
 - [ ] CHANGELOG updated (for significant changes)
-
----
-
-## Getting Help
-
-### Community Channels
-
-- **Discord/Slack:** (coming soon!) Real-time chat with other contributors
-- **GitHub Discussions:** Ask questions, share ideas, get feedback
-- **Issue Tracker:** Report bugs or request features
-
-### Asking Questions
-
-When asking for help:
-
-1. **Search first:** Check if your question has been answered
-2. **Be specific:** Provide context, code examples, error messages
-3. **Be respectful:** Everyone is volunteering their time
-
-### Contact
-
-For private inquiries or collaboration opportunities:
-- Email: [contact info from README or website]
-- Open a [GitHub Discussion](https://github.com/cubert-hyperspectral/cuvis-ai/discussions)
 
 ---
 
@@ -628,15 +418,3 @@ Cubert GmbH is committed to creating an **open, inclusive, and positive communit
 - Show empathy towards others
 
 We have zero tolerance for harassment, discrimination, or abusive behavior.
-
----
-
-## Thank You!
-
-Thank you for contributing to cuvis-ai! Your work helps build a better tool for the hyperspectral imaging community. We're excited to see what you create!
-
-**Quick Links:**
-- [Plugin Development Guide](../plugin-system/development.md) - Complete guide to creating plugins
-- [Add Built-in Node Guide](../how-to/add-builtin-node.md) - Contributing to core
-- [Node System Deep Dive](../concepts/node-system-deep-dive.md) - Understanding node architecture
-- [Central Plugin Registry](../../configs/plugins/registry.yaml) - Browse registered plugins

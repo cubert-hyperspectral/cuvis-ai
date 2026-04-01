@@ -14,6 +14,7 @@ Learn how to use CUVIS.AI's gRPC API for distributed training, remote inference,
 This tutorial demonstrates **distributed training and inference** using CUVIS.AI's gRPC (Google Remote Procedure Call) service. gRPC enables client-server communication for running pipelines on remote hardware, separating training infrastructure from client applications.
 
 **What You'll Learn:**
+
 - Starting and connecting to gRPC servers
 - Remote training with streaming progress updates
 - Distributed inference on trained pipelines
@@ -24,6 +25,7 @@ This tutorial demonstrates **distributed training and inference** using CUVIS.AI
 **Time to Complete:** 25-30 minutes
 
 **Prerequisites:**
+
 - Completion of [Channel Selector Tutorial](channel-selector.md) - Understanding training workflows
 - Basic networking knowledge (client-server, localhost, ports)
 - Python 3.10+, PyTorch 2.0+, gRPC library installed
@@ -35,6 +37,7 @@ This tutorial demonstrates **distributed training and inference** using CUVIS.AI
 ### Why gRPC for ML Pipelines?
 
 **gRPC** is a high-performance RPC framework developed by Google, ideal for:
+
 - **Remote Execution** - Train models on GPU servers from local machines
 - **Microservices** - Deploy pipelines as independent services
 - **Streaming** - Real-time progress updates during training
@@ -42,6 +45,7 @@ This tutorial demonstrates **distributed training and inference** using CUVIS.AI
 - **Production-Ready** - Used by Google, Netflix, Square
 
 **CUVIS.AI gRPC Service:**
+
 - **Server:** Manages pipelines, training, and inference
 - **Clients:** Connect from anywhere to execute workflows
 - **Sessions:** Isolated contexts for concurrent users
@@ -65,6 +69,7 @@ graph LR
 ```
 
 **Workflow:**
+
 1. **Server:** Launch on GPU machine (`uv run python -m cuvis_ai.grpc.production_server`)
 2. **Client:** Connect, create session, configure pipeline
 3. **Training:** Stream progress updates back to client
@@ -90,6 +95,7 @@ uv run python -m cuvis_ai.grpc.production_server
 ```
 
 **Server Configuration:**
+
 - **Host:** `0.0.0.0` (all network interfaces)
 - **Port:** `50051` (default gRPC port)
 - **Max Message Size:** 300MB (for hyperspectral data)
@@ -138,7 +144,7 @@ CUVIS.AI follows an **explicit configuration workflow:**
 from pathlib import Path
 import numpy as np
 from cuvis_ai_core.grpc import cuvis_ai_pb2, helpers
-from workflow_utils import (
+from cuvis_ai.utils.grpc_workflow import (
     build_stub,
     config_search_paths,
     create_session_with_search_paths,
@@ -269,10 +275,10 @@ For production deployment, you typically **train once** and **infer many times**
 """Restore trained pipeline for inference using gRPC."""
 
 from pathlib import Path
-from cuvis_ai.data.datasets import SingleCu3sDataset
+from cuvis_ai_core.data.datasets import SingleCu3sDataset
 from cuvis_ai_core.grpc import cuvis_ai_pb2, helpers
 from torch.utils.data import DataLoader
-from workflow_utils import (
+from cuvis_ai.utils.grpc_workflow import (
     build_stub,
     config_search_paths,
     create_session_with_search_paths,
@@ -402,24 +408,24 @@ For production, use the provided CLI script:
 
 ```bash
 # Run inference on CU3S file
-uv run python examples/grpc/run_inference.py \
+uv run python examples/grpc/core/run_inference.py \
   --pipeline-path outputs/trained_models/channel_selector.yaml \
   --weights-path outputs/trained_models/channel_selector.pt \
   --cu3s-file-path data/lentils/Demo_000.cu3s
 
 # With custom processing mode
-uv run python examples/grpc/run_inference.py \
+uv run python examples/grpc/core/run_inference.py \
   --pipeline-path outputs/trained_models/channel_selector.yaml \
   --weights-path outputs/trained_models/channel_selector.pt \
   --cu3s-file-path data/lentils/Demo_000.cu3s \
   --processing-mode Raw
 
 # With config overrides
-uv run python examples/grpc/run_inference.py \
+uv run python examples/grpc/core/run_inference.py \
   --pipeline-path outputs/trained_models/channel_selector.yaml \
   --weights-path outputs/trained_models/channel_selector.pt \
   --cu3s-file-path data/lentils/Demo_000.cu3s \
-  --override nodes.10.params.output_dir=outputs/custom_tb
+  --override nodes.10.hparams.output_dir=outputs/custom_tb
 ```
 
 ---
@@ -457,8 +463,8 @@ resolve_trainrun_config(
     session_id,
     "channel_selector",
     overrides=[
-        "pipeline.nodes.channel_selector.params.tau_start=8.0",
-        "pipeline.nodes.channel_selector.params.tau_end=0.05",
+        "pipeline.nodes.channel_selector.hparams.tau_start=8.0",
+        "pipeline.nodes.channel_selector.hparams.tau_end=0.05",
     ],
 )
 ```
@@ -468,7 +474,7 @@ resolve_trainrun_config(
 The server resolves configs from multiple directories:
 
 ```python
-from workflow_utils import config_search_paths
+from cuvis_ai.utils.grpc_workflow import config_search_paths
 
 paths = config_search_paths()
 # Returns:
@@ -514,6 +520,7 @@ stub.Train(cuvis_ai_pb2.TrainRequest(session_id=session2, ...))
 ```
 
 **Use Cases:**
+
 - Multiple users on shared GPU server
 - A/B testing different hyperparameters
 - Production inference while training new models
@@ -535,11 +542,11 @@ The server automatically cleans up inactive sessions after a timeout (default: 1
 
 ---
 
-## Workflow Utilities (workflow_utils.py)
+## Workflow Utilities (grpc_workflow.py)
 
 ### Helper Functions
 
-The `examples/grpc/workflow_utils.py` module centralizes common operations:
+The `cuvis_ai/utils/grpc_workflow.py` module centralizes common operations:
 
 **1. Build Stub**
 ```python
@@ -761,6 +768,7 @@ def check_server_health(stub):
 **Error:** `grpc._channel._InactiveRpcError: failed to connect to all addresses`
 
 **Solutions:**
+
 1. Verify server is running:
    ```bash
    ps aux | grep production_server
@@ -799,6 +807,7 @@ stub = build_stub(
 **Error:** `Session ID not found: d4e1a8c7-9b2f-4e3a-a5d6-7f8e9c0b1a2d`
 
 **Solutions:**
+
 1. Session expired (1-hour timeout) - create new session
 2. Server restarted - sessions are not persisted
 3. Typo in session ID - verify ID is correct
@@ -808,6 +817,7 @@ stub = build_stub(
 **Error:** `ConfigResolutionError: trainrun/channel_selector not found`
 
 **Solutions:**
+
 1. Verify search paths are registered:
    ```python
    paths = config_search_paths()
@@ -833,6 +843,7 @@ stub = build_stub(
 **Error:** Server logs show `RuntimeError: CUDA out of memory`
 
 **Solutions:**
+
 1. Reduce batch size in config overrides:
    ```python
    overrides=["data.batch_size=2"]
@@ -859,6 +870,7 @@ stub = build_stub(
 You've learned how to use CUVIS.AI's gRPC service for distributed training and inference:
 
 **Key Concepts:**
+
 - **Server-Client Architecture** - Train remotely, infer anywhere
 - **Phase 5 Workflow** - CreateSession → ResolveConfig → Train → Save
 - **Streaming Progress** - Real-time updates during training
@@ -866,11 +878,13 @@ You've learned how to use CUVIS.AI's gRPC service for distributed training and i
 - **Hydra Overrides** - Dynamic configuration without editing files
 
 **Typical Workflows:**
+
 1. **Development:** Train locally (localhost:50051), iterate quickly
 2. **Production:** Deploy server on GPU cluster, clients connect remotely
 3. **Inference:** Load trained pipeline once, run inference millions of times
 
 **Performance Benefits:**
+
 - **GPU Sharing:** Multiple clients use same GPU server
 - **Network Efficiency:** gRPC uses Protocol Buffers (smaller than JSON)
 - **Streaming:** Progress updates without polling
@@ -881,16 +895,19 @@ You've learned how to use CUVIS.AI's gRPC service for distributed training and i
 ## Next Steps
 
 **Explore gRPC Documentation:**
+
 - [gRPC Overview](../grpc/overview.md) - Architecture and quick start
-- [gRPC API Reference](../grpc/api-reference.md) - Complete documentation of all 46 RPC methods
-- [Client Patterns](../grpc/client-patterns.md) - Best practices and common patterns
+- [gRPC API Reference](../grpc/api-session.md) - Current CuvisAIService API surface
+- [Client Connections & Sessions](../grpc/client-connections.md) - Connection management and session patterns
+- [Client Workflows & Error Handling](../grpc/client-workflows.md) - Configuration, training, inference, and error handling
 - [Sequence Diagrams](../grpc/sequence-diagrams.md) - Visual workflows
 
 **Deployment & Production:**
+
 - [gRPC Deployment Guide](../deployment/grpc_deployment.md) - Production deployment patterns
-- [Docker & Kubernetes](../deployment/docker-kubernetes.md) - Container orchestration
 
 **Production Checklist:**
+
 - [ ] Enable TLS encryption
 - [ ] Add authentication (API keys, OAuth)
 - [ ] Implement retry logic with exponential backoff
@@ -905,45 +922,46 @@ You've learned how to use CUVIS.AI's gRPC service for distributed training and i
 
 **End-to-End Training:**
 ```bash
-uv run python examples/grpc/complete_workflow_client.py \
+uv run python examples/grpc/core/complete_workflow_client.py \
   --trainrun deep_svdd \
   --pipeline-out outputs/trained_pipeline.yaml \
   --trainrun-out outputs/trainrun_config.yaml
 ```
-[View full source: examples/grpc/complete_workflow_client.py](../../examples/grpc/complete_workflow_client.py)
+[View full source: examples/grpc/core/complete_workflow_client.py](../../examples/grpc/core/complete_workflow_client.py)
 
 **Gradient Training:**
 ```bash
-uv run python examples/grpc/gradient_training_client.py
+uv run python examples/grpc/deep_svdd/gradient_training_client.py
 ```
-[View full source: examples/grpc/gradient_training_client.py](../../examples/grpc/gradient_training_client.py)
+[View full source: examples/grpc/deep_svdd/gradient_training_client.py](../../examples/grpc/deep_svdd/gradient_training_client.py)
 
 **Statistical Training:**
 ```bash
-uv run python examples/grpc/statistical_training_client.py
+uv run python examples/grpc/rx/statistical_training_client.py
 ```
-[View full source: examples/grpc/statistical_training_client.py](../../examples/grpc/statistical_training_client.py)
+[View full source: examples/grpc/rx/statistical_training_client.py](../../examples/grpc/rx/statistical_training_client.py)
 
 **Inference:**
 ```bash
-uv run python examples/grpc/run_inference.py \
+uv run python examples/grpc/core/run_inference.py \
   --pipeline-path outputs/trained_models/channel_selector.yaml \
   --weights-path outputs/trained_models/channel_selector.pt \
   --cu3s-file-path data/lentils/Demo_000.cu3s
 ```
-[View full source: examples/grpc/run_inference.py](../../examples/grpc/run_inference.py)
+[View full source: examples/grpc/core/run_inference.py](../../examples/grpc/core/run_inference.py)
 
 **Restore TrainRun:**
 ```bash
-uv run python examples/grpc/restore_trainrun_grpc.py \
+uv run python examples/grpc/core/restore_trainrun_grpc.py \
   --trainrun-path outputs/channel_selector/trained_models/trainrun.yaml \
   --mode validate
 ```
-[View full source: examples/grpc/restore_trainrun_grpc.py](../../examples/grpc/restore_trainrun_grpc.py)
+[View full source: examples/grpc/core/restore_trainrun_grpc.py](../../examples/grpc/core/restore_trainrun_grpc.py)
 
 ---
 
 **Need Help?**
-- Check [gRPC Client Patterns](../grpc/client-patterns.md) for common use cases
-- Review [Remote gRPC Guide](../how-to/remote-grpc.md) for deployment
-- See [API Documentation](../grpc/api-reference.md) for full RPC specifications
+
+- Check [Client Connections & Sessions](../grpc/client-connections.md) and [Client Workflows](../grpc/client-workflows.md) for common use cases
+- See [Deployment Guide](../deployment/grpc_deployment.md) for production deployment
+- See [API Documentation](../grpc/api-session.md) for full RPC specifications

@@ -19,8 +19,6 @@ Learn how to build a complete anomaly detection pipeline using the RX (Reed-Xiao
 
 **Prerequisites:**
 
-- cuvis-ai installed (`pip install cuvis-ai`)
-- Basic Python knowledge
 - Understanding of [Node System](../concepts/node-system-deep-dive.md) fundamentals
 - Familiarity with [Pipeline Lifecycle](../concepts/pipeline-lifecycle.md)
 
@@ -43,6 +41,7 @@ RX(x) = (x - \mu)^T \Sigma^{-1} (x - \mu)
 $$
 
 Where:
+
 - $x$ is the pixel spectrum
 - $\mu$ is the background mean spectrum
 - $\Sigma$ is the covariance matrix
@@ -52,12 +51,14 @@ Higher scores indicate pixels that are spectrally different from the background.
 ### When to Use RX Detection
 
 ✅ **Use RX when:**
+
 - You need unsupervised anomaly detection
 - Background follows a Gaussian distribution
 - You have hyperspectral or multispectral data
 - You want a fast, interpretable baseline
 
 ❌ **Don't use RX when:**
+
 - Background is highly non-Gaussian
 - You need deep contextual reasoning
 - You have limited initialization data
@@ -65,6 +66,7 @@ Higher scores indicate pixels that are spectrally different from the background.
 ### RX in CUVIS.AI
 
 CUVIS.AI implements RX as a **statistical node** that:
+
 1. Collects background statistics during initialization
 2. Computes covariance and mean from initialization data
 3. Calculates Mahalanobis distance for new data
@@ -118,15 +120,7 @@ data_node = LentilsAnomalyDataNode(
 )
 ```
 
-**What's Happening:**
-- `SingleCu3sDataModule`: Loads CU3S hyperspectral data format
-- `LentilsAnomalyDataNode`: Converts multi-class segmentation to binary anomaly labels
-- `normal_class_ids=[0, 1]`: Classes 0 and 1 are background; others are anomalies
-
-**Data Node Outputs:**
-- `cube`: Hyperspectral cube [B, H, W, 61] (61 spectral channels)
-- `mask`: Binary anomaly mask [B, H, W, 1]
-- `wavelengths`: Wavelength array [61]
+**Data Node Outputs:** `cube` [B, H, W, 61], `mask` [B, H, W, 1], `wavelengths` [61].
 
 ---
 
@@ -139,11 +133,7 @@ data_node = LentilsAnomalyDataNode(
 pipeline = CuvisPipeline("RX_Statistical")
 ```
 
-## Step 2: Preprocessing
-
 ### Add Preprocessing Node
-
-Normalization is critical for stable RX detection:
 
 ```python
 from cuvis_ai.node.normalization import MinMaxNormalizer
@@ -153,11 +143,6 @@ normalizer_node = MinMaxNormalizer(
     use_running_stats=True,  # Compute global min/max during training
 )
 ```
-
-**Why MinMaxNormalizer?**
-- Scales data to [0, 1] range
-- Uses running statistics computed during statistical initialization
-- Ensures stable covariance computation for RX
 
 ### Add RX Detector
 
@@ -170,11 +155,7 @@ rx_node = RXGlobal(
 )
 ```
 
-**RXGlobal** computes global background statistics from all spatial pixels.
-
-## RX Logit Head
-
-### Transform Scores to Logits
+### Add Logit Head
 
 ```python
 from cuvis_ai.node.conversion import ScoreToLogit
@@ -185,13 +166,6 @@ logit_head = ScoreToLogit(
 )
 ```
 
-**Why ScoreToLogit?**
-- Converts raw RX scores to logit space
-- Enables integration with binary cross-entropy losses
-- Makes scores more interpretable for thresholding
-
-## Decision Thresholding
-
 ### Add Decision Node
 
 ```python
@@ -199,10 +173,6 @@ from cuvis_ai.deciders.binary_decider import BinaryDecider
 
 decider_node = BinaryDecider(threshold=0.5)
 ```
-
-Applies a fixed threshold (0.5) to convert logits to binary decisions.
-
-## Metrics Tracking
 
 ### Add Metrics and Monitoring
 
@@ -306,19 +276,7 @@ stat_trainer.fit()
    - Covariance matrix $\Sigma$
    - Inverse covariance $\Sigma^{-1}$ for Mahalanobis distance
 
-**Console Output:**
-```
-[INFO] Statistical initialization starting...
-[INFO] Collecting statistics from training data...
-[INFO] MinMaxNormalizer: min=-0.123, max=1.987
-[INFO] RXGlobal: Computed background statistics (61 channels)
-[INFO] Statistical initialization complete
-```
-
-**Key Points:**
-- Only nodes with `statistical_initialization()` method are initialized
-- Normalizer and RX detector are initialized; other nodes remain frozen
-- No gradient computation occurs
+Only nodes with a `statistical_initialization()` method are initialized (normalizer and RX detector). No gradient computation occurs.
 
 ---
 
@@ -331,29 +289,15 @@ logger.info("Running validation evaluation...")
 stat_trainer.validate()
 ```
 
-**Validation Output:**
-```
-[INFO] Validation metrics (epoch 0):
-  metrics_anomaly/iou: 0.723
-  metrics_anomaly/precision: 0.812
-  metrics_anomaly/recall: 0.801
-  metrics_anomaly/f1: 0.806
-```
-
 ### Test Evaluation
 
 ```python
-logger.info("Running test evaluation...")
 stat_trainer.test()
 ```
-
-**Test metrics** are computed on held-out test data to measure generalization.
 
 ---
 
 ## Step 5: Results Visualization
-
-## Visualization with TensorBoard
 
 ```bash
 tensorboard --logdir=runs/tensorboard
@@ -368,8 +312,6 @@ Navigate to http://localhost:6006 to see:
   - Predicted anomaly mask
   - Anomaly score heatmap
 
-## Visualization
-
 **Anomaly Detection Metrics:**
 
 | Metric | Description | Good Range |
@@ -379,12 +321,7 @@ Navigate to http://localhost:6006 to see:
 | Recall | True Positives / Actual Positives | > 0.7 |
 | F1 | Harmonic mean of precision and recall | > 0.75 |
 
-## Visualization with Sigmoid
-
-**Example Visualization:**
-- **Green pixels**: Correct detections (true positives)
-- **Red pixels**: False alarms (false positives)
-- **Blue pixels**: Missed anomalies (false negatives)
+**Visualization color coding:** Green = true positives, Red = false positives, Blue = false negatives.
 
 ---
 
@@ -409,6 +346,7 @@ pipeline.save_to_file(
 ```
 
 **Created Files:**
+
 - `RX_Statistical.yaml`: Pipeline structure and configuration
 - `RX_Statistical.pt`: Trained weights (normalizer stats, RX covariance)
 
@@ -432,13 +370,6 @@ trainrun_config = TrainRunConfig(
 trainrun_config.save_to_file("outputs/trained_models/rx_statistical_trainrun.yaml")
 ```
 
-**TrainRun Config** captures:
-- Complete pipeline structure
-- Data configuration
-- Training parameters
-- Metric and loss nodes
-- Freeze/unfreeze strategy
-
 ### Restore Pipeline Later
 
 ```python
@@ -452,210 +383,59 @@ restored_pipeline = CuvisPipeline.load_from_file(
 
 ---
 
-## Complete Example Script
+## Complete Example
 
-Here's the full runnable script (`examples/rx_statistical.py`):
+The full runnable script is at `examples/rx_statistical.py`. Run it with:
 
-```python
-from pathlib import Path
-import hydra
-from cuvis_ai_core.data.datasets import SingleCu3sDataModule
-from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
-from cuvis_ai_core.training import StatisticalTrainer
-from cuvis_ai_core.training.config import PipelineMetadata
-from loguru import logger
-from omegaconf import DictConfig
-
-from cuvis_ai.anomaly.rx_detector import RXGlobal
-from cuvis_ai.node.conversion import ScoreToLogit
-from cuvis_ai.deciders.binary_decider import BinaryDecider
-from cuvis_ai.node.data import LentilsAnomalyDataNode
-from cuvis_ai.node.metrics import AnomalyDetectionMetrics
-from cuvis_ai.node.monitor import TensorBoardMonitorNode
-from cuvis_ai.node.normalization import MinMaxNormalizer
-from cuvis_ai.node.anomaly_visualization import AnomalyMask
-
-
-@hydra.main(config_path="../configs/", config_name="trainrun/default_statistical", version_base=None)
-def main(cfg: DictConfig) -> None:
-    """Statistical RX Anomaly Detection Tutorial."""
-
-    logger.info("=== RX Statistical Anomaly Detection ===")
-    output_dir = Path(cfg.output_dir)
-
-    # Stage 1: Setup datamodule
-    datamodule = SingleCu3sDataModule(**cfg.data)
-    datamodule.setup(stage="fit")
-
-    # Stage 2: Build pipeline
-    pipeline = CuvisPipeline("RX_Statistical")
-
-    data_node = LentilsAnomalyDataNode(normal_class_ids=[0, 1])
-    normalizer_node = MinMaxNormalizer(eps=1.0e-6, use_running_stats=True)
-    rx_node = RXGlobal(num_channels=61, eps=1.0e-6)
-    logit_head = ScoreToLogit(init_scale=1.0, init_bias=0.0)
-    decider_node = BinaryDecider(threshold=0.5)
-    metrics_anomaly = AnomalyDetectionMetrics(name="metrics_anomaly")
-    viz_mask = AnomalyMask(name="mask", channel=30, up_to=5)
-    tensorboard_node = TensorBoardMonitorNode(
-        output_dir=str(output_dir / ".." / "tensorboard"),
-        run_name=pipeline.name,
-    )
-
-    # Stage 3: Connect graph
-    pipeline.connect(
-        (data_node.outputs.cube, normalizer_node.data),
-        (normalizer_node.normalized, rx_node.data),
-        (rx_node.scores, logit_head.scores),
-        (logit_head.logits, decider_node.logits),
-        (decider_node.decisions, metrics_anomaly.decisions),
-        (data_node.outputs.mask, metrics_anomaly.targets),
-        (metrics_anomaly.metrics, tensorboard_node.metrics),
-        (decider_node.decisions, viz_mask.decisions),
-        (data_node.outputs.mask, viz_mask.mask),
-        (data_node.outputs.cube, viz_mask.cube),
-        (viz_mask.artifacts, tensorboard_node.artifacts),
-    )
-
-    # Stage 4: Statistical initialization
-    stat_trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
-    stat_trainer.fit()
-
-    # Stage 5: Evaluation
-    logger.info("Running validation...")
-    stat_trainer.validate()
-
-    logger.info("Running test...")
-    stat_trainer.test()
-
-    # Stage 6: Save pipeline
-    results_dir = output_dir / "trained_models"
-    pipeline_output_path = results_dir / f"{pipeline.name}.yaml"
-
-    pipeline.save_to_file(
-        str(pipeline_output_path),
-        metadata=PipelineMetadata(
-            name=pipeline.name,
-            description="RX Statistical Detector",
-            tags=["statistical", "rx"],
-            author="cuvis.ai",
-        ),
-    )
-
-    logger.info(f"Pipeline saved: {pipeline_output_path}")
-    logger.info(f"TensorBoard logs: {tensorboard_node.output_dir}")
-
-
-if __name__ == "__main__":
-    main()
-```
-
-**Run the example:**
 ```bash
 python examples/rx_statistical.py
 ```
 
 ---
 
-## Troubleshooting
+???+ tip "Troubleshooting"
 
-### Issue: Low IoU (<0.5)
+    ### Issue: Low IoU (<0.5)
 
-**Symptoms:** Poor anomaly detection performance
+    **Possible Causes:** Insufficient initialization data, normal classes incorrectly specified, threshold too high/low.
 
-**Possible Causes:**
-1. Insufficient initialization data
-2. Normal classes incorrectly specified
-3. Threshold too high/low
+    ```python
+    # 1. Increase initialization data
+    datamodule = SingleCu3sDataModule(batch_size=8)  # Larger batches
 
-**Solutions:**
-```python
-# 1. Increase initialization data
-datamodule = SingleCu3sDataModule(batch_size=8)  # Larger batches
+    # 2. Verify normal class IDs
+    data_node = LentilsAnomalyDataNode(
+        normal_class_ids=[0, 1],  # Double-check which classes are normal
+    )
 
-# 2. Verify normal class IDs
-data_node = LentilsAnomalyDataNode(
-    normal_class_ids=[0, 1],  # Double-check which classes are normal
-)
+    # 3. Adjust threshold
+    decider_node = BinaryDecider(threshold=0.3)  # Lower threshold for more detections
+    ```
 
-# 3. Adjust threshold
-decider_node = BinaryDecider(threshold=0.3)  # Lower threshold for more detections
-```
+    ### Issue: Memory Error During Training
 
-### Issue: Memory Error During Training
+    Reduce batch size:
+    ```python
+    datamodule = SingleCu3sDataModule(batch_size=2, num_workers=0)
+    ```
 
-**Solution:** Reduce batch size:
-```python
-datamodule = SingleCu3sDataModule(
-    batch_size=2,  # Reduce from 4
-    num_workers=0,
-)
-```
+    ### Issue: NaN in RX Scores
 
-### Issue: NaN in RX Scores
+    Singular covariance matrix — increase epsilon:
+    ```python
+    rx_node = RXGlobal(num_channels=61, eps=1.0e-4)
+    ```
 
-**Cause:** Singular covariance matrix (insufficient diversity in training data)
+    ### Issue: TensorBoard Not Showing Visualizations
 
-**Solution:**
-```python
-# Increase epsilon for numerical stability
-rx_node = RXGlobal(num_channels=61, eps=1.0e-4)  # Larger epsilon
-```
+    Visualization node execution stage mismatch:
+    ```python
+    from cuvis_ai_schemas.enums import ExecutionStage
 
-### Issue: TensorBoard Not Showing Visualizations
-
-**Cause:** Visualization node execution stage mismatch
-
-**Solution:**
-```python
-from cuvis_ai_schemas.enums import ExecutionStage
-
-# Ensure visualization runs during validation/test
-viz_mask = AnomalyMask(
-    name="mask",
-    channel=30,
-    up_to=5,
-    execution_stages={ExecutionStage.VAL, ExecutionStage.TEST},
-)
-```
-
----
-
-## Next Steps
-
-**Build on this tutorial:**
-
-1. **[Channel Selector Tutorial](channel-selector.md)** - Add learnable channel selection with gradient training
-2. **[Deep SVDD Tutorial](deep-svdd-gradient.md)** - Replace RX with deep learning one-class detector
-3. **[gRPC Workflow](grpc-workflow.md)** - Deploy this pipeline as a remote service
-
-**Explore related concepts:**
-
-- [Two-Phase Training](../concepts/two-phase-training.md) - Combine statistical initialization with gradient optimization
-- [Execution Stages](../concepts/execution-stages.md) - Control when nodes execute (train/val/test)
-- [Node System Deep Dive](../concepts/node-system-deep-dive.md) - Learn to create custom nodes
-
-**Explore related nodes:**
-
-- [RXGlobal Node](../node-catalog/statistical.md#rxglobal) - Detailed RX implementation
-- [MinMaxNormalizer](../node-catalog/preprocessing.md#minmaxnormalizer) - Normalization strategies
-- [AnomalyDetectionMetrics](../node-catalog/loss-metrics.md#anomalydetectionmetrics) - Metrics reference
-
----
-
-## Summary
-
-In this tutorial, you learned:
-
-✅ How to build a statistical anomaly detection pipeline
-✅ How to initialize nodes with statistical training
-✅ How to evaluate and visualize results
-✅ How to save and restore trained pipelines
-
-**Key Takeaways:**
-- RX detection is a fast, interpretable baseline for hyperspectral anomaly detection
-- Statistical initialization computes background statistics without gradients
-- Pipeline serialization enables reproducibility and deployment
-- TensorBoard provides comprehensive monitoring and visualization
-
-Now you're ready to explore more advanced training strategies with gradient-based optimization!
+    viz_mask = AnomalyMask(
+        name="mask",
+        channel=30,
+        up_to=5,
+        execution_stages={ExecutionStage.VAL, ExecutionStage.TEST},
+    )
+    ```

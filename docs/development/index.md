@@ -34,5 +34,6 @@ Contributing to CUVIS.AI development and following best practices.
 ---
 
 **Related Pages:**
+
 - [Add Built-in Node](../how-to/add-builtin-node.md)
-- [Plugin Development](../plugin-system/development.md)
+- [Plugin Development](../plugin-system/dev-quickstart.md)

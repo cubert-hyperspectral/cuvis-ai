@@ -5,13 +5,7 @@
 
 # Data API
 
-Data loading and preprocessing nodes.
-
-## Overview
-
-Data loading functionality in CUVIS.AI is provided through data nodes. See the complete node documentation below.
-
----
+Current data entry, reader, and frame-stream APIs.
 
 ## Data Nodes
 
@@ -20,9 +14,28 @@ Data loading functionality in CUVIS.AI is provided through data nodes. See the c
       show_root_heading: true
       heading_level: 3
 
----
+## Tracking JSON Readers
+
+::: cuvis_ai.node.json_reader
+    options:
+      show_root_heading: true
+      heading_level: 3
+
+## NumPy Readers
+
+::: cuvis_ai.node.numpy_reader
+    options:
+      show_root_heading: true
+      heading_level: 3
+
+## Video Datasets And Frame Sources
+
+::: cuvis_ai.node.video
+    options:
+      show_root_heading: true
+      heading_level: 3
 
 ## Related Pages
 
 - [Data Nodes Catalog](../node-catalog/data-nodes.md)
-- [Quickstart Guide](../user-guide/quickstart.md)
+- [Output Nodes](../node-catalog/output.md)

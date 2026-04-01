@@ -470,6 +470,7 @@ class DeepSVDDCenterTracker(Node):
         -------
         dict[str, Any]
             Dictionary with:
+
             - "center" : torch.Tensor [D] - Current tracked center
             - "metrics" : list[Metric] - Center norm metric
 

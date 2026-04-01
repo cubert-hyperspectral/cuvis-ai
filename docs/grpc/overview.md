@@ -27,17 +27,20 @@ gRPC is ideal for hyperspectral imaging ML workflows because it provides:
 ### Use Cases
 
 **Development & Research:**
+
 - Train models on remote GPU servers while developing on local machines
 - Share trained pipelines across teams without copying large model files
 - Run experiments concurrently with isolated sessions
 
 **Production Deployment:**
+
 - Deploy pipelines as stateless microservices behind load balancers
 - Scale inference horizontally across multiple server instances
 - Integrate with existing microservice architectures
 - Build web applications or mobile clients that access ML models
 
 **Distributed Processing:**
+
 - Process large datasets across multiple machines
 - Batch inference on remote hardware
 - A/B testing with concurrent sessions
@@ -59,7 +62,7 @@ graph TB
     end
 
     subgraph "gRPC Server: localhost:50051"
-        SVC[CuvisAIService<br/>46 RPC Methods]
+        SVC[CuvisAIService<br/>Current RPC Surface]
         SM[Session Manager]
         CS[Config Service<br/>Hydra Integration]
         PM[Pipeline Manager]
@@ -99,55 +102,61 @@ graph TB
 ```
 
 **1. CuvisAIService**
-- Single unified service with 46 RPC methods
+
+- Single unified service for the current remote API surface
 - Handles all client requests via Protocol Buffers
 - Listens on port 50051 by default
 - Supports concurrent sessions from multiple clients
 
 **2. Session Manager**
+
 - Creates isolated execution contexts (sessions)
 - Each session has independent pipeline, data, and training state
 - Automatic cleanup after 1 hour of inactivity
 - Enables concurrent users without interference
 
 **3. Config Service**
+
 - Integrates with Hydra configuration framework
 - Resolves config groups with composition and inheritance
 - Supports dynamic overrides at request time
 - Validates configurations before application
 
 **4. Pipeline Manager**
+
 - Loads pipelines from YAML configs or Protocol Buffers
 - Manages pipeline weights and checkpoints
 - Provides introspection (inputs, outputs, visualization)
 - Handles save/restore operations
 
 **5. Training Engine**
+
 - Executes statistical and gradient training
 - Streams real-time progress updates to clients
 - Manages optimizer state and learning rate schedules
 - Supports two-phase training patterns
 
 **6. Inference Engine**
+
 - Runs predictions on trained pipelines
 - Supports input/output filtering to reduce payload size
 - Handles batched inference efficiently
 - Manages GPU memory automatically
 
-### RPC Methods (46 Total)
+### RPC Method Families
 
-The CuvisAIService provides 46 RPC methods organized into 6 functional areas:
+The CuvisAIService groups its current RPCs into functional areas:
 
-| Category | Methods | Purpose |
-|----------|---------|---------|
-| **Session Management** | 3 | Create, configure, and close sessions |
-| **Configuration** | 4 | Resolve, validate, and apply Hydra configs |
-| **Pipeline Management** | 5 | Load, save, and introspect pipelines |
-| **Training Operations** | 3 | Execute statistical/gradient training |
-| **Inference Operations** | 1 | Run predictions on trained models |
-| **Discovery & Introspection** | 6+ | List pipelines, get capabilities, visualize graphs |
+| Category | Purpose |
+|----------|---------|
+| **Session Management** | Create, configure, and close sessions |
+| **Configuration** | Resolve, validate, and apply Hydra configs |
+| **Pipeline Management** | Load, save, and introspect pipelines |
+| **Training Operations** | Execute statistical/gradient training |
+| **Inference Operations** | Run predictions on trained models |
+| **Discovery & Introspection** | List pipelines, get capabilities, visualize graphs |
 
-For complete method documentation, see the [gRPC API Reference](api-reference.md).
+For complete method documentation, see the [gRPC API Reference](api-session.md).
 
 ---
 
@@ -278,7 +287,7 @@ response = stub.ResolveConfig(
 )
 ```
 
-See [Hydra Composition Patterns](../config/hydra-composition.md) for details.
+See [Hydra Composition Patterns](../config/hydra-basics.md) for details.
 
 ### Streaming Updates: Real-Time Progress
 
@@ -353,14 +362,15 @@ Release all resources and clean up GPU memory.
 
 **Helper Utilities:**
 
-The `examples/grpc/workflow_utils.py` module provides convenience functions:
+The `cuvis_ai/utils/grpc_workflow.py` module provides convenience functions:
+
 - `build_stub()` - Create configured gRPC stub
 - `create_session_with_search_paths()` - Combine phases 1-2
 - `resolve_trainrun_config()` - Hydra config resolution
 - `apply_trainrun_config()` - Apply resolved config
 - `format_progress()` - Pretty-print training updates
 
-See [gRPC Client Patterns](client-patterns.md) for complete usage examples.
+See [Client Connections & Sessions](client-connections.md) and [Client Workflows & Error Handling](client-workflows.md) for complete usage examples.
 
 ---
 
@@ -369,6 +379,7 @@ See [gRPC Client Patterns](client-patterns.md) for complete usage examples.
 Hyperspectral imaging cubes can be very large (100s of MB). Configure message size limits appropriately:
 
 ### Default Limits
+
 - **gRPC Default:** 4 MB (too small for hyperspectral data)
 - **CUVIS.AI Default:** 300 MB (suitable for most workflows)
 - **Recommended for Large Data:** 600 MB
@@ -460,17 +471,21 @@ See the [Deployment Guide](../deployment/grpc_deployment.md) for complete instru
 ## See Also
 
 ### gRPC Documentation
-- [gRPC API Reference](api-reference.md) - Complete documentation of all 46 RPC methods
-- [Client Patterns](client-patterns.md) - Common usage patterns and best practices
+
+- [gRPC API Reference](api-session.md) - Current CuvisAIService API surface
+- [Client Connections & Sessions](client-connections.md) - Connection management and session patterns
+- [Client Workflows & Error Handling](client-workflows.md) - Configuration, training, inference, and error handling
 - [Sequence Diagrams](sequence-diagrams.md) - Visual workflows for all major operations
 
 ### Tutorials & How-To Guides
+
 - [gRPC Workflow Tutorial](../tutorials/grpc-workflow.md) - Hands-on tutorial with complete examples
-- [Remote gRPC Access](../how-to/remote-grpc.md) - Detailed how-to guide with 5 client examples
 
 ### Configuration
+
 - [TrainRun Schema](../config/trainrun-schema.md) - Complete trainrun configuration reference
-- [Hydra Composition](../config/hydra-composition.md) - Config composition patterns and overrides
+- [Hydra Composition](../config/hydra-basics.md) - Config composition patterns and overrides
 
 ### Deployment
+
 - [Deployment Guide](../deployment/grpc_deployment.md) - Docker, Kubernetes, and production patterns

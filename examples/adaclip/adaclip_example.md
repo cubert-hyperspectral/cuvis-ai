@@ -15,6 +15,7 @@ The AdaCLIP workflow follows a **plugin → run script → copy artifacts → re
 5. **Use in cuvis.ai**: Use `restore_trainrun` for training/validation/test or `restore_pipeline` for inference
 
 This workflow ensures that:
+
 - No manual package installation required (plugin system handles loading)
 - Training happens using plugin-loaded nodes
 - Trained artifacts are version-controlled in cuvis.ai for reproducibility
@@ -41,6 +42,7 @@ AdaCLIPDetector = NodeRegistry.get("cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDe
 ```
 
 **Key Point:** `load_plugins()` and `load_plugin()` are **instance methods** (require creating a `NodeRegistry` instance first), while `get()` works as both a class and instance method. This is by design from Phase 4's hybrid architecture:
+
 - Built-in nodes: accessed via class method `NodeRegistry.get("MinMaxNormalizer")`
 - Plugin nodes: require instance-based loading first, then can be accessed via class method `NodeRegistry.get("plugin.node.Class")`
 
@@ -120,6 +122,7 @@ Loading AdaCLIP plugin from manifest: configs/plugins/adaclip.yaml
 ```
 
 **What this generates:**
+
 - `outputs/adaclip_baseline/trained_models/adaclip_baseline.yaml` - Complete pipeline configuration
 - `outputs/adaclip_baseline/trained_models/adaclip_baseline.pt` - Model weights
 - `outputs/adaclip_baseline/trainrun.yaml` - Complete trainrun configuration (pipeline + data + training)
@@ -177,6 +180,7 @@ output_dir: outputs\adaclip_baseline
 ```
 
 **Key points:**
+
 - The `defaults` section uses Hydra's composition to merge pipeline, data, and training configs
 - The `@pipeline`, `@data`, `@training` syntax creates separate config groups
 - You can override any values from the defaults in the main config
@@ -258,7 +262,7 @@ Use gRPC for remote inference:
 uv run python -m cuvis_ai.grpc.production_server
 
 # Run gRPC client (in another terminal)
-python examples/grpc/adaclip_client.py
+python examples/grpc/adaclip/adaclip_client.py
 ```
 
 ## Working with Custom Data
@@ -364,6 +368,7 @@ defaults:
 ```
 
 This allows:
+
 - **Separation of concerns**: Pipeline, data, and training configs are separate
 - **Reusability**: Same pipeline config can be used with different data/training configs
 - **Override flexibility**: Override any value from defaults in the main config
@@ -372,6 +377,7 @@ This allows:
 ### Statistical vs Gradient Training
 
 AdaCLIP uses **statistical training only** (no gradient-based training):
+
 - Statistical nodes (like `SupervisedCIRBandSelector`) require an initial `fit()` call
 - No trainable parameters that need gradient optimization
 - Use `StatisticalTrainer` instead of `GradientTrainer`

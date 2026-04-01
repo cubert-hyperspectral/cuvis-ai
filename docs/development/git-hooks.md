@@ -24,6 +24,7 @@ This tells Git to use the version-controlled hooks in `.githooks/` instead of th
 ### Pre-commit Hook
 **Purpose**: Fast quality checks on every commit  
 **Actions**:
+
 - Runs `uv run ruff format .` (formats code first)
 - Runs `uv run ruff check . --fix` (auto-fixes linting issues on formatted code)
 - Auto-stages formatted files
@@ -33,6 +34,7 @@ This tells Git to use the version-controlled hooks in `.githooks/` instead of th
 ### Pre-push Hook
 **Purpose**: Comprehensive validation before pushing to remote
 **Actions**:
+
 - Runs `uv run ruff format .` (formatting first)
 - Runs `uv run ruff check . --fix` (linting on formatted code)
 - Runs `interrogate -v cuvis_ai/ --fail-under 95` (docstring coverage check)
@@ -71,24 +73,28 @@ git push --no-verify
 ## What Gets Checked
 
 ### Linting (Ruff)
+
 - Code style compliance (E, F, W, I, B, UP, C4 rules)
 - Import sorting
 - Type annotation requirements (for public functions)
 - Configured in `pyproject.toml` under `[tool.ruff]`
 
 ### Formatting (Ruff)
+
 - Consistent code formatting
 - Line length: 100 characters
 - Double quotes for strings
 - 4-space indentation
 
 ### Docstring Coverage (interrogate)
+
 - Checks all modules in `cuvis_ai/` package
 - Requires ≥95% docstring coverage
 - Blocks push if coverage is below threshold
 - Only runs on pre-push (not pre-commit)
 
 ### Testing (pytest)
+
 - All tests in `tests/` directory
 - Excludes GPU-marked tests (`-m "not gpu"`)
 - Verbose output with line-level tracebacks
@@ -109,6 +115,7 @@ ls -la .git/hooks/pre-commit .git/hooks/pre-push
 
 ### Ruff Errors
 If Ruff reports errors that can't be auto-fixed:
+
 1. Read the error message carefully
 2. Fix the issue manually
 3. Stage the changes
@@ -116,6 +123,7 @@ If Ruff reports errors that can't be auto-fixed:
 
 ### Test Failures
 If tests fail during pre-push:
+
 1. Run tests locally: `uv run pytest tests/ -v --tb=line -m "not gpu"`
 2. Fix the failing tests
 3. Ensure all tests pass locally
@@ -123,6 +131,7 @@ If tests fail during pre-push:
 
 ### Performance Issues
 If pre-push is too slow:
+
 - Consider using `--no-verify` for WIP branches (but fix before final merge)
 - Or temporarily disable GPU tests marker in your local environment
 - Remember: CI will run full test suite anyway
@@ -131,6 +140,7 @@ If pre-push is too slow:
 
 ### Updating Hook Scripts
 Hooks are located in `.githooks/`:
+
 - `.githooks/pre-commit` - Pre-commit checks (formatting + linting)
 - `.githooks/pre-push` - Pre-push checks (formatting + linting + docstrings + tests)
 

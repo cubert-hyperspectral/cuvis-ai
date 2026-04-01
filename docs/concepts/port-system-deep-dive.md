@@ -354,34 +354,7 @@ graph LR
     style U fill:#2196f3
 ```
 
-**Data Flow Explanation:**
-
-1. **Main Processing Chain:** Input → MinMaxNormalizer → SoftChannelSelector → TrainablePCA → RXGlobal → Anomaly Scores
-2. **Regularization Branch:** Selector weights feed into entropy and diversity regularizers
-3. **Loss Aggregation:** Three loss nodes (BCE, entropy, diversity) are registered with GradientTrainer
-4. **Visualization Branch:** Scores and heatmaps feed into monitoring system
-
-**Code Example:**
-
 ```python
-from cuvis_ai.node.normalization import MinMaxNormalizer
-from cuvis_ai.node.channel_selector import SoftChannelSelector
-from cuvis_ai.node.dimensionality_reduction import TrainablePCA
-from cuvis_ai.anomaly.rx_detector import RXGlobal
-from cuvis_ai.node.losses import AnomalyBCEWithLogits, SelectorEntropyRegularizer, SelectorDiversityRegularizer
-from cuvis_ai.node.anomaly_visualization import ScoreHeatmapVisualizer
-
-# Create nodes
-normalizer = MinMaxNormalizer(eps=1e-6)
-selector = SoftChannelSelector(n_select=15, input_channels=61)
-pca = TrainablePCA(n_components=10, input_dim=15)
-rx = RXGlobal(num_channels=10)
-bce_loss = AnomalyBCEWithLogits(name="bce", weight=10.0)
-entropy_loss = SelectorEntropyRegularizer(name="entropy", weight=0.1)
-diversity_loss = SelectorDiversityRegularizer(name="diversity", weight=0.01)
-heatmap = ScoreHeatmapVisualizer(name="heatmap")
-
-# Connect pipeline
 pipeline.connect(
     # Main processing chain
     (data_node.cube, normalizer.data),
@@ -395,14 +368,6 @@ pipeline.connect(
     (selector.weights, diversity_loss.weights),
     # Visualization
     (rx.scores, heatmap.scores),
-)
-
-# Register loss nodes with trainer
-grad_trainer = GradientTrainer(
-    pipeline=pipeline,
-    datamodule=datamodule,
-    loss_nodes=[bce_loss, entropy_loss, diversity_loss],
-    ...
 )
 ```
 
@@ -455,135 +420,42 @@ class AdaptiveNode(Node):
 
 ## Best Practices
 
-1. **Descriptive Port Names**
-
-```python
-OUTPUT_SPECS = {
-    "anomaly_scores": PortSpec(...),
-    "feature_embeddings": PortSpec(...),
-    "class_probabilities": PortSpec(...)
-}
-```
-
-2. **Explicit Data Types**
-
-```python
-PortSpec(dtype=torch.float32, shape=(-1, 128))
-# NOT: dtype=torch.Tensor (too generic)
-```
-
-3. **Document Port Requirements**
-
-```python
-INPUT_SPECS = {
-    "hyperspectral_cube": PortSpec(
-        dtype=torch.float32,
-        shape=(-1, -1, -1, 61),
-        description="""
-        Format: BHWC (Batch, Height, Width, Channels)
-        Channels: 61 spectral bands (400-1000nm)
-        Normalization: Values in [0, 1]
-        """
-    )
-}
-```
-
-4. **Validate in forward()**
-
-```python
-def forward(self, data: torch.Tensor, **_):
-    if data.ndim != 4:
-        raise ValueError(f"Expected 4D tensor (BHWC), got {data.ndim}D")
-    if data.shape[-1] != self.expected_channels:
-        raise ValueError(f"Expected {self.expected_channels} channels, got {data.shape[-1]}")
-    if data.min() < 0 or data.max() > 1:
-        raise ValueError("Data must be in [0, 1] range")
-```
-
-5. **Handle Optional Ports Gracefully**
-
-```python
-def forward(
-    self,
-    data: torch.Tensor,
-    mask: torch.Tensor | None = None,
-    weights: torch.Tensor | None = None,
-    **_
-):
-    if mask is None:
-        mask = torch.ones_like(data[..., 0], dtype=torch.bool)
-    if weights is None:
-        weights = torch.ones(data.shape[-1], device=data.device)
-    return self._process(data, mask, weights)
-```
+| Practice | Guidance |
+|----------|----------|
+| Descriptive port names | `anomaly_scores`, `feature_embeddings` -- not `out1`, `data` |
+| Explicit data types | `dtype=torch.float32` -- not `torch.Tensor` (too generic) |
+| Document port requirements | Use the `description` field with format, range, and channel info |
+| Handle optional ports | Default `None` args to sensible values (e.g., all-ones mask) |
 
 ---
 
-## Troubleshooting
+???+ tip "Troubleshooting"
 
-### Type Mismatch
+    **Type Mismatch** (`PortCompatibilityError: dtype mismatch`) -- Use consistent dtypes:
 
-```
-PortCompatibilityError: Cannot connect ports: dtype mismatch
-  Source: normalizer (torch.float32)
-  Target: analyzer (torch.float64)
-```
+    ```python
+    normalizer = MinMaxNormalizer(dtype=torch.float32)
+    analyzer = RXGlobal(dtype=torch.float32)
+    ```
 
-**Fix:** Use consistent dtypes
+    **Shape Mismatch** (`PortCompatibilityError: shape mismatch`) -- Align node dimensions:
 
-```python
-normalizer = MinMaxNormalizer(dtype=torch.float32)
-analyzer = RXGlobal(dtype=torch.float32)
-```
+    ```python
+    selector = SoftChannelSelector(n_select=61, input_channels=61)
+    rx_node = RXGlobal(num_channels=61)
+    ```
 
-### Shape Mismatch
+    **Missing Required Port** -- Connect all required ports before running:
 
-```
-PortCompatibilityError: Cannot connect ports: shape mismatch
-  Source: selector (shape: (-1, -1, -1, 10))
-  Target: rx_node (shape: (-1, -1, -1, 61))
-```
+    ```python
+    pipeline.connect((source.result, rx_node.data))
+    ```
 
-**Fix:** Update node configuration
+    **Symbolic Dimension Not Found** (`AttributeError`) -- Store the attribute **before** `super().__init__()`:
 
-```python
-selector = SoftChannelSelector(n_select=61, input_channels=61)
-rx_node = RXGlobal(num_channels=61)
-```
-
-### Missing Required Port
-
-**Fix:** Connect all required ports
-
-```python
-pipeline.connect((source.result, rx_node.data))
-```
-
-### Symbolic Dimension Not Found
-
-```
-AttributeError: 'SelectorNode' has no attribute 'n_channels'
-```
-
-**Fix:** Store attribute before super().__init__()
-
-```python
-class SelectorNode(Node):
-    def __init__(self, n_channels: int, **kwargs):
-        self.n_channels = n_channels  # MUST be before super()
-        super().__init__(**kwargs)
-
-    OUTPUT_SPECS = {
-        "selected": PortSpec(torch.float32, (-1, -1, -1, "n_channels"))
-    }
-```
-
----
-
-## Related Documentation
-
-* → [Node System Deep Dive](node-system-deep-dive.md) - Node I/O and port usage
-* → [Pipeline Lifecycle](pipeline-lifecycle.md) - Node integration in pipelines
-* → [Two-Phase Training](two-phase-training.md) - Statistical initialization
-* → [Building Pipelines (Python)](../how-to/build-pipeline-python.md) - Practical construction
-* → [Building Pipelines (YAML)](../how-to/build-pipeline-yaml.md) - Configuration-based construction
+    ```python
+    class SelectorNode(Node):
+        def __init__(self, n_channels: int, **kwargs):
+            self.n_channels = n_channels  # MUST be before super()
+            super().__init__(**kwargs)
+    ```

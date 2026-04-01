@@ -155,6 +155,7 @@ class AdaCLIPLocalNode(HuggingFaceLocalNode):
         -------
         dict[str, Tensor]
             Dictionary containing:
+
             - "anomaly_mask" : Tensor [B, 1, 1, 1] - Binary anomaly predictions
             - "anomaly_scores" : Tensor [B, 1, 1, 1] - Normalized anomaly scores [0, 1]
 

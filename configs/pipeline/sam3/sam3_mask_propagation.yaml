@@ -1,0 +1,47 @@
+metadata:
+  name: SAM3_Mask_Propagation
+  description: SAM3 runtime-mask propagation with CU3S source-domain frame mapping
+  tags:
+    - tracking
+    - sam3
+    - mask-prompt
+    - false-rgb
+    - video
+  author: cuvis.ai
+
+nodes:
+  - name: cu3s_data
+    class_name: cuvis_ai.node.data.CU3SDataNode
+    hparams: {}
+
+  - name: false_rgb
+    class_name: cuvis_ai.node.channel_selector.CIETristimulusFalseRGBSelector
+    hparams: {}
+
+  - name: sam3_tracker
+    class_name: cuvis_ai_sam3.node.SAM3MaskPropagation
+    hparams: {}
+
+  - name: tracking_coco_json
+    class_name: cuvis_ai.node.json_writer.CocoTrackMaskWriter
+    hparams:
+      output_json_path: outputs/tracking_results.json
+      default_category_name: person
+
+connections:
+  - source: cu3s_data.outputs.cube
+    target: false_rgb.inputs.cube
+  - source: cu3s_data.outputs.wavelengths
+    target: false_rgb.inputs.wavelengths
+  - source: false_rgb.outputs.rgb_image
+    target: sam3_tracker.inputs.rgb_frame
+  - source: cu3s_data.outputs.mesu_index
+    target: sam3_tracker.inputs.frame_id
+  - source: cu3s_data.outputs.mesu_index
+    target: tracking_coco_json.inputs.frame_id
+  - source: sam3_tracker.outputs.mask
+    target: tracking_coco_json.inputs.mask
+  - source: sam3_tracker.outputs.object_ids
+    target: tracking_coco_json.inputs.object_ids
+  - source: sam3_tracker.outputs.detection_scores
+    target: tracking_coco_json.inputs.detection_scores
