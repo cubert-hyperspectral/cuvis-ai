@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Added `TextPrompt`, scheduled `--prompt <text@frame_id>` parsing, and updated local/gRPC SAM3 text-propagation examples to drive `SAM3TextPropagation` through a runtime `text_prompt` port instead of constructor hparams.
+- Changed tracking JSON export so `CocoTrackMaskWriter` can consume optional `category_ids` and `category_semantics` inputs, preserving the old single-category behavior when they are absent and writing multi-category `categories` headers when they are present.
+- Renamed `CocoTrackMaskWriter(category_name=...)` to `CocoTrackMaskWriter(default_category_name=...)`, changed the default fallback label to `"object"`, and clarified that this constructor value is only the fallback label when `category_semantics` is absent.
+- Updated SAM3 text-propagation pipeline YAMLs and example docs to match runtime text prompting plus category-aware tracking JSON output.
 - Added SAM3 prompt-free segment-everything tooling: `SAM3SegmentEverything`, local CLI wiring, and CU3S/video pipeline YAMLs for per-frame automatic mask generation with overlay/video/JSON outputs.
 - Added runtime SAM3 bbox propagation tooling: `BBoxPrompt`, local/gRPC bbox-propagation examples, and CU3S/video bbox-propagation pipeline YAMLs using scheduled `--prompt <object_id:detection_id@frame_id>` bbox updates from detection JSON.
 - Changed local SAM3 bbox propagation from the archived `--detection` single-seed flow to the same scheduled prompt contract used by mask propagation, including optional bbox prompt debug overlays.

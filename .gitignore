@@ -214,3 +214,6 @@ output/
 tracking_output/
 .tmp_*/
 data_/*
+examples/blood_perfusion/html_course/
+examples/blood_perfusion/jupyter/
+examples/blood_perfusion/NDVIColormap.hpp
