@@ -27,6 +27,7 @@ from sam3_source_context import (
 
 from cuvis_ai.node.anomaly_visualization import TrackingOverlayNode
 from cuvis_ai.node.json_writer import CocoTrackMaskWriter
+from cuvis_ai.node.static_node import TextPrompt
 from cuvis_ai.node.video import ToVideoNode
 
 
@@ -53,9 +54,13 @@ from cuvis_ai.node.video import ToVideoNode
 @click.option(
     "--prompt",
     type=str,
-    default="person",
+    multiple=True,
+    default=("person",),
     show_default=True,
-    help="Text prompt for SAM3 detector (e.g. 'person', 'car').",
+    help=(
+        "Repeatable text prompt spec: <text>@<frame_id>. Bare <text> means <text>@0. "
+        "Prompts are emitted only on their scheduled frames."
+    ),
 )
 @click.option("--start-frame", type=int, default=0, show_default=True)
 @click.option(
@@ -144,7 +149,7 @@ def main(
     video_path: Path | None,
     processing_mode: str,
     frame_rotation: int | None,
-    prompt: str,
+    prompt: tuple[str, ...],
     start_frame: int,
     end_frame: int,
     max_frames: int | None,
@@ -224,7 +229,6 @@ def main(
     sam3_node = sam3_cls(
         checkpoint_path=str(checkpoint_path) if checkpoint_path else None,
         compile_model=compile_model,
-        prompt_text=prompt,
         score_threshold_detection=float(score_threshold_detection),
         new_det_thresh=float(new_det_thresh),
         det_nms_thresh=float(det_nms_thresh),
@@ -232,13 +236,17 @@ def main(
         max_tracker_states=int(max_tracker_states),
         name="sam3_streaming",
     )
+    text_prompt_node = TextPrompt(
+        prompt_specs=list(prompt),
+        name="text_prompt_schedule",
+    )
 
     # -- build pipeline ------------------------------------------------
     pipeline = CuvisPipeline(pipeline_name)
 
     tracking_json = CocoTrackMaskWriter(
         output_json_path=str(run_output_dir / "tracking_results.json"),
-        category_name=prompt,
+        default_category_name="object",
         name="tracking_coco_json",
     )
     overlay_node = TrackingOverlayNode(alpha=0.2, name="overlay")
@@ -255,10 +263,14 @@ def main(
         [
             (source_context.source_rgb_port, sam3_node.rgb_frame),
             (source_context.source_frame_id_port, sam3_node.inputs.frame_id),
+            (source_context.source_frame_id_port, text_prompt_node.frame_id),
+            (text_prompt_node.text_prompt, sam3_node.inputs.text_prompt),
             (source_context.source_frame_id_port, tracking_json.frame_id),
             (sam3_node.mask, tracking_json.mask),
             (sam3_node.object_ids, tracking_json.object_ids),
             (sam3_node.detection_scores, tracking_json.detection_scores),
+            (sam3_node.category_ids, tracking_json.category_ids),
+            (sam3_node.category_semantics, tracking_json.category_semantics),
             (source_context.source_rgb_port, overlay_node.rgb_image),
             (source_context.source_frame_id_port, overlay_node.frame_id),
             (sam3_node.mask, overlay_node.mask),
@@ -302,8 +314,8 @@ def main(
         else contextlib.nullcontext()
     )
     logger.info(
-        "Starting text propagation (prompt='{}', {} frames)...",
-        prompt,
+        "Starting text propagation (prompts={}, {} frames)...",
+        list(prompt),
         source_context.target_frames,
     )
     with amp_ctx:

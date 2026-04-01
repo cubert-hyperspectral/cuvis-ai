@@ -18,6 +18,10 @@ from torch.utils.data import DataLoader, Subset
 from tqdm import tqdm
 
 from cuvis_ai.node.json_writer import CocoTrackMaskWriter
+from cuvis_ai.node.static_node import (
+    load_text_prompt_schedule,
+    resolve_text_prompt_for_frame,
+)
 from cuvis_ai.utils.grpc_workflow import (
     build_stub,
     config_search_paths,
@@ -113,17 +117,26 @@ def _build_video_loader(
     return DataLoader(dataset, batch_size=1, shuffle=False, num_workers=0)
 
 
-def _build_inference_inputs(source_type: str, batch: dict) -> cuvis_ai_pb2.InputBatch:
+def _build_inference_inputs(
+    source_type: str,
+    batch: dict,
+    *,
+    text_prompt: str | None = None,
+) -> cuvis_ai_pb2.InputBatch:
     if source_type == "cu3s":
-        return cuvis_ai_pb2.InputBatch(
+        request = cuvis_ai_pb2.InputBatch(
             cube=helpers.tensor_to_proto(batch["cube"]),
             wavelengths=helpers.tensor_to_proto(batch["wavelengths"]),
             mesu_index=helpers.tensor_to_proto(batch["mesu_index"]),
         )
-    return cuvis_ai_pb2.InputBatch(
-        rgb_image=helpers.tensor_to_proto(batch["rgb_image"]),
-        frame_id=helpers.tensor_to_proto(batch["frame_id"]),
-    )
+    else:
+        request = cuvis_ai_pb2.InputBatch(
+            rgb_image=helpers.tensor_to_proto(batch["rgb_image"]),
+            frame_id=helpers.tensor_to_proto(batch["frame_id"]),
+        )
+    if text_prompt:
+        request.text_prompt = text_prompt
+    return request
 
 
 def run_client(
@@ -137,6 +150,7 @@ def run_client(
     processing_mode: str,
     start_frame: int,
     max_frames: int | None,
+    prompt: tuple[str, ...],
 ) -> None:
     if start_frame < 0:
         raise click.BadParameter("--start-frame must be zero or positive.")
@@ -148,6 +162,7 @@ def run_client(
         source_type=source_type,
         pipeline_path=pipeline_path,
     )
+    prompt_schedule = load_text_prompt_schedule(prompt)
 
     if source_type == "video":
         print("Ignoring --processing-mode because --video-path is set.")
@@ -231,7 +246,7 @@ def run_client(
 
         tracking_writer = CocoTrackMaskWriter(
             output_json_path=output_json_path,
-            category_name="person",
+            default_category_name="object",
         )
 
         frame_id_key = "mesu_index" if source_type == "cu3s" else "frame_id"
@@ -241,11 +256,20 @@ def run_client(
                     f"Expected '{frame_id_key}' in input batch but key is missing."
                 )
             frame_id = int(batch[frame_id_key].reshape(-1)[0].item())
+            current_prompt = resolve_text_prompt_for_frame(
+                prompt_schedule,
+                frame_id,
+                prompt_mode="scheduled",
+            )
 
             response = stub.Inference(
                 cuvis_ai_pb2.InferenceRequest(
                     session_id=session_id,
-                    inputs=_build_inference_inputs(source_type=source_type, batch=batch),
+                    inputs=_build_inference_inputs(
+                        source_type=source_type,
+                        batch=batch,
+                        text_prompt=current_prompt,
+                    ),
                 )
             )
 
@@ -264,11 +288,19 @@ def run_client(
             mask_t = torch.from_numpy(to_numpy(response.outputs, "mask", np.int32)).to(
                 dtype=torch.int32
             )
+            category_ids_t = torch.from_numpy(
+                to_numpy(response.outputs, "category_ids", np.int64)
+            ).to(dtype=torch.int64)
+            category_semantics_t = torch.from_numpy(
+                to_numpy(response.outputs, "category_semantics", np.uint8)
+            ).to(dtype=torch.uint8)
             tracking_writer.forward(
                 frame_id=torch.tensor([frame_id], dtype=torch.int64),
                 mask=mask_t,
                 object_ids=object_ids_t,
                 detection_scores=detection_scores_t,
+                category_ids=category_ids_t,
+                category_semantics=category_semantics_t,
             )
 
         tracking_writer.close()
@@ -330,6 +362,17 @@ def run_client(
 )
 @click.option("--start-frame", type=int, default=0, show_default=True)
 @click.option("--max-frames", type=int, default=-1, show_default=True)
+@click.option(
+    "--prompt",
+    type=str,
+    multiple=True,
+    default=("person",),
+    show_default=True,
+    help=(
+        "Repeatable text prompt spec: <text>@<frame_id>. Bare <text> means <text>@0. "
+        "Prompts are emitted only on their scheduled frames."
+    ),
+)
 def cli(
     cu3s_path: Path | None,
     video_path: Path | None,
@@ -340,6 +383,7 @@ def cli(
     processing_mode: str,
     start_frame: int,
     max_frames: int,
+    prompt: tuple[str, ...],
 ) -> None:
     run_client(
         cu3s_path=cu3s_path,
@@ -351,6 +395,7 @@ def cli(
         processing_mode=processing_mode,
         start_frame=start_frame,
         max_frames=max_frames,
+        prompt=prompt,
     )
 
 

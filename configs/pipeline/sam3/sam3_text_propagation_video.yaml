@@ -15,14 +15,13 @@ nodes:
 
   - name: sam3_tracker
     class_name: cuvis_ai_sam3.node.SAM3TextPropagation
-    hparams:
-      prompt_text: person
+    hparams: {}
 
   - name: tracking_coco_json
     class_name: cuvis_ai.node.json_writer.CocoTrackMaskWriter
     hparams:
       output_json_path: outputs/tracking_results.json
-      category_name: person
+      default_category_name: object
 
 connections:
   - source: video_frame.outputs.rgb_image
@@ -37,3 +36,7 @@ connections:
     target: tracking_coco_json.inputs.object_ids
   - source: sam3_tracker.outputs.detection_scores
     target: tracking_coco_json.inputs.detection_scores
+  - source: sam3_tracker.outputs.category_ids
+    target: tracking_coco_json.inputs.category_ids
+  - source: sam3_tracker.outputs.category_semantics
+    target: tracking_coco_json.inputs.category_semantics

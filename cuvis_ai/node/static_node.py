@@ -1,4 +1,4 @@
-"""Static nodes and helpers for frame-indexed mask and bbox prompt schedules."""
+"""Static nodes and helpers for frame-indexed text, mask, and bbox prompt schedules."""
 
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ from cuvis_ai_schemas.execution import Context
 from cuvis_ai_schemas.pipeline import PortSpec
 
 _PROMPT_SPEC_RE = re.compile(r"\s*(\d+):(\d+)@(\d+)\s*")
+_TEXT_PROMPT_MODES = {"repeat", "scheduled"}
 
 
 @dataclass(frozen=True)
@@ -36,6 +37,15 @@ class BBoxPromptSpec:
 
     object_id: int
     detection_id: int
+    frame_id: int
+    order: int
+
+
+@dataclass(frozen=True)
+class TextPromptSpec:
+    """One scheduled text-prompt entry."""
+
+    text: str
     frame_id: int
     order: int
 
@@ -74,6 +84,96 @@ def parse_bbox_prompt_spec(spec: str, order: int = 0) -> BBoxPromptSpec:
         frame_id=frame_id,
         order=order_idx,
     )
+
+
+def parse_text_prompt_spec(spec: str, order: int = 0) -> TextPromptSpec:
+    """Parse ``<text>@<frame_id>`` into a typed text spec.
+
+    Bare ``<text>`` is accepted as a backward-compatible alias for ``<text>@0``.
+    """
+    if not isinstance(spec, str):
+        raise ValueError(f"Text prompt spec must be a string, got {type(spec).__name__}.")
+
+    raw_spec = spec.strip()
+    if not raw_spec:
+        raise ValueError("Text prompt spec must be non-empty.")
+
+    if "@" in raw_spec:
+        prompt_text, frame_part = raw_spec.rsplit("@", maxsplit=1)
+        prompt_text = prompt_text.strip()
+        if not frame_part.strip().isdigit():
+            raise ValueError(
+                f"Invalid text prompt spec '{spec}'. Expected format <text>@<frame_id>."
+            )
+        frame_id = int(frame_part.strip())
+    else:
+        prompt_text = raw_spec
+        frame_id = 0
+
+    if not prompt_text:
+        raise ValueError(f"Invalid text prompt spec '{spec}'. Prompt text must not be empty.")
+    if frame_id < 0:
+        raise ValueError(f"Invalid text prompt spec '{spec}'. frame_id must be zero or positive.")
+
+    return TextPromptSpec(text=prompt_text, frame_id=frame_id, order=int(order))
+
+
+def load_text_prompt_schedule(prompt_specs: Sequence[str] | None) -> dict[int, str]:
+    """Build a per-frame text prompt schedule.
+
+    Multiple prompt frames are allowed. V1 rejects multiple distinct texts on the
+    same frame.
+    """
+    prompts_by_frame: dict[int, str] = {}
+    for order, raw_spec in enumerate(prompt_specs or []):
+        spec = parse_text_prompt_spec(raw_spec, order=order)
+        existing = prompts_by_frame.get(spec.frame_id)
+        if existing is not None and existing != spec.text:
+            raise ValueError(
+                "Multiple distinct text prompts on the same frame are not supported: "
+                f"frame {spec.frame_id} has both '{existing}' and '{spec.text}'."
+            )
+        prompts_by_frame[spec.frame_id] = spec.text
+    return prompts_by_frame
+
+
+def normalize_text_prompt_mode(prompt_mode: str) -> str:
+    """Normalize and validate the text-prompt emission mode."""
+    normalized = str(prompt_mode).strip().lower()
+    if normalized not in _TEXT_PROMPT_MODES:
+        raise ValueError(
+            f"Unsupported text prompt mode '{prompt_mode}'. "
+            f"Expected one of {sorted(_TEXT_PROMPT_MODES)}."
+        )
+    return normalized
+
+
+def resolve_text_prompt_for_frame(
+    prompts_by_frame: dict[int, str],
+    frame_id: int,
+    *,
+    prompt_mode: str = "scheduled",
+) -> str:
+    """Resolve the runtime text prompt for ``frame_id``.
+
+    ``scheduled`` emits only on exact prompt frames.
+    ``repeat`` keeps the latest scheduled prompt active until replaced.
+    """
+    current_frame_id = int(frame_id)
+    normalized_mode = normalize_text_prompt_mode(prompt_mode)
+    if normalized_mode == "scheduled":
+        return str(prompts_by_frame.get(current_frame_id, ""))
+
+    latest_prompt = ""
+    latest_frame_id: int | None = None
+    for scheduled_frame_id, prompt_text in prompts_by_frame.items():
+        scheduled_frame_id = int(scheduled_frame_id)
+        if scheduled_frame_id > current_frame_id:
+            continue
+        if latest_frame_id is None or scheduled_frame_id > latest_frame_id:
+            latest_frame_id = scheduled_frame_id
+            latest_prompt = str(prompt_text)
+    return latest_prompt
 
 
 def _image_hw(image_entry: dict[str, Any], frame_id: int) -> tuple[int, int]:
@@ -486,13 +586,68 @@ class BBoxPrompt(Node):
         }
 
 
+class TextPrompt(Node):
+    """Emit a runtime text prompt for the requested frame."""
+
+    INPUT_SPECS = {
+        "frame_id": PortSpec(dtype=torch.int64, shape=(1,), description="Source frame index [1]."),
+    }
+    OUTPUT_SPECS = {
+        "text_prompt": PortSpec(
+            dtype=str,
+            shape=(),
+            description="Resolved text prompt for the current frame or an empty string.",
+        ),
+    }
+
+    def __init__(
+        self,
+        prompt_specs: Sequence[str] | None = None,
+        prompt_mode: str = "scheduled",
+        **kwargs: Any,
+    ) -> None:
+        self._prompt_specs = [str(spec) for spec in (prompt_specs or [])]
+        self._prompts_by_frame = load_text_prompt_schedule(self._prompt_specs)
+        self._prompt_mode = normalize_text_prompt_mode(prompt_mode)
+        super().__init__(
+            prompt_specs=self._prompt_specs,
+            prompt_mode=self._prompt_mode,
+            **kwargs,
+        )
+
+    def forward(
+        self,
+        frame_id: torch.Tensor,
+        context: Context | None = None,  # noqa: ARG002
+        **_: Any,
+    ) -> dict[str, str]:
+        """Emit the resolved prompt text for ``frame_id`` or an empty string."""
+        if frame_id is None or frame_id.numel() == 0:
+            raise ValueError("TextPrompt requires a non-empty frame_id input.")
+
+        current_frame_id = int(frame_id.reshape(-1)[0].item())
+        return {
+            "text_prompt": resolve_text_prompt_for_frame(
+                self._prompts_by_frame,
+                current_frame_id,
+                prompt_mode=self._prompt_mode,
+            )
+        }
+
+
 __all__ = [
     "BBoxPrompt",
     "BBoxPromptSpec",
     "MaskPrompt",
     "MaskPromptSpec",
+    "TextPrompt",
+    "TextPromptSpec",
     "load_bbox_prompt_schedule",
     "load_mask_prompt_schedule",
+    "load_text_prompt_schedule",
+    "normalize_text_prompt_mode",
     "parse_bbox_prompt_spec",
     "parse_mask_prompt_spec",
+    "parse_text_prompt_spec",
+    "resolve_text_prompt_for_frame",
 ]

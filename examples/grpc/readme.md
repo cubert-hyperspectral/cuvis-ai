@@ -114,7 +114,12 @@ uv run python examples/grpc/sam3/sam3_mask_propagation_client.py --help
 uv run python examples/grpc/sam3/sam3_segment_everything_client.py --help
 ```
 
-## SAM3 Mask/Bbox Propagation
+## SAM3 Text/Mask/Bbox Propagation
+
+Runtime text propagation uses these pipeline configs:
+
+- `configs/pipeline/sam3/sam3_text_propagation.yaml`
+- `configs/pipeline/sam3/sam3_text_propagation_video.yaml`
 
 Runtime mask propagation uses these pipeline configs:
 
@@ -130,6 +135,19 @@ Runtime segment-everything uses these pipeline configs:
 
 - `configs/pipeline/sam3/sam3_segment_everything.yaml`
 - `configs/pipeline/sam3/sam3_segment_everything_video.yaml`
+
+The gRPC text workflow sends scheduled prompt text through `InputBatch.text_prompt`
+only on the requested frames. The server-side `SAM3TextPropagation` node returns
+`mask`, `object_ids`, `detection_scores`, `category_ids`, and `category_semantics`,
+and the client writes category-aware tracking JSON from those outputs:
+
+```powershell
+uv run python examples/grpc/sam3/sam3_text_propagation_client.py `
+  --video-path "D:\experiments\20260319\video_creation\tristimulus\XMR_25mm_CubertParkingLotTracking\2026_03_19_11-27-39\Auto_004+01.mp4" `
+  --prompt "person@65" `
+  --prompt "car@90" `
+  --output-json-path "D:\experiments\20260331\text_propagation_grpc\video\Auto_004+01.json"
+```
 
 The gRPC mask workflow does not use `MaskPrompt` inside the pipeline. Instead, the
 client decodes scheduled segmentations from `--detection-json` and sends prompt

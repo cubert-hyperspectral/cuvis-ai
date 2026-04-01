@@ -351,15 +351,22 @@ text-prompt SAM3 tracking from exactly one source:
   - CU3S via `SingleCu3sDataModule -> CU3SDataNode -> CIETristimulusFalseRGBSelector`
   - video via `VideoFrameDataModule -> VideoFrameNode`
 - Builds one shared pipeline:
-  - `source RGB -> SAM3TextPropagation`
+  - `source frame_id -> TextPrompt -> SAM3TextPropagation.text_prompt`
+  - `source RGB -> SAM3TextPropagation.rgb_frame`
   - `SAM3TextPropagation -> TrackingCocoJsonNode`
   - `SAM3TextPropagation + source RGB -> TrackingOverlayNode -> ToVideoNode`
+- Supports repeatable scheduled text prompts:
+  - `--prompt <text>@<frame_id>`
+  - bare `--prompt <text>` remains a shorthand for `<text>@0`
 - Preserves source frame IDs in outputs:
   - CU3S mode uses `mesu_index`
   - video mode uses the original video `frame_id`, including when `--start-frame` is used
 - Runs inference through `cuvis_ai_core.training.Predictor`
 - Saves one graphviz pipeline image (no Mermaid output)
 - Writes per-node profiling summary
+- Writes category-aware tracking JSON from SAM3 outputs:
+  - `category_ids` aligned with `object_ids`
+  - `category_semantics` as the category-id-to-name mapping used for the JSON `categories` header
 
 ### Prerequisites
 
@@ -378,6 +385,8 @@ Required class for this script: `cuvis_ai_sam3.node.SAM3TextPropagation`.
 ```powershell
 uv run python examples/object_tracking/sam3/sam3_text_propagation.py `
   --cu3s-path "D:\data\your_dataset\Auto_013+01.cu3s" `
+  --prompt "person@65" `
+  --prompt "car@90" `
   --plugins-yaml "configs/plugins/sam3.yaml"
 ```
 
@@ -386,6 +395,7 @@ uv run python examples/object_tracking/sam3/sam3_text_propagation.py `
 ```powershell
 uv run python examples/object_tracking/sam3/sam3_text_propagation.py `
   --video-path "D:\data\your_dataset\Auto_013+01-tristimulus.mp4" `
+  --prompt "person@65" `
   --plugins-yaml "configs/plugins/sam3.yaml"
 ```
 
@@ -394,6 +404,7 @@ uv run python examples/object_tracking/sam3/sam3_text_propagation.py `
 ```powershell
 uv run python examples/object_tracking/sam3/sam3_text_propagation.py `
   --video-path "D:\data\your_dataset\Auto_013+01-tristimulus.mp4" `
+  --prompt "person@25" `
   --plugins-yaml "configs/plugins/sam3.yaml" `
   --start-frame 25 `
   --max-frames 10
@@ -402,7 +413,17 @@ uv run python examples/object_tracking/sam3/sam3_text_propagation.py `
 **With bf16, compile, and explicit thresholds (CU3S mode):**
 
 ```powershell
-n
+uv run python examples/object_tracking/sam3/sam3_text_propagation.py `
+  --cu3s-path "D:\data\your_dataset\Auto_013+01.cu3s" `
+  --prompt "person@65" `
+  --prompt "car@90" `
+  --plugins-yaml "configs/plugins/sam3.yaml" `
+  --bf16 `
+  --compile `
+  --score-threshold-detection 0.45 `
+  --new-det-thresh 0.65 `
+  --det-nms-thresh 0.1 `
+  --overlap-suppress-thresh 0.7
 ```
 
 Show CLI help:
@@ -420,7 +441,7 @@ uv run python examples/object_tracking/sam3/sam3_text_propagation.py --help
 - `--start-frame` first source frame to process (default `0`)
 - `--end-frame` exclusive stop frame (`-1` means all remaining frames)
 - `--max-frames` deprecated alias for frame window length from `--start-frame`
-- `--prompt` text prompt for SAM3 detector (default `person`)
+- `--prompt` repeatable scheduled text prompt spec `<text>@<frame_id>`; bare `<text>` means `<text>@0`
 - `--output-dir` parent/root output directory
 - `--out-basename` optional run-folder basename; defaults to
   `Path(cu3s_path).stem` in CU3S mode or `Path(video_path).stem` in video mode
@@ -440,7 +461,7 @@ uv run python examples/object_tracking/sam3/sam3_text_propagation.py --help
 For `--output-dir <ROOT>`, the script writes to:
 `<RUN> = <ROOT>/<out-basename or input-file-stem>`
 
-- `<RUN>/tracking_results.json` - COCO instance segmentation output
+- `<RUN>/tracking_results.json` - COCO instance segmentation output with per-track `category_id` plus a `categories` header built from `category_semantics`
 - `<RUN>/tracking_overlay.mp4` - overlay video
 - `<RUN>/SAM3_Text_Propagation_HSI.png` or `<RUN>/SAM3_Text_Propagation_Video.png` - graphviz pipeline image
 - `<RUN>/SAM3_Text_Propagation_HSI.yaml` or `<RUN>/SAM3_Text_Propagation_Video.yaml` - pipeline YAML (always written)
@@ -492,8 +513,15 @@ Mask-prompt JSON requirements:
 
 ### Prompt Frame Contract
 
-- Text and point prompts are applied on the first streamed frame.
-- `--start-frame` therefore defines the prompt frame for the text and point scripts.
+- Text propagation uses scheduled prompt specs: `--prompt <text>@<frame_id>`.
+- Bare text prompts such as `--prompt person` are treated as `person@0`.
+- Frames before the first scheduled text prompt emit empty tracking outputs.
+- The first scheduled text prompt initializes SAM3 text propagation from that frame.
+- Later scheduled text prompts restart propagation from their frame and currently use
+  non-reset semantic updates so existing tracks stay visible while new tracks can
+  inherit a new category ID.
+- Point prompts are still applied on the first streamed frame.
+- `--start-frame` therefore defines the prompt frame only for the point script.
 - Bbox and mask propagation use scheduled prompt specs: `--prompt <object_id:detection_id@frame_id>`.
 - Bbox and mask propagation can inject prompts on multiple arbitrary frames.
 - Frames before the first scheduled bbox or mask prompt emit empty tracking outputs and do not initialize SAM3.
@@ -521,7 +549,7 @@ uv run python examples/object_tracking/sam3/sam3_text_propagation.py `
   --bf16
 ```
 
-Default prompt is `person`. Change with `--prompt "car"` as needed.
+Each text prompt spec schedules one semantic on one frame. Repeat `--prompt` to add later text updates, for example `--prompt "person@290" --prompt "car@320"`.
 
 #### Bbox prompt (scheduled multi-frame updates, local video)
 

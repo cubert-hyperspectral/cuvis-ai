@@ -164,33 +164,47 @@ class CocoTrackMaskWriter(_BaseCocoTrackWriter):
             shape=(1, -1),
             description="Detection scores [1, N], index-aligned to object_ids.",
         ),
+        "category_ids": PortSpec(
+            dtype=torch.int64,
+            shape=(1, -1),
+            description="Optional category IDs [1, N], index-aligned to object_ids.",
+            optional=True,
+        ),
+        "category_semantics": PortSpec(
+            dtype=torch.uint8,
+            shape=(-1,),
+            description="Optional UTF-8 JSON bytes mapping category IDs to category names.",
+            optional=True,
+        ),
     }
 
     def __init__(
         self,
         output_json_path: str,
-        category_name: str = "person",
+        default_category_name: str = "object",
         write_empty_frames: bool = True,
         atomic_write: bool = True,
         flush_interval: int = 0,
         **kwargs: Any,
     ) -> None:
-        if not category_name:
-            raise ValueError("category_name must be a non-empty string.")
+        if not default_category_name:
+            raise ValueError("default_category_name must be a non-empty string.")
 
-        self.category_name = category_name
+        self.default_category_name = default_category_name
         self.write_empty_frames = bool(write_empty_frames)
         self._frame_hw_by_id: dict[int, tuple[int, int]] = {}
         self._track_segmentations: dict[int, dict[int, dict[str, Any]]] = {}
         self._track_scores: dict[int, dict[int, float]] = {}
         self._track_bboxes: dict[int, dict[int, list[float]]] = {}
         self._track_areas: dict[int, dict[int, float]] = {}
+        self._track_category_ids: dict[int, int] = {}
+        self._category_id_to_name: dict[int, str] = {}
 
         super().__init__(
             output_json_path=output_json_path,
             atomic_write=atomic_write,
             flush_interval=flush_interval,
-            category_name=category_name,
+            default_category_name=default_category_name,
             write_empty_frames=write_empty_frames,
             **kwargs,
         )
@@ -208,12 +222,56 @@ class CocoTrackMaskWriter(_BaseCocoTrackWriter):
                 if not store[track_id]:
                     del store[track_id]
 
+    @staticmethod
+    def _parse_category_semantics(category_semantics: torch.Tensor) -> dict[int, str]:
+        semantics_bytes = _BaseCocoTrackWriter._parse_vector(
+            category_semantics, port_name="category_semantics"
+        )
+        try:
+            payload = bytes(int(v) for v in semantics_bytes.to(dtype=torch.uint8).cpu().tolist())
+            decoded = json.loads(payload.decode("utf-8"))
+        except Exception as exc:  # pragma: no cover - precise exception depends on payload
+            raise ValueError("category_semantics must contain valid UTF-8 JSON bytes.") from exc
+
+        if not isinstance(decoded, dict):
+            raise ValueError("category_semantics JSON must decode to an object mapping.")
+
+        parsed: dict[int, str] = {}
+        for key, value in decoded.items():
+            try:
+                category_id = int(key)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"Invalid category_semantics key: {key!r}.") from exc
+            if category_id <= 0:
+                raise ValueError("category_semantics category IDs must be positive integers.")
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(
+                    f"category_semantics value for category {category_id} must be a non-empty string."
+                )
+            parsed[category_id] = value
+        return parsed
+
+    def _update_category_semantics(self, category_semantics: torch.Tensor | None) -> None:
+        if category_semantics is None:
+            return
+        parsed = self._parse_category_semantics(category_semantics)
+        for category_id, name in parsed.items():
+            existing = self._category_id_to_name.get(category_id)
+            if existing is not None and existing != name:
+                raise ValueError(
+                    f"category_semantics changed meaning for category_id={category_id}: "
+                    f"{existing!r} -> {name!r}."
+                )
+            self._category_id_to_name[category_id] = name
+
     def forward(
         self,
         frame_id: torch.Tensor,
         mask: torch.Tensor,
         object_ids: torch.Tensor,
         detection_scores: torch.Tensor,
+        category_ids: torch.Tensor | None = None,
+        category_semantics: torch.Tensor | None = None,
         context: Context | None = None,  # noqa: ARG002
         **_: Any,
     ) -> dict[str, Any]:
@@ -222,6 +280,11 @@ class CocoTrackMaskWriter(_BaseCocoTrackWriter):
         ids_1d = self._parse_vector(object_ids, port_name="object_ids")
         scores_1d = self._parse_vector(detection_scores, port_name="detection_scores")
         self._validate_alignment(ids_1d, scores_1d, "object_ids", "detection_scores")
+        category_ids_1d: torch.Tensor | None = None
+        if category_ids is not None:
+            category_ids_1d = self._parse_vector(category_ids, port_name="category_ids")
+            self._validate_alignment(ids_1d, category_ids_1d, "object_ids", "category_ids")
+        self._update_category_semantics(category_semantics)
 
         frame_height = int(mask_2d.shape[0])
         frame_width = int(mask_2d.shape[1])
@@ -231,11 +294,34 @@ class CocoTrackMaskWriter(_BaseCocoTrackWriter):
 
         object_ids_list = ids_1d.to(dtype=torch.int64).cpu().tolist()
         detection_scores_list = scores_1d.to(dtype=torch.float32).cpu().tolist()
+        category_ids_list = (
+            category_ids_1d.to(dtype=torch.int64).cpu().tolist()
+            if category_ids_1d is not None
+            else [1] * len(object_ids_list)
+        )
         score_by_obj_id: dict[int, float] = {
             int(obj_id): float(score)
             for obj_id, score in zip(object_ids_list, detection_scores_list, strict=False)
             if int(obj_id) > 0
         }
+        category_by_obj_id: dict[int, int] = {}
+        for obj_id, category_id in zip(object_ids_list, category_ids_list, strict=False):
+            oid = int(obj_id)
+            cid = int(category_id)
+            if oid <= 0:
+                continue
+            if cid <= 0:
+                raise ValueError("category_ids must be positive for tracked objects.")
+            existing_category_id = self._track_category_ids.get(oid)
+            if existing_category_id is not None and existing_category_id != cid:
+                raise ValueError(
+                    f"Track {oid} received conflicting category IDs: "
+                    f"{existing_category_id} vs {cid}."
+                )
+            self._track_category_ids.setdefault(oid, cid)
+            category_by_obj_id[oid] = cid
+            fallback_name = self.default_category_name if cid == 1 else f"category_{cid}"
+            self._category_id_to_name.setdefault(cid, fallback_name)
         present_obj_ids = {
             int(obj_id)
             for obj_id in mask_2d.to(dtype=torch.int64).unique().cpu().tolist()
@@ -270,6 +356,8 @@ class CocoTrackMaskWriter(_BaseCocoTrackWriter):
             self._track_scores.setdefault(oid, {})[frame_idx] = float(score_by_obj_id.get(oid, 0.0))
             self._track_bboxes.setdefault(oid, {})[frame_idx] = bbox
             self._track_areas.setdefault(oid, {})[frame_idx] = area
+            if oid in category_by_obj_id:
+                self._track_category_ids.setdefault(oid, category_by_obj_id[oid])
 
         self._mark_dirty_and_maybe_flush()
         return {}
@@ -308,7 +396,7 @@ class CocoTrackMaskWriter(_BaseCocoTrackWriter):
                 {
                     "id": ann_id,
                     "track_id": int(track_id),
-                    "category_id": 1,
+                    "category_id": int(self._track_category_ids.get(track_id, 1)),
                     "segmentations": segmentations,
                     "detection_scores": detection_scores,
                     "bboxes": bboxes,
@@ -316,6 +404,13 @@ class CocoTrackMaskWriter(_BaseCocoTrackWriter):
                 }
             )
             ann_id += 1
+
+        categories = [
+            {"id": int(category_id), "name": name}
+            for category_id, name in sorted(self._category_id_to_name.items())
+        ]
+        if not categories:
+            categories = [{"id": 1, "name": self.default_category_name}]
 
         payload = {
             "info": {"description": "Mask tracking results", "version": "1.0"},
@@ -331,7 +426,7 @@ class CocoTrackMaskWriter(_BaseCocoTrackWriter):
                 }
             ],
             "annotations": annotations,
-            "categories": [{"id": 1, "name": self.category_name}],
+            "categories": categories,
         }
         self._write_payload(payload)
         self._finish_flush()
