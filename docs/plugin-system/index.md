@@ -134,6 +134,7 @@ detector = AdaCLIPDetector(prompt="plastic wrapper", threshold=0.5)
 ### Official Plugins
 
 - **[cuvis-ai-adaclip](https://github.com/cubert-hyperspectral/cuvis-ai-adaclip)** - AdaCLIP vision-language anomaly detection using CLIP embeddings
+- **[cuvis-ai-trackeval](https://github.com/cubert-hyperspectral/cuvis-ai-trackeval)** - External TrackEval metric nodes for HOTA, CLEAR, and Identity tracking evaluation
 
 ### Central Plugin Registry
 
@@ -149,6 +150,7 @@ uv run restore-pipeline \
 
 **Registered Plugins:**
 - **[cuvis-ai-adaclip](https://github.com/cubert-hyperspectral/cuvis-ai-adaclip)** - AdaCLIP vision-language anomaly detection with Fisher band selection and mRMR algorithms
+- **[cuvis-ai-trackeval](https://github.com/cubert-hyperspectral/cuvis-ai-trackeval)** - TrackEval metric nodes for evaluating COCO tracking predictions against ground truth
 
 **Want to add your plugin?** See [Contributing Guide](../development/contributing.md#plugin-contribution-workflow) for submission instructions.
 

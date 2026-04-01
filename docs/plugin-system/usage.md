@@ -44,6 +44,7 @@ outputs = detector(data=your_hyperspectral_data)
 cuvis-ai maintains official plugins:
 
 - **[cuvis-ai-adaclip](https://github.com/cubert-hyperspectral/cuvis-ai-adaclip)** - AdaCLIP vision-language anomaly detection
+- **[cuvis-ai-trackeval](https://github.com/cubert-hyperspectral/cuvis-ai-trackeval)** - TrackEval metric nodes for HOTA, CLEAR, and Identity tracking evaluation
 
 ### Community Plugins
 
@@ -114,6 +115,14 @@ plugins:
     provides:
       - cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
 
+  trackeval:
+    repo: "https://github.com/cubert-hyperspectral/cuvis-ai-trackeval.git"
+    tag: "v0.1.0"
+    provides:
+      - cuvis_ai_trackeval.node.HOTAMetricNode
+      - cuvis_ai_trackeval.node.CLEARMetricNode
+      - cuvis_ai_trackeval.node.IdentityMetricNode
+
   # Add your custom local plugin
   my_dev_plugin:
     path: "../my-plugin"
@@ -135,6 +144,7 @@ registry.load_plugins("my_plugins.yaml")
 
 # Now you have access to:
 # - Registry plugins (adaclip)
+# - Official tracking metrics (trackeval)
 # - Local development plugins (my_dev_plugin)
 # - Private plugins (private_plugin)
 ```
@@ -155,6 +165,14 @@ For reproducible workflows, create a `plugins.yaml` manifest:
 
 ```yaml
 plugins:
+  trackeval:
+    repo: "https://github.com/cubert-hyperspectral/cuvis-ai-trackeval.git"
+    tag: "v0.1.0"
+    provides:
+      - cuvis_ai_trackeval.node.HOTAMetricNode
+      - cuvis_ai_trackeval.node.CLEARMetricNode
+      - cuvis_ai_trackeval.node.IdentityMetricNode
+
   adaclip:
     repo: "https://github.com/cubert-hyperspectral/cuvis-ai-adaclip.git"
     tag: "v0.1.1"
@@ -213,6 +231,11 @@ registry.load_plugin(
 - Automatic caching in `~/.cuvis_plugins/`
 - Tag verification on subsequent loads
 - Dependency installation from `pyproject.toml`
+
+For a ready-to-use selective manifest for tracking metric nodes, load
+`configs/plugins/trackeval.yaml` to pull the released
+[`cuvis-ai-trackeval`](https://github.com/cubert-hyperspectral/cuvis-ai-trackeval)
+plugin at `v0.1.0`.
 
 ### From Local Path
 
