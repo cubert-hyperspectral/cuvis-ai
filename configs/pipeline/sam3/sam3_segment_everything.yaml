@@ -26,7 +26,7 @@ nodes:
     class_name: cuvis_ai.node.json_writer.CocoTrackMaskWriter
     hparams:
       output_json_path: outputs/tracking_results.json
-      category_name: object
+      default_category_name: object
 
   - name: overlay
     class_name: cuvis_ai.node.anomaly_visualization.TrackingOverlayNode

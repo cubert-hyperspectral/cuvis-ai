@@ -236,7 +236,7 @@ def main(
 
     tracking_json = CocoTrackMaskWriter(
         output_json_path=str(run_output_dir / "tracking_results.json"),
-        category_name="object",
+        default_category_name="object",
         name="tracking_coco_json",
     )
     overlay_node = TrackingOverlayNode(alpha=0.2, name="overlay")

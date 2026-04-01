@@ -271,7 +271,7 @@ def run_client(
 
         tracking_writer = CocoTrackMaskWriter(
             output_json_path=output_json_path,
-            category_name="person",
+            default_category_name="person",
         )
 
         frame_id_key = "mesu_index" if source_type == "cu3s" else "frame_id"
