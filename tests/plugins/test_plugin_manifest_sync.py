@@ -10,30 +10,37 @@ from cuvis_ai_core.utils.plugin_config import PluginManifest
 pytestmark = pytest.mark.unit
 
 REGISTRY_PATH = Path("configs/plugins/registry.yaml")
-ADACLIP_MANIFEST_PATH = Path("configs/plugins/adaclip.yaml")
-PLUGIN_NAME = "adaclip"
+PLUGIN_MANIFESTS = {
+    "adaclip": Path("configs/plugins/adaclip.yaml"),
+    "trackeval": Path("configs/plugins/trackeval.yaml"),
+}
 
 
-def test_adaclip_manifest_exists() -> None:
-    assert ADACLIP_MANIFEST_PATH.exists(), f"Missing AdaCLIP manifest: {ADACLIP_MANIFEST_PATH}"
+@pytest.mark.parametrize(("plugin_name", "manifest_path"), PLUGIN_MANIFESTS.items())
+def test_selective_manifest_exists(plugin_name: str, manifest_path: Path) -> None:
+    assert manifest_path.exists(), f"Missing {plugin_name} manifest: {manifest_path}"
 
 
-def test_adaclip_manifest_contains_only_adaclip_plugin() -> None:
-    manifest = PluginManifest.from_yaml(ADACLIP_MANIFEST_PATH)
-    assert set(manifest.plugins.keys()) == {PLUGIN_NAME}
+@pytest.mark.parametrize(("plugin_name", "manifest_path"), PLUGIN_MANIFESTS.items())
+def test_selective_manifest_contains_only_target_plugin(
+    plugin_name: str, manifest_path: Path
+) -> None:
+    manifest = PluginManifest.from_yaml(manifest_path)
+    assert set(manifest.plugins.keys()) == {plugin_name}
 
 
-def test_adaclip_manifest_matches_registry_entry() -> None:
+@pytest.mark.parametrize(("plugin_name", "manifest_path"), PLUGIN_MANIFESTS.items())
+def test_selective_manifest_matches_registry_entry(plugin_name: str, manifest_path: Path) -> None:
     registry_manifest = PluginManifest.from_yaml(REGISTRY_PATH)
-    adaclip_manifest = PluginManifest.from_yaml(ADACLIP_MANIFEST_PATH)
+    selective_manifest = PluginManifest.from_yaml(manifest_path)
 
-    assert PLUGIN_NAME in registry_manifest.plugins, (
-        f"Plugin '{PLUGIN_NAME}' must exist in registry: {REGISTRY_PATH}"
+    assert plugin_name in registry_manifest.plugins, (
+        f"Plugin '{plugin_name}' must exist in registry: {REGISTRY_PATH}"
     )
-    assert PLUGIN_NAME in adaclip_manifest.plugins, (
-        f"Plugin '{PLUGIN_NAME}' must exist in selective manifest: {ADACLIP_MANIFEST_PATH}"
+    assert plugin_name in selective_manifest.plugins, (
+        f"Plugin '{plugin_name}' must exist in selective manifest: {manifest_path}"
     )
 
-    assert adaclip_manifest.plugins[PLUGIN_NAME].model_dump() == (
-        registry_manifest.plugins[PLUGIN_NAME].model_dump()
+    assert selective_manifest.plugins[plugin_name].model_dump() == (
+        registry_manifest.plugins[plugin_name].model_dump()
     )
