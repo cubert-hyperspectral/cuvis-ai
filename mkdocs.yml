@@ -144,6 +144,7 @@ nav:
           - Deep SVDD: tutorials/deep-svdd-gradient.md
           - AdaCLIP Workflow: tutorials/adaclip-workflow.md
           - gRPC Workflow: tutorials/grpc-workflow.md
+          - Blood Perfusion: tutorials/blood-perfusion.md
       - How-To Guides:
           - Overview: how-to/index.md
           - Build Pipeline (Python): how-to/build-pipeline-python.md

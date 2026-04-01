@@ -19,8 +19,6 @@ Learn how to build a complete anomaly detection pipeline using the RX (Reed-Xiao
 
 **Prerequisites:**
 
-- cuvis-ai installed (`pip install cuvis-ai`)
-- Basic Python knowledge
 - Understanding of [Node System](../concepts/node-system-deep-dive.md) fundamentals
 - Familiarity with [Pipeline Lifecycle](../concepts/pipeline-lifecycle.md)
 
