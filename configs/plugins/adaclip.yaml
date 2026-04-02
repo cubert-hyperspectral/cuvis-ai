@@ -8,8 +8,8 @@
 
 plugins:
   adaclip:
-    # AdaCLIP-based anomaly detection with advanced band selection
-    repo: "https://github.com/cubert-hyperspectral/cuvis-ai-adaclip.git"
-    tag: "v0.1.2"
+    # Local development path (feature/anish/adaclip-finetuning branch)
+    # For production, use: repo: "https://github.com/cubert-hyperspectral/cuvis-ai-adaclip.git"
+    path: "/home/dev/anish/cuvis-ai-adaclip"
     provides:
       - cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector

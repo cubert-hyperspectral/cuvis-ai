@@ -836,6 +836,211 @@ class ForegroundContrastLoss(LossNode):
         return {"loss": loss}
 
 
+class AdaCLIPFocalDiceLoss(LossNode):
+    """Combined Focal + Dice loss matching the AdaCLIP paper (Cao et al., ECCV 2024).
+
+    Faithfully replicates the loss from ``method/trainer.py::train_one_batch``:
+
+    .. code-block:: python
+
+        # Per-layer pixel segmentation loss (aggregation=False)
+        for am in anomaly_map:          # am: [B, 2, H, W] softmaxed
+            seg_loss += focal(am, gt)
+            seg_loss += dice(am[:, 1], gt)
+            seg_loss += dice(am[:, 0], 1 - gt)
+
+        # Image-level classification loss
+        loss += focal(anomaly_score, is_anomaly)
+
+    The ``per_layer_scores`` port receives per-layer 2-channel maps stacked
+    as ``[B, num_layers*2, H, W]`` from ``AdaCLIPDetector``.  When this port
+    is not connected (e.g., during validation where aggregation=True) the loss
+    falls back to using the aggregated ``predictions`` port with a simpler
+    binary formulation.
+
+    Parameters
+    ----------
+    weight : float
+        Overall multiplier for the total loss.
+    focal_gamma : float
+        Focusing parameter for Focal Loss (default 2.0 as in paper).
+    focal_smooth : float
+        Label-smoothing epsilon (default 1e-5, matching paper's ``FocalLoss``).
+    image_loss_weight : float
+        Weight for image-level focal loss (default 1.0).
+    """
+
+    INPUT_SPECS = {
+        "predictions": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 1),
+            description="Aggregated anomaly scores [B, H, W, 1] (for val/test fallback)",
+        ),
+        "targets": PortSpec(
+            dtype=torch.bool,
+            shape=(-1, -1, -1, 1),
+            description="Ground truth binary masks [B, H, W, 1]",
+        ),
+        "per_layer_scores": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, -1),
+            description="Per-layer softmaxed maps [B, num_layers*2, H, W] from AdaCLIP",
+            optional=True,
+        ),
+        "image_score_2ch": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1),
+            description="Image-level [B, 2] softmaxed [normal, anomaly] score",
+            optional=True,
+        ),
+    }
+
+    OUTPUT_SPECS = {
+        "loss": PortSpec(dtype=torch.float32, shape=(), description="Combined Focal + Dice loss"),
+    }
+
+    def __init__(
+        self,
+        weight: float = 1.0,
+        focal_gamma: float = 2.0,
+        focal_smooth: float = 1e-5,
+        image_loss_weight: float = 1.0,
+        **kwargs,
+    ) -> None:
+        self.weight = weight
+        self.focal_gamma = focal_gamma
+        self.focal_smooth = focal_smooth
+        self.image_loss_weight = image_loss_weight
+
+        super().__init__(
+            weight=weight,
+            focal_gamma=focal_gamma,
+            focal_smooth=focal_smooth,
+            image_loss_weight=image_loss_weight,
+            **kwargs,
+        )
+
+    # ------------------------------------------------------------------
+    # Paper-matching multi-class focal loss (from upstream loss.py)
+    # ------------------------------------------------------------------
+    def _mc_focal(self, logit: Tensor, target: Tensor) -> Tensor:
+        """Multi-class focal loss matching the paper's ``FocalLoss``.
+
+        Parameters
+        ----------
+        logit : Tensor
+            Softmaxed predictions ``[B, C, ...]`` where C=2 (normal, anomaly).
+        target : Tensor
+            Class-index ground truth ``[B, ...]`` with values in {0, 1}.
+        """
+        num_class = logit.shape[1]
+        gamma = self.focal_gamma
+        smooth = self.focal_smooth
+
+        if logit.dim() > 2:
+            logit = logit.view(logit.size(0), logit.size(1), -1)  # [B, C, HW]
+            logit = logit.permute(0, 2, 1).contiguous()           # [B, HW, C]
+            logit = logit.view(-1, logit.size(-1))                # [N, C]
+        target = target.reshape(-1, 1).long()                     # [N, 1]
+
+        alpha = torch.ones(num_class, 1, device=logit.device, dtype=logit.dtype)
+
+        one_hot = torch.zeros(target.size(0), num_class, device=logit.device, dtype=logit.dtype)
+        one_hot.scatter_(1, target, 1)
+
+        if smooth:
+            one_hot = one_hot.clamp(smooth / (num_class - 1), 1.0 - smooth)
+
+        pt = (one_hot * logit).sum(1) + smooth
+        logpt = pt.log()
+
+        alpha = alpha[target.squeeze(1)]
+        alpha = alpha.squeeze()
+
+        loss = -1 * alpha * (1 - pt).pow(gamma) * logpt
+        return loss.mean()
+
+    @staticmethod
+    def _dice(pred: Tensor, target: Tensor, smooth: float = 1.0) -> Tensor:
+        """Binary Dice loss matching the paper's ``BinaryDiceLoss``."""
+        n = pred.shape[0]
+        pred_flat = pred.reshape(n, -1)
+        tgt_flat = target.float().reshape(n, -1)
+        intersection = (pred_flat * tgt_flat).sum(dim=1)
+        dice = (2.0 * intersection + smooth) / (
+            pred_flat.sum(dim=1) + tgt_flat.sum(dim=1) + smooth
+        )
+        return 1.0 - dice.sum() / n
+
+    @staticmethod
+    def _binary_focal(
+        pred: Tensor, target: Tensor, gamma: float = 2.0, smooth: float = 1e-5,
+    ) -> Tensor:
+        """Simple binary focal loss fallback for aggregated predictions."""
+        pred = pred.clamp(smooth, 1.0 - smooth)
+        target = target.float()
+        pt = target * pred + (1 - target) * (1 - pred)
+        focal_weight = (1 - pt).pow(gamma)
+        bce = -(target * pred.log() + (1 - target) * (1 - pred).log())
+        return (focal_weight * bce).mean()
+
+    def forward(
+        self,
+        predictions: Tensor,
+        targets: Tensor,
+        per_layer_scores: Tensor | None = None,
+        image_score_2ch: Tensor | None = None,
+        **_: Any,
+    ) -> dict[str, Tensor]:
+        gt = targets.float().squeeze(-1)  # [B, H, W]
+        gt_binary = gt.clone()
+        gt_binary[gt_binary > 0.5] = 1
+        gt_binary[gt_binary <= 0.5] = 0
+
+        has_per_layer = (
+            per_layer_scores is not None
+            and per_layer_scores.dim() == 4
+            and per_layer_scores.shape[1] > 1
+        )
+
+        if has_per_layer:
+            # ── Paper-faithful per-layer loss ─────────────────────────
+            n_channels = per_layer_scores.shape[1]
+            n_layers = n_channels // 2
+            seg_loss = torch.tensor(0.0, device=per_layer_scores.device, dtype=per_layer_scores.dtype)
+
+            for i in range(n_layers):
+                am = per_layer_scores[:, i * 2 : (i + 1) * 2, :, :]  # [B, 2, H, W]
+                seg_loss = seg_loss + self._mc_focal(am, gt_binary)
+                seg_loss = seg_loss + self._dice(am[:, 1, :, :], gt_binary)
+                seg_loss = seg_loss + self._dice(am[:, 0, :, :], 1.0 - gt_binary)
+
+            loss = seg_loss
+
+            # Image-level multi-class focal loss
+            if image_score_2ch is not None and image_score_2ch.dim() == 2 and image_score_2ch.shape[1] == 2:
+                is_anomaly = (gt_binary.flatten(1).sum(dim=1) > 0).long()  # [B]
+                cls_loss = self._mc_focal(
+                    image_score_2ch.unsqueeze(-1),  # [B, 2, 1]
+                    is_anomaly.unsqueeze(-1),       # [B, 1]
+                )
+                loss = loss + self.image_loss_weight * cls_loss
+        else:
+            # ── Fallback: aggregated binary loss (val/test) ───────────
+            pred = predictions.squeeze(-1)  # [B, H, W]
+            p_min, p_max = pred.min(), pred.max()
+            if p_max - p_min > 1e-8:
+                pred = (pred - p_min) / (p_max - p_min)
+
+            loss = (
+                self._binary_focal(pred, gt_binary, self.focal_gamma, self.focal_smooth)
+                + self._dice(pred, gt_binary)
+                + self._dice(1.0 - pred, 1.0 - gt_binary)
+            )
+
+        return {"loss": self.weight * loss}
+
+
 __all__ = [
     "LossNode",
     "OrthogonalityLoss",
@@ -847,4 +1052,5 @@ __all__ = [
     "DistinctnessLoss",
     "ForegroundContrastLoss",
     "IoULoss",
+    "AdaCLIPFocalDiceLoss",
 ]

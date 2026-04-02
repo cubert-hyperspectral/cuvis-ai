@@ -17,7 +17,7 @@ nodes:
   hparams:
     weight_name: pretrained_all
     backbone: ViT-L-14-336
-    prompt_text: 'normal: lentils, anomaly: stones'
+    prompt_text: '' # 'normal: lentils, anomaly: stones'
     image_size: 518 # 336
     prompting_depth: 4
     prompting_length: 5
