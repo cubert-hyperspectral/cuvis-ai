@@ -213,3 +213,11 @@ CLAUDE.md
 output/
 tracking_output/
 .tmp_*/
+/data/
+/outputs/
+CLAUDE.md
+
+# Generated split CSVs (do not commit)
+lentils_splits.csv
+lentils_splits_smoke.csv
+lentils_splits_smoke_tiny.csv
