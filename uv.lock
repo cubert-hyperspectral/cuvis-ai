@@ -535,6 +535,7 @@ dependencies = [
     { name = "regex" },
     { name = "scikit-image" },
     { name = "scikit-learn" },
+    { name = "setuptools" },
     { name = "tensorboard" },
     { name = "torch" },
     { name = "torchmetrics" },
@@ -577,7 +578,7 @@ docs = [
 requires-dist = [
     { name = "bandit", extras = ["toml"], marker = "extra == 'dev'", specifier = ">=1.7.0" },
     { name = "cuvis", specifier = ">=3.5.0" },
-    { name = "cuvis-ai-core", specifier = ">=0.2.0" },
+    { name = "cuvis-ai-core", editable = "../../cuvis-ai-core/cuvis-ai-core-sam3" },
     { name = "cuvis-ai-schemas", extras = ["full"], specifier = ">=0.2.0" },
     { name = "cyclonedx-bom", marker = "extra == 'dev'", specifier = ">=4.0.0" },
     { name = "detect-secrets", marker = "extra == 'dev'", specifier = ">=1.4.0" },
@@ -620,6 +621,7 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'" },
     { name = "scikit-image" },
     { name = "scikit-learn" },
+    { name = "setuptools", specifier = "<82" },
     { name = "tensorboard" },
     { name = "torch", specifier = ">=2.9.1", index = "https://download.pytorch.org/whl/cu128" },
     { name = "torchmetrics" },
@@ -632,8 +634,7 @@ provides-extras = ["docs", "dev"]
 
 [[package]]
 name = "cuvis-ai-core"
-version = "0.2.0"
-source = { registry = "https://pypi.org/simple" }
+source = { editable = "../../cuvis-ai-core/cuvis-ai-core-sam3" }
 dependencies = [
     { name = "cuvis" },
     { name = "cuvis-ai-schemas" },
@@ -648,6 +649,7 @@ dependencies = [
     { name = "loguru" },
     { name = "numpy" },
     { name = "omegaconf" },
+    { name = "opencv-python" },
     { name = "pillow" },
     { name = "protobuf" },
     { name = "pycocotools" },
@@ -660,22 +662,64 @@ dependencies = [
     { name = "torchvision" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/07/fd/93eb6cd5b15474905e15b5b921b9e9e203275aa9cafb7cbe60bf196029c5/cuvis_ai_core-0.2.0.tar.gz", hash = "sha256:b464f55a8047c3a95c09e2060f26c492bbbbf26689b07fa4b0b417db77a155d9", size = 407686, upload-time = "2026-02-27T14:43:56.964Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/64/31/0540e641e9d83c9df33acc4774c75e1cd1f400ee2917091f581ae0efba50/cuvis_ai_core-0.2.0-py3-none-any.whl", hash = "sha256:f9e1c543f2c43b4256ee76bbbdb1dcf5a2449f1f835f8f768db9bb3be1198f7c", size = 124625, upload-time = "2026-02-27T14:43:55.446Z" },
+
+[package.metadata]
+requires-dist = [
+    { name = "bandit", extras = ["toml"], marker = "extra == 'dev'", specifier = ">=1.7.0" },
+    { name = "cuvis", specifier = ">=3.5.0" },
+    { name = "cuvis-ai-schemas", editable = "../../cuvis-ai-schemas/schemas-tracking" },
+    { name = "cyclonedx-bom", marker = "extra == 'dev'", specifier = ">=4.0.0" },
+    { name = "dataclass-wizard" },
+    { name = "detect-secrets", marker = "extra == 'dev'", specifier = ">=1.4.0" },
+    { name = "dotenv", specifier = ">=0.9.9" },
+    { name = "gdown", specifier = ">=5.2.1" },
+    { name = "gitpython", specifier = ">=3.1.40" },
+    { name = "graphviz", specifier = ">=0.21" },
+    { name = "grpcio", specifier = ">=1.56.0" },
+    { name = "grpcio-health-checking", specifier = ">=1.56.0" },
+    { name = "hydra-core", specifier = ">=1.3.0" },
+    { name = "ipdb", marker = "extra == 'dev'", specifier = ">=0.13.13" },
+    { name = "ipykernel", marker = "extra == 'dev'" },
+    { name = "ipympl", marker = "extra == 'dev'", specifier = ">=0.9.8" },
+    { name = "jupyterlab", marker = "extra == 'dev'" },
+    { name = "loguru", specifier = ">=0.7.0" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0.0" },
+    { name = "numpy", specifier = ">=1.21.0" },
+    { name = "omegaconf", specifier = ">=2.3.0" },
+    { name = "opencv-python", specifier = ">=4.5.0" },
+    { name = "pillow", specifier = ">=9.0.0" },
+    { name = "pip-audit", marker = "extra == 'dev'", specifier = ">=2.7.0" },
+    { name = "pip-licenses", marker = "extra == 'dev'", specifier = ">=4.0.0" },
+    { name = "protobuf", specifier = ">=6.33.4" },
+    { name = "psutil", marker = "extra == 'dev'" },
+    { name = "pycocotools", specifier = ">=2.0.11" },
+    { name = "pydantic", specifier = ">=2.12.5" },
+    { name = "pytest", marker = "extra == 'dev'" },
+    { name = "pytest", marker = "extra == 'test'", specifier = ">=7.0.0" },
+    { name = "pytest-asyncio", marker = "extra == 'test'", specifier = ">=0.21.0" },
+    { name = "pytest-cov", marker = "extra == 'dev'" },
+    { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=4.0.0" },
+    { name = "pytest-mock", marker = "extra == 'test'", specifier = ">=3.10.0" },
+    { name = "pytorch-lightning", specifier = ">=2.6.0" },
+    { name = "pyyaml", specifier = ">=6.0" },
+    { name = "ruff", specifier = ">=0.14.11" },
+    { name = "ruff", marker = "extra == 'dev'" },
+    { name = "scikit-image", specifier = ">=0.25.2" },
+    { name = "torch", specifier = ">=2.9.1", index = "https://download.pytorch.org/whl/cu128" },
+    { name = "torchvision", index = "https://download.pytorch.org/whl/cu128" },
+    { name = "twine", marker = "extra == 'dev'", specifier = ">=6.2.0" },
+    { name = "types-protobuf", marker = "extra == 'dev'", specifier = ">=5.29.2" },
+    { name = "types-pyyaml", marker = "extra == 'dev'", specifier = ">=6.0.0" },
+    { name = "typing-extensions", specifier = ">=4.0.0" },
 ]
+provides-extras = ["dev", "test"]
 
 [[package]]
 name = "cuvis-ai-schemas"
-version = "0.2.0"
-source = { registry = "https://pypi.org/simple" }
+source = { editable = "../../cuvis-ai-schemas/schemas-tracking" }
 dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/53/bd/23f136871be608cb912fc73f1171c5b3aa513314929b9b53aa4a3da9bce4/cuvis_ai_schemas-0.2.0.tar.gz", hash = "sha256:3435c37d55ce7ffbb75961883f1ac65d626a80c4c0747cbd1c6bff308dda4f5e", size = 125390, upload-time = "2026-02-27T13:56:45.536Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/e3/cd/94cb14a9381b98a916b85fa24c95ddc21c3aebdef852e15aa9537730adfe/cuvis_ai_schemas-0.2.0-py3-none-any.whl", hash = "sha256:6e06e414e0d7fba9cf4d182bf78b194fcbb7befde000606d68616f68cc79431c", size = 45417, upload-time = "2026-02-27T13:56:43.941Z" },
 ]
 
 [package.optional-dependencies]
@@ -688,6 +732,35 @@ full = [
     { name = "torch" },
     { name = "torchvision" },
 ]
+
+[package.metadata]
+requires-dist = [
+    { name = "bandit", extras = ["toml"], marker = "extra == 'dev'", specifier = ">=1.7.0" },
+    { name = "cuvis-ai-schemas", extras = ["lightning", "numpy", "proto", "torch"], marker = "extra == 'full'" },
+    { name = "cyclonedx-bom", marker = "extra == 'dev'", specifier = ">=4.0.0" },
+    { name = "detect-secrets", marker = "extra == 'dev'", specifier = ">=1.4.0" },
+    { name = "grpcio", marker = "extra == 'proto'", specifier = ">=1.56.0" },
+    { name = "grpcio-tools", marker = "extra == 'proto'", specifier = ">=1.56.0" },
+    { name = "interrogate", marker = "extra == 'dev'", specifier = ">=1.7.0" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8.0" },
+    { name = "numpy", marker = "extra == 'numpy'", specifier = ">=1.21.0" },
+    { name = "pip-audit", marker = "extra == 'dev'", specifier = ">=2.7.0" },
+    { name = "pip-licenses", marker = "extra == 'dev'", specifier = ">=4.0.0" },
+    { name = "protobuf", marker = "extra == 'proto'", specifier = ">=4.25.0" },
+    { name = "pydantic", specifier = ">=2.0.0,<3.0.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0.0" },
+    { name = "pytorch-lightning", marker = "extra == 'lightning'", specifier = ">=2.0.0" },
+    { name = "pyyaml", specifier = ">=6.0" },
+    { name = "ruff", marker = "extra == 'dev'" },
+    { name = "torch", marker = "extra == 'torch'", specifier = ">=2.0.0" },
+    { name = "torchvision", marker = "extra == 'torch'" },
+    { name = "twine", marker = "extra == 'dev'", specifier = ">=6.2.0" },
+    { name = "types-grpcio", marker = "extra == 'dev'" },
+    { name = "types-protobuf", marker = "extra == 'dev'" },
+    { name = "types-pyyaml", marker = "extra == 'dev'" },
+]
+provides-extras = ["proto", "torch", "numpy", "lightning", "full", "dev"]
 
 [[package]]
 name = "cuvis-il"
@@ -3476,11 +3549,11 @@ wheels = [
 
 [[package]]
 name = "setuptools"
-version = "82.0.0"
+version = "81.0.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/82/f3/748f4d6f65d1756b9ae577f329c951cda23fb900e4de9f70900ced962085/setuptools-82.0.0.tar.gz", hash = "sha256:22e0a2d69474c6ae4feb01951cb69d515ed23728cf96d05513d36e42b62b37cb", size = 1144893, upload-time = "2026-02-08T15:08:40.206Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0d/1c/73e719955c59b8e424d015ab450f51c0af856ae46ea2da83eba51cc88de1/setuptools-81.0.0.tar.gz", hash = "sha256:487b53915f52501f0a79ccfd0c02c165ffe06631443a886740b91af4b7a5845a", size = 1198299, upload-time = "2026-02-06T21:10:39.601Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e1/c6/76dc613121b793286a3f91621d7b75a2b493e0390ddca50f11993eadf192/setuptools-82.0.0-py3-none-any.whl", hash = "sha256:70b18734b607bd1da571d097d236cfcfacaf01de45717d59e6e04b96877532e0", size = 1003468, upload-time = "2026-02-08T15:08:38.723Z" },
+    { url = "https://files.pythonhosted.org/packages/e1/e3/c164c88b2e5ce7b24d667b9bd83589cf4f3520d97cad01534cd3c4f55fdb/setuptools-81.0.0-py3-none-any.whl", hash = "sha256:fdd925d5c5d9f62e4b74b30d6dd7828ce236fd6ed998a08d81de62ce5a6310d6", size = 1062021, upload-time = "2026-02-06T21:10:37.175Z" },
 ]
 
 [[package]]

@@ -160,6 +160,7 @@ nav:
           - Restore Pipeline: how-to/restore-pipeline-trainrun.md
           - Add Built-in Node: how-to/add-builtin-node.md
           - Monitoring & Visualization: how-to/monitoring-and-viz.md
+          - Profiling & Performance: how-to/profiling.md
           - GPU Acceleration: reference/gpu_acceleration_guide.md
           - Remote gRPC: how-to/remote-grpc.md
   - Nodes:

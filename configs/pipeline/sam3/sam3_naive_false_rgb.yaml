@@ -1,0 +1,33 @@
+metadata:
+  name: SAM3_Naive_FalseRGB
+  description: SAM3 video object tracking with naive false RGB projection from HSI
+  tags:
+    - tracking
+    - sam3
+    - false-rgb
+    - video
+  author: cuvis.ai
+
+nodes:
+  - name: cu3s_data
+    class: cuvis_ai.node.data.CU3SDataNode
+    params: {}
+
+  - name: false_rgb
+    class: cuvis_ai.node.band_selection.BaselineFalseRGBSelector
+    params: {}
+
+  - name: sam3_tracker
+    class: cuvis_ai_sam3.node.SAM3TrackerInference
+    params:
+      prompt_text: "person"
+
+connections:
+  - from: cu3s_data.outputs.cube
+    to: false_rgb.inputs.cube
+  - from: cu3s_data.outputs.wavelengths
+    to: false_rgb.inputs.wavelengths
+  - from: false_rgb.outputs.rgb_image
+    to: sam3_tracker.inputs.rgb_frame
+
+frozen_nodes: []

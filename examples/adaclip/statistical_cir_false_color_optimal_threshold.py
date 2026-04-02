@@ -255,20 +255,20 @@ def main() -> None:
     )
 
     pipeline.connect(
-        (data_node.outputs.cube, band_selector.inputs.cube),
-        (data_node.outputs.wavelengths, band_selector.inputs.wavelengths),
-        (band_selector.outputs.rgb_image, adaclip.inputs.rgb_image),
-        (adaclip.outputs.scores, decider.inputs.logits),
-        (adaclip.outputs.scores, score_viz.inputs.scores),
-        (adaclip.outputs.scores, mask_viz.inputs.scores),
-        (decider.outputs.decisions, metrics_node.inputs.decisions),
-        (data_node.outputs.mask, metrics_node.inputs.targets),
-        (decider.outputs.decisions, mask_viz.inputs.decisions),
-        (data_node.outputs.mask, mask_viz.inputs.mask),
-        (band_selector.outputs.rgb_image, mask_viz.inputs.rgb_image),
-        (metrics_node.outputs.metrics, monitor.inputs.metrics),
-        (score_viz.outputs.artifacts, monitor.inputs.artifacts),
-        (mask_viz.outputs.artifacts, monitor.inputs.artifacts),
+        (data_node.outputs.cube, band_selector.cube),
+        (data_node.outputs.wavelengths, band_selector.wavelengths),
+        (band_selector.rgb_image, adaclip.rgb_image),
+        (adaclip.scores, decider.logits),
+        (adaclip.scores, score_viz.scores),
+        (adaclip.scores, mask_viz.scores),
+        (decider.decisions, metrics_node.decisions),
+        (data_node.outputs.mask, metrics_node.targets),
+        (decider.decisions, mask_viz.decisions),
+        (data_node.outputs.mask, mask_viz.mask),
+        (band_selector.rgb_image, mask_viz.rgb_image),
+        (metrics_node.metrics, monitor.metrics),
+        (score_viz.artifacts, monitor.artifacts),
+        (mask_viz.artifacts, monitor.artifacts),
     )
 
     device = "cuda" if torch.cuda.is_available() else "cpu"

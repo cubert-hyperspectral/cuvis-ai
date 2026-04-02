@@ -154,6 +154,14 @@ class MultiFileCu3sDataModule(pl.LightningDataModule):
         Batch size for all dataloaders.
     processing_mode : str
         ``"Reflectance"`` or ``"Raw"``.
+    num_workers : int
+        Number of worker processes for data loading (default: 0).
+    pin_memory : bool
+        Pin memory for faster GPU transfers (default: False).
+    persistent_workers : bool
+        Keep workers alive between epochs (default: False).
+    worker_multiprocessing_context : str
+        Multiprocessing context (default: "spawn").
     """
 
     def __init__(
@@ -161,11 +169,19 @@ class MultiFileCu3sDataModule(pl.LightningDataModule):
         splits_csv: str | Path,
         batch_size: int = 4,
         processing_mode: str = "Reflectance",
+        num_workers: int = 0,
+        pin_memory: bool = False,
+        persistent_workers: bool = False,
+        worker_multiprocessing_context: str = "spawn",
     ) -> None:
         super().__init__()
         self.splits_csv = Path(splits_csv)
         self.batch_size = batch_size
         self.processing_mode = processing_mode
+        self.num_workers = max(0, int(num_workers))
+        self.pin_memory = bool(pin_memory)
+        self.persistent_workers = bool(persistent_workers and self.num_workers > 0)
+        self.worker_multiprocessing_context = worker_multiprocessing_context
         self.train_ds: MultiFileCu3sDataset | None = None
         self.val_ds: MultiFileCu3sDataset | None = None
         self.test_ds: MultiFileCu3sDataset | None = None
@@ -223,31 +239,43 @@ class MultiFileCu3sDataModule(pl.LightningDataModule):
         """Return a DataLoader for the training split."""
         if self.train_ds is None:
             raise RuntimeError("Train dataset not initialized. Call setup('fit').")
-        return DataLoader(
-            self.train_ds,
-            shuffle=True,
-            batch_size=self.batch_size,
-            num_workers=0,
-        )
+        loader_kwargs: dict[str, Any] = {
+            "shuffle": True,
+            "batch_size": self.batch_size,
+            "num_workers": self.num_workers,
+            "pin_memory": self.pin_memory,
+            "persistent_workers": self.persistent_workers,
+        }
+        if self.num_workers > 0 and self.worker_multiprocessing_context:
+            loader_kwargs["multiprocessing_context"] = self.worker_multiprocessing_context
+        return DataLoader(self.train_ds, **loader_kwargs)
 
     def val_dataloader(self) -> DataLoader:
         """Return a DataLoader for the validation split."""
         if self.val_ds is None:
             raise RuntimeError("Val dataset not initialized. Call setup('fit').")
-        return DataLoader(
-            self.val_ds,
-            shuffle=False,
-            batch_size=self.batch_size,
-            num_workers=0,
-        )
+        loader_kwargs: dict[str, Any] = {
+            "shuffle": False,
+            "batch_size": self.batch_size,
+            "num_workers": self.num_workers,
+            "pin_memory": self.pin_memory,
+            "persistent_workers": self.persistent_workers,
+        }
+        if self.num_workers > 0 and self.worker_multiprocessing_context:
+            loader_kwargs["multiprocessing_context"] = self.worker_multiprocessing_context
+        return DataLoader(self.val_ds, **loader_kwargs)
 
     def test_dataloader(self) -> DataLoader:
         """Return a DataLoader for the test split."""
         if self.test_ds is None:
             raise RuntimeError("Test dataset not initialized. Call setup('test').")
-        return DataLoader(
-            self.test_ds,
-            shuffle=False,
-            batch_size=self.batch_size,
-            num_workers=0,
-        )
+        loader_kwargs: dict[str, Any] = {
+            "shuffle": False,
+            "batch_size": self.batch_size,
+            "num_workers": self.num_workers,
+            "pin_memory": self.pin_memory,
+            "persistent_workers": self.persistent_workers,
+        }
+        if self.num_workers > 0 and self.worker_multiprocessing_context:
+            loader_kwargs["multiprocessing_context"] = self.worker_multiprocessing_context
+        return DataLoader(self.test_ds, **loader_kwargs)

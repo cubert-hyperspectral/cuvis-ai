@@ -5,7 +5,7 @@
 
 # gRPC API Reference
 
-Complete reference documentation for the CuvisAIService with 46 RPC methods.
+Complete reference documentation for the CuvisAIService with 48 RPC methods.
 
 ---
 
@@ -20,6 +20,7 @@ The CUVIS.AI gRPC service exposes all functionality through a single `CuvisAISer
 | [Pipeline Management](#pipeline-management) | 5 | Load, save, and manage pipeline state |
 | [Training Operations](#training-operations) | 3 | Execute statistical and gradient-based training |
 | [Inference Operations](#inference-operations) | 1 | Run predictions on trained pipelines |
+| [Profiling](#profiling) | 2 | Enable runtime profiling and retrieve per-node timing statistics |
 | [Introspection & Discovery](#introspection-discovery) | 6 | Query capabilities, inspect pipelines, visualize graphs |
 
 **Protocol Buffers:** All methods use Protocol Buffers (protobuf) for serialization.
@@ -1113,6 +1114,135 @@ response = stub.Inference(
 - [InputBatch Data Type](#inputbatch)
 - [GetPipelineInputs](#getpipelineinputs) - Query required inputs
 - [GetPipelineOutputs](#getpipelineoutputs) - Query available outputs
+
+---
+
+## Profiling
+
+Enable runtime profiling and retrieve per-node timing statistics. For a comprehensive guide on profiling workflows, see [Profiling & Performance](../how-to/profiling.md).
+
+### SetProfiling
+
+**Purpose:** Enable, disable, or reconfigure per-node runtime profiling on a session's pipeline.
+
+**Request:**
+```protobuf
+message SetProfilingRequest {
+  string session_id = 1;
+  bool enabled = 2;
+  optional bool synchronize_cuda = 3;
+  optional bool reset = 4;
+  optional int32 skip_first_n = 5;
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `session_id` | `string` | Target session ID |
+| `enabled` | `bool` | Activate or deactivate profiling |
+| `synchronize_cuda` | `bool` (optional) | If `true`, call `torch.cuda.synchronize` before/after each node for accurate GPU timing. Default: `false` |
+| `reset` | `bool` (optional) | If `true`, discard all previously accumulated statistics. Default: `false` |
+| `skip_first_n` | `int32` (optional) | Number of initial samples per node to discard (warm-up). Default: `0`. Must be >= 0 |
+
+**Response:**
+```protobuf
+message SetProfilingResponse {
+  bool profiling_enabled = 1;
+}
+```
+
+**Full-replace semantics:** Every call fully specifies the configuration. Omitted optional fields fall through to defaults — calling `SetProfiling(enabled=True)` without `synchronize_cuda` sets it to `false`, not the previous value.
+
+**Example:**
+```python
+# Enable profiling with CUDA sync and warm-up skip
+stub.SetProfiling(cuvis_ai_pb2.SetProfilingRequest(
+    session_id=session_id,
+    enabled=True,
+    synchronize_cuda=True,
+    skip_first_n=3,
+))
+
+# Run inference...
+
+# Reset stats for a fresh measurement
+stub.SetProfiling(cuvis_ai_pb2.SetProfilingRequest(
+    session_id=session_id,
+    enabled=True,
+    reset=True,
+))
+```
+
+**Error Codes:**
+
+| Code | Condition |
+|------|-----------|
+| `NOT_FOUND` | Invalid `session_id` |
+| `FAILED_PRECONDITION` | No pipeline loaded in session |
+| `INVALID_ARGUMENT` | Negative `skip_first_n` |
+
+### GetProfilingSummary
+
+**Purpose:** Retrieve accumulated per-node profiling statistics.
+
+**Request:**
+```protobuf
+message GetProfilingSummaryRequest {
+  string session_id = 1;
+  optional ExecutionStage stage = 2;
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `session_id` | `string` | Target session ID |
+| `stage` | `ExecutionStage` (optional) | Filter by execution stage. Omit to retrieve all stages |
+
+**Response:**
+```protobuf
+message GetProfilingSummaryResponse {
+  repeated NodeProfilingStats node_stats = 1;
+}
+
+message NodeProfilingStats {
+  string node_name = 1;
+  ExecutionStage stage = 2;
+  int64 count = 3;
+  double mean_ms = 4;
+  double median_ms = 5;
+  double std_ms = 6;
+  double min_ms = 7;
+  double max_ms = 8;
+  double total_ms = 9;
+  double last_ms = 10;
+}
+```
+
+**Example:**
+```python
+# Get all profiling stats
+response = stub.GetProfilingSummary(
+    cuvis_ai_pb2.GetProfilingSummaryRequest(session_id=session_id)
+)
+for stat in response.node_stats:
+    print(f"{stat.node_name} ({stat.stage}): "
+          f"mean={stat.mean_ms:.2f}ms, count={stat.count}")
+
+# Get only inference stage stats
+response = stub.GetProfilingSummary(
+    cuvis_ai_pb2.GetProfilingSummaryRequest(
+        session_id=session_id,
+        stage=cuvis_ai_pb2.EXECUTION_STAGE_INFERENCE,
+    )
+)
+```
+
+**Error Codes:**
+
+| Code | Condition |
+|------|-----------|
+| `NOT_FOUND` | Invalid `session_id` |
+| `FAILED_PRECONDITION` | No pipeline loaded in session |
 
 ---
 

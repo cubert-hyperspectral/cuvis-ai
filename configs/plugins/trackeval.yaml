@@ -1,0 +1,8 @@
+# TrackEval metrics plugin manifest
+plugins:
+  trackeval:
+    path: "../../../../cuvis-ai-trackeval/trackeval-init"
+    provides:
+      - cuvis_ai_trackeval.node.HOTAMetricNode
+      - cuvis_ai_trackeval.node.CLEARMetricNode
+      - cuvis_ai_trackeval.node.IdentityMetricNode

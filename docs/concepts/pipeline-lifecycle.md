@@ -544,13 +544,16 @@ dot_source = pipeline.to_dot()
 ### Execution Profiling
 
 ```python
-pipeline.enable_profiling()
-outputs = pipeline.forward(batch=data)
+pipeline.set_profiling(enabled=True, skip_first_n=3)
 
-timings = pipeline.get_execution_stats()
-for node_name, time_ms in timings.items():
-    print(f"{node_name}: {time_ms:.2f}ms")
+# Run through Predictor or GradientTrainer for best results
+predictor = Predictor(pipeline=pipeline, datamodule=datamodule)
+predictor.predict(max_batches=100)
+
+print(pipeline.format_profiling_summary(total_frames=100))
 ```
+
+For details, see [Profiling & Performance](../how-to/profiling.md).
 
 ### Logging
 
@@ -598,12 +601,12 @@ outputs = pipeline.forward(batch=data)
    # Auto-cleanup
    ```
 
-5. **Monitor Performance**
+5. **Monitor Performance** (see [Profiling & Performance](../how-to/profiling.md))
    ```python
-   pipeline.enable_profiling()
-   for batch in dataloader:
-       pipeline.forward(batch=batch)
-   stats = pipeline.get_execution_stats()
+   pipeline.set_profiling(enabled=True, skip_first_n=3)
+   predictor = Predictor(pipeline=pipeline, datamodule=datamodule)
+   predictor.predict()
+   print(pipeline.format_profiling_summary())
    ```
 
 6. **Version Pipelines**

@@ -1,6 +1,7 @@
 """Test data factory fixtures for creating hyperspectral cubes."""
 
 import functools
+import json
 from collections.abc import Generator
 from pathlib import Path
 from typing import Literal
@@ -247,6 +248,93 @@ def create_test_cube():
         cube = cube.to(dtype)
         wavelengths = wavelengths.to(torch.int32).reshape(batch_size, -1)
         return cube, wavelengths
+
+    return _create
+
+
+@pytest.fixture(scope="session")
+def create_test_bboxes():
+    """Factory fixture for creating bounding-box tensors in xyxy format.
+
+    Returns:
+        Factory function that creates a ``[B, N, 4]`` float32 tensor of bboxes.
+
+    Examples:
+        >>> bboxes = create_test_bboxes(n=3, height=64, width=64)
+        >>> assert bboxes.shape == (1, 3, 4)
+    """
+
+    def _create(
+        n: int = 5,
+        batch_size: int = 1,
+        height: int = 64,
+        width: int = 64,
+        seed: int = 0,
+    ) -> torch.Tensor:
+        """Create deterministic xyxy bounding boxes within image bounds.
+
+        Boxes are evenly spaced along the diagonal and sized to ~25 % of the
+        image dimension so they don't overlap excessively.
+        """
+        _rng = torch.Generator().manual_seed(seed)  # noqa: F841 — seed for reproducibility
+        box_h = max(4, height // 4)
+        box_w = max(4, width // 4)
+        boxes = []
+        for i in range(n):
+            cx = int((i + 0.5) / n * width)
+            cy = int((i + 0.5) / n * height)
+            x1 = max(0, cx - box_w // 2)
+            y1 = max(0, cy - box_h // 2)
+            x2 = min(width, x1 + box_w)
+            y2 = min(height, y1 + box_h)
+            boxes.append([x1, y1, x2, y2])
+        bboxes = torch.tensor([boxes], dtype=torch.float32)
+        if batch_size > 1:
+            bboxes = bboxes.expand(batch_size, -1, -1).clone()
+        return bboxes
+
+    return _create
+
+
+@pytest.fixture
+def coco_bbox_json_factory(tmp_path: Path):
+    """Factory fixture for writing minimal COCO-style tracking JSON files."""
+
+    def _create(
+        frames: dict[int, list[dict[str, object]]],
+        *,
+        filename: str = "tracking.json",
+        image_hw: tuple[int, int] = (64, 64),
+    ) -> Path:
+        height, width = image_hw
+        images = [
+            {"id": frame_id, "width": width, "height": height} for frame_id in sorted(frames.keys())
+        ]
+
+        annotations: list[dict[str, object]] = []
+        ann_id = 1
+        for frame_id, detections in sorted(frames.items()):
+            for det in detections:
+                annotations.append(
+                    {
+                        "id": ann_id,
+                        "image_id": frame_id,
+                        "category_id": int(det.get("category_id", 1)),
+                        "bbox": det.get("bbox", [0, 0, 0, 0]),
+                        "score": float(det.get("score", 1.0)),
+                        "track_id": int(det.get("track_id", -1)),
+                    }
+                )
+                ann_id += 1
+
+        payload = {
+            "images": images,
+            "annotations": annotations,
+            "categories": [{"id": 1, "name": "object"}],
+        }
+        out_path = tmp_path / filename
+        out_path.write_text(json.dumps(payload), encoding="utf-8")
+        return out_path
 
     return _create
 

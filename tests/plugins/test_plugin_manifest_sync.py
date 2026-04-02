@@ -34,6 +34,8 @@ def test_adaclip_manifest_matches_registry_entry() -> None:
         f"Plugin '{PLUGIN_NAME}' must exist in selective manifest: {ADACLIP_MANIFEST_PATH}"
     )
 
-    assert adaclip_manifest.plugins[PLUGIN_NAME].model_dump() == (
-        registry_manifest.plugins[PLUGIN_NAME].model_dump()
+    # Only compare `provides` — source fields (path vs repo/tag) may differ
+    # between the local-dev registry and the selective manifest.
+    assert adaclip_manifest.plugins[PLUGIN_NAME].provides == (
+        registry_manifest.plugins[PLUGIN_NAME].provides
     )

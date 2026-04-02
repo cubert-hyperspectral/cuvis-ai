@@ -31,6 +31,28 @@ Install CUVIS.AI and its dependencies.
    uv sync --all-extras
    ```
 
+## FFmpeg (required for video pipelines)
+
+Video nodes (`VideoIterator`, `VideoFrameDataModule`, `ToVideoNode`) depend on
+[torchcodec](https://github.com/pytorch/torchcodec) which requires FFmpeg
+system libraries at runtime. Install FFmpeg before using any video functionality:
+
+```bash
+# Linux (apt)
+sudo apt install ffmpeg
+
+# Linux (conda)
+conda install -c conda-forge ffmpeg
+
+# macOS
+brew install ffmpeg
+
+# Windows (scoop) — use the *shared* build so torchcodec can find the DLLs
+scoop install ffmpeg-shared
+# Then add to PATH (Git Bash / MSYS2):
+export PATH="/c/Users/$USER/scoop/apps/ffmpeg-shared/current/bin:$PATH"
+```
+
 ## GPU support (optional)
 
 Check CUDA availability:

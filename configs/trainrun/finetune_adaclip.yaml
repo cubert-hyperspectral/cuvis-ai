@@ -1,0 +1,61 @@
+# @package _global_
+#
+# Fine-tune AdaCLIP adapter layers (Cao et al., ECCV 2024) on lentils data.
+# Hyperparameters match the paper: lr=0.01, betas=(0.5, 0.999), 5 epochs.
+# CLIP backbone stays frozen; only ~10 M adapter params are updated.
+#
+# Usage (via training script):
+#   uv run python examples/adaclip/finetune_adaclip_rgb.py
+#   uv run python examples/adaclip/finetune_adaclip_cir.py
+
+defaults:
+  - /training@training: default
+  - _self_
+
+name: finetune_adaclip
+
+output_dir: ./outputs/${name}
+
+minmax_init_frames: 20
+
+# Multi-file lentils dataset (all days)
+data:
+  splits_csv: lentils_splits.csv
+  batch_size: 1
+  processing_mode: Reflectance
+  num_workers: 4
+
+training:
+  seed: 42
+  trainer:
+    max_epochs: 5
+    accelerator: cuda
+    devices: 1
+    default_root_dir: ${output_dir}
+    precision: 32-true
+    accumulate_grad_batches: 1
+    enable_progress_bar: true
+    enable_checkpointing: true
+    log_every_n_steps: 10
+    val_check_interval: 1.0
+    check_val_every_n_epoch: 1
+    gradient_clip_val: 1.0
+    deterministic: false
+    benchmark: false
+  optimizer:
+    name: adamw
+    lr: 0.01
+    weight_decay: 0.0
+    betas: [0.5, 0.999]
+
+# Only adapter layers are unfrozen — CLIP backbone stays frozen
+unfreeze_nodes:
+  - adaclip
+
+loss_nodes:
+  - focal_dice_loss
+
+metric_nodes:
+  - metrics_anomaly
+
+freeze_nodes: []

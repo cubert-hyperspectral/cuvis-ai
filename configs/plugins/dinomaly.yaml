@@ -1,0 +1,13 @@
+# Dinomaly plugin manifest (Anomalib-backed)
+#
+# Canonical registry: configs/plugins/registry.yaml
+#
+#   uv run restore-pipeline --plugins-path configs/plugins/dinomaly.yaml
+
+plugins:
+  dinomaly:
+    # Relative to this file: configs/plugins/ → repo root is ../.. ; plugin is sibling of cuvis-ai
+    path: "../../../cuvis-ai-dinomaly"
+    provides:
+      - cuvis_ai_dinomaly.node.dinomaly_detector.DinomalyDetector
+      - cuvis_ai_dinomaly.node.dinomaly_train_loss_bridge.DinomalyTrainLossBridge
