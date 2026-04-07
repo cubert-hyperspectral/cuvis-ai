@@ -21,6 +21,24 @@ plugins:
     provides:
       - cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
 
+  ultralytics:
+    # Ultralytics YOLO26 nodes for cuvis.ai detection and tracking pipelines
+    repo: "https://github.com/cubert-hyperspectral/cuvis-ai-ultralytics.git"
+    tag: "v0.1.0"
+    provides:
+      - cuvis_ai_ultralytics.node.YOLOPreprocess
+      - cuvis_ai_ultralytics.node.YOLO26Detection
+      - cuvis_ai_ultralytics.node.YOLOPostprocess
+
+  deepeiou:
+    # DeepEIoU tracker and ReID feature extractors for cuvis.ai tracking pipelines
+    repo: "https://github.com/cubert-hyperspectral/cuvis-ai-deepeiou.git"
+    tag: "v0.1.0"
+    provides:
+      - cuvis_ai_deepeiou.node.DeepEIoUTrack
+      - cuvis_ai_deepeiou.node.OSNetExtractor
+      - cuvis_ai_deepeiou.node.ResNetExtractor
+
   trackeval:
     # TrackEval-based tracking metric nodes for HOTA, CLEAR, and Identity evaluation
     repo: "https://github.com/cubert-hyperspectral/cuvis-ai-trackeval.git"
@@ -29,7 +47,6 @@ plugins:
       - cuvis_ai_trackeval.node.HOTAMetricNode
       - cuvis_ai_trackeval.node.CLEARMetricNode
       - cuvis_ai_trackeval.node.IdentityMetricNode
-
 
   # ============================================================================
   # Community Plugins

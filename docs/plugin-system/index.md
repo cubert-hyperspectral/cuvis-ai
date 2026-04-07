@@ -38,19 +38,23 @@ HOTAMetricNode = registry.get("HOTAMetricNode", instance=registry)
 
     ---
 
-    Load released and local plugins through selective manifests such as `trackeval.yaml` and `sam3.yaml`.
+    Load released and local plugins through selective manifests such as `ultralytics.yaml`, `deepeiou.yaml`, `trackeval.yaml`, and `sam3.yaml`.
 
 </div>
 
 ## Official Plugin Manifests
 
 - [`configs/plugins/adaclip.yaml`](../../configs/plugins/adaclip.yaml): released AdaCLIP plugin manifest
+- [`configs/plugins/ultralytics.yaml`](../../configs/plugins/ultralytics.yaml): released Ultralytics YOLO26 plugin manifest pinned to `v0.1.0`
+- [`configs/plugins/deepeiou.yaml`](../../configs/plugins/deepeiou.yaml): released DeepEIoU plugin manifest pinned to `v0.1.0`
 - [`configs/plugins/trackeval.yaml`](../../configs/plugins/trackeval.yaml): released TrackEval plugin manifest pinned to `v0.1.0`
 - [`configs/plugins/sam3.yaml`](../../configs/plugins/sam3.yaml): local SAM3 plugin manifest for a checkout at `D:\code-repos\cuvis-ai-sam3\sam3-init`
 
 ## Official Plugins
 
 - **[cuvis-ai-adaclip](https://github.com/cubert-hyperspectral/cuvis-ai-adaclip)** - AdaCLIP vision-language anomaly detection
+- **[cuvis-ai-ultralytics](https://github.com/cubert-hyperspectral/cuvis-ai-ultralytics)** - Ultralytics YOLO26 nodes for cuvis.ai detection and tracking pipelines
+- **[cuvis-ai-deepeiou](https://github.com/cubert-hyperspectral/cuvis-ai-deepeiou)** - DeepEIoU tracking and optional ReID extractors for cuvis.ai tracking pipelines
 - **[cuvis-ai-trackeval](https://github.com/cubert-hyperspectral/cuvis-ai-trackeval)** - HOTA, CLEAR, and Identity tracking metrics
 - **[cuvis-ai-sam3](https://github.com/cubert-hyperspectral/cuvis-ai-sam3)** - local SAM3 tracking workflows and prompt propagation nodes
 
