@@ -42,7 +42,7 @@ Built-in contributions require more rigorous review and integration testing, but
 
 **How:**
 
-1. Follow the [Plugin Development Guide](../plugin-system/dev-quickstart.md) to create your plugin
+1. Follow the [Plugin Development Guide](../plugin-system/development.md) to create your plugin
 2. Implement nodes inheriting from `cuvis_ai_core.node.Node`
 3. Test with cuvis-ai pipelines using local plugin loading
 4. Publish to GitHub and submit to the central registry (see [Plugin Contribution Workflow](#plugin-contribution-workflow) below)
@@ -93,7 +93,7 @@ This section describes the **complete process** for contributing a plugin to the
 
 ### Step 1: Develop Your Plugin
 
-Follow the comprehensive [Plugin Development Guide](../plugin-system/dev-quickstart.md) to create your plugin from scratch.
+Follow the comprehensive [Plugin Development Guide](../plugin-system/development.md) to create your plugin from scratch.
 
 **Key requirements:**
 

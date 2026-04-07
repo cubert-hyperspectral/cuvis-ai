@@ -468,9 +468,9 @@ CUVIS.AI supports a plugin system for extending functionality. Plugins can be lo
 
 For comprehensive plugin system documentation, see:
 
-- [Plugin System Overview](../plugin-system/architecture.md) - Architecture and core concepts
-- [Plugin Registry](../plugin-system/registry.md) - Available plugins
-- [Plugin Development Guide](../plugin-system/dev-quickstart.md) - Creating custom plugins
+- [Plugin System Overview](../plugin-system/overview.md) - Architecture and core concepts
+- [Plugin Usage Guide](../plugin-system/usage.md) - Selective manifests and loading examples
+- [Plugin Development Guide](../plugin-system/development.md) - Creating custom plugins
 
 **gRPC Integration:**
 Plugins loaded on the server side are automatically available to all gRPC clients. Use the discovery RPCs to query available capabilities after plugins are loaded.

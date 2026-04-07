@@ -27,7 +27,7 @@ This tutorial demonstrates **plugin-based anomaly detection** using the AdaCLIP 
 **Prerequisites:**
 
 - Completion of [Channel Selector Tutorial](channel-selector.md) - Understanding two-phase training
-- Familiarity with [Plugin System Overview](../plugin-system/architecture.md)
+- Familiarity with [Plugin System Overview](../plugin-system/overview.md)
 - Python 3.10+, PyTorch 2.0+, CUDA-capable GPU (recommended)
 
 ---
@@ -56,7 +56,7 @@ Unlike built-in nodes, **plugin nodes** are loaded dynamically from external Git
 - **Versioning** - Pin to specific plugin releases (tags) for reproducibility
 - **Community Extensions** - Share custom nodes without modifying core codebase
 
-See [Plugin System Usage](../plugin-system/loading.md) for installation details.
+See [Plugin System Usage](../plugin-system/usage.md) for installation details.
 
 ---
 
@@ -847,7 +847,7 @@ You've learned three approaches to hyperspectral dimensionality reduction for Ad
 
 **Explore Related Topics:**
 
-- [Plugin System Development](../plugin-system/dev-quickstart.md) - Create your own plugin nodes
+- [Plugin System Development](../plugin-system/development.md) - Create your own plugin nodes
 - [gRPC Workflow Tutorial](grpc-workflow.md) - Distributed training and inference
 - [Loss & Metrics Nodes](../node-catalog/loss-metrics.md) - IoU loss and distinctness loss details
 
@@ -889,6 +889,6 @@ python examples/adaclip/concrete_adaclip_gradient_training.py
 
 **Need Help?**
 
-- Check [Plugin System FAQ](../plugin-system/plugin-config.md#troubleshooting)
+- Check [Plugin System FAQ](../plugin-system/usage.md#troubleshooting)
 - Review [Band Selection Strategies](../node-catalog/selectors.md)
 - See [Training Configuration](../concepts/two-phase-training.md)
