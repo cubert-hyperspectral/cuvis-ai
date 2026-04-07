@@ -1,4 +1,4 @@
-"""Guard against drift between registry and selective plugin manifests."""
+"""Validate the selective TrackEval plugin manifest."""
 
 from __future__ import annotations
 
@@ -9,33 +9,32 @@ from cuvis_ai_core.utils.plugin_config import PluginManifest
 
 pytestmark = pytest.mark.unit
 
-REGISTRY_PATH = Path("configs/plugins/registry.yaml")
-ADACLIP_MANIFEST_PATH = Path("configs/plugins/adaclip.yaml")
-PLUGIN_NAME = "adaclip"
+TRACKEVAL_MANIFEST_PATH = Path("configs/plugins/trackeval.yaml")
+PLUGIN_NAME = "trackeval"
+EXPECTED_REPO = "https://github.com/cubert-hyperspectral/cuvis-ai-trackeval.git"
+EXPECTED_TAG = "v0.1.0"
+EXPECTED_PROVIDES = [
+    "cuvis_ai_trackeval.node.HOTAMetricNode",
+    "cuvis_ai_trackeval.node.CLEARMetricNode",
+    "cuvis_ai_trackeval.node.IdentityMetricNode",
+]
 
 
-def test_adaclip_manifest_exists() -> None:
-    assert ADACLIP_MANIFEST_PATH.exists(), f"Missing AdaCLIP manifest: {ADACLIP_MANIFEST_PATH}"
+def test_trackeval_manifest_exists() -> None:
+    assert TRACKEVAL_MANIFEST_PATH.exists(), (
+        f"Missing TrackEval manifest: {TRACKEVAL_MANIFEST_PATH}"
+    )
 
 
-def test_adaclip_manifest_contains_only_adaclip_plugin() -> None:
-    manifest = PluginManifest.from_yaml(ADACLIP_MANIFEST_PATH)
+def test_trackeval_manifest_contains_only_trackeval_plugin() -> None:
+    manifest = PluginManifest.from_yaml(TRACKEVAL_MANIFEST_PATH)
     assert set(manifest.plugins.keys()) == {PLUGIN_NAME}
 
 
-def test_adaclip_manifest_matches_registry_entry() -> None:
-    registry_manifest = PluginManifest.from_yaml(REGISTRY_PATH)
-    adaclip_manifest = PluginManifest.from_yaml(ADACLIP_MANIFEST_PATH)
+def test_trackeval_manifest_matches_expected_release() -> None:
+    manifest = PluginManifest.from_yaml(TRACKEVAL_MANIFEST_PATH)
+    plugin = manifest.plugins[PLUGIN_NAME]
 
-    assert PLUGIN_NAME in registry_manifest.plugins, (
-        f"Plugin '{PLUGIN_NAME}' must exist in registry: {REGISTRY_PATH}"
-    )
-    assert PLUGIN_NAME in adaclip_manifest.plugins, (
-        f"Plugin '{PLUGIN_NAME}' must exist in selective manifest: {ADACLIP_MANIFEST_PATH}"
-    )
-
-    # Only compare `provides` — source fields (path vs repo/tag) may differ
-    # between the local-dev registry and the selective manifest.
-    assert adaclip_manifest.plugins[PLUGIN_NAME].provides == (
-        registry_manifest.plugins[PLUGIN_NAME].provides
-    )
+    assert getattr(plugin, "repo", None) == EXPECTED_REPO
+    assert getattr(plugin, "tag", None) == EXPECTED_TAG
+    assert plugin.provides == EXPECTED_PROVIDES

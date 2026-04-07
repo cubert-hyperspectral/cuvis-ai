@@ -193,17 +193,9 @@ nav:
       - Deployment: deployment/grpc_deployment.md
   - Plugins:
       - Overview: plugin-system/index.md
-      - Architecture: plugin-system/architecture.md
-      - Internals: plugin-system/internals.md
-      - Development:
-          - Quick Start: plugin-system/dev-quickstart.md
-          - Advanced Nodes: plugin-system/dev-advanced.md
-          - Testing & Publishing: plugin-system/dev-testing.md
-      - Packaging: plugin-system/packaging.md
-      - Usage:
-          - Loading Plugins: plugin-system/loading.md
-          - Using Plugin Nodes: plugin-system/using-nodes.md
-          - Configuration: plugin-system/plugin-config.md
+      - Plugin System Overview: plugin-system/overview.md
+      - Plugin Development: plugin-system/development.md
+      - Plugin Usage: plugin-system/usage.md
   - Development:
       - Overview: development/index.md
       - Contributing: development/contributing.md

@@ -1,4 +1,8 @@
-# SAM3 Plugin Manifest
+# SAM3 Plugin Manifest (local development)
+#
+# Use this file when you want to load the local SAM3 plugin checkout:
+#   uv run restore-pipeline --plugins-path configs/plugins/sam3.yaml
+
 plugins:
   sam3:
     # SAM3-based video object tracking plugin

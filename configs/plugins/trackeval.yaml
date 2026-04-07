@@ -1,7 +1,13 @@
-# TrackEval metrics plugin manifest
+# TrackEval Plugin Manifest (released plugin)
+#
+# Use this file when you want to load only TrackEval:
+#   uv run restore-pipeline --plugins-path configs/plugins/trackeval.yaml
+
 plugins:
   trackeval:
-    path: "../../../../cuvis-ai-trackeval/trackeval-init"
+    # TrackEval-based tracking metric nodes for HOTA, CLEAR, and Identity evaluation
+    repo: "https://github.com/cubert-hyperspectral/cuvis-ai-trackeval.git"
+    tag: "v0.1.0"
     provides:
       - cuvis_ai_trackeval.node.HOTAMetricNode
       - cuvis_ai_trackeval.node.CLEARMetricNode
