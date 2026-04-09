@@ -9,6 +9,43 @@ This repo ships selective manifests for the main plugin workflows used during de
 
 ## Selective Manifests
 
+### Ultralytics
+
+Use the released Ultralytics plugin manifest:
+
+```bash
+uv run restore-pipeline \
+    --pipeline-path configs/pipeline/my_pipeline.yaml \
+    --plugins-path configs/plugins/ultralytics.yaml
+```
+
+`configs/plugins/ultralytics.yaml` loads:
+
+- `cuvis_ai_ultralytics.node.YOLOPreprocess`
+- `cuvis_ai_ultralytics.node.YOLO26Detection`
+- `cuvis_ai_ultralytics.node.YOLOPostprocess`
+
+from `https://github.com/cubert-hyperspectral/cuvis-ai-ultralytics.git` at `v0.1.0`.
+
+### DeepEIoU
+
+Use the released DeepEIoU plugin manifest:
+
+```bash
+uv run python examples/object_tracking/deepeiou/yolo_deepeiou_reid_hsi.py \
+    --video-path path/to/video.mp4 \
+    --no-reid \
+    --plugins-dir configs/plugins
+```
+
+`configs/plugins/deepeiou.yaml` loads:
+
+- `cuvis_ai_deepeiou.node.DeepEIoUTrack`
+- `cuvis_ai_deepeiou.node.OSNetExtractor`
+- `cuvis_ai_deepeiou.node.ResNetExtractor`
+
+from `https://github.com/cubert-hyperspectral/cuvis-ai-deepeiou.git` at `v0.1.0`.
+
 ### TrackEval
 
 Use the released TrackEval plugin manifest:
@@ -64,10 +101,26 @@ HOTAMetricNode = registry.get("HOTAMetricNode", instance=registry)
 
 ## Combined Manifest Example
 
-Create a custom manifest when you want TrackEval and local SAM3 together:
+Create a custom manifest when you want released tracking plugins plus a local SAM3 checkout:
 
 ```yaml
 plugins:
+  ultralytics:
+    repo: "https://github.com/cubert-hyperspectral/cuvis-ai-ultralytics.git"
+    tag: "v0.1.0"
+    provides:
+      - cuvis_ai_ultralytics.node.YOLOPreprocess
+      - cuvis_ai_ultralytics.node.YOLO26Detection
+      - cuvis_ai_ultralytics.node.YOLOPostprocess
+
+  deepeiou:
+    repo: "https://github.com/cubert-hyperspectral/cuvis-ai-deepeiou.git"
+    tag: "v0.1.0"
+    provides:
+      - cuvis_ai_deepeiou.node.DeepEIoUTrack
+      - cuvis_ai_deepeiou.node.OSNetExtractor
+      - cuvis_ai_deepeiou.node.ResNetExtractor
+
   trackeval:
     repo: "https://github.com/cubert-hyperspectral/cuvis-ai-trackeval.git"
     tag: "v0.1.0"

@@ -13,6 +13,14 @@ Each plugin manifest uses a `plugins:` mapping and one of two source styles:
 
 ```yaml
 plugins:
+  ultralytics:
+    repo: "https://github.com/cubert-hyperspectral/cuvis-ai-ultralytics.git"
+    tag: "v0.1.0"
+    provides:
+      - cuvis_ai_ultralytics.node.YOLOPreprocess
+      - cuvis_ai_ultralytics.node.YOLO26Detection
+      - cuvis_ai_ultralytics.node.YOLOPostprocess
+
   trackeval:
     repo: "https://github.com/cubert-hyperspectral/cuvis-ai-trackeval.git"
     tag: "v0.1.0"
@@ -51,6 +59,8 @@ HOTAMetricNode = registry.get("HOTAMetricNode", instance=registry)
 ## Selective Manifests in This Repo
 
 - `configs/plugins/adaclip.yaml`: released AdaCLIP plugin.
+- `configs/plugins/ultralytics.yaml`: released Ultralytics YOLO26 plugin at `v0.1.0`.
+- `configs/plugins/deepeiou.yaml`: released DeepEIoU plugin at `v0.1.0`.
 - `configs/plugins/trackeval.yaml`: released TrackEval plugin at `v0.1.0`.
 - `configs/plugins/sam3.yaml`: local SAM3 checkout for active development.
 
@@ -62,6 +72,22 @@ Create a local manifest when you want multiple plugins together:
 
 ```yaml
 plugins:
+  ultralytics:
+    repo: "https://github.com/cubert-hyperspectral/cuvis-ai-ultralytics.git"
+    tag: "v0.1.0"
+    provides:
+      - cuvis_ai_ultralytics.node.YOLOPreprocess
+      - cuvis_ai_ultralytics.node.YOLO26Detection
+      - cuvis_ai_ultralytics.node.YOLOPostprocess
+
+  deepeiou:
+    repo: "https://github.com/cubert-hyperspectral/cuvis-ai-deepeiou.git"
+    tag: "v0.1.0"
+    provides:
+      - cuvis_ai_deepeiou.node.DeepEIoUTrack
+      - cuvis_ai_deepeiou.node.OSNetExtractor
+      - cuvis_ai_deepeiou.node.ResNetExtractor
+
   trackeval:
     repo: "https://github.com/cubert-hyperspectral/cuvis-ai-trackeval.git"
     tag: "v0.1.0"
