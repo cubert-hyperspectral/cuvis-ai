@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 import torch
 import torch.nn.functional as F
 
@@ -181,6 +183,108 @@ def draw_text(
 
     region = img[y0:y1, x0:x1, :]
     region[mask_crop] = color_t
+
+
+def _fill_triangle(
+    img: torch.Tensor,
+    vertices: tuple[tuple[float, float], tuple[float, float], tuple[float, float]],
+    color: torch.Tensor | tuple[int, int, int],
+) -> None:
+    """Rasterize a filled triangle in-place on a uint8 HWC image."""
+    if img.ndim != 3 or img.shape[-1] != 3 or img.dtype != torch.uint8:
+        raise ValueError(
+            f"Expected image shape (H, W, 3) uint8, got {tuple(img.shape)} {img.dtype}"
+        )
+
+    h, w = int(img.shape[0]), int(img.shape[1])
+    if h == 0 or w == 0:
+        return
+
+    xs = [float(v[0]) for v in vertices]
+    ys = [float(v[1]) for v in vertices]
+    x0 = max(0, min(w - 1, int(math.floor(min(xs)))))
+    x1 = max(0, min(w - 1, int(math.ceil(max(xs)))))
+    y0 = max(0, min(h - 1, int(math.floor(min(ys)))))
+    y1 = max(0, min(h - 1, int(math.ceil(max(ys)))))
+    if x1 < x0 or y1 < y0:
+        return
+
+    grid_y, grid_x = torch.meshgrid(
+        torch.arange(y0, y1 + 1, device=img.device, dtype=torch.float32),
+        torch.arange(x0, x1 + 1, device=img.device, dtype=torch.float32),
+        indexing="ij",
+    )
+    px = grid_x + 0.5
+    py = grid_y + 0.5
+
+    (ax, ay), (bx, by), (cx, cy) = vertices
+    denom = (cx - ax) * (by - ay) - (bx - ax) * (cy - ay)
+    if abs(denom) < 1e-6:
+        return
+
+    bary_u = ((px - ax) * (by - ay) - (py - ay) * (bx - ax)) / denom
+    bary_v = ((px - ax) * (cy - ay) - (py - ay) * (cx - ax)) / -denom
+    inside = (bary_u >= 0.0) & (bary_v >= 0.0) & ((bary_u + bary_v) <= 1.0)
+
+    if not torch.any(inside):
+        return
+
+    region = img[y0 : y1 + 1, x0 : x1 + 1, :]
+    region[inside] = _as_color_tensor(color, img.device)
+
+
+@torch.no_grad()
+def draw_downward_triangle(
+    img: torch.Tensor,
+    tip_x: int,
+    tip_y: int,
+    width: int,
+    height: int,
+    color: torch.Tensor | tuple[int, int, int],
+    *,
+    outline_color: torch.Tensor | tuple[int, int, int] | None = None,
+    outline_thickness: int = 1,
+) -> None:
+    """Draw a filled downward-pointing isosceles triangle in-place."""
+    if img.ndim != 3 or img.shape[-1] != 3 or img.dtype != torch.uint8:
+        raise ValueError(
+            f"Expected image shape (H, W, 3) uint8, got {tuple(img.shape)} {img.dtype}"
+        )
+
+    h, w = int(img.shape[0]), int(img.shape[1])
+    if h == 0 or w == 0:
+        return
+
+    tri_w = max(1, int(width))
+    tri_h = max(1, int(height))
+    tip_x_i = int(tip_x)
+    tip_y_i = int(tip_y)
+    half_w = tri_w / 2.0
+
+    outer = (
+        (tip_x_i, tip_y_i),
+        (tip_x_i - half_w, tip_y_i - tri_h),
+        (tip_x_i + half_w, tip_y_i - tri_h),
+    )
+
+    if outline_color is not None:
+        _fill_triangle(img, outer, outline_color)
+
+        t = max(0, int(outline_thickness))
+        inner_w = tri_w - 2 * t
+        inner_h = tri_h - 2 * t
+        if inner_w > 0 and inner_h > 0:
+            inner_half_w = inner_w / 2.0
+            inner_tip_y = tip_y_i - t
+            inner = (
+                (tip_x_i, inner_tip_y),
+                (tip_x_i - inner_half_w, inner_tip_y - inner_h),
+                (tip_x_i + inner_half_w, inner_tip_y - inner_h),
+            )
+            _fill_triangle(img, inner, color)
+        return
+
+    _fill_triangle(img, outer, color)
 
 
 @torch.no_grad()
@@ -387,6 +491,7 @@ __all__ = [
     "mask_edge",
     "draw_box",
     "draw_text",
+    "draw_downward_triangle",
     "draw_sparkline",
     "id_to_color",
     "overlay_instances",

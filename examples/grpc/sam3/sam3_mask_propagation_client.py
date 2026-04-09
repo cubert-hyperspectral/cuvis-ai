@@ -20,7 +20,7 @@ from torch.utils.data import DataLoader, Subset
 from tqdm import tqdm
 
 from cuvis_ai.node.json_writer import CocoTrackMaskWriter
-from cuvis_ai.node.static_node import load_mask_prompt_schedule
+from cuvis_ai.node.prompts import load_mask_prompt_schedule
 from cuvis_ai.utils.grpc_workflow import (
     build_stub,
     config_search_paths,

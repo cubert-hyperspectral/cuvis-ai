@@ -578,7 +578,7 @@ docs = [
 requires-dist = [
     { name = "bandit", extras = ["toml"], marker = "extra == 'dev'", specifier = ">=1.7.0" },
     { name = "cuvis", specifier = ">=3.5.0" },
-    { name = "cuvis-ai-core", editable = "../../cuvis-ai-core/cuvis-ai-core-sam3" },
+    { name = "cuvis-ai-core", specifier = ">=0.3.0" },
     { name = "cuvis-ai-schemas", extras = ["full"], specifier = ">=0.2.0" },
     { name = "cyclonedx-bom", marker = "extra == 'dev'", specifier = ">=4.0.0" },
     { name = "detect-secrets", marker = "extra == 'dev'", specifier = ">=1.4.0" },
@@ -621,7 +621,7 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'" },
     { name = "scikit-image" },
     { name = "scikit-learn" },
-    { name = "setuptools", specifier = "<82" },
+    { name = "setuptools", specifier = "<81" },
     { name = "tensorboard" },
     { name = "torch", specifier = ">=2.9.1", index = "https://download.pytorch.org/whl/cu128" },
     { name = "torchmetrics" },
@@ -634,7 +634,8 @@ provides-extras = ["docs", "dev"]
 
 [[package]]
 name = "cuvis-ai-core"
-source = { editable = "../../cuvis-ai-core/cuvis-ai-core-sam3" }
+version = "0.3.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cuvis" },
     { name = "cuvis-ai-schemas" },
@@ -662,58 +663,10 @@ dependencies = [
     { name = "torchvision" },
     { name = "typing-extensions" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "bandit", extras = ["toml"], marker = "extra == 'dev'", specifier = ">=1.7.0" },
-    { name = "cuvis", specifier = ">=3.5.0" },
-    { name = "cuvis-ai-schemas", specifier = ">=0.3.0" },
-    { name = "cyclonedx-bom", marker = "extra == 'dev'", specifier = ">=4.0.0" },
-    { name = "dataclass-wizard" },
-    { name = "detect-secrets", marker = "extra == 'dev'", specifier = ">=1.4.0" },
-    { name = "dotenv", specifier = ">=0.9.9" },
-    { name = "gitpython", specifier = ">=3.1.40" },
-    { name = "graphviz", specifier = ">=0.21" },
-    { name = "grpcio", specifier = ">=1.56.0" },
-    { name = "grpcio-health-checking", specifier = ">=1.56.0" },
-    { name = "huggingface-hub", marker = "extra == 'hf'", specifier = ">=0.20.0" },
-    { name = "hydra-core", specifier = ">=1.3.0" },
-    { name = "ipdb", marker = "extra == 'dev'", specifier = ">=0.13.13" },
-    { name = "ipykernel", marker = "extra == 'dev'" },
-    { name = "ipympl", marker = "extra == 'dev'", specifier = ">=0.9.8" },
-    { name = "jupyterlab", marker = "extra == 'dev'" },
-    { name = "loguru", specifier = ">=0.7.0" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0.0" },
-    { name = "numpy", specifier = ">=1.21.0" },
-    { name = "omegaconf", specifier = ">=2.3.0" },
-    { name = "opencv-python", specifier = ">=4.5.0" },
-    { name = "pillow", specifier = ">=9.0.0" },
-    { name = "pip-audit", marker = "extra == 'dev'", specifier = ">=2.7.0" },
-    { name = "pip-licenses", marker = "extra == 'dev'", specifier = ">=4.0.0" },
-    { name = "protobuf", specifier = ">=6.33.4" },
-    { name = "psutil", marker = "extra == 'dev'" },
-    { name = "pycocotools", specifier = ">=2.0.11" },
-    { name = "pydantic", specifier = ">=2.12.5" },
-    { name = "pytest", marker = "extra == 'dev'" },
-    { name = "pytest", marker = "extra == 'test'", specifier = ">=7.0.0" },
-    { name = "pytest-asyncio", marker = "extra == 'test'", specifier = ">=0.21.0" },
-    { name = "pytest-cov", marker = "extra == 'dev'" },
-    { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=4.0.0" },
-    { name = "pytest-mock", marker = "extra == 'test'", specifier = ">=3.10.0" },
-    { name = "pytorch-lightning", specifier = ">=2.6.0" },
-    { name = "pyyaml", specifier = ">=6.0" },
-    { name = "ruff", specifier = ">=0.14.11" },
-    { name = "ruff", marker = "extra == 'dev'" },
-    { name = "scikit-image", specifier = ">=0.25.2" },
-    { name = "scikit-learn", specifier = ">=1.8.0" },
-    { name = "torch", specifier = ">=2.9.1", index = "https://download.pytorch.org/whl/cu128" },
-    { name = "torchvision", index = "https://download.pytorch.org/whl/cu128" },
-    { name = "twine", marker = "extra == 'dev'", specifier = ">=6.2.0" },
-    { name = "types-protobuf", marker = "extra == 'dev'", specifier = ">=5.29.2" },
-    { name = "types-pyyaml", marker = "extra == 'dev'", specifier = ">=6.0.0" },
-    { name = "typing-extensions", specifier = ">=4.0.0" },
+sdist = { url = "https://files.pythonhosted.org/packages/31/60/9688a4065b97c93209eaf00e90bb903e18ecf459513e90f5a76a3df1021a/cuvis_ai_core-0.3.0.tar.gz", hash = "sha256:7b0fc3143b28ef0d453c6aff30ad14e2e063d4067b6fa865d15350dbe6f1d771", size = 444398, upload-time = "2026-04-07T12:22:18.027Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d4/7b/dec3b35cac5864253edb13033b9b66a90810958c2ea388dfc068fa8a3ca5/cuvis_ai_core-0.3.0-py3-none-any.whl", hash = "sha256:732e6fd804610de5683bbb70154ec9ca3c83de56218fab151d0b91334fb1dbe1", size = 140837, upload-time = "2026-04-07T12:22:16.698Z" },
 ]
-provides-extras = ["hf", "dev", "test"]
 
 [[package]]
 name = "cuvis-ai-schemas"
@@ -3498,11 +3451,11 @@ wheels = [
 
 [[package]]
 name = "setuptools"
-version = "81.0.0"
+version = "80.10.2"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/0d/1c/73e719955c59b8e424d015ab450f51c0af856ae46ea2da83eba51cc88de1/setuptools-81.0.0.tar.gz", hash = "sha256:487b53915f52501f0a79ccfd0c02c165ffe06631443a886740b91af4b7a5845a", size = 1198299, upload-time = "2026-02-06T21:10:39.601Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/76/95/faf61eb8363f26aa7e1d762267a8d602a1b26d4f3a1e758e92cb3cb8b054/setuptools-80.10.2.tar.gz", hash = "sha256:8b0e9d10c784bf7d262c4e5ec5d4ec94127ce206e8738f29a437945fbc219b70", size = 1200343, upload-time = "2026-01-25T22:38:17.252Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e1/e3/c164c88b2e5ce7b24d667b9bd83589cf4f3520d97cad01534cd3c4f55fdb/setuptools-81.0.0-py3-none-any.whl", hash = "sha256:fdd925d5c5d9f62e4b74b30d6dd7828ce236fd6ed998a08d81de62ce5a6310d6", size = 1062021, upload-time = "2026-02-06T21:10:37.175Z" },
+    { url = "https://files.pythonhosted.org/packages/94/b8/f1f62a5e3c0ad2ff1d189590bfa4c46b4f3b6e49cef6f26c6ee4e575394d/setuptools-80.10.2-py3-none-any.whl", hash = "sha256:95b30ddfb717250edb492926c92b5221f7ef3fbcc2b07579bcd4a27da21d0173", size = 1064234, upload-time = "2026-01-25T22:38:15.216Z" },
 ]
 
 [[package]]
@@ -3776,9 +3729,9 @@ dependencies = [
     { name = "typing-extensions" },
 ]
 wheels = [
-    { url = "https://download.pytorch.org/whl/cu128/torch-2.10.0%2Bcu128-cp311-cp311-manylinux_2_28_aarch64.whl", hash = "sha256:85ed7944655ea6fd69377692e9cbfd7bba28d99696ceae79985e7caa99cf0a95" },
-    { url = "https://download.pytorch.org/whl/cu128/torch-2.10.0%2Bcu128-cp311-cp311-manylinux_2_28_x86_64.whl", hash = "sha256:1d01ffaebf64715c0f507a39463149cb19e596ff702bd4bcf862601f2881dabc" },
-    { url = "https://download.pytorch.org/whl/cu128/torch-2.10.0%2Bcu128-cp311-cp311-win_amd64.whl", hash = "sha256:3523fda6e2cfab2b04ae09b1424681358e508bb3faa11ceb67004113d5e7acad" },
+    { url = "https://download-r2.pytorch.org/whl/cu128/torch-2.10.0%2Bcu128-cp311-cp311-manylinux_2_28_aarch64.whl", hash = "sha256:85ed7944655ea6fd69377692e9cbfd7bba28d99696ceae79985e7caa99cf0a95" },
+    { url = "https://download-r2.pytorch.org/whl/cu128/torch-2.10.0%2Bcu128-cp311-cp311-manylinux_2_28_x86_64.whl", hash = "sha256:1d01ffaebf64715c0f507a39463149cb19e596ff702bd4bcf862601f2881dabc" },
+    { url = "https://download-r2.pytorch.org/whl/cu128/torch-2.10.0%2Bcu128-cp311-cp311-win_amd64.whl", hash = "sha256:3523fda6e2cfab2b04ae09b1424681358e508bb3faa11ceb67004113d5e7acad" },
 ]
 
 [[package]]

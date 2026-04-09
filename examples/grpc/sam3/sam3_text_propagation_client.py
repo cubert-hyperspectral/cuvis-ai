@@ -18,7 +18,7 @@ from torch.utils.data import DataLoader, Subset
 from tqdm import tqdm
 
 from cuvis_ai.node.json_writer import CocoTrackMaskWriter
-from cuvis_ai.node.static_node import (
+from cuvis_ai.node.prompts import (
     load_text_prompt_schedule,
     resolve_text_prompt_for_frame,
 )

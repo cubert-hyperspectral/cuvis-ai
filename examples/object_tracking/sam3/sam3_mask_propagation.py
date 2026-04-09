@@ -31,7 +31,7 @@ from sam3_source_context import (
 from cuvis_ai.node.anomaly_visualization import MaskOverlayNode, TrackingOverlayNode
 from cuvis_ai.node.channel_selector import CIETristimulusFalseRGBSelector, NormMode
 from cuvis_ai.node.json_writer import CocoTrackMaskWriter
-from cuvis_ai.node.static_node import MaskPrompt
+from cuvis_ai.node.prompts import MaskPrompt, TextPrompt, parse_spatial_prompt_spec
 from cuvis_ai.node.video import ToVideoNode
 
 
@@ -59,6 +59,12 @@ from cuvis_ai.node.video import ToVideoNode
     "prompt_specs",
     multiple=True,
     help="Repeatable prompt spec in the form <object_id:detection_id@frame_id>.",
+)
+@click.option(
+    "--text-prompt",
+    type=str,
+    default=None,
+    help="Optional text description applied alongside each scheduled mask prompt frame.",
 )
 @click.option(
     "--processing-mode",
@@ -149,11 +155,18 @@ from cuvis_ai.node.video import ToVideoNode
     default=False,
     help="Write prompt_mask_overlay.mp4 showing the source frame stream with prompt masks overlaid.",
 )
+@click.option(
+    "--draw-ids",
+    is_flag=True,
+    default=False,
+    help="Render numeric object-ID labels on the tracking overlay.",
+)
 def main(
     cu3s_path: Path | None,
     video_path: Path | None,
     detection_json: Path,
     prompt_specs: tuple[str, ...],
+    text_prompt: str | None,
     processing_mode: str,
     frame_rotation: int | None,
     start_frame: int,
@@ -171,6 +184,7 @@ def main(
     overlap_suppress_thresh: float,
     max_tracker_states: int,
     write_prompt_debug_video: bool,
+    draw_ids: bool,
 ) -> None:
     effective_end_frame = resolve_end_frame(
         start_frame=start_frame,
@@ -228,6 +242,20 @@ def main(
         prompt_specs=list(prompt_specs),
         name="mask_prompt",
     )
+    text_prompt_node = None
+    if text_prompt is not None and text_prompt.strip():
+        text_prompt_specs: list[str] = []
+        scheduled_frames: set[int] = set()
+        for raw_prompt_spec in prompt_specs:
+            parsed_prompt_spec = parse_spatial_prompt_spec(raw_prompt_spec)
+            if parsed_prompt_spec.frame_id in scheduled_frames:
+                continue
+            scheduled_frames.add(parsed_prompt_spec.frame_id)
+            text_prompt_specs.append(f"{text_prompt}@{parsed_prompt_spec.frame_id}")
+        text_prompt_node = TextPrompt(
+            prompt_specs=text_prompt_specs,
+            name="text_prompt_schedule",
+        )
 
     plugin_manifest = resolve_plugin_manifest(plugins_yaml)
     registry = NodeRegistry()
@@ -252,8 +280,9 @@ def main(
     )
 
     logger.info(
-        "Mask propagation: {} prompt spec(s), {} frames",
+        "Mask propagation: {} prompt spec(s), text_prompt={!r}, {} frames",
         len(prompt_specs),
+        text_prompt,
         source_context.target_frames,
     )
 
@@ -265,7 +294,7 @@ def main(
         default_category_name="person",
         name="tracking_coco_json",
     )
-    overlay_node = TrackingOverlayNode(alpha=0.2, name="overlay")
+    overlay_node = TrackingOverlayNode(alpha=0.2, draw_ids=draw_ids, name="overlay")
     overlay_path = run_output_dir / "tracking_overlay.mp4"
     to_video = ToVideoNode(
         output_video_path=str(overlay_path),
@@ -293,6 +322,13 @@ def main(
             (overlay_node.rgb_with_overlay, to_video.rgb_image),
         ]
     )
+    if text_prompt_node is not None:
+        connections.extend(
+            [
+                (source_context.source_frame_id_port, text_prompt_node.frame_id),
+                (text_prompt_node.text_prompt, sam3_node.inputs.text_prompt),
+            ]
+        )
 
     if write_prompt_debug_video:
         prompt_overlay = MaskOverlayNode(alpha=0.45, name="prompt_overlay")

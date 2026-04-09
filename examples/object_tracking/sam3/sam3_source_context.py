@@ -10,7 +10,6 @@ JSON parsing.
 
 from __future__ import annotations
 
-import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,6 +19,7 @@ import click
 from loguru import logger
 from torch.utils.data import Subset
 
+from cuvis_ai.node.prompts import load_detection_index
 from cuvis_ai.utils.cli_helpers import resolve_end_frame, resolve_run_output_dir
 
 PROCESSING_MODES = ("Raw", "DarkSubtract", "Preview", "Reflectance", "SpectralRadiance")
@@ -85,6 +85,8 @@ __all__ = [
     "SourceContext",
     "build_source_context",
     "load_detection_annotation",
+    "load_detection_point_prompt",
+    "resolve_detection_frame_hw",
     "parse_detection_spec",
     "resolve_end_frame",
     "resolve_plugin_manifest",
@@ -115,13 +117,10 @@ def load_detection_annotation(
     Returns ``(annotation_dict, obj_id)`` where *annotation_dict* contains at
     least ``bbox``, ``score``, ``image_id``.
     """
-    data = json.loads(detection_json.read_text(encoding="utf-8"))
-    images = {img["id"]: img for img in data["images"]}
-
-    if frame_idx not in images:
-        raise click.ClickException(f"Frame {frame_idx} not found in {detection_json}.")
-
-    frame_annots = [a for a in data["annotations"] if a["image_id"] == frame_idx]
+    annotations_by_frame, _frame_hw_by_id, _default_hw = load_detection_index(detection_json)
+    frame_annots = list(annotations_by_frame.get(frame_idx, []))
+    if not frame_annots:
+        raise click.ClickException(f"Frame {frame_idx} has no annotations in {detection_json}.")
     has_track_ids = any("track_id" in a for a in frame_annots)
 
     if has_track_ids:
@@ -139,8 +138,48 @@ def load_detection_annotation(
         raise click.ClickException(
             f"Detection rank {det_id} out of range on frame {frame_idx} "
             f"(have {len(frame_annots)} detections)."
-        )
+    )
     return frame_annots[rank], det_id
+
+
+def resolve_detection_frame_hw(
+    detection_json: Path,
+    frame_idx: int,
+) -> tuple[int, int]:
+    """Resolve ``(height, width)`` for a detection frame from flat or track-centric JSON."""
+    _annotations_by_frame, frame_hw_by_id, default_hw = load_detection_index(detection_json)
+
+    frame_hw = frame_hw_by_id.get(frame_idx)
+    if frame_hw is None:
+        raise click.ClickException(f"Frame {frame_idx} is missing in {detection_json}.")
+    if frame_hw[0] > 1 and frame_hw[1] > 1:
+        return frame_hw
+    if default_hw is not None and default_hw[0] > 1 and default_hw[1] > 1:
+        return default_hw
+    raise click.ClickException(
+        f"Frame {frame_idx} has no usable height/width in {detection_json}."
+    )
+
+
+def load_detection_point_prompt(
+    detection_json: Path,
+    det_id: int,
+    frame_idx: int,
+) -> tuple[list[list[float]], list[int], int]:
+    """Resolve a detection bbox into a normalized center-point prompt."""
+    annotation, obj_id = load_detection_annotation(detection_json, det_id, frame_idx)
+    h_img, w_img = resolve_detection_frame_hw(detection_json, frame_idx)
+
+    bbox = annotation.get("bbox")
+    if not isinstance(bbox, list | tuple) or len(bbox) != 4:
+        raise click.ClickException(
+            f"Annotation selected for detection {det_id} on frame {frame_idx} has no valid bbox."
+        )
+
+    x, y, w, h = (float(value) for value in bbox)
+    cx = (x + w / 2.0) / float(w_img)
+    cy = (y + h / 2.0) / float(h_img)
+    return [[cx, cy]], [1], obj_id
 
 
 def build_source_context(

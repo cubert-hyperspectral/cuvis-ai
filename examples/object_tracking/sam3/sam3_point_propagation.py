@@ -10,7 +10,6 @@ Prompt frame is always ``--start-frame``.
 from __future__ import annotations
 
 import contextlib
-import json
 from pathlib import Path
 
 import click
@@ -22,7 +21,7 @@ from loguru import logger
 from sam3_source_context import (
     PROCESSING_MODES,
     build_source_context,
-    load_detection_annotation,
+    load_detection_point_prompt,
     parse_detection_spec,
     resolve_end_frame,
     resolve_plugin_manifest,
@@ -39,24 +38,15 @@ from cuvis_ai.node.video import ToVideoNode
 def _extract_point_prompt(
     detection_json: Path, det_id: int, frame_idx: int
 ) -> tuple[list[list[float]], list[int], int]:
-    annotation, obj_id = load_detection_annotation(detection_json, det_id, frame_idx)
-
-    data = json.loads(detection_json.read_text(encoding="utf-8"))
-    images = {img["id"]: img for img in data["images"]}
-    img = images[frame_idx]
-    w_img, h_img = img["width"], img["height"]
-
-    x, y, w, h = annotation["bbox"]
-    cx = (x + w / 2) / w_img
-    cy = (y + h / 2) / h_img
+    points, point_labels, obj_id = load_detection_point_prompt(detection_json, det_id, frame_idx)
+    cx, cy = points[0]
     logger.info(
-        "  obj_id={} point: [{:.3f}, {:.3f}] score={:.3f}",
+        "  obj_id={} point: [{:.3f}, {:.3f}]",
         obj_id,
         cx,
         cy,
-        annotation.get("score", 0),
     )
-    return [[cx, cy]], [1], obj_id
+    return points, point_labels, obj_id
 
 
 @click.command()

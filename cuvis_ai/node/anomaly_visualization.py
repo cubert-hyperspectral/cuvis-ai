@@ -21,6 +21,7 @@ from torchmetrics.functional.classification import binary_average_precision
 
 from cuvis_ai.utils.torch_draw import (
     draw_box,
+    draw_downward_triangle,
     draw_sparkline,
     draw_text,
     id_to_color,
@@ -1125,6 +1126,164 @@ class TrackingOverlayNode(Node):
 
         out = rendered.to(torch.float32) / 255.0  # [H, W, 3]
         return {"rgb_with_overlay": out.unsqueeze(0)}  # [1, H, W, 3]
+
+
+class TrackingPointerOverlayNode(Node):
+    """Draw downward triangle pointers for all tracked objects.
+
+    The node is composable by design: it renders only the pointer markers on top
+    of an incoming RGB frame and does not perform any mask tinting itself.
+    Colours are derived from object IDs using the same palette as
+    :class:`TrackingOverlayNode`.
+
+    Parameters
+    ----------
+    alpha : float
+        Reserved for API compatibility with :class:`TrackingOverlayNode` (unused).
+    draw_contours : bool
+        Reserved for API compatibility with :class:`TrackingOverlayNode` (unused).
+    draw_ids : bool
+        Reserved for API compatibility with :class:`TrackingOverlayNode` (unused).
+    """
+
+    INPUT_SPECS = {
+        "rgb_image": PortSpec(
+            dtype=torch.float32,
+            shape=(1, -1, -1, 3),
+            description="Single RGB frame [1, H, W, 3] in [0, 1].",
+        ),
+        "mask": PortSpec(
+            dtype=torch.int32,
+            shape=(1, -1, -1),
+            description="SAM3 label map [1, H, W]; pixel value = object ID, 0 = background.",
+        ),
+        "object_ids": PortSpec(
+            dtype=torch.int64,
+            shape=(1, -1),
+            description="Active object IDs [1, N] for deterministic ordering. "
+            "If absent, IDs are derived from unique non-zero mask values.",
+            optional=True,
+        ),
+        "frame_id": PortSpec(
+            dtype=torch.int64,
+            shape=(1,),
+            description="Frame / measurement index to render as text overlay.",
+            optional=True,
+        ),
+    }
+
+    OUTPUT_SPECS = {
+        "rgb_with_overlay": PortSpec(
+            dtype=torch.float32,
+            shape=(1, -1, -1, 3),
+            description="RGB frame with pointer overlays [1, H, W, 3] in [0, 1].",
+        ),
+    }
+
+    def __init__(
+        self,
+        alpha: float = 0.4,
+        draw_contours: bool = True,
+        draw_ids: bool = True,
+        **kwargs,
+    ) -> None:
+        self.alpha = float(alpha)
+        self.draw_contours = bool(draw_contours)
+        self.draw_ids = bool(draw_ids)
+        super().__init__(
+            alpha=alpha,
+            draw_contours=draw_contours,
+            draw_ids=draw_ids,
+            **kwargs,
+        )
+
+    @torch.no_grad()
+    def forward(
+        self,
+        rgb_image: torch.Tensor,
+        mask: torch.Tensor,
+        object_ids: torch.Tensor | None = None,
+        frame_id: torch.Tensor | None = None,
+        **_,
+    ) -> dict[str, torch.Tensor]:
+        """Render pointer overlays for all objects onto *rgb_image*."""
+        frame_u8 = (rgb_image[0].clamp(0.0, 1.0) * 255.0).to(torch.uint8)
+        mask_t = mask[0].to(frame_u8.device)
+        if tuple(mask_t.shape) != tuple(frame_u8.shape[:2]):
+            raise ValueError(
+                f"Mask shape {tuple(mask_t.shape)} does not match image shape {tuple(frame_u8.shape[:2])}."
+            )
+
+        present_ids_t = torch.unique(mask_t)
+        present_ids_t = present_ids_t[present_ids_t > 0]
+
+        if object_ids is not None:
+            filtered_ids = object_ids[0].to(mask_t.device)
+            filtered_ids = filtered_ids[filtered_ids > 0]
+            if present_ids_t.numel() > 0:
+                filtered_ids = filtered_ids[torch.isin(filtered_ids, present_ids_t)]
+            else:
+                filtered_ids = filtered_ids[:0]
+            ids: list[int] = []
+            seen: set[int] = set()
+            for raw_id in filtered_ids.tolist():
+                oid = int(raw_id)
+                if oid in seen:
+                    continue
+                seen.add(oid)
+                ids.append(oid)
+        else:
+            ids = [int(v) for v in present_ids_t.tolist()]
+
+        rendered = frame_u8.clone()
+
+        for oid in ids:
+            fg = mask_t == oid
+            if not torch.any(fg):
+                continue
+
+            ys, xs = torch.where(fg)
+            x_min = int(xs.min().item())
+            x_max = int(xs.max().item())
+            y_min = int(ys.min().item())
+
+            bbox_width = x_max - x_min + 1
+            tri_width = max(12, min(48, int(round(bbox_width * 0.45))))
+            tri_width = min(tri_width, max(1, int(rendered.shape[1]) - 1))
+            tri_height = max(10, min(36, int(round(tri_width * 0.8))))
+            tri_height = min(tri_height, max(1, int(rendered.shape[0]) - 1))
+            gap = max(4, min(10, int(round(tri_height * 0.3))))
+
+            centroid_x = int(torch.round(xs.to(torch.float32).mean()).item())
+            half_width = max(1, (tri_width + 1) // 2)
+            max_tip_x = max(half_width, int(rendered.shape[1]) - 1 - half_width)
+            tip_x = max(half_width, min(centroid_x, max_tip_x))
+            desired_tip_y = y_min - gap
+            tip_y = max(tri_height, min(desired_tip_y, int(rendered.shape[0]) - 1))
+
+            color_t = id_to_color(
+                torch.tensor([oid], device=rendered.device, dtype=torch.int64)
+            )[0]
+            color = tuple(int(channel) for channel in color_t.tolist())
+
+            outline_thickness = 2 if tri_width >= 20 and tri_height >= 16 else 1
+            draw_downward_triangle(
+                rendered,
+                tip_x=tip_x,
+                tip_y=tip_y,
+                width=tri_width,
+                height=tri_height,
+                color=color,
+                outline_color=(0, 0, 0),
+                outline_thickness=outline_thickness,
+            )
+
+        if frame_id is not None:
+            fid = int(frame_id.reshape(-1)[0].item())
+            draw_text(rendered, 8, 8, f"frame {fid}", (255, 255, 255), scale=2, bg=True)
+
+        out = rendered.to(torch.float32) / 255.0
+        return {"rgb_with_overlay": out.unsqueeze(0)}
 
 
 def render_bboxes_overlay_torch(

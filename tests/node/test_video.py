@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 import pytest
 import torch
 
@@ -161,3 +162,59 @@ def test_to_video_node_raises_when_writer_fails_to_open(
     node = ToVideoNode(output_video_path=str(tmp_path / "bad_writer.mp4"), frame_rate=8.0)
     with pytest.raises(RuntimeError, match="Failed to open video writer"):
         node.forward(rgb_image=torch.zeros((1, 4, 4, 3), dtype=torch.float32))
+
+
+def test_to_video_node_renders_title_centered_with_slim_background(
+    mock_cv2_video_writer: list[_RecordingWriter],
+    tmp_path: Path,
+) -> None:
+    node = ToVideoNode(
+        output_video_path=str(tmp_path / "title_overlay.mp4"),
+        frame_rate=10.0,
+        overlay_title="Cubert XMR Camera in CIR View",
+    )
+    frame = torch.full((1, 90, 420, 3), 0.8, dtype=torch.float32)
+
+    node.forward(rgb_image=frame)
+    node.close()
+
+    written = mock_cv2_video_writer[0].frames[0]
+    dark_mask = written[..., 0] <= 60
+    ys, xs = np.where(dark_mask)
+
+    assert ys.size > 0
+    x0, x1 = int(xs.min()), int(xs.max())
+    box_center_x = (x0 + x1) / 2.0
+
+    assert abs(box_center_x - ((written.shape[1] - 1) / 2.0)) <= 3.0
+    assert x0 >= 90
+    assert (written.shape[1] - 1 - x1) >= 20
+    assert int(ys.min()) <= 10
+
+
+def test_to_video_node_keeps_frame_id_overlay_unchanged_when_title_is_added(
+    mock_cv2_video_writer: list[_RecordingWriter],
+    tmp_path: Path,
+) -> None:
+    frame = torch.full((1, 90, 420, 3), 0.8, dtype=torch.float32)
+    frame_id = torch.tensor([42], dtype=torch.int64)
+
+    baseline = ToVideoNode(
+        output_video_path=str(tmp_path / "baseline.mp4"),
+        frame_rate=10.0,
+    )
+    baseline.forward(rgb_image=frame.clone(), frame_id=frame_id)
+    baseline.close()
+
+    titled = ToVideoNode(
+        output_video_path=str(tmp_path / "titled.mp4"),
+        frame_rate=10.0,
+        overlay_title="Cubert XMR Camera in CIR View",
+    )
+    titled.forward(rgb_image=frame.clone(), frame_id=frame_id)
+    titled.close()
+
+    baseline_frame = mock_cv2_video_writer[0].frames[0]
+    titled_frame = mock_cv2_video_writer[1].frames[0]
+
+    assert np.array_equal(baseline_frame[:40, :90], titled_frame[:40, :90])

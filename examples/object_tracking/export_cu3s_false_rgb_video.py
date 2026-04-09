@@ -33,6 +33,14 @@ CLI — with frame ID overlay::
         --method cie_tristimulus `
         --overlay-frame-id
 
+CLI — with title + frame ID overlay::
+
+    uv run python examples/object_tracking/export_cu3s_false_rgb_video.py `
+        --cu3s-path "D:\\data\\XMR_notarget_Busstation\\20260226\\Auto_013+01.cu3s" `
+        --output-dir "D:\\experiments\\sam3\\false_rgb_export" `
+        --method cir `
+        --overlay-title "Cubert XMR Camera in CIR View"
+
 CLI — cuvis-plugin XML parity (fast_rgb config from plugin XML)::
 
     uv run python examples/object_tracking/export_cu3s_false_rgb_video.py `
@@ -51,6 +59,7 @@ Python API::
         method="cie_tristimulus",
         processing_mode="SpectralRadiance",
         overlay_frame_id=True,
+        overlay_title="Cubert XMR Camera in CIR View",
     )
 """
 
@@ -448,6 +457,7 @@ def export_false_rgb_video(
     fast_rgb_normalization_strength: float | None = None,
     save_pipeline_config: bool = False,
     overlay_frame_id: bool = False,
+    overlay_title: str | None = None,
     nir_nm: float = 860.0,
     red_nm: float = 670.0,
     green_nm: float = 560.0,
@@ -597,6 +607,7 @@ def export_false_rgb_video(
         output_video_path=output_video_path,
         frame_rate=resolved_frame_rate,
         frame_rotation=frame_rotation,
+        overlay_title=overlay_title,
         name="to_video",
     )
 
@@ -639,7 +650,8 @@ def export_false_rgb_video(
         f"freeze_running_bounds_after_frames={effective_freeze_running_bounds_after_frames}, "
         f"save_pipeline_config={save_pipeline_config}, "
         f"max_num_frames={max_num_frames}, "
-        f"overlay_frame_id={overlay_frame_id}"
+        f"overlay_frame_id={overlay_frame_id}, "
+        f"overlay_title={overlay_title!r}"
     )
     if resolved_method in FAST_RGB_METHODS:
         logger.info(
@@ -734,8 +746,14 @@ def export_false_rgb_video(
 @click.option(
     "--overlay-frame-id",
     is_flag=True,
-    default=False,
+    default=True,
     help="Render the measurement index (frame ID) as text in the top-left corner of each frame.",
+)
+@click.option(
+    "--overlay-title",
+    type=str,
+    default=None,
+    help="Optional static title rendered above the frame ID overlay on every frame.",
 )
 @click.option(
     "--max-num-frames",
@@ -845,6 +863,7 @@ def main(
     frame_rotation: int | None,
     batch_size: int,
     overlay_frame_id: bool,
+    overlay_title: str | None,
     max_num_frames: int,
     processing_mode: str,
     normalization_mode: str,
@@ -918,6 +937,7 @@ def main(
         fast_rgb_normalization_strength=fast_rgb_normalization_strength,
         save_pipeline_config=save_pipeline_config,
         overlay_frame_id=overlay_frame_id,
+        overlay_title=overlay_title,
         nir_nm=nir_nm,
         red_nm=red_nm,
         green_nm=green_nm,

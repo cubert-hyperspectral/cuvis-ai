@@ -15,7 +15,11 @@ from cuvis_ai_core.training import Predictor
 from loguru import logger
 from torch.utils.data import Subset
 
-from cuvis_ai.node.anomaly_visualization import BBoxesOverlayNode, TrackingOverlayNode
+from cuvis_ai.node.anomaly_visualization import (
+    BBoxesOverlayNode,
+    TrackingOverlayNode,
+    TrackingPointerOverlayNode,
+)
 from cuvis_ai.node.data import CU3SDataNode
 from cuvis_ai.node.json_reader import TrackingResultsReader
 from cuvis_ai.node.video import ToVideoNode, VideoFrameDataModule, VideoFrameNode
@@ -28,7 +32,7 @@ from cuvis_ai_core.data.datasets import SingleCu3sDataModule
 
 _SUPPORTED_METHODS = ("cie_tristimulus",)
 _PROCESSING_MODES = ("Raw", "DarkSubtract", "Preview", "Reflectance", "SpectralRadiance")
-_OVERLAY_MODES = ("mask", "bbox")
+_OVERLAY_MODES = ("mask", "bbox", "pointer", "mask_pointer")
 
 
 @dataclass
@@ -115,6 +119,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     p.add_argument(
         "--frame-rate", type=float, default=None, help="Output FPS (default: same as source)."
+    )
+    p.add_argument(
+        "--overlay-title",
+        default=None,
+        help="Optional static title rendered at the top center of each frame.",
     )
     return p.parse_args(argv)
 
@@ -267,14 +276,15 @@ def main(argv: list[str] | None = None) -> None:
         logger.error("Tracking JSON not found: {}", tracking_json)
         sys.exit(1)
 
+    source_path = Path(args.video_path if args.video_path else args.cu3s_path)
     output = (
         Path(args.output_video_path)
         if args.output_video_path
-        else tracking_json.parent / "overlay.mp4"
+        else tracking_json.parent / f"{source_path.stem}.mp4"
     )
     output.parent.mkdir(parents=True, exist_ok=True)
 
-    expected_format = "video_coco" if args.overlay_mode == "mask" else "coco_bbox"
+    expected_format = "coco_bbox" if args.overlay_mode == "bbox" else "video_coco"
     reader = TrackingResultsReader(
         json_path=str(tracking_json),
         required_format=expected_format,
@@ -291,7 +301,11 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(1)
 
     pipeline = CuvisPipeline("Tracking_Overlay_Render")
-    to_video = ToVideoNode(output_video_path=str(output), frame_rate=source_context.dataset_fps)
+    to_video = ToVideoNode(
+        output_video_path=str(output),
+        frame_rate=source_context.dataset_fps,
+        overlay_title=args.overlay_title,
+    )
 
     connections = list(source_context.source_connections)
     connections.append((source_context.source_frame_id_port, reader.inputs.frame_id))
@@ -326,6 +340,38 @@ def main(argv: list[str] | None = None) -> None:
                 (reader.outputs.object_ids, overlay.object_ids),
                 (reader.outputs.frame_id, overlay.frame_id),
                 (overlay.rgb_with_overlay, to_video.rgb_image),
+            ]
+        )
+    elif args.overlay_mode == "pointer":
+        pointer = TrackingPointerOverlayNode(name="pointer_overlay")
+        connections.extend(
+            [
+                (source_context.source_rgb_port, pointer.rgb_image),
+                (reader.outputs.mask, pointer.mask),
+                (reader.outputs.object_ids, pointer.object_ids),
+                (reader.outputs.frame_id, pointer.frame_id),
+                (pointer.rgb_with_overlay, to_video.rgb_image),
+            ]
+        )
+    elif args.overlay_mode == "mask_pointer":
+        mask_overlay = TrackingOverlayNode(
+            alpha=args.mask_alpha,
+            draw_contours=args.draw_contours,
+            draw_ids=args.draw_ids,
+            name="mask_overlay",
+        )
+        pointer = TrackingPointerOverlayNode(name="pointer_overlay")
+        connections.extend(
+            [
+                (source_context.source_rgb_port, mask_overlay.rgb_image),
+                (reader.outputs.mask, mask_overlay.mask),
+                (reader.outputs.object_ids, mask_overlay.object_ids),
+                (reader.outputs.frame_id, mask_overlay.frame_id),
+                (mask_overlay.rgb_with_overlay, pointer.rgb_image),
+                (reader.outputs.mask, pointer.mask),
+                (reader.outputs.object_ids, pointer.object_ids),
+                (reader.outputs.frame_id, pointer.frame_id),
+                (pointer.rgb_with_overlay, to_video.rgb_image),
             ]
         )
     else:

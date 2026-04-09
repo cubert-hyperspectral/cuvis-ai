@@ -5,6 +5,7 @@ import torch
 
 from cuvis_ai.utils.torch_draw import (
     draw_box,
+    draw_downward_triangle,
     draw_sparkline,
     draw_text,
     id_to_color,
@@ -56,6 +57,53 @@ def test_draw_text_out_of_bounds() -> None:
     img = torch.zeros((10, 12, 3), dtype=torch.uint8)
     draw_text(img, 10, 8, "99", (255, 255, 255), scale=2, bg=True)
     assert img.shape == (10, 12, 3)
+
+
+def test_draw_downward_triangle_modifies_pixels() -> None:
+    img = torch.zeros((24, 24, 3), dtype=torch.uint8)
+    draw_downward_triangle(
+        img,
+        tip_x=12,
+        tip_y=18,
+        width=12,
+        height=10,
+        color=(255, 0, 0),
+        outline_color=(0, 0, 0),
+        outline_thickness=1,
+    )
+    assert torch.any(img[..., 0] > 0)
+
+
+def test_draw_downward_triangle_clamps_to_top_left_bounds() -> None:
+    img = torch.zeros((12, 12, 3), dtype=torch.uint8)
+    draw_downward_triangle(
+        img,
+        tip_x=2,
+        tip_y=5,
+        width=10,
+        height=8,
+        color=(0, 255, 0),
+        outline_color=(0, 0, 0),
+        outline_thickness=1,
+    )
+    assert img.shape == (12, 12, 3)
+    assert torch.any(img[..., 1] > 0)
+
+
+def test_draw_downward_triangle_clamps_to_right_bound() -> None:
+    img = torch.zeros((14, 14, 3), dtype=torch.uint8)
+    draw_downward_triangle(
+        img,
+        tip_x=12,
+        tip_y=10,
+        width=12,
+        height=9,
+        color=(0, 0, 255),
+        outline_color=(0, 0, 0),
+        outline_thickness=1,
+    )
+    assert img.shape == (14, 14, 3)
+    assert torch.any(img[..., 2] > 0)
 
 
 def test_id_to_color_deterministic() -> None:

@@ -31,7 +31,7 @@ from sam3_source_context import (
 from cuvis_ai.node.anomaly_visualization import BBoxesOverlayNode, TrackingOverlayNode
 from cuvis_ai.node.channel_selector import CIETristimulusFalseRGBSelector, NormMode
 from cuvis_ai.node.json_writer import CocoTrackMaskWriter
-from cuvis_ai.node.static_node import BBoxPrompt
+from cuvis_ai.node.prompts import BBoxPrompt
 from cuvis_ai.node.video import ToVideoNode
 
 

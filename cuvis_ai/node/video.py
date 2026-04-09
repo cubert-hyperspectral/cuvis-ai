@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import cv2
+import numpy as np
 import torch
 from cuvis_ai_core.data.video import (  # noqa: F401
     VideoFrameDataModule,
@@ -17,7 +18,6 @@ from cuvis_ai_schemas.execution import Context
 from cuvis_ai_schemas.pipeline import PortSpec
 
 from cuvis_ai.utils.torch_draw import draw_text
-
 
 # ---------------------------------------------------------------------------
 # ToVideoNode — write RGB frame batches to MP4 via OpenCV
@@ -42,6 +42,9 @@ class ToVideoNode(Node):
         Default is ``None`` (no rotation).
     codec : str, optional
         FourCC codec string (length 4). Default is ``"mp4v"``.
+    overlay_title : str | None, optional
+        Optional static title rendered at the top center with its own slim
+        darkened background block. Default is ``None``.
     """
 
     INPUT_SPECS = {
@@ -72,6 +75,7 @@ class ToVideoNode(Node):
         frame_rate: float = 10.0,
         frame_rotation: int | None = None,
         codec: str = "mp4v",
+        overlay_title: str | None = None,
         **kwargs: Any,
     ) -> None:
         if frame_rate <= 0:
@@ -88,6 +92,11 @@ class ToVideoNode(Node):
         self.frame_rate = float(frame_rate)
         self.frame_rotation = self._normalize_rotation(frame_rotation)
         self.codec = codec
+        self.overlay_title = (
+            None
+            if overlay_title is None or not str(overlay_title).strip()
+            else str(overlay_title).strip()
+        )
         self._writer: cv2.VideoWriter | None = None
         self._frame_size: tuple[int, int] | None = None
 
@@ -98,6 +107,7 @@ class ToVideoNode(Node):
             frame_rate=frame_rate,
             frame_rotation=frame_rotation,
             codec=codec,
+            overlay_title=self.overlay_title,
             **kwargs,
         )
 
@@ -155,6 +165,84 @@ class ToVideoNode(Node):
             rgb_cpu = rgb_cpu.clamp(0, 255).to(torch.uint8)
         return rgb_cpu
 
+    @staticmethod
+    def _darken_region(frame: np.ndarray, x0: int, y0: int, x1: int, y1: int) -> None:
+        """Darken an RGB uint8 region in-place for text readability."""
+        if x1 <= x0 or y1 <= y0:
+            return
+        region = frame[y0:y1, x0:x1]
+        if region.size == 0:
+            return
+        region[:] = np.rint(region.astype(np.float32) * 0.25).astype(np.uint8)
+
+    def _draw_title_overlay(self, frame: torch.Tensor) -> None:
+        """Render an optional centered title overlay in-place on a uint8 HWC frame."""
+        if not self.overlay_title:
+            return
+
+        frame_np = np.ascontiguousarray(frame.numpy())
+        frame_h, frame_w = int(frame_np.shape[0]), int(frame_np.shape[1])
+        if frame_h <= 0 or frame_w <= 0:
+            return
+
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        line_type = cv2.LINE_AA
+        margin_y = 8
+        reserved_side_margin = 96
+        fallback_side_margin = 8
+        max_box_width = frame_w - 2 * reserved_side_margin
+        if max_box_width <= 0:
+            max_box_width = frame_w - 2 * fallback_side_margin
+
+        chosen_scale = 0.35
+        chosen_thickness = 1
+        text_width = 0
+        text_height = 0
+        baseline = 0
+        for font_scale in (0.70, 0.65, 0.60, 0.55, 0.50, 0.45, 0.40, 0.35):
+            thickness = 2 if font_scale >= 0.55 else 1
+            pad_x = 8 if font_scale >= 0.55 else 6
+            pad_y = 6 if font_scale >= 0.55 else 4
+            (candidate_width, candidate_height), candidate_baseline = cv2.getTextSize(
+                self.overlay_title, font, font_scale, thickness
+            )
+            candidate_box_width = int(candidate_width) + 2 * pad_x
+            chosen_scale = font_scale
+            chosen_thickness = thickness
+            text_width = int(candidate_width)
+            text_height = int(candidate_height)
+            baseline = int(candidate_baseline)
+            if candidate_box_width <= max_box_width:
+                break
+
+        pad_x = 8 if chosen_scale >= 0.55 else 6
+        pad_y = 6 if chosen_scale >= 0.55 else 4
+        box_width = int(text_width) + 2 * pad_x
+        box_height = int(text_height) + int(baseline) + 2 * pad_y
+
+        x0 = max(0, (frame_w - box_width) // 2)
+        y0 = max(0, margin_y)
+        x1 = min(frame_w, x0 + box_width)
+        y1 = min(frame_h, y0 + box_height)
+        self._darken_region(frame_np, x0=x0, y0=y0, x1=x1, y1=y1)
+
+        text_origin = (
+            min(frame_w - 1, x0 + pad_x),
+            min(frame_h - 1, y0 + pad_y + int(text_height)),
+        )
+        cv2.putText(
+            frame_np,
+            self.overlay_title,
+            text_origin,
+            font,
+            chosen_scale,
+            (255, 255, 255),
+            chosen_thickness,
+            line_type,
+        )
+
+        frame.copy_(torch.from_numpy(frame_np))
+
     def forward(
         self,
         rgb_image: torch.Tensor,
@@ -166,6 +254,7 @@ class ToVideoNode(Node):
         rgb_u8 = self._to_uint8_batch(rgb_image)
 
         for b, frame in enumerate(rgb_u8):
+            self._draw_title_overlay(frame)
             if frame_id is not None and b < len(frame_id):
                 fid = int(frame_id[b].item())
                 draw_text(frame, 8, 8, f"frame {fid}", (255, 255, 255), scale=2, bg=True)

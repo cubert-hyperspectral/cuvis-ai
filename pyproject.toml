@@ -14,7 +14,7 @@ authors = [
 ]
 dependencies = [
     "cuvis>=3.5.0",
-    "cuvis-ai-core>=0.2.0",
+    "cuvis-ai-core>=0.3.0",
     "cuvis-ai-schemas[full]>=0.2.0",
     "pydantic>=2.0.0,<3.0.0",
     "imantics",
@@ -27,7 +27,7 @@ dependencies = [
     "scikit-image",
     "scikit-learn",
     "tensorboard",
-    "setuptools<82",  # tensorboard 2.x imports pkg_resources, removed in setuptools 82
+    "setuptools<81",  # pkg_resources.resource_filename removed in setuptools 81
     # Core framework dependencies
     "torch>=2.9.1",
     "torchvision",
@@ -114,7 +114,7 @@ include = ["cuvis_ai*", "tools*", "scripts*"]
 torch = { index = "pytorch-cu128" }
 torchvision = { index = "pytorch-cu128" }
 # cuvis-ai-schemas = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-schemas.git", branch = "main" }
-cuvis-ai-core = { path = "../../cuvis-ai-core/cuvis-ai-core-sam3", editable = true }
+# cuvis-ai-core = { path = "../../cuvis-ai-core/cuvis-ai-core-sam3", editable = true }
 
 [tool.setuptools_scm]
 version_scheme = "post-release"

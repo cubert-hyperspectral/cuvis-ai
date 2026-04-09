@@ -248,6 +248,7 @@ def _run_export_with_mode(
     fast_rgb_normalization_strength: float | None = None,
     plugin_xml_path: str | None = None,
     plugin_config: export_mod.PluginFastRGBConfig | None = None,
+    overlay_title: str | None = None,
 ) -> tuple[_FakeSelector, dict[str, object]]:
     created: dict[str, object] = {}
 
@@ -263,7 +264,11 @@ def _run_export_with_mode(
 
     monkeypatch.setattr(export_mod, "SingleCu3sDataModule", _FakeDataModule)
     monkeypatch.setattr(export_mod, "CU3SDataNode", _FakeCU3SDataNode)
-    monkeypatch.setattr(export_mod, "ToVideoNode", _FakeToVideoNode)
+    def fake_to_video_node(**kwargs: object) -> _FakeToVideoNode:
+        created["to_video_kwargs"] = kwargs
+        return _FakeToVideoNode(**kwargs)
+
+    monkeypatch.setattr(export_mod, "ToVideoNode", fake_to_video_node)
     monkeypatch.setattr(export_mod, "CuvisPipeline", _FakePipeline)
     monkeypatch.setattr(export_mod, "Predictor", _FakePredictor)
     monkeypatch.setattr(export_mod, "_create_false_rgb_node", fake_create_false_rgb_node)
@@ -289,6 +294,7 @@ def _run_export_with_mode(
         sample_fraction=0.05,
         processing_mode=processing_mode,
         fast_rgb_normalization_strength=fast_rgb_normalization_strength,
+        overlay_title=overlay_title,
     )
     return created["selector"], created
 
@@ -417,6 +423,16 @@ def test_export_cuvis_plugin_allows_normalization_override(monkeypatch) -> None:
     assert created["kwargs"]["fast_rgb_normalization_strength"] == 0.42
 
 
+def test_export_passes_overlay_title_to_to_video_node(monkeypatch) -> None:
+    _, created = _run_export_with_mode(
+        monkeypatch,
+        _make_local_tmp_dir(),
+        normalization_mode="sampled_fixed",
+        overlay_title="Cubert XMR Camera in CIR View",
+    )
+    assert created["to_video_kwargs"]["overlay_title"] == "Cubert XMR Camera in CIR View"
+
+
 def test_cli_defaults_to_sampled_fixed_and_default_sample_fraction(
     monkeypatch,
 ) -> None:
@@ -536,6 +552,36 @@ def test_cli_accepts_fast_rgb_alias(monkeypatch) -> None:
 
     assert result.exit_code == 0, result.output
     assert captured["method"] == "fastrgb"
+
+
+def test_cli_accepts_overlay_title(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_export_false_rgb_video(**kwargs: object) -> Path:
+        captured.update(kwargs)
+        return Path(kwargs["output_video_path"])
+
+    monkeypatch.setattr(export_mod, "export_false_rgb_video", fake_export_false_rgb_video)
+
+    tmp_dir = _make_local_tmp_dir()
+    cu3s = tmp_dir / "sample.cu3s"
+    cu3s.write_bytes(b"")
+    output_root = tmp_dir / "outputs"
+    runner = CliRunner()
+    result = runner.invoke(
+        export_mod.main,
+        [
+            "--cu3s-path",
+            str(cu3s),
+            "--output-dir",
+            str(output_root),
+            "--overlay-title",
+            "Cubert XMR Camera in CIR View",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert captured["overlay_title"] == "Cubert XMR Camera in CIR View"
 
 
 def test_cli_requires_plugin_xml_path_for_cuvis_plugin(monkeypatch) -> None:

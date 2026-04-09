@@ -22,18 +22,8 @@ _TEXT_PROMPT_MODES = {"repeat", "scheduled"}
 
 
 @dataclass(frozen=True)
-class MaskPromptSpec:
-    """One scheduled mask-prompt entry."""
-
-    object_id: int
-    detection_id: int
-    frame_id: int
-    order: int
-
-
-@dataclass(frozen=True)
-class BBoxPromptSpec:
-    """One scheduled bbox-prompt entry."""
+class SpatialPromptSpec:
+    """One scheduled spatial (mask or bbox) prompt entry."""
 
     object_id: int
     detection_id: int
@@ -50,39 +40,18 @@ class TextPromptSpec:
     order: int
 
 
-def _parse_prompt_spec(spec: str, order: int = 0) -> tuple[int, int, int, int]:
+def parse_spatial_prompt_spec(spec: str, order: int = 0) -> SpatialPromptSpec:
+    """Parse ``<object_id>:<detection_id>@<frame_id>`` into a spatial prompt spec."""
     match = _PROMPT_SPEC_RE.fullmatch(spec)
     if match is None:
         raise ValueError(
             f"Invalid prompt spec '{spec}'. Expected format <object_id>:<detection_id>@<frame_id>."
         )
-    return (
-        int(match.group(1)),
-        int(match.group(2)),
-        int(match.group(3)),
-        int(order),
-    )
-
-
-def parse_mask_prompt_spec(spec: str, order: int = 0) -> MaskPromptSpec:
-    """Parse ``<object_id>:<detection_id>@<frame_id>`` into a typed mask spec."""
-    object_id, detection_id, frame_id, order_idx = _parse_prompt_spec(spec, order=order)
-    return MaskPromptSpec(
-        object_id=object_id,
-        detection_id=detection_id,
-        frame_id=frame_id,
-        order=order_idx,
-    )
-
-
-def parse_bbox_prompt_spec(spec: str, order: int = 0) -> BBoxPromptSpec:
-    """Parse ``<object_id>:<detection_id>@<frame_id>`` into a typed bbox spec."""
-    object_id, detection_id, frame_id, order_idx = _parse_prompt_spec(spec, order=order)
-    return BBoxPromptSpec(
-        object_id=object_id,
-        detection_id=detection_id,
-        frame_id=frame_id,
-        order=order_idx,
+    return SpatialPromptSpec(
+        object_id=int(match.group(1)),
+        detection_id=int(match.group(2)),
+        frame_id=int(match.group(3)),
+        order=int(order),
     )
 
 
@@ -195,6 +164,124 @@ def _segmentation_hw(segmentation: Any) -> tuple[int, int] | None:
     return None
 
 
+def _compute_default_hw(
+    frame_hw_by_id: dict[int, tuple[int, int]],
+) -> tuple[int, int] | None:
+    usable_hws = sorted({hw for hw in frame_hw_by_id.values() if hw[0] > 1 and hw[1] > 1})
+    return usable_hws[0] if len(usable_hws) == 1 else None
+
+
+def _annotation_sequence(
+    annotation: dict[str, Any],
+    field_name: str,
+    *,
+    frame_count: int,
+) -> list[Any] | None:
+    values = annotation.get(field_name)
+    if values is None:
+        return None
+    if not isinstance(values, list):
+        raise ValueError(f"Track-centric annotation field '{field_name}' must be a list.")
+    if len(values) != frame_count:
+        raise ValueError(
+            f"Track-centric annotation field '{field_name}' must have {frame_count} entries, "
+            f"got {len(values)}."
+        )
+    return values
+
+
+def _build_track_centric_frame_metadata(
+    data: dict[str, Any],
+) -> tuple[
+    dict[int, list[dict[str, Any]]],
+    dict[int, tuple[int, int]],
+    tuple[int, int] | None,
+]:
+    videos = data.get("videos", [])
+    if not videos:
+        raise ValueError("Detection JSON must contain COCO 'images' entries or SAM3 'videos'.")
+
+    frame_indices = videos[0].get("frame_indices")
+    if not isinstance(frame_indices, list | tuple) or len(frame_indices) == 0:
+        raise ValueError("Track-centric SAM3 JSON must include videos[0].frame_indices.")
+
+    normalized_frame_ids = [int(frame_id) for frame_id in frame_indices]
+    annotations_by_frame: dict[int, list[dict[str, Any]]] = {
+        frame_id: [] for frame_id in normalized_frame_ids
+    }
+    # Use a small placeholder so later resolution can fail clearly if no real
+    # frame size is discoverable from segmentation metadata.
+    frame_hw_by_id = {frame_id: (1, 1) for frame_id in normalized_frame_ids}
+    annotation_hw_by_frame: dict[int, set[tuple[int, int]]] = {}
+
+    next_ann_id = 1
+    for track_annotation in data.get("annotations", []):
+        segmentations = _annotation_sequence(
+            track_annotation,
+            "segmentations",
+            frame_count=len(normalized_frame_ids),
+        )
+        bboxes = _annotation_sequence(
+            track_annotation,
+            "bboxes",
+            frame_count=len(normalized_frame_ids),
+        )
+        detection_scores = _annotation_sequence(
+            track_annotation,
+            "detection_scores",
+            frame_count=len(normalized_frame_ids),
+        )
+        areas = _annotation_sequence(
+            track_annotation,
+            "areas",
+            frame_count=len(normalized_frame_ids),
+        )
+        if segmentations is None and bboxes is None:
+            continue
+
+        track_id = track_annotation.get("track_id")
+        category_id = int(track_annotation.get("category_id", 1))
+        for idx, frame_id in enumerate(normalized_frame_ids):
+            segmentation = segmentations[idx] if segmentations is not None else None
+            bbox = bboxes[idx] if bboxes is not None else None
+            score = detection_scores[idx] if detection_scores is not None else None
+            area = areas[idx] if areas is not None else None
+            if segmentation is None and bbox is None:
+                continue
+
+            annotation: dict[str, Any] = {
+                "id": next_ann_id,
+                "image_id": frame_id,
+                "category_id": category_id,
+            }
+            if track_id is not None:
+                annotation["track_id"] = int(track_id)
+            if segmentation is not None:
+                annotation["segmentation"] = segmentation
+            if bbox is not None:
+                annotation["bbox"] = bbox
+            if score is not None:
+                annotation["score"] = float(score)
+            if area is not None:
+                annotation["area"] = float(area)
+            annotations_by_frame[frame_id].append(annotation)
+
+            segmentation_hw = _segmentation_hw(segmentation)
+            if segmentation_hw is not None:
+                annotation_hw_by_frame.setdefault(frame_id, set()).add(segmentation_hw)
+            next_ann_id += 1
+
+    for frame_id, seg_hws in annotation_hw_by_frame.items():
+        if len(seg_hws) > 1:
+            raise ValueError(
+                f"Frame {frame_id} has inconsistent segmentation sizes: {sorted(seg_hws)}."
+            )
+        frame_hw_by_id[frame_id] = next(iter(seg_hws))
+
+    default_hw = _compute_default_hw(frame_hw_by_id)
+    return annotations_by_frame, frame_hw_by_id, default_hw
+
+
 def _select_annotation_for_prompt(
     annotations_by_frame: dict[int, list[dict[str, Any]]],
     detection_id: int,
@@ -273,9 +360,12 @@ def _build_frame_metadata(
     dict[int, tuple[int, int]],
     tuple[int, int] | None,
 ]:
+    if data.get("videos"):
+        return _build_track_centric_frame_metadata(data)
+
     images = {int(img["id"]): img for img in data.get("images", [])}
     if not images:
-        raise ValueError("Detection JSON must contain COCO 'images' entries.")
+        raise ValueError("Detection JSON must contain COCO 'images' entries or SAM3 'videos'.")
 
     annotations_by_frame: dict[int, list[dict[str, Any]]] = {}
     annotation_hw_by_frame: dict[int, set[tuple[int, int]]] = {}
@@ -297,17 +387,18 @@ def _build_frame_metadata(
         if current_hw is None or current_hw[0] <= 1 or current_hw[1] <= 1:
             frame_hw_by_id[frame_id] = segmentation_hw
 
-    usable_hws = sorted({hw for hw in frame_hw_by_id.values() if hw[0] > 1 and hw[1] > 1})
-    unique_hw = usable_hws or sorted(set(frame_hw_by_id.values()))
-    default_hw = unique_hw[0] if len(unique_hw) == 1 else None
+    default_hw = _compute_default_hw(frame_hw_by_id)
     return annotations_by_frame, frame_hw_by_id, default_hw
 
 
-def load_mask_prompt_schedule(
+def load_detection_index(
     json_path: str | Path,
-    prompt_specs: Sequence[str] | None,
-) -> tuple[dict[int, np.ndarray], dict[int, tuple[int, int]], tuple[int, int] | None]:
-    """Load detection JSON and build per-frame label-map prompts."""
+) -> tuple[
+    dict[int, list[dict[str, Any]]],
+    dict[int, tuple[int, int]],
+    tuple[int, int] | None,
+]:
+    """Load a flat COCO or track-centric SAM3 detection JSON into frame-indexed metadata."""
     json_file = Path(json_path)
     if not json_file.exists():
         raise FileNotFoundError(f"Detection JSON not found: {json_file}")
@@ -315,15 +406,40 @@ def load_mask_prompt_schedule(
     with json_file.open("r", encoding="utf-8") as handle:
         data = json.load(handle)
 
-    annotations_by_frame, frame_hw_by_id, default_hw = _build_frame_metadata(data)
+    return _build_frame_metadata(data)
+
+
+def _resolve_prompt_frame_hw(
+    frame_id: int,
+    frame_hw_by_id: dict[int, tuple[int, int]],
+    default_hw: tuple[int, int] | None,
+    *,
+    raw_spec: str,
+) -> tuple[int, int]:
+    frame_hw = frame_hw_by_id.get(frame_id)
+    if frame_hw is None:
+        raise ValueError(
+            f"Frame {frame_id} referenced by '{raw_spec}' is missing in detection metadata."
+        )
+    if frame_hw[0] > 1 and frame_hw[1] > 1:
+        return frame_hw
+    if default_hw is not None:
+        return default_hw
+    raise ValueError(
+        f"Frame {frame_id} referenced by '{raw_spec}' has no usable height/width in the detection JSON."
+    )
+
+
+def load_mask_prompt_schedule(
+    json_path: str | Path,
+    prompt_specs: Sequence[str] | None,
+) -> tuple[dict[int, np.ndarray], dict[int, tuple[int, int]], tuple[int, int] | None]:
+    """Load detection JSON and build per-frame label-map prompts."""
+    annotations_by_frame, frame_hw_by_id, default_hw = load_detection_index(json_path)
 
     masks_by_frame: dict[int, np.ndarray] = {}
     for order, raw_spec in enumerate(prompt_specs or []):
-        spec = parse_mask_prompt_spec(raw_spec, order=order)
-        if spec.frame_id not in frame_hw_by_id:
-            raise ValueError(
-                f"Frame {spec.frame_id} referenced by '{raw_spec}' is missing in images."
-            )
+        spec = parse_spatial_prompt_spec(raw_spec, order=order)
         annotation = _select_annotation_for_prompt(
             annotations_by_frame=annotations_by_frame,
             detection_id=spec.detection_id,
@@ -334,7 +450,12 @@ def load_mask_prompt_schedule(
                 f"Annotation selected by '{raw_spec}' does not contain a 'segmentation' field."
             )
 
-        frame_hw = frame_hw_by_id[spec.frame_id]
+        frame_hw = _resolve_prompt_frame_hw(
+            spec.frame_id,
+            frame_hw_by_id,
+            default_hw,
+            raw_spec=raw_spec,
+        )
         binary_mask = _decode_segmentation(
             annotation["segmentation"],
             frame_hw,
@@ -383,30 +504,25 @@ def load_bbox_prompt_schedule(
     tuple[int, int] | None,
 ]:
     """Load detection JSON and build per-frame bbox prompts."""
-    json_file = Path(json_path)
-    if not json_file.exists():
-        raise FileNotFoundError(f"Detection JSON not found: {json_file}")
-
-    with json_file.open("r", encoding="utf-8") as handle:
-        data = json.load(handle)
-
-    annotations_by_frame, frame_hw_by_id, default_hw = _build_frame_metadata(data)
+    annotations_by_frame, frame_hw_by_id, default_hw = load_detection_index(json_path)
 
     prompts_by_frame: dict[int, dict[int, dict[str, float | int]]] = {}
     for order, raw_spec in enumerate(prompt_specs or []):
-        spec = parse_bbox_prompt_spec(raw_spec, order=order)
-        if spec.frame_id not in frame_hw_by_id:
-            raise ValueError(
-                f"Frame {spec.frame_id} referenced by '{raw_spec}' is missing in images."
-            )
+        spec = parse_spatial_prompt_spec(raw_spec, order=order)
         annotation = _select_annotation_for_prompt(
             annotations_by_frame=annotations_by_frame,
             detection_id=spec.detection_id,
             frame_id=spec.frame_id,
         )
+        frame_hw = _resolve_prompt_frame_hw(
+            spec.frame_id,
+            frame_hw_by_id,
+            default_hw,
+            raw_spec=raw_spec,
+        )
         x_min, y_min, x_max, y_max = _annotation_bbox_xyxy(
             annotation,
-            frame_hw_by_id[spec.frame_id],
+            frame_hw,
             raw_spec=raw_spec,
         )
         prompts_by_frame.setdefault(spec.frame_id, {})[spec.object_id] = {
@@ -422,6 +538,32 @@ def load_bbox_prompt_schedule(
         {frame_id: list(object_map.values()) for frame_id, object_map in prompts_by_frame.items()},
         frame_hw_by_id,
         default_hw,
+    )
+
+
+def _resolve_frame_hw(
+    frame_id: int,
+    frame_hw_by_id: dict[int, tuple[int, int]],
+    default_hw: tuple[int, int] | None,
+    json_path: Path,
+    *,
+    fallback_on_placeholder: bool = False,
+) -> tuple[int, int]:
+    if frame_id in frame_hw_by_id:
+        frame_hw = frame_hw_by_id[frame_id]
+        if (
+            fallback_on_placeholder
+            and (frame_hw[0] <= 1 or frame_hw[1] <= 1)
+            and default_hw is not None
+            and default_hw[0] > 1
+            and default_hw[1] > 1
+        ):
+            return default_hw
+        return frame_hw
+    if default_hw is not None:
+        return default_hw
+    raise ValueError(
+        f"Frame {frame_id} is missing from {json_path} and no default frame size is available."
     )
 
 
@@ -453,23 +595,6 @@ class MaskPrompt(Node):
         )
         super().__init__(json_path=str(self.json_path), prompt_specs=self._prompt_specs, **kwargs)
 
-    def _resolve_frame_hw(self, frame_id: int) -> tuple[int, int]:
-        if frame_id in self._frame_hw_by_id:
-            frame_hw = self._frame_hw_by_id[frame_id]
-            if (
-                (frame_hw[0] <= 1 or frame_hw[1] <= 1)
-                and self._default_hw is not None
-                and self._default_hw[0] > 1
-                and self._default_hw[1] > 1
-            ):
-                return self._default_hw
-            return frame_hw
-        if self._default_hw is not None:
-            return self._default_hw
-        raise ValueError(
-            f"Frame {frame_id} is missing from {self.json_path} and no default frame size is available."
-        )
-
     def forward(
         self,
         frame_id: torch.Tensor,
@@ -481,7 +606,13 @@ class MaskPrompt(Node):
             raise ValueError("MaskPrompt requires a non-empty frame_id input.")
 
         current_frame_id = int(frame_id.reshape(-1)[0].item())
-        frame_hw = self._resolve_frame_hw(current_frame_id)
+        frame_hw = _resolve_frame_hw(
+            current_frame_id,
+            self._frame_hw_by_id,
+            self._default_hw,
+            self.json_path,
+            fallback_on_placeholder=True,
+        )
         label_map = self._masks_by_frame.get(current_frame_id)
 
         if label_map is None:
@@ -534,15 +665,6 @@ class BBoxPrompt(Node):
         )
         super().__init__(json_path=str(self.json_path), prompt_specs=self._prompt_specs, **kwargs)
 
-    def _resolve_frame_hw(self, frame_id: int) -> tuple[int, int]:
-        if frame_id in self._frame_hw_by_id:
-            return self._frame_hw_by_id[frame_id]
-        if self._default_hw is not None:
-            return self._default_hw
-        raise ValueError(
-            f"Frame {frame_id} is missing from {self.json_path} and no default frame size is available."
-        )
-
     def forward(
         self,
         frame_id: torch.Tensor,
@@ -554,7 +676,12 @@ class BBoxPrompt(Node):
             raise ValueError("BBoxPrompt requires a non-empty frame_id input.")
 
         current_frame_id = int(frame_id.reshape(-1)[0].item())
-        frame_hw = self._resolve_frame_hw(current_frame_id)
+        frame_hw = _resolve_frame_hw(
+            current_frame_id,
+            self._frame_hw_by_id,
+            self._default_hw,
+            self.json_path,
+        )
         prompts = self._prompts_by_frame.get(current_frame_id, [])
         prompts_out = [dict(prompt) for prompt in prompts]
 
@@ -637,17 +764,16 @@ class TextPrompt(Node):
 
 __all__ = [
     "BBoxPrompt",
-    "BBoxPromptSpec",
     "MaskPrompt",
-    "MaskPromptSpec",
+    "SpatialPromptSpec",
     "TextPrompt",
     "TextPromptSpec",
     "load_bbox_prompt_schedule",
+    "load_detection_index",
     "load_mask_prompt_schedule",
     "load_text_prompt_schedule",
     "normalize_text_prompt_mode",
-    "parse_bbox_prompt_spec",
-    "parse_mask_prompt_spec",
+    "parse_spatial_prompt_spec",
     "parse_text_prompt_spec",
     "resolve_text_prompt_for_frame",
 ]

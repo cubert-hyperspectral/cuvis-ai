@@ -10,6 +10,7 @@ from cuvis_ai.node.anomaly_visualization import (
     RGBAnomalyMask,
     ScoreHeatmapVisualizer,
     TrackingOverlayNode,
+    TrackingPointerOverlayNode,
 )
 from cuvis_ai.node.channel_mixer import ConcreteChannelMixer, LearnableChannelMixer
 from cuvis_ai.node.channel_selector import (
@@ -63,7 +64,7 @@ from cuvis_ai.node.preprocessors import (
 )
 from cuvis_ai.node.spectral_angle_mapper import SpectralAngleMapper
 from cuvis_ai.node.spectral_extractor import BBoxSpectralExtractor
-from cuvis_ai.node.static_node import BBoxPrompt, MaskPrompt, TextPrompt
+from cuvis_ai.node.prompts import BBoxPrompt, MaskPrompt, TextPrompt
 from cuvis_ai.node.video import (
     ToVideoNode,
     VideoFrameDataModule,
@@ -135,6 +136,7 @@ __all__ = [
     "VideoIterator",
     "CocoTrackMaskWriter",
     "CocoTrackBBoxWriter",
+    "TrackingPointerOverlayNode",
     "TrackingOverlayNode",
     "TrackingResultsReader",
     "TrainablePCA",

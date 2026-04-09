@@ -6,7 +6,9 @@
 plugins:
   sam3:
     # SAM3-based video object tracking plugin
-    path: "../../../../cuvis-ai-sam3/sam3-init"
+    # path: "../../../../cuvis-ai-sam3/sam3-init"
+    repo: "https://github.com/cubert-hyperspectral/cuvis-ai-sam3.git"
+    tag: "v0.1.2"
     provides:
       - cuvis_ai_sam3.node.SAM3TrackerInference
       - cuvis_ai_sam3.node.SAM3TextPropagation
