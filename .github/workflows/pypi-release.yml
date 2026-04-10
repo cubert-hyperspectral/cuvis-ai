@@ -23,6 +23,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Mark workspace as safe for Git versioning
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
