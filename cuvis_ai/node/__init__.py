@@ -34,11 +34,12 @@ from cuvis_ai.node.channel_selector import (
 from cuvis_ai.node.colormap import ScalarHSVColormapNode
 from cuvis_ai.node.conversion import DecisionToMask
 from cuvis_ai.node.dimensionality_reduction import PCA, TrainablePCA
-from cuvis_ai.node.json_reader import DetectionJsonReader, TrackingResultsReader
-from cuvis_ai.node.json_writer import (
+from cuvis_ai.node.json_file import (
     CocoTrackBBoxWriter,
     CocoTrackMaskWriter,
     DetectionCocoJsonNode,
+    DetectionJsonReader,
+    TrackingResultsReader,
 )
 from cuvis_ai.node.labels import BinaryAnomalyLabelMapper
 from cuvis_ai.node.losses import DistinctnessLoss, ForegroundContrastLoss
