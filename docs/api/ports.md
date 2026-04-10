@@ -18,6 +18,7 @@ The port system provides typed input/output interfaces for all nodes, enabling t
 The `PortSpec` class defines the specification for a port, including its type, shape constraints, and metadata.
 
 **Attributes:**
+
 - `name`: Port identifier
 - `port_type`: "input" or "output"
 - `shape`: Expected tensor shape with dimension constraints
@@ -64,11 +65,13 @@ output_port = OutputPort(spec=normalized_port, node=normalizer)
 Ports can be connected if they satisfy compatibility rules:
 
 ### Shape Compatibility
+
 - Fixed dimensions must match exactly
 - Variable dimensions (`-1`) can match any size
 - Batch dimensions are typically variable
 
 ### Type Compatibility
+
 - Input ports can only connect to output ports
 - Ports must have compatible data types
 - Stage constraints must be satisfied
@@ -241,35 +244,43 @@ port_spec = PortSpec(
 ### Normalization Nodes
 
 **Input Ports:**
+
 - `data`: Raw hyperspectral cube
 
 **Output Ports:**
+
 - `normalized`: Normalized data
 
 ### Feature Extraction
 
 **Input Ports:**
+
 - `features`: Input features for transformation
 
 **Output Ports:**
+
 - `projected`: Transformed features
 - `explained_variance`: Statistical metrics
 
 ### Anomaly Detection
 
 **Input Ports:**
+
 - `data`: Features for anomaly scoring
 
 **Output Ports:**
+
 - `scores`: Anomaly detection scores
 - `logits`: Logit-transformed scores
 
 ### Loss Nodes
 
 **Input Ports:**
+
 - Variadic inputs for loss computation
 
 **Output Ports:**
+
 - `loss`: Computed loss value
 
 ## Error Handling

@@ -215,6 +215,7 @@ class QuantileBinaryDecider(BaseDecider):
         -------
         dict[str, Tensor]
             Dictionary containing:
+
             - "decisions" : Tensor
                 Binary decision mask, shape (B, H, W, 1)
         """

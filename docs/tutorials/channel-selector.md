@@ -36,6 +36,7 @@ Learn how to build an anomaly detection pipeline with learnable channel selectio
 ### Why Channel Selection?
 
 Hyperspectral data often contains **61+ spectral channels**, but:
+
 - Not all channels are informative for a given task
 - Redundant channels add noise and computation cost
 - Channel selection can improve performance and interpretability
@@ -63,12 +64,14 @@ selected_data = ∑ᵢ softmax(weights / temperature) × channelᵢ
 ### Two-Phase Training Strategy
 
 **Phase 1: Statistical Initialization**
+
 - Initialize normalizer statistics (min/max)
 - Initialize selector weights (variance-based or uniform)
 - Initialize RX detector (background covariance)
 - **All nodes frozen** (no gradients)
 
 **Phase 2: Gradient Training**
+
 - **Unfreeze**: Selector, RX, LogitHead
 - **Keep frozen**: Normalizer (fixed statistics)
 - Optimize with BCE loss + regularizers
@@ -140,6 +143,7 @@ selector = SoftChannelSelector(
 ```
 
 **Key Parameters:**
+
 - `n_select=3`: Number of output channels (like RGB)
 - `init_method="variance"`: Initialize weights by channel variance
 - Temperature schedule: 5.0 → 0.1 with decay 0.9
@@ -345,6 +349,7 @@ stat_trainer.fit()
 ```
 
 **What Gets Initialized:**
+
 1. **MinMaxNormalizer**: Collects global min/max
 2. **SoftChannelSelector**: Initializes weights by channel variance
 3. **RXGlobal**: Computes covariance on selected 3 channels
@@ -374,6 +379,7 @@ logger.info(f"Unfrozen nodes: {unfreeze_node_names}")
 ```
 
 **Freeze Status After Unfreezing:**
+
 - ✅ **Unfrozen** (trainable): SoftChannelSelector, RXGlobal, ScoreToLogit
 - 🔒 **Frozen** (fixed): MinMaxNormalizer, Data Node
 - Loss and metric nodes don't have weights
@@ -472,6 +478,7 @@ grad_trainer.fit()
 ```
 
 **Training Loop:**
+
 1. Forward pass through unfrozen nodes
 2. Compute losses: BCE + entropy + diversity
 3. Backpropagation and weight updates
@@ -514,6 +521,7 @@ logger.info(f"Test results: {test_results}")
 ```
 
 **Expected Results:**
+
 - IoU: 0.80-0.85 (improved from RX baseline ~0.72)
 - Precision: 0.85-0.90
 - Recall: 0.80-0.87
@@ -540,6 +548,7 @@ print(f"Top 3 channels: {selector_weights.topk(3).indices}")
 ### Visualize Channel Selection
 
 TensorBoard will show:
+
 - **RGB visualization**: False-color image from selected channels
 - **Weight plot**: Bar chart of channel weights
 - **Weight evolution**: How weights changed during training
@@ -796,6 +805,7 @@ selector = SoftChannelSelector(
 ### Issue: No Improvement Over RX Baseline
 
 **Possible Causes:**
+
 1. Insufficient training epochs
 2. Regularization too strong
 3. Temperature decays too quickly
@@ -862,6 +872,7 @@ In this tutorial, you learned:
 ✅ Analyzing and visualizing selected channels
 
 **Key Takeaways:**
+
 - Channel selection improves both performance and interpretability
 - Gumbel-Softmax enables gradient-based discrete optimization
 - Two-phase training combines stability (statistical) with power (gradient)

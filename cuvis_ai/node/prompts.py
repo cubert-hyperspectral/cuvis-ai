@@ -1,0 +1,779 @@
+"""Static nodes and helpers for frame-indexed text, mask, and bbox prompt schedules."""
+
+from __future__ import annotations
+
+import json
+import re
+from collections.abc import Sequence
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+import cv2
+import numpy as np
+import torch
+from cuvis_ai_core.data.rle import coco_rle_decode
+from cuvis_ai_core.node import Node
+from cuvis_ai_schemas.execution import Context
+from cuvis_ai_schemas.pipeline import PortSpec
+
+_PROMPT_SPEC_RE = re.compile(r"\s*(\d+):(\d+)@(\d+)\s*")
+_TEXT_PROMPT_MODES = {"repeat", "scheduled"}
+
+
+@dataclass(frozen=True)
+class SpatialPromptSpec:
+    """One scheduled spatial (mask or bbox) prompt entry."""
+
+    object_id: int
+    detection_id: int
+    frame_id: int
+    order: int
+
+
+@dataclass(frozen=True)
+class TextPromptSpec:
+    """One scheduled text-prompt entry."""
+
+    text: str
+    frame_id: int
+    order: int
+
+
+def parse_spatial_prompt_spec(spec: str, order: int = 0) -> SpatialPromptSpec:
+    """Parse ``<object_id>:<detection_id>@<frame_id>`` into a spatial prompt spec."""
+    match = _PROMPT_SPEC_RE.fullmatch(spec)
+    if match is None:
+        raise ValueError(
+            f"Invalid prompt spec '{spec}'. Expected format <object_id>:<detection_id>@<frame_id>."
+        )
+    return SpatialPromptSpec(
+        object_id=int(match.group(1)),
+        detection_id=int(match.group(2)),
+        frame_id=int(match.group(3)),
+        order=int(order),
+    )
+
+
+def parse_text_prompt_spec(spec: str, order: int = 0) -> TextPromptSpec:
+    """Parse ``<text>@<frame_id>`` into a typed text spec.
+
+    Bare ``<text>`` is accepted as a backward-compatible alias for ``<text>@0``.
+    """
+    if not isinstance(spec, str):
+        raise ValueError(f"Text prompt spec must be a string, got {type(spec).__name__}.")
+
+    raw_spec = spec.strip()
+    if not raw_spec:
+        raise ValueError("Text prompt spec must be non-empty.")
+
+    if "@" in raw_spec:
+        prompt_text, frame_part = raw_spec.rsplit("@", maxsplit=1)
+        prompt_text = prompt_text.strip()
+        if not frame_part.strip().isdigit():
+            raise ValueError(
+                f"Invalid text prompt spec '{spec}'. Expected format <text>@<frame_id>."
+            )
+        frame_id = int(frame_part.strip())
+    else:
+        prompt_text = raw_spec
+        frame_id = 0
+
+    if not prompt_text:
+        raise ValueError(f"Invalid text prompt spec '{spec}'. Prompt text must not be empty.")
+    if frame_id < 0:
+        raise ValueError(f"Invalid text prompt spec '{spec}'. frame_id must be zero or positive.")
+
+    return TextPromptSpec(text=prompt_text, frame_id=frame_id, order=int(order))
+
+
+def load_text_prompt_schedule(prompt_specs: Sequence[str] | None) -> dict[int, str]:
+    """Build a per-frame text prompt schedule.
+
+    Multiple prompt frames are allowed. V1 rejects multiple distinct texts on the
+    same frame.
+    """
+    prompts_by_frame: dict[int, str] = {}
+    for order, raw_spec in enumerate(prompt_specs or []):
+        spec = parse_text_prompt_spec(raw_spec, order=order)
+        existing = prompts_by_frame.get(spec.frame_id)
+        if existing is not None and existing != spec.text:
+            raise ValueError(
+                "Multiple distinct text prompts on the same frame are not supported: "
+                f"frame {spec.frame_id} has both '{existing}' and '{spec.text}'."
+            )
+        prompts_by_frame[spec.frame_id] = spec.text
+    return prompts_by_frame
+
+
+def normalize_text_prompt_mode(prompt_mode: str) -> str:
+    """Normalize and validate the text-prompt emission mode."""
+    normalized = str(prompt_mode).strip().lower()
+    if normalized not in _TEXT_PROMPT_MODES:
+        raise ValueError(
+            f"Unsupported text prompt mode '{prompt_mode}'. "
+            f"Expected one of {sorted(_TEXT_PROMPT_MODES)}."
+        )
+    return normalized
+
+
+def resolve_text_prompt_for_frame(
+    prompts_by_frame: dict[int, str],
+    frame_id: int,
+    *,
+    prompt_mode: str = "scheduled",
+) -> str:
+    """Resolve the runtime text prompt for ``frame_id``.
+
+    ``scheduled`` emits only on exact prompt frames.
+    ``repeat`` keeps the latest scheduled prompt active until replaced.
+    """
+    current_frame_id = int(frame_id)
+    normalized_mode = normalize_text_prompt_mode(prompt_mode)
+    if normalized_mode == "scheduled":
+        return str(prompts_by_frame.get(current_frame_id, ""))
+
+    latest_prompt = ""
+    latest_frame_id: int | None = None
+    for scheduled_frame_id, prompt_text in prompts_by_frame.items():
+        scheduled_frame_id = int(scheduled_frame_id)
+        if scheduled_frame_id > current_frame_id:
+            continue
+        if latest_frame_id is None or scheduled_frame_id > latest_frame_id:
+            latest_frame_id = scheduled_frame_id
+            latest_prompt = str(prompt_text)
+    return latest_prompt
+
+
+def _image_hw(image_entry: dict[str, Any], frame_id: int) -> tuple[int, int]:
+    height = int(image_entry.get("height", 0))
+    width = int(image_entry.get("width", 0))
+    if height <= 0 or width <= 0:
+        raise ValueError(f"Image metadata for frame {frame_id} must include positive height/width.")
+    return height, width
+
+
+def _segmentation_hw(segmentation: Any) -> tuple[int, int] | None:
+    if isinstance(segmentation, dict):
+        size = segmentation.get("size")
+        if isinstance(size, list | tuple) and len(size) == 2:
+            height = int(size[0])
+            width = int(size[1])
+            if height > 0 and width > 0:
+                return height, width
+    return None
+
+
+def _compute_default_hw(
+    frame_hw_by_id: dict[int, tuple[int, int]],
+) -> tuple[int, int] | None:
+    usable_hws = sorted({hw for hw in frame_hw_by_id.values() if hw[0] > 1 and hw[1] > 1})
+    return usable_hws[0] if len(usable_hws) == 1 else None
+
+
+def _annotation_sequence(
+    annotation: dict[str, Any],
+    field_name: str,
+    *,
+    frame_count: int,
+) -> list[Any] | None:
+    values = annotation.get(field_name)
+    if values is None:
+        return None
+    if not isinstance(values, list):
+        raise ValueError(f"Track-centric annotation field '{field_name}' must be a list.")
+    if len(values) != frame_count:
+        raise ValueError(
+            f"Track-centric annotation field '{field_name}' must have {frame_count} entries, "
+            f"got {len(values)}."
+        )
+    return values
+
+
+def _build_track_centric_frame_metadata(
+    data: dict[str, Any],
+) -> tuple[
+    dict[int, list[dict[str, Any]]],
+    dict[int, tuple[int, int]],
+    tuple[int, int] | None,
+]:
+    videos = data.get("videos", [])
+    if not videos:
+        raise ValueError("Detection JSON must contain COCO 'images' entries or SAM3 'videos'.")
+
+    frame_indices = videos[0].get("frame_indices")
+    if not isinstance(frame_indices, list | tuple) or len(frame_indices) == 0:
+        raise ValueError("Track-centric SAM3 JSON must include videos[0].frame_indices.")
+
+    normalized_frame_ids = [int(frame_id) for frame_id in frame_indices]
+    annotations_by_frame: dict[int, list[dict[str, Any]]] = {
+        frame_id: [] for frame_id in normalized_frame_ids
+    }
+    # Use a small placeholder so later resolution can fail clearly if no real
+    # frame size is discoverable from segmentation metadata.
+    frame_hw_by_id = dict.fromkeys(normalized_frame_ids, (1, 1))
+    annotation_hw_by_frame: dict[int, set[tuple[int, int]]] = {}
+
+    next_ann_id = 1
+    for track_annotation in data.get("annotations", []):
+        segmentations = _annotation_sequence(
+            track_annotation,
+            "segmentations",
+            frame_count=len(normalized_frame_ids),
+        )
+        bboxes = _annotation_sequence(
+            track_annotation,
+            "bboxes",
+            frame_count=len(normalized_frame_ids),
+        )
+        detection_scores = _annotation_sequence(
+            track_annotation,
+            "detection_scores",
+            frame_count=len(normalized_frame_ids),
+        )
+        areas = _annotation_sequence(
+            track_annotation,
+            "areas",
+            frame_count=len(normalized_frame_ids),
+        )
+        if segmentations is None and bboxes is None:
+            continue
+
+        track_id = track_annotation.get("track_id")
+        category_id = int(track_annotation.get("category_id", 1))
+        for idx, frame_id in enumerate(normalized_frame_ids):
+            segmentation = segmentations[idx] if segmentations is not None else None
+            bbox = bboxes[idx] if bboxes is not None else None
+            score = detection_scores[idx] if detection_scores is not None else None
+            area = areas[idx] if areas is not None else None
+            if segmentation is None and bbox is None:
+                continue
+
+            annotation: dict[str, Any] = {
+                "id": next_ann_id,
+                "image_id": frame_id,
+                "category_id": category_id,
+            }
+            if track_id is not None:
+                annotation["track_id"] = int(track_id)
+            if segmentation is not None:
+                annotation["segmentation"] = segmentation
+            if bbox is not None:
+                annotation["bbox"] = bbox
+            if score is not None:
+                annotation["score"] = float(score)
+            if area is not None:
+                annotation["area"] = float(area)
+            annotations_by_frame[frame_id].append(annotation)
+
+            segmentation_hw = _segmentation_hw(segmentation)
+            if segmentation_hw is not None:
+                annotation_hw_by_frame.setdefault(frame_id, set()).add(segmentation_hw)
+            next_ann_id += 1
+
+    for frame_id, seg_hws in annotation_hw_by_frame.items():
+        if len(seg_hws) > 1:
+            raise ValueError(
+                f"Frame {frame_id} has inconsistent segmentation sizes: {sorted(seg_hws)}."
+            )
+        frame_hw_by_id[frame_id] = next(iter(seg_hws))
+
+    default_hw = _compute_default_hw(frame_hw_by_id)
+    return annotations_by_frame, frame_hw_by_id, default_hw
+
+
+def _select_annotation_for_prompt(
+    annotations_by_frame: dict[int, list[dict[str, Any]]],
+    detection_id: int,
+    frame_id: int,
+) -> dict[str, Any]:
+    frame_annotations = list(annotations_by_frame.get(int(frame_id), []))
+    if not frame_annotations:
+        raise ValueError(f"Frame {frame_id} has no annotations in the detection JSON.")
+
+    has_track_ids = any("track_id" in ann for ann in frame_annotations)
+    if has_track_ids:
+        by_track = {int(ann["track_id"]): ann for ann in frame_annotations if "track_id" in ann}
+        if detection_id not in by_track:
+            raise ValueError(
+                f"Track ID {detection_id} not found on frame {frame_id}. "
+                f"Available track_ids: {sorted(by_track)}"
+            )
+        return by_track[detection_id]
+
+    sorted_annotations = sorted(
+        frame_annotations,
+        key=lambda ann: float(ann.get("score", 0.0)),
+        reverse=True,
+    )
+    rank = int(detection_id) - 1
+    if rank < 0 or rank >= len(sorted_annotations):
+        raise ValueError(
+            f"Detection rank {detection_id} is out of range on frame {frame_id} "
+            f"(have {len(sorted_annotations)} detections)."
+        )
+    return sorted_annotations[rank]
+
+
+def _decode_segmentation(
+    segmentation: Any,
+    image_hw: tuple[int, int],
+    *,
+    frame_id: int,
+) -> np.ndarray:
+    height, width = image_hw
+    if isinstance(segmentation, dict):
+        mask = coco_rle_decode(segmentation)
+    elif isinstance(segmentation, list):
+        polygons = segmentation
+        if polygons and isinstance(polygons[0], (int, float)):
+            polygons = [polygons]
+        mask = np.zeros((height, width), dtype=np.uint8)
+        for polygon in polygons:
+            coords = np.asarray(polygon, dtype=np.float32)
+            if coords.size == 0:
+                continue
+            if coords.size % 2 != 0:
+                raise ValueError(
+                    f"Polygon segmentation on frame {frame_id} has an odd coord count."
+                )
+            pts = np.rint(coords.reshape(-1, 2)).astype(np.int32).reshape(-1, 1, 2)
+            cv2.fillPoly(mask, [pts], color=1)
+    else:
+        raise ValueError(
+            f"Unsupported segmentation type on frame {frame_id}: {type(segmentation).__name__}."
+        )
+
+    mask = np.asarray(mask, dtype=np.uint8)
+    if mask.shape != (height, width):
+        raise ValueError(
+            f"Decoded segmentation shape {mask.shape} does not match image shape {(height, width)} "
+            f"on frame {frame_id}."
+        )
+    return (mask > 0).astype(np.uint8)
+
+
+def _build_frame_metadata(
+    data: dict[str, Any],
+) -> tuple[
+    dict[int, list[dict[str, Any]]],
+    dict[int, tuple[int, int]],
+    tuple[int, int] | None,
+]:
+    if data.get("videos"):
+        return _build_track_centric_frame_metadata(data)
+
+    images = {int(img["id"]): img for img in data.get("images", [])}
+    if not images:
+        raise ValueError("Detection JSON must contain COCO 'images' entries or SAM3 'videos'.")
+
+    annotations_by_frame: dict[int, list[dict[str, Any]]] = {}
+    annotation_hw_by_frame: dict[int, set[tuple[int, int]]] = {}
+    for annotation in data.get("annotations", []):
+        frame_id = int(annotation["image_id"])
+        annotations_by_frame.setdefault(frame_id, []).append(annotation)
+        segmentation_hw = _segmentation_hw(annotation.get("segmentation"))
+        if segmentation_hw is not None:
+            annotation_hw_by_frame.setdefault(frame_id, set()).add(segmentation_hw)
+
+    frame_hw_by_id = {frame_id: _image_hw(img, frame_id) for frame_id, img in images.items()}
+    for frame_id, seg_hws in annotation_hw_by_frame.items():
+        if len(seg_hws) > 1:
+            raise ValueError(
+                f"Frame {frame_id} has inconsistent segmentation sizes: {sorted(seg_hws)}."
+            )
+        segmentation_hw = next(iter(seg_hws))
+        current_hw = frame_hw_by_id.get(frame_id)
+        if current_hw is None or current_hw[0] <= 1 or current_hw[1] <= 1:
+            frame_hw_by_id[frame_id] = segmentation_hw
+
+    default_hw = _compute_default_hw(frame_hw_by_id)
+    return annotations_by_frame, frame_hw_by_id, default_hw
+
+
+def load_detection_index(
+    json_path: str | Path,
+) -> tuple[
+    dict[int, list[dict[str, Any]]],
+    dict[int, tuple[int, int]],
+    tuple[int, int] | None,
+]:
+    """Load a flat COCO or track-centric SAM3 detection JSON into frame-indexed metadata."""
+    json_file = Path(json_path)
+    if not json_file.exists():
+        raise FileNotFoundError(f"Detection JSON not found: {json_file}")
+
+    with json_file.open("r", encoding="utf-8") as handle:
+        data = json.load(handle)
+
+    return _build_frame_metadata(data)
+
+
+def _resolve_prompt_frame_hw(
+    frame_id: int,
+    frame_hw_by_id: dict[int, tuple[int, int]],
+    default_hw: tuple[int, int] | None,
+    *,
+    raw_spec: str,
+) -> tuple[int, int]:
+    frame_hw = frame_hw_by_id.get(frame_id)
+    if frame_hw is None:
+        raise ValueError(
+            f"Frame {frame_id} referenced by '{raw_spec}' is missing in detection metadata."
+        )
+    if frame_hw[0] > 1 and frame_hw[1] > 1:
+        return frame_hw
+    if default_hw is not None:
+        return default_hw
+    raise ValueError(
+        f"Frame {frame_id} referenced by '{raw_spec}' has no usable height/width in the detection JSON."
+    )
+
+
+def load_mask_prompt_schedule(
+    json_path: str | Path,
+    prompt_specs: Sequence[str] | None,
+) -> tuple[dict[int, np.ndarray], dict[int, tuple[int, int]], tuple[int, int] | None]:
+    """Load detection JSON and build per-frame label-map prompts."""
+    annotations_by_frame, frame_hw_by_id, default_hw = load_detection_index(json_path)
+
+    masks_by_frame: dict[int, np.ndarray] = {}
+    for order, raw_spec in enumerate(prompt_specs or []):
+        spec = parse_spatial_prompt_spec(raw_spec, order=order)
+        annotation = _select_annotation_for_prompt(
+            annotations_by_frame=annotations_by_frame,
+            detection_id=spec.detection_id,
+            frame_id=spec.frame_id,
+        )
+        if "segmentation" not in annotation:
+            raise ValueError(
+                f"Annotation selected by '{raw_spec}' does not contain a 'segmentation' field."
+            )
+
+        frame_hw = _resolve_prompt_frame_hw(
+            spec.frame_id,
+            frame_hw_by_id,
+            default_hw,
+            raw_spec=raw_spec,
+        )
+        binary_mask = _decode_segmentation(
+            annotation["segmentation"],
+            frame_hw,
+            frame_id=spec.frame_id,
+        )
+        if int(np.count_nonzero(binary_mask)) == 0:
+            raise ValueError(f"Annotation selected by '{raw_spec}' has an empty segmentation mask.")
+        frame_mask = masks_by_frame.setdefault(
+            spec.frame_id,
+            np.zeros(frame_hw, dtype=np.int32),
+        )
+        frame_mask[binary_mask.astype(bool)] = int(spec.object_id)
+
+    return masks_by_frame, frame_hw_by_id, default_hw
+
+
+def _annotation_bbox_xyxy(
+    annotation: dict[str, Any],
+    frame_hw: tuple[int, int],
+    *,
+    raw_spec: str,
+) -> tuple[float, float, float, float]:
+    if "bbox" not in annotation:
+        raise ValueError(f"Annotation selected by '{raw_spec}' does not contain a 'bbox' field.")
+
+    bbox = annotation["bbox"]
+    if not isinstance(bbox, list | tuple) or len(bbox) != 4:
+        raise ValueError(f"Annotation selected by '{raw_spec}' has an invalid COCO bbox: {bbox!r}.")
+
+    height, width = frame_hw
+    x_min = max(0.0, min(float(bbox[0]), float(width)))
+    y_min = max(0.0, min(float(bbox[1]), float(height)))
+    x_max = max(x_min, min(float(bbox[0]) + float(bbox[2]), float(width)))
+    y_max = max(y_min, min(float(bbox[1]) + float(bbox[3]), float(height)))
+    if x_max <= x_min or y_max <= y_min:
+        raise ValueError(f"Annotation selected by '{raw_spec}' has a degenerate bbox: {bbox!r}.")
+    return x_min, y_min, x_max, y_max
+
+
+def load_bbox_prompt_schedule(
+    json_path: str | Path,
+    prompt_specs: Sequence[str] | None,
+) -> tuple[
+    dict[int, list[dict[str, float | int]]],
+    dict[int, tuple[int, int]],
+    tuple[int, int] | None,
+]:
+    """Load detection JSON and build per-frame bbox prompts."""
+    annotations_by_frame, frame_hw_by_id, default_hw = load_detection_index(json_path)
+
+    prompts_by_frame: dict[int, dict[int, dict[str, float | int]]] = {}
+    for order, raw_spec in enumerate(prompt_specs or []):
+        spec = parse_spatial_prompt_spec(raw_spec, order=order)
+        annotation = _select_annotation_for_prompt(
+            annotations_by_frame=annotations_by_frame,
+            detection_id=spec.detection_id,
+            frame_id=spec.frame_id,
+        )
+        frame_hw = _resolve_prompt_frame_hw(
+            spec.frame_id,
+            frame_hw_by_id,
+            default_hw,
+            raw_spec=raw_spec,
+        )
+        x_min, y_min, x_max, y_max = _annotation_bbox_xyxy(
+            annotation,
+            frame_hw,
+            raw_spec=raw_spec,
+        )
+        prompts_by_frame.setdefault(spec.frame_id, {})[spec.object_id] = {
+            "element_id": 0,
+            "object_id": int(spec.object_id),
+            "x_min": float(x_min),
+            "y_min": float(y_min),
+            "x_max": float(x_max),
+            "y_max": float(y_max),
+        }
+
+    return (
+        {frame_id: list(object_map.values()) for frame_id, object_map in prompts_by_frame.items()},
+        frame_hw_by_id,
+        default_hw,
+    )
+
+
+def _resolve_frame_hw(
+    frame_id: int,
+    frame_hw_by_id: dict[int, tuple[int, int]],
+    default_hw: tuple[int, int] | None,
+    json_path: Path,
+    *,
+    fallback_on_placeholder: bool = False,
+) -> tuple[int, int]:
+    if frame_id in frame_hw_by_id:
+        frame_hw = frame_hw_by_id[frame_id]
+        if (
+            fallback_on_placeholder
+            and (frame_hw[0] <= 1 or frame_hw[1] <= 1)
+            and default_hw is not None
+            and default_hw[0] > 1
+            and default_hw[1] > 1
+        ):
+            return default_hw
+        return frame_hw
+    if default_hw is not None:
+        return default_hw
+    raise ValueError(
+        f"Frame {frame_id} is missing from {json_path} and no default frame size is available."
+    )
+
+
+class MaskPrompt(Node):
+    """Emit a scheduled label-map prompt mask for the requested frame."""
+
+    INPUT_SPECS = {
+        "frame_id": PortSpec(dtype=torch.int64, shape=(1,), description="Source frame index [1]."),
+    }
+    OUTPUT_SPECS = {
+        "mask": PortSpec(
+            dtype=torch.int32,
+            shape=(1, -1, -1),
+            description="Prompt label map [1,H,W]. 0=background, positive values are object IDs.",
+        ),
+    }
+
+    def __init__(
+        self,
+        json_path: str,
+        prompt_specs: Sequence[str] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        self.json_path = Path(json_path)
+        self._prompt_specs = [str(spec) for spec in (prompt_specs or [])]
+        self._masks_by_frame, self._frame_hw_by_id, self._default_hw = load_mask_prompt_schedule(
+            self.json_path,
+            self._prompt_specs,
+        )
+        super().__init__(json_path=str(self.json_path), prompt_specs=self._prompt_specs, **kwargs)
+
+    def forward(
+        self,
+        frame_id: torch.Tensor,
+        context: Context | None = None,  # noqa: ARG002
+        **_: Any,
+    ) -> dict[str, torch.Tensor]:
+        """Emit the scheduled prompt label map for ``frame_id`` or an empty mask."""
+        if frame_id is None or frame_id.numel() == 0:
+            raise ValueError("MaskPrompt requires a non-empty frame_id input.")
+
+        current_frame_id = int(frame_id.reshape(-1)[0].item())
+        frame_hw = _resolve_frame_hw(
+            current_frame_id,
+            self._frame_hw_by_id,
+            self._default_hw,
+            self.json_path,
+            fallback_on_placeholder=True,
+        )
+        label_map = self._masks_by_frame.get(current_frame_id)
+
+        if label_map is None:
+            mask_t = torch.zeros((1, frame_hw[0], frame_hw[1]), dtype=torch.int32)
+        else:
+            mask_t = (
+                torch.from_numpy(np.array(label_map, copy=True)).unsqueeze(0).to(dtype=torch.int32)
+            )
+        return {"mask": mask_t}
+
+
+class BBoxPrompt(Node):
+    """Emit scheduled runtime bbox prompts plus overlay-friendly debug tensors."""
+
+    INPUT_SPECS = {
+        "frame_id": PortSpec(dtype=torch.int64, shape=(1,), description="Source frame index [1]."),
+    }
+    OUTPUT_SPECS = {
+        "bboxes": PortSpec(
+            dtype=list,
+            shape=(),
+            description=(
+                "Per-frame list of bbox prompt dicts with keys element_id, object_id, "
+                "x_min, y_min, x_max, y_max."
+            ),
+        ),
+        "prompt_boxes_xyxy": PortSpec(
+            dtype=torch.float32,
+            shape=(1, -1, 4),
+            description="Prompt boxes [1,N,4] in xyxy pixels for optional debug overlay.",
+        ),
+        "prompt_object_ids": PortSpec(
+            dtype=torch.int64,
+            shape=(1, -1),
+            description="Prompt object IDs [1,N] aligned with prompt_boxes_xyxy.",
+        ),
+    }
+
+    def __init__(
+        self,
+        json_path: str,
+        prompt_specs: Sequence[str] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        self.json_path = Path(json_path)
+        self._prompt_specs = [str(spec) for spec in (prompt_specs or [])]
+        self._prompts_by_frame, self._frame_hw_by_id, self._default_hw = load_bbox_prompt_schedule(
+            self.json_path,
+            self._prompt_specs,
+        )
+        super().__init__(json_path=str(self.json_path), prompt_specs=self._prompt_specs, **kwargs)
+
+    def forward(
+        self,
+        frame_id: torch.Tensor,
+        context: Context | None = None,  # noqa: ARG002
+        **_: Any,
+    ) -> dict[str, torch.Tensor | list[dict[str, float | int]]]:
+        """Emit the scheduled bbox prompt list for ``frame_id`` or an empty list."""
+        if frame_id is None or frame_id.numel() == 0:
+            raise ValueError("BBoxPrompt requires a non-empty frame_id input.")
+
+        current_frame_id = int(frame_id.reshape(-1)[0].item())
+        frame_hw = _resolve_frame_hw(
+            current_frame_id,
+            self._frame_hw_by_id,
+            self._default_hw,
+            self.json_path,
+        )
+        prompts = self._prompts_by_frame.get(current_frame_id, [])
+        prompts_out = [dict(prompt) for prompt in prompts]
+
+        if prompts_out:
+            boxes_xyxy = torch.tensor(
+                [
+                    [prompt["x_min"], prompt["y_min"], prompt["x_max"], prompt["y_max"]]
+                    for prompt in prompts_out
+                ],
+                dtype=torch.float32,
+            ).unsqueeze(0)
+            object_ids = torch.tensor(
+                [int(prompt["object_id"]) for prompt in prompts_out],
+                dtype=torch.int64,
+            ).unsqueeze(0)
+        else:
+            boxes_xyxy = torch.zeros((1, 0, 4), dtype=torch.float32)
+            object_ids = torch.zeros((1, 0), dtype=torch.int64)
+
+        if frame_hw[0] <= 0 or frame_hw[1] <= 0:
+            raise ValueError(
+                f"Resolved invalid frame size for frame {current_frame_id}: {frame_hw}."
+            )
+
+        return {
+            "bboxes": prompts_out,
+            "prompt_boxes_xyxy": boxes_xyxy,
+            "prompt_object_ids": object_ids,
+        }
+
+
+class TextPrompt(Node):
+    """Emit a runtime text prompt for the requested frame."""
+
+    INPUT_SPECS = {
+        "frame_id": PortSpec(dtype=torch.int64, shape=(1,), description="Source frame index [1]."),
+    }
+    OUTPUT_SPECS = {
+        "text_prompt": PortSpec(
+            dtype=str,
+            shape=(),
+            description="Resolved text prompt for the current frame or an empty string.",
+        ),
+    }
+
+    def __init__(
+        self,
+        prompt_specs: Sequence[str] | None = None,
+        prompt_mode: str = "scheduled",
+        **kwargs: Any,
+    ) -> None:
+        self._prompt_specs = [str(spec) for spec in (prompt_specs or [])]
+        self._prompts_by_frame = load_text_prompt_schedule(self._prompt_specs)
+        self._prompt_mode = normalize_text_prompt_mode(prompt_mode)
+        super().__init__(
+            prompt_specs=self._prompt_specs,
+            prompt_mode=self._prompt_mode,
+            **kwargs,
+        )
+
+    def forward(
+        self,
+        frame_id: torch.Tensor,
+        context: Context | None = None,  # noqa: ARG002
+        **_: Any,
+    ) -> dict[str, str]:
+        """Emit the resolved prompt text for ``frame_id`` or an empty string."""
+        if frame_id is None or frame_id.numel() == 0:
+            raise ValueError("TextPrompt requires a non-empty frame_id input.")
+
+        current_frame_id = int(frame_id.reshape(-1)[0].item())
+        return {
+            "text_prompt": resolve_text_prompt_for_frame(
+                self._prompts_by_frame,
+                current_frame_id,
+                prompt_mode=self._prompt_mode,
+            )
+        }
+
+
+__all__ = [
+    "BBoxPrompt",
+    "MaskPrompt",
+    "SpatialPromptSpec",
+    "TextPrompt",
+    "TextPromptSpec",
+    "load_bbox_prompt_schedule",
+    "load_detection_index",
+    "load_mask_prompt_schedule",
+    "load_text_prompt_schedule",
+    "normalize_text_prompt_mode",
+    "parse_spatial_prompt_spec",
+    "parse_text_prompt_spec",
+    "resolve_text_prompt_for_frame",
+]

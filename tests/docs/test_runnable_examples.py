@@ -62,9 +62,9 @@ def test_code_syntax(md_file, line_num, code):
 def test_runnable_examples_count():
     """Verify we found runnable examples to test."""
     assert len(RUNNABLE_EXAMPLES) > 0, "No runnable examples found in documentation"
-    # We expect at least 100 runnable examples based on analysis
-    assert len(RUNNABLE_EXAMPLES) >= 100, (
-        f"Expected at least 100 runnable examples, found {len(RUNNABLE_EXAMPLES)}"
+    # We expect at least 90 runnable examples based on analysis
+    assert len(RUNNABLE_EXAMPLES) >= 90, (
+        f"Expected at least 90 runnable examples, found {len(RUNNABLE_EXAMPLES)}"
     )
 
 

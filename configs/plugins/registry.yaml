@@ -15,19 +15,38 @@ plugins:
 
   adaclip:
     # AdaCLIP-based anomaly detection with advanced band selection
+    # path: "D:\\code-repos\\cuvis-ai-adaclip\\cuvis-ai-adaclip"
     repo: "https://github.com/cubert-hyperspectral/cuvis-ai-adaclip.git"
     tag: "v0.1.2"
     provides:
       - cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
 
-  sam3:
-    # SAM3-based video object tracking plugin
-    path: "../../cuvis-ai-sam3"
+  ultralytics:
+    # Ultralytics YOLO26 nodes for cuvis.ai detection and tracking pipelines
+    repo: "https://github.com/cubert-hyperspectral/cuvis-ai-ultralytics.git"
+    tag: "v0.1.0"
     provides:
-      - cuvis_ai_sam3.node.SAM3TrackerInference
-      - cuvis_ai_sam3.node.SpectralSignatureExtractor
-      - cuvis_ai_sam3.node.TrackingJsonNode
-      - cuvis_ai_sam3.node.TrackingOverlayNode
+      - cuvis_ai_ultralytics.node.YOLOPreprocess
+      - cuvis_ai_ultralytics.node.YOLO26Detection
+      - cuvis_ai_ultralytics.node.YOLOPostprocess
+
+  deepeiou:
+    # DeepEIoU tracker and ReID feature extractors for cuvis.ai tracking pipelines
+    repo: "https://github.com/cubert-hyperspectral/cuvis-ai-deepeiou.git"
+    tag: "v0.1.0"
+    provides:
+      - cuvis_ai_deepeiou.node.DeepEIoUTrack
+      - cuvis_ai_deepeiou.node.OSNetExtractor
+      - cuvis_ai_deepeiou.node.ResNetExtractor
+
+  trackeval:
+    # TrackEval-based tracking metric nodes for HOTA, CLEAR, and Identity evaluation
+    repo: "https://github.com/cubert-hyperspectral/cuvis-ai-trackeval.git"
+    tag: "v0.1.0"
+    provides:
+      - cuvis_ai_trackeval.node.HOTAMetricNode
+      - cuvis_ai_trackeval.node.CLEARMetricNode
+      - cuvis_ai_trackeval.node.IdentityMetricNode
 
   # ============================================================================
   # Community Plugins

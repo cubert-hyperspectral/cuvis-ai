@@ -1,6 +1,45 @@
 # Changelog
 
-## [Unreleased]
+## 0.5.0 - 2026-04-10
+
+- Added `TextPrompt`, scheduled `--prompt <text@frame_id>` parsing, and updated local/gRPC SAM3 text-propagation examples to drive `SAM3TextPropagation` through a runtime `text_prompt` port instead of constructor hparams.
+- Added SAM3 prompt-free segment-everything tooling: `SAM3SegmentEverything`, local CLI wiring, and CU3S/video pipeline YAMLs for per-frame automatic mask generation with overlay/video/JSON outputs.
+- Added runtime SAM3 bbox propagation tooling: `BBoxPrompt`, local/gRPC bbox-propagation examples, and CU3S/video bbox-propagation pipeline YAMLs using scheduled `--prompt <object_id:detection_id@frame_id>` bbox updates from detection JSON.
+- Added runtime SAM3 mask propagation tooling: `MaskPrompt`, local/gRPC mask-propagation examples, and CU3S/video mask-propagation pipeline YAMLs using scheduled `--prompt <object_id:detection_id@frame_id>` mask updates from detection JSON.
+- Added SAM3 text-propagation pipeline configs and a new gRPC client (`examples/grpc/sam3/sam3_text_propagation_client.py`) supporting CU3S/video inputs plus plugin-manifest bootstrap.
+- Added SAM3 tracking workflow updates across propagation scripts and examples, including batch processing for full-folder video runs, per-node profiling, threshold/name-suffix options, and frame-lookup support in `TrackingResultsReader`.
+- Added `NDVISelector` for normalized-difference vegetation index band selection, `ScalarHSVColormapNode` for scalar-to-HSV colormap rendering, and `DetectionCocoJsonNode` for streaming COCO detection JSON output.
+- Added per-frame `PCA` dimensionality reduction node alongside the existing trainable variant.
+- Added Spectral Angle Mapper (SPAM) pipeline nodes and tooling for spectral-angle-based workflows.
+- Added `BBoxSpectralExtractor`, sparkline visualization helpers, and richer `BBoxesOverlayNode` annotations (`draw_labels`, `frame_id`).
+- Added occlusion and Poisson inpainting utilities with tests and object-tracking example integrations.
+- Added ByteTrack and tracker workflow expansion: spectral-aware association, COCO JSON sinks, threshold/JSON sweep tooling, spectral re-ID validation, RT-DETR/YOLO integration points, and overlay/transcoding helpers for rendered tracking outputs.
+- Added DeepEIOU plugin integration plus related preprocessing, NumPy writer, and tracking overlay renderer updates.
+- Added TrackEval preparation/evaluation tooling updates for aligned HOTA benchmarking workflows, including prediction frame-id passthrough in evaluator pipelines when supported by the metric plugin.
+- Added released tracking plugin manifests for ByteTrack, DeepEIOU, TrackEval, Ultralytics, RT-DETR, and a `cuvis_ai_builtin` manifest.
+- Added blood perfusion tutorial (`docs/tutorials/blood-perfusion.md`) and four example scripts under `examples/blood_perfusion/` covering NDVI, PCA, and PCA-HSV visualizations.
+- Added plugin node catalog documentation page listing all available plugin nodes.
+- Added ~41 new test files covering PCA, NDVI, colormap, text prompt, manifest sync, spectral extractor, occlusion, video, tracking overlay, and more.
+- Changed tracking JSON export so `CocoTrackMaskWriter` can consume optional `category_ids` and `category_semantics` inputs, preserving the old single-category behavior when they are absent and writing multi-category `categories` headers when they are present.
+- Changed local SAM3 bbox propagation from the archived `--detection` single-seed flow to the same scheduled prompt contract used by mask propagation, including optional bbox prompt debug overlays.
+- Changed local SAM3 mask propagation from archived PNG prompts to detection-JSON-driven label-map prompting, and clarified that gRPC mask propagation sends masks directly through `InputBatch.mask`.
+- Renamed `CocoTrackMaskWriter(category_name=...)` to `CocoTrackMaskWriter(default_category_name=...)`, changed the default fallback label to `"object"`, and clarified that this constructor value is only the fallback label when `category_semantics` is absent.
+- Refactored and consolidated video/tracking utilities (including `cuvis_ai/node/video.py`), moved SAM3 examples into a dedicated subdirectory, and adopted shorthand port syntax across updated examples.
+- Refactored shared XML plugin helpers into `cuvis_ai/utils/xml_plugin_parser.py`.
+- Refactored prompt specs, parsers, and frame-hw resolution to deduplicate shared logic across text/bbox/mask propagation modes.
+- Reorganized AdaCLIP gRPC examples under `examples/grpc/adaclip/` and updated gRPC workflow/docs utilities around explicit config resolution and session search paths.
+- Refined tracking output tooling with JSON IO/overlay updates, new CLI output-dir helpers, and expanded tracking regression tests.
+- Updated SAM3 text-propagation pipeline YAMLs and example docs to match runtime text prompting plus category-aware tracking JSON output.
+- Updated ByteTrack and tracking documentation, including multi-pipeline usage and FFmpeg/torchcodec setup guidance.
+- Updated plugin/trainrun configs to match current SAM3 and channel-selector runtime paths.
+- Updated SAM3 plugin to v0.1.3 and switched AdaCLIP plugin to released repository.
+- Updated docs: removed 7 redundant pages and cleaned up stale references across the documentation site.
+- Bumped cuvis-ai-schemas to >=0.3.0 and cuvis-ai-core to >=0.3.4.
+- Consolidated `json_reader` and `json_writer` modules into a single `json_file` module; updated all node registrations, pipeline configs, imports, and documentation.
+- Switched from `opencv-python` to `opencv-python-headless`.
+- Fixed SAM3 batch-runner control flow and mask-overlay color handling.
+- Fixed JSON reader robustness and pre-push regressions in manifest sync, CLI commands, and statistical-contract tests.
+- Fixed video/tracking fallback and output handling: `VideoIterator` now falls back to OpenCV when torchcodec is unavailable, `output_video_path` naming is normalized, and ByteTrack JSON output path heuristics were hardened.
 
 ## 0.4.0 - 2026-02-27
 
@@ -16,32 +55,57 @@
 - Added plugin contract, manifest sync, and runtime smoke test files
 - Added 8 new test files: `test_welford`, `test_freeze_unfreeze`, `test_channel_selector_coverage`, `test_concrete_channel_mixer`, `test_pipeline_visualization`, `test_binary_decider`, `test_data_node`, `test_rx_per_batch`
 - Added pytest markers (`unit`/`integration`/`slow`) on all 30 test files; session-scoped fixtures for expensive operations; pytest config consolidated in `pytest.ini`
+- Added SAM3 plugin integration scaffolding with plugin registry, pipeline configs, and example manifests
+- Added CU3S video data support with restructured data nodes and CU3SDataNode
+- Added RangeAverageFalseRGBSelector for wavelength-range-averaged false RGB
+- Added CIETristimulusFalseRGBSelector using CIE 1931 2-degree observer color matching functions
+- Added CameraEmulationFalseRGBSelector using Gaussian spectral response curves
+- Added NormMode enum and unified percentile-based RGB normalization in ChannelSelectorBase (per_frame/running/statistical with warmup+accumulation)
+- Added sRGB gamma, _compute_raw_rgb() hook, and statistical_initialization() to ChannelSelectorBase
+- Added LearnableChannelMixer weights output port for loss/viz consumption
+- Added ForegroundContrastLoss with OKLab color space and anchor_weight anti-gaming penalty
+- Added OKLab perceptual color space utilities (rgb_to_oklab, linear_rgb_to_oklab, srgb_to_linear)
+- Added ImageArtifactVizBase, ChannelSelectorFalseRGBViz, and ChannelWeightsViz visualization nodes
+- Added MaskOverlayNode and create_mask_overlay shared PyTorch utility
+- Added TrackingOverlayNode for per-object colored mask overlays with contour lines and ID labels
+- Added multi-object overlay rendering utilities (render_multi_object_overlay)
+- Added TrackingCocoJsonNode for streaming COCO instance-segmentation JSON with RLE masks and atomic writes
+- Added ToVideoNode for streaming RGB frames to MP4 via OpenCV
+- Added channel selector false RGB experiment with Hydra configs, inspect mode, and training pipeline
+- Added sam3_hsi_tracker.py end-to-end SAM3 tracking example using CIE false RGB and core Predictor
+- Added SAM3 pipeline configs: naive false RGB, learned projection, and spectral signature extraction
+- Added mesu_index passthrough in CU3SDataNode and ChannelSelectorFalseRGBViz for frame tracking
+- Added LR scheduling (reduce_on_plateau) wired to GradientTrainer
+- Added unit tests for data, video, band selection, tracking COCO JSON, and tracking overlay nodes
 - Changed RXGlobal, ScoreToLogit, LADGlobal to use `WelfordAccumulator` instead of inline Welford implementations
 - Changed `_compute_band_correlation_matrix` to single-pass streaming with `WelfordAccumulator`
 - Changed TrainablePCA and LearnableChannelMixer to use streaming covariance + `eigh` instead of concat + SVD
 - Changed SoftChannelSelector variance init to use streaming `WelfordAccumulator`
 - Changed ZScoreNormalizerGlobal to use streaming `WelfordAccumulator` instead of concat + subsample
-- Changed supervised band selectors to use template method pattern, pulling shared `forward()` and `statistical_initialization()` into `SupervisedSelectorBase`
+- Changed supervised band selectors to use template method pattern
 - Changed YAML configs and docs to use new schema field names (`hparams`, `class_name`)
-- Changed `EXECUTION_STAGE_VALIDATE` references to `VAL` across gRPC docs
-- Changed `.freezed` references to `.frozen` in tests and docs (matches cuvis-ai-core rename)
-- **Breaking**: Reorganized channel selector and mixer nodes into separate files: `band_selection.py` + `selector.py` → `channel_selector.py`, `concrete_selector.py` + `channel_mixer.py` → `channel_mixer.py`, `pca.py` → `dimensionality_reduction.py`, `visualizations.py` + `drcnn_tensorboard_viz.py` → `anomaly_visualization.py` + `pipeline_visualization.py`
-- **Breaking**: Renamed 9 classes to reflect selector/mixer distinction: `BandSelectorBase` → `ChannelSelectorBase`, `BaselineFalseRGBSelector` → `FixedWavelengthSelector`, `HighContrastBandSelector` → `HighContrastSelector`, `CIRFalseColorSelector` → `CIRSelector`, `SupervisedBandSelectorBase` → `SupervisedSelectorBase`, `SupervisedCIRBandSelector` → `SupervisedCIRSelector`, `SupervisedWindowedFalseRGBSelector` → `SupervisedWindowedSelector`, `SupervisedFullSpectrumBandSelector` → `SupervisedFullSpectrumSelector`, `ConcreteBandSelector` → `ConcreteChannelMixer`, `DRCNNTensorBoardViz` → `PipelineComparisonVisualizer`
+- Changed LearnableChannelMixer output normalization from per-image min-max to BatchNorm2d + sigmoid
+- Changed channel selector training config to max_epochs=200 with early stopping and LR scheduling
+- Changed ForegroundContrastLoss to vectorized batch computation (no per-sample loop)
+- Changed export_cu3s_false_rgb_video.py from argparse to Click CLI and DataLoader to core Predictor
+- Changed plugin registry to use relative path for SAM3 and AdaCLIP repo tag v0.1.2
+- **Breaking**: Reorganized channel selector and mixer nodes into separate files
+- **Breaking**: Renamed 9 classes to reflect selector/mixer distinction
 - **Breaking**: Deleted old files — no deprecation stubs or re-exports
-- Removed redundant `.to(device)` calls from `adaclip.py`, `anomaly_visualization.py`, `channel_selector.py` — pipeline handles device placement
-- Changed pipeline configs reorganized into `anomaly/` subdirectories (`adaclip/`, `deep_svdd/`, `rx/`)
-- Changed AdaCLIP pipeline node names and synced tuning values across 8 pipeline configs
-- Changed Deep SVDD configs, examples, and docs cleaned up for consistency
-- Changed CI workflows to install `libgl1`/`libglib2.0-0` system dependencies for plugin imports
+- Removed redundant `.to(device)` calls — pipeline handles device placement
 - Updated 13 pipeline + 17 trainrun YAML configs with new `class_name` paths
 - Updated 11 example scripts with new import paths
-- Updated 19 documentation files with new class names, import paths, and new content for `WelfordAccumulator` and `TRAINABLE_BUFFERS`
+- Updated 19 documentation files with new class names and import paths
 - Fixed `pyproject.toml` uv source field (`develop` to `editable`)
-- Fixed wavelength batching in supervised band selector `_collect_training_data` (flatten `[B, C]` to `[C]`)
-- Fixed trainrun callback field name and `channel_selector` weights config
 - Fixed Werkzeug CVE-2026-27199 by bumping 3.1.5 → 3.1.6
-- Removed dead `_quantile_threshold()` and duplicate `_resolve_reduce_dims()` from `TwoStageBinaryDecider`
-- Removed `frozen_nodes` from pipeline configs and docs
+- Fixed ToVideoNode parameter typo: output__video_path renamed to output_video_path
+- Fixed setuptools<82 pin for tensorboard pkg_resources compatibility
+- Fixed Windows uv script path errors by using python -m in hooks and tests
+- Fixed CU3SDataNode cube input spec to use torch.Tensor dtype
+- Expanded training data splits in tracking_cap_and_car.yaml
+- Pinned cuvis-ai-schemas to git main branch
+- Removed examples/adaclip/plugins.yaml (consolidated into central registry)
+- Removed Phase 1 scaffold files (sam3_example.md, sam3_tracking_example.py)
 
 ## 0.3.0 - 2026-02-11
 

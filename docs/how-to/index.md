@@ -41,16 +41,10 @@ Practical guides for common tasks and workflows in CUVIS.AI.
 
     Track training progress and visualize results
 
--   :material-gpu: **[GPU Acceleration](../reference/gpu_acceleration_guide.md)**
+-   :material-timer-outline: **[Profiling & Performance](profiling.md)**
 
     ---
 
-    Configure and optimize GPU usage for training
-
--   :material-cloud-upload: **[Remote gRPC](remote-grpc.md)**
-
-    ---
-
-    Deploy and access pipelines remotely via gRPC
+    Measure per-node execution time to identify pipeline bottlenecks
 
 </div>

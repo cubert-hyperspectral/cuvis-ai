@@ -5,20 +5,44 @@
 
 # Output Nodes
 
-> **Status:** Under Development (Phase 5)
-> **Expected Completion:** Week 5
+Output nodes persist detections, tracks, features, and rendered video artifacts.
 
-## Coming Soon
+## Tracking And Detection Writers
 
-This page will document:
-- OutputNode
-- VisualizationNode
-- ExportNode
-- Configuration and usage examples
-- Result handling and storage
+::: cuvis_ai.node.json_file.CocoTrackMaskWriter
+    options:
+      show_root_heading: true
+      heading_level: 3
 
----
+::: cuvis_ai.node.json_file.CocoTrackBBoxWriter
+    options:
+      show_root_heading: true
+      heading_level: 3
 
-**Related Pages:**
-- [Node Catalog](index.md)
-- [Monitoring & Visualization](../how-to/monitoring-and-viz.md)
+::: cuvis_ai.node.json_file.DetectionCocoJsonNode
+    options:
+      show_root_heading: true
+      heading_level: 3
+
+## NumPy Feature Writers
+
+::: cuvis_ai.node.numpy_writer
+    options:
+      show_root_heading: true
+      heading_level: 3
+
+## Video Outputs
+
+::: cuvis_ai.node.video
+    options:
+      show_root_heading: true
+      heading_level: 3
+
+## Common Tracking Sink Patterns
+
+```text
+YOLO / tracker -> DetectionCocoJsonNode or CocoTrackBBoxWriter -> JSON output
+SAM3 / mask tracker -> CocoTrackMaskWriter -> tracking JSON output
+RGB or overlays -> ToVideoNode -> MP4 output
+DeepEIOU embeddings -> NumpyFeatureWriterNode -> .npy output
+```

@@ -1,0 +1,61 @@
+metadata:
+  name: SAM3_Segment_Everything_Video
+  description: SAM3 prompt-free segment-everything with RGB video input
+  tags:
+    - tracking
+    - sam3
+    - segment-everything
+    - video
+  author: cuvis.ai
+
+nodes:
+  - name: video_frame
+    class_name: cuvis_ai.node.video.VideoFrameNode
+    hparams: {}
+
+  - name: sam3_segment_everything
+    class_name: cuvis_ai_sam3.node.SAM3SegmentEverything
+    hparams: {}
+
+  - name: tracking_coco_json
+    class_name: cuvis_ai.node.json_file.CocoTrackMaskWriter
+    hparams:
+      output_json_path: outputs/tracking_results.json
+      default_category_name: object
+
+  - name: overlay
+    class_name: cuvis_ai.node.anomaly_visualization.TrackingOverlayNode
+    hparams:
+      alpha: 0.2
+
+  - name: to_video
+    class_name: cuvis_ai.node.video.ToVideoNode
+    hparams:
+      output_video_path: outputs/tracking_overlay.mp4
+      frame_rate: 10.0
+
+connections:
+  - source: video_frame.outputs.rgb_image
+    target: sam3_segment_everything.inputs.rgb_frame
+  - source: video_frame.outputs.frame_id
+    target: sam3_segment_everything.inputs.frame_id
+  - source: video_frame.outputs.frame_id
+    target: tracking_coco_json.inputs.frame_id
+  - source: sam3_segment_everything.outputs.mask
+    target: tracking_coco_json.inputs.mask
+  - source: sam3_segment_everything.outputs.object_ids
+    target: tracking_coco_json.inputs.object_ids
+  - source: sam3_segment_everything.outputs.detection_scores
+    target: tracking_coco_json.inputs.detection_scores
+  - source: video_frame.outputs.rgb_image
+    target: overlay.inputs.rgb_image
+  - source: video_frame.outputs.frame_id
+    target: overlay.inputs.frame_id
+  - source: sam3_segment_everything.outputs.mask
+    target: overlay.inputs.mask
+  - source: sam3_segment_everything.outputs.object_ids
+    target: overlay.inputs.object_ids
+  - source: overlay.outputs.rgb_with_overlay
+    target: to_video.inputs.rgb_image
+  - source: video_frame.outputs.frame_id
+    target: to_video.inputs.frame_id

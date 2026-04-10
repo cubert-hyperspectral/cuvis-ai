@@ -14,19 +14,21 @@ authors = [
 ]
 dependencies = [
     "cuvis>=3.5.0",
-    "cuvis-ai-core>=0.2.0",
-    "cuvis-ai-schemas[full]>=0.2.0",
+    "cuvis-ai-core>=0.3.4",
+    "cuvis-ai-schemas[full]>=0.3.0",
     "pydantic>=2.0.0,<3.0.0",
+    "defusedxml",
     "imantics",
     "ftfy>=6.1.1",
     "markupsafe!=3.0.2",
     "matplotlib",
-    "opencv-python",
+    "opencv-python-headless",
     "gitpython>=3.1.40",
     "pyyaml",
     "scikit-image",
     "scikit-learn",
     "tensorboard",
+    "setuptools<81",  # pkg_resources.resource_filename removed in setuptools 81
     # Core framework dependencies
     "torch>=2.9.1",
     "torchvision",
@@ -60,7 +62,7 @@ classifiers = [
 
 [project.scripts]
 create-stubs = "tools.generate_node_port_stubs:main"
-download-data = "scripts.download_data:main"
+dataset = "cuvis_ai_core.data.public_datasets:download_data_cli"
 restore-pipeline = "cuvis_ai_core.utils.restore:restore_pipeline_cli"
 restore-trainrun = "cuvis_ai_core.utils.restore:restore_trainrun_cli"
 
@@ -112,6 +114,8 @@ include = ["cuvis_ai*", "tools*", "scripts*"]
 [tool.uv.sources]
 torch = { index = "pytorch-cu128" }
 torchvision = { index = "pytorch-cu128" }
+# cuvis-ai-schemas = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-schemas.git", branch = "main" }
+# cuvis-ai-core = { path = "../../cuvis-ai-core/cuvis-ai-core-sam3", editable = true }
 
 [tool.setuptools_scm]
 version_scheme = "post-release"

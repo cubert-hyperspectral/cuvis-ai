@@ -1,0 +1,14 @@
+# Ultralytics YOLO26 Plugin Manifest (selective load convenience)
+#
+# Load only the Ultralytics plugin:
+#   uv run restore-pipeline --plugins-path configs/plugins/ultralytics.yaml
+
+plugins:
+  ultralytics:
+    # path: "../../../../cuvis-ai-ultralytics/ultralytics-init"
+    repo: "https://github.com/cubert-hyperspectral/cuvis-ai-ultralytics.git"
+    tag: "v0.1.0"
+    provides:
+      - cuvis_ai_ultralytics.node.YOLOPreprocess
+      - cuvis_ai_ultralytics.node.YOLO26Detection
+      - cuvis_ai_ultralytics.node.YOLOPostprocess

@@ -42,6 +42,29 @@ Some links are ignored to prevent false positives:
 **PASSED**: All links are valid and accessible
 **FAILED**: Contains broken or invalid links - fix before committing
 
+## List Spacing Tests
+
+The `test_markdown_list_spacing.py` module checks that prose and labels are separated
+from following Markdown list blocks by a blank line.
+
+### Running List Spacing Tests
+
+**Test list spacing in docs, examples, and API docstrings:**
+```bash
+uv run pytest tests/docs/test_markdown_list_spacing.py -v
+```
+
+### What Gets Tested
+
+- `docs/**/*.md`
+- `examples/**/*.md`
+- `cuvis_ai/**/*.py` docstrings rendered by mkdocstrings
+
+### Notes
+
+- Fenced code blocks are ignored so YAML/Python/JSON examples are not flagged.
+- The check only targets missing blank lines before bullet or numbered list blocks.
+
 ## Future Tests
 
 Additional test modules planned:

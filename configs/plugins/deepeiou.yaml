@@ -1,0 +1,15 @@
+# DeepEIoU Plugin Manifest
+#
+# Load alongside ultralytics.yaml for YOLO + DeepEIoU pipeline:
+#   uv run python examples/object_tracking/deepeiou/yolo_deepeiou_reid_hsi.py \
+#     --cu3s-path path/to/file.cu3s --no-reid
+
+plugins:
+  deepeiou:
+    # path: "../../../../cuvis-ai-deepeiou/deepeiou-init"
+    repo: "https://github.com/cubert-hyperspectral/cuvis-ai-deepeiou.git"
+    tag: "v0.1.0"
+    provides:
+      - cuvis_ai_deepeiou.node.DeepEIoUTrack
+      - cuvis_ai_deepeiou.node.OSNetExtractor
+      - cuvis_ai_deepeiou.node.ResNetExtractor

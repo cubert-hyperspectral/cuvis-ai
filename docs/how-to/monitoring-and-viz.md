@@ -91,6 +91,7 @@ tensorboard --logdir=./runs
 Centralized logging sink that writes metrics and images to TensorBoard.
 
 **Key characteristics:**
+
 - **Type**: Sink node (no outputs)
 - **Execution**: All stages (TRAIN, VAL, TEST, INFERENCE)
 - **Auto-increment**: Creates `run_01`, `run_02`, etc. if `run_name` is None
@@ -145,6 +146,7 @@ monitor.log("val/threshold", 0.5, step=100)
 Comprehensive anomaly detection performance metrics.
 
 **Metrics computed:**
+
 - **Precision**: TP / (TP + FP)
 - **Recall**: TP / (TP + FN)
 - **F1-Score**: Harmonic mean of precision and recall
@@ -191,6 +193,7 @@ val/average_precision
 Track distribution properties of anomaly scores.
 
 **Metrics computed:**
+
 - Mean, standard deviation
 - Min, max, median
 - Quantiles: q25, q75, q95, q99
@@ -232,6 +235,7 @@ scores/q99
 Monitor PCA variance breakdown.
 
 **Metrics computed:**
+
 - Per-component variance
 - Total explained variance
 - Cumulative variance ratios
@@ -270,6 +274,7 @@ cumulative_variance_pc2
 Monitor channel selection diversity.
 
 **Metrics computed:**
+
 - **Entropy**: Shannon entropy of selection weights
 - **Weight Variance**: Variance of selection weights
 - **Gini Coefficient**: Inequality measure (0 = uniform, 1 = concentrated)
@@ -308,6 +313,7 @@ gini_coefficient
 Monitor PCA component orthonormality.
 
 **Metrics computed:**
+
 - **Orthogonality Error**: Frobenius norm of `(G - I)`
 - **Avg Off-Diagonal**: Mean absolute off-diagonal value
 - **Diagonal Mean/Std**: Statistics of diagonal entries
@@ -348,6 +354,7 @@ diagonal_std
 Side-by-side ground truth and prediction comparison with overlay.
 
 **Visualization output:**
+
 1. **Ground Truth Mask** (if available)
 2. **Predicted Overlay** on selected cube channel:
    - Green: True Positives (TP)
@@ -401,6 +408,7 @@ val/anomaly_mask_img01
 Like [AnomalyMask](#anomalymask) but for RGB images.
 
 **Use cases:**
+
 - Band selector output visualization
 - DRCNN mixer evaluation
 - AdaCLIP RGB-like workflows
@@ -476,12 +484,14 @@ val/score_heatmap_img01
 Visualize first 2 PCA components with spatial encoding.
 
 **Visualization output:**
+
 1. **Scatter Plot**: PC1 vs PC2, colored by spatial position (HSV encoding)
 2. **Spatial Reference**: HSV color coding guide
 3. **Image Representation**: PC1 in red channel, PC2 in green
 4. **Statistics Box**: Range, shape, point count
 
 **HSV Encoding:**
+
 - **Hue**: x-coordinate (left → right)
 - **Saturation**: y-coordinate (top → bottom)
 - **Value**: constant (brightness)
@@ -516,6 +526,7 @@ val/pca_projection_img01
 False-color RGB from selected hyperspectral channels.
 
 **Visualization output:**
+
 1. **False-color RGB**: Top 3 weighted channels mapped to R, G, B
 2. **Channel Weights Bar Chart**: All channels with top 3 highlighted
 
@@ -553,6 +564,7 @@ val/viz_rgb_sample_1
 Specialized visualizations for DRCNN pipelines.
 
 **Visualization output:**
+
 1. **HSI Input**: False-color RGB from selected channels
 2. **Mixer Output**: AdaClip RGB input
 3. **Ground Truth Mask**
@@ -994,6 +1006,7 @@ unfreeze_nodes:
 ```
 
 **TensorBoard logging:**
+
 - Logs are written to `./outputs/drcnn_adaclip/tensorboard/`
 - `log_every_n_steps: 10` logs metrics every 10 training steps
 - `val_check_interval: 1.0` runs validation (and visualizations) every epoch
@@ -1044,6 +1057,7 @@ viz_mask = AnomalyMask(up_to=1000)
 ```
 
 **Execution stages:**
+
 - Visualization nodes run during **VAL, TEST, INFERENCE** by default
 - This avoids training slowdown
 - TensorBoardMonitorNode runs during **all stages** to accept any inputs
@@ -1077,6 +1091,7 @@ tensorboard --logdir=outputs/channel_selector/tensorboard
 ```
 
 **Monitor disk usage:**
+
 - TensorBoard event files can grow large (100s of MB)
 - Set `flush_secs` appropriately (default: 120 seconds)
 - Clean old runs periodically
@@ -1131,6 +1146,7 @@ callbacks:
 ```
 
 **Verify metric names:**
+
 - Check TensorBoard to see exact metric names
 - Metric tags: `val/precision`, `val/iou`, `scores/mean`, etc.
 - Loss tags: `train/loss`, `val/loss`
@@ -1153,6 +1169,7 @@ training:
 ```
 
 **Benefits:**
+
 - Save best models based on validation metrics
 - Resume training from checkpoints
 - Compare multiple checkpoints in TensorBoard

@@ -24,6 +24,9 @@ jobs:
         with:
           fetch-depth: 0  # Full history for setuptools-scm
 
+      - name: Mark workspace as safe for Git versioning
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
@@ -55,7 +58,7 @@ jobs:
             -v
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.xml
@@ -161,6 +164,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Mark workspace as safe for Git versioning
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
@@ -171,6 +177,12 @@ jobs:
 
       - name: Install dependencies
         run: uv sync --locked --extra docs
+
+      - name: Install system dependencies for OpenCV imports
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends libgl1 libglib2.0-0
+          rm -rf /var/lib/apt/lists/*
 
       - name: Build documentation
         run: |
