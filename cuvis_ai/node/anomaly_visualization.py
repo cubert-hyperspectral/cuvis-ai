@@ -721,15 +721,9 @@ class RGBAnomalyMask(Node):
             batch_pred = pred_mask_np > 0.5
             batch_gt = gt_mask_np > 0.5
             tp = np.logical_and(batch_pred, batch_gt).sum()
-            batch_iou = float(
-                tp
-                / (
-                    tp
-                    + np.logical_and(batch_pred, ~batch_gt).sum()
-                    + np.logical_and(~batch_pred, batch_gt).sum()
-                    + 1e-8
-                )
-            )
+            fp = np.logical_and(batch_pred, ~batch_gt).sum()
+            fn = np.logical_and(~batch_pred, batch_gt).sum()
+            batch_iou = float(tp / (tp + fp + fn + 1e-8))
 
         batch_size = pred_mask_np.shape[0]
         up_to_batch = min(batch_size, self.up_to or batch_size)

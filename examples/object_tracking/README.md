@@ -513,9 +513,7 @@ Mask-prompt JSON requirements:
 - Bare text prompts such as `--prompt person` are treated as `person@0`.
 - Frames before the first scheduled text prompt emit empty tracking outputs.
 - The first scheduled text prompt initializes SAM3 text propagation from that frame.
-- Later scheduled text prompts restart propagation from their frame and currently use
-  non-reset semantic updates so existing tracks stay visible while new tracks can
-  inherit a new category ID.
+- Later scheduled text prompts restart propagation from their frame and currently use non-reset semantic updates so existing tracks stay visible while new tracks can inherit a new category ID.
 - Point prompts are still applied on the first streamed frame.
 - `--start-frame` therefore defines the prompt frame only for the point script.
 - Bbox and mask propagation use scheduled prompt specs: `--prompt <object_id:detection_id@frame_id>`.
