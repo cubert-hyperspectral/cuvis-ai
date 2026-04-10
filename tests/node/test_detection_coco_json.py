@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import torch
 
-from cuvis_ai.node.json_writer import DetectionCocoJsonNode
+from cuvis_ai.node.json_file import DetectionCocoJsonNode
 
 
 def _build_inputs(
@@ -37,7 +37,7 @@ def _read_json(path: Path) -> dict:
 
 
 def test_import() -> None:
-    from cuvis_ai.node.json_writer import DetectionCocoJsonNode  # noqa: F401
+    from cuvis_ai.node.json_file import DetectionCocoJsonNode  # noqa: F401
 
 
 def test_writes_valid_coco_json(tmp_path: Path) -> None:
@@ -138,7 +138,7 @@ def test_atomic_write(tmp_path: Path) -> None:
         flush_interval=1,
     )
 
-    with patch("cuvis_ai.node.json_writer.os.replace") as mock_replace:
+    with patch("cuvis_ai.node.json_file.os.replace") as mock_replace:
         node.forward(**_build_inputs(0, [[0.0, 0.0, 10.0, 10.0]], [0], [0.9]))
         mock_replace.assert_called_once()
 

@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 import torch
 
-from cuvis_ai.node.json_writer import CocoTrackMaskWriter
+from cuvis_ai.node.json_file import CocoTrackMaskWriter
 
 
 def _build_inputs(

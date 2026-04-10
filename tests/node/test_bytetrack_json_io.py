@@ -7,8 +7,7 @@ from pathlib import Path
 
 import torch
 
-from cuvis_ai.node.json_reader import DetectionJsonReader
-from cuvis_ai.node.json_writer import CocoTrackBBoxWriter
+from cuvis_ai.node.json_file import CocoTrackBBoxWriter, DetectionJsonReader
 
 
 def _write_sample_json(path: Path) -> None:

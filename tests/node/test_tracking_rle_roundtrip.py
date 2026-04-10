@@ -8,8 +8,7 @@ from pathlib import Path
 import torch
 from cuvis_ai_core.data.rle import coco_rle_decode
 
-from cuvis_ai.node.json_reader import TrackingResultsReader
-from cuvis_ai.node.json_writer import CocoTrackMaskWriter
+from cuvis_ai.node.json_file import CocoTrackMaskWriter, TrackingResultsReader
 
 
 def _build_inputs(

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import torch
 
-from cuvis_ai.node.json_reader import TrackingResultsReader
+from cuvis_ai.node.json_file import TrackingResultsReader
 
 
 def test_cursor_mode(coco_bbox_json_factory) -> None:
