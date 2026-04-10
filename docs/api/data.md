@@ -16,7 +16,12 @@ Current data entry, reader, and frame-stream APIs.
 
 ## Tracking JSON Readers
 
-::: cuvis_ai.node.json_reader
+::: cuvis_ai.node.json_file.DetectionJsonReader
+    options:
+      show_root_heading: true
+      heading_level: 3
+
+::: cuvis_ai.node.json_file.TrackingResultsReader
     options:
       show_root_heading: true
       heading_level: 3

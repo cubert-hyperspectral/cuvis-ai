@@ -9,7 +9,17 @@ Output nodes persist detections, tracks, features, and rendered video artifacts.
 
 ## Tracking And Detection Writers
 
-::: cuvis_ai.node.json_writer
+::: cuvis_ai.node.json_file.CocoTrackMaskWriter
+    options:
+      show_root_heading: true
+      heading_level: 3
+
+::: cuvis_ai.node.json_file.CocoTrackBBoxWriter
+    options:
+      show_root_heading: true
+      heading_level: 3
+
+::: cuvis_ai.node.json_file.DetectionCocoJsonNode
     options:
       show_root_heading: true
       heading_level: 3

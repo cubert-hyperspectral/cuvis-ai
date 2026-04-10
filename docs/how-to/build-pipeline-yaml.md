@@ -50,7 +50,7 @@ metadata:
 
 nodes:
   - name: tracks
-    class_name: cuvis_ai.node.json_reader.TrackingResultsReader
+    class_name: cuvis_ai.node.json_file.TrackingResultsReader
     hparams:
       json_path: tracking_results.json
 

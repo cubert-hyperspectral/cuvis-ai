@@ -19,7 +19,12 @@ live module docstrings over historical inventories.
 
 ### JSON Readers
 
-::: cuvis_ai.node.json_reader
+::: cuvis_ai.node.json_file.DetectionJsonReader
+    options:
+      show_root_heading: true
+      heading_level: 3
+
+::: cuvis_ai.node.json_file.TrackingResultsReader
     options:
       show_root_heading: true
       heading_level: 3
@@ -123,7 +128,17 @@ live module docstrings over historical inventories.
 
 ### JSON Writers
 
-::: cuvis_ai.node.json_writer
+::: cuvis_ai.node.json_file.CocoTrackMaskWriter
+    options:
+      show_root_heading: true
+      heading_level: 3
+
+::: cuvis_ai.node.json_file.CocoTrackBBoxWriter
+    options:
+      show_root_heading: true
+      heading_level: 3
+
+::: cuvis_ai.node.json_file.DetectionCocoJsonNode
     options:
       show_root_heading: true
       heading_level: 3
