@@ -1,29 +1,42 @@
 # Changelog
 
-## [Unreleased]
+## 0.5.0 - 2026-04-10
 
 - Added `TextPrompt`, scheduled `--prompt <text@frame_id>` parsing, and updated local/gRPC SAM3 text-propagation examples to drive `SAM3TextPropagation` through a runtime `text_prompt` port instead of constructor hparams.
-- Changed tracking JSON export so `CocoTrackMaskWriter` can consume optional `category_ids` and `category_semantics` inputs, preserving the old single-category behavior when they are absent and writing multi-category `categories` headers when they are present.
-- Renamed `CocoTrackMaskWriter(category_name=...)` to `CocoTrackMaskWriter(default_category_name=...)`, changed the default fallback label to `"object"`, and clarified that this constructor value is only the fallback label when `category_semantics` is absent.
-- Updated SAM3 text-propagation pipeline YAMLs and example docs to match runtime text prompting plus category-aware tracking JSON output.
 - Added SAM3 prompt-free segment-everything tooling: `SAM3SegmentEverything`, local CLI wiring, and CU3S/video pipeline YAMLs for per-frame automatic mask generation with overlay/video/JSON outputs.
 - Added runtime SAM3 bbox propagation tooling: `BBoxPrompt`, local/gRPC bbox-propagation examples, and CU3S/video bbox-propagation pipeline YAMLs using scheduled `--prompt <object_id:detection_id@frame_id>` bbox updates from detection JSON.
-- Changed local SAM3 bbox propagation from the archived `--detection` single-seed flow to the same scheduled prompt contract used by mask propagation, including optional bbox prompt debug overlays.
 - Added runtime SAM3 mask propagation tooling: `MaskPrompt`, local/gRPC mask-propagation examples, and CU3S/video mask-propagation pipeline YAMLs using scheduled `--prompt <object_id:detection_id@frame_id>` mask updates from detection JSON.
-- Changed local SAM3 mask propagation from archived PNG prompts to detection-JSON-driven label-map prompting, and clarified that gRPC mask propagation sends masks directly through `InputBatch.mask`.
 - Added SAM3 text-propagation pipeline configs and a new gRPC client (`examples/grpc/sam3/sam3_text_propagation_client.py`) supporting CU3S/video inputs plus plugin-manifest bootstrap.
-- Reorganized AdaCLIP gRPC examples under `examples/grpc/adaclip/` and updated gRPC workflow/docs utilities around explicit config resolution and session search paths.
-- Refined tracking output tooling with JSON IO/overlay updates, new CLI output-dir helpers, and expanded tracking regression tests.
 - Added SAM3 tracking workflow updates across propagation scripts and examples, including batch processing for full-folder video runs, per-node profiling, threshold/name-suffix options, and frame-lookup support in `TrackingResultsReader`.
-- Added TrackEval preparation/evaluation tooling updates for aligned HOTA benchmarking workflows, including prediction frame-id passthrough in evaluator pipelines when supported by the metric plugin.
+- Added `NDVISelector` for normalized-difference vegetation index band selection, `ScalarHSVColormapNode` for scalar-to-HSV colormap rendering, and `DetectionCocoJsonNode` for streaming COCO detection JSON output.
+- Added per-frame `PCA` dimensionality reduction node alongside the existing trainable variant.
+- Added Spectral Angle Mapper (SPAM) pipeline nodes and tooling for spectral-angle-based workflows.
+- Added `BBoxSpectralExtractor`, sparkline visualization helpers, and richer `BBoxesOverlayNode` annotations (`draw_labels`, `frame_id`).
+- Added occlusion and Poisson inpainting utilities with tests and object-tracking example integrations.
 - Added ByteTrack and tracker workflow expansion: spectral-aware association, COCO JSON sinks, threshold/JSON sweep tooling, spectral re-ID validation, RT-DETR/YOLO integration points, and overlay/transcoding helpers for rendered tracking outputs.
 - Added DeepEIOU plugin integration plus related preprocessing, NumPy writer, and tracking overlay renderer updates.
-- Added Spectral Angle Mapper (SPAM) pipeline nodes and tooling for spectral-angle-based workflows.
-- Added occlusion and Poisson inpainting utilities with tests and object-tracking example integrations.
-- Added `BBoxSpectralExtractor`, sparkline visualization helpers, and richer `BBoxesOverlayNode` annotations (`draw_labels`, `frame_id`).
+- Added TrackEval preparation/evaluation tooling updates for aligned HOTA benchmarking workflows, including prediction frame-id passthrough in evaluator pipelines when supported by the metric plugin.
+- Added released tracking plugin manifests for ByteTrack, DeepEIOU, TrackEval, Ultralytics, RT-DETR, and a `cuvis_ai_builtin` manifest.
+- Added blood perfusion tutorial (`docs/tutorials/blood-perfusion.md`) and four example scripts under `examples/blood_perfusion/` covering NDVI, PCA, and PCA-HSV visualizations.
+- Added plugin node catalog documentation page listing all available plugin nodes.
+- Added ~41 new test files covering PCA, NDVI, colormap, text prompt, manifest sync, spectral extractor, occlusion, video, tracking overlay, and more.
+- Changed tracking JSON export so `CocoTrackMaskWriter` can consume optional `category_ids` and `category_semantics` inputs, preserving the old single-category behavior when they are absent and writing multi-category `categories` headers when they are present.
+- Changed local SAM3 bbox propagation from the archived `--detection` single-seed flow to the same scheduled prompt contract used by mask propagation, including optional bbox prompt debug overlays.
+- Changed local SAM3 mask propagation from archived PNG prompts to detection-JSON-driven label-map prompting, and clarified that gRPC mask propagation sends masks directly through `InputBatch.mask`.
+- Renamed `CocoTrackMaskWriter(category_name=...)` to `CocoTrackMaskWriter(default_category_name=...)`, changed the default fallback label to `"object"`, and clarified that this constructor value is only the fallback label when `category_semantics` is absent.
 - Refactored and consolidated video/tracking utilities (including `cuvis_ai/node/video.py`), moved SAM3 examples into a dedicated subdirectory, and adopted shorthand port syntax across updated examples.
+- Refactored shared XML plugin helpers into `cuvis_ai/utils/xml_plugin_parser.py`.
+- Refactored prompt specs, parsers, and frame-hw resolution to deduplicate shared logic across text/bbox/mask propagation modes.
+- Reorganized AdaCLIP gRPC examples under `examples/grpc/adaclip/` and updated gRPC workflow/docs utilities around explicit config resolution and session search paths.
+- Refined tracking output tooling with JSON IO/overlay updates, new CLI output-dir helpers, and expanded tracking regression tests.
+- Updated SAM3 text-propagation pipeline YAMLs and example docs to match runtime text prompting plus category-aware tracking JSON output.
 - Updated ByteTrack and tracking documentation, including multi-pipeline usage and FFmpeg/torchcodec setup guidance.
 - Updated plugin/trainrun configs to match current SAM3 and channel-selector runtime paths.
+- Updated SAM3 plugin to v0.1.3 and switched AdaCLIP plugin to released repository.
+- Updated docs: removed 7 redundant pages and cleaned up stale references across the documentation site.
+- Bumped cuvis-ai-schemas to >=0.3.0 and cuvis-ai-core to >=0.3.4.
+- Consolidated `json_reader` and `json_writer` modules into a single `json_file` module; updated all node registrations, pipeline configs, imports, and documentation.
+- Switched from `opencv-python` to `opencv-python-headless`.
 - Fixed SAM3 batch-runner control flow and mask-overlay color handling.
 - Fixed JSON reader robustness and pre-push regressions in manifest sync, CLI commands, and statistical-contract tests.
 - Fixed video/tracking fallback and output handling: `VideoIterator` now falls back to OpenCV when torchcodec is unavailable, `output_video_path` naming is normalized, and ByteTrack JSON output path heuristics were hardened.
