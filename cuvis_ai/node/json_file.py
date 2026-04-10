@@ -114,8 +114,8 @@ class _BaseJsonWriterNode(Node):
         """Attempt a best-effort flush when the writer is garbage collected."""
         try:
             self.close()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Failed to flush JSON writer during cleanup: {}", exc)
 
 
 class _BaseCocoTrackWriter(_BaseJsonWriterNode):

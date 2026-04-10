@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
-from xml.etree import ElementTree as ET
+
+from defusedxml import ElementTree as ET
 
 
 def xml_local_name(tag: str) -> str:

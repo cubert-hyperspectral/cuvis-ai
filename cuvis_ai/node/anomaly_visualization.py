@@ -1333,8 +1333,8 @@ def render_bboxes_overlay_torch(
         try:
             fid = int(frame_id.reshape(-1)[0].item())
             draw_text(frame, 8, 8, f"frame {fid}", (255, 255, 255), scale=2, bg=True)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Failed to draw frame label on overlay: {}", exc)
 
     return out.to(torch.float32) / 255.0
 

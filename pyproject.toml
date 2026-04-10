@@ -17,6 +17,7 @@ dependencies = [
     "cuvis-ai-core>=0.3.4",
     "cuvis-ai-schemas[full]>=0.3.0",
     "pydantic>=2.0.0,<3.0.0",
+    "defusedxml",
     "imantics",
     "ftfy>=6.1.1",
     "markupsafe!=3.0.2",

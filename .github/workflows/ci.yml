@@ -178,6 +178,12 @@ jobs:
       - name: Install dependencies
         run: uv sync --locked --extra docs
 
+      - name: Install system dependencies for OpenCV imports
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends libgl1 libglib2.0-0
+          rm -rf /var/lib/apt/lists/*
+
       - name: Build documentation
         run: |
           uv run mkdocs build
