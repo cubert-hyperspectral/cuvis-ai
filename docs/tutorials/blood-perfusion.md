@@ -22,10 +22,18 @@ Learn how to build hyperspectral blood perfusion visualization pipelines using t
 
 - Understanding of [Node System](../concepts/node-system-deep-dive.md) fundamentals
 - Familiarity with [Pipeline Lifecycle](../concepts/pipeline-lifecycle.md)
+- Download the dataset from the repo root:
+
+```bash
+uv run dataset download blood_perfusion
+```
 
 **Time:** ~30 minutes
 
 **Perfect for:** Users who want to learn pipeline construction through a real-world hyperspectral visualization workflow.
+
+!!! tip "Just want to run it?"
+    Skip ahead to [Running the Examples](#running-the-examples) to execute the scripts directly.
 
 ---
 
