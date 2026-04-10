@@ -34,12 +34,6 @@ HOTAMetricNode = registry.get("HOTAMetricNode", instance=registry)
 
     Create, test, package, and tag a cuvis-ai plugin for local or Git-based use.
 
--   :material-package-variant: **[Plugin Usage Guide](usage.md)**
-
-    ---
-
-    Load released and local plugins through selective manifests such as `ultralytics.yaml`, `deepeiou.yaml`, `trackeval.yaml`, and `sam3.yaml`.
-
 </div>
 
 ## Official Plugin Manifests
@@ -58,4 +52,4 @@ HOTAMetricNode = registry.get("HOTAMetricNode", instance=registry)
 - **[cuvis-ai-trackeval](https://github.com/cubert-hyperspectral/cuvis-ai-trackeval)** - HOTA, CLEAR, and Identity tracking metrics
 - **[cuvis-ai-sam3](https://github.com/cubert-hyperspectral/cuvis-ai-sam3)** - local SAM3 tracking workflows and prompt propagation nodes
 
-See [Plugin Usage Guide](usage.md) for manifest-based loading examples.
+See [Plugin Nodes](../node-catalog/node-catalog-plugins.md) for available plugins and loading examples.

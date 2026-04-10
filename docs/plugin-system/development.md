@@ -85,4 +85,4 @@ uv run python -c "from cuvis_ai_core.utils.node_registry import NodeRegistry; r=
 - Keep `provides` stable across patch releases unless you are intentionally making a breaking change.
 - Test the tagged manifest before referencing it from this repo.
 
-See [Plugin System Overview](overview.md) for loader behavior and [Plugin Usage Guide](usage.md) for end-user loading examples.
+See [Plugin System Overview](overview.md) for loader behavior and [Plugin Nodes](../node-catalog/node-catalog-plugins.md) for end-user loading examples.

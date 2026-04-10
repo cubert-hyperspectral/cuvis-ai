@@ -94,6 +94,5 @@ output_dir: ./outputs/${name}
 
 ## Related Pages
 
-- [Pipeline Configuration Schema](../config/pipeline-schema.md)
 - [Configuration Basics](../user-guide/configuration.md)
 - [Build Pipeline (Python)](build-pipeline-python.md)

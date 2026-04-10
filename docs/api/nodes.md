@@ -116,7 +116,7 @@ live module docstrings over historical inventories.
 
 ### Prompt Nodes
 
-::: cuvis_ai.node.static_node
+::: cuvis_ai.node.prompts
     options:
       show_root_heading: true
       heading_level: 3
@@ -168,5 +168,3 @@ live module docstrings over historical inventories.
 ## Related Pages
 
 - [Node Catalog](../node-catalog/index.md)
-- [Object Tracking Workflows](../how-to/object-tracking.md)
-- [SAM3 Workflows](../how-to/sam3-workflows.md)

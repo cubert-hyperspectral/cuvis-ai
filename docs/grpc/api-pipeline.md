@@ -57,13 +57,10 @@ print("Pipeline loaded from config")
 - Builds complete pipeline graph from node definitions and connections
 - Does NOT load weights (use `LoadPipelineWeights` separately)
 - After loading, pipeline is ready for training or inference
-- See [Pipeline Schema](../config/pipeline-schema.md) for config format
-
 **See Also:**
 
 - [LoadPipelineWeights](#loadpipelineweights) - Load trained weights
 - [SavePipeline](#savepipeline) - Save pipeline config + weights
-- [Pipeline Schema](../config/pipeline-schema.md)
 
 ---
 

@@ -1,9 +1,5 @@
 # Object Tracking Examples
 
-Published docs for the current tracking API live in
-[`docs/how-to/object-tracking.md`](../../docs/how-to/object-tracking.md) and
-[`docs/how-to/sam3-workflows.md`](../../docs/how-to/sam3-workflows.md).
-
 This folder contains object-tracking workflows for hyperspectral CU3S recordings.
 
 ## Table of Contents

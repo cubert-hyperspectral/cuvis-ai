@@ -36,7 +36,7 @@ bind larger workflows together.
 
 ## Prompt Nodes
 
-::: cuvis_ai.node.static_node
+::: cuvis_ai.node.prompts
     options:
       show_root_heading: true
       heading_level: 3

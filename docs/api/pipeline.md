@@ -54,7 +54,6 @@ These interfaces are part of the current pipeline surface:
 
 See:
 
-- [Pipeline Configuration Schema](../config/pipeline-schema.md)
 - [Build Pipeline (YAML)](../how-to/build-pipeline-yaml.md)
 - [Restore Pipeline](../how-to/restore-pipeline-trainrun.md)
 - [gRPC Example Clients](../grpc/example-clients.md)

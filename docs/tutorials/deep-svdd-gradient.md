@@ -852,8 +852,6 @@ EarlyStoppingConfig(patience=10)  # From 15
 
 **Explore related nodes:**
 
-- [DeepSVDDProjection](../node-catalog/deep-learning.md#deepsvddprojection) - Projection network details
-- [DeepSVDDCenterTracker](../node-catalog/deep-learning.md#deepsvddcentertracker) - Center tracking mechanics
 - [ZScoreNormalizerGlobal](../node-catalog/preprocessing.md#zscorenormalizerglobal) - Encoder details
 
 ---

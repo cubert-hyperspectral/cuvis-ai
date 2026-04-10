@@ -15,7 +15,3 @@ generation workflows.
       show_root_heading: true
       heading_level: 3
 
-## Related Pages
-
-- [Object Tracking Workflows](../how-to/object-tracking.md)
-- [Deep Learning Nodes](deep-learning.md)

@@ -60,4 +60,3 @@ CUVIS.AI provides gRPC services for remote pipeline execution and deployment sce
 **Related Pages:**
 
 - [gRPC Workflow Tutorial](../tutorials/grpc-workflow.md)
-- [SAM3 Workflows](../how-to/sam3-workflows.md)

@@ -7,11 +7,6 @@
 
 Practical guides for common tasks and workflows in CUVIS.AI.
 
-High-traffic workflow guides:
-
-- [Object Tracking Workflows](object-tracking.md)
-- [SAM3 Workflows](sam3-workflows.md)
-
 ## Available Guides
 
 <div class="grid cards" markdown>
@@ -51,17 +46,5 @@ High-traffic workflow guides:
     ---
 
     Measure per-node execution time to identify pipeline bottlenecks
-
--   :material-target-account: **[Object Tracking Workflows](object-tracking.md)**
-
-    ---
-
-    Export, overlay, benchmark, and multi-object tracking workflows
-
--   :material-image-search: **[SAM3 Workflows](sam3-workflows.md)**
-
-    ---
-
-    Local and gRPC SAM3 propagation and segment-everything flows
 
 </div>

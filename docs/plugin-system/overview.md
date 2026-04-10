@@ -107,4 +107,4 @@ plugins:
       - cuvis_ai_sam3.node.SAM3SegmentEverything
 ```
 
-See [Plugin Usage Guide](usage.md) for CLI and Python examples, and [Plugin Development Guide](development.md) for packaging rules.
+See [Plugin Nodes](../node-catalog/node-catalog-plugins.md) for CLI and Python examples, and [Plugin Development Guide](development.md) for packaging rules.

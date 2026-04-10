@@ -100,7 +100,27 @@ defaults:
 pipeline_name: rx_statistical
 ```
 
-### Pattern 2: Conditional Composition
+### Pattern 2: Hierarchical Configs
+
+```
+configs/
+├── pipeline/
+│   ├── statistical/
+│   │   ├── rx.yaml
+│   │   └── lad.yaml
+│   └── gradient/
+│       ├── channel_selector.yaml
+│       └── deep_svdd.yaml
+```
+
+```yaml
+defaults:
+  - /pipeline@pipeline: statistical/rx
+  # or
+  - /pipeline@pipeline: gradient/channel_selector
+```
+
+### Pattern 3: Conditional Composition
 
 ```yaml
 defaults:
@@ -116,7 +136,7 @@ scheduler_type: reduce_on_plateau
 callbacks_preset: null  # Optional
 ```
 
-### Pattern 3: Config Recipes
+### Pattern 4: Config Recipes
 
 ```yaml
 # configs/recipes/fast_prototype.yaml
@@ -140,7 +160,7 @@ output_dir: ./outputs/quick_test
 python train.py --config-name=recipes/fast_prototype
 ```
 
-### Pattern 4: Mixin Configs
+### Pattern 5: Mixin Configs
 
 ```yaml
 # configs/mixins/debug.yaml
@@ -164,7 +184,7 @@ defaults:
   - _self_
 ```
 
-### Pattern 5: Dynamic Experiment Generation
+### Pattern 6: Dynamic Experiment Generation
 
 ```yaml
 # configs/experiments/generate.yaml
@@ -219,6 +239,5 @@ python train.py \
 
 - [Hydra Basics](hydra-basics.md) — package directives, defaults list
 - [Hydra Inheritance & Overrides](hydra-inheritance.md) — config inheritance, interpolation
-- [Hydra CLI & Debugging](hydra-advanced.md) — CLI tips, structured configs
 - [Hydra Documentation](https://hydra.cc/) — official Hydra docs
 - [OmegaConf Documentation](https://omegaconf.readthedocs.io/) — OmegaConf reference

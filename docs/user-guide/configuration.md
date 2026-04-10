@@ -110,7 +110,5 @@ intentionally want the full registry.
 
 ## Related Pages
 
-- [Pipeline Configuration Schema](../config/pipeline-schema.md)
 - [TrainRun Schema](../config/trainrun-schema.md)
 - [Build Pipeline (YAML)](../how-to/build-pipeline-yaml.md)
-- [SAM3 Workflows](../how-to/sam3-workflows.md)

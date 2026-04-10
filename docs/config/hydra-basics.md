@@ -147,4 +147,3 @@ defaults:
 
 - [Hydra Inheritance & Overrides](hydra-inheritance.md) — config inheritance, interpolation, overrides
 - [Hydra Sweeps & Advanced](hydra-sweeps.md) — multi-run sweeps, composition patterns
-- [Hydra CLI & Debugging](hydra-advanced.md) — CLI tips, structured configs, validation

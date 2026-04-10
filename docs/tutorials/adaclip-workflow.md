@@ -56,7 +56,7 @@ Unlike built-in nodes, **plugin nodes** are loaded dynamically from external Git
 - **Versioning** - Pin to specific plugin releases (tags) for reproducibility
 - **Community Extensions** - Share custom nodes without modifying core codebase
 
-See [Plugin System Usage](../plugin-system/usage.md) for installation details.
+See [Plugin Nodes](../node-catalog/node-catalog-plugins.md#adaclip) for installation details.
 
 ---
 
@@ -889,6 +889,6 @@ python examples/adaclip/concrete_adaclip_gradient_training.py
 
 **Need Help?**
 
-- Check [Plugin System FAQ](../plugin-system/usage.md#troubleshooting)
+- Check [Plugin Nodes Troubleshooting](../node-catalog/node-catalog-plugins.md#troubleshooting)
 - Review [Band Selection Strategies](../node-catalog/selectors.md)
 - See [Training Configuration](../concepts/two-phase-training.md)

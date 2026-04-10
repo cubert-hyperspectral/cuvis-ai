@@ -103,5 +103,4 @@ Use `configs/plugins/registry.yaml` only when you want the full registry.
 ## Related Pages
 
 - [Configuration Basics](../user-guide/configuration.md)
-- [Pipeline Configuration Schema](pipeline-schema.md)
 - [TrainRun Schema](trainrun-schema.md)

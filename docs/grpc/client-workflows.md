@@ -469,7 +469,7 @@ CUVIS.AI supports a plugin system for extending functionality. Plugins can be lo
 For comprehensive plugin system documentation, see:
 
 - [Plugin System Overview](../plugin-system/overview.md) - Architecture and core concepts
-- [Plugin Usage Guide](../plugin-system/usage.md) - Selective manifests and loading examples
+- [Plugin Nodes](../node-catalog/node-catalog-plugins.md) - Available plugins and loading examples
 - [Plugin Development Guide](../plugin-system/development.md) - Creating custom plugins
 
 **gRPC Integration:**

@@ -72,7 +72,6 @@ All SAM3 examples require `configs/plugins/sam3.yaml`.
 
 ## Related Pages
 
-- [SAM3 Workflows](../how-to/sam3-workflows.md)
 - [gRPC API Reference](api-session.md)
 - [Client Connections & Sessions](client-connections.md)
 - [Client Workflows & Error Handling](client-workflows.md)

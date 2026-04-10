@@ -1,9 +1,8 @@
 # gRPC Examples (Model-First Layout)
 
 Published docs for the current gRPC surface live in
-[`docs/grpc/example-clients.md`](../../docs/grpc/example-clients.md),
-[`docs/grpc/api-reference.md`](../../docs/grpc/api-reference.md), and
-[`docs/how-to/sam3-workflows.md`](../../docs/how-to/sam3-workflows.md).
+[`docs/grpc/example-clients.md`](../../docs/grpc/example-clients.md) and
+[`docs/grpc/api-reference.md`](../../docs/grpc/api-reference.md).
 
 Run the local server:
 

@@ -882,5 +882,4 @@ uv run restore-trainrun --trainrun-path ... --mode validate
 - [Build Pipelines in Python](build-pipeline-python.md)
 - [Build Pipelines in YAML](build-pipeline-yaml.md)
 - [TrainRun Schema Reference](../config/trainrun-schema.md)
-- [Pipeline Schema Reference](../config/pipeline-schema.md)
 - [Monitoring and Visualization](monitoring-and-viz.md)
