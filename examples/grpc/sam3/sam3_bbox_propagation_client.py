@@ -19,7 +19,7 @@ from cuvis_ai_schemas.grpc.v1 import cuvis_ai_pb2
 from torch.utils.data import DataLoader, Subset
 from tqdm import tqdm
 
-from cuvis_ai.node.json_writer import CocoTrackMaskWriter
+from cuvis_ai.node.json_file import CocoTrackMaskWriter
 from cuvis_ai.node.prompts import load_bbox_prompt_schedule
 from cuvis_ai.utils.grpc_workflow import (
     build_stub,

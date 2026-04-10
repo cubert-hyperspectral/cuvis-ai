@@ -21,7 +21,7 @@ from cuvis_ai.node.anomaly_visualization import (
     TrackingPointerOverlayNode,
 )
 from cuvis_ai.node.data import CU3SDataNode
-from cuvis_ai.node.json_reader import TrackingResultsReader
+from cuvis_ai.node.json_file import TrackingResultsReader
 from cuvis_ai.node.video import ToVideoNode, VideoFrameDataModule, VideoFrameNode
 from cuvis_ai.utils.false_rgb_sampling import initialize_false_rgb_sampled_fixed
 

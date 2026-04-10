@@ -15,7 +15,7 @@ import click
 import torch
 from loguru import logger
 
-from cuvis_ai.node.json_writer import DetectionCocoJsonNode
+from cuvis_ai.node.json_file import DetectionCocoJsonNode
 
 PROCESSING_MODES = ("Raw", "DarkSubtract", "Preview", "Reflectance", "SpectralRadiance")
 

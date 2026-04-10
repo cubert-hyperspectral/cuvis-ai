@@ -282,7 +282,7 @@ def main(
     from cuvis_ai.node.anomaly_visualization import BBoxesOverlayNode
     from cuvis_ai.node.channel_selector import CIETristimulusFalseRGBSelector, NormMode
     from cuvis_ai.node.data import CU3SDataNode
-    from cuvis_ai.node.json_writer import CocoTrackBBoxWriter, DetectionCocoJsonNode
+    from cuvis_ai.node.json_file import CocoTrackBBoxWriter, DetectionCocoJsonNode
     from cuvis_ai.node.spectral_extractor import BBoxSpectralExtractor
     from cuvis_ai.node.video import ToVideoNode
 

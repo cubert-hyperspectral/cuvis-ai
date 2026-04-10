@@ -137,7 +137,7 @@ def main(
     from cuvis_ai_core.utils.node_registry import NodeRegistry
 
     from cuvis_ai.node.anomaly_visualization import BBoxesOverlayNode
-    from cuvis_ai.node.json_writer import CocoTrackBBoxWriter, DetectionCocoJsonNode
+    from cuvis_ai.node.json_file import CocoTrackBBoxWriter, DetectionCocoJsonNode
     from cuvis_ai.node.video import ToVideoNode, VideoFrameDataModule, VideoFrameNode
 
     # -- Data module -----------------------------------------------------------
