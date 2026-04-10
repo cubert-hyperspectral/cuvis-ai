@@ -59,21 +59,25 @@ class _BaseJsonWriterNode(Node):
         )
 
     def _mark_dirty_and_maybe_flush(self) -> None:
+        """Record a pending write and flush immediately when the interval is reached."""
         self._dirty = True
         self._frames_since_flush += 1
         if self.flush_interval > 0 and self._frames_since_flush >= self.flush_interval:
             self._flush_json()
 
     def _finish_flush(self) -> None:
+        """Reset dirty-state tracking after a payload has been written."""
         self._dirty = False
         self._frames_since_flush = 0
 
     def _write_json_direct(self, payload: dict[str, Any]) -> None:
+        """Write a JSON payload straight to the destination file."""
         with self.output_json_path.open("w", encoding="utf-8") as handle:
             json.dump(payload, handle, indent=2)
             handle.write("\n")
 
     def _write_json_atomic(self, payload: dict[str, Any]) -> None:
+        """Write a JSON payload via a temporary file and atomic rename."""
         tmp_fd, tmp_path = tempfile.mkstemp(
             dir=str(self.output_json_path.parent),
             prefix=f".{self.output_json_path.stem}_",
@@ -91,19 +95,23 @@ class _BaseJsonWriterNode(Node):
                 os.remove(tmp_path)
 
     def _write_payload(self, payload: dict[str, Any]) -> None:
+        """Persist a payload with either atomic or direct file writes."""
         if self.atomic_write:
             self._write_json_atomic(payload)
         else:
             self._write_json_direct(payload)
 
     def _flush_json(self) -> None:
+        """Serialize the subclass-specific in-memory state to disk."""
         raise NotImplementedError
 
     def close(self) -> None:
+        """Flush pending changes before shutdown."""
         if self._dirty:
             self._flush_json()
 
     def __del__(self) -> None:
+        """Attempt a best-effort flush when the writer is garbage collected."""
         try:
             self.close()
         except Exception:
@@ -115,12 +123,14 @@ class _BaseCocoTrackWriter(_BaseJsonWriterNode):
 
     @staticmethod
     def _parse_frame_id(frame_id: torch.Tensor) -> int:
+        """Convert a scalar frame-id tensor to a Python integer."""
         if frame_id.numel() != 1:
             raise ValueError("frame_id must contain exactly one scalar value.")
         return int(frame_id.reshape(-1)[0].item())
 
     @staticmethod
     def _parse_mask(mask: torch.Tensor) -> torch.Tensor:
+        """Normalize a mask tensor to a 2D `[H, W]` view."""
         if mask.ndim == 3:
             if mask.shape[0] != 1:
                 raise ValueError(
@@ -133,6 +143,7 @@ class _BaseCocoTrackWriter(_BaseJsonWriterNode):
 
     @staticmethod
     def _parse_vector(tensor: torch.Tensor, port_name: str) -> torch.Tensor:
+        """Normalize a vector-like tensor to shape `[N]`."""
         if tensor.ndim == 2:
             if tensor.shape[0] != 1:
                 raise ValueError(
@@ -147,6 +158,7 @@ class _BaseCocoTrackWriter(_BaseJsonWriterNode):
     def _validate_alignment(
         lhs: torch.Tensor, rhs: torch.Tensor, lhs_name: str, rhs_name: str
     ) -> None:
+        """Ensure two tensors describe the same number of objects."""
         if int(lhs.numel()) != int(rhs.numel()):
             raise ValueError(f"{lhs_name} and {rhs_name} must have identical lengths.")
 
@@ -226,6 +238,7 @@ class CocoTrackMaskWriter(_BaseCocoTrackWriter):
         )
 
     def _drop_frame(self, frame_idx: int) -> None:
+        """Remove any cached tracking data for a frame being replaced."""
         self._frame_hw_by_id.pop(frame_idx, None)
         for store in (
             self._track_segmentations,
@@ -240,6 +253,7 @@ class CocoTrackMaskWriter(_BaseCocoTrackWriter):
 
     @staticmethod
     def _parse_category_semantics(category_semantics: torch.Tensor) -> dict[int, str]:
+        """Decode category-name metadata from a UTF-8 JSON byte tensor."""
         semantics_bytes = _BaseCocoTrackWriter._parse_vector(
             category_semantics, port_name="category_semantics"
         )
@@ -268,6 +282,7 @@ class CocoTrackMaskWriter(_BaseCocoTrackWriter):
         return parsed
 
     def _update_category_semantics(self, category_semantics: torch.Tensor | None) -> None:
+        """Merge validated category semantics into the writer state."""
         if category_semantics is None:
             return
         parsed = self._parse_category_semantics(category_semantics)
@@ -291,6 +306,7 @@ class CocoTrackMaskWriter(_BaseCocoTrackWriter):
         context: Context | None = None,  # noqa: ARG002
         **_: Any,
     ) -> dict[str, Any]:
+        """Store one frame of tracked masks and metadata for later JSON export."""
         frame_idx = self._parse_frame_id(frame_id)
         mask_2d = self._parse_mask(mask)
         ids_1d = self._parse_vector(object_ids, port_name="object_ids")
@@ -379,6 +395,7 @@ class CocoTrackMaskWriter(_BaseCocoTrackWriter):
         return {}
 
     def _flush_json(self) -> None:
+        """Emit the accumulated mask tracks in video-COCO format."""
         frame_indices = sorted(self._frame_hw_by_id.keys())
         first_frame = frame_indices[0] if frame_indices else 0
         frame_h, frame_w = self._frame_hw_by_id.get(first_frame, (0, 0))
@@ -513,6 +530,7 @@ class DetectionCocoJsonNode(_BaseJsonWriterNode):
         context: Context | None = None,  # noqa: ARG002
         **_: Any,
     ) -> dict[str, Any]:
+        """Store one frame of detections for COCO JSON serialization."""
         frame_idx = _BaseCocoTrackWriter._parse_frame_id(frame_id)
         ids_1d = _BaseCocoTrackWriter._parse_vector(category_ids, port_name="category_ids")
         scores_1d = _BaseCocoTrackWriter._parse_vector(confidences, port_name="confidences")
@@ -549,6 +567,7 @@ class DetectionCocoJsonNode(_BaseJsonWriterNode):
         return {}
 
     def _flush_json(self) -> None:
+        """Write the cached frame detections as a COCO detection file."""
         frames = [self._frames_by_id[idx] for idx in sorted(self._frames_by_id.keys())]
 
         images = [
@@ -643,6 +662,7 @@ class CocoTrackBBoxWriter(_BaseCocoTrackWriter):
         context: Context | None = None,  # noqa: ARG002
         **_: Any,
     ) -> dict[str, Any]:
+        """Store one frame of tracked bounding boxes for later export."""
         frame_idx = self._parse_frame_id(frame_id)
         ids_1d = self._parse_vector(category_ids, port_name="category_ids")
         scores_1d = self._parse_vector(confidences, port_name="confidences")
@@ -682,6 +702,7 @@ class CocoTrackBBoxWriter(_BaseCocoTrackWriter):
         return {}
 
     def _flush_json(self) -> None:
+        """Write the cached tracked boxes as COCO tracking annotations."""
         frames = [self._frames_by_id[idx] for idx in sorted(self._frames_by_id.keys())]
 
         images = [
