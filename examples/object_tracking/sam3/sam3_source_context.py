@@ -138,7 +138,7 @@ def load_detection_annotation(
         raise click.ClickException(
             f"Detection rank {det_id} out of range on frame {frame_idx} "
             f"(have {len(frame_annots)} detections)."
-    )
+        )
     return frame_annots[rank], det_id
 
 
@@ -156,9 +156,7 @@ def resolve_detection_frame_hw(
         return frame_hw
     if default_hw is not None and default_hw[0] > 1 and default_hw[1] > 1:
         return default_hw
-    raise click.ClickException(
-        f"Frame {frame_idx} has no usable height/width in {detection_json}."
-    )
+    raise click.ClickException(f"Frame {frame_idx} has no usable height/width in {detection_json}.")
 
 
 def load_detection_point_prompt(

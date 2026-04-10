@@ -19,6 +19,7 @@ from cuvis_ai_schemas.pipeline import PortSpec
 
 from cuvis_ai.utils.torch_draw import draw_text
 
+
 # ---------------------------------------------------------------------------
 # ToVideoNode — write RGB frame batches to MP4 via OpenCV
 # ---------------------------------------------------------------------------

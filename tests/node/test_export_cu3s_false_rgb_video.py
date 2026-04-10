@@ -264,6 +264,7 @@ def _run_export_with_mode(
 
     monkeypatch.setattr(export_mod, "SingleCu3sDataModule", _FakeDataModule)
     monkeypatch.setattr(export_mod, "CU3SDataNode", _FakeCU3SDataNode)
+
     def fake_to_video_node(**kwargs: object) -> _FakeToVideoNode:
         created["to_video_kwargs"] = kwargs
         return _FakeToVideoNode(**kwargs)

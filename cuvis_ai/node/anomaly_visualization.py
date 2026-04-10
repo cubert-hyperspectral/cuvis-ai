@@ -1261,9 +1261,7 @@ class TrackingPointerOverlayNode(Node):
             desired_tip_y = y_min - gap
             tip_y = max(tri_height, min(desired_tip_y, int(rendered.shape[0]) - 1))
 
-            color_t = id_to_color(
-                torch.tensor([oid], device=rendered.device, dtype=torch.int64)
-            )[0]
+            color_t = id_to_color(torch.tensor([oid], device=rendered.device, dtype=torch.int64))[0]
             color = tuple(int(channel) for channel in color_t.tolist())
 
             outline_thickness = 2 if tri_width >= 20 and tri_height >= 16 else 1

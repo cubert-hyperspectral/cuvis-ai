@@ -62,9 +62,9 @@ from cuvis_ai.node.preprocessors import (
     ChannelNormalizeNode,
     SpatialRotateNode,
 )
+from cuvis_ai.node.prompts import BBoxPrompt, MaskPrompt, TextPrompt
 from cuvis_ai.node.spectral_angle_mapper import SpectralAngleMapper
 from cuvis_ai.node.spectral_extractor import BBoxSpectralExtractor
-from cuvis_ai.node.prompts import BBoxPrompt, MaskPrompt, TextPrompt
 from cuvis_ai.node.video import (
     ToVideoNode,
     VideoFrameDataModule,

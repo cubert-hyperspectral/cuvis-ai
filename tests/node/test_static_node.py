@@ -99,8 +99,7 @@ def _track_ann(
     segmentations = None
     if frame_masks is not None:
         segmentations = [
-            None if mask is None else coco_rle_encode(mask.astype(np.uint8))
-            for mask in frame_masks
+            None if mask is None else coco_rle_encode(mask.astype(np.uint8)) for mask in frame_masks
         ]
     bboxes = frame_bboxes if frame_bboxes is not None else [None] * frame_count
     detection_scores = frame_scores if frame_scores is not None else [None] * frame_count

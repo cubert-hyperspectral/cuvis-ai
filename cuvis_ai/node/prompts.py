@@ -211,7 +211,7 @@ def _build_track_centric_frame_metadata(
     }
     # Use a small placeholder so later resolution can fail clearly if no real
     # frame size is discoverable from segmentation metadata.
-    frame_hw_by_id = {frame_id: (1, 1) for frame_id in normalized_frame_ids}
+    frame_hw_by_id = dict.fromkeys(normalized_frame_ids, (1, 1))
     annotation_hw_by_frame: dict[int, set[tuple[int, int]]] = {}
 
     next_ann_id = 1
