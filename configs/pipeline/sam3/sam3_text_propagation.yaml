@@ -23,7 +23,7 @@ nodes:
     hparams: {}
 
   - name: tracking_coco_json
-    class_name: cuvis_ai.node.json_writer.CocoTrackMaskWriter
+    class_name: cuvis_ai.node.json_file.CocoTrackMaskWriter
     hparams:
       output_json_path: outputs/tracking_results.json
       default_category_name: object

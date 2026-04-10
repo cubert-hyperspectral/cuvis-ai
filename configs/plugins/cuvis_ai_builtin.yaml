@@ -48,11 +48,11 @@ plugins:
       - cuvis_ai.node.data.LentilsAnomalyDataNode
       - cuvis_ai.node.dimensionality_reduction.PCA
       - cuvis_ai.node.dimensionality_reduction.TrainablePCA
-      - cuvis_ai.node.json_reader.DetectionJsonReader
-      - cuvis_ai.node.json_reader.TrackingResultsReader
-      - cuvis_ai.node.json_writer.CocoTrackBBoxWriter
-      - cuvis_ai.node.json_writer.DetectionCocoJsonNode
-      - cuvis_ai.node.json_writer.CocoTrackMaskWriter
+      - cuvis_ai.node.json_file.DetectionJsonReader
+      - cuvis_ai.node.json_file.TrackingResultsReader
+      - cuvis_ai.node.json_file.CocoTrackBBoxWriter
+      - cuvis_ai.node.json_file.DetectionCocoJsonNode
+      - cuvis_ai.node.json_file.CocoTrackMaskWriter
       - cuvis_ai.node.labels.BinaryAnomalyLabelMapper
       - cuvis_ai.node.losses.AnomalyBCEWithLogits
       - cuvis_ai.node.losses.DeepSVDDSoftBoundaryLoss
