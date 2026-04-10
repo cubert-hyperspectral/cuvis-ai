@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from xml.etree import ElementTree as ET
 
 import click
 import numpy as np
@@ -23,32 +22,16 @@ from cuvis_ai.node.numpy_reader import NpyReader
 from cuvis_ai.node.preprocessors import BandpassByWavelength
 from cuvis_ai.node.spectral_angle_mapper import SpectralAngleMapper
 from cuvis_ai.node.video import ToVideoNode
+from cuvis_ai.utils.xml_plugin_parser import parse_numeric_text, read_xml_inputs
 
 PROCESSING_MODE = "SpectralRadiance"
 
 
-def _local_name(tag: str) -> str:
-    return tag.split("}", 1)[1] if "}" in tag else tag
-
-
-def _read_xml_inputs(xml_path: Path) -> dict[str, str]:
-    root = ET.parse(xml_path).getroot()
-    values: dict[str, str] = {}
-    for node in root.iter():
-        if _local_name(node.tag) != "input":
-            continue
-        key = (node.attrib.get("id") or "").strip()
-        if not key:
-            continue
-        values[key] = (node.text or "").strip()
-    return values
-
-
 def _parse_float(raw: str, *, label: str) -> float:
     try:
-        return float(raw.strip())
+        return parse_numeric_text(raw, label=label)
     except ValueError as exc:
-        raise click.ClickException(f"{label} must be numeric, got '{raw}'") from exc
+        raise click.ClickException(str(exc)) from exc
 
 
 def _parse_reference_spectrum(raw: str) -> np.ndarray:
@@ -228,7 +211,7 @@ def main(
         raise click.BadParameter("--overlay-alpha must be in [0, 1].")
     overlay_color_rgb = _parse_overlay_color(overlay_color)
 
-    sam_inputs = _read_xml_inputs(sam_xml_path)
+    sam_inputs = read_xml_inputs(sam_xml_path)
     spectrum, threshold, wl_min, wl_max = _extract_sam_from_inputs(
         sam_inputs, xml_path=sam_xml_path
     )
@@ -237,7 +220,7 @@ def main(
     if wl_min > wl_max:
         raise click.ClickException(f"SAM_MinWL must be <= SAM_MaxWL, got {wl_min}>{wl_max}")
 
-    aux_inputs = _read_xml_inputs(rgb_xml_path)
+    aux_inputs = read_xml_inputs(rgb_xml_path)
     aux_red, aux_green, aux_blue, aux_norm = _extract_fast_rgb_from_inputs(
         aux_inputs, xml_path=rgb_xml_path
     )

@@ -5,36 +5,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any
-from xml.etree import ElementTree as ET
 
 import click
 import numpy as np
 
-
-def _local_name(tag: str) -> str:
-    return tag.split("}", 1)[1] if "}" in tag else tag
-
-
-def _parse_float(value: str, *, label: str) -> float:
-    text = value.strip()
-    if not text:
-        raise ValueError(f"{label} is empty")
-    try:
-        return float(text)
-    except ValueError as exc:
-        raise ValueError(f"{label} must be numeric, got '{text}'") from exc
-
-
-def _read_inputs(root: ET.Element) -> dict[str, str]:
-    values: dict[str, str] = {}
-    for node in root.iter():
-        if _local_name(node.tag) != "input":
-            continue
-        key = (node.attrib.get("id") or "").strip()
-        if not key:
-            continue
-        values[key] = (node.text or "").strip()
-    return values
+from cuvis_ai.utils.xml_plugin_parser import parse_numeric_text, read_xml_inputs
 
 
 def _parse_reference_spectrum(raw: str) -> np.ndarray:
@@ -66,14 +41,14 @@ def _extract_config(input_values: dict[str, str]) -> tuple[np.ndarray, dict[str,
 
     spectrum = _parse_reference_spectrum(input_values["ReferenceSpectrum"])
 
-    threshold = _parse_float(input_values["SAM_Threshold"], label="SAM_Threshold")
-    wl_min = _parse_float(input_values["SAM_MinWL"], label="SAM_MinWL")
-    wl_max = _parse_float(input_values["SAM_MaxWL"], label="SAM_MaxWL")
-    red_wl = _parse_float(input_values["RedWL"], label="RedWL")
-    green_wl = _parse_float(input_values["GreenWL"], label="GreenWL")
-    blue_wl = _parse_float(input_values["BlueWL"], label="BlueWL")
-    width = _parse_float(input_values["Width"], label="Width")
-    normalize = _parse_float(input_values["Normalize"], label="Normalize")
+    threshold = parse_numeric_text(input_values["SAM_Threshold"], label="SAM_Threshold")
+    wl_min = parse_numeric_text(input_values["SAM_MinWL"], label="SAM_MinWL")
+    wl_max = parse_numeric_text(input_values["SAM_MaxWL"], label="SAM_MaxWL")
+    red_wl = parse_numeric_text(input_values["RedWL"], label="RedWL")
+    green_wl = parse_numeric_text(input_values["GreenWL"], label="GreenWL")
+    blue_wl = parse_numeric_text(input_values["BlueWL"], label="BlueWL")
+    width = parse_numeric_text(input_values["Width"], label="Width")
+    normalize = parse_numeric_text(input_values["Normalize"], label="Normalize")
 
     half_width = width / 2.0
     config = {
@@ -104,8 +79,7 @@ def _extract_config(input_values: dict[str, str]) -> tuple[np.ndarray, dict[str,
 )
 def main(xml_path: Path, output_dir: Path | None) -> None:
     """Create `<xml-stem>.npy` and `<xml-stem>_config.json` from XML inputs."""
-    root = ET.parse(xml_path).getroot()
-    input_values = _read_inputs(root)
+    input_values = read_xml_inputs(xml_path)
     spectrum, config = _extract_config(input_values)
 
     target_dir = xml_path.parent if output_dir is None else output_dir

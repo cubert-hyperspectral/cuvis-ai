@@ -89,6 +89,7 @@ from cuvis_ai.node.channel_selector import (
 from cuvis_ai.node.data import CU3SDataNode
 from cuvis_ai.node.video import ToVideoNode
 from cuvis_ai.utils.cli_helpers import resolve_run_output_dir
+from cuvis_ai.utils.xml_plugin_parser import parse_numeric_text, xml_local_name
 
 SUPPORTED_METHODS = ("cie_tristimulus", "cir", "fast_rgb", "cuvis-plugin")
 METHOD_ALIASES: dict[str, str] = {"fastrgb": "fast_rgb"}
@@ -108,29 +109,13 @@ class PluginFastRGBConfig:
     normalization_strength: float
 
 
-def _xml_local_name(tag: str) -> str:
-    """Return local XML tag name independent of namespace."""
-    return tag.split("}", 1)[1] if "}" in tag else tag
-
-
-def _parse_numeric_text(text: str | None, *, label: str) -> float:
-    """Parse a numeric XML text payload with descriptive errors."""
-    payload = (text or "").strip()
-    if not payload:
-        raise ValueError(f"{label} is empty")
-    try:
-        return float(payload)
-    except ValueError as exc:
-        raise ValueError(f"{label} must be numeric, got '{payload}'") from exc
-
-
 def _find_plugin_fast_rgb_nodes(root: ET.Element) -> tuple[ET.Element, ET.Element]:
     """Find the first <configuration> containing a <fast_rgb> node."""
     for config_node in root.iter():
-        if _xml_local_name(config_node.tag) != "configuration":
+        if xml_local_name(config_node.tag) != "configuration":
             continue
         for child in config_node.iter():
-            if _xml_local_name(child.tag) == "fast_rgb":
+            if xml_local_name(child.tag) == "fast_rgb":
                 return config_node, child
     raise ValueError("No <fast_rgb> node found in plugin XML.")
 
@@ -144,14 +129,14 @@ def _evaluate_plugin_operator(
     operands: list[float] = []
 
     for child in list(operator_node):
-        child_tag = _xml_local_name(child.tag)
+        child_tag = xml_local_name(child.tag)
         if child_tag == "variable":
             ref = (child.attrib.get("ref") or "").strip()
             if not ref:
                 raise ValueError("Operator variable reference is missing 'ref' attribute.")
             operands.append(float(resolve_ref(ref)))
         elif child_tag == "value":
-            operands.append(_parse_numeric_text(child.text, label="<value>"))
+            operands.append(parse_numeric_text(child.text, label="<value>"))
         elif child_tag == "operator":
             operands.append(_evaluate_plugin_operator(child, resolve_ref))
 
@@ -186,7 +171,7 @@ def _parse_plugin_fast_rgb_config(plugin_xml_path: Path) -> PluginFastRGBConfig:
     input_nodes: dict[str, ET.Element] = {}
     evaluate_nodes: dict[str, ET.Element] = {}
     for node in config_node.iter():
-        node_tag = _xml_local_name(node.tag)
+        node_tag = xml_local_name(node.tag)
         node_id = (node.attrib.get("id") or "").strip()
         if not node_id:
             continue
@@ -207,14 +192,14 @@ def _parse_plugin_fast_rgb_config(plugin_xml_path: Path) -> PluginFastRGBConfig:
         active_refs.add(ref)
         try:
             if ref in input_nodes:
-                value = _parse_numeric_text(input_nodes[ref].text, label=f"input '{ref}'")
+                value = parse_numeric_text(input_nodes[ref].text, label=f"input '{ref}'")
             elif ref in evaluate_nodes:
                 evaluate_node = evaluate_nodes[ref]
                 operator_node = next(
                     (
                         child
                         for child in list(evaluate_node)
-                        if _xml_local_name(child.tag) == "operator"
+                        if xml_local_name(child.tag) == "operator"
                     ),
                     None,
                 )

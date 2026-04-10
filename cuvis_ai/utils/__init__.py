@@ -13,6 +13,7 @@ from cuvis_ai.utils.false_rgb_sampling import initialize_false_rgb_sampled_fixed
 from cuvis_ai.utils.poisson_inpaint import poisson_inpaint
 from cuvis_ai.utils.vis_helpers import fig_to_array
 from cuvis_ai.utils.welford import WelfordAccumulator
+from cuvis_ai.utils.xml_plugin_parser import parse_numeric_text, read_xml_inputs, xml_local_name
 
 __all__ = [
     "WelfordAccumulator",
@@ -28,4 +29,7 @@ __all__ = [
     "rgb_to_oklab",
     "srgb_to_linear",
     "write_experiment_info",
+    "xml_local_name",
+    "read_xml_inputs",
+    "parse_numeric_text",
 ]
