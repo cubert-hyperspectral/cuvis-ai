@@ -151,8 +151,6 @@ nav:
           - Build Pipeline (YAML): how-to/build-pipeline-yaml.md
           - Restore Pipeline: how-to/restore-pipeline-trainrun.md
           - Add Built-in Node: how-to/add-builtin-node.md
-          - Object Tracking: how-to/object-tracking.md
-          - SAM3 Workflows: how-to/sam3-workflows.md
           - Monitoring & Visualization: how-to/monitoring-and-viz.md
           - Profiling: how-to/profiling.md
   - Nodes:
@@ -161,21 +159,18 @@ nav:
       - Preprocessing: node-catalog/preprocessing.md
       - Selectors: node-catalog/selectors.md
       - Statistical: node-catalog/statistical.md
-      - Deep Learning: node-catalog/deep-learning.md
-      - Clustering: node-catalog/clustering.md
       - Loss & Metrics: node-catalog/loss-metrics.md
       - Visualization: node-catalog/visualization.md
       - Output: node-catalog/output.md
       - Utility: node-catalog/utility.md
+      - Plugin Nodes: node-catalog/node-catalog-plugins.md
   - Configuration:
       - Overview: config/index.md
       - Config Groups: config/config-groups.md
       - TrainRun Schema: config/trainrun-schema.md
-      - Pipeline Schema: config/pipeline-schema.md
       - Hydra Basics: config/hydra-basics.md
       - Hydra Inheritance & Overrides: config/hydra-inheritance.md
       - Hydra Sweeps & Advanced: config/hydra-sweeps.md
-      - Hydra CLI & Debugging: config/hydra-advanced.md
   - gRPC & Deployment:
       - Overview: grpc/index.md
       - Architecture: grpc/overview.md
@@ -195,7 +190,6 @@ nav:
       - Overview: plugin-system/index.md
       - Plugin System Overview: plugin-system/overview.md
       - Plugin Development: plugin-system/development.md
-      - Plugin Usage: plugin-system/usage.md
   - Development:
       - Overview: development/index.md
       - Contributing: development/contributing.md

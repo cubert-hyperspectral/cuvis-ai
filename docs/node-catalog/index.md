@@ -37,12 +37,6 @@ monitor nodes commonly used with them.
 
     RX, LAD, spectral-angle, and spectral extraction workflows
 
--   **[Deep Learning](deep-learning.md)**
-
-    ---
-
-    Deep SVDD, AdaCLIP, PCA, and trainable channel-mixing blocks
-
 -   **[Loss & Metrics](loss-metrics.md)**
 
     ---
@@ -67,10 +61,11 @@ monitor nodes commonly used with them.
 
     Deciders, label conversion, prompt nodes, and small transforms
 
+-   **[Plugin Nodes](node-catalog-plugins.md)**
+
+    ---
+
+    Externally contributed nodes: detection, tracking, segmentation, and evaluation
+
 </div>
 
-## Workflow Shortcuts
-
-- [Object Tracking Workflows](../how-to/object-tracking.md)
-- [SAM3 Workflows](../how-to/sam3-workflows.md)
-- [Pipeline Configuration Schema](../config/pipeline-schema.md)
