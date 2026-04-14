@@ -6,6 +6,7 @@ import torch.nn.functional as F
 from cuvis_ai_core.node.node import Node
 
 from cuvis_ai.node.losses import (
+    AdaCLIPFocalDiceLoss,
     AnomalyBCEWithLogits,
     DistinctnessLoss,
     MSEReconstructionLoss,
@@ -340,6 +341,70 @@ class TestDistinctnessLoss:
         assert torch.allclose(loss_2x, loss_1x * 2.0, rtol=1e-6)
 
 
+class TestAdaCLIPFocalDiceLoss:
+    """Tests for AdaCLIPFocalDiceLoss."""
+
+    def test_forward_with_per_layer_scores(self):
+        """Paper-faithful path should produce scalar differentiable loss."""
+        node = AdaCLIPFocalDiceLoss(weight=1.0, focal_gamma=2.0, image_loss_weight=1.0)
+        b, h, w = 2, 16, 16
+
+        # per_layer_scores are expected softmaxed [B, num_layers*2, H, W]
+        raw = torch.randn(b, 4, h, w, requires_grad=True)
+        pl = torch.softmax(raw.reshape(b, 2, 2, h, w), dim=2).reshape(b, 4, h, w)
+
+        image_raw = torch.randn(b, 2, requires_grad=True)
+        image_score_2ch = torch.softmax(image_raw, dim=1)
+
+        # predictions are ignored in per-layer path but required by signature
+        predictions = torch.rand(b, h, w, 1, requires_grad=True)
+        targets = torch.randint(0, 2, (b, h, w, 1)).bool()
+
+        out = node.forward(
+            predictions=predictions,
+            targets=targets,
+            per_layer_scores=pl,
+            image_score_2ch=image_score_2ch,
+        )
+        loss = out["loss"]
+        assert isinstance(loss, torch.Tensor)
+        assert loss.ndim == 0
+        assert torch.isfinite(loss)
+        assert loss.requires_grad
+
+        loss.backward()
+        assert raw.grad is not None
+
+    def test_forward_fallback_without_per_layer_scores(self):
+        """Fallback path (aggregated predictions) should work and be differentiable."""
+        node = AdaCLIPFocalDiceLoss(weight=1.0, focal_gamma=2.0, image_loss_weight=1.0)
+        b, h, w = 2, 16, 16
+        predictions = torch.rand(b, h, w, 1, requires_grad=True)
+        targets = torch.randint(0, 2, (b, h, w, 1)).bool()
+
+        out = node.forward(predictions=predictions, targets=targets)
+        loss = out["loss"]
+        assert isinstance(loss, torch.Tensor)
+        assert loss.ndim == 0
+        assert torch.isfinite(loss)
+        assert loss.requires_grad
+
+        loss.backward()
+        assert predictions.grad is not None
+
+    def test_weight_scales_loss(self):
+        """Weight should scale total loss linearly."""
+        b, h, w = 1, 8, 8
+        predictions = torch.rand(b, h, w, 1)
+        targets = torch.randint(0, 2, (b, h, w, 1)).bool()
+
+        node_1x = AdaCLIPFocalDiceLoss(weight=1.0)
+        node_2x = AdaCLIPFocalDiceLoss(weight=2.0)
+        loss_1x = node_1x.forward(predictions=predictions, targets=targets)["loss"]
+        loss_2x = node_2x.forward(predictions=predictions, targets=targets)["loss"]
+        assert torch.allclose(loss_2x, loss_1x * 2.0, rtol=1e-5, atol=1e-7)
+
+
 class TestLossNodeProtocol:
     """Tests for loss node protocol compliance."""
 
@@ -350,6 +415,7 @@ class TestLossNodeProtocol:
             AnomalyBCEWithLogits,
             MSEReconstructionLoss,
             DistinctnessLoss,
+            AdaCLIPFocalDiceLoss,
         ]
 
         for loss_class in loss_classes:
@@ -362,6 +428,7 @@ class TestLossNodeProtocol:
             AnomalyBCEWithLogits(),
             MSEReconstructionLoss(),
             DistinctnessLoss(),
+            AdaCLIPFocalDiceLoss(),
         ]
 
         for loss_node in loss_classes:

@@ -146,8 +146,12 @@ class AnomalyDetectionMetrics(Node):
             **kwargs,
         )
 
-        # Initialize torchmetrics for binary classification
-        # These are stateless (compute per-batch) since we don't call update()
+        # Initialize torchmetrics for binary classification.
+        # Precision/Recall/F1/IoU merge confusion counts (O(1) state).
+        # BinaryAveragePrecision stores all preds/targets when thresholds=None; calling
+        # .forward() without resetting would cat every val batch forever (GPU RAM grows
+        # each epoch). We reset it around each batch in forward() — values logged are
+        # per-batch AP, matching the other metrics here.
         self.precision_metric = BinaryPrecision()
         self.recall_metric = BinaryRecall()
         self.f1_metric = BinaryF1Score()
@@ -223,14 +227,19 @@ class AnomalyDetectionMetrics(Node):
         ]
 
         if logits is not None:
+            # Prevent BinaryAveragePrecision from accumulating every pixel of every
+            # validation batch across all epochs (torchmetrics forward() updates state).
+            self.average_precision_metric.reset()
             raw_scores = logits.squeeze(-1).flatten().float()
             probs_for_ap = torch.sigmoid(raw_scores)
             average_precision = self.average_precision_metric(probs_for_ap, targets_flat)
+            ap_value = average_precision.item()
+            self.average_precision_metric.reset()
 
             metrics.append(
                 Metric(
                     name="average_precision",
-                    value=average_precision.item(),
+                    value=ap_value,
                     stage=context.stage,
                     epoch=context.epoch,
                     batch_idx=context.batch_idx,

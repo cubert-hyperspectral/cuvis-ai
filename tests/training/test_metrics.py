@@ -197,6 +197,23 @@ class TestAnomalyDetectionMetrics:
 
         assert "precision" in metrics
 
+    def test_average_precision_state_does_not_accumulate_batches(self):
+        """BinaryAveragePrecision must not retain every val batch (GPU memory leak)."""
+        metric_node = AnomalyDetectionMetrics()
+        b, h, w = 1, 32, 32
+        decisions = torch.randint(0, 2, (b, h, w, 1)).bool()
+        targets = torch.randint(0, 2, (b, h, w, 1)).bool()
+        logits = torch.randn(b, h, w, 1)
+        for batch_idx in range(80):
+            ctx = Context(
+                stage=ExecutionStage.VAL,
+                epoch=batch_idx // 20,
+                batch_idx=batch_idx,
+                global_step=batch_idx,
+            )
+            metric_node.forward(decisions, targets, ctx, logits=logits)
+        assert len(metric_node.average_precision_metric.preds) == 0
+
 
 class TestScoreStatisticsMetric:
     """Tests for ScoreStatisticsMetric."""
