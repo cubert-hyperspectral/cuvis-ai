@@ -33,14 +33,6 @@ CLI — with frame ID overlay::
         --method cie_tristimulus `
         --overlay-frame-id
 
-CLI — with title + frame ID overlay::
-
-    uv run python examples/object_tracking/export_cu3s_false_rgb_video.py `
-        --cu3s-path "D:\\data\\XMR_notarget_Busstation\\20260226\\Auto_013+01.cu3s" `
-        --output-dir "D:\\experiments\\sam3\\false_rgb_export" `
-        --method cir `
-        --overlay-title "Cubert XMR Camera in CIR View"
-
 CLI — cuvis-plugin XML parity (fast_rgb config from plugin XML)::
 
     uv run python examples/object_tracking/export_cu3s_false_rgb_video.py `
@@ -59,7 +51,6 @@ Python API::
         method="cie_tristimulus",
         processing_mode="SpectralRadiance",
         overlay_frame_id=True,
-        overlay_title="Cubert XMR Camera in CIR View",
     )
 """
 
@@ -88,8 +79,6 @@ from cuvis_ai.node.channel_selector import (
 )
 from cuvis_ai.node.data import CU3SDataNode
 from cuvis_ai.node.video import ToVideoNode
-from cuvis_ai.utils.cli_helpers import resolve_run_output_dir
-from cuvis_ai.utils.xml_plugin_parser import parse_numeric_text, xml_local_name
 
 SUPPORTED_METHODS = ("cie_tristimulus", "cir", "fast_rgb", "cuvis-plugin")
 METHOD_ALIASES: dict[str, str] = {"fastrgb": "fast_rgb"}
@@ -109,13 +98,29 @@ class PluginFastRGBConfig:
     normalization_strength: float
 
 
+def _xml_local_name(tag: str) -> str:
+    """Return local XML tag name independent of namespace."""
+    return tag.split("}", 1)[1] if "}" in tag else tag
+
+
+def _parse_numeric_text(text: str | None, *, label: str) -> float:
+    """Parse a numeric XML text payload with descriptive errors."""
+    payload = (text or "").strip()
+    if not payload:
+        raise ValueError(f"{label} is empty")
+    try:
+        return float(payload)
+    except ValueError as exc:
+        raise ValueError(f"{label} must be numeric, got '{payload}'") from exc
+
+
 def _find_plugin_fast_rgb_nodes(root: ET.Element) -> tuple[ET.Element, ET.Element]:
     """Find the first <configuration> containing a <fast_rgb> node."""
     for config_node in root.iter():
-        if xml_local_name(config_node.tag) != "configuration":
+        if _xml_local_name(config_node.tag) != "configuration":
             continue
         for child in config_node.iter():
-            if xml_local_name(child.tag) == "fast_rgb":
+            if _xml_local_name(child.tag) == "fast_rgb":
                 return config_node, child
     raise ValueError("No <fast_rgb> node found in plugin XML.")
 
@@ -129,14 +134,14 @@ def _evaluate_plugin_operator(
     operands: list[float] = []
 
     for child in list(operator_node):
-        child_tag = xml_local_name(child.tag)
+        child_tag = _xml_local_name(child.tag)
         if child_tag == "variable":
             ref = (child.attrib.get("ref") or "").strip()
             if not ref:
                 raise ValueError("Operator variable reference is missing 'ref' attribute.")
             operands.append(float(resolve_ref(ref)))
         elif child_tag == "value":
-            operands.append(parse_numeric_text(child.text, label="<value>"))
+            operands.append(_parse_numeric_text(child.text, label="<value>"))
         elif child_tag == "operator":
             operands.append(_evaluate_plugin_operator(child, resolve_ref))
 
@@ -171,7 +176,7 @@ def _parse_plugin_fast_rgb_config(plugin_xml_path: Path) -> PluginFastRGBConfig:
     input_nodes: dict[str, ET.Element] = {}
     evaluate_nodes: dict[str, ET.Element] = {}
     for node in config_node.iter():
-        node_tag = xml_local_name(node.tag)
+        node_tag = _xml_local_name(node.tag)
         node_id = (node.attrib.get("id") or "").strip()
         if not node_id:
             continue
@@ -192,14 +197,14 @@ def _parse_plugin_fast_rgb_config(plugin_xml_path: Path) -> PluginFastRGBConfig:
         active_refs.add(ref)
         try:
             if ref in input_nodes:
-                value = parse_numeric_text(input_nodes[ref].text, label=f"input '{ref}'")
+                value = _parse_numeric_text(input_nodes[ref].text, label=f"input '{ref}'")
             elif ref in evaluate_nodes:
                 evaluate_node = evaluate_nodes[ref]
                 operator_node = next(
                     (
                         child
                         for child in list(evaluate_node)
-                        if xml_local_name(child.tag) == "operator"
+                        if _xml_local_name(child.tag) == "operator"
                     ),
                     None,
                 )
@@ -289,6 +294,30 @@ def _resolve_method(method: str) -> str:
     if alias is not None:
         return alias
     raise click.BadParameter(f"Unknown method '{method}'. Supported: {', '.join(METHOD_CHOICES)}")
+
+
+def _resolve_run_output_dir(
+    *,
+    output_root: Path,
+    source_path: Path,
+    out_basename: str | None,
+) -> Path:
+    """Resolve per-run output directory from --output-dir and --out-basename."""
+    resolved_basename = source_path.stem
+    if out_basename is not None:
+        candidate = out_basename.strip()
+        if not candidate:
+            raise click.BadParameter(
+                "--out-basename must not be empty or whitespace only",
+                param_hint="--out-basename",
+            )
+        if "/" in candidate or "\\" in candidate:
+            raise click.BadParameter(
+                "--out-basename must be a folder name, not a path",
+                param_hint="--out-basename",
+            )
+        resolved_basename = candidate
+    return output_root / resolved_basename
 
 
 def _resolve_normalization_mode(normalization_mode: str) -> str:
@@ -731,14 +760,14 @@ def export_false_rgb_video(
 @click.option(
     "--overlay-frame-id",
     is_flag=True,
-    default=True,
+    default=False,
     help="Render the measurement index (frame ID) as text in the top-left corner of each frame.",
 )
 @click.option(
     "--overlay-title",
     type=str,
     default=None,
-    help="Optional static title rendered above the frame ID overlay on every frame.",
+    help="Optional title text to render in the frame overlay.",
 )
 @click.option(
     "--max-num-frames",
@@ -896,7 +925,7 @@ def main(
         None if freeze_running_bounds_after <= 0 else freeze_running_bounds_after
     )
 
-    run_output_dir = resolve_run_output_dir(
+    run_output_dir = _resolve_run_output_dir(
         output_root=output_dir,
         source_path=cu3s_path,
         out_basename=out_basename,
