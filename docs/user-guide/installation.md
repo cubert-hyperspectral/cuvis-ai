@@ -33,9 +33,17 @@ Install CUVIS.AI and its dependencies.
 
 ## FFmpeg (required for video pipelines)
 
-Video nodes (`VideoIterator`, `VideoFrameDataModule`, `ToVideoNode`) depend on
-[torchcodec](https://github.com/pytorch/torchcodec) which requires FFmpeg
-system libraries at runtime. Install FFmpeg before using any video functionality:
+Video functionality needs FFmpeg on two separate paths:
+
+- **Reader-side** (`VideoIterator`, `VideoFrameDataModule`) — depends on
+  [torchcodec](https://github.com/pytorch/torchcodec), which needs the FFmpeg
+  **shared libraries** at runtime.
+- **Writer-side** (`ToVideoNode`) — spawns an `ffmpeg` subprocess directly to
+  encode H.264/H.265 at a configurable bitrate, so the `ffmpeg` **binary** must
+  be resolvable on `PATH`. Without it, `ToVideoNode.forward(...)` raises
+  `RuntimeError: ffmpeg binary not found on PATH`.
+
+A single "full" FFmpeg install satisfies both; no separate packages are needed.
 
 ```bash
 # Linux (apt)
@@ -51,6 +59,13 @@ brew install ffmpeg
 scoop install ffmpeg-shared
 # Then add to PATH (Git Bash / MSYS2):
 export PATH="/c/Users/$USER/scoop/apps/ffmpeg-shared/current/bin:$PATH"
+```
+
+Verify both paths with:
+
+```bash
+ffmpeg -version     # binary available (writer-side)
+python -c "import torchcodec"   # shared libs available (reader-side)
 ```
 
 ## GPU support (optional)

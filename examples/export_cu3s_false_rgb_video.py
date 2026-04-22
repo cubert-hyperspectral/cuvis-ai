@@ -673,21 +673,8 @@ def export_false_rgb_video(
             f"sample_pos_span={sampled_positions[0]}..{sampled_positions[-1]}, "
             f"sample_mesu_span={sampled_mesu_ids[0]}..{sampled_mesu_ids[-1]}"
         )
-    try:
-        predictor = Predictor(pipeline=pipeline, datamodule=datamodule)
-        predictor.predict(max_batches=None, collect_outputs=False)
-    finally:
-        # Close every sink node that owns a resource (ffmpeg subprocess for
-        # ToVideoNode). Duck-typed so it scales to multi-sink pipelines without
-        # tracking individual references.
-        for node in pipeline.nodes:
-            close = getattr(node, "close", None)
-            if callable(close):
-                try:
-                    close()
-                except Exception as exc:
-                    logger.error("Sink teardown failed for node {!r}: {}", node, exc)
-                    raise
+    predictor = Predictor(pipeline=pipeline, datamodule=datamodule)
+    predictor.predict(max_batches=None, collect_outputs=False)
 
     output_path = Path(output_video_path)
     if not output_path.exists():
