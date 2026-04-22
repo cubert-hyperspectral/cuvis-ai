@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Changed `ToVideoNode` encoder backend from OpenCV `cv2.VideoWriter` (FOURCC `mp4v`, uncontrollable bitrate, ~1.6 Mbps MPEG-4 Part 2 output) to a lazily-spawned `ffmpeg` subprocess that pipes raw `rgb24` frames over stdin. Produces H.264 (`libx264`) at a configurable target bitrate (default `12M`). Requires the `ffmpeg` binary on `PATH`.
+- Added `video_codec` (default `"libx264"`) and `bitrate` (default `"12M"`) parameters to `ToVideoNode`. Hardcoded `-pix_fmt yuv420p` plus `-vf pad=ceil(iw/2)*2:ceil(ih/2)*2` to guarantee valid output dimensions for 4:2:0 chroma subsampling.
+- Removed `ToVideoNode(codec=...)` (FourCC) parameter — renamed to `video_codec` (ffmpeg codec name) since the value namespace changed. Pipeline YAML configs do not set `codec=` explicitly, so no existing config files need updates.
+- Added robust subprocess lifecycle handling to `ToVideoNode`: `close()` sends EOF, waits for mux completion, and raises `RuntimeError` with drained stderr on non-zero ffmpeg exit. Per-frame `stdin.write` catches `BrokenPipeError` and surfaces the encoder error rather than silently truncating the video.
+- Changed `examples/export_cu3s_false_rgb_video.py` to wrap `Predictor.predict(...)` in `try`/`finally` and duck-type `close()` across all `pipeline.nodes`, ensuring ffmpeg sinks flush correctly for multi-sink pipelines.
+- Relocated cu3s false-RGB video exporter from `examples/object_tracking/export_cu3s_false_rgb_video.py` to `examples/export_cu3s_false_rgb_video.py`; updated `tests/node/test_export_cu3s_false_rgb_video.py` and `tests/node/test_range_average_false_rgb_selector.py` imports accordingly.
+- Added `ffmpeg` to CI apt-install steps (`ci.yml`, `plugin-runtime-smoke.yml`) so future integration tests can exercise the encoder end-to-end.
+
 ## 0.5.0 - 2026-04-10
 
 - Added `TextPrompt`, scheduled `--prompt <text@frame_id>` parsing, and updated local/gRPC SAM3 text-propagation examples to drive `SAM3TextPropagation` through a runtime `text_prompt` port instead of constructor hparams.
