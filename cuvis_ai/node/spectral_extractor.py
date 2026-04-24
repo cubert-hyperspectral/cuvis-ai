@@ -20,6 +20,12 @@ class BBoxSpectralExtractor(Node):
     (xyxy format), extracts a center-cropped spectral signature for each bbox.
     Outputs the per-band aggregated signature, per-band std, and a binary
     validity mask.
+
+    Notes
+    -----
+    Only the first batch element (``cube[0]``, ``bboxes[0]``) is processed.
+    Outputs are always shaped ``[1, N, …]``. Feed one frame at a time
+    (``B == 1``).
     """
 
     INPUT_SPECS = {
@@ -172,14 +178,7 @@ class BBoxSpectralExtractor(Node):
         context: Context | None = None,  # noqa: ARG002
         **_: Any,
     ) -> dict[str, torch.Tensor]:
-        """Extract per-bbox spectral signatures for the first batch element."""
-        if cube.ndim != 4:
-            raise ValueError(f"cube must have shape [B, H, W, C], got {tuple(cube.shape)}.")
-        if cube.shape[0] < 1:
-            raise ValueError("cube must have B >= 1.")
-        if bboxes.ndim != 3 or bboxes.shape[2] != 4:
-            raise ValueError(f"bboxes must have shape [B, N, 4], got {tuple(bboxes.shape)}.")
-
+        """Extract per-bbox spectral signatures. See class docstring for batch semantics."""
         cube_0 = cube[0]  # [H, W, C]
         img_h, img_w, num_channels = (
             int(cube_0.shape[0]),
@@ -247,7 +246,14 @@ class BBoxSpectralExtractor(Node):
 
 
 class SpectralSignatureExtractor(Node):
-    """Extract per-object spectral signatures from SAM-style label masks."""
+    """Extract per-object spectral signatures from SAM-style label masks.
+
+    Notes
+    -----
+    Only the first batch element of ``cube`` is processed; ``mask`` is required
+    to be ``[1, H, W]`` by ``INPUT_SPECS``. Outputs are always shaped
+    ``[1, N, C]``. Feed one frame at a time.
+    """
 
     INPUT_SPECS = {
         "cube": PortSpec(
@@ -314,33 +320,13 @@ class SpectralSignatureExtractor(Node):
 
     @staticmethod
     def _parse_mask(mask: torch.Tensor) -> torch.Tensor:
-        """Squeeze a [1, H, W] or [H, W] mask to 2-D."""
-        if mask.ndim == 3:
-            if mask.shape[0] != 1:
-                raise ValueError(
-                    f"mask must have shape [1, H, W] or [H, W], got {tuple(mask.shape)}."
-                )
-            return mask[0]
-        if mask.ndim == 2:
-            return mask
-        raise ValueError(f"mask must have shape [1, H, W] or [H, W], got {tuple(mask.shape)}.")
+        """Drop the leading batch axis of a ``[1, H, W]`` mask."""
+        return mask[0]
 
     @staticmethod
     def _parse_object_ids(object_ids: torch.Tensor | None) -> torch.Tensor | None:
-        """Squeeze a [1, N] or [N] object-ID tensor to 1-D."""
-        if object_ids is None:
-            return None
-        if object_ids.ndim == 2:
-            if object_ids.shape[0] != 1:
-                raise ValueError(
-                    f"object_ids must have shape [1, N] or [N], got {tuple(object_ids.shape)}."
-                )
-            return object_ids[0]
-        if object_ids.ndim == 1:
-            return object_ids
-        raise ValueError(
-            f"object_ids must have shape [1, N] or [N], got {tuple(object_ids.shape)}."
-        )
+        """Drop the leading batch axis of a ``[1, N]`` object-ID tensor."""
+        return None if object_ids is None else object_ids[0]
 
     @staticmethod
     def _resize_mask_if_needed(mask_2d: torch.Tensor, height: int, width: int) -> torch.Tensor:
@@ -388,12 +374,7 @@ class SpectralSignatureExtractor(Node):
         context: Context | None = None,  # noqa: ARG002
         **_: Any,
     ) -> dict[str, torch.Tensor]:
-        """Extract per-object signatures for the first batch element."""
-        if cube.ndim != 4:
-            raise ValueError(f"cube must have shape [B, H, W, C], got {tuple(cube.shape)}.")
-        if cube.shape[0] < 1:
-            raise ValueError("cube must have B >= 1.")
-
+        """Extract per-object signatures. See class docstring for batch semantics."""
         cube_0 = cube[0]
         height, width, num_channels = (
             int(cube_0.shape[0]),
@@ -437,4 +418,56 @@ class SpectralSignatureExtractor(Node):
         }
 
 
-__all__ = ["BBoxSpectralExtractor", "SpectralSignatureExtractor"]
+class MaskedMeanSpectrum(Node):
+    """Per-frame mean spectrum of a hyperspectral cube over a binary mask.
+
+    For each frame, averages cube values at pixels where ``mask > 0`` and
+    emits the resulting ``[C]`` spectrum.  When the mask is empty for a given
+    frame the output is a zero vector and ``valid`` is ``0``.
+    """
+
+    INPUT_SPECS = {
+        "cube": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, -1),
+            description="Hyperspectral cube [B, H, W, C].",
+        ),
+        "mask": PortSpec(
+            dtype=torch.int32,
+            shape=(-1, -1, -1),
+            description="Binary/labelled mask [B, H, W]; >0 is foreground.",
+        ),
+    }
+
+    OUTPUT_SPECS = {
+        "mean_spectrum": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1),
+            description="Mean spectrum per frame [B, C].",
+        ),
+        "valid": PortSpec(
+            dtype=torch.int32,
+            shape=(-1,),
+            description="Per-frame validity [B]; 1 if mask had pixels.",
+        ),
+    }
+
+    @torch.no_grad()
+    def forward(
+        self,
+        cube: torch.Tensor,
+        mask: torch.Tensor,
+        **_: Any,
+    ) -> dict[str, torch.Tensor]:
+        fg = (mask > 0).to(cube.dtype)  # [B, H, W]
+        counts = fg.sum(dim=(1, 2))  # [B]
+        weights = fg.unsqueeze(-1)  # [B, H, W, 1]
+        sums = (cube * weights).sum(dim=(1, 2))  # [B, C]
+        safe_counts = counts.clamp_min(1.0).unsqueeze(-1)
+        mean = sums / safe_counts
+        mean = torch.where(counts.unsqueeze(-1) > 0, mean, torch.zeros_like(mean))
+        valid = (counts > 0).to(torch.int32)
+        return {"mean_spectrum": mean.to(torch.float32), "valid": valid}
+
+
+__all__ = ["BBoxSpectralExtractor", "MaskedMeanSpectrum", "SpectralSignatureExtractor"]
