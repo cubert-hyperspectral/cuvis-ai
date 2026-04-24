@@ -456,7 +456,7 @@ def main(
         )
 
         if write_features:
-            from cuvis_ai.node.numpy_writer import NumpyFeatureWriterNode
+            from cuvis_ai.node.numpy_file import NumpyFeatureWriterNode
 
             writer = NumpyFeatureWriterNode(
                 output_dir=str(run_output_dir / "features"),

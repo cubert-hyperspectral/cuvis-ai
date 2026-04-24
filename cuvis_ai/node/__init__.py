@@ -44,8 +44,7 @@ from cuvis_ai.node.json_file import (
 from cuvis_ai.node.labels import BinaryAnomalyLabelMapper
 from cuvis_ai.node.losses import DistinctnessLoss, ForegroundContrastLoss
 from cuvis_ai.node.normalization import IdentityNormalizer, MinMaxNormalizer, SigmoidNormalizer
-from cuvis_ai.node.numpy_reader import NpyReader
-from cuvis_ai.node.numpy_writer import NumpyFeatureWriterNode
+from cuvis_ai.node.numpy_file import NpyReader, NumpyFeatureWriterNode
 from cuvis_ai.node.occlusion import (
     OcclusionNodeBase,
     PoissonCubeOcclusionNode,

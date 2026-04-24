@@ -11,7 +11,7 @@ Use this category for source nodes, readers, and frame iterators.
 
 - `cuvis_ai.node.data`
 - `cuvis_ai.node.json_file`
-- `cuvis_ai.node.numpy_reader`
+- `cuvis_ai.node.numpy_file`
 - `cuvis_ai.node.video`
 
 ## Data Loaders
@@ -35,7 +35,7 @@ Use this category for source nodes, readers, and frame iterators.
 
 ## NumPy Readers
 
-::: cuvis_ai.node.numpy_reader
+::: cuvis_ai.node.numpy_file.NpyReader
     options:
       show_root_heading: true
       heading_level: 3

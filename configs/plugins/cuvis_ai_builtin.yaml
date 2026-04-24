@@ -78,8 +78,8 @@ plugins:
       - cuvis_ai.node.normalization.SigmoidNormalizer
       - cuvis_ai.node.normalization.SigmoidTransform
       - cuvis_ai.node.normalization.ZScoreNormalizer
-      - cuvis_ai.node.numpy_reader.NpyReader
-      - cuvis_ai.node.numpy_writer.NumpyFeatureWriterNode
+      - cuvis_ai.node.numpy_file.NpyReader
+      - cuvis_ai.node.numpy_file.NumpyFeatureWriterNode
       - cuvis_ai.node.occlusion.OcclusionNodeBase
       - cuvis_ai.node.occlusion.PoissonCubeOcclusionNode
       - cuvis_ai.node.occlusion.PoissonOcclusionNode

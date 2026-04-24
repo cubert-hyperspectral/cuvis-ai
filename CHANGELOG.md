@@ -8,6 +8,17 @@
 - Added robust subprocess lifecycle handling to `ToVideoNode`: `close()` sends EOF, waits for mux completion, and raises `RuntimeError` with drained stderr on non-zero ffmpeg exit. Per-frame `stdin.write` catches `BrokenPipeError` and surfaces the encoder error rather than silently truncating the video.
 - Relocated cu3s false-RGB video exporter from `examples/object_tracking/export_cu3s_false_rgb_video.py` to `examples/export_cu3s_false_rgb_video.py`; updated `tests/node/test_export_cu3s_false_rgb_video.py` and `tests/node/test_range_average_false_rgb_selector.py` imports accordingly.
 - Added `ffmpeg` to CI apt-install steps (`ci.yml`, `plugin-runtime-smoke.yml`) so future integration tests can exercise the encoder end-to-end.
+- Consolidated `NpyReader` and `NumpyFeatureWriterNode` into a single `cuvis_ai.node.numpy_file` module, mirroring the existing `json_file` pattern. Updated imports, plugin manifest, tests, docs, and examples.
+- Registered `TrackingPointerOverlayNode`, `BBoxPrompt`, `MaskPrompt`, and `TextPrompt` in `configs/plugins/cuvis_ai_builtin.yaml` so they are discoverable via the plugin manifest.
+- Added `ROIZoomNode` (`cuvis_ai/node/compositing.py`): crops a bbox region from an RGB frame and resizes to fixed dimensions for zoom-inset video streams.
+- Added `MaskRobustifier` and `MaskToBBoxKalman` (`cuvis_ai/node/mask_ops.py`): morphological cleanup of binary masks and Kalman-smoothed bbox tracking from mask outputs.
+- Added `SpectrumPlotNode` (`cuvis_ai/node/spectrum_plot.py`): renders per-frame matplotlib line plots (reference vs tracked spectrum) to RGB frames for secondary spectrum video export.
+- Added `MaskedMeanSpectrum` (in `cuvis_ai/node/spectral_extractor.py`): computes per-frame mean spectrum of a hyperspectral cube over a binary mask; clarified batch semantics on `BBoxSpectralExtractor` / `SpectralSignatureExtractor` docstrings.
+- Updated `examples/spectral_angle_mapper/spam_invisible_ink.py` to emit synchronized side videos (ROI zoom via `ROIZoomNode`, spectrum plot via `SpectrumPlotNode`) alongside the main overlay, with conditional profiling summary and refactored output-directory handling.
+- Removed `--rgb-xml-path` argument from `spam_invisible_ink_every_where.py` and simplified downstream bootstrap dispatch.
+- Added `--overlay-frame-id` flag to `examples/object_tracking/render_tracking_overlay.py`, which renders the frame index in the top-left corner of each output frame.
+- Rewrote `.github/copilot-instructions.md` to clarify that this repo is the plugin node catalog (with `cuvis-ai-core` and `cuvis-ai-schemas` as sibling repos), and to document the Python 3.11 / uv / node-registration conventions.
+- Updated `README.md` to use a locally-hosted banner (`docs/images/banner.png`) instead of an external CDN URL, and revised the project description to emphasize extensibility and video pipelines. Minor capitalization fixes in `CONTRIBUTING.md`.
 
 ## 0.5.0 - 2026-04-10
 
