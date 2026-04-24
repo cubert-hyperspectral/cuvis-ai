@@ -125,6 +125,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Optional static title rendered at the top center of each frame.",
     )
+    p.add_argument(
+        "--overlay-frame-id",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Render the frame index as text in the top-left corner of each frame.",
+    )
     return p.parse_args(argv)
 
 
@@ -377,6 +383,9 @@ def main(argv: list[str] | None = None) -> None:
     else:
         logger.error("Unsupported overlay mode: {}", args.overlay_mode)
         sys.exit(1)
+
+    if args.overlay_frame_id:
+        connections.append((reader.outputs.frame_id, to_video.frame_id))
 
     pipeline.connect(*connections)
 
