@@ -4,6 +4,7 @@ Provides two nodes used by the SPAM invisible-ink pipeline:
 
 - ``MaskRobustifier``: morphological open/close + largest-component filter to
   suppress false-positive speckle in per-frame binary masks.
+
 - ``MaskToBBoxKalman``: derive a bounding box from a robust mask and smooth /
   predict it across frames with a constant-velocity Kalman filter
   (``cv2.KalmanFilter``), so brief empty-mask frames do not make downstream

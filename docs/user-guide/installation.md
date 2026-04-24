@@ -38,6 +38,7 @@ Video functionality needs FFmpeg on two separate paths:
 - **Reader-side** (`VideoIterator`, `VideoFrameDataModule`) — depends on
   [torchcodec](https://github.com/pytorch/torchcodec), which needs the FFmpeg
   **shared libraries** at runtime.
+
 - **Writer-side** (`ToVideoNode`) — spawns an `ffmpeg` subprocess directly to
   encode H.264/H.265 at a configurable bitrate, so the `ffmpeg` **binary** must
   be resolvable on `PATH`. Without it, `ToVideoNode.forward(...)` raises
