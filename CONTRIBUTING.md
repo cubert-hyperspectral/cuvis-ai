@@ -1,6 +1,6 @@
-# Contributing to cuvis.ai
+# Contributing to Cuvis.AI
 
-Thank you for considering contributing to cuvis.ai!
+Thank you for considering contributing to Cuvis.AI!
 
 For the full contributing guide — including plugin development, code standards, PR workflow, and environment setup — see the **[Contributing Guide](https://cubert-hyperspectral.github.io/cuvis-ai/development/contributing/)** in the documentation.
 
