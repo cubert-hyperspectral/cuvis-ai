@@ -24,6 +24,7 @@ plugins:
       - cuvis_ai.node.anomaly_visualization.RGBAnomalyMask
       - cuvis_ai.node.anomaly_visualization.ScoreHeatmapVisualizer
       - cuvis_ai.node.anomaly_visualization.TrackingOverlayNode
+      - cuvis_ai.node.anomaly_visualization.TrackingPointerOverlayNode
       - cuvis_ai.node.channel_mixer.ConcreteChannelMixer
       - cuvis_ai.node.channel_mixer.LearnableChannelMixer
       - cuvis_ai.node.colormap.ScalarHSVColormapNode
@@ -91,6 +92,9 @@ plugins:
       - cuvis_ai.node.preprocessors.BandpassByWavelength
       - cuvis_ai.node.preprocessors.ChannelNormalizeNode
       - cuvis_ai.node.preprocessors.SpatialRotateNode
+      - cuvis_ai.node.prompts.BBoxPrompt
+      - cuvis_ai.node.prompts.MaskPrompt
+      - cuvis_ai.node.prompts.TextPrompt
       - cuvis_ai.node.spectral_angle_mapper.SpectralAngleMapper
       - cuvis_ai.node.spectral_extractor.BBoxSpectralExtractor
       - cuvis_ai.node.spectral_extractor.SpectralSignatureExtractor
