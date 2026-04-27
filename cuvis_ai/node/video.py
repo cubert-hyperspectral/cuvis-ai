@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import subprocess
+import subprocess  # nosec B404
 from pathlib import Path
 from typing import Any
 
@@ -186,7 +186,7 @@ class ToVideoNode(Node):
         """Spawn the ffmpeg subprocess lazily on first frame."""
         argv = self._build_ffmpeg_argv(height=height, width=width)
         try:
-            proc = subprocess.Popen(
+            proc = subprocess.Popen(  # nosec B603
                 argv,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.DEVNULL,
