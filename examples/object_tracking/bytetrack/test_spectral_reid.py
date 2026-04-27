@@ -361,10 +361,9 @@ def main(
     drop_frac: float,
     seed: int,
 ) -> None:
-    from cuvis_ai_core.data.datasets import SingleCu3sDataModule
-
     from cuvis_ai.node.data import CU3SDataNode
     from cuvis_ai.node.spectral_extractor import BBoxSpectralExtractor
+    from cuvis_ai_core.data.datasets import SingleCu3sDataModule
 
     rng = np.random.default_rng(seed)
     frame_dets = load_detections(detection_json)

@@ -7,12 +7,12 @@ from pathlib import Path
 import click
 import pytorch_lightning as pl
 import torch
-from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
-from cuvis_ai_core.training import Predictor
-from cuvis_ai_core.utils.node_registry import NodeRegistry
 from torch.utils.data import DataLoader, TensorDataset
 
 from cuvis_ai.node.json_file import TrackingResultsReader
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.training import Predictor
+from cuvis_ai_core.utils.node_registry import NodeRegistry
 
 
 class _FrameCountDataModule(pl.LightningDataModule):

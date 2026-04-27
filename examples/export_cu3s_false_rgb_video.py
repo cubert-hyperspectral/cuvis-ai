@@ -74,9 +74,6 @@ from typing import Any
 import click
 import numpy as np
 import torch
-from cuvis_ai_core.data.datasets import SingleCu3sDataModule
-from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
-from cuvis_ai_core.training import Predictor
 from loguru import logger
 
 from cuvis_ai.node.channel_selector import (
@@ -88,8 +85,11 @@ from cuvis_ai.node.channel_selector import (
 )
 from cuvis_ai.node.data import CU3SDataNode
 from cuvis_ai.node.video import ToVideoNode
-from cuvis_ai.utils.cli_helpers import resolve_run_output_dir
+from cuvis_ai.utils.cli_helpers import compute_real_fps_from_dataset, resolve_run_output_dir
 from cuvis_ai.utils.xml_plugin_parser import parse_numeric_text, xml_local_name
+from cuvis_ai_core.data.datasets import SingleCu3sDataModule
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.training import Predictor
 
 SUPPORTED_METHODS = ("cie_tristimulus", "cir", "fast_rgb", "cuvis-plugin")
 METHOD_ALIASES: dict[str, str] = {"fastrgb": "fast_rgb"}
@@ -532,11 +532,25 @@ def export_false_rgb_video(
     if target_frames <= 0:
         raise ValueError("No frames available. Check max_num_frames or the CU3S file.")
 
-    dataset_fps = getattr(datamodule.predict_ds, "fps", None)
+    # FPS precedence: explicit CLI --frame-rate > real fps from capture_time span
+    # > nominal session.fps > 10.0 fallback. For hyperspectral sessions the nominal
+    # session.fps is often wildly optimistic (reports e.g. 15 when real wall-clock
+    # cadence is ~1-3 fps), which made previous exports play in fast-forward.
+    session_fps = getattr(datamodule.predict_ds, "fps", None)
+    real_fps = compute_real_fps_from_dataset(datamodule.predict_ds)
     if frame_rate is not None and frame_rate > 0:
         resolved_frame_rate = float(frame_rate)
-    elif dataset_fps is not None and dataset_fps > 0:
-        resolved_frame_rate = float(dataset_fps)
+        logger.info("FPS source: --frame-rate CLI = {:.3f}", resolved_frame_rate)
+    elif real_fps is not None and real_fps > 0:
+        resolved_frame_rate = float(real_fps)
+        logger.info(
+            "FPS source: measurement.capture_time span = {:.3f} (session.fps nominal = {})",
+            resolved_frame_rate,
+            session_fps,
+        )
+    elif session_fps is not None and session_fps > 0:
+        resolved_frame_rate = float(session_fps)
+        logger.info("FPS source: session.fps nominal = {:.3f}", resolved_frame_rate)
     else:
         resolved_frame_rate = 10.0
         logger.warning("Could not determine FPS from session metadata; falling back to 10.0 FPS.")
@@ -626,7 +640,8 @@ def export_false_rgb_video(
         f"(B:{effective_blue_low},{effective_blue_high})), "
         f"fast_rgb_normalization_strength={effective_fast_rgb_normalization_strength}, "
         f"frame_rate={resolved_frame_rate}, "
-        f"dataset_fps={dataset_fps}, "
+        f"session_fps={session_fps}, "
+        f"real_fps={real_fps}, "
         f"frame_rotation={frame_rotation}, "
         f"processing_mode={resolved_mode}, "
         f"normalization_mode={resolved_norm_mode}, "
@@ -903,7 +918,10 @@ def main(
     )
     run_output_dir.mkdir(parents=True, exist_ok=True)
     output_video_path = run_output_dir / f"{cu3s_path.stem}.mp4"
+    log_file_path = run_output_dir / f"{cu3s_path.stem}.log"
+    logger.add(str(log_file_path), level="INFO", mode="w")
     logger.info("Output run directory: {}", run_output_dir)
+    logger.info("Log file: {}", log_file_path)
 
     export_false_rgb_video(
         cu3s_file_path=str(cu3s_path),

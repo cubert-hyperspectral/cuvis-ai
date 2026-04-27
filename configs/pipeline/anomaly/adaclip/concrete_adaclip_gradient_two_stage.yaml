@@ -119,7 +119,7 @@ connections:
 - source: adaclip.outputs.scores
   target: mask.inputs.scores
 - source: adaclip.outputs.scores
-  target: concrete_tensorboard_viz.inputs.adaclip_scores
+  target: concrete_tensorboard_viz.inputs.anomaly_scores
 - source: decider.outputs.decisions
   target: metrics_anomaly.inputs.decisions
 - source: decider.outputs.decisions

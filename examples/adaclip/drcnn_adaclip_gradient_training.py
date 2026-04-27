@@ -20,10 +20,6 @@ from pathlib import Path
 
 import hydra
 import torch
-from cuvis_ai_core.data.datasets import SingleCu3sDataModule
-from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
-from cuvis_ai_core.training import GradientTrainer, StatisticalTrainer
-from cuvis_ai_core.utils.node_registry import NodeRegistry
 from cuvis_ai_schemas.pipeline import PipelineMetadata
 from cuvis_ai_schemas.training import (
     CallbacksConfig,
@@ -44,6 +40,10 @@ from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.normalization import MinMaxNormalizer
 from cuvis_ai.node.pipeline_visualization import PipelineComparisonVisualizer
+from cuvis_ai_core.data.datasets import SingleCu3sDataModule
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.training import GradientTrainer, StatisticalTrainer
+from cuvis_ai_core.utils.node_registry import NodeRegistry
 
 
 @hydra.main(config_path="../../configs/", config_name="trainrun/drcnn_adaclip", version_base=None)
@@ -244,7 +244,7 @@ def main(cfg: DictConfig) -> None:
         (data_node.outputs.cube, drcnn_tb_viz.hsi_cube),
         (mixer.rgb, drcnn_tb_viz.mixer_output),
         (data_node.outputs.mask, drcnn_tb_viz.ground_truth_mask),
-        (adaclip.scores, drcnn_tb_viz.adaclip_scores),
+        (adaclip.scores, drcnn_tb_viz.anomaly_scores),
         # Monitoring
         (metrics_node.metrics, tensorboard_node.metrics),
         (score_viz.artifacts, tensorboard_node.artifacts),

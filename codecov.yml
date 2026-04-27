@@ -23,3 +23,8 @@ ignore:
   - "**/grpc/**/*_pb2.py"
   - "**/grpc/**/*_pb2_grpc.py"
   - "setup.py"
+  - "notebooks/**"
+  - "**/*.ipynb"
+  - "examples/**"
+  - "tools/**"
+  - "docs/**"

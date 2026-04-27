@@ -5,9 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import hydra
-from cuvis_ai_core.data.datasets import SingleCu3sDataModule
-from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
-from cuvis_ai_core.training import GradientTrainer, StatisticalTrainer
 from cuvis_ai_schemas.pipeline import PipelineMetadata
 from cuvis_ai_schemas.training import (
     CallbacksConfig,
@@ -35,6 +32,9 @@ from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.normalization import PerPixelUnitNorm
 from cuvis_ai.node.preprocessors import BandpassByWavelength
 from cuvis_ai.utils.deep_svdd_factory import infer_channels_after_bandpass
+from cuvis_ai_core.data.datasets import SingleCu3sDataModule
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.training import GradientTrainer, StatisticalTrainer
 
 
 @hydra.main(config_path="../../configs/", config_name="trainrun/deep_svdd", version_base=None)

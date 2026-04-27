@@ -21,11 +21,11 @@ Reference:
 """
 
 import torch
-from cuvis_ai_core.node import Node
 from cuvis_ai_schemas.execution import InputStream
 from cuvis_ai_schemas.pipeline import PortSpec
 
 from cuvis_ai.utils.welford import WelfordAccumulator
+from cuvis_ai_core.node import Node
 
 
 def _flatten_bhwc(x: torch.Tensor) -> torch.Tensor:

@@ -10,8 +10,6 @@ from typing import TYPE_CHECKING, Any
 
 import torch
 import yaml
-from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
-from cuvis_ai_core.training import Predictor
 from loguru import logger
 from torch.utils.data import Subset
 
@@ -24,6 +22,8 @@ from cuvis_ai.node.data import CU3SDataNode
 from cuvis_ai.node.json_file import TrackingResultsReader
 from cuvis_ai.node.video import ToVideoNode, VideoFrameDataModule, VideoFrameNode
 from cuvis_ai.utils.false_rgb_sampling import initialize_false_rgb_sampled_fixed
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.training import Predictor
 
 if TYPE_CHECKING:
     from cuvis_ai.node.channel_selector import CIETristimulusFalseRGBSelector
@@ -124,6 +124,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--overlay-title",
         default=None,
         help="Optional static title rendered at the top center of each frame.",
+    )
+    p.add_argument(
+        "--overlay-frame-id",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Render the frame index as text in the top-left corner of each frame.",
     )
     return p.parse_args(argv)
 
@@ -377,6 +383,9 @@ def main(argv: list[str] | None = None) -> None:
     else:
         logger.error("Unsupported overlay mode: {}", args.overlay_mode)
         sys.exit(1)
+
+    if args.overlay_frame_id:
+        connections.append((reader.outputs.frame_id, to_video.frame_id))
 
     pipeline.connect(*connections)
 

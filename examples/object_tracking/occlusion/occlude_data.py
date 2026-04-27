@@ -28,9 +28,6 @@ from pathlib import Path
 
 import click
 import torch
-from cuvis_ai_core.data.datasets import SingleCu3sDataModule
-from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
-from cuvis_ai_core.training import Predictor
 from loguru import logger
 
 from cuvis_ai.node.channel_selector import CIETristimulusFalseRGBSelector, NormMode
@@ -38,6 +35,9 @@ from cuvis_ai.node.data import CU3SDataNode
 from cuvis_ai.node.occlusion import PoissonOcclusionNode
 from cuvis_ai.node.video import ToVideoNode
 from cuvis_ai.utils.false_rgb_sampling import initialize_false_rgb_sampled_fixed
+from cuvis_ai_core.data.datasets import SingleCu3sDataModule
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.training import Predictor
 
 PROCESSING_MODES = ("Raw", "DarkSubtract", "Preview", "Reflectance", "SpectralRadiance")
 

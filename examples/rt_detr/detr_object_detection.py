@@ -145,15 +145,14 @@ def main(
     logger.info("Output: {}", output_dir)
     logger.info("Device: {}", device)
 
-    from cuvis_ai_core.data.datasets import SingleCu3sDataModule
-    from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
-    from cuvis_ai_core.training import Predictor
-    from cuvis_ai_core.utils.node_registry import NodeRegistry
-
     from cuvis_ai.node.anomaly_visualization import BBoxesOverlayNode
     from cuvis_ai.node.channel_selector import RangeAverageFalseRGBSelector
     from cuvis_ai.node.data import CU3SDataNode
     from cuvis_ai.node.video import ToVideoNode
+    from cuvis_ai_core.data.datasets import SingleCu3sDataModule
+    from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+    from cuvis_ai_core.training import Predictor
+    from cuvis_ai_core.utils.node_registry import NodeRegistry
 
     # --- Plugin loading ---
     plugin_manifest = plugins_yaml

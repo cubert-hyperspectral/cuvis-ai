@@ -19,10 +19,11 @@ from collections.abc import Sequence
 from typing import Any
 
 import torch
-from cuvis_ai_core.deciders.base_decider import BinaryDecider as BaseDecider
 from cuvis_ai_schemas.pipeline import PortSpec
 from loguru import logger
 from torch import Tensor
+
+from cuvis_ai_core.deciders.base_decider import BinaryDecider as BaseDecider
 
 
 class TwoStageBinaryDecider(BaseDecider):

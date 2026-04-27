@@ -6,15 +6,15 @@ from pathlib import Path
 
 import click
 import torch
-from cuvis_ai_core.data.datasets import SingleCu3sDataModule
-from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
-from cuvis_ai_core.training import Predictor
 from loguru import logger
 
 from cuvis_ai.node.channel_selector import NDVISelector
 from cuvis_ai.node.data import CU3SDataNode
 from cuvis_ai.node.video import ToVideoNode
 from cuvis_ai.utils.cli_helpers import resolve_run_output_dir
+from cuvis_ai_core.data.datasets import SingleCu3sDataModule
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.training import Predictor
 
 PROCESSING_MODE = "Reflectance"
 DEFAULT_CU3S_PATH = Path("data/XMR_Blood_Perfusion/Blood_Perfusion_Refl.cu3s")

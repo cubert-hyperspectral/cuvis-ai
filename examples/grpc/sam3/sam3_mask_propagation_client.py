@@ -12,9 +12,6 @@ from pathlib import Path
 import click
 import numpy as np
 import torch
-from cuvis_ai_core.data.datasets import SingleCu3sDataset
-from cuvis_ai_core.data.video import VideoFrameDataset, VideoIterator
-from cuvis_ai_core.grpc import helpers
 from cuvis_ai_schemas.grpc.v1 import cuvis_ai_pb2
 from torch.utils.data import DataLoader, Subset
 from tqdm import tqdm
@@ -28,6 +25,9 @@ from cuvis_ai.utils.grpc_workflow import (
     load_manifest_bytes,
     normalize_pipeline_bytes,
 )
+from cuvis_ai_core.data.datasets import SingleCu3sDataset
+from cuvis_ai_core.data.video import VideoFrameDataset, VideoIterator
+from cuvis_ai_core.grpc import helpers
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 BUILTIN_PLUGINS_YAML = REPO_ROOT / "configs" / "plugins" / "cuvis_ai_builtin.yaml"

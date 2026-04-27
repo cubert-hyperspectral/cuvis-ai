@@ -3,7 +3,6 @@
 import pytest
 import torch
 import torch.nn.functional as F
-from cuvis_ai_core.node.node import Node
 
 from cuvis_ai.node.losses import (
     AnomalyBCEWithLogits,
@@ -11,6 +10,7 @@ from cuvis_ai.node.losses import (
     MSEReconstructionLoss,
     OrthogonalityLoss,
 )
+from cuvis_ai_core.node.node import Node
 
 pytestmark = pytest.mark.unit
 

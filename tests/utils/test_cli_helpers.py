@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import click
 import pytest
 
 from cuvis_ai.utils.cli_helpers import (
     append_tracking_metrics,
+    compute_real_fps_from_dataset,
     resolve_end_frame,
     resolve_run_output_dir,
     write_experiment_info,
@@ -106,3 +109,46 @@ class TestAppendTrackingMetrics:
         info_path.write_text("", encoding="utf-8")
         append_tracking_metrics(info_path, tmp_path / "nonexistent.json")
         assert info_path.read_text(encoding="utf-8") == ""
+
+
+class _Session:
+    def __init__(self, capture_times: list[dt.datetime]) -> None:
+        self._capture_times = capture_times
+
+    def get_measurement(self, idx: int) -> SimpleNamespace:
+        return SimpleNamespace(capture_time=self._capture_times[idx])
+
+
+def test_compute_real_fps_from_dataset_uses_first_and_last_capture_time() -> None:
+    t0 = dt.datetime(2026, 4, 27, 12, 0, 0)
+    dataset = SimpleNamespace(
+        session=_Session([t0, t0 + dt.timedelta(seconds=2), t0 + dt.timedelta(seconds=4)]),
+        measurement_indices=[0, 1, 2],
+    )
+
+    assert compute_real_fps_from_dataset(dataset) == 0.5
+
+
+def test_compute_real_fps_from_dataset_returns_none_for_missing_inputs() -> None:
+    assert compute_real_fps_from_dataset(object()) is None
+    assert (
+        compute_real_fps_from_dataset(
+            SimpleNamespace(session=_Session([]), measurement_indices=[0])
+        )
+        is None
+    )
+
+
+def test_compute_real_fps_from_dataset_returns_none_for_bad_or_zero_span() -> None:
+    t0 = dt.datetime(2026, 4, 27, 12, 0, 0)
+    zero_span = SimpleNamespace(
+        session=_Session([t0, t0]),
+        measurement_indices=[0, 1],
+    )
+    bad_index = SimpleNamespace(
+        session=_Session([t0]),
+        measurement_indices=[0, 10],
+    )
+
+    assert compute_real_fps_from_dataset(zero_span) is None
+    assert compute_real_fps_from_dataset(bad_index) is None

@@ -31,7 +31,7 @@ live module docstrings over historical inventories.
 
 ### NumPy Readers
 
-::: cuvis_ai.node.numpy_reader
+::: cuvis_ai.node.numpy_file.NpyReader
     options:
       show_root_heading: true
       heading_level: 3
@@ -110,13 +110,6 @@ live module docstrings over historical inventories.
       show_root_heading: true
       heading_level: 3
 
-### AdaCLIP Nodes
-
-::: cuvis_ai.node.adaclip
-    options:
-      show_root_heading: true
-      heading_level: 3
-
 ## Tracking, Prompting, And Sinks
 
 ### Prompt Nodes
@@ -145,7 +138,7 @@ live module docstrings over historical inventories.
 
 ### NumPy Writers
 
-::: cuvis_ai.node.numpy_writer
+::: cuvis_ai.node.numpy_file.NumpyFeatureWriterNode
     options:
       show_root_heading: true
       heading_level: 3

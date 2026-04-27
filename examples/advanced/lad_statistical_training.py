@@ -7,9 +7,6 @@ The pipeline includes normalization, metrics, visualizations, and TensorBoard lo
 from pathlib import Path
 
 import hydra
-from cuvis_ai_core.data.datasets import SingleCu3sDataModule
-from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
-from cuvis_ai_core.training import StatisticalTrainer
 from cuvis_ai_schemas.pipeline import PipelineMetadata
 from cuvis_ai_schemas.training import (
     TrainingConfig,
@@ -25,6 +22,9 @@ from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics, AnomalyPixelStatisticsMetric
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.normalization import MinMaxNormalizer
+from cuvis_ai_core.data.datasets import SingleCu3sDataModule
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.training import StatisticalTrainer
 
 
 @hydra.main(

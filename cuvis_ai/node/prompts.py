@@ -12,10 +12,11 @@ from typing import Any
 import cv2
 import numpy as np
 import torch
-from cuvis_ai_core.data.rle import coco_rle_decode
-from cuvis_ai_core.node import Node
 from cuvis_ai_schemas.execution import Context
 from cuvis_ai_schemas.pipeline import PortSpec
+
+from cuvis_ai_core.data.rle import coco_rle_decode
+from cuvis_ai_core.node import Node
 
 _PROMPT_SPEC_RE = re.compile(r"\s*(\d+):(\d+)@(\d+)\s*")
 _TEXT_PROMPT_MODES = {"repeat", "scheduled"}

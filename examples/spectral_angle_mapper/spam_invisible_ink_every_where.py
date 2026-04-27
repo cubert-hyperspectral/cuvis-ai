@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 import yaml
+
 from cuvis_ai_core.data.datasets import SingleCu3sDataset
 
 PROCESSING_MODE = "SpectralRadiance"
@@ -28,7 +29,6 @@ def parse_args() -> argparse.Namespace:
         default=Path("D:/experiments/20260323/spam_ink_highlight"),
     )
     parser.add_argument("--sam-xml-path", type=Path, required=True)
-    parser.add_argument("--rgb-xml-path", type=Path, required=True)
     parser.add_argument("--reference-npy", type=Path, default=None)
     parser.add_argument("--min-size-gb", type=float, default=1.0)
     parser.add_argument("--overlay-alpha", type=float, default=1.0)
@@ -75,7 +75,6 @@ def _bootstrap_command(
     *,
     cu3s_path: Path,
     sam_xml_path: Path,
-    rgb_xml_path: Path,
     output_dir: Path,
     overlay_alpha: float,
     overlay_color: str,
@@ -92,8 +91,6 @@ def _bootstrap_command(
         str(cu3s_path),
         "--sam-xml-path",
         str(sam_xml_path),
-        "--rgb-xml-path",
-        str(rgb_xml_path),
         "--overlay-alpha",
         str(overlay_alpha),
         "--overlay-color",
@@ -206,9 +203,6 @@ def main() -> int:
     if not args.sam_xml_path.exists():
         print(f"SAM XML not found: {args.sam_xml_path}", file=sys.stderr)
         return 2
-    if not args.rgb_xml_path.exists():
-        print(f"RGB XML not found: {args.rgb_xml_path}", file=sys.stderr)
-        return 2
     if args.reference_npy is not None and not args.reference_npy.exists():
         print(f"Reference NPY not found: {args.reference_npy}", file=sys.stderr)
         return 2
@@ -236,7 +230,6 @@ def main() -> int:
         bootstrap_cmd = _bootstrap_command(
             cu3s_path=template_seed,
             sam_xml_path=args.sam_xml_path.resolve(),
-            rgb_xml_path=args.rgb_xml_path.resolve(),
             output_dir=template_dir,
             overlay_alpha=float(args.overlay_alpha),
             overlay_color=args.overlay_color,

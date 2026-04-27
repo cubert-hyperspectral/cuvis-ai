@@ -28,7 +28,7 @@ Current data entry, reader, and frame-stream APIs.
 
 ## NumPy Readers
 
-::: cuvis_ai.node.numpy_reader
+::: cuvis_ai.node.numpy_file.NpyReader
     options:
       show_root_heading: true
       heading_level: 3

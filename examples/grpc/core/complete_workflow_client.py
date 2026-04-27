@@ -6,7 +6,6 @@ from pathlib import Path
 
 import click
 import numpy as np
-from cuvis_ai_core.grpc import helpers
 from cuvis_ai_schemas.grpc.v1 import cuvis_ai_pb2
 
 from cuvis_ai.utils.grpc_workflow import (
@@ -17,6 +16,7 @@ from cuvis_ai.utils.grpc_workflow import (
     format_progress,
     resolve_trainrun_config,
 )
+from cuvis_ai_core.grpc import helpers
 
 
 def main(

@@ -5,7 +5,7 @@ import pytest
 import torch
 
 from cuvis_ai.node.channel_selector import ChannelSelectorBase, RangeAverageFalseRGBSelector
-from examples.object_tracking.export_cu3s_false_rgb_video import _create_false_rgb_node
+from examples.export_cu3s_false_rgb_video import _create_false_rgb_node
 
 
 def _make_three_band_cube(r: float, g: float, b: float) -> torch.Tensor:

@@ -22,13 +22,13 @@ from typing import Any, Literal
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from cuvis_ai_core.node import Node
 from cuvis_ai_schemas.enums import ExecutionStage
 from cuvis_ai_schemas.execution import Context, InputStream
 from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
 
 from cuvis_ai.utils.welford import WelfordAccumulator
+from cuvis_ai_core.node import Node
 
 
 class LearnableChannelMixer(Node):

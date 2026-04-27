@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Sequence
 
 import matplotlib
 
-# Use non-interactive backend to avoid GUI/threading issues in tests
-matplotlib.use("Agg")
+# Default to a non-interactive backend for tests/scripts. Skip in Jupyter
+# kernels (`ipykernel` already loaded) so `%matplotlib inline` survives.
+if "ipykernel" not in sys.modules:
+    matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from cuvis_ai_core.node import Node
 from cuvis_ai_schemas.enums import ArtifactType, ExecutionStage
 from cuvis_ai_schemas.execution import Artifact, Context
 from cuvis_ai_schemas.pipeline import PortSpec
@@ -32,6 +34,7 @@ from cuvis_ai.utils.vis_helpers import (
     fig_to_array,
     tensor_to_numpy,
 )
+from cuvis_ai_core.node import Node
 
 
 class ImageArtifactVizBase(Node):

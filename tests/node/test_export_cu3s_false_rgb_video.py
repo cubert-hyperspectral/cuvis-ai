@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 from click.testing import CliRunner
 
-import examples.object_tracking.export_cu3s_false_rgb_video as export_mod
+import examples.export_cu3s_false_rgb_video as export_mod
 from cuvis_ai.node.channel_selector import NormMode
 
 
@@ -117,6 +117,7 @@ class _FakeToVideoNode:
 class _FakePipeline:
     def __init__(self, name: str) -> None:
         self.name = name
+        self.nodes: list[object] = []
 
     def connect(self, *_: object) -> None:
         return None
@@ -245,10 +246,12 @@ def _run_export_with_mode(
     normalization_mode: str,
     method: str = "cie_tristimulus",
     processing_mode: str = "Raw",
+    frame_rate: float | None = None,
     fast_rgb_normalization_strength: float | None = None,
     plugin_xml_path: str | None = None,
     plugin_config: export_mod.PluginFastRGBConfig | None = None,
     overlay_title: str | None = None,
+    computed_real_fps: float | None = None,
 ) -> tuple[_FakeSelector, dict[str, object]]:
     created: dict[str, object] = {}
 
@@ -273,6 +276,11 @@ def _run_export_with_mode(
     monkeypatch.setattr(export_mod, "CuvisPipeline", _FakePipeline)
     monkeypatch.setattr(export_mod, "Predictor", _FakePredictor)
     monkeypatch.setattr(export_mod, "_create_false_rgb_node", fake_create_false_rgb_node)
+    monkeypatch.setattr(
+        export_mod,
+        "compute_real_fps_from_dataset",
+        lambda _: computed_real_fps,
+    )
     if method == "cuvis-plugin":
         effective_xml_path = plugin_xml_path or str(tmp_dir / "plugin.xml")
         Path(effective_xml_path).write_text("<root/>", encoding="utf-8")
@@ -291,6 +299,7 @@ def _run_export_with_mode(
         output_video_path=str(out_path),
         method=method,
         plugin_xml_path=plugin_xml_path,
+        frame_rate=frame_rate,
         normalization_mode=normalization_mode,
         sample_fraction=0.05,
         processing_mode=processing_mode,
@@ -298,6 +307,37 @@ def _run_export_with_mode(
         overlay_title=overlay_title,
     )
     return created["selector"], created
+
+
+def test_export_prefers_explicit_frame_rate_over_dataset_sources(monkeypatch) -> None:
+    _, created = _run_export_with_mode(
+        monkeypatch,
+        _make_local_tmp_dir(),
+        normalization_mode="sampled_fixed",
+        frame_rate=7.5,
+        computed_real_fps=3.25,
+    )
+    assert created["to_video_kwargs"]["frame_rate"] == 7.5
+
+
+def test_export_prefers_real_fps_over_nominal_session_fps(monkeypatch) -> None:
+    _, created = _run_export_with_mode(
+        monkeypatch,
+        _make_local_tmp_dir(),
+        normalization_mode="sampled_fixed",
+        computed_real_fps=3.25,
+    )
+    assert created["to_video_kwargs"]["frame_rate"] == 3.25
+
+
+def test_export_falls_back_to_nominal_session_fps_when_real_fps_missing(monkeypatch) -> None:
+    _, created = _run_export_with_mode(
+        monkeypatch,
+        _make_local_tmp_dir(),
+        normalization_mode="sampled_fixed",
+        computed_real_fps=None,
+    )
+    assert created["to_video_kwargs"]["frame_rate"] == 15.0
 
 
 def test_export_sampled_fixed_calls_statistical_initialization(monkeypatch) -> None:
@@ -438,12 +478,18 @@ def test_cli_defaults_to_sampled_fixed_and_default_sample_fraction(
     monkeypatch,
 ) -> None:
     captured: dict[str, object] = {}
+    logger_add_calls: list[tuple[str, str, str]] = []
 
     def fake_export_false_rgb_video(**kwargs: object) -> Path:
         captured.update(kwargs)
         return Path(kwargs["output_video_path"])
 
+    def fake_logger_add(path: str, *, level: str, mode: str) -> int:
+        logger_add_calls.append((path, level, mode))
+        return 1
+
     monkeypatch.setattr(export_mod, "export_false_rgb_video", fake_export_false_rgb_video)
+    monkeypatch.setattr(export_mod.logger, "add", fake_logger_add)
 
     tmp_dir = _make_local_tmp_dir()
     cu3s = tmp_dir / "sample.cu3s"
@@ -461,10 +507,12 @@ def test_cli_defaults_to_sampled_fixed_and_default_sample_fraction(
     )
 
     expected_video = output_root / cu3s.stem / f"{cu3s.stem}.mp4"
+    expected_log = output_root / cu3s.stem / f"{cu3s.stem}.log"
     assert result.exit_code == 0, result.output
     assert captured["output_video_path"] == str(expected_video)
     assert captured["normalization_mode"] == "sampled_fixed"
     assert captured["sample_fraction"] == 0.05
+    assert logger_add_calls == [(str(expected_log), "INFO", "w")]
 
 
 def test_cli_rejects_invalid_sample_fraction(monkeypatch) -> None:

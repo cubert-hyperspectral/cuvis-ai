@@ -8,9 +8,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 import torch
-from cuvis_ai_core.data.rle import coco_rle_encode
 
 from cuvis_ai.node.occlusion import PoissonOcclusionNode, SolidOcclusionNode
+from cuvis_ai_core.data.rle import coco_rle_encode
 
 
 def _make_mask(h: int, w: int, y0: int, x0: int, y1: int, x1: int) -> np.ndarray:

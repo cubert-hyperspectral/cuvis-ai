@@ -13,10 +13,6 @@ import time
 from pathlib import Path
 
 import torch
-from cuvis_ai_core.data.datasets import SingleCu3sDataModule
-from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
-from cuvis_ai_core.training import StatisticalTrainer
-from cuvis_ai_core.utils.node_registry import NodeRegistry
 from cuvis_ai_schemas.pipeline import PipelineMetadata
 from cuvis_ai_schemas.training import (
     TrainingConfig,
@@ -30,6 +26,10 @@ from cuvis_ai.node.channel_selector import CIRSelector
 from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
+from cuvis_ai_core.data.datasets import SingleCu3sDataModule
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.training import StatisticalTrainer
+from cuvis_ai_core.utils.node_registry import NodeRegistry
 
 
 def _parse_ids(csv: str) -> list[int]:

@@ -132,13 +132,12 @@ def main(
     run_output_dir.mkdir(parents=True, exist_ok=True)
     logger.info("Output run directory: {}", run_output_dir)
 
-    from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
-    from cuvis_ai_core.training import Predictor
-    from cuvis_ai_core.utils.node_registry import NodeRegistry
-
     from cuvis_ai.node.anomaly_visualization import BBoxesOverlayNode
     from cuvis_ai.node.json_file import CocoTrackBBoxWriter, DetectionCocoJsonNode
     from cuvis_ai.node.video import ToVideoNode, VideoFrameDataModule, VideoFrameNode
+    from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+    from cuvis_ai_core.training import Predictor
+    from cuvis_ai_core.utils.node_registry import NodeRegistry
 
     # -- Data module -----------------------------------------------------------
     datamodule = VideoFrameDataModule(

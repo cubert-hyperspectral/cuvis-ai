@@ -10,9 +10,6 @@ from pathlib import Path
 
 import click
 import torch
-from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
-from cuvis_ai_core.training import Predictor
-from cuvis_ai_core.utils.node_registry import NodeRegistry
 from loguru import logger
 from sam3_source_context import (
     PROCESSING_MODES,
@@ -28,6 +25,9 @@ from cuvis_ai.node.anomaly_visualization import TrackingOverlayNode
 from cuvis_ai.node.channel_selector import CIETristimulusFalseRGBSelector, NormMode
 from cuvis_ai.node.json_file import CocoTrackMaskWriter
 from cuvis_ai.node.video import ToVideoNode
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.training import Predictor
+from cuvis_ai_core.utils.node_registry import NodeRegistry
 
 
 @click.command()

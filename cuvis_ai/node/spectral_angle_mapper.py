@@ -5,8 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 import torch
-from cuvis_ai_core.node import Node
 from cuvis_ai_schemas.pipeline import PortSpec
+
+from cuvis_ai_core.node import Node
 
 
 class SpectralAngleMapper(Node):

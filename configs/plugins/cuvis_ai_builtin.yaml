@@ -24,6 +24,7 @@ plugins:
       - cuvis_ai.node.anomaly_visualization.RGBAnomalyMask
       - cuvis_ai.node.anomaly_visualization.ScoreHeatmapVisualizer
       - cuvis_ai.node.anomaly_visualization.TrackingOverlayNode
+      - cuvis_ai.node.anomaly_visualization.TrackingPointerOverlayNode
       - cuvis_ai.node.channel_mixer.ConcreteChannelMixer
       - cuvis_ai.node.channel_mixer.LearnableChannelMixer
       - cuvis_ai.node.colormap.ScalarHSVColormapNode
@@ -42,6 +43,7 @@ plugins:
       - cuvis_ai.node.channel_selector.SupervisedSelectorBase
       - cuvis_ai.node.channel_selector.SupervisedWindowedSelector
       - cuvis_ai.node.channel_selector.TopKIndices
+      - cuvis_ai.node.compositing.ROIZoomNode
       - cuvis_ai.node.conversion.DecisionToMask
       - cuvis_ai.node.conversion.ScoreToLogit
       - cuvis_ai.node.data.CU3SDataNode
@@ -64,6 +66,8 @@ plugins:
       - cuvis_ai.node.losses.OrthogonalityLoss
       - cuvis_ai.node.losses.SelectorDiversityRegularizer
       - cuvis_ai.node.losses.SelectorEntropyRegularizer
+      - cuvis_ai.node.mask_ops.MaskRobustifier
+      - cuvis_ai.node.mask_ops.MaskToBBoxKalman
       - cuvis_ai.node.metrics.AnomalyDetectionMetrics
       - cuvis_ai.node.metrics.AnomalyPixelStatisticsMetric
       - cuvis_ai.node.metrics.ComponentOrthogonalityMetric
@@ -78,8 +82,8 @@ plugins:
       - cuvis_ai.node.normalization.SigmoidNormalizer
       - cuvis_ai.node.normalization.SigmoidTransform
       - cuvis_ai.node.normalization.ZScoreNormalizer
-      - cuvis_ai.node.numpy_reader.NpyReader
-      - cuvis_ai.node.numpy_writer.NumpyFeatureWriterNode
+      - cuvis_ai.node.numpy_file.NpyReader
+      - cuvis_ai.node.numpy_file.NumpyFeatureWriterNode
       - cuvis_ai.node.occlusion.OcclusionNodeBase
       - cuvis_ai.node.occlusion.PoissonCubeOcclusionNode
       - cuvis_ai.node.occlusion.PoissonOcclusionNode
@@ -91,8 +95,13 @@ plugins:
       - cuvis_ai.node.preprocessors.BandpassByWavelength
       - cuvis_ai.node.preprocessors.ChannelNormalizeNode
       - cuvis_ai.node.preprocessors.SpatialRotateNode
+      - cuvis_ai.node.prompts.BBoxPrompt
+      - cuvis_ai.node.prompts.MaskPrompt
+      - cuvis_ai.node.prompts.TextPrompt
       - cuvis_ai.node.spectral_angle_mapper.SpectralAngleMapper
       - cuvis_ai.node.spectral_extractor.BBoxSpectralExtractor
+      - cuvis_ai.node.spectral_extractor.MaskedMeanSpectrum
       - cuvis_ai.node.spectral_extractor.SpectralSignatureExtractor
+      - cuvis_ai.node.spectrum_plot.SpectrumPlotNode
       - cuvis_ai.node.video.ToVideoNode
       - cuvis_ai.node.video.VideoFrameNode

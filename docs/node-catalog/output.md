@@ -26,7 +26,7 @@ Output nodes persist detections, tracks, features, and rendered video artifacts.
 
 ## NumPy Feature Writers
 
-::: cuvis_ai.node.numpy_writer
+::: cuvis_ai.node.numpy_file.NumpyFeatureWriterNode
     options:
       show_root_heading: true
       heading_level: 3

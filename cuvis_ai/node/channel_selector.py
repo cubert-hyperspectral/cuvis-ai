@@ -55,7 +55,6 @@ from typing import Any, Literal
 import numpy as np
 import torch
 import torch.nn.functional as F
-from cuvis_ai_core.node import Node
 from cuvis_ai_schemas.execution import Context, InputStream
 from cuvis_ai_schemas.pipeline import PortSpec
 from scipy.ndimage import laplace
@@ -64,6 +63,7 @@ from torch import Tensor
 
 from cuvis_ai.node.colormap import render_scalar_hsv_colormap
 from cuvis_ai.utils.welford import WelfordAccumulator
+from cuvis_ai_core.node import Node
 
 
 class NormMode(StrEnum):

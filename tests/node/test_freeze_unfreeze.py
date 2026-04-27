@@ -7,6 +7,7 @@ import importlib
 import pytest
 import torch
 import torch.nn as nn
+
 from cuvis_ai_core.node import Node
 
 pytestmark = pytest.mark.unit
