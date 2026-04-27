@@ -54,7 +54,8 @@ from cuvis_ai.node.labels import BinaryAnomalyLabelMapper
 from cuvis_ai.node.losses import DistinctnessLoss, ForegroundContrastLoss
 from cuvis_ai.node.mask_ops import MaskRobustifier, MaskToBBoxKalman
 from cuvis_ai.node.normalization import IdentityNormalizer, MinMaxNormalizer, SigmoidNormalizer
-from cuvis_ai.node.numpy_file import NpyReader, NumpyFeatureWriterNode
+from cuvis_ai.node.numpy_reader import NpyReader
+from cuvis_ai.node.numpy_writer import NumpyFeatureWriterNode
 from cuvis_ai.node.occlusion import (
     OcclusionNodeBase,
     PoissonCubeOcclusionNode,
@@ -73,8 +74,8 @@ from cuvis_ai.node.preprocessors import (
     SpatialRotateNode,
 )
 from cuvis_ai.node.prompts import BBoxPrompt, MaskPrompt, TextPrompt
-from cuvis_ai.node.spectral_angle_mapper import SpectralAngleMapper
-from cuvis_ai.node.spectral_extractor import BBoxSpectralExtractor, MaskedMeanSpectrum
+from cuvis_ai.node.spectral_angle_mapper import SpectralAngleMapper, StatefulSpectralAngleMapper
+from cuvis_ai.node.spectral_extractor import BBoxSpectralExtractor
 from cuvis_ai.node.spectrum_plot import SpectrumPlotNode
 from cuvis_ai.node.video import (
     ToVideoNode,
@@ -114,7 +115,6 @@ __all__ = [
     "InsetComposer",
     "LearnableChannelMixer",
     "ROIZoomNode",
-    "MaskedMeanSpectrum",
     "MaskOverlayNode",
     "MaskPrompt",
     "MaskRobustifier",
@@ -140,6 +140,7 @@ __all__ = [
     "SoftChannelSelector",
     "SpatialRotateNode",
     "SpectralAngleMapper",
+    "StatefulSpectralAngleMapper",
     "SpectrumPlotNode",
     "SupervisedCIRSelector",
     "SupervisedFullSpectrumSelector",
