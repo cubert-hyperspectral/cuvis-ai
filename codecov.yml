@@ -25,3 +25,6 @@ ignore:
   - "setup.py"
   - "notebooks/**"
   - "**/*.ipynb"
+  - "examples/**"
+  - "tools/**"
+  - "docs/**"
