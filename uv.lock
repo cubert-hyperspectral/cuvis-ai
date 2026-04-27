@@ -666,7 +666,7 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'" },
     { name = "scikit-image" },
     { name = "scikit-learn" },
-    { name = "setuptools", specifier = "<81" },
+    { name = "setuptools", specifier = "<83" },
     { name = "tensorboard" },
     { name = "torch", specifier = ">=2.9.1", index = "https://download.pytorch.org/whl/cu128" },
     { name = "torchmetrics" },
