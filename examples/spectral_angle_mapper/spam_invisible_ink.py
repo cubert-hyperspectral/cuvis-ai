@@ -8,9 +8,6 @@ from pathlib import Path
 import click
 import numpy as np
 import torch
-from cuvis_ai_core.data.datasets import SingleCu3sDataModule
-from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
-from cuvis_ai_core.training import Predictor
 from loguru import logger
 
 from cuvis_ai.deciders.binary_decider import BinaryDecider
@@ -29,6 +26,9 @@ from cuvis_ai.node.video import ToVideoNode
 from cuvis_ai.utils.cli_helpers import compute_real_fps_from_dataset, resolve_run_output_dir
 from cuvis_ai.utils.false_rgb_sampling import initialize_false_rgb_sampled_fixed
 from cuvis_ai.utils.xml_plugin_parser import parse_numeric_text, read_xml_inputs
+from cuvis_ai_core.data.datasets import SingleCu3sDataModule
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.training import Predictor
 
 PROCESSING_MODE = "SpectralRadiance"
 FALSE_RGB_SAMPLE_FRACTION = 0.05

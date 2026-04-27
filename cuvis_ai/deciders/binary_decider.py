@@ -14,9 +14,10 @@ from collections.abc import Sequence
 from typing import Any
 
 import torch
-from cuvis_ai_core.deciders.base_decider import BinaryDecider as BaseDecider
 from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
+
+from cuvis_ai_core.deciders.base_decider import BinaryDecider as BaseDecider
 
 
 def resolve_reduce_dims(reduce_dims: tuple[int, ...] | None, tensor_ndim: int) -> tuple[int, ...]:

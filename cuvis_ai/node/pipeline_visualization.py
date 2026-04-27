@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import sys
+
 import matplotlib
 
-# Use non-interactive backend to avoid GUI/threading issues in tests
-matplotlib.use("Agg")
+# Default to a non-interactive backend for tests/scripts. Skip in Jupyter
+# kernels (`ipykernel` already loaded) so `%matplotlib inline` survives.
+if "ipykernel" not in sys.modules:
+    matplotlib.use("Agg")
 from typing import Any
 
 import matplotlib.pyplot as plt

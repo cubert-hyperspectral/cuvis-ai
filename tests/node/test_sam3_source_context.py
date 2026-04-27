@@ -7,8 +7,8 @@ from pathlib import Path
 
 import click
 import numpy as np
-from cuvis_ai_core.data.rle import coco_rle_encode
 
+from cuvis_ai_core.data.rle import coco_rle_encode
 from examples.object_tracking.sam3.sam3_source_context import (
     load_detection_annotation,
     load_detection_point_prompt,

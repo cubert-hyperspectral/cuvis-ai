@@ -17,6 +17,17 @@ if ! uv sync --all-extras; then
     exit 1
 fi
 
+# Verify no committed notebook still embeds video outputs
+TRACKED_NOTEBOOKS=$(git ls-files '*.ipynb')
+if [ -n "$TRACKED_NOTEBOOKS" ]; then
+    echo "→ Checking notebooks for embedded video outputs..."
+    if ! echo "$TRACKED_NOTEBOOKS" | xargs -d '\n' uv run python tools/strip_notebook_videos.py --check; then
+        echo "✗ Notebook(s) above embed video outputs. Strip and re-commit:"
+        echo "    python tools/strip_notebook_videos.py <paths>"
+        exit 1
+    fi
+fi
+
 # Run Ruff formatting first
 echo "→ Running Ruff formatting..."
 if ! uv run ruff format .; then

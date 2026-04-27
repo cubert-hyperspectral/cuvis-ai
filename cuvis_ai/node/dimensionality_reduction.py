@@ -5,12 +5,12 @@ from __future__ import annotations
 from typing import Any, Literal
 
 import torch
-from cuvis_ai_core.node import Node
 from cuvis_ai_schemas.execution import InputStream
 from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
 
 from cuvis_ai.utils.welford import WelfordAccumulator
+from cuvis_ai_core.node import Node
 
 ## This node is not approved
 # missing tests against standard implementations

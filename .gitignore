@@ -220,4 +220,4 @@ examples/blood_perfusion/NDVIColormap.hpp
 examples/blood_perfusion/blood_perfusion_html_course.zip
 .gitnexus
 AGENTS.md
-notebooks/
+notebooks/**/output/

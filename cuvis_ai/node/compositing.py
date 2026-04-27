@@ -11,8 +11,9 @@ from typing import Any
 
 import torch
 import torch.nn.functional as F
-from cuvis_ai_core.node import Node
 from cuvis_ai_schemas.pipeline import PortSpec
+
+from cuvis_ai_core.node import Node
 
 
 class ROIZoomNode(Node):

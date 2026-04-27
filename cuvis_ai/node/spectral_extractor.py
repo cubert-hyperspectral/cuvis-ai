@@ -8,9 +8,10 @@ from typing import Any
 import cv2
 import numpy as np
 import torch
-from cuvis_ai_core.node import Node
 from cuvis_ai_schemas.execution import Context
 from cuvis_ai_schemas.pipeline import PortSpec
+
+from cuvis_ai_core.node import Node
 
 
 class BBoxSpectralExtractor(Node):

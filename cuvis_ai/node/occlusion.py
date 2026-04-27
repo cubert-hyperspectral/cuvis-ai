@@ -9,12 +9,12 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn.functional as F
-from cuvis_ai_core.data.rle import coco_rle_decode
-from cuvis_ai_core.node import Node
 from cuvis_ai_schemas.pipeline import PortSpec
 from loguru import logger
 
 from cuvis_ai.utils.poisson_inpaint import poisson_inpaint
+from cuvis_ai_core.data.rle import coco_rle_decode
+from cuvis_ai_core.node import Node
 
 
 class OcclusionNodeBase(Node, abc.ABC):

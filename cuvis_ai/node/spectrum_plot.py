@@ -13,10 +13,10 @@ from typing import Any
 import cv2
 import numpy as np
 import torch
-from cuvis_ai_core.node import Node
 from cuvis_ai_schemas.pipeline import PortSpec
 
 from cuvis_ai.utils.vis_helpers import fig_to_array
+from cuvis_ai_core.node import Node
 
 
 class SpectrumPlotNode(Node):

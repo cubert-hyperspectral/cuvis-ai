@@ -18,12 +18,13 @@ cuvis_ai.node.pipeline_visualization : Pipeline visualization nodes
 import re
 from pathlib import Path
 
-from cuvis_ai_core.node import Node
 from cuvis_ai_schemas.enums import ArtifactType, ExecutionStage
 from cuvis_ai_schemas.execution import Artifact, Context, Metric
 from cuvis_ai_schemas.pipeline import PortSpec
 from loguru import logger
 from torch.utils.tensorboard import SummaryWriter
+
+from cuvis_ai_core.node import Node
 
 
 class TensorBoardMonitorNode(Node):

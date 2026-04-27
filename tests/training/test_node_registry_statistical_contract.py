@@ -7,6 +7,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 
 import pytest
+
 from cuvis_ai_core.node.node import Node
 from cuvis_ai_core.utils.node_registry import NodeRegistry
 

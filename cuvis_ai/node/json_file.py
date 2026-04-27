@@ -10,6 +10,10 @@ from typing import Any
 
 import numpy as np
 import torch
+from cuvis_ai_schemas.execution import Context
+from cuvis_ai_schemas.pipeline import PortSpec
+from loguru import logger
+
 from cuvis_ai_core.data.rle import (
     coco_rle_area,
     coco_rle_decode,
@@ -17,9 +21,6 @@ from cuvis_ai_core.data.rle import (
     coco_rle_to_bbox,
 )
 from cuvis_ai_core.node import Node
-from cuvis_ai_schemas.execution import Context
-from cuvis_ai_schemas.pipeline import PortSpec
-from loguru import logger
 
 # ---------------------------------------------------------------------------
 # Writer base classes

@@ -274,17 +274,16 @@ def main(
         device=device,
     )
 
-    from cuvis_ai_core.data.datasets import SingleCu3sDataModule
-    from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
-    from cuvis_ai_core.training import Predictor
-    from cuvis_ai_core.utils.node_registry import NodeRegistry
-
     from cuvis_ai.node.anomaly_visualization import BBoxesOverlayNode
     from cuvis_ai.node.channel_selector import CIETristimulusFalseRGBSelector, NormMode
     from cuvis_ai.node.data import CU3SDataNode
     from cuvis_ai.node.json_file import CocoTrackBBoxWriter, DetectionCocoJsonNode
     from cuvis_ai.node.spectral_extractor import BBoxSpectralExtractor
     from cuvis_ai.node.video import ToVideoNode
+    from cuvis_ai_core.data.datasets import SingleCu3sDataModule
+    from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+    from cuvis_ai_core.training import Predictor
+    from cuvis_ai_core.utils.node_registry import NodeRegistry
 
     use_spectral = association_mode != "baseline"
 

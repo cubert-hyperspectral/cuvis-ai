@@ -20,9 +20,10 @@ from collections.abc import Iterable, Sequence
 from typing import Any
 
 import torch
-from cuvis_ai_core.node.node import Node
 from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
+
+from cuvis_ai_core.node.node import Node
 
 
 class BinaryAnomalyLabelMapper(Node):

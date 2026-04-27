@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 import yaml
+
 from cuvis_ai_core.data.datasets import SingleCu3sDataset
 
 PROCESSING_MODE = "SpectralRadiance"

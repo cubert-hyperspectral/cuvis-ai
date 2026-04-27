@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+
 from cuvis_ai_core.utils.plugin_config import PluginManifest
 
 pytestmark = pytest.mark.unit

@@ -7,10 +7,10 @@ This module provides:
 """
 
 import torch
-from cuvis_ai_core.node import Node
 from cuvis_ai_schemas.pipeline import PortSpec
 
 from cuvis_ai.utils.welford import WelfordAccumulator
+from cuvis_ai_core.node import Node
 
 
 class ScoreToLogit(Node):

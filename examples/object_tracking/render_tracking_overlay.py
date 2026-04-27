@@ -10,8 +10,6 @@ from typing import TYPE_CHECKING, Any
 
 import torch
 import yaml
-from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
-from cuvis_ai_core.training import Predictor
 from loguru import logger
 from torch.utils.data import Subset
 
@@ -24,6 +22,8 @@ from cuvis_ai.node.data import CU3SDataNode
 from cuvis_ai.node.json_file import TrackingResultsReader
 from cuvis_ai.node.video import ToVideoNode, VideoFrameDataModule, VideoFrameNode
 from cuvis_ai.utils.false_rgb_sampling import initialize_false_rgb_sampled_fixed
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.training import Predictor
 
 if TYPE_CHECKING:
     from cuvis_ai.node.channel_selector import CIETristimulusFalseRGBSelector

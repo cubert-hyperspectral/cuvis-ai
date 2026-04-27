@@ -1,9 +1,6 @@
 from pathlib import Path
 
 import hydra
-from cuvis_ai_core.data.datasets import SingleCu3sDataModule
-from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
-from cuvis_ai_core.training import GradientTrainer, StatisticalTrainer
 from cuvis_ai_schemas.pipeline import PipelineMetadata
 from cuvis_ai_schemas.training import (
     CallbacksConfig,
@@ -31,6 +28,9 @@ from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.normalization import MinMaxNormalizer
 from cuvis_ai.node.pipeline_visualization import CubeRGBVisualizer
+from cuvis_ai_core.data.datasets import SingleCu3sDataModule
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.training import GradientTrainer, StatisticalTrainer
 
 
 @hydra.main(config_path="../configs/", config_name="trainrun/channel_selector", version_base=None)

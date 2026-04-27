@@ -9,17 +9,17 @@ from typing import Any
 import cv2
 import numpy as np
 import torch
+from cuvis_ai_schemas.execution import Context
+from cuvis_ai_schemas.pipeline import PortSpec
+from loguru import logger
+
+from cuvis_ai.utils.torch_draw import draw_text
 from cuvis_ai_core.data.video import (  # noqa: F401
     VideoFrameDataModule,
     VideoFrameDataset,
     VideoIterator,
 )
 from cuvis_ai_core.node import Node
-from cuvis_ai_schemas.execution import Context
-from cuvis_ai_schemas.pipeline import PortSpec
-from loguru import logger
-
-from cuvis_ai.utils.torch_draw import draw_text
 
 
 # ---------------------------------------------------------------------------

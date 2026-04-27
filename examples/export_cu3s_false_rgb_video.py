@@ -74,9 +74,6 @@ from typing import Any
 import click
 import numpy as np
 import torch
-from cuvis_ai_core.data.datasets import SingleCu3sDataModule
-from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
-from cuvis_ai_core.training import Predictor
 from loguru import logger
 
 from cuvis_ai.node.channel_selector import (
@@ -90,6 +87,9 @@ from cuvis_ai.node.data import CU3SDataNode
 from cuvis_ai.node.video import ToVideoNode
 from cuvis_ai.utils.cli_helpers import compute_real_fps_from_dataset, resolve_run_output_dir
 from cuvis_ai.utils.xml_plugin_parser import parse_numeric_text, xml_local_name
+from cuvis_ai_core.data.datasets import SingleCu3sDataModule
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.training import Predictor
 
 SUPPORTED_METHODS = ("cie_tristimulus", "cir", "fast_rgb", "cuvis-plugin")
 METHOD_ALIASES: dict[str, str] = {"fastrgb": "fast_rgb"}

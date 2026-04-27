@@ -86,15 +86,14 @@ def main(
     resolved_mode = _resolve_processing_mode(processing_mode)
     output_video_path.parent.mkdir(parents=True, exist_ok=True)
 
-    from cuvis_ai_core.data.datasets import SingleCu3sDataModule
-    from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
-    from cuvis_ai_core.training import Predictor
-    from cuvis_ai_core.utils.node_registry import NodeRegistry
-
     from cuvis_ai.node.anomaly_visualization import BBoxesOverlayNode
     from cuvis_ai.node.channel_selector import CIETristimulusFalseRGBSelector
     from cuvis_ai.node.data import CU3SDataNode
     from cuvis_ai.node.video import ToVideoNode
+    from cuvis_ai_core.data.datasets import SingleCu3sDataModule
+    from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+    from cuvis_ai_core.training import Predictor
+    from cuvis_ai_core.utils.node_registry import NodeRegistry
 
     predict_ids = list(range(end_frame)) if end_frame > 0 else None
     datamodule = SingleCu3sDataModule(
