@@ -11,7 +11,6 @@ from typing import Any
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from cuvis_ai_core.node import Node
 from cuvis_ai_schemas.enums import ArtifactType, ExecutionStage
 from cuvis_ai_schemas.execution import Artifact, Context
 from cuvis_ai_schemas.pipeline import PortSpec
@@ -19,6 +18,7 @@ from loguru import logger
 from torch import Tensor
 
 from cuvis_ai.utils.vis_helpers import fig_to_array
+from cuvis_ai_core.node import Node
 
 
 class CubeRGBVisualizer(Node):
@@ -394,7 +394,7 @@ class PipelineComparisonVisualizer(Node):
             shape=(-1, -1, -1, 1),
             description="Ground truth anomaly mask [B, H, W, 1]",
         ),
-        "adaclip_scores": PortSpec(
+        "anomaly_scores": PortSpec(
             dtype=torch.float32,
             shape=(-1, -1, -1, 1),
             description="Anomaly scores [B, H, W, 1]",
@@ -436,7 +436,7 @@ class PipelineComparisonVisualizer(Node):
         hsi_cube: Tensor,
         mixer_output: Tensor,
         ground_truth_mask: Tensor,
-        adaclip_scores: Tensor,
+        anomaly_scores: Tensor,
         context: Context | None = None,
         **_: Any,
     ) -> dict[str, list[Artifact]]:
@@ -450,7 +450,7 @@ class PipelineComparisonVisualizer(Node):
             Mixer output (RGB-like) [B, H, W, 3]
         ground_truth_mask : Tensor
             Ground truth anomaly mask [B, H, W, 1]
-        adaclip_scores : Tensor
+        anomaly_scores : Tensor
             Anomaly scores [B, H, W, 1]
         context : Context, optional
             Execution context with stage, epoch, batch_idx info
@@ -476,7 +476,7 @@ class PipelineComparisonVisualizer(Node):
         hsi_np = hsi_cube.detach().cpu().numpy()
         mixer_np = mixer_output.detach().cpu().numpy()
         mask_np = ground_truth_mask.detach().cpu().numpy()
-        scores_np = adaclip_scores.detach().cpu().numpy()
+        scores_np = anomaly_scores.detach().cpu().numpy()
 
         for b in range(num_samples):
             # 1. HSI Input Visualization (false-color RGB)
@@ -524,7 +524,7 @@ class PipelineComparisonVisualizer(Node):
             # 4. Anomaly Scores (as heatmap)
             scores_img = self._create_scores_heatmap(scores_np[b])  # [H, W, 1] -> [H, W, 3]
             artifact = Artifact(
-                name=f"adaclip_scores_heatmap_sample_{b}",
+                name=f"anomaly_scores_heatmap_sample_{b}",
                 value=scores_img,
                 el_id=b,
                 desc=f"Anomaly scores (heatmap) for sample {b}",

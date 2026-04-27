@@ -115,7 +115,7 @@ include = ["cuvis_ai*", "tools*", "scripts*"]
 torch = { index = "pytorch-cu128" }
 torchvision = { index = "pytorch-cu128" }
 # cuvis-ai-schemas = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-schemas.git", branch = "main" }
-# cuvis-ai-core = { path = "../../cuvis-ai-core/cuvis-ai-core-sam3", editable = true }
+# cuvis-ai-core = { path = "../../cuvis-ai-core/core-simplify-vis", editable = true }
 
 [tool.setuptools_scm]
 version_scheme = "post-release"
@@ -150,6 +150,9 @@ ignore = [
     "ANN401",
     "E501"
 ]
+
+[tool.ruff.lint.isort]
+known-first-party = ["cuvis_ai", "cuvis_ai_core"]
 
 [tool.ruff.lint.per-file-ignores]
 "docs/**" = [

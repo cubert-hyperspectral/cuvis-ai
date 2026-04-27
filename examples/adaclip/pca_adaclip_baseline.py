@@ -18,10 +18,6 @@ from pathlib import Path
 
 import hydra
 import torch
-from cuvis_ai_core.data.datasets import SingleCu3sDataModule
-from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
-from cuvis_ai_core.training import StatisticalTrainer
-from cuvis_ai_core.utils.node_registry import NodeRegistry
 from cuvis_ai_schemas.pipeline import PipelineMetadata
 from cuvis_ai_schemas.training import (
     TrainingConfig,
@@ -38,6 +34,10 @@ from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.normalization import MinMaxNormalizer
 from cuvis_ai.node.pipeline_visualization import PipelineComparisonVisualizer
+from cuvis_ai_core.data.datasets import SingleCu3sDataModule
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.training import StatisticalTrainer
+from cuvis_ai_core.utils.node_registry import NodeRegistry
 
 
 @hydra.main(
@@ -211,7 +211,7 @@ def main(cfg: DictConfig) -> None:
             drcnn_tb_viz.mixer_output,
         ),  # Reuse same port name for normalized PCA
         (data_node.outputs.mask, drcnn_tb_viz.ground_truth_mask),
-        (adaclip.scores, drcnn_tb_viz.adaclip_scores),
+        (adaclip.scores, drcnn_tb_viz.anomaly_scores),
         # Monitoring
         (metrics_node.metrics, tensorboard_node.metrics),
         (score_viz.artifacts, tensorboard_node.artifacts),

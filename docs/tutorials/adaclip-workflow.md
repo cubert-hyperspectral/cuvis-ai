@@ -364,7 +364,7 @@ pipeline.connect(
     (data_node.outputs.cube, drcnn_tb_viz.hsi_cube),
     (mixer.rgb, drcnn_tb_viz.mixer_output),
     (data_node.outputs.mask, drcnn_tb_viz.ground_truth_mask),
-    (adaclip.scores, drcnn_tb_viz.adaclip_scores),
+    (adaclip.scores, drcnn_tb_viz.anomaly_scores),
     (drcnn_tb_viz.artifacts, tensorboard_node.artifacts),
 )
 ```

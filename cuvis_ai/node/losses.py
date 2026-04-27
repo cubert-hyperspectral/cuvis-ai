@@ -7,11 +7,12 @@ from typing import Any
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from cuvis_ai_core.node import Node
 from cuvis_ai_schemas.enums import ExecutionStage
 from cuvis_ai_schemas.pipeline import PortSpec
 from loguru import logger
 from torch import Tensor
+
+from cuvis_ai_core.node import Node
 
 
 class LossNode(Node):
@@ -580,8 +581,8 @@ class IoULoss(LossNode):
     Examples
     --------
     >>> iou_loss = IoULoss(weight=1.0, smooth=1e-6)
-    >>> # Use with AdaClip scores directly (no thresholding needed)
-    >>> loss = iou_loss.forward(predictions=adaclip_scores, targets=ground_truth_mask)
+    >>> # Use with anomaly scores directly (no thresholding needed)
+    >>> loss = iou_loss.forward(predictions=anomaly_scores, targets=ground_truth_mask)
     """
 
     INPUT_SPECS = {

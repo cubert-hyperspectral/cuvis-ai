@@ -43,6 +43,7 @@ plugins:
       - cuvis_ai.node.channel_selector.SupervisedSelectorBase
       - cuvis_ai.node.channel_selector.SupervisedWindowedSelector
       - cuvis_ai.node.channel_selector.TopKIndices
+      - cuvis_ai.node.compositing.ROIZoomNode
       - cuvis_ai.node.conversion.DecisionToMask
       - cuvis_ai.node.conversion.ScoreToLogit
       - cuvis_ai.node.data.CU3SDataNode
@@ -65,6 +66,8 @@ plugins:
       - cuvis_ai.node.losses.OrthogonalityLoss
       - cuvis_ai.node.losses.SelectorDiversityRegularizer
       - cuvis_ai.node.losses.SelectorEntropyRegularizer
+      - cuvis_ai.node.mask_ops.MaskRobustifier
+      - cuvis_ai.node.mask_ops.MaskToBBoxKalman
       - cuvis_ai.node.metrics.AnomalyDetectionMetrics
       - cuvis_ai.node.metrics.AnomalyPixelStatisticsMetric
       - cuvis_ai.node.metrics.ComponentOrthogonalityMetric
@@ -97,6 +100,8 @@ plugins:
       - cuvis_ai.node.prompts.TextPrompt
       - cuvis_ai.node.spectral_angle_mapper.SpectralAngleMapper
       - cuvis_ai.node.spectral_extractor.BBoxSpectralExtractor
+      - cuvis_ai.node.spectral_extractor.MaskedMeanSpectrum
       - cuvis_ai.node.spectral_extractor.SpectralSignatureExtractor
+      - cuvis_ai.node.spectrum_plot.SpectrumPlotNode
       - cuvis_ai.node.video.ToVideoNode
       - cuvis_ai.node.video.VideoFrameNode

@@ -110,13 +110,6 @@ live module docstrings over historical inventories.
       show_root_heading: true
       heading_level: 3
 
-### AdaCLIP Nodes
-
-::: cuvis_ai.node.adaclip
-    options:
-      show_root_heading: true
-      heading_level: 3
-
 ## Tracking, Prompting, And Sinks
 
 ### Prompt Nodes

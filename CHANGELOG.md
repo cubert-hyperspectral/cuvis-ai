@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.6.0 - 2026-04-27
+
+- Removed `examples/hugging_face/` example scripts (`huggingface_api_demo.py`, `huggingface_local_demo.py`, `huggingface_gradient_training.py`, `test_huggingface_local_minimal.py`) and the in-tree `cuvis_ai/node/adaclip.py` (`AdaCLIPLocalNode`). The released AdaCLIP plugin (`cuvis_ai_adaclip` via `configs/plugins/adaclip.yaml`) is unaffected.
+- Removed the `### AdaCLIP Nodes` autodoc section from `docs/api/nodes.md`; it pointed at the deleted in-tree module.
+- Renamed `PipelineComparisonVisualizer` input port `adaclip_scores` → `anomaly_scores` (and the corresponding TensorBoard heatmap artifact `adaclip_scores_heatmap_sample_*` → `anomaly_scores_heatmap_sample_*`). The port is plugin-agnostic; updated `tests/node/test_pipeline_visualization.py`, `cuvis_ai/node/losses.py` docstring example, AdaCLIP pipeline/trainrun YAMLs, `examples/adaclip/*_training.py`, `docs/tutorials/adaclip-workflow.md`, and `docs/how-to/monitoring-and-viz.md`.
+- Registered the previously-omitted built-in nodes `ROIZoomNode`, `MaskRobustifier`, `MaskToBBoxKalman`, `MaskedMeanSpectrum`, and `SpectrumPlotNode` in `configs/plugins/cuvis_ai_builtin.yaml` so they are discoverable when the gRPC server runs in a separate venv.
 - Changed `ToVideoNode` encoder backend from OpenCV `cv2.VideoWriter` (FOURCC `mp4v`, uncontrollable bitrate, ~1.6 Mbps MPEG-4 Part 2 output) to a lazily-spawned `ffmpeg` subprocess that pipes raw `rgb24` frames over stdin. Produces H.264 (`libx264`) at a configurable target bitrate (default `12M`). Requires the `ffmpeg` binary on `PATH`.
 - Added `video_codec` (default `"libx264"`) and `bitrate` (default `"12M"`) parameters to `ToVideoNode`. Hardcoded `-pix_fmt yuv420p` plus `-vf pad=ceil(iw/2)*2:ceil(ih/2)*2` to guarantee valid output dimensions for 4:2:0 chroma subsampling.
 - Removed `ToVideoNode(codec=...)` (FourCC) parameter — renamed to `video_codec` (ffmpeg codec name) since the value namespace changed. Pipeline YAML configs do not set `codec=` explicitly, so no existing config files need updates.

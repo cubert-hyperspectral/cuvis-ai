@@ -142,7 +142,7 @@ def test_pipeline_comparison_returns_artifacts() -> None:
         hsi_cube=hsi_cube,
         mixer_output=mixer_output,
         ground_truth_mask=gt_mask,
-        adaclip_scores=scores,
+        anomaly_scores=scores,
         context=ctx,
     )
 
@@ -166,7 +166,7 @@ def test_pipeline_comparison_max_samples() -> None:
         hsi_cube=hsi_cube,
         mixer_output=mixer_output,
         ground_truth_mask=gt_mask,
-        adaclip_scores=scores,
+        anomaly_scores=scores,
         context=ctx,
     )
     assert len(result["artifacts"]) == 2 * 4
@@ -189,7 +189,7 @@ def test_pipeline_comparison_log_every_n_batches() -> None:
         hsi_cube=hsi_cube,
         mixer_output=mixer_output,
         ground_truth_mask=gt_mask,
-        adaclip_scores=scores,
+        anomaly_scores=scores,
         context=ctx,
     )
     assert len(r1["artifacts"]) == 4
@@ -199,7 +199,7 @@ def test_pipeline_comparison_log_every_n_batches() -> None:
         hsi_cube=hsi_cube,
         mixer_output=mixer_output,
         ground_truth_mask=gt_mask,
-        adaclip_scores=scores,
+        anomaly_scores=scores,
         context=ctx,
     )
     assert len(r2["artifacts"]) == 0
@@ -209,7 +209,7 @@ def test_pipeline_comparison_log_every_n_batches() -> None:
         hsi_cube=hsi_cube,
         mixer_output=mixer_output,
         ground_truth_mask=gt_mask,
-        adaclip_scores=scores,
+        anomaly_scores=scores,
         context=ctx,
     )
     assert len(r3["artifacts"]) == 0
@@ -219,7 +219,7 @@ def test_pipeline_comparison_log_every_n_batches() -> None:
         hsi_cube=hsi_cube,
         mixer_output=mixer_output,
         ground_truth_mask=gt_mask,
-        adaclip_scores=scores,
+        anomaly_scores=scores,
         context=ctx,
     )
     assert len(r4["artifacts"]) == 4
@@ -234,7 +234,7 @@ def test_pipeline_comparison_default_context() -> None:
         hsi_cube=torch.rand(B, H, W, C),
         mixer_output=torch.rand(B, H, W, 3),
         ground_truth_mask=torch.zeros(B, H, W, 1, dtype=torch.bool),
-        adaclip_scores=torch.rand(B, H, W, 1),
+        anomaly_scores=torch.rand(B, H, W, 1),
         context=None,
     )
     assert len(result["artifacts"]) == 4
@@ -249,7 +249,7 @@ def test_pipeline_comparison_hsi_channel_clamping() -> None:
         hsi_cube=torch.rand(B, H, W, C),
         mixer_output=torch.rand(B, H, W, 3),
         ground_truth_mask=torch.zeros(B, H, W, 1, dtype=torch.bool),
-        adaclip_scores=torch.rand(B, H, W, 1),
+        anomaly_scores=torch.rand(B, H, W, 1),
     )
     assert len(result["artifacts"]) == 4
 

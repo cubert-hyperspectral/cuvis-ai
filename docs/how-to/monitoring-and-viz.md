@@ -585,7 +585,7 @@ Specialized visualizations for DRCNN pipelines.
 | `hsi_cube` | `float32` | `(B,H,W,C)` | Input hyperspectral cube |
 | `mixer_output` | `float32` | `(B,H,W,3)` | Mixed RGB output |
 | `ground_truth_mask` | `bool` | `(B,H,W,1)` | Ground truth mask |
-| `adaclip_scores` | `float32` | `(B,H,W,1)` | AdaClip anomaly scores |
+| `anomaly_scores` | `float32` | `(B,H,W,1)` | Anomaly scores (e.g. AdaCLIP plugin output) |
 
 **Execution**: TRAIN, VAL, TEST stages
 
@@ -604,7 +604,7 @@ pipeline.connect(
     (data_node.outputs.cube, drcnn_viz.hsi_cube),
     (mixer.output, drcnn_viz.mixer_output),
     (data_node.outputs.mask, drcnn_viz.ground_truth_mask),
-    (adaclip.scores, drcnn_viz.adaclip_scores),
+    (adaclip.scores, drcnn_viz.anomaly_scores),
     (drcnn_viz.artifacts, monitor.artifacts),
 )
 ```
@@ -614,7 +614,7 @@ pipeline.connect(
 train/hsi_input_sample_0
 train/mixer_output_adaclip_input_sample_0
 train/ground_truth_mask_sample_0
-train/adaclip_scores_heatmap_sample_0
+train/anomaly_scores_heatmap_sample_0
 ```
 
 ---
@@ -786,7 +786,7 @@ pipeline.connect(
     (data_node.outputs.cube, drcnn_viz.hsi_cube),
     (channel_mixer.output, drcnn_viz.mixer_output),
     (data_node.outputs.mask, drcnn_viz.ground_truth_mask),
-    (adaclip.scores, drcnn_viz.adaclip_scores),
+    (adaclip.scores, drcnn_viz.anomaly_scores),
 
     # Monitor sink
     (metrics.metrics, monitor.metrics),
