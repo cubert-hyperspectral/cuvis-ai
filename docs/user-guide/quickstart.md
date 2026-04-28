@@ -83,9 +83,9 @@ The pipeline will load your trained weights and run inference on new data.
 
 **Follow comprehensive tutorials:**
 
-- [RX Statistical Tutorial](../usecases/rx-statistical.md) - Statistical anomaly detection
-- [Channel Selector Tutorial](../usecases/channel-selector.md) - Learnable band selection
-- [Deep SVDD Tutorial](../usecases/deep-svdd-gradient.md) - Deep learning approach
+- [RX Statistical Tutorial](../use_cases/rx-statistical.md) - Statistical anomaly detection
+- [Channel Selector Tutorial](../use_cases/channel-selector.md) - Learnable band selection
+- [Deep SVDD Tutorial](../use_cases/deep-svdd-gradient.md) - Deep learning approach
 
 **Explore how-to guides:**
 

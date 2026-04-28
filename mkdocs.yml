@@ -138,13 +138,13 @@ nav:
           - Two-Phase Training: concepts/two-phase-training.md
           - Execution Stages: concepts/execution-stages.md
       - Use Cases:
-          - Overview: usecases/index.md
-          - RX Statistical: usecases/rx-statistical.md
-          - Channel Selector: usecases/channel-selector.md
-          - Deep SVDD: usecases/deep-svdd-gradient.md
-          - AdaCLIP Workflow: usecases/adaclip-workflow.md
-          - gRPC Workflow: usecases/grpc-workflow.md
-          - Blood Perfusion: usecases/blood-perfusion.md
+          - Overview: use_cases/index.md
+          - RX Statistical: use_cases/rx-statistical.md
+          - Channel Selector: use_cases/channel-selector.md
+          - Deep SVDD: use_cases/deep-svdd-gradient.md
+          - AdaCLIP Workflow: use_cases/adaclip-workflow.md
+          - gRPC Workflow: use_cases/grpc-workflow.md
+          - Blood Perfusion: use_cases/blood-perfusion.md
       - How-To Guides:
           - Overview: how-to/index.md
           - Build Pipeline (Python): how-to/build-pipeline-python.md

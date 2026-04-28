@@ -479,7 +479,7 @@ for progress in stub.Train(request):
 
 ### Tutorials & Guides
 
-- [gRPC Tutorial](../usecases/grpc-workflow.md) - End-to-end hands-on tutorial
+- [gRPC Tutorial](../use_cases/grpc-workflow.md) - End-to-end hands-on tutorial
 - [gRPC Client Examples](../../examples/grpc/) - All example clients
 
 ---

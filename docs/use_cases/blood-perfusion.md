@@ -16,7 +16,7 @@ CU3SDataNode  ──►  NDVISelector  ──►  ToVideoNode
 A final advanced section (§8) extends the pipeline with custom nodes to add a qualitative SpO2 proxy on top of the perfusion result.
 
 !!! tip "Run this as a notebook"
-    This page mirrors the live notebook at [`notebooks/usecases/blood_perfusion.ipynb`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/notebooks/usecases/blood_perfusion.ipynb). Open it in JupyterLab or VS Code to follow along section-for-section with editable cells.
+    This page mirrors the live notebook at [`notebooks/use_cases/blood_perfusion.ipynb`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/notebooks/use_cases/blood_perfusion.ipynb). Open it in JupyterLab or VS Code to follow along section-for-section with editable cells.
 
 ## Overview
 
@@ -430,4 +430,4 @@ uv run python examples/blood_perfusion/nd_blood_perfusion.py \
 
 The script accepts `--help` for a full list of options including frame range, frame rate, and colormap range.
 
-To run the tutorial interactively instead, open the notebook at [`notebooks/usecases/blood_perfusion.ipynb`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/notebooks/usecases/blood_perfusion.ipynb) in JupyterLab or VS Code.
+To run the tutorial interactively instead, open the notebook at [`notebooks/use_cases/blood_perfusion.ipynb`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/notebooks/use_cases/blood_perfusion.ipynb) in JupyterLab or VS Code.

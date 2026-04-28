@@ -17,7 +17,7 @@ Cuvis.AI is a modular, low-code/no-code framework for building reproducible mach
 - **[Quickstart](user-guide/quickstart.md)**
 - **[Core Concepts](concepts/overview.md)**
 - **[API Reference](api/pipeline.md)**
-- **[Use Cases](usecases/index.md)**
+- **[Use Cases](use_cases/index.md)**
 
 
 !!! tip "Ready to get started?"

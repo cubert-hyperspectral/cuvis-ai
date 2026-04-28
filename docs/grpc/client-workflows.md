@@ -486,5 +486,5 @@ Plugins loaded on the server side are automatically available to all gRPC client
 - [gRPC API Reference: Pipeline](api-pipeline.md) - Pipeline RPC method documentation
 - [gRPC Overview](overview.md) - Architecture and concepts
 - [Sequence Diagrams](sequence-diagrams.md) - Visual workflows
-- [gRPC Tutorial](../usecases/grpc-workflow.md) - Hands-on tutorial
+- [gRPC Tutorial](../use_cases/grpc-workflow.md) - Hands-on tutorial
 - [Deployment Guide](../deployment/grpc_deployment.md) - Production patterns

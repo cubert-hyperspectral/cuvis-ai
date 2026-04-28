@@ -479,7 +479,7 @@ See the [Deployment Guide](../deployment/grpc_deployment.md) for complete instru
 
 ### Tutorials & How-To Guides
 
-- [gRPC Workflow Tutorial](../usecases/grpc-workflow.md) - Hands-on tutorial with complete examples
+- [gRPC Workflow Tutorial](../use_cases/grpc-workflow.md) - Hands-on tutorial with complete examples
 
 ### Configuration
 

@@ -33,7 +33,7 @@ powerful for detecting anomalies without extensive task-specific training.
 |---|---|
 | `AdaCLIPDetector` | Zero-shot anomaly detection using CLIP-adapted vision-language features |
 
-**Use Case:** [AdaCLIP Workflow](../usecases/adaclip-workflow.md)
+**Use Case:** [AdaCLIP Workflow](../use_cases/adaclip-workflow.md)
 
 ---
 

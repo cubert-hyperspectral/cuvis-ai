@@ -48,11 +48,14 @@ uv sync --all-extras
 
 ## FFmpeg (required for video pipelines)
 
-Video functionality needs FFmpeg on two separate paths:
+The reader-side decoder ([torchcodec](https://github.com/pytorch/torchcodec))
+is installed automatically by `uv sync` as a regular Python dependency. What
+you still need to provide yourself are the FFmpeg **system libraries** that
+both reader and writer paths depend on at runtime:
 
-- **Reader-side** (`VideoIterator`, `VideoFrameDataModule`) — depends on
-  [torchcodec](https://github.com/pytorch/torchcodec), which needs the FFmpeg
-  **shared libraries** at runtime.
+- **Reader-side** (`VideoIterator`, `VideoFrameDataModule`) — `torchcodec`
+  links against FFmpeg's **shared libraries** at runtime. Without them,
+  `import torchcodec` fails to load its native extension.
 
 - **Writer-side** (`ToVideoNode`) — spawns an `ffmpeg` subprocess directly to
   encode H.264/H.265 at a configurable bitrate, so the `ffmpeg` **binary** must
@@ -123,4 +126,4 @@ uv run python -m pytest tests/ -v --tb=line -m "not slow and not gpu"
 
 * **[Quickstart](quickstart.md)**
 * **[Configuration](configuration.md)**
-* **[Use Cases](../usecases/index.md)**
+* **[Use Cases](../use_cases/index.md)**
