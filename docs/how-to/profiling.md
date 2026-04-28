@@ -6,7 +6,7 @@ Enable per-node runtime profiling to identify bottlenecks in your pipeline.
 
 ## Overview
 
-CUVIS.AI includes **opt-in, manual profiling** that wraps each `node.forward()` call with high-resolution timers (`time.perf_counter_ns()`). Profiling is configured on the pipeline object and works transparently with both `Predictor` (inference) and `GradientTrainer` (training), since both call `pipeline.forward()` internally.
+Cuvis.AI includes **opt-in, manual profiling** that wraps each `node.forward()` call with high-resolution timers (`time.perf_counter_ns()`). Profiling is configured on the pipeline object and works transparently with both `Predictor` (inference) and `GradientTrainer` (training), since both call `pipeline.forward()` internally.
 
 **Key characteristics:**
 

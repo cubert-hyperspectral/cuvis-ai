@@ -137,14 +137,14 @@ nav:
           - Pipeline Lifecycle: concepts/pipeline-lifecycle.md
           - Two-Phase Training: concepts/two-phase-training.md
           - Execution Stages: concepts/execution-stages.md
-      - Tutorials:
-          - Overview: tutorials/index.md
-          - RX Statistical: tutorials/rx-statistical.md
-          - Channel Selector: tutorials/channel-selector.md
-          - Deep SVDD: tutorials/deep-svdd-gradient.md
-          - AdaCLIP Workflow: tutorials/adaclip-workflow.md
-          - gRPC Workflow: tutorials/grpc-workflow.md
-          - Blood Perfusion: tutorials/blood-perfusion.md
+      - Use Cases:
+          - Overview: usecases/index.md
+          - RX Statistical: usecases/rx-statistical.md
+          - Channel Selector: usecases/channel-selector.md
+          - Deep SVDD: usecases/deep-svdd-gradient.md
+          - AdaCLIP Workflow: usecases/adaclip-workflow.md
+          - gRPC Workflow: usecases/grpc-workflow.md
+          - Blood Perfusion: usecases/blood-perfusion.md
       - How-To Guides:
           - Overview: how-to/index.md
           - Build Pipeline (Python): how-to/build-pipeline-python.md
@@ -226,3 +226,4 @@ extra_javascript:
   - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
   - https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js
   - javascripts/mermaid-theme.js
+  - javascripts/os-tab-sync.js

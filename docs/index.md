@@ -1,6 +1,6 @@
-# CUVIS.AI Documentation
+# Cuvis.AI Documentation
 
-CUVIS.AI is a modular, low-code/no-code framework for building reproducible machine-learning pipelines for hyperspectral data analysis. It provides a thin abstraction over PyTorch, PyTorch Lightning, and Hydra, with reusable nodes you can compose into graph-based HSI workflows.
+Cuvis.AI is a modular, low-code/no-code framework for building reproducible machine-learning pipelines for hyperspectral data analysis. It provides a thin abstraction over PyTorch, PyTorch Lightning, and Hydra, with reusable nodes you can compose into graph-based HSI workflows.
 
 ## What you can do
 
@@ -17,7 +17,7 @@ CUVIS.AI is a modular, low-code/no-code framework for building reproducible mach
 - **[Quickstart](user-guide/quickstart.md)**
 - **[Core Concepts](concepts/overview.md)**
 - **[API Reference](api/pipeline.md)**
-- **[Tutorials](tutorials/index.md)**
+- **[Use Cases](usecases/index.md)**
 
 
 !!! tip "Ready to get started?"

@@ -5,7 +5,7 @@
 
 # Client Workflows & Error Handling
 
-Configuration, training, inference, and error handling patterns for CUVIS.AI gRPC clients.
+Configuration, training, inference, and error handling patterns for Cuvis.AI gRPC clients.
 
 ---
 
@@ -464,7 +464,7 @@ stub = build_stub("localhost:50051", max_msg_size=600*1024*1024)
 
 ## Plugin Management
 
-CUVIS.AI supports a plugin system for extending functionality. Plugins can be loaded dynamically at runtime to add custom nodes, data sources, or processing capabilities.
+Cuvis.AI supports a plugin system for extending functionality. Plugins can be loaded dynamically at runtime to add custom nodes, data sources, or processing capabilities.
 
 For comprehensive plugin system documentation, see:
 
@@ -486,5 +486,5 @@ Plugins loaded on the server side are automatically available to all gRPC client
 - [gRPC API Reference: Pipeline](api-pipeline.md) - Pipeline RPC method documentation
 - [gRPC Overview](overview.md) - Architecture and concepts
 - [Sequence Diagrams](sequence-diagrams.md) - Visual workflows
-- [gRPC Tutorial](../tutorials/grpc-workflow.md) - Hands-on tutorial
+- [gRPC Tutorial](../usecases/grpc-workflow.md) - Hands-on tutorial
 - [Deployment Guide](../deployment/grpc_deployment.md) - Production patterns

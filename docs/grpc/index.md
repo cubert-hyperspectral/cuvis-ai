@@ -5,7 +5,7 @@
 
 # gRPC Services
 
-CUVIS.AI provides gRPC services for remote pipeline execution and deployment scenarios.
+Cuvis.AI provides gRPC services for remote pipeline execution and deployment scenarios.
 
 ## gRPC Documentation
 
@@ -59,4 +59,4 @@ CUVIS.AI provides gRPC services for remote pipeline execution and deployment sce
 
 **Related Pages:**
 
-- [gRPC Workflow Tutorial](../tutorials/grpc-workflow.md)
+- [gRPC Workflow Tutorial](../usecases/grpc-workflow.md)

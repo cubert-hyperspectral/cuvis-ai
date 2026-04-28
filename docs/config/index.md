@@ -5,7 +5,7 @@
 
 # Configuration System
 
-CUVIS.AI uses Hydra for powerful configuration management with support for composition, overrides, and config groups.
+Cuvis.AI uses Hydra for powerful configuration management with support for composition, overrides, and config groups.
 
 ## Configuration Documentation
 

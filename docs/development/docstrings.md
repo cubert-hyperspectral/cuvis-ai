@@ -7,13 +7,13 @@
 
 ## Overview
 
-This guide provides comprehensive standards for writing high-quality docstrings in CUVIS.AI. Following these standards ensures consistent, well-documented code that generates excellent API documentation.
+This guide provides comprehensive standards for writing high-quality docstrings in Cuvis.AI. Following these standards ensures consistent, well-documented code that generates excellent API documentation.
 
 ---
 
 ## Docstring Style
 
-CUVIS.AI uses **NumPy style** docstrings for consistency with the scientific Python ecosystem and compatibility with mkdocstrings.
+Cuvis.AI uses **NumPy style** docstrings for consistency with the scientific Python ecosystem and compatibility with mkdocstrings.
 
 ### Why NumPy Style?
 

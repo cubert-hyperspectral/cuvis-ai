@@ -5,7 +5,7 @@
 
 # Node System Deep Dive
 
-*Fundamental processing units in CUVIS.AI pipelines.*
+*Fundamental processing units in Cuvis.AI pipelines.*
 
 A **Node** represents a single processing unit in a pipeline. Each node performs a specific task, declares typed input/output ports, manages internal state, and supports both CPU and GPU execution.
 

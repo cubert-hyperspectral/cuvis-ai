@@ -27,7 +27,7 @@ Learn how to build an anomaly detection pipeline with learnable channel selectio
 
 **Time:** ~30 minutes
 
-**Perfect for:** Users who want to learn gradient-based training, channel selection, and advanced training strategies in CUVIS.AI.
+**Perfect for:** Users who want to learn gradient-based training, channel selection, and advanced training strategies in Cuvis.AI.
 
 ---
 
@@ -571,7 +571,7 @@ pipeline.save_to_file(
         name=pipeline.name,
         description="Channel Selector with two-phase training",
         tags=["gradient", "statistical", "channel_selector", "rx"],
-        author="cuvis.ai",
+        author="Cuvis.AI",
     ),
 )
 ```
@@ -758,7 +758,7 @@ def main(cfg: DictConfig) -> None:
             name=pipeline.name,
             description="Channel Selector with two-phase training",
             tags=["gradient", "channel_selector"],
-            author="cuvis.ai",
+            author="Cuvis.AI",
         ),
     )
 

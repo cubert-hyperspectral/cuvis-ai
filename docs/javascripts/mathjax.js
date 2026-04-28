@@ -1,4 +1,4 @@
-// MathJax configuration for CUVIS.AI documentation
+// MathJax configuration for Cuvis.AI documentation
 
 window.MathJax = {
   tex: {

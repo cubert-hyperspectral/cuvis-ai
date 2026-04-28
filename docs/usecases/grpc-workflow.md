@@ -5,13 +5,13 @@
 
 # gRPC Workflow: Distributed Training & Inference
 
-Learn how to use CUVIS.AI's gRPC API for distributed training, remote inference, and production deployment.
+Learn how to use Cuvis.AI's gRPC API for distributed training, remote inference, and production deployment.
 
 ---
 
 ## Overview
 
-This tutorial demonstrates **distributed training and inference** using CUVIS.AI's gRPC (Google Remote Procedure Call) service. gRPC enables client-server communication for running pipelines on remote hardware, separating training infrastructure from client applications.
+This tutorial demonstrates **distributed training and inference** using Cuvis.AI's gRPC (Google Remote Procedure Call) service. gRPC enables client-server communication for running pipelines on remote hardware, separating training infrastructure from client applications.
 
 **What You'll Learn:**
 
@@ -44,7 +44,7 @@ This tutorial demonstrates **distributed training and inference** using CUVIS.AI
 - **Language-Agnostic** - Client libraries for Python, C++, Java, etc.
 - **Production-Ready** - Used by Google, Netflix, Square
 
-**CUVIS.AI gRPC Service:**
+**Cuvis.AI gRPC Service:**
 
 - **Server:** Manages pipelines, training, and inference
 - **Clients:** Connect from anywhere to execute workflows
@@ -89,7 +89,7 @@ uv run python -m cuvis_ai.grpc.production_server
 
 **Expected Output:**
 ```
-[INFO] Starting CUVIS.AI gRPC server on 0.0.0.0:50051
+[INFO] Starting Cuvis.AI gRPC server on 0.0.0.0:50051
 [INFO] Server started successfully
 [INFO] Waiting for incoming connections...
 ```
@@ -127,7 +127,7 @@ Connected! Session ID: d4e1a8c7-9b2f-4e3a-a5d6-7f8e9c0b1a2d
 
 ### The Phase 5 Workflow
 
-CUVIS.AI follows an **explicit configuration workflow:**
+Cuvis.AI follows an **explicit configuration workflow:**
 
 1. **CreateSession** - Initialize isolated session
 2. **SetSessionSearchPaths** - Register config directories
@@ -434,7 +434,7 @@ uv run python examples/grpc/core/run_inference.py \
 
 ### Dynamic Overrides
 
-CUVIS.AI uses **Hydra** for configuration composition. Override any config value via dot notation:
+Cuvis.AI uses **Hydra** for configuration composition. Override any config value via dot notation:
 
 ```python
 # Override training parameters
@@ -867,7 +867,7 @@ stub = build_stub(
 
 ## Summary
 
-You've learned how to use CUVIS.AI's gRPC service for distributed training and inference:
+You've learned how to use Cuvis.AI's gRPC service for distributed training and inference:
 
 **Key Concepts:**
 

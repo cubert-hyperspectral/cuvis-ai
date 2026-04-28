@@ -1,35 +1,50 @@
 # Installation
 
-Install CUVIS.AI and its dependencies.
+Install Cuvis.AI and its dependencies.
 
 ## Requirements
 
-- **Python**: 3.10+ (tested up to 3.13; **3.11 recommended**)
-- **RAM**: 8GB minimum (16GB recommended; **32GB** for large datasets)
-- **OS**: Windows / Linux / macOS
-- **GPU (optional)**: NVIDIA + **CUDA 12.8** for faster training
-- **Storage**: ~2GB for deps (+ space for datasets/outputs)
+| Component | Minimum | Recommended | Notes |
+| --- | --- | --- | --- |
+| **Python** | 3.10 | **3.11** | Tested up to 3.13 |
+| **RAM** | 16 GB | **32 GB** | Hyperspectral cubes are memory-hungry |
+| **OS** | Windows, Linux, or macOS | — | All three are first-class |
+| **GPU** | — | **NVIDIA + CUDA 12.8** | Strongly recommended even for inference |
+| **Storage** | ~10 GB for dependencies | ~50GB for dataset/output budget | See sizing note below |
+
+!!! note "Why so much disk?"
+    A single hyperspectral cube at **1000 × 1000 × 61** is **115 MB** in F16 and **230 MB** in F32. At 15 FPS, one minute of video is on the order of **100–200 GB**. Plan dataset and output storage accordingly.
 
 ## Install with uv (recommended)
 
-1. Install **uv**:
+### 1. Install uv
 
-   ```bash
-   # Linux/macOS
-   curl -LsSf https://astral.sh/uv/install.sh | sh
+=== "Linux"
 
-   # Windows
-   powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
-   ```
+    ```bash
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    ```
 
-2. Clone and install (all extras):
+=== "macOS"
 
-   ```bash
-   git clone https://github.com/cubert-hyperspectral/cuvis-ai.git
-   cd cuvis-ai
+    ```bash
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    ```
 
-   uv sync --all-extras
-   ```
+=== "Windows"
+
+    ```powershell
+    irm https://astral.sh/uv/install.ps1 | iex
+    ```
+
+### 2. Clone and install (all extras)
+
+```bash
+git clone https://github.com/cubert-hyperspectral/cuvis-ai.git
+cd cuvis-ai
+
+uv sync --all-extras
+```
 
 ## FFmpeg (required for video pipelines)
 
@@ -46,21 +61,31 @@ Video functionality needs FFmpeg on two separate paths:
 
 A single "full" FFmpeg install satisfies both; no separate packages are needed.
 
-```bash
-# Linux (apt)
-sudo apt install ffmpeg
+=== "Linux"
 
-# Linux (conda)
-conda install -c conda-forge ffmpeg
+    ```bash
+    sudo apt install ffmpeg
+    ```
 
-# macOS
-brew install ffmpeg
+=== "macOS"
 
-# Windows (scoop) — use the *shared* build so torchcodec can find the DLLs
-scoop install ffmpeg-shared
-# Then add to PATH (Git Bash / MSYS2):
-export PATH="/c/Users/$USER/scoop/apps/ffmpeg-shared/current/bin:$PATH"
-```
+    ```bash
+    brew install ffmpeg
+    ```
+
+=== "Windows"
+
+    Use the **shared** build so `torchcodec` can find the FFmpeg DLLs:
+
+    ```powershell
+    scoop install ffmpeg-shared
+    ```
+
+    Then expose the `bin/` directory on PATH so the OS DLL loader can resolve the shared libs at runtime:
+
+    ```powershell
+    $env:Path = "$env:USERPROFILE\scoop\apps\ffmpeg-shared\current\bin;$env:Path"
+    ```
 
 Verify both paths with:
 
@@ -80,28 +105,22 @@ print(torch.cuda.is_available(), torch.version.cuda, torch.cuda.device_count())
 
 ## Verify
 
-Run tests:
+Quick smoke test — imports the package and prints its version:
 
 ```bash
-uv run pytest tests/ -v
+uv run python -c "import cuvis_ai; print(f'cuvis_ai {cuvis_ai.__version__} ready')"
 ```
 
-Skip GPU tests (CPU-only):
+### Run the test suite (optional)
+
+If you want stronger confidence, run the tests with fast, and CPU-only filter:
 
 ```bash
-uv run pytest tests/ -v -m "no gpu"
-```
-
-Or quick import:
-
-```python
-from cuvis_ai_core.pipeline.graph import Graph
-from cuvis_ai_core.anomaly.rx_detector import RXGlobal
-print("Installation successful!")
+uv run python -m pytest tests/ -v --tb=line -m "not slow and not gpu"
 ```
 
 ## Next steps
 
 * **[Quickstart](quickstart.md)**
 * **[Configuration](configuration.md)**
-* **[Tutorials](../tutorials/index.md)**
+* **[Use Cases](../usecases/index.md)**

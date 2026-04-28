@@ -148,7 +148,7 @@ class RXGlobal(RXBase):
     RXPerBatch : Per-batch RX variant without training
     MinMaxNormalizer : Recommended preprocessing before RX
     ScoreToLogit : Convert scores to logits for classification
-    docs/tutorials/rx-statistical.md : Complete RX pipeline tutorial
+    docs/usecases/rx-statistical.md : Complete RX pipeline tutorial
 
     Notes
     -----

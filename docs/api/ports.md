@@ -5,7 +5,7 @@
 
 # Ports API Reference
 
-Complete API reference for the Typed I/O port system in CUVIS.AI.
+Complete API reference for the Typed I/O port system in Cuvis.AI.
 
 ## Overview
 

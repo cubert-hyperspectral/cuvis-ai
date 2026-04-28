@@ -577,7 +577,7 @@ print(f"Detected anomalies: {decisions.sum().item()} pixels")
 
 ## Loading External Plugins
 
-The cuvis.ai framework supports loading external plugin nodes that extend pipeline capabilities. When loading plugins, **dependencies are automatically installed** to ensure plugins work out of the box.
+The Cuvis.AI framework supports loading external plugin nodes that extend pipeline capabilities. When loading plugins, **dependencies are automatically installed** to ensure plugins work out of the box.
 
 ### Plugin Configuration
 

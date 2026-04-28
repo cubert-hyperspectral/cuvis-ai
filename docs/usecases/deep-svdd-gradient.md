@@ -598,7 +598,7 @@ pipeline.save_to_file(
         name=pipeline.name,
         description="Deep SVDD with two-phase training",
         tags=["gradient", "statistical", "deep_svdd", "anomaly_detection"],
-        author="cuvis.ai",
+        author="Cuvis.AI",
     ),
 )
 
@@ -758,7 +758,7 @@ def main(cfg: DictConfig) -> None:
             name=pipeline.name,
             description="Deep SVDD with two-phase training",
             tags=["deep_learning", "deep_svdd"],
-            author="cuvis.ai",
+            author="Cuvis.AI",
         ),
     )
 

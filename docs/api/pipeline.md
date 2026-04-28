@@ -16,7 +16,7 @@ Use the current pipeline schema keys only:
 metadata:
   name: MyPipeline
   description: Current pipeline example
-  author: cuvis.ai
+  author: Cuvis.AI
 
 nodes:
   - name: source

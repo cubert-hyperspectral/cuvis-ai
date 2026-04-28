@@ -28,7 +28,7 @@ IS.AI Documentation Guidelines
 
 ### Following PyTorch's Model
 
-CUVIS.AI follows the **PyTorch documentation model**:
+Cuvis.AI follows the **PyTorch documentation model**:
 
 > "Autosummary generates concise summary tables for modules, classes, and functions... making it easier for users to get an overview of the API. Autodoc generates a one pager documentation for all functions in a class which is often overwhelming and hard for users to read. **In most cases, autosummary is a better way of organizing API documentation.**"
 >
@@ -84,7 +84,7 @@ CUVIS.AI follows the **PyTorch documentation model**:
 
 ### Style: Google Format
 
-CUVIS.AI uses **Google-style docstrings** (same as PyTorch).
+Cuvis.AI uses **Google-style docstrings** (same as PyTorch).
 
 #### Module-Level Docstrings
 
@@ -282,7 +282,7 @@ uv run mkdocs build --strict
 
 ### Checklist for New Modules
 
-When adding a new module to CUVIS.AI:
+When adding a new module to Cuvis.AI:
 
 - [ ] Write module-level docstring with overview and examples
 - [ ] Write class/function docstrings following Google style

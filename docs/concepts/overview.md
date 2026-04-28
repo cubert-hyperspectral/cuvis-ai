@@ -1,6 +1,6 @@
 # Core Concepts Overview
 
-CUVIS.AI is built on five interconnected concepts that work together to create flexible, type-safe ML pipelines:
+Cuvis.AI is built on five interconnected concepts that work together to create flexible, type-safe ML pipelines:
 
 ```mermaid
 graph TB

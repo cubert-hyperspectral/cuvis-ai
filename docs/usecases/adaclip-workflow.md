@@ -829,7 +829,7 @@ You've learned three approaches to hyperspectral dimensionality reduction for Ad
 
 **Key Takeaways:**
 
-- Plugin system enables modular extension of CUVIS.AI
+- Plugin system enables modular extension of Cuvis.AI
 - Dimensionality reduction strategy significantly impacts detection performance
 - DRCNN mixer offers best quantitative metrics
 - Concrete selector provides interpretable band choices

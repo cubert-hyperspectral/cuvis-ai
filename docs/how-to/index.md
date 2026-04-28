@@ -5,7 +5,7 @@
 
 # How-To Guides
 
-Practical guides for common tasks and workflows in CUVIS.AI.
+Practical guides for common tasks and workflows in Cuvis.AI.
 
 ## Available Guides
 

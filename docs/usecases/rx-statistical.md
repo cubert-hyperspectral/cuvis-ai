@@ -11,7 +11,7 @@ Learn how to build a complete anomaly detection pipeline using the RX (Reed-Xiao
 
 **What You'll Learn:**
 
-- Loading and preprocessing hyperspectral data with CUVIS.AI nodes
+- Loading and preprocessing hyperspectral data with Cuvis.AI nodes
 - Building a statistical anomaly detection pipeline
 - Initializing detectors with statistical training
 - Evaluating results with metrics and visualization
@@ -24,7 +24,7 @@ Learn how to build a complete anomaly detection pipeline using the RX (Reed-Xiao
 
 **Time:** ~25 minutes
 
-**Perfect for:** Users new to CUVIS.AI who want to understand statistical-only training workflows and anomaly detection fundamentals.
+**Perfect for:** Users new to Cuvis.AI who want to understand statistical-only training workflows and anomaly detection fundamentals.
 
 ---
 
@@ -63,9 +63,9 @@ Higher scores indicate pixels that are spectrally different from the background.
 - You need deep contextual reasoning
 - You have limited initialization data
 
-### RX in CUVIS.AI
+### RX in Cuvis.AI
 
-CUVIS.AI implements RX as a **statistical node** that:
+Cuvis.AI implements RX as a **statistical node** that:
 
 1. Collects background statistics during initialization
 2. Computes covariance and mean from initialization data
@@ -340,7 +340,7 @@ pipeline.save_to_file(
         name=pipeline.name,
         description="RX detector with statistical training",
         tags=["statistical", "rx", "anomaly-detection"],
-        author="cuvis.ai",
+        author="Cuvis.AI",
     ),
 )
 ```

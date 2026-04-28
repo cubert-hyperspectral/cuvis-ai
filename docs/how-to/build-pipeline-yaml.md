@@ -14,7 +14,7 @@ trainrun or resolved remotely over gRPC.
 metadata:
   name: MinimalPipeline
   description: Current YAML example
-  author: cuvis.ai
+  author: Cuvis.AI
 
 nodes:
   - name: data_node
@@ -46,7 +46,7 @@ connections:
 metadata:
   name: TrackingOverlay
   description: Render overlays from tracking JSON
-  author: cuvis.ai
+  author: Cuvis.AI
 
 nodes:
   - name: tracks

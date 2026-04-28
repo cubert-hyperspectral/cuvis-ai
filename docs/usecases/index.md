@@ -39,13 +39,13 @@ These step-by-step guides will help you learn how to use the framework effective
 
     ---
 
-    Deploy and use CUVIS.AI pipelines via gRPC services
+    Deploy and use Cuvis.AI pipelines via gRPC services
 
 -   :material-water: **[Blood Perfusion](blood-perfusion.md)**
 
     ---
 
-    Build hyperspectral blood perfusion visualization pipelines (NDVI, PCA+HSV, Band-Limited)
+    Build a hyperspectral blood perfusion video with an NDVI pipeline, then extend it with custom nodes for an SpO2 proxy
 
 </div>
 

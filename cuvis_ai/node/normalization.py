@@ -173,7 +173,7 @@ class MinMaxNormalizer(_ScoreNormalizerBase):
     --------
     ZScoreNormalizer : Z-score standardization
     SigmoidNormalizer : Sigmoid-based normalization
-    docs/tutorials/rx-statistical.md : RX pipeline with MinMaxNormalizer
+    docs/usecases/rx-statistical.md : RX pipeline with MinMaxNormalizer
 
     Notes
     -----

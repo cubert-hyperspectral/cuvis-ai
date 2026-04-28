@@ -9,7 +9,7 @@ Monitor training progress and visualize results using TensorBoard integration, m
 
 ## Overview
 
-CUVIS.AI provides comprehensive monitoring and visualization capabilities:
+Cuvis.AI provides comprehensive monitoring and visualization capabilities:
 
 - **TensorBoard Integration**: Centralized logging with [TensorBoardMonitorNode](../node-catalog/visualization.md#tensorboardmonitornode)
 - **Metrics Tracking**: Performance evaluation with specialized metric nodes

@@ -3,10 +3,10 @@
 
 ---
 
-# How-To: Add Built-in Nodes to CUVIS.AI
+# How-To: Add Built-in Nodes to Cuvis.AI
 
 ## Overview
-Learn how to create custom nodes and integrate them into the CUVIS.AI framework. This guide covers node architecture, implementation patterns, testing, and documentation requirements.
+Learn how to create custom nodes and integrate them into the Cuvis.AI framework. This guide covers node architecture, implementation patterns, testing, and documentation requirements.
 
 ## Prerequisites
 
@@ -17,7 +17,7 @@ Learn how to create custom nodes and integrate them into the CUVIS.AI framework.
 
 ## Node Architecture Overview
 
-All CUVIS.AI nodes inherit from the `Node` base class, which provides:
+All Cuvis.AI nodes inherit from the `Node` base class, which provides:
 
 - **Port system**: Typed input/output connections
 - **Serialization**: Automatic config saving/loading
@@ -822,7 +822,7 @@ pipeline.connect("normalizer.outputs.normalized", "adaptive_filter.inputs.data")
 pipeline.connect("adaptive_filter.outputs.filtered", "detector.inputs.data")
 ```
 
-## Contributing to CUVIS.AI
+## Contributing to Cuvis.AI
 
 ### Pre-contribution Checklist
 
@@ -943,7 +943,7 @@ optimizer = torch.optim.Adam(node.parameters())
 ```
 RuntimeError: shape '[1, 256, 256, 61]' is invalid for input of size 3932160
 ```
-**Solution:** Check tensor format (BHWC vs BCHW). CUVIS.AI uses BHWC:
+**Solution:** Check tensor format (BHWC vs BCHW). Cuvis.AI uses BHWC:
 ```python
 # Wrong: BCHW format
 data = torch.randn(1, 61, 256, 256)

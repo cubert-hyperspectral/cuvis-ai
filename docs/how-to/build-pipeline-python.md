@@ -294,5 +294,5 @@ print(RXNode.INPUT_SPECS["data"].dtype)  # Expected dtype
 - [Build Pipelines in YAML](build-pipeline-yaml.md)
 - [Pipeline Lifecycle](../concepts/pipeline-lifecycle.md)
 - [Node System](../concepts/node-system-deep-dive.md)
-- [RX Statistical Tutorial](../tutorials/rx-statistical.md)
-- [Deep SVDD Tutorial](../tutorials/deep-svdd-gradient.md)
+- [RX Statistical Tutorial](../usecases/rx-statistical.md)
+- [Deep SVDD Tutorial](../usecases/deep-svdd-gradient.md)
