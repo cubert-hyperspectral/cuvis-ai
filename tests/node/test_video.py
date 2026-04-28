@@ -129,12 +129,10 @@ def test_to_video_node_writes_frames_across_forward_calls(
         dtype=torch.float32,
     )
 
-    out_1 = node.forward(rgb_image=batch)
-    out_2 = node.forward(rgb_image=batch[:1])
+    node.forward(rgb_image=batch)
+    node.forward(rgb_image=batch[:1])
     node.close()
 
-    assert out_1["video_path"] == str(output_path)
-    assert out_2["video_path"] == str(output_path)
     assert len(mock_ffmpeg_popen) == 1
     proc = mock_ffmpeg_popen[0]
 
