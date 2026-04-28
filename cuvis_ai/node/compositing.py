@@ -11,6 +11,7 @@ from typing import Any
 
 import torch
 import torch.nn.functional as F
+from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.pipeline import PortSpec
 
 from cuvis_ai_core.node import Node
@@ -30,6 +31,9 @@ class ROIZoomNode(Node):
     bg_color : tuple[float, float, float]
         Background RGB (in [0, 1]) used when ``valid == 0``.
     """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.IMAGE, NodeTag.PREPROCESSING, NodeTag.NUMPY})
 
     INPUT_SPECS = {
         "source": PortSpec(

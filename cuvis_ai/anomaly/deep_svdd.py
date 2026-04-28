@@ -8,7 +8,7 @@ from typing import Any
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from cuvis_ai_schemas.enums import ExecutionStage
+from cuvis_ai_schemas.enums import ExecutionStage, NodeCategory, NodeTag
 from cuvis_ai_schemas.execution import Context, InputStream, Metric
 from cuvis_ai_schemas.pipeline import PortSpec
 
@@ -90,6 +90,17 @@ class RFFLayer(nn.Module):
 
 class DeepSVDDProjection(Node):
     """Projection head that maps per-pixel features to Deep SVDD embeddings."""
+
+    _category = NodeCategory.MODEL
+    _tags = frozenset(
+        {
+            NodeTag.HYPERSPECTRAL,
+            NodeTag.ANOMALY,
+            NodeTag.LEARNABLE,
+            NodeTag.INFERENCE,
+            NodeTag.TORCH,
+        }
+    )
 
     INPUT_SPECS = {
         "data": PortSpec(
@@ -179,6 +190,11 @@ class DeepSVDDProjection(Node):
 
 class ZScoreNormalizerGlobal(Node):
     """Port-based Deep SVDD z-score normalizer for BHWC cubes."""
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset(
+        {NodeTag.HYPERSPECTRAL, NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+    )
 
     TRAINABLE_BUFFERS = ("zscore_mean", "zscore_std")
 
@@ -301,6 +317,9 @@ class ZScoreNormalizerGlobal(Node):
 class DeepSVDDScores(Node):
     """Convert Deep SVDD embeddings + center vector into anomaly scores."""
 
+    _category = NodeCategory.MODEL
+    _tags = frozenset({NodeTag.ANOMALY, NodeTag.LEARNABLE, NodeTag.INFERENCE, NodeTag.TORCH})
+
     INPUT_SPECS = {
         "embeddings": PortSpec(
             dtype=torch.float32,
@@ -347,6 +366,9 @@ class DeepSVDDScores(Node):
 
 class DeepSVDDCenterTracker(Node):
     """Track and expose Deep SVDD center statistics with optional logging."""
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.ANOMALY, NodeTag.STATEFUL, NodeTag.TRAINING, NodeTag.TORCH})
 
     TRAINABLE_BUFFERS = ("_tracked_center",)
 

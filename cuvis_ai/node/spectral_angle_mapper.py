@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import torch
+from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.pipeline import PortSpec
 
 from cuvis_ai_core.node import Node
@@ -12,6 +13,11 @@ from cuvis_ai_core.node import Node
 
 class SpectralAngleMapper(Node):
     """Compute per-pixel spectral angle against one or more reference spectra."""
+
+    _category = NodeCategory.MODEL
+    _tags = frozenset(
+        {NodeTag.HYPERSPECTRAL, NodeTag.CLASSIFICATION, NodeTag.STATEFUL, NodeTag.NUMPY}
+    )
 
     INPUT_SPECS = {
         "cube": PortSpec(

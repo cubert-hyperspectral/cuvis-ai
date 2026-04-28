@@ -7,6 +7,7 @@ from typing import Any
 
 import numpy as np
 import torch
+from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
 
@@ -34,6 +35,9 @@ def _pad_to_bhwc4(array: np.ndarray) -> np.ndarray:
 
 class NpyReader(Node):
     """Load a `.npy` file once and return the same tensor every forward call."""
+
+    _category = NodeCategory.SOURCE
+    _tags = frozenset({NodeTag.METADATA})
 
     INPUT_SPECS = {
         "frame_id": PortSpec(
@@ -94,6 +98,9 @@ class NumpyFeatureWriterNode(Node):
     prefix : str
         Filename prefix (default ``"features"``).
     """
+
+    _category = NodeCategory.SINK
+    _tags = frozenset({NodeTag.EMBEDDING, NodeTag.METADATA})
 
     INPUT_SPECS = {
         "features": PortSpec(

@@ -35,6 +35,7 @@ from __future__ import annotations
 from typing import Any
 
 import torch
+from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
 
@@ -50,6 +51,9 @@ class _ScoreNormalizerBase(Node):
     ([batch, height, width, channels]). Callers are responsible for adding
     a batch dimension when working with HWC tensors (use `x.unsqueeze(0)`).
     """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
 
     INPUT_SPECS = {
         "data": PortSpec(
@@ -102,6 +106,9 @@ class _ScoreNormalizerBase(Node):
 
 class IdentityNormalizer(_ScoreNormalizerBase):
     """No-op normalizer; preserves incoming scores."""
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
@@ -181,6 +188,9 @@ class MinMaxNormalizer(_ScoreNormalizerBase):
     ensure consistent scaling between training and inference. Per-sample normalization
     can be useful for real-time processing when training data is unavailable.
     """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
 
     TRAINABLE_BUFFERS = ("running_min", "running_max")
 
@@ -315,6 +325,9 @@ class SigmoidNormalizer(_ScoreNormalizerBase):
     distributions or sporadic anomalies.
     """
 
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
+
     def __init__(self, std_floor: float = 1e-6, **kwargs) -> None:
         self.std_floor = float(std_floor)
         super().__init__(std_floor=std_floor, **kwargs)
@@ -365,6 +378,9 @@ class ZScoreNormalizer(_ScoreNormalizerBase):
     >>> zscore_all = ZScoreNormalizer(dims=[1, 2, 3])
     """
 
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
+
     def __init__(
         self, dims: list[int] | None = None, eps: float = 1e-6, keepdim: bool = True, **kwargs
     ) -> None:
@@ -413,6 +429,9 @@ class SigmoidTransform(Node):
     ... )
     """
 
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.POSTPROCESSING, NodeTag.TORCH})
+
     INPUT_SPECS = {
         "data": PortSpec(
             dtype=torch.float32,
@@ -450,6 +469,9 @@ class SigmoidTransform(Node):
 
 class PerPixelUnitNorm(_ScoreNormalizerBase):
     """Per-pixel mean-centering and L2 normalization across channels."""
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
 
     def __init__(self, eps: float = 1e-8, **kwargs) -> None:
         self.eps = float(eps)

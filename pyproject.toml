@@ -15,7 +15,7 @@ authors = [
 dependencies = [
     "cuvis>=3.5.0",
     "cuvis-ai-core>=0.3.4",
-    "cuvis-ai-schemas[full]>=0.3.0",
+    "cuvis-ai-schemas[full]>=0.4.0",
     "pydantic>=2.0.0,<3.0.0",
     "defusedxml",
     "imantics",
@@ -32,6 +32,7 @@ dependencies = [
     # Core framework dependencies
     "torch>=2.9.1",
     "torchvision",
+    "torchcodec",
     "torchmetrics",
     "pytorch-lightning",
     "tzdata; sys_platform == 'win32'",
@@ -110,12 +111,16 @@ Issues = "https://github.com/cubert-hyperspectral/cuvis-ai/issues"
 [tool.setuptools.packages.find]
 include = ["cuvis_ai*", "tools*", "scripts*"]
 
+[tool.setuptools.package-data]
+cuvis_ai = ["assets/node_icons/*.svg"]
+
 
 [tool.uv.sources]
 torch = { index = "pytorch-cu128" }
 torchvision = { index = "pytorch-cu128" }
 # cuvis-ai-schemas = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-schemas.git", branch = "main" }
-# cuvis-ai-core = { path = "../../cuvis-ai-core/core-simplify-vis", editable = true }
+cuvis-ai-core = { path = "../../cuvis-ai-core/core-simplify-vis", editable = true }
+cuvis-ai-schemas = { path = "../../cuvis-ai-schemas/schemas-icons", editable = true }
 
 [tool.setuptools_scm]
 version_scheme = "post-release"

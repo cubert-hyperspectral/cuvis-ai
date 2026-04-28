@@ -19,6 +19,7 @@ from collections.abc import Sequence
 from typing import Any
 
 import torch
+from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.pipeline import PortSpec
 from loguru import logger
 from torch import Tensor
@@ -28,6 +29,9 @@ from cuvis_ai_core.deciders.base_decider import BinaryDecider as BaseDecider
 
 class TwoStageBinaryDecider(BaseDecider):
     """Two-stage binary decider: image-level gate + pixel quantile mask."""
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.CLASSIFICATION, NodeTag.POSTPROCESSING, NodeTag.NUMPY})
 
     INPUT_SPECS = {
         "logits": PortSpec(

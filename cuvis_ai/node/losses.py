@@ -7,7 +7,7 @@ from typing import Any
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from cuvis_ai_schemas.enums import ExecutionStage
+from cuvis_ai_schemas.enums import ExecutionStage, NodeCategory, NodeTag
 from cuvis_ai_schemas.pipeline import PortSpec
 from loguru import logger
 from torch import Tensor
@@ -20,6 +20,9 @@ class LossNode(Node):
 
     Loss nodes should not execute during inference - only during train, val, and test.
     """
+
+    _category = NodeCategory.LOSS
+    _tags = frozenset({NodeTag.TRAINING, NodeTag.DIFFERENTIABLE, NodeTag.TORCH})
 
     def __init__(self, **kwargs) -> None:
         # Default to train/val/test stages, but allow override
@@ -48,6 +51,9 @@ class OrthogonalityLoss(LossNode):
     weight : float, optional
         Weight for orthogonality loss (default: 1.0)
     """
+
+    _category = NodeCategory.REGULARIZER
+    _tags = frozenset({NodeTag.TRAINING, NodeTag.DIFFERENTIABLE, NodeTag.TORCH})
 
     INPUT_SPECS = {
         "components": PortSpec(
@@ -114,6 +120,9 @@ class AnomalyBCEWithLogits(LossNode):
     reduction : str, optional
         Reduction method: 'mean', 'sum', or 'none' (default: 'mean')
     """
+
+    _category = NodeCategory.LOSS
+    _tags = frozenset({NodeTag.TRAINING, NodeTag.DIFFERENTIABLE, NodeTag.TORCH, NodeTag.ANOMALY})
 
     INPUT_SPECS = {
         "predictions": PortSpec(
@@ -209,6 +218,11 @@ class MSEReconstructionLoss(LossNode):
         Reduction method: 'mean', 'sum', or 'none' (default: 'mean')
     """
 
+    _category = NodeCategory.LOSS
+    _tags = frozenset(
+        {NodeTag.TRAINING, NodeTag.DIFFERENTIABLE, NodeTag.TORCH, NodeTag.RECONSTRUCTION}
+    )
+
     INPUT_SPECS = {
         "reconstruction": PortSpec(
             dtype=torch.float32, shape=(-1, -1, -1, -1), description="Reconstructed data"
@@ -289,6 +303,9 @@ class DistinctnessLoss(LossNode):
     eps : float, optional
         Small constant for numerical stability when normalizing (default: 1e-6).
     """
+
+    _category = NodeCategory.LOSS
+    _tags = frozenset({NodeTag.TRAINING, NodeTag.DIFFERENTIABLE, NodeTag.TORCH})
 
     INPUT_SPECS = {
         "selection_weights": PortSpec(
@@ -373,6 +390,9 @@ class SelectorEntropyRegularizer(LossNode):
         Small constant for numerical stability (default: 1e-6)
     """
 
+    _category = NodeCategory.REGULARIZER
+    _tags = frozenset({NodeTag.TRAINING, NodeTag.DIFFERENTIABLE, NodeTag.TORCH})
+
     INPUT_SPECS = {
         "weights": PortSpec(
             dtype=torch.float32,
@@ -447,6 +467,9 @@ class SelectorDiversityRegularizer(LossNode):
         Weight for diversity regularization (default: 0.01)
     """
 
+    _category = NodeCategory.REGULARIZER
+    _tags = frozenset({NodeTag.TRAINING, NodeTag.DIFFERENTIABLE, NodeTag.TORCH})
+
     INPUT_SPECS = {
         "weights": PortSpec(
             dtype=torch.float32,
@@ -491,6 +514,9 @@ class SelectorDiversityRegularizer(LossNode):
 
 class DeepSVDDSoftBoundaryLoss(LossNode):
     """Soft-boundary Deep SVDD objective operating on BHWD embeddings."""
+
+    _category = NodeCategory.LOSS
+    _tags = frozenset({NodeTag.TRAINING, NodeTag.DIFFERENTIABLE, NodeTag.TORCH, NodeTag.ANOMALY})
 
     INPUT_SPECS = {
         "embeddings": PortSpec(
@@ -584,6 +610,11 @@ class IoULoss(LossNode):
     >>> # Use with anomaly scores directly (no thresholding needed)
     >>> loss = iou_loss.forward(predictions=anomaly_scores, targets=ground_truth_mask)
     """
+
+    _category = NodeCategory.LOSS
+    _tags = frozenset(
+        {NodeTag.TRAINING, NodeTag.DIFFERENTIABLE, NodeTag.TORCH, NodeTag.SEGMENTATION}
+    )
 
     INPUT_SPECS = {
         "predictions": PortSpec(
@@ -720,6 +751,9 @@ class ForegroundContrastLoss(LossNode):
     - Fallback loss uses ``0.0 * rgb.sum()`` so it remains connected to
       the model graph.
     """
+
+    _category = NodeCategory.LOSS
+    _tags = frozenset({NodeTag.TRAINING, NodeTag.DIFFERENTIABLE, NodeTag.TORCH})
 
     INPUT_SPECS = {
         "rgb": PortSpec(

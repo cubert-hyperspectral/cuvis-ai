@@ -9,6 +9,7 @@ from typing import Any
 import cv2
 import numpy as np
 import torch
+from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.execution import Context
 from cuvis_ai_schemas.pipeline import PortSpec
 from loguru import logger
@@ -57,6 +58,9 @@ class ToVideoNode(Node):
         Optional static title rendered at the top center with its own slim
         darkened background block. Default is ``None``.
     """
+
+    _category = NodeCategory.SINK
+    _tags = frozenset({NodeTag.VIDEO})
 
     INPUT_SPECS = {
         "rgb_image": PortSpec(
@@ -424,6 +428,9 @@ class ToVideoNode(Node):
 # ---------------------------------------------------------------------------
 class VideoFrameNode(Node):
     """Passthrough source node that receives RGB frames from the batch."""
+
+    _category = NodeCategory.SOURCE
+    _tags = frozenset({NodeTag.VIDEO, NodeTag.STREAMING})
 
     INPUT_SPECS = {
         "rgb_image": PortSpec(

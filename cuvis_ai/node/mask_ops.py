@@ -19,6 +19,7 @@ import cv2
 import numpy as np
 import torch
 import torch.nn.functional as F
+from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.pipeline import PortSpec
 
 from cuvis_ai_core.node import Node
@@ -67,6 +68,9 @@ class MaskRobustifier(Node):
         If True, keep only the single largest surviving component.  Default
         ``True``.
     """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.MASK, NodeTag.SEGMENTATION, NodeTag.POSTPROCESSING, NodeTag.NUMPY})
 
     INPUT_SPECS = {
         "mask": PortSpec(
@@ -195,6 +199,18 @@ class MaskToBBoxKalman(Node):
     measurement_noise : float
         Scalar multiplier for the Kalman measurement-noise covariance.
     """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset(
+        {
+            NodeTag.MASK,
+            NodeTag.BBOX,
+            NodeTag.TRACKING,
+            NodeTag.POSTPROCESSING,
+            NodeTag.STATEFUL,
+            NodeTag.NUMPY,
+        }
+    )
 
     INPUT_SPECS = {
         "mask": PortSpec(

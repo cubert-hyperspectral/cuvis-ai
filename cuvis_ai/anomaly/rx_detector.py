@@ -21,6 +21,7 @@ Reference:
 """
 
 import torch
+from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.execution import InputStream
 from cuvis_ai_schemas.pipeline import PortSpec
 
@@ -52,6 +53,9 @@ def _flatten_bhwc(x: torch.Tensor) -> torch.Tensor:
 # ---------- Shared base ----------
 class RXBase(Node):
     """Base class for RX anomaly detectors."""
+
+    _category = NodeCategory.MODEL
+    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.ANOMALY, NodeTag.LEARNABLE, NodeTag.NUMPY})
 
     INPUT_SPECS = {
         "data": PortSpec(
@@ -155,6 +159,9 @@ class RXGlobal(RXBase):
     After statistical_initialization(), mu and cov are stored as buffers (frozen by default).
     Call unfreeze() to convert them to trainable nn.Parameters for gradient-based optimization.
     """
+
+    _category = NodeCategory.MODEL
+    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.ANOMALY, NodeTag.LEARNABLE, NodeTag.NUMPY})
 
     TRAINABLE_BUFFERS = ("mu", "cov", "cov_inv")
 
@@ -319,6 +326,9 @@ class RXPerBatch(RXBase):
     """
     Computes μ, Σ per image in the batch on the fly; no fit/finalize.
     """
+
+    _category = NodeCategory.MODEL
+    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.ANOMALY, NodeTag.LEARNABLE, NodeTag.NUMPY})
 
     def forward(self, data: torch.Tensor, **_) -> dict[str, torch.Tensor]:
         """Forward pass computing per-batch anomaly scores.

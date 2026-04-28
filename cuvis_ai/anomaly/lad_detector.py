@@ -21,6 +21,7 @@ from typing import Any
 
 import numpy as np
 import torch
+from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.execution import InputStream
 from cuvis_ai_schemas.pipeline import PortSpec
 
@@ -75,6 +76,9 @@ class LADGlobal(Node):
     >>> grad_trainer = GradientTrainer(pipeline=pipeline, datamodule=datamodule, ...)
     >>> grad_trainer.fit()  # Gradient-based fine-tuning
     """
+
+    _category = NodeCategory.MODEL
+    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.ANOMALY, NodeTag.LEARNABLE, NodeTag.NUMPY})
 
     INPUT_SPECS = {
         "data": PortSpec(

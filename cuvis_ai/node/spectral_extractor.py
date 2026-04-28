@@ -8,6 +8,7 @@ from typing import Any
 import cv2
 import numpy as np
 import torch
+from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.execution import Context
 from cuvis_ai_schemas.pipeline import PortSpec
 
@@ -28,6 +29,9 @@ class BBoxSpectralExtractor(Node):
     Outputs are always shaped ``[1, N, …]``. Feed one frame at a time
     (``B == 1``).
     """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.EMBEDDING, NodeTag.NUMPY})
 
     INPUT_SPECS = {
         "cube": PortSpec(
@@ -256,6 +260,9 @@ class SpectralSignatureExtractor(Node):
     ``[1, N, C]``. Feed one frame at a time.
     """
 
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.EMBEDDING, NodeTag.NUMPY})
+
     INPUT_SPECS = {
         "cube": PortSpec(
             dtype=torch.float32,
@@ -426,6 +433,9 @@ class MaskedMeanSpectrum(Node):
     emits the resulting ``[C]`` spectrum.  When the mask is empty for a given
     frame the output is a zero vector and ``valid`` is ``0``.
     """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.EMBEDDING, NodeTag.NUMPY})
 
     INPUT_SPECS = {
         "cube": PortSpec(

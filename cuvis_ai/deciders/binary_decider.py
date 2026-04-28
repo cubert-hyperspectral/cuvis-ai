@@ -14,6 +14,7 @@ from collections.abc import Sequence
 from typing import Any
 
 import torch
+from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
 
@@ -83,6 +84,9 @@ class BinaryDecider(BaseDecider):
     QuantileBinaryDecider : Adaptive per-batch thresholding
     ScoreToLogit : Convert scores to logits before decisioning
     """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.CLASSIFICATION, NodeTag.POSTPROCESSING, NodeTag.NUMPY})
 
     INPUT_SPECS = {
         "logits": PortSpec(
@@ -170,6 +174,9 @@ class QuantileBinaryDecider(BaseDecider):
     --------
     BinaryDecider : Fixed threshold decisioning
     """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.CLASSIFICATION, NodeTag.POSTPROCESSING, NodeTag.NUMPY})
 
     INPUT_SPECS = {
         "logits": PortSpec(

@@ -10,6 +10,7 @@ from typing import Any
 
 import numpy as np
 import torch
+from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.execution import Context
 from cuvis_ai_schemas.pipeline import PortSpec
 from loguru import logger
@@ -29,6 +30,9 @@ from cuvis_ai_core.node import Node
 
 class _BaseJsonWriterNode(Node):
     """Shared JSON write lifecycle for sink nodes."""
+
+    _category = NodeCategory.SINK
+    _tags = frozenset({NodeTag.METADATA})
 
     OUTPUT_SPECS = {}
 
@@ -122,6 +126,9 @@ class _BaseJsonWriterNode(Node):
 class _BaseCocoTrackWriter(_BaseJsonWriterNode):
     """Shared tensor parsing helpers for tracking writers."""
 
+    _category = NodeCategory.SINK
+    _tags = frozenset({NodeTag.METADATA, NodeTag.MASK, NodeTag.TRACKING})
+
     @staticmethod
     def _parse_frame_id(frame_id: torch.Tensor) -> int:
         """Convert a scalar frame-id tensor to a Python integer."""
@@ -171,6 +178,9 @@ class _BaseCocoTrackWriter(_BaseJsonWriterNode):
 
 class CocoTrackMaskWriter(_BaseCocoTrackWriter):
     """Write mask tracking outputs into video_coco JSON."""
+
+    _category = NodeCategory.SINK
+    _tags = frozenset({NodeTag.METADATA, NodeTag.MASK, NodeTag.TRACKING})
 
     INPUT_SPECS = {
         "frame_id": PortSpec(
@@ -469,6 +479,9 @@ class CocoTrackMaskWriter(_BaseCocoTrackWriter):
 class DetectionCocoJsonNode(_BaseJsonWriterNode):
     """Write frame-wise detections into COCO detection JSON."""
 
+    _category = NodeCategory.SINK
+    _tags = frozenset({NodeTag.METADATA, NodeTag.BBOX, NodeTag.DETECTION})
+
     INPUT_SPECS = {
         "frame_id": PortSpec(
             dtype=torch.int64,
@@ -616,6 +629,9 @@ class DetectionCocoJsonNode(_BaseJsonWriterNode):
 
 class CocoTrackBBoxWriter(_BaseCocoTrackWriter):
     """Write tracked bbox outputs into COCO tracking JSON."""
+
+    _category = NodeCategory.SINK
+    _tags = frozenset({NodeTag.METADATA, NodeTag.BBOX, NodeTag.TRACKING})
 
     INPUT_SPECS = {
         "frame_id": PortSpec(dtype=torch.int64, shape=(1,), description="Frame identifier [1]."),
@@ -767,6 +783,9 @@ class DetectionJsonReader(Node):
       - orig_hw: int64 [1, 2]
     """
 
+    _category = NodeCategory.SOURCE
+    _tags = frozenset({NodeTag.METADATA, NodeTag.BBOX, NodeTag.DETECTION})
+
     OUTPUT_SPECS = {
         "frame_id": PortSpec(dtype=torch.int64, shape=(1,), description="Frame index."),
         "bboxes": PortSpec(dtype=torch.float32, shape=(1, -1, 4), description="Boxes [1,N,4] xyxy"),
@@ -871,6 +890,9 @@ class TrackingResultsReader(Node):
     ``frame_id`` is not connected, the reader uses the internal cursor (legacy
     behavior).
     """
+
+    _category = NodeCategory.SOURCE
+    _tags = frozenset({NodeTag.METADATA, NodeTag.BBOX, NodeTag.TRACKING})
 
     INPUT_SPECS = {
         "frame_id": PortSpec(
