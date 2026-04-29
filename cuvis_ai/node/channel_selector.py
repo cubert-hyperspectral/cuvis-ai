@@ -1165,8 +1165,8 @@ class CIRSelector(ChannelSelectorBase):
         return {"rgb_image": rgb, "band_info": band_info}
 
 
-class CIETristimulusFalseRGBSelector(ChannelSelectorBase):
-    """CIE 1931 tristimulus-based false RGB rendering.
+class CIETristimulusRGBSelector(ChannelSelectorBase):
+    """CIE 1931 tristimulus-based RGB rendering.
 
     Converts a hyperspectral cube to sRGB by integrating each pixel's spectrum
     with the CIE 1931 2-degree standard observer color matching functions
@@ -1176,8 +1176,8 @@ class CIETristimulusFalseRGBSelector(ChannelSelectorBase):
     Normalization and sRGB gamma are handled by ``ChannelSelectorBase`` (see
     ``apply_gamma`` parameter inherited from the base class).
 
-    This produces the most physically grounded false RGB and lands closest to
-    the distribution SAM3's Perception Encoder expects.
+    This produces a faithful (true) RGB rendering and lands closest to the
+    distribution SAM3's Perception Encoder expects.
 
     For wavelengths outside the visible range (approx. >780 nm), the CMFs are
     zero, so NIR bands do not contribute to the output.
@@ -2467,7 +2467,7 @@ class TopKIndices(Node):
 __all__ = [
     "CameraEmulationFalseRGBSelector",
     "ChannelSelectorBase",
-    "CIETristimulusFalseRGBSelector",
+    "CIETristimulusRGBSelector",
     "NormMode",
     "CIRSelector",
     "FastRGBSelector",

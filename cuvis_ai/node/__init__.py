@@ -23,7 +23,7 @@ from cuvis_ai.node.channel_mixer import ConcreteChannelMixer, LearnableChannelMi
 from cuvis_ai.node.channel_selector import (
     CameraEmulationFalseRGBSelector,
     ChannelSelectorBase,
-    CIETristimulusFalseRGBSelector,
+    CIETristimulusRGBSelector,
     CIRSelector,
     FastRGBSelector,
     FixedWavelengthSelector,
@@ -97,7 +97,7 @@ __all__ = [
     "ChannelSelectorBase",
     "ChannelSelectorFalseRGBViz",
     "ChannelWeightsViz",
-    "CIETristimulusFalseRGBSelector",
+    "CIETristimulusRGBSelector",
     "CIRSelector",
     "FastRGBSelector",
     "ConcreteChannelMixer",
