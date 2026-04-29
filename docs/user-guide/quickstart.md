@@ -47,10 +47,10 @@ This loads the pipeline configuration and runs anomaly detection on the sample h
 
 ## Train Your Own Pipeline
 
-Train an RX anomaly detector from scratch:
+Train an RX anomaly detector from scratch using the script in the [cuvis-ai-cookbook](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook) repo:
 
 ```bash
-# Train RX detector
+# Clone the cookbook alongside this repo, then from cuvis-ai-cookbook/main:
 uv run python examples/rx_statistical.py
 ```
 

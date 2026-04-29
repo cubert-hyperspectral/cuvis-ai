@@ -56,4 +56,4 @@ See:
 
 - [Build Pipeline (YAML)](../how-to/build-pipeline-yaml.md)
 - [Restore Pipeline](../how-to/restore-pipeline-trainrun.md)
-- [gRPC Example Clients](../grpc/example-clients.md)
+- [gRPC client examples](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/tree/main/examples/grpc)

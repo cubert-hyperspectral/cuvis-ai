@@ -3,6 +3,9 @@
 
 ---
 
+!!! info "Runnable scripts live in cuvis-ai-cookbook"
+    The Python scripts referenced below are in the [cuvis-ai-cookbook](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook) repo. Clone it alongside this repo and run the commands from there.
+
 # Tutorial: Deep SVDD for One-Class Anomaly Detection
 
 Learn how to build a deep learning-based anomaly detection pipeline using Deep Support Vector Data Description (Deep SVDD) with two-phase training.

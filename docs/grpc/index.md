@@ -41,12 +41,6 @@ Cuvis.AI provides gRPC services for remote pipeline execution and deployment sce
 
     Visual workflows for all major operations
 
--   :material-play-box: **[Example Clients](example-clients.md)**
-
-    ---
-
-    Checked-in client catalog grouped by workflow family
-
 -   :material-cloud-upload: **[Deployment](../deployment/grpc_deployment.md)**
 
     ---

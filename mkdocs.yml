@@ -184,7 +184,6 @@ nav:
           - Connections & Sessions: grpc/client-connections.md
           - Workflows & Error Handling: grpc/client-workflows.md
       - Sequence Diagrams: grpc/sequence-diagrams.md
-      - Example Clients: grpc/example-clients.md
       - Deployment: deployment/grpc_deployment.md
   - Plugins:
       - Overview: plugin-system/index.md

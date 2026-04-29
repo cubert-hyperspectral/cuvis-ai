@@ -57,7 +57,6 @@ uv run pytest tests/docs/test_markdown_list_spacing.py -v
 ### What Gets Tested
 
 - `docs/**/*.md`
-- `examples/**/*.md`
 - `cuvis_ai/**/*.py` docstrings rendered by mkdocstrings
 
 ### Notes

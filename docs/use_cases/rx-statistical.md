@@ -3,6 +3,9 @@
 
 ---
 
+!!! info "Runnable scripts live in cuvis-ai-cookbook"
+    The Python scripts referenced below are in the [cuvis-ai-cookbook](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook) repo. Clone it alongside this repo and run the commands from there.
+
 # Tutorial: RX Statistical Anomaly Detection
 
 Learn how to build a complete anomaly detection pipeline using the RX (Reed-Xiaoli) detector with statistical initialization.

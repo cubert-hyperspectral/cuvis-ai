@@ -3,6 +3,9 @@
 
 ---
 
+!!! info "Runnable scripts live in cuvis-ai-cookbook"
+    The Python scripts referenced below are in the [cuvis-ai-cookbook](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook) repo. Clone it alongside this repo and run the commands from there.
+
 # Tutorial: Blood Perfusion Visualization with NDVI
 
 This tutorial takes a hyperspectral CU3S session of a hand and builds a **blood-perfusion video** by applying a Normalized Difference Vegetation Index (NDVI) projection between a near-infrared (NIR) band and a visible "red" band. The same NDVI idea that flags chlorophyll in plants flags **haemoglobin** in tissue — high NDVI means more blood in the optical path (perfusion), *not* necessarily oxygenated blood.

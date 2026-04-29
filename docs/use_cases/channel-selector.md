@@ -3,6 +3,9 @@
 
 ---
 
+!!! info "Runnable scripts live in cuvis-ai-cookbook"
+    The Python scripts referenced below are in the [cuvis-ai-cookbook](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook) repo. Clone it alongside this repo and run the commands from there.
+
 # Tutorial: Learnable Channel Selection with Two-Phase Training
 
 Learn how to build an anomaly detection pipeline with learnable channel selection using two-phase training (statistical initialization + gradient optimization).

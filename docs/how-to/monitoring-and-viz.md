@@ -1320,6 +1320,6 @@ viz = PipelineComparisonVisualizer(
 - **Guides**:
   - [Build Pipelines in Python](build-pipeline-python.md) - Pipeline construction basics
   - [Configuration Guide](../user-guide/configuration.md) - TrainRun configuration
-- **Examples**:
-  - `examples/adaclip/drcnn_adaclip_gradient_training.py` - Full DRCNN monitoring example
-  - `examples/adaclip/concrete_adaclip_gradient_training.py` - Multi-loss monitoring example
+- **Examples** (in the [cuvis-ai-cookbook](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook) repo):
+  - [examples/adaclip/drcnn_adaclip_gradient_training.py](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/adaclip/drcnn_adaclip_gradient_training.py) - Full DRCNN monitoring example
+  - [examples/adaclip/concrete_adaclip_gradient_training.py](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/adaclip/concrete_adaclip_gradient_training.py) - Multi-loss monitoring example

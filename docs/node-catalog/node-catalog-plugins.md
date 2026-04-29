@@ -53,8 +53,8 @@ detection front-end.
 | `YOLO26Detection` | Runs YOLO26 object detection on prepared frames |
 | `YOLOPostprocess` | Applies NMS filtering, confidence thresholding, and class filtering |
 
-**Example:** [examples/object_tracking/bytetrack/](../../examples/object_tracking/bytetrack/),
-[examples/object_tracking/deepeiou/](../../examples/object_tracking/deepeiou/)
+**Example:** [examples/object_tracking/bytetrack/](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/tree/main/examples/object_tracking/bytetrack/),
+[examples/object_tracking/deepeiou/](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/tree/main/examples/object_tracking/deepeiou/)
 
 ---
 
@@ -74,7 +74,7 @@ COCO-format detection and tracking JSON.
 | `OSNetExtractor` | Lightweight ReID feature extractor using [OSNet](https://arxiv.org/abs/1905.00953) backbone |
 | `ResNetExtractor` | ReID feature extractor using [ResNet](https://arxiv.org/abs/1512.03385) backbone |
 
-**Example:** [examples/object_tracking/deepeiou/](../../examples/object_tracking/deepeiou/)
+**Example:** [examples/object_tracking/deepeiou/](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/tree/main/examples/object_tracking/deepeiou/)
 
 ---
 
@@ -111,7 +111,7 @@ Bbox and mask propagation use a scheduled prompt syntax:
 
 Frames before the first scheduled prompt emit empty tracking outputs.
 
-**Example:** [examples/object_tracking/sam3/](../../examples/object_tracking/sam3/)
+**Example:** [examples/object_tracking/sam3/](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/tree/main/examples/object_tracking/sam3/)
 
 ---
 
@@ -130,7 +130,7 @@ against ground-truth in COCO bbox format. Requires aligned frame counts between 
 | `CLEARMetricNode` | [CLEAR MOT](https://link.springer.com/article/10.1155/2008/246309) metrics — reports MOTA, MOTP, FP, FN, ID switches |
 | `IdentityMetricNode` | [Identity](https://arxiv.org/abs/1609.01775) metrics — reports IDF1, IDP, IDR |
 
-**Example:** [examples/object_tracking/trackeval/](../../examples/object_tracking/trackeval/)
+**Example:** [examples/object_tracking/trackeval/](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/tree/main/examples/object_tracking/trackeval/)
 
 ---
 

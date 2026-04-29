@@ -3,6 +3,9 @@
 
 ---
 
+!!! info "Runnable scripts live in cuvis-ai-cookbook"
+    The gRPC client scripts referenced below are in the [cuvis-ai-cookbook](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook) repo. Clone it alongside this repo and run the commands from there.
+
 # gRPC Workflow: Distributed Training & Inference
 
 Learn how to use Cuvis.AI's gRPC API for distributed training, remote inference, and production deployment.
@@ -927,19 +930,19 @@ uv run python examples/grpc/core/complete_workflow_client.py \
   --pipeline-out outputs/trained_pipeline.yaml \
   --trainrun-out outputs/trainrun_config.yaml
 ```
-[View full source: examples/grpc/core/complete_workflow_client.py](../../examples/grpc/core/complete_workflow_client.py)
+[View full source: examples/grpc/core/complete_workflow_client.py](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/grpc/core/complete_workflow_client.py)
 
 **Gradient Training:**
 ```bash
 uv run python examples/grpc/deep_svdd/gradient_training_client.py
 ```
-[View full source: examples/grpc/deep_svdd/gradient_training_client.py](../../examples/grpc/deep_svdd/gradient_training_client.py)
+[View full source: examples/grpc/deep_svdd/gradient_training_client.py](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/grpc/deep_svdd/gradient_training_client.py)
 
 **Statistical Training:**
 ```bash
 uv run python examples/grpc/rx/statistical_training_client.py
 ```
-[View full source: examples/grpc/rx/statistical_training_client.py](../../examples/grpc/rx/statistical_training_client.py)
+[View full source: examples/grpc/rx/statistical_training_client.py](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/grpc/rx/statistical_training_client.py)
 
 **Inference:**
 ```bash
@@ -948,7 +951,7 @@ uv run python examples/grpc/core/run_inference.py \
   --weights-path outputs/trained_models/channel_selector.pt \
   --cu3s-file-path data/lentils/Demo_000.cu3s
 ```
-[View full source: examples/grpc/core/run_inference.py](../../examples/grpc/core/run_inference.py)
+[View full source: examples/grpc/core/run_inference.py](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/grpc/core/run_inference.py)
 
 **Restore TrainRun:**
 ```bash
@@ -956,7 +959,7 @@ uv run python examples/grpc/core/restore_trainrun_grpc.py \
   --trainrun-path outputs/channel_selector/trained_models/trainrun.yaml \
   --mode validate
 ```
-[View full source: examples/grpc/core/restore_trainrun_grpc.py](../../examples/grpc/core/restore_trainrun_grpc.py)
+[View full source: examples/grpc/core/restore_trainrun_grpc.py](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/grpc/core/restore_trainrun_grpc.py)
 
 ---
 

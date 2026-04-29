@@ -3,6 +3,9 @@
 
 ---
 
+!!! info "Runnable scripts live in cuvis-ai-cookbook"
+    The AdaCLIP example scripts referenced below are in the [cuvis-ai-cookbook](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook) repo. Clone it alongside this repo and run the commands from there.
+
 # AdaCLIP Workflow: Plugin-Based Anomaly Detection
 
 Learn how to use plugin nodes with AdaCLIP for hyperspectral anomaly detection, comparing three dimensionality reduction approaches.
@@ -871,19 +874,19 @@ You've learned three approaches to hyperspectral dimensionality reduction for Ad
 ```bash
 python examples/adaclip/pca_adaclip_baseline.py
 ```
-[View full source: examples/adaclip/pca_adaclip_baseline.py](../../examples/adaclip/pca_adaclip_baseline.py)
+[View full source: examples/adaclip/pca_adaclip_baseline.py](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/adaclip/pca_adaclip_baseline.py)
 
 **DRCNN Mixer:**
 ```bash
 python examples/adaclip/drcnn_adaclip_gradient_training.py
 ```
-[View full source: examples/adaclip/drcnn_adaclip_gradient_training.py](../../examples/adaclip/drcnn_adaclip_gradient_training.py)
+[View full source: examples/adaclip/drcnn_adaclip_gradient_training.py](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/adaclip/drcnn_adaclip_gradient_training.py)
 
 **Concrete Selector:**
 ```bash
 python examples/adaclip/concrete_adaclip_gradient_training.py
 ```
-[View full source: examples/adaclip/concrete_adaclip_gradient_training.py](../../examples/adaclip/concrete_adaclip_gradient_training.py)
+[View full source: examples/adaclip/concrete_adaclip_gradient_training.py](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/adaclip/concrete_adaclip_gradient_training.py)
 
 ---
 
