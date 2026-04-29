@@ -19,7 +19,7 @@
 - Added `docs/javascripts/os-tab-sync.js` to keep OS-tabbed install snippets (Linux / macOS / Windows) in sync across the install guide.
 - Fixed `auto_register_package` registry-size floor regression after the anomaly/deciders move: pointed the auto-register walk at `cuvis_ai.node.{anomaly,deciders}` since the legacy shims re-export classes whose `__module__` now points at the new locations.
 - Commented out the `cuvis-ai-core>=0.3.4` floor while in-progress core changes settle (the editable local path source pins the actual version); commented out the local `cuvis-ai-schemas` editable path so a fresh checkout resolves `0.4.0` from PyPI; removed `opencv-python-headless` from the docs extra (not required for the current mkdocs config).
-- Replaced the "Phase 5 workflow" wording in the gRPC workflow helper docstring with the concrete session lifecycle (create / build / train / predict).
+- Updated the gRPC workflow helper docstring to describe the concrete session lifecycle (create / build / train / predict) instead of internal release vocabulary.
 
 ## 0.6.0 - 2026-04-27
 
