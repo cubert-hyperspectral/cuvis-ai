@@ -33,7 +33,7 @@ nodes:
     hard: false
     eps: 1.0e-06
 - name: RXGlobal
-  class_name: cuvis_ai.anomaly.rx_detector.RXGlobal
+  class_name: cuvis_ai.node.anomaly.rx_detector.RXGlobal
   hparams:
     eps: 1.0e-06
     num_channels: 61
@@ -60,7 +60,7 @@ nodes:
   hparams:
     weight: 0.01
 - name: BinaryDecider
-  class_name: cuvis_ai.deciders.binary_decider.BinaryDecider
+  class_name: cuvis_ai.node.deciders.binary_decider.BinaryDecider
   hparams:
     threshold: 0.5
 - name: metrics_anomaly

@@ -30,7 +30,7 @@ pipeline:
       enable_gradients: false
       use_torch_preprocess: true
   - name: TwoStageBinaryDecider
-    class_name: cuvis_ai.deciders.two_stage_decider.TwoStageBinaryDecider
+    class_name: cuvis_ai.node.deciders.two_stage_decider.TwoStageBinaryDecider
     hparams:
       image_threshold: 0.0847439244389534
       top_k_fraction: 0.001

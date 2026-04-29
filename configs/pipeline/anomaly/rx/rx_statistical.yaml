@@ -20,7 +20,7 @@ nodes:
     eps: 1.0e-06
     use_running_stats: true
 - name: RXGlobal
-  class_name: cuvis_ai.anomaly.rx_detector.RXGlobal
+  class_name: cuvis_ai.node.anomaly.rx_detector.RXGlobal
   hparams:
     eps: 1.0e-06
     num_channels: 61
@@ -31,7 +31,7 @@ nodes:
     init_scale: 1.0
     init_bias: 0.0
 - name: BinaryDecider
-  class_name: cuvis_ai.deciders.binary_decider.BinaryDecider
+  class_name: cuvis_ai.node.deciders.binary_decider.BinaryDecider
   hparams:
     threshold: 0.5
 - name: metrics_anomaly
