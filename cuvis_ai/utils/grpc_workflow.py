@@ -1,4 +1,4 @@
-"""Shared helpers for gRPC example clients using the Phase 5 workflow."""
+"""Shared helpers for gRPC example clients (session create / build / train / predict)."""
 
 from __future__ import annotations
 
