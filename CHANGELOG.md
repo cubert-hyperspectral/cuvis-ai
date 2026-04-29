@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Extracted the `examples/` tree (70 files) into a new sister repo, [`cuvis-ai-cookbook`](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook). Removed `docs/grpc/example-clients.md` (now redundant) and rerouted all in-doc `examples/...` links to cookbook GitHub URLs.
+- Renamed `CIETristimulusFalseRGBSelector` → `CIETristimulusRGBSelector`. The CIE 1931 tristimulus integration produces a faithful RGB rendering, not a false-color rendering — the previous name was misleading. Updated the plugin registry (`configs/plugins/cuvis_ai_builtin.yaml`), the four SAM3 pipeline configs (`configs/pipeline/sam3/sam3_*.yaml`, including `name: false_rgb` → `name: true_rgb`, edge references, and `false-rgb` metadata tags/description), and the object-tracking notebook (`notebooks/use_cases/uc_object_tracking.ipynb`). No deprecation shim — direct rename.
+
 ## 0.6.0 - 2026-04-27
 
 - Removed `examples/hugging_face/` example scripts (`huggingface_api_demo.py`, `huggingface_local_demo.py`, `huggingface_gradient_training.py`, `test_huggingface_local_minimal.py`) and the in-tree `cuvis_ai/node/adaclip.py` (`AdaCLIPLocalNode`). The released AdaCLIP plugin (`cuvis_ai_adaclip` via `configs/plugins/adaclip.yaml`) is unaffected.
