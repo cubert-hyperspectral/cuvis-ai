@@ -97,6 +97,42 @@ ffmpeg -version     # binary available (writer-side)
 python -c "import torchcodec"   # shared libs available (reader-side)
 ```
 
+## Graphviz (required for pipeline graph rendering)
+
+The Python `graphviz` package is pulled in automatically by `uv sync`, but it
+is only a thin wrapper that shells out to the **`dot` system binary** to
+rasterise graphs. Any call like
+`pipeline.visualize(format="render_graphviz", output_path="...")` (or
+`format="png"` / `format="svg"`) requires `dot` on `PATH`; without it,
+`graphviz.backend.execute.ExecutableNotFound` is raised.
+
+If you only consume `format="graphviz"` / `format="dot_string"` (raw DOT text)
+or `format="mermaid"`, the system install is not needed.
+
+=== "Linux"
+
+    ```bash
+    sudo apt install graphviz
+    ```
+
+=== "macOS"
+
+    ```bash
+    brew install graphviz
+    ```
+
+=== "Windows"
+
+    ```powershell
+    scoop install graphviz
+    ```
+
+Verify:
+
+```bash
+dot -V
+```
+
 ## GPU support (optional)
 
 Check CUDA availability:
