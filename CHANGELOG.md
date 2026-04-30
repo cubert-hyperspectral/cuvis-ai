@@ -40,6 +40,7 @@
 - Fixed SAM3 batch-runner control flow and mask-overlay color handling.
 - Fixed JSON reader robustness and pre-push regressions in manifest sync, CLI commands, and statistical-contract tests.
 - Fixed video/tracking fallback and output handling: `VideoIterator` now falls back to OpenCV when torchcodec is unavailable, `output_video_path` naming is normalized, and ByteTrack JSON output path heuristics were hardened.
+- Fixed `AnomalyDetectionMetrics` average precision: switched to histogram-based `BinaryAveragePrecision(thresholds=N)` so state is bounded by construction, and reset only on `(stage, epoch)` boundaries so the metric accumulates across batches via `update()` within a validation epoch — the per-batch emitted value is a running AP that converges to true epoch-level AP, instead of a leak-prone cumulative or a noisy per-batch AP.
 
 - Added SAM3 tracking workflow updates across propagation scripts and examples, including batch processing for full-folder video runs, per-node profiling, threshold/name-suffix options, and frame-lookup support in `TrackingResultsReader`.
 - Added TrackEval preparation/evaluation tooling updates for aligned HOTA benchmarking workflows, including prediction frame-id passthrough in evaluator pipelines when supported by the metric plugin.
