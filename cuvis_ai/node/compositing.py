@@ -2,6 +2,7 @@
 
 - ``ROIZoomNode``: crops a region defined by a bbox and resizes it to a fixed
   output frame size. Emits its own RGB stream (a standalone zoom video).
+
 - ``InsetComposer``: pastes a fixed-size inset frame into a corner of a larger
   base frame with optional border, for picture-in-picture video output.
 """
