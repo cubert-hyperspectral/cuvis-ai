@@ -1,5 +1,7 @@
 """Tests for metric leaf nodes."""
 
+import math
+
 import pytest
 import torch
 from cuvis_ai_core.node.node import Node
@@ -198,7 +200,7 @@ class TestAnomalyDetectionMetrics:
         assert "precision" in metrics
 
     def test_average_precision_state_does_not_accumulate_batches(self):
-        """BinaryAveragePrecision must not retain every val batch (GPU memory leak)."""
+        """BinaryAveragePrecision must keep bounded state across batches."""
         metric_node = AnomalyDetectionMetrics()
         b, h, w = 1, 32, 32
         decisions = torch.randint(0, 2, (b, h, w, 1)).bool()
@@ -212,7 +214,118 @@ class TestAnomalyDetectionMetrics:
                 global_step=batch_idx,
             )
             metric_node.forward(decisions, targets, ctx, logits=logits)
-        assert len(metric_node.average_precision_metric.preds) == 0
+
+        ap = metric_node.average_precision_metric
+        # Histogram-mode AP must not store raw preds/targets per batch.
+        assert len(getattr(ap, "preds", [])) == 0
+        assert len(getattr(ap, "target", [])) == 0
+        # Histogram confmat is the bounded state: shape (thresholds, 2, 2).
+        confmat = getattr(ap, "confmat", None)
+        assert confmat is not None, "thresholds=N mode should expose a confmat buffer"
+        assert confmat.numel() == metric_node.ap_thresholds * 4
+
+    @staticmethod
+    def _mixed_targets(b: int, h: int, w: int) -> torch.Tensor:
+        """Half-positive / half-negative target mask so AP is non-degenerate."""
+        targets = torch.zeros(b, h, w, 1, dtype=torch.bool)
+        targets[..., : w // 2, :] = True
+        return targets
+
+    def test_ap_resets_on_epoch_boundary(self):
+        """AP state must reset between epochs (no cross-epoch contamination)."""
+        metric_node = AnomalyDetectionMetrics()
+        b, h, w = 1, 8, 8
+        targets = self._mixed_targets(b, h, w)
+        decisions = torch.zeros(b, h, w, 1).bool()
+
+        # Aligned logits: high where target=True, low where target=False → AP ≈ 1.
+        aligned = torch.where(targets, torch.tensor(10.0), torch.tensor(-10.0))
+        ctx0 = Context(stage=ExecutionStage.VAL, epoch=0, batch_idx=0)
+        outputs0 = metric_node.forward(decisions, targets, ctx0, logits=aligned)
+        ap0 = next(m.value for m in outputs0["metrics"] if m.name == "average_precision")
+        assert ap0 > 0.99
+
+        # Inverted logits: high where target=False → AP collapses well below 1.
+        # If state leaked across epoch boundary, ap1 would be pulled toward ap0.
+        inverted = -aligned
+        ctx1 = Context(stage=ExecutionStage.VAL, epoch=1, batch_idx=0)
+        outputs1 = metric_node.forward(decisions, targets, ctx1, logits=inverted)
+        ap1 = next(m.value for m in outputs1["metrics"] if m.name == "average_precision")
+        assert ap1 < 0.6, f"epoch-1 AP should reflect inverted-only data, got {ap1}"
+
+    def test_ap_accumulates_within_epoch(self):
+        """Within an epoch, AP accumulates across batches via update()."""
+        torch.manual_seed(0)
+        metric_node = AnomalyDetectionMetrics()
+        b, h, w = 1, 16, 16
+        targets = self._mixed_targets(b, h, w)
+        decisions = torch.zeros(b, h, w, 1).bool()
+
+        aligned = torch.where(targets, torch.tensor(10.0), torch.tensor(-10.0))
+        inverted = -aligned
+
+        # Batch 0: aligned logits → running AP ≈ 1.
+        ctx0 = Context(stage=ExecutionStage.VAL, epoch=0, batch_idx=0)
+        out0 = metric_node.forward(decisions, targets, ctx0, logits=aligned)
+        ap0 = next(m.value for m in out0["metrics"] if m.name == "average_precision")
+
+        # Batch 1: inverted logits → running AP across batches 0+1 drops below ap0.
+        ctx1 = Context(stage=ExecutionStage.VAL, epoch=0, batch_idx=1)
+        out1 = metric_node.forward(decisions, targets, ctx1, logits=inverted)
+        ap1 = next(m.value for m in out1["metrics"] if m.name == "average_precision")
+
+        # Batch 2: more inverted data → running AP drops further toward inverted-only.
+        ctx2 = Context(stage=ExecutionStage.VAL, epoch=0, batch_idx=2)
+        out2 = metric_node.forward(decisions, targets, ctx2, logits=inverted)
+        ap2 = next(m.value for m in out2["metrics"] if m.name == "average_precision")
+
+        assert ap0 > 0.99, "first batch with aligned logits should give AP ≈ 1"
+        assert ap1 < ap0, "running AP should drop after an inverted batch"
+        assert ap2 < ap1, "running AP should drop further after a second inverted batch"
+
+    def test_ap_stage_boundary_val_to_test(self):
+        """VAL state must not leak into TEST even when epoch number matches."""
+        metric_node = AnomalyDetectionMetrics()
+        b, h, w = 1, 8, 8
+        targets = self._mixed_targets(b, h, w)
+        decisions = torch.zeros(b, h, w, 1).bool()
+        aligned = torch.where(targets, torch.tensor(10.0), torch.tensor(-10.0))
+        inverted = -aligned
+
+        # VAL epoch 5: inverted logits accumulate (low AP).
+        ctx_val = Context(stage=ExecutionStage.VAL, epoch=5, batch_idx=0)
+        metric_node.forward(decisions, targets, ctx_val, logits=inverted)
+
+        # TEST epoch 5: aligned logits should yield AP ≈ 1, not a polluted average.
+        ctx_test = Context(stage=ExecutionStage.TEST, epoch=5, batch_idx=0)
+        out = metric_node.forward(decisions, targets, ctx_test, logits=aligned)
+        ap = next(m.value for m in out["metrics"] if m.name == "average_precision")
+        assert ap > 0.99
+
+    def test_ap_all_negative_targets_returns_finite(self):
+        """All-negative targets is degenerate; histogram-mode AP returns 0.0 finitely.
+
+        AP is undefined with no positive class. torchmetrics' histogram-mode
+        BinaryAveragePrecision returns 0.0 (sort-mode returns NaN). Either is
+        acceptable as long as the call does not crash and the returned value
+        is finite or NaN — log consumers should treat both as "no signal".
+        """
+        metric_node = AnomalyDetectionMetrics()
+        b, h, w = 1, 8, 8
+        targets = torch.zeros(b, h, w, 1).bool()
+        decisions = torch.zeros(b, h, w, 1).bool()
+        logits = torch.randn(b, h, w, 1)
+        ctx = Context(stage=ExecutionStage.VAL, epoch=0, batch_idx=0)
+        out = metric_node.forward(decisions, targets, ctx, logits=logits)
+        ap = next(m.value for m in out["metrics"] if m.name == "average_precision")
+        assert math.isnan(ap) or ap == 0.0
+
+    def test_ap_thresholds_constructor(self):
+        """ap_thresholds kwarg controls the histogram resolution."""
+        metric_node = AnomalyDetectionMetrics(ap_thresholds=50)
+        assert metric_node.ap_thresholds == 50
+        confmat = metric_node.average_precision_metric.confmat
+        assert confmat.numel() == 50 * 4
 
 
 class TestScoreStatisticsMetric:
