@@ -47,8 +47,10 @@ conda install -c conda-forge ffmpeg
 # macOS
 brew install ffmpeg
 
-# Windows — download a release build and add the bin/ folder to PATH
-# https://ffmpeg.org/download.html
+# Windows (scoop) — use the *shared* build so torchcodec can find the DLLs
+scoop install ffmpeg-shared
+# Then add to PATH (Git Bash / MSYS2):
+export PATH="/c/Users/$USER/scoop/apps/ffmpeg-shared/current/bin:$PATH"
 ```
 
 ## GPU support (optional)
