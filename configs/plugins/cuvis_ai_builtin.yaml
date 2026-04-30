@@ -43,6 +43,7 @@ plugins:
       - cuvis_ai.node.channel_selector.SupervisedSelectorBase
       - cuvis_ai.node.channel_selector.SupervisedWindowedSelector
       - cuvis_ai.node.channel_selector.TopKIndices
+      - cuvis_ai.node.compositing.InsetComposer
       - cuvis_ai.node.compositing.ROIZoomNode
       - cuvis_ai.node.conversion.DecisionToMask
       - cuvis_ai.node.conversion.ScoreToLogit

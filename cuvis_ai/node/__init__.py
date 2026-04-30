@@ -39,7 +39,7 @@ from cuvis_ai.node.channel_selector import (
     TopKIndices,
 )
 from cuvis_ai.node.colormap import ScalarHSVColormapNode
-from cuvis_ai.node.compositing import ROIZoomNode
+from cuvis_ai.node.compositing import InsetComposer, ROIZoomNode
 from cuvis_ai.node.conversion import DecisionToMask
 from cuvis_ai.node.deciders import BinaryDecider, QuantileBinaryDecider, TwoStageBinaryDecider
 from cuvis_ai.node.dimensionality_reduction import PCA, TrainablePCA
@@ -111,6 +111,7 @@ __all__ = [
     "HighContrastSelector",
     "IdentityNormalizer",
     "ImageArtifactVizBase",
+    "InsetComposer",
     "LearnableChannelMixer",
     "ROIZoomNode",
     "MaskedMeanSpectrum",
