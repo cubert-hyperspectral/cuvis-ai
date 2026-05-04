@@ -7,14 +7,14 @@ name = "cuvis-ai"
 dynamic = ["version"]
 description = "Collaborative Framework for Hyperspectral Intelligence"
 readme = "README.md"
-requires-python = ">=3.11,<3.12"
+requires-python = ">=3.11,<3.14"
 license = "Apache-2.0"
 authors = [
     { name = "Cubert GmbH, Ulm, Germany", email = "cuvis.ai@cubert-gmbh.com" },
 ]
 dependencies = [
     "cuvis>=3.5.0",
-    "cuvis-ai-core",#>=0.3.4",
+    "cuvis-ai-core>=0.5.0",
     "cuvis-ai-schemas[full]>=0.4.0",
     "pydantic>=2.0.0,<3.0.0",
     "defusedxml",
@@ -119,7 +119,7 @@ cuvis_ai = ["assets/node_icons/*.svg"]
 torch = { index = "pytorch-cu128" }
 torchvision = { index = "pytorch-cu128" }
 # cuvis-ai-schemas = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-schemas.git", branch = "main" }
-cuvis-ai-core = { path = "../../cuvis-ai-core/core-simplify-vis", editable = true }
+# cuvis-ai-core = { path = "../../cuvis-ai-core/core-simplify-vis", editable = true }
 # cuvis-ai-schemas = { path = "../../cuvis-ai-schemas/schemas-icons", editable = true }
 
 [tool.setuptools_scm]
