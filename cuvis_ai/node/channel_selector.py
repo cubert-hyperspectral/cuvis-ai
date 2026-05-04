@@ -55,6 +55,7 @@ from typing import Any, Literal
 import numpy as np
 import torch
 import torch.nn.functional as F
+from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.execution import Context, InputStream
 from cuvis_ai_schemas.pipeline import PortSpec
 from scipy.ndimage import laplace
@@ -114,6 +115,11 @@ class ChannelSelectorBase(Node):
         ``band_info`` : dict
             Metadata about selected bands.
     """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset(
+        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+    )
 
     INPUT_SPECS = {
         "cube": PortSpec(
@@ -371,6 +377,11 @@ class _NormalizedDifferenceIndexBase(ChannelSelectorBase, ABC):
     and delegates RGB rendering to subclasses.
     """
 
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset(
+        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+    )
+
     OUTPUT_SPECS = {
         **ChannelSelectorBase.OUTPUT_SPECS,
         "index_image": PortSpec(
@@ -493,6 +504,11 @@ class NDVISelector(_NormalizedDifferenceIndexBase):
     by the ``Blood_OXY`` plugin XML.
     """
 
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset(
+        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+    )
+
     def __init__(
         self,
         nir_nm: float = 827.0,
@@ -580,6 +596,11 @@ class FixedWavelengthSelector(ChannelSelectorBase):
         Default: (650.0, 550.0, 450.0)
     """
 
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset(
+        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+    )
+
     def __init__(
         self,
         target_wavelengths: tuple[float, float, float] = (650.0, 550.0, 450.0),
@@ -650,6 +671,11 @@ class RangeAverageFalseRGBSelector(ChannelSelectorBase):
     blue_range : tuple[float, float]
         Inclusive wavelength range for blue channel in nanometers.
     """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset(
+        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+    )
 
     def __init__(
         self,
@@ -786,6 +812,11 @@ class FastRGBSelector(ChannelSelectorBase):
     - Static reflectance-style scaling when normalization is disabled.
     - 8-bit quantization before returning float RGB in [0, 1].
     """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset(
+        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+    )
 
     _REFLECTANCE_100 = 10000.0
 
@@ -970,6 +1001,11 @@ class HighContrastSelector(ChannelSelectorBase):
         Weight for Laplacian energy term. Default: 0.1
     """
 
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset(
+        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+    )
+
     def __init__(
         self,
         windows: Sequence[tuple[float, float]] = ((440, 500), (500, 580), (610, 700)),
@@ -1055,6 +1091,11 @@ class CIRSelector(ChannelSelectorBase):
         Green wavelength in nm. Default: 560.0
     """
 
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset(
+        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+    )
+
     def __init__(
         self,
         nir_nm: float = 860.0,
@@ -1124,8 +1165,8 @@ class CIRSelector(ChannelSelectorBase):
         return {"rgb_image": rgb, "band_info": band_info}
 
 
-class CIETristimulusFalseRGBSelector(ChannelSelectorBase):
-    """CIE 1931 tristimulus-based false RGB rendering.
+class CIETristimulusRGBSelector(ChannelSelectorBase):
+    """CIE 1931 tristimulus-based RGB rendering.
 
     Converts a hyperspectral cube to sRGB by integrating each pixel's spectrum
     with the CIE 1931 2-degree standard observer color matching functions
@@ -1135,12 +1176,17 @@ class CIETristimulusFalseRGBSelector(ChannelSelectorBase):
     Normalization and sRGB gamma are handled by ``ChannelSelectorBase`` (see
     ``apply_gamma`` parameter inherited from the base class).
 
-    This produces the most physically grounded false RGB and lands closest to
-    the distribution SAM3's Perception Encoder expects.
+    This produces a faithful (true) RGB rendering and lands closest to the
+    distribution SAM3's Perception Encoder expects.
 
     For wavelengths outside the visible range (approx. >780 nm), the CMFs are
     zero, so NIR bands do not contribute to the output.
     """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset(
+        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+    )
 
     # CIE 1931 2-degree observer CMFs at 5 nm intervals, 380-780 nm.
     # Source: CIE 015:2004, Table 1 (standard tabulation).
@@ -1340,6 +1386,11 @@ class CameraEmulationFalseRGBSelector(ChannelSelectorBase):
     b_sigma : float
         Blue channel Gaussian sigma in nm. Default: 30.0
     """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset(
+        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+    )
 
     def __init__(
         self,
@@ -1687,6 +1738,17 @@ class SupervisedSelectorBase(ChannelSelectorBase):
     class (e.g. stone) and 0 denotes the negative class (e.g. lentil/background).
     """
 
+    _category = NodeCategory.MODEL
+    _tags = frozenset(
+        {
+            NodeTag.HYPERSPECTRAL,
+            NodeTag.DIM_REDUCTION,
+            NodeTag.PREPROCESSING,
+            NodeTag.LEARNABLE,
+            NodeTag.TORCH,
+        }
+    )
+
     INPUT_SPECS = {
         **ChannelSelectorBase.INPUT_SPECS,
         "mask": PortSpec(
@@ -1934,6 +1996,17 @@ class SupervisedCIRSelector(SupervisedSelectorBase):
     (Fisher + AUC + MI) with an mRMR-style redundancy penalty.
     """
 
+    _category = NodeCategory.MODEL
+    _tags = frozenset(
+        {
+            NodeTag.HYPERSPECTRAL,
+            NodeTag.DIM_REDUCTION,
+            NodeTag.PREPROCESSING,
+            NodeTag.LEARNABLE,
+            NodeTag.TORCH,
+        }
+    )
+
     _strategy_name = "supervised_cir"
 
     def __init__(
@@ -1978,6 +2051,17 @@ class SupervisedWindowedSelector(SupervisedSelectorBase):
         - Red: 610-700 nm
     """
 
+    _category = NodeCategory.MODEL
+    _tags = frozenset(
+        {
+            NodeTag.HYPERSPECTRAL,
+            NodeTag.DIM_REDUCTION,
+            NodeTag.PREPROCESSING,
+            NodeTag.LEARNABLE,
+            NodeTag.TORCH,
+        }
+    )
+
     _strategy_name = "supervised_windowed_false_rgb"
 
     def __init__(
@@ -2017,6 +2101,17 @@ class SupervisedFullSpectrumSelector(SupervisedSelectorBase):
     Picks the top-3 discriminative bands globally with an mRMR-style
     redundancy penalty applied over the full spectrum.
     """
+
+    _category = NodeCategory.MODEL
+    _tags = frozenset(
+        {
+            NodeTag.HYPERSPECTRAL,
+            NodeTag.DIM_REDUCTION,
+            NodeTag.PREPROCESSING,
+            NodeTag.LEARNABLE,
+            NodeTag.TORCH,
+        }
+    )
 
     _strategy_name = "supervised_full_spectrum"
 
@@ -2084,6 +2179,17 @@ class SoftChannelSelector(Node):
     temperature : float
         Current temperature for Gumbel-Softmax
     """
+
+    _category = NodeCategory.MODEL
+    _tags = frozenset(
+        {
+            NodeTag.HYPERSPECTRAL,
+            NodeTag.DIM_REDUCTION,
+            NodeTag.PREPROCESSING,
+            NodeTag.LEARNABLE,
+            NodeTag.TORCH,
+        }
+    )
 
     INPUT_SPECS = {
         "data": PortSpec(
@@ -2303,6 +2409,11 @@ class TopKIndices(Node):
         Number of top indices to return
     """
 
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset(
+        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+    )
+
     INPUT_SPECS = {
         "weights": PortSpec(
             dtype=torch.float32,
@@ -2356,7 +2467,7 @@ class TopKIndices(Node):
 __all__ = [
     "CameraEmulationFalseRGBSelector",
     "ChannelSelectorBase",
-    "CIETristimulusFalseRGBSelector",
+    "CIETristimulusRGBSelector",
     "NormMode",
     "CIRSelector",
     "FastRGBSelector",

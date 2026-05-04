@@ -47,8 +47,8 @@ HOTAMetricNode = registry.get("HOTAMetricNode", instance=registry)
 ## Official Plugins
 
 - **[cuvis-ai-adaclip](https://github.com/cubert-hyperspectral/cuvis-ai-adaclip)** - AdaCLIP vision-language anomaly detection
-- **[cuvis-ai-ultralytics](https://github.com/cubert-hyperspectral/cuvis-ai-ultralytics)** - Ultralytics YOLO26 nodes for cuvis.ai detection and tracking pipelines
-- **[cuvis-ai-deepeiou](https://github.com/cubert-hyperspectral/cuvis-ai-deepeiou)** - DeepEIoU tracking and optional ReID extractors for cuvis.ai tracking pipelines
+- **[cuvis-ai-ultralytics](https://github.com/cubert-hyperspectral/cuvis-ai-ultralytics)** - Ultralytics YOLO26 nodes for Cuvis.AI detection and tracking pipelines
+- **[cuvis-ai-deepeiou](https://github.com/cubert-hyperspectral/cuvis-ai-deepeiou)** - DeepEIoU tracking and optional ReID extractors for Cuvis.AI tracking pipelines
 - **[cuvis-ai-trackeval](https://github.com/cubert-hyperspectral/cuvis-ai-trackeval)** - HOTA, CLEAR, and Identity tracking metrics
 - **[cuvis-ai-sam3](https://github.com/cubert-hyperspectral/cuvis-ai-sam3)** - local SAM3 tracking workflows and prompt propagation nodes
 

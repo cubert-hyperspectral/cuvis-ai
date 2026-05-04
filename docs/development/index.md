@@ -5,7 +5,7 @@
 
 # Development Guide
 
-Contributing to CUVIS.AI development and following best practices.
+Contributing to Cuvis.AI development and following best practices.
 
 ## Development Documentation
 

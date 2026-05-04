@@ -20,6 +20,7 @@ from collections.abc import Iterable, Sequence
 from typing import Any
 
 import torch
+from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
 
@@ -42,6 +43,9 @@ class BinaryAnomalyLabelMapper(Node):
         and all others (including those not in normal_class_ids) are treated as normal.
 
     """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.MASK, NodeTag.ANOMALY, NodeTag.POSTPROCESSING, NodeTag.NUMPY})
 
     INPUT_SPECS = {
         "cube": PortSpec(

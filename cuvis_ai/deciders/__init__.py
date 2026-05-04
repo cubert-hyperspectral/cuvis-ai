@@ -1,17 +1,17 @@
-"""
-Binary Decision Nodes.
+"""Deprecated: use cuvis_ai.node.deciders instead. Removed in v0.8."""
 
-This module provides nodes that convert anomaly scores into binary
-decisions (anomaly/normal) using adaptive thresholding strategies.
-These nodes are typically used at the end of detection pipelines to
-produce final classification results.
+import warnings
 
-See Also
---------
-cuvis_ai.deciders.binary_decider : Simple threshold-based binary decisions
-cuvis_ai.deciders.two_stage_decider : Two-stage adaptive threshold decision
-"""
+warnings.warn(
+    "'cuvis_ai.deciders' is deprecated and will be removed in v0.8. "
+    "Use 'cuvis_ai.node.deciders' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-from cuvis_ai.deciders.two_stage_decider import TwoStageBinaryDecider
-
-__all__ = ["TwoStageBinaryDecider"]
+from cuvis_ai.node.deciders import (  # noqa: E402, F401
+    BinaryDecider,
+    QuantileBinaryDecider,
+    TwoStageBinaryDecider,
+    __all__,
+)

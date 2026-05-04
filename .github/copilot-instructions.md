@@ -8,7 +8,8 @@ Cuvis.AI is an open-source framework for building AI-powered processing pipeline
 |---|---|
 | [cuvis-ai-core](https://github.com/cubert-hyperspectral/cuvis-ai-core) | Framework — base `Node` class, pipeline orchestration, two-phase training, gRPC services, plugin loader |
 | [cuvis-ai-schemas](https://github.com/cubert-hyperspectral/cuvis-ai-schemas) | Protobuf / gRPC schema definitions and generated types |
-| **cuvis-ai** (this repo) | ~40 domain-specific nodes (anomaly, preprocessing, band selection, visualization, video), runnable examples, and plugin configs |
+| **cuvis-ai** (this repo) | ~40 domain-specific nodes (anomaly, preprocessing, band selection, visualization, video) and plugin configs |
+| [cuvis-ai-cookbook](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook) | Runnable example scripts and notebooks demonstrating cuvis-ai pipelines |
 
 Both `cuvis-ai-core` and `cuvis-ai-schemas` are pinned dependencies in [pyproject.toml](../pyproject.toml). **Do not look for base framework code, pipeline orchestration, gRPC implementation, or Protobuf definitions inside this repo** — they live in the other two packages.
 
@@ -25,7 +26,7 @@ from cuvis_ai_schemas.execution import Context, InputStream, Artifact
 
 - [cuvis_ai/](../cuvis_ai/) — only `anomaly/`, `deciders/`, `node/`, `utils/`. No local `grpc/`, `pipeline/`, `training/`, `data/`, or `proto/` — those have been extracted.
 - [configs/](../configs/) — Hydra/YAML configs. [configs/plugins/cuvis_ai_builtin.yaml](../configs/plugins/cuvis_ai_builtin.yaml) registers every node in this repo with the core plugin loader.
-- [examples/](../examples/) — runnable scripts organized by domain (anomaly, object_tracking, spectral_angle_mapper, video exporters, gRPC demos, plugin example).
+- Runnable example scripts now live in the [cuvis-ai-cookbook](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook) repo (clone alongside this one).
 - [tests/](../tests/) — organized by domain (`anomaly`, `deciders`, `node`, `preprocessors`, `training`, `utils`, `docs`, `plugins`). Shared fixtures in [tests/fixtures/](../tests/fixtures/) auto-load via [tests/conftest.py](../tests/conftest.py).
 - [tools/](../tools/) — helper scripts: `generate_node_port_stubs.py`, `validate_trainrun_configs.py`.
 - [docs/](../docs/) — MkDocs source.
@@ -66,7 +67,7 @@ Defined in [pyproject.toml](../pyproject.toml) `[project.scripts]`:
 
 - Run all fast tests: `uv run pytest -m "not slow and not check_links" -v`
 - Run a single test file: `uv run pytest tests/node/test_bandpass.py -v`
-- Run an example: `uv run python examples/channel_selector.py`
+- Run an example: clone the [cuvis-ai-cookbook](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook) and run `uv run python examples/channel_selector.py` from there.
 - Build docs: `uv sync --locked --extra docs && mkdocs build`
 
 ## References

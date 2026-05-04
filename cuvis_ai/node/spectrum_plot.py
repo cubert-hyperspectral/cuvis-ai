@@ -13,6 +13,7 @@ from typing import Any
 import cv2
 import numpy as np
 import torch
+from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.pipeline import PortSpec
 
 from cuvis_ai.utils.vis_helpers import fig_to_array
@@ -62,6 +63,9 @@ class SpectrumPlotNode(Node):
         reference-only.  Smooths out brief dropouts.  ``0`` disables the
         hold.  Default ``15``.
     """
+
+    _category = NodeCategory.VISUALIZER
+    _tags = frozenset({NodeTag.HYPERSPECTRAL})
 
     INPUT_SPECS = {
         "tracked_spectrum": PortSpec(

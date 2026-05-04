@@ -48,7 +48,7 @@ nodes:
     weight: 0.1
     eps: 1.0e-06
 - name: decider
-  class_name: cuvis_ai.deciders.two_stage_decider.TwoStageBinaryDecider
+  class_name: cuvis_ai.node.deciders.two_stage_decider.TwoStageBinaryDecider
   hparams:
     image_threshold: 0.24 # 0.15 with cuvis next works
     top_k_fraction: 0.001

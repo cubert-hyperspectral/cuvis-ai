@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import torch
+from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
 
@@ -73,6 +74,9 @@ def render_scalar_hsv_colormap(normalized: Tensor) -> Tensor:
 
 class ScalarHSVColormapNode(Node):
     """Map a scalar BHWC image to RGB using an HSV colormap."""
+
+    _category = NodeCategory.VISUALIZER
+    _tags = frozenset({NodeTag.RGB})
 
     INPUT_SPECS = {
         "data": PortSpec(

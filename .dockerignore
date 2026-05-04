@@ -47,8 +47,7 @@ htmlcov/
 docs/
 docs_dev/
 
-# Examples and tests
-examples/
+# Tests
 tests/
 
 # Outputs

@@ -5,13 +5,13 @@
 
 # gRPC Services Overview
 
-Access CUVIS.AI pipelines remotely using gRPC for distributed training, inference, and production deployment.
+Access Cuvis.AI pipelines remotely using gRPC for distributed training, inference, and production deployment.
 
 ---
 
 ## Introduction
 
-**gRPC** (Google Remote Procedure Call) is a high-performance RPC framework that enables client-server communication for running CUVIS.AI pipelines on remote hardware. The gRPC service separates training infrastructure from client applications, allowing you to execute workflows from anywhere.
+**gRPC** (Google Remote Procedure Call) is a high-performance RPC framework that enables client-server communication for running Cuvis.AI pipelines on remote hardware. The gRPC service separates training infrastructure from client applications, allowing you to execute workflows from anywhere.
 
 ### Why gRPC for ML Pipelines?
 
@@ -49,7 +49,7 @@ gRPC is ideal for hyperspectral imaging ML workflows because it provides:
 
 ## Architecture
 
-The CUVIS.AI gRPC service follows a server-client architecture with session-based isolation.
+The Cuvis.AI gRPC service follows a server-client architecture with session-based isolation.
 
 ### Components
 
@@ -171,7 +171,7 @@ uv run python -m cuvis_ai.grpc.production_server
 
 **Expected Output:**
 ```
-Starting CUVIS.AI gRPC server on [::]:50051
+Starting Cuvis.AI gRPC server on [::]:50051
 Server listening...
 ```
 
@@ -381,7 +381,7 @@ Hyperspectral imaging cubes can be very large (100s of MB). Configure message si
 ### Default Limits
 
 - **gRPC Default:** 4 MB (too small for hyperspectral data)
-- **CUVIS.AI Default:** 300 MB (suitable for most workflows)
+- **Cuvis.AI Default:** 300 MB (suitable for most workflows)
 - **Recommended for Large Data:** 600 MB
 
 ### Configuration
@@ -479,7 +479,7 @@ See the [Deployment Guide](../deployment/grpc_deployment.md) for complete instru
 
 ### Tutorials & How-To Guides
 
-- [gRPC Workflow Tutorial](../tutorials/grpc-workflow.md) - Hands-on tutorial with complete examples
+- [gRPC Workflow Tutorial](../use_cases/grpc-workflow.md) - Hands-on tutorial with complete examples
 
 ### Configuration
 

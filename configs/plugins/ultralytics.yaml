@@ -7,7 +7,7 @@ plugins:
   ultralytics:
     # path: "../../../../cuvis-ai-ultralytics/ultralytics-init"
     repo: "https://github.com/cubert-hyperspectral/cuvis-ai-ultralytics.git"
-    tag: "v0.1.0"
+    tag: "v0.1.1"
     provides:
       - cuvis_ai_ultralytics.node.YOLOPreprocess
       - cuvis_ai_ultralytics.node.YOLO26Detection

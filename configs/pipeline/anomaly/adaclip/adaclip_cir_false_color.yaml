@@ -26,7 +26,7 @@ nodes:
     enable_gradients: false
     use_torch_preprocess: true
 - name: QuantileBinaryDecider
-  class_name: cuvis_ai.deciders.binary_decider.QuantileBinaryDecider
+  class_name: cuvis_ai.node.deciders.binary_decider.QuantileBinaryDecider
   hparams:
     quantile: 0.995
     reduce_dims: null

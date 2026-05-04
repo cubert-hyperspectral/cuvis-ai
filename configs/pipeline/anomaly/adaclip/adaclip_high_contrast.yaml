@@ -30,7 +30,7 @@ nodes:
     enable_warmup: false
     enable_gradients: false
 - name: QuantileBinaryDecider
-  class_name: cuvis_ai.deciders.binary_decider.QuantileBinaryDecider
+  class_name: cuvis_ai.node.deciders.binary_decider.QuantileBinaryDecider
   hparams:
     quantile: 0.995
     reduce_dims: null

@@ -1,6 +1,6 @@
 # Quickstart Guide
 
-Get up and running with CUVIS.AI in 5 minutes.
+Get up and running with Cuvis.AI in 5 minutes.
 
 ## Installation
 
@@ -33,7 +33,7 @@ This downloads ~1.0 GB of real hyperspectral data to `data/Lentils/`.
 
 ## Quick Demo: Run Pre-Trained Pipeline
 
-Want to see CUVIS.AI in action first? Run inference with a pre-configured pipeline:
+Want to see Cuvis.AI in action first? Run inference with a pre-configured pipeline:
 
 ```bash
 # View pipeline structure
@@ -47,10 +47,10 @@ This loads the pipeline configuration and runs anomaly detection on the sample h
 
 ## Train Your Own Pipeline
 
-Train an RX anomaly detector from scratch:
+Train an RX anomaly detector from scratch using the script in the [cuvis-ai-cookbook](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook) repo:
 
 ```bash
-# Train RX detector
+# Clone the cookbook alongside this repo, then from cuvis-ai-cookbook/main:
 uv run python examples/rx_statistical.py
 ```
 
@@ -83,9 +83,9 @@ The pipeline will load your trained weights and run inference on new data.
 
 **Follow comprehensive tutorials:**
 
-- [RX Statistical Tutorial](../tutorials/rx-statistical.md) - Statistical anomaly detection
-- [Channel Selector Tutorial](../tutorials/channel-selector.md) - Learnable band selection
-- [Deep SVDD Tutorial](../tutorials/deep-svdd-gradient.md) - Deep learning approach
+- [RX Statistical Tutorial](../use_cases/rx-statistical.md) - Statistical anomaly detection
+- [Channel Selector Tutorial](../use_cases/channel-selector.md) - Learnable band selection
+- [Deep SVDD Tutorial](../use_cases/deep-svdd-gradient.md) - Deep learning approach
 
 **Explore how-to guides:**
 

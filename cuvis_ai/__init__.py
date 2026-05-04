@@ -18,6 +18,10 @@ cuvis_ai.deciders : Binary decision nodes for classification
 
 from importlib.metadata import PackageNotFoundError, version
 
+from . import (
+    _ffmpeg_bootstrap,  # noqa: F401  # Windows: register FFmpeg DLL dirs before torchcodec imports
+)
+
 try:
     __version__ = version("cuvis_ai")
 except PackageNotFoundError:

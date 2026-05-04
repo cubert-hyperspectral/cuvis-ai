@@ -9,6 +9,7 @@ from typing import Any
 import cv2
 import numpy as np
 import torch
+from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.execution import Context
 from cuvis_ai_schemas.pipeline import PortSpec
 from loguru import logger
@@ -58,6 +59,9 @@ class ToVideoNode(Node):
         darkened background block. Default is ``None``.
     """
 
+    _category = NodeCategory.SINK
+    _tags = frozenset({NodeTag.VIDEO})
+
     INPUT_SPECS = {
         "rgb_image": PortSpec(
             dtype=torch.float32,
@@ -72,13 +76,7 @@ class ToVideoNode(Node):
         ),
     }
 
-    OUTPUT_SPECS = {
-        "video_path": PortSpec(
-            dtype=str,
-            shape=(),
-            description="Path to the output video file",
-        )
-    }
+    OUTPUT_SPECS: dict[str, PortSpec] = {}  # sink node
 
     def __init__(
         self,
@@ -324,8 +322,14 @@ class ToVideoNode(Node):
         frame_id: torch.Tensor | None = None,
         context: Context | None = None,  # noqa: ARG002
         **_: Any,
-    ) -> dict[str, str]:
-        """Append incoming RGB frames to the configured video file."""
+    ) -> dict[str, Any]:
+        """Append incoming RGB frames to the configured video file.
+
+        Returns
+        -------
+        dict
+            Empty dict (sink node).
+        """
         rgb_u8 = self._to_uint8_batch(rgb_image)
 
         for b, frame in enumerate(rgb_u8):
@@ -353,7 +357,7 @@ class ToVideoNode(Node):
                     f"ffmpeg exited during frame write (returncode={returncode}): {stderr_text}"
                 ) from exc
 
-        return {"video_path": str(self.output_video_path)}
+        return {}
 
     def close(self) -> None:
         """Flush EOF to ffmpeg, wait for mux, and surface any encoder errors.
@@ -424,6 +428,9 @@ class ToVideoNode(Node):
 # ---------------------------------------------------------------------------
 class VideoFrameNode(Node):
     """Passthrough source node that receives RGB frames from the batch."""
+
+    _category = NodeCategory.SOURCE
+    _tags = frozenset({NodeTag.VIDEO, NodeTag.STREAMING})
 
     INPUT_SPECS = {
         "rgb_image": PortSpec(

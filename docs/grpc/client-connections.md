@@ -5,13 +5,13 @@
 
 # Client Connections & Sessions
 
-Common patterns and best practices for building robust gRPC clients for CUVIS.AI.
+Common patterns and best practices for building robust gRPC clients for Cuvis.AI.
 
 ---
 
 ## Overview
 
-This guide documents proven patterns for CUVIS.AI gRPC clients, extracted from the checked-in
+This guide documents proven patterns for Cuvis.AI gRPC clients, extracted from the checked-in
 example client set. These patterns cover connection management, session lifecycle, configuration,
 training, inference, error handling, and production deployment.
 
@@ -292,5 +292,5 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
 - [gRPC API Reference: Pipeline](api-pipeline.md) - Pipeline RPC method documentation
 - [gRPC Overview](overview.md) - Architecture and concepts
 - [Sequence Diagrams](sequence-diagrams.md) - Visual workflows
-- [gRPC Tutorial](../tutorials/grpc-workflow.md) - Hands-on tutorial
+- [gRPC Tutorial](../use_cases/grpc-workflow.md) - Hands-on tutorial
 - [Deployment Guide](../deployment/grpc_deployment.md) - Production patterns

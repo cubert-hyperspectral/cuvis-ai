@@ -5,7 +5,7 @@
 
 # Hydra Composition Basics
 
-Hydra enables powerful configuration composition for CUVIS.AI.
+Hydra enables powerful configuration composition for Cuvis.AI.
 
 ## Overview
 

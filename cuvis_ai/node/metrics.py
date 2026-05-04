@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import torch
-from cuvis_ai_schemas.enums import ExecutionStage
+from cuvis_ai_schemas.enums import ExecutionStage, NodeCategory, NodeTag
 from cuvis_ai_schemas.execution import Context, Metric
 from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
@@ -25,6 +25,9 @@ class ExplainedVarianceMetric(Node):
 
     Executes only during validation and test stages.
     """
+
+    _category = NodeCategory.METRIC
+    _tags = frozenset({NodeTag.EVALUATION, NodeTag.DIM_REDUCTION})
 
     INPUT_SPECS = {
         "explained_variance_ratio": PortSpec(
@@ -111,6 +114,9 @@ class AnomalyDetectionMetrics(Node):
     Expects binary decisions and targets to be binary masks.
     Executes only during validation and test stages.
     """
+
+    _category = NodeCategory.METRIC
+    _tags = frozenset({NodeTag.EVALUATION, NodeTag.ANOMALY})
 
     INPUT_SPECS = {
         "decisions": PortSpec(
@@ -248,6 +254,9 @@ class ScoreStatisticsMetric(Node):
     Executes only during validation and test stages.
     """
 
+    _category = NodeCategory.METRIC
+    _tags = frozenset({NodeTag.EVALUATION, NodeTag.ANOMALY})
+
     INPUT_SPECS = {
         "scores": PortSpec(
             dtype=torch.float32, shape=(-1, -1, -1), description="Score values [B, H, W]"
@@ -364,6 +373,9 @@ class ComponentOrthogonalityMetric(Node):
     Executes only during validation and test stages.
     """
 
+    _category = NodeCategory.METRIC
+    _tags = frozenset({NodeTag.EVALUATION, NodeTag.DIM_REDUCTION})
+
     INPUT_SPECS = {
         "components": PortSpec(
             dtype=torch.float32,
@@ -465,6 +477,9 @@ class SelectorEntropyMetric(Node):
     Executes only during validation and test stages.
     """
 
+    _category = NodeCategory.METRIC
+    _tags = frozenset({NodeTag.EVALUATION, NodeTag.DIM_REDUCTION})
+
     INPUT_SPECS = {
         "weights": PortSpec(
             dtype=torch.float32,
@@ -534,6 +549,9 @@ class SelectorDiversityMetric(Node):
 
     Executes only during validation and test stages.
     """
+
+    _category = NodeCategory.METRIC
+    _tags = frozenset({NodeTag.EVALUATION, NodeTag.DIM_REDUCTION})
 
     INPUT_SPECS = {
         "weights": PortSpec(
@@ -612,6 +630,9 @@ class AnomalyPixelStatisticsMetric(Node):
     Useful for monitoring the proportion of detected anomalies in batches.
     Executes only during validation and test stages.
     """
+
+    _category = NodeCategory.METRIC
+    _tags = frozenset({NodeTag.EVALUATION, NodeTag.ANOMALY})
 
     INPUT_SPECS = {
         "decisions": PortSpec(

@@ -22,7 +22,7 @@ from typing import Any, Literal
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from cuvis_ai_schemas.enums import ExecutionStage
+from cuvis_ai_schemas.enums import ExecutionStage, NodeCategory, NodeTag
 from cuvis_ai_schemas.execution import Context, InputStream
 from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
@@ -121,6 +121,17 @@ class LearnableChannelMixer(Node):
     >>> output = mixer.forward(data=hsi_cube)
     >>> rgb_like = output["rgb"]  # [B, H, W, 3]
     """
+
+    _category = NodeCategory.MODEL
+    _tags = frozenset(
+        {
+            NodeTag.HYPERSPECTRAL,
+            NodeTag.DIM_REDUCTION,
+            NodeTag.PREPROCESSING,
+            NodeTag.LEARNABLE,
+            NodeTag.TORCH,
+        }
+    )
 
     INPUT_SPECS = {
         "data": PortSpec(
@@ -538,6 +549,17 @@ class ConcreteChannelMixer(Node):
     - The node exposes ``selection_weights`` so that repulsion penalties
       (e.g., DistinctnessLoss) can be attached in the pipeline.
     """
+
+    _category = NodeCategory.MODEL
+    _tags = frozenset(
+        {
+            NodeTag.HYPERSPECTRAL,
+            NodeTag.DIM_REDUCTION,
+            NodeTag.PREPROCESSING,
+            NodeTag.LEARNABLE,
+            NodeTag.TORCH,
+        }
+    )
 
     INPUT_SPECS = {
         "data": PortSpec(

@@ -78,7 +78,7 @@ sequenceDiagram
 
 **Example Client:**
 
-- [examples/grpc/core/complete_workflow_client.py](../../examples/grpc/core/complete_workflow_client.py)
+- [examples/grpc/core/complete_workflow_client.py](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/grpc/core/complete_workflow_client.py)
 
 ---
 
@@ -144,9 +144,9 @@ sequenceDiagram
 
 **Example Clients:**
 
-- [examples/grpc/rx/statistical_training_client.py](../../examples/grpc/rx/statistical_training_client.py)
-- [examples/grpc/deep_svdd/gradient_training_client.py](../../examples/grpc/deep_svdd/gradient_training_client.py)
-- [examples/grpc/deep_svdd/deepsvdd_client.py](../../examples/grpc/deep_svdd/deepsvdd_client.py)
+- [examples/grpc/rx/statistical_training_client.py](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/grpc/rx/statistical_training_client.py)
+- [examples/grpc/deep_svdd/gradient_training_client.py](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/grpc/deep_svdd/gradient_training_client.py)
+- [examples/grpc/deep_svdd/deepsvdd_client.py](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/grpc/deep_svdd/deepsvdd_client.py)
 
 ---
 
@@ -191,13 +191,13 @@ sequenceDiagram
 1. **RestoreTrainRun** (Recommended):
    - Loads pipeline config, weights, data config, and training config from saved TrainRun
    - Single call, ensures exact reproducibility
-   - Example: [examples/grpc/core/restore_trainrun_grpc.py](../../examples/grpc/core/restore_trainrun_grpc.py)
+   - Example: [examples/grpc/core/restore_trainrun_grpc.py](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/grpc/core/restore_trainrun_grpc.py)
 
 2. **Manual Loading**:
    - Step 1: `ResolveConfig` or provide raw pipeline config
    - Step 2: `LoadPipeline` builds the pipeline graph
    - Step 3: `LoadPipelineWeights` loads trained weights
-   - Example: [examples/grpc/rx/inference_with_pretrained_client.py](../../examples/grpc/rx/inference_with_pretrained_client.py)
+   - Example: [examples/grpc/rx/inference_with_pretrained_client.py](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/grpc/rx/inference_with_pretrained_client.py)
 
 **InputBatch Fields:**
 ```python
@@ -269,7 +269,7 @@ spec = TensorSpec(
 
 **Example Client:**
 
-- [examples/grpc/rx/introspection_client.py](../../examples/grpc/rx/introspection_client.py)
+- [examples/grpc/rx/introspection_client.py](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/grpc/rx/introspection_client.py)
 
 ---
 
@@ -326,8 +326,8 @@ GetTrainingCapabilitiesResponse(
 
 **Example Clients:**
 
-- [examples/grpc/core/pipeline_discovery_client.py](../../examples/grpc/core/pipeline_discovery_client.py)
-- [examples/grpc/core/capabilities_client.py](../../examples/grpc/core/capabilities_client.py)
+- [examples/grpc/core/pipeline_discovery_client.py](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/grpc/core/pipeline_discovery_client.py)
+- [examples/grpc/core/capabilities_client.py](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/grpc/core/capabilities_client.py)
 
 ---
 
@@ -379,7 +379,7 @@ sequenceDiagram
 
 **Example Client:**
 
-- [examples/grpc/deep_svdd/resume_training_client.py](../../examples/grpc/deep_svdd/resume_training_client.py)
+- [examples/grpc/deep_svdd/resume_training_client.py](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/grpc/deep_svdd/resume_training_client.py)
 
 ---
 
@@ -418,7 +418,7 @@ sequenceDiagram
 
 **Example Client:**
 
-- [examples/grpc/core/run_inference.py](../../examples/grpc/core/run_inference.py)
+- [examples/grpc/core/run_inference.py](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/grpc/core/run_inference.py)
 
 ---
 
@@ -479,8 +479,8 @@ for progress in stub.Train(request):
 
 ### Tutorials & Guides
 
-- [gRPC Tutorial](../tutorials/grpc-workflow.md) - End-to-end hands-on tutorial
-- [gRPC Client Examples](../../examples/grpc/) - All example clients
+- [gRPC Tutorial](../use_cases/grpc-workflow.md) - End-to-end hands-on tutorial
+- [gRPC Client Examples](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/tree/main/examples/grpc/) - All example clients
 
 ---
 

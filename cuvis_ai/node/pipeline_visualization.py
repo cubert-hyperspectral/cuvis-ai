@@ -15,7 +15,7 @@ from typing import Any
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from cuvis_ai_schemas.enums import ArtifactType, ExecutionStage
+from cuvis_ai_schemas.enums import ArtifactType, ExecutionStage, NodeCategory, NodeTag
 from cuvis_ai_schemas.execution import Artifact, Context
 from cuvis_ai_schemas.pipeline import PortSpec
 from loguru import logger
@@ -31,6 +31,9 @@ class CubeRGBVisualizer(Node):
     Selects 3 channels with highest weights for R, G, B channels and creates
     a false-color visualization with wavelength annotations.
     """
+
+    _category = NodeCategory.VISUALIZER
+    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.RGB})
 
     INPUT_SPECS = {
         "cube": PortSpec(
@@ -168,6 +171,9 @@ class PCAVisualization(Node):
     ...     (pca_viz.artifacts, tensorboard_node.artifacts),
     ... )
     """
+
+    _category = NodeCategory.VISUALIZER
+    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.RGB})
 
     INPUT_SPECS = {
         "data": PortSpec(
@@ -381,6 +387,9 @@ class PipelineComparisonVisualizer(Node):
     log_every_n_batches : int, optional
         Log images every N batches to reduce TensorBoard size (default: 1, log every batch)
     """
+
+    _category = NodeCategory.VISUALIZER
+    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.RGB})
 
     INPUT_SPECS = {
         "hsi_cube": PortSpec(

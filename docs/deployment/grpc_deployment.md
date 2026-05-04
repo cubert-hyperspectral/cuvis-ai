@@ -5,7 +5,7 @@
 
 # gRPC API Deployment Guide
 
-This guide covers running the cuvis.ai gRPC service in local, containerized, and clustered environments.
+This guide covers running the Cuvis.AI gRPC service in local, containerized, and clustered environments.
 
 ## Prerequisites
 
@@ -18,16 +18,16 @@ This guide covers running the cuvis.ai gRPC service in local, containerized, and
 
 ### Using UV (recommended)
 ```bash
-git clone git@gitlab.cubert.local:cubert/cuvis.ai.git
-cd cuvis.ai
+git clone git@gitlab.cubert.local:cubert/Cuvis.AI.git
+cd Cuvis.AI
 uv sync
 cd proto && buf generate
 ```
 
 ### Using pip
 ```bash
-git clone git@gitlab.cubert.local:cubert/cuvis.ai.git
-cd cuvis.ai
+git clone git@gitlab.cubert.local:cubert/Cuvis.AI.git
+cd Cuvis.AI
 pip install -e .
 pip install grpcio grpcio-tools
 cd proto && buf generate

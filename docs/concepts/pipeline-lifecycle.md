@@ -7,7 +7,7 @@
 
 *Central orchestrator managing node connections, data flow, and execution through distinct lifecycle phases.*
 
-A **Pipeline** in CUVIS.AI is a directed acyclic graph (DAG) of connected nodes that processes data through transformations. It manages connections, validates ports, executes nodes in topological order, handles initialization, and serializes trained models.
+A **Pipeline** in Cuvis.AI is a directed acyclic graph (DAG) of connected nodes that processes data through transformations. It manages connections, validates ports, executes nodes in topological order, handles initialization, and serializes trained models.
 
 **Key capabilities:**
 

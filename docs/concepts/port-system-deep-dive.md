@@ -5,7 +5,7 @@
 
 # Port System Deep Dive
 
-*Typed, validated connections between nodes enable robust data flow in CUVIS.AI pipelines.*
+*Typed, validated connections between nodes enable robust data flow in Cuvis.AI pipelines.*
 
 Ports provide explicit communication interfaces with **type safety**, **shape validation**, **optional connections**, and **symbolic dimension resolution**.
 

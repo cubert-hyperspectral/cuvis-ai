@@ -1,6 +1,6 @@
 # Configuration
 
-CUVIS.AI uses Hydra composition and checked-in YAML files under `configs/` as the current source of
+Cuvis.AI uses Hydra composition and checked-in YAML files under `configs/` as the current source of
 truth for pipeline, data, training, trainrun, and plugin configuration.
 
 ## Directory Layout
@@ -34,7 +34,7 @@ Use the current schema keys only:
 metadata:
   name: RX_Statistical
   description: RX anomaly detector
-  author: cuvis.ai
+  author: Cuvis.AI
 
 nodes:
   - name: data_node

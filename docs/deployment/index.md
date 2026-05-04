@@ -5,7 +5,7 @@
 
 # Deployment Guide
 
-Deploy CUVIS.AI pipelines in production environments.
+Deploy Cuvis.AI pipelines in production environments.
 
 <div class="grid cards" markdown>
 

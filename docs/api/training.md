@@ -9,7 +9,7 @@ Training-related components including losses and metrics.
 
 ## Overview
 
-Training functionality in CUVIS.AI is provided through loss functions, metrics, and monitoring nodes that integrate with PyTorch Lightning.
+Training functionality in Cuvis.AI is provided through loss functions, metrics, and monitoring nodes that integrate with PyTorch Lightning.
 
 ---
 

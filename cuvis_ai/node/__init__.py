@@ -1,5 +1,12 @@
 """Convenience exports for node base classes and marker mixins."""
 
+from cuvis_ai.node.anomaly import (
+    DeepSVDDProjection,
+    LADGlobal,
+    RXGlobal,
+    RXPerBatch,
+    ZScoreNormalizerGlobal,
+)
 from cuvis_ai.node.anomaly_visualization import (
     AnomalyMask,
     BBoxesOverlayNode,
@@ -16,7 +23,7 @@ from cuvis_ai.node.channel_mixer import ConcreteChannelMixer, LearnableChannelMi
 from cuvis_ai.node.channel_selector import (
     CameraEmulationFalseRGBSelector,
     ChannelSelectorBase,
-    CIETristimulusFalseRGBSelector,
+    CIETristimulusRGBSelector,
     CIRSelector,
     FastRGBSelector,
     FixedWavelengthSelector,
@@ -32,8 +39,9 @@ from cuvis_ai.node.channel_selector import (
     TopKIndices,
 )
 from cuvis_ai.node.colormap import ScalarHSVColormapNode
-from cuvis_ai.node.compositing import ROIZoomNode
+from cuvis_ai.node.compositing import InsetComposer, ROIZoomNode
 from cuvis_ai.node.conversion import DecisionToMask
+from cuvis_ai.node.deciders import BinaryDecider, QuantileBinaryDecider, TwoStageBinaryDecider
 from cuvis_ai.node.dimensionality_reduction import PCA, TrainablePCA
 from cuvis_ai.node.json_file import (
     CocoTrackBBoxWriter,
@@ -89,7 +97,7 @@ __all__ = [
     "ChannelSelectorBase",
     "ChannelSelectorFalseRGBViz",
     "ChannelWeightsViz",
-    "CIETristimulusFalseRGBSelector",
+    "CIETristimulusRGBSelector",
     "CIRSelector",
     "FastRGBSelector",
     "ConcreteChannelMixer",
@@ -103,6 +111,7 @@ __all__ = [
     "HighContrastSelector",
     "IdentityNormalizer",
     "ImageArtifactVizBase",
+    "InsetComposer",
     "LearnableChannelMixer",
     "ROIZoomNode",
     "MaskedMeanSpectrum",
@@ -148,4 +157,12 @@ __all__ = [
     "TrackingOverlayNode",
     "TrackingResultsReader",
     "TrainablePCA",
+    "BinaryDecider",
+    "DeepSVDDProjection",
+    "LADGlobal",
+    "QuantileBinaryDecider",
+    "RXGlobal",
+    "RXPerBatch",
+    "TwoStageBinaryDecider",
+    "ZScoreNormalizerGlobal",
 ]

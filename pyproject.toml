@@ -7,18 +7,17 @@ name = "cuvis-ai"
 dynamic = ["version"]
 description = "Collaborative Framework for Hyperspectral Intelligence"
 readme = "README.md"
-requires-python = ">=3.11,<3.12"
+requires-python = ">=3.11,<3.14"
 license = "Apache-2.0"
 authors = [
     { name = "Cubert GmbH, Ulm, Germany", email = "cuvis.ai@cubert-gmbh.com" },
 ]
 dependencies = [
     "cuvis>=3.5.0",
-    "cuvis-ai-core>=0.3.4",
-    "cuvis-ai-schemas[full]>=0.3.0",
+    "cuvis-ai-core>=0.5.0",
+    "cuvis-ai-schemas[full]>=0.4.0",
     "pydantic>=2.0.0,<3.0.0",
     "defusedxml",
-    "imantics",
     "ftfy>=6.1.1",
     "markupsafe!=3.0.2",
     "matplotlib",
@@ -32,6 +31,7 @@ dependencies = [
     # Core framework dependencies
     "torch>=2.9.1",
     "torchvision",
+    "torchcodec",
     "torchmetrics",
     "pytorch-lightning",
     "tzdata; sys_platform == 'win32'",
@@ -73,7 +73,7 @@ docs = [
     "mkdocstrings[python]>=0.24.0",
     "mkdocs-gen-files>=0.5.0",
     "mkdocs-literate-nav>=0.6.0",
-    "opencv-python-headless",
+    # "opencv-python-headless",
     "pytest-check-links>=0.9.0",
     "pytest-md-report>=0.3.0",
     # --- Documentation versioning ---
@@ -83,6 +83,7 @@ docs = [
 dev = [
     "ipykernel",
     "jupyterlab",
+    "notebook",
     "ruff",
     "pytest",
     "pytest-cov",
@@ -110,12 +111,16 @@ Issues = "https://github.com/cubert-hyperspectral/cuvis-ai/issues"
 [tool.setuptools.packages.find]
 include = ["cuvis_ai*", "tools*", "scripts*"]
 
+[tool.setuptools.package-data]
+cuvis_ai = ["assets/node_icons/*.svg"]
+
 
 [tool.uv.sources]
 torch = { index = "pytorch-cu128" }
 torchvision = { index = "pytorch-cu128" }
 # cuvis-ai-schemas = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-schemas.git", branch = "main" }
 # cuvis-ai-core = { path = "../../cuvis-ai-core/core-simplify-vis", editable = true }
+# cuvis-ai-schemas = { path = "../../cuvis-ai-schemas/schemas-icons", editable = true }
 
 [tool.setuptools_scm]
 version_scheme = "post-release"

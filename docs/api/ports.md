@@ -5,7 +5,7 @@
 
 # Ports API Reference
 
-Complete API reference for the Typed I/O port system in CUVIS.AI.
+Complete API reference for the Typed I/O port system in Cuvis.AI.
 
 ## Overview
 
@@ -162,7 +162,7 @@ pipeline.connect(selector.selected, pca.features, stage="both")
 `LossAggregator` has been removed—the trainer now collects individual loss nodes directly.
 Register every loss/regularizer node with the `GradientTrainer` (or any custom trainer) and
 feed their inputs through standard port connections, as shown in
-`examples/channel_selector.py`.
+[examples/channel_selector.py](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/channel_selector.py).
 
 ```python
 pipeline.connect(

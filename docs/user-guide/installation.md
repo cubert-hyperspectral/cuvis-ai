@@ -1,43 +1,61 @@
 # Installation
 
-Install CUVIS.AI and its dependencies.
+Install Cuvis.AI and its dependencies.
 
 ## Requirements
 
-- **Python**: 3.10+ (tested up to 3.13; **3.11 recommended**)
-- **RAM**: 8GB minimum (16GB recommended; **32GB** for large datasets)
-- **OS**: Windows / Linux / macOS
-- **GPU (optional)**: NVIDIA + **CUDA 12.8** for faster training
-- **Storage**: ~2GB for deps (+ space for datasets/outputs)
+| Component | Minimum | Recommended | Notes |
+| --- | --- | --- | --- |
+| **Python** | 3.10 | **3.11** | Tested up to 3.13 |
+| **RAM** | 16 GB | **32 GB** | Hyperspectral cubes are memory-hungry |
+| **OS** | Windows, Linux, or macOS | — | All three are first-class |
+| **GPU** | — | **NVIDIA + CUDA 12.8** | Strongly recommended even for inference |
+| **Storage** | ~10 GB for dependencies | ~50GB for dataset/output budget | See sizing note below |
+
+!!! note "Why so much disk?"
+    A single hyperspectral cube at **1000 × 1000 × 61** is **115 MB** in F16 and **230 MB** in F32. At 15 FPS, one minute of video is on the order of **100–200 GB**. Plan dataset and output storage accordingly.
 
 ## Install with uv (recommended)
 
-1. Install **uv**:
+### 1. Install uv
 
-   ```bash
-   # Linux/macOS
-   curl -LsSf https://astral.sh/uv/install.sh | sh
+=== "Linux"
 
-   # Windows
-   powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
-   ```
+    ```bash
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    ```
 
-2. Clone and install (all extras):
+=== "macOS"
 
-   ```bash
-   git clone https://github.com/cubert-hyperspectral/cuvis-ai.git
-   cd cuvis-ai
+    ```bash
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    ```
 
-   uv sync --all-extras
-   ```
+=== "Windows"
+
+    ```powershell
+    irm https://astral.sh/uv/install.ps1 | iex
+    ```
+
+### 2. Clone and install (all extras)
+
+```bash
+git clone https://github.com/cubert-hyperspectral/cuvis-ai.git
+cd cuvis-ai
+
+uv sync --all-extras
+```
 
 ## FFmpeg (required for video pipelines)
 
-Video functionality needs FFmpeg on two separate paths:
+The reader-side decoder ([torchcodec](https://github.com/pytorch/torchcodec))
+is installed automatically by `uv sync` as a regular Python dependency. What
+you still need to provide yourself are the FFmpeg **system libraries** that
+both reader and writer paths depend on at runtime:
 
-- **Reader-side** (`VideoIterator`, `VideoFrameDataModule`) — depends on
-  [torchcodec](https://github.com/pytorch/torchcodec), which needs the FFmpeg
-  **shared libraries** at runtime.
+- **Reader-side** (`VideoIterator`, `VideoFrameDataModule`) — `torchcodec`
+  links against FFmpeg's **shared libraries** at runtime. Without them,
+  `import torchcodec` fails to load its native extension.
 
 - **Writer-side** (`ToVideoNode`) — spawns an `ffmpeg` subprocess directly to
   encode H.264/H.265 at a configurable bitrate, so the `ffmpeg` **binary** must
@@ -46,27 +64,73 @@ Video functionality needs FFmpeg on two separate paths:
 
 A single "full" FFmpeg install satisfies both; no separate packages are needed.
 
-```bash
-# Linux (apt)
-sudo apt install ffmpeg
+=== "Linux"
 
-# Linux (conda)
-conda install -c conda-forge ffmpeg
+    ```bash
+    sudo apt install ffmpeg
+    ```
 
-# macOS
-brew install ffmpeg
+=== "macOS"
 
-# Windows (scoop) — use the *shared* build so torchcodec can find the DLLs
-scoop install ffmpeg-shared
-# Then add to PATH (Git Bash / MSYS2):
-export PATH="/c/Users/$USER/scoop/apps/ffmpeg-shared/current/bin:$PATH"
-```
+    ```bash
+    brew install ffmpeg
+    ```
+
+=== "Windows"
+
+    Use the **shared** build so `torchcodec` can find the FFmpeg DLLs:
+
+    ```powershell
+    scoop install ffmpeg-shared
+    ```
+
+    Then expose the `bin/` directory on PATH so the OS DLL loader can resolve the shared libs at runtime:
+
+    ```powershell
+    $env:Path = "$env:USERPROFILE\scoop\apps\ffmpeg-shared\current\bin;$env:Path"
+    ```
 
 Verify both paths with:
 
 ```bash
 ffmpeg -version     # binary available (writer-side)
 python -c "import torchcodec"   # shared libs available (reader-side)
+```
+
+## Graphviz (required for pipeline graph rendering)
+
+The Python `graphviz` package is pulled in automatically by `uv sync`, but it
+is only a thin wrapper that shells out to the **`dot` system binary** to
+rasterise graphs. Any call like
+`pipeline.visualize(format="render_graphviz", output_path="...")` (or
+`format="png"` / `format="svg"`) requires `dot` on `PATH`; without it,
+`graphviz.backend.execute.ExecutableNotFound` is raised.
+
+If you only consume `format="graphviz"` / `format="dot_string"` (raw DOT text)
+or `format="mermaid"`, the system install is not needed.
+
+=== "Linux"
+
+    ```bash
+    sudo apt install graphviz
+    ```
+
+=== "macOS"
+
+    ```bash
+    brew install graphviz
+    ```
+
+=== "Windows"
+
+    ```powershell
+    scoop install graphviz
+    ```
+
+Verify:
+
+```bash
+dot -V
 ```
 
 ## GPU support (optional)
@@ -80,28 +144,22 @@ print(torch.cuda.is_available(), torch.version.cuda, torch.cuda.device_count())
 
 ## Verify
 
-Run tests:
+Quick smoke test — imports the package and prints its version:
 
 ```bash
-uv run pytest tests/ -v
+uv run python -c "import cuvis_ai; print(f'cuvis_ai {cuvis_ai.__version__} ready')"
 ```
 
-Skip GPU tests (CPU-only):
+### Run the test suite (optional)
+
+If you want stronger confidence, run the tests with fast, and CPU-only filter:
 
 ```bash
-uv run pytest tests/ -v -m "no gpu"
-```
-
-Or quick import:
-
-```python
-from cuvis_ai_core.pipeline.graph import Graph
-from cuvis_ai_core.anomaly.rx_detector import RXGlobal
-print("Installation successful!")
+uv run python -m pytest tests/ -v --tb=line -m "not slow and not gpu"
 ```
 
 ## Next steps
 
 * **[Quickstart](quickstart.md)**
 * **[Configuration](configuration.md)**
-* **[Tutorials](../tutorials/index.md)**
+* **[Use Cases](../use_cases/index.md)**
