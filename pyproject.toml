@@ -70,9 +70,9 @@ restore-trainrun = "cuvis_ai_core.utils.restore:restore_trainrun_cli"
 docs = [
     "mkdocs>=1.5.0",
     "mkdocs-material>=9.5.0",
+    "mkdocs-macros-plugin>=1.0.0",
     "mkdocstrings[python]>=0.24.0",
-    "mkdocs-gen-files>=0.5.0",
-    "mkdocs-literate-nav>=0.6.0",
+    "mkdocs-llmstxt>=0.2",
     # "opencv-python-headless",
     "pytest-check-links>=0.9.0",
     "pytest-md-report>=0.3.0",

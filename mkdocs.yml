@@ -1,8 +1,8 @@
 # MkDocs Configuration for cuvis-ai
-site_name: CUVIS.AI Documentation
+site_name: Cuvis.AI
 site_description: PyTorch Lightning Training Pipeline for Hyperspectral Data Analysis
 site_author: Cubert GmbH
-site_url: https://cubert-hyperspectral.github.io/cuvis-ai/
+site_url: https://docs.cuvis.ai/
 
 # Repository
 repo_name: cubert-hyperspectral/cuvis-ai
@@ -97,12 +97,39 @@ markdown_extensions:
 plugins:
   - search:
       separator: '[\s\-,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
-  # Disable auto-generated API pages to avoid duplicate anchors
-  # - gen-files:
-  #     scripts:
-  #       - docs/gen_ref_pages.py
-  - literate-nav:
-      nav_file: SUMMARY.md
+  - macros:
+      module_name: tools/docs_macros
+  - llmstxt:
+      markdown_description: |
+        Cuvis.AI is an open-source, extensible framework for building AI-powered
+        processing pipelines for hyperspectral video data. It lets you process
+        and structure spectral data, train and apply machine learning models,
+        visualize and interpret results, and deploy applications in real-time
+        environments. Pipelines are built from reusable modular nodes and can
+        be extended with custom plugins or external integrations. Cuvis.AI
+        bridges the gap between hyperspectral hardware and real-world
+        applications, enabling faster development, testing, and deployment of
+        new solutions.
+      full_output: llms-full.txt
+      sections:
+        User guide:
+          - user-guide/*.md
+          - concepts/*.md
+          - how-to/*.md
+          - use_cases/*.md
+        Node catalog:
+          - node-catalog/*.md
+        Configuration:
+          - config/*.md
+        gRPC & deployment:
+          - grpc/*.md
+          - deployment/*.md
+        Plugins:
+          - plugin-system/*.md
+        Development:
+          - development/*.md
+        API reference:
+          - api/*.md
   - mkdocstrings:
       handlers:
         python:
@@ -198,10 +225,7 @@ nav:
   - API Reference:
       - Overview: api/index.md
       - Pipeline & Graph: api/pipeline.md
-      - Nodes: api/nodes.md
       - Ports: api/ports.md
-      - Training: api/training.md
-      - Data: api/data.md
       - Utilities: api/utilities.md
 
 # Extra
