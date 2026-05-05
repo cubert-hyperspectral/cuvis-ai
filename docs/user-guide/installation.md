@@ -46,23 +46,19 @@ cd cuvis-ai
 uv sync --all-extras
 ```
 
+## Cuvis SDK (required for cu3s/cu3 I/O)
+
+The `cuvis` Python package is just a binding — the **C++ Cuvis SDK** must be installed system-wide, or any `.cu3s` / `.cu3` read fails at runtime.
+
+Install **Cuvis SDK {{ cuvis_sdk_version }}** for your OS from [the Cubert share](https://cloud.cubert-gmbh.de/s/qpxkyWkycrmBK9m?path=%2F), then verify:
+
+```bash
+uv run python -c "import cuvis; print(cuvis.__version__)"
+```
+
 ## FFmpeg (required for video pipelines)
 
-The reader-side decoder ([torchcodec](https://github.com/pytorch/torchcodec))
-is installed automatically by `uv sync` as a regular Python dependency. What
-you still need to provide yourself are the FFmpeg **system libraries** that
-both reader and writer paths depend on at runtime:
-
-- **Reader-side** (`VideoIterator`, `VideoFrameDataModule`) — `torchcodec`
-  links against FFmpeg's **shared libraries** at runtime. Without them,
-  `import torchcodec` fails to load its native extension.
-
-- **Writer-side** (`ToVideoNode`) — spawns an `ffmpeg` subprocess directly to
-  encode H.264/H.265 at a configurable bitrate, so the `ffmpeg` **binary** must
-  be resolvable on `PATH`. Without it, `ToVideoNode.forward(...)` raises
-  `RuntimeError: ffmpeg binary not found on PATH`.
-
-A single "full" FFmpeg install satisfies both; no separate packages are needed.
+`uv sync` installs the Python video deps but not FFmpeg itself — both the reader ([`torchcodec`](https://github.com/pytorch/torchcodec) shared-lib link) and writer (`ToVideoNode` subprocess) need it at runtime.
 
 === "Linux"
 
@@ -78,36 +74,23 @@ A single "full" FFmpeg install satisfies both; no separate packages are needed.
 
 === "Windows"
 
-    Use the **shared** build so `torchcodec` can find the FFmpeg DLLs:
+    Use the **shared** build so `torchcodec` can find the DLLs, then put it on PATH:
 
     ```powershell
     scoop install ffmpeg-shared
-    ```
-
-    Then expose the `bin/` directory on PATH so the OS DLL loader can resolve the shared libs at runtime:
-
-    ```powershell
     $env:Path = "$env:USERPROFILE\scoop\apps\ffmpeg-shared\current\bin;$env:Path"
     ```
 
-Verify both paths with:
+Verify both paths:
 
 ```bash
-ffmpeg -version     # binary available (writer-side)
-python -c "import torchcodec"   # shared libs available (reader-side)
+ffmpeg -version                # writer-side binary
+python -c "import torchcodec"  # reader-side shared libs
 ```
 
 ## Graphviz (required for pipeline graph rendering)
 
-The Python `graphviz` package is pulled in automatically by `uv sync`, but it
-is only a thin wrapper that shells out to the **`dot` system binary** to
-rasterise graphs. Any call like
-`pipeline.visualize(format="render_graphviz", output_path="...")` (or
-`format="png"` / `format="svg"`) requires `dot` on `PATH`; without it,
-`graphviz.backend.execute.ExecutableNotFound` is raised.
-
-If you only consume `format="graphviz"` / `format="dot_string"` (raw DOT text)
-or `format="mermaid"`, the system install is not needed.
+The Python `graphviz` wrapper shells out to the system `dot` binary, so `pipeline.visualize(format="png" | "svg" | "render_graphviz", ...)` needs it on PATH. Pure DOT/Mermaid output (`format="dot_string"` / `"mermaid"`) doesn't.
 
 === "Linux"
 
@@ -127,11 +110,7 @@ or `format="mermaid"`, the system install is not needed.
     scoop install graphviz
     ```
 
-Verify:
-
-```bash
-dot -V
-```
+Verify with `dot -V`.
 
 ## GPU support (optional)
 
