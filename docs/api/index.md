@@ -1,11 +1,6 @@
-!!! warning "Status: Needs Review"
-    This page has not been reviewed for accuracy and completeness. Content may be outdated or contain errors.
-
----
-
 # API Reference
 
-Current API documentation for the modules and helpers shipped in this branch.
+Framework-level API documentation generated from current docstrings.
 
 ## API Modules
 
@@ -17,29 +12,11 @@ Current API documentation for the modules and helpers shipped in this branch.
 
     Pipeline and graph construction APIs
 
--   :material-cube: **[Nodes](nodes.md)**
-
-    ---
-
-    Node base classes and node implementations
-
 -   :material-transit-connection-variant: **[Ports](ports.md)**
 
     ---
 
     Port system and data contracts
-
--   :material-school: **[Training](training.md)**
-
-    ---
-
-    Training loops and utilities
-
--   :material-database: **[Data](data.md)**
-
-    ---
-
-    Data loading and dataset management
 
 -   :material-tools: **[Utilities](utilities.md)**
 
@@ -57,5 +34,16 @@ Current API documentation for the modules and helpers shipped in this branch.
 
 ---
 
-> **Note:** Curated pages point at current code docstrings and checked-in configs rather than
-> historical API snapshots.
+## Node API
+
+Node implementations are documented in the **[Node Catalog](../node-catalog/index.md)** —
+each catalog page renders the live module docstrings for the nodes in that category:
+
+- [Data nodes](../node-catalog/data-nodes.md) — readers, video sources, JSON/NumPy loaders
+- [Preprocessing](../node-catalog/preprocessing.md) — normalization, occlusion, conversion
+- [Selectors](../node-catalog/selectors.md) — channel selectors, channel mixers, dimensionality reduction
+- [Statistical](../node-catalog/statistical.md) — RX/LAD anomaly detectors, spectral angle/extractor
+- [Loss & Metrics](../node-catalog/loss-metrics.md) — losses, metrics, monitoring
+- [Visualization](../node-catalog/visualization.md) — anomaly viz, pipeline viz
+- [Output](../node-catalog/output.md) — JSON/NumPy/video writers
+- [Utility](../node-catalog/utility.md) — deciders, conversion, labels, prompts

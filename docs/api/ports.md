@@ -364,7 +364,7 @@ for source, target in connections:
 
 ## See Also
 
-- **[Nodes API](nodes.md)**: Node implementations with port specifications
+- **[Node Catalog](../node-catalog/index.md)**: Node implementations with port specifications
 - **[Pipeline API](pipeline.md)**: Pipeline and connection management
 - **[Core Concepts](../concepts/overview.md)**: Understand the architecture
 - **[Quickstart](../user-guide/quickstart.md)**: Practical port usage examples

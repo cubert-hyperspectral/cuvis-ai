@@ -107,7 +107,7 @@ data_node = LentilsAnomalyDataNode(normal_class_ids=[0, 1])
 
 ---
 
-## Step 2: Advanced Preprocessing Chain {#step-2-preprocessing-chain}
+## Step 2: Advanced Preprocessing Chain
 
 ### Bandpass Filtering by Wavelength
 
@@ -153,7 +153,7 @@ normalized_pixel = (pixel - mean(pixel)) / ||pixel - mean(pixel)||₂
 
 ## Step 3: Build Deep SVDD Architecture
 
-## Encoder Initialization {#encoder-initialization}
+## Encoder Initialization
 
 ### Encoder: Z-Score Normalizer (Global Statistics)
 
@@ -174,7 +174,7 @@ encoder = ZScoreNormalizerGlobal(
 - **Gradient Training**: Fine-tunes mean/std as learnable parameters
 - Acts as first encoding layer
 
-## Projection Head {#projection-head}
+## Projection Head
 
 ### Projection Network
 
@@ -223,7 +223,7 @@ center_tracker = DeepSVDDCenterTracker(
 - `center`: Current hypersphere center [rep_dim]
 - `metrics`: Sphere radius, number of outliers
 
-## Training Loss {#training-loss}
+## Training Loss
 
 ### Soft Boundary Loss
 
@@ -246,7 +246,7 @@ Where:
 - R²: Radius term (penalized by ν)
 - max(0, ...): Hinge loss (only penalize if outside radius)
 
-## Anomaly Scoring {#anomaly-scoring}
+## Anomaly Scoring
 
 ### Anomaly Scores
 
@@ -264,7 +264,7 @@ score_node = DeepSVDDScores()
 
 ## Step 5: Decision and Metrics
 
-## Quantile Thresholding {#quantile-thresholding}
+## Quantile Thresholding
 
 ### Quantile-Based Decision
 
@@ -280,7 +280,7 @@ decider_node = QuantileBinaryDecider(
 
 **Advantage:** Adapts to score distribution automatically.
 
-## Score Visualization {#score-visualization}
+## Score Visualization
 
 ### Metrics and Visualization
 
