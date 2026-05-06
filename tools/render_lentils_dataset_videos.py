@@ -1,6 +1,6 @@
 """Render the dataset videos for the lentils HuggingFace card.
 
-Produces seven mp4 files used by the dataset README:
+Produces eight mp4 files used by the dataset README:
 
     measurements/cu3s/2026_04_15_13_32_55/
         Auto_003+01_rgb_input.mp4
@@ -11,6 +11,7 @@ Produces seven mp4 files used by the dataset README:
         Auto_003+01_concrete_overlay.mp4
     assets/
         lentils_3method_teaser.mp4   # 3-method overlay side-by-side
+        lentils_3method_input.mp4    # 3-method input-only (no annotations)
 
 Inputs are fetched on demand by ``resolve_default_config()`` from
 ``cubert-gmbh/XMR_Demo_Industrial_Foreign_Object_Detection_Lentils``. Output
@@ -196,13 +197,20 @@ def main() -> None:
         _write_mp4(_overlay_frames(rows), overlay_path, fps=VIDEO_FPS)
         print(f"  wrote {overlay_path}")
 
-    print("\n--- teaser side-by-side ---")
+    print("\n--- overlay teaser side-by-side ---")
     overlays_by_method = {m: _overlay_frames(rows_by_method[m]) for m in rows_by_method}
     titles_by_method = {m: METHOD_TITLES[m] for m in rows_by_method}
     teaser_frames = _build_teaser_frames(overlays_by_method, titles_by_method)
     teaser_path = DATA_ASSETS_DIR / "lentils_3method_teaser.mp4"
     _write_mp4(teaser_frames, teaser_path, fps=VIDEO_FPS)
     print(f"  wrote {teaser_path}")
+
+    print("\n--- input teaser side-by-side (no annotations) ---")
+    inputs_by_method = {m: _input_frames(rows_by_method[m]) for m in rows_by_method}
+    input_teaser_frames = _build_teaser_frames(inputs_by_method, titles_by_method)
+    input_teaser_path = DATA_ASSETS_DIR / "lentils_3method_input.mp4"
+    _write_mp4(input_teaser_frames, input_teaser_path, fps=VIDEO_FPS)
+    print(f"  wrote {input_teaser_path}")
 
     print("\n--- cleanup stale mp4s ---")
     _delete_stale(
