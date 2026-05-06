@@ -47,6 +47,12 @@ These step-by-step guides will help you learn how to use the framework effective
 
     Build a hyperspectral blood perfusion video with an NDVI pipeline, then extend it with custom nodes for an SpO2 proxy
 
+-   :material-barley: **[Lentils Dinomaly (notebook)](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/notebooks/use_cases/lentils_dinomaly.ipynb)**
+
+    ---
+
+    Run pretrained Dinomaly sliding-lentils pipelines (RGB / CIR / custom selector) with two-stage decider gates.
+
 </div>
 
 ---
