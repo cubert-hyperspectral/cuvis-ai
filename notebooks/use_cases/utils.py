@@ -10,6 +10,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import yaml
+from huggingface_hub import hf_hub_download
+from loguru import logger
+
 from cuvis_ai.node.video import ToVideoNode
 from cuvis_ai_core.data.datasets import SingleCu3sDataModule
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
@@ -17,6 +20,52 @@ from cuvis_ai_core.utils.graph_helper import restructure_output_to_node_dict
 from cuvis_ai_core.utils.node_registry import NodeRegistry
 from cuvis_ai_schemas.enums import ExecutionStage
 from cuvis_ai_schemas.execution import Context
+
+LENTILS_DEMO_REPO = "cubert-gmbh/XMR_Demo_Industrial_Foreign_Object_Detection_Lentils"
+DATA_SUBFOLDER = "measurements/cu3s/2026_04_15_13_32_55"
+
+# Per-method asset locations on HuggingFace. Keys map to MethodSpec.name. Each
+# entry points at the model-repo subfolder that holds the full pipeline YAML
+# and the matching .pt weight. Methods whose subfolder does not yet exist on
+# HF are skipped with a warning at runtime; see resolve_default_config().
+METHOD_HF_ASSETS: dict[str, dict[str, str]] = {
+    "dinomaly_rgb": {
+        "subfolder": "dinomaly_rgb_full_pipeline",
+        "yaml": "dinomaly_multifile_rgb_two_stage.yaml",
+        "pt": "dinomaly_multifile_rgb_two_stage.pt",
+    },
+    "dinomaly_cir": {
+        "subfolder": "dinomaly_cir_full_pipeline",
+        "yaml": "dinomaly_multifile_cir_two_stage.yaml",
+        "pt": "dinomaly_multifile_cir.pt",
+    },
+    "dinomaly_concrete": {
+        "subfolder": "dinomaly_custom_selector_full_pipeline",
+        "yaml": "dinomaly_multifile_custom_two_stage.yaml",
+        "pt": "dinomaly_multifile_custom_two_stage.pt",
+    },
+}
+
+
+def _fetch_model(filename: str, *, subfolder: str) -> Path:
+    return Path(
+        hf_hub_download(
+            repo_id=LENTILS_DEMO_REPO,
+            subfolder=subfolder,
+            filename=filename,
+        )
+    )
+
+
+def _fetch_data(filename: str) -> Path:
+    return Path(
+        hf_hub_download(
+            repo_id=LENTILS_DEMO_REPO,
+            repo_type="dataset",
+            subfolder=DATA_SUBFOLDER,
+            filename=filename,
+        )
+    )
 
 
 @dataclass(frozen=True)
@@ -83,52 +132,72 @@ def _method_spec_from_yaml(
 
 
 def resolve_default_config() -> dict[str, Any]:
+    """Resolve tutorial assets, fetching pipelines + sample CU3S from HuggingFace.
+
+    The custom-selector flow is the only method with a complete pipeline on HF
+    today. RGB and CIR are attempted but skipped with a warning if their
+    HF subfolders do not exist yet.
+    """
     use_cases = Path(__file__).resolve().parent
     repo_root = use_cases.parent.parent
-    pipelines_dir = use_cases / "pipelines"
+
+    methods: list[MethodSpec] = []
+    for name, assets in METHOD_HF_ASSETS.items():
+        try:
+            yaml_path = _fetch_model(assets["yaml"], subfolder=assets["subfolder"])
+            pt_path = _fetch_model(assets["pt"], subfolder=assets["subfolder"])
+        except Exception as exc:  # noqa: BLE001 - HF returns several exception types
+            logger.warning(
+                f"Skipping method '{name}': could not fetch assets from "
+                f"{LENTILS_DEMO_REPO!r}/{assets['subfolder']!r} "
+                f"({type(exc).__name__}: {exc})"
+            )
+            continue
+        methods.append(
+            _method_spec_from_yaml(
+                name=name,
+                title=METHOD_TITLES[name],
+                yaml_path=yaml_path,
+                pt_path=pt_path,
+            )
+        )
+
+    if not methods:
+        raise RuntimeError(
+            "No method assets could be fetched from HuggingFace. Check that "
+            f"{LENTILS_DEMO_REPO!r} is reachable and at least one *_full_pipeline "
+            "subfolder exists."
+        )
+
+    # Fetch the .info file alongside the .cu3s + .json so the loader sees
+    # them in the same snapshot directory.
+    cu3s_path = _fetch_data("Auto_003+01.cu3s")
+    _fetch_data("Auto_003+01.info")
+    annotation_json_path = _fetch_data("Auto_003+01.json")
+
     return {
-        "cu3s_path": Path("/mnt/data/lentils_videos/sliding/Auto_003+01.cu3s"),
-        "annotation_json_path": Path("/mnt/data/lentils_videos/sliding/Auto_003+01.json"),
+        "cu3s_path": cu3s_path,
+        "annotation_json_path": annotation_json_path,
         "plugins_manifest": repo_root / "configs" / "plugins" / "dinomaly.yaml",
-        "method_comparison_json": Path(
-            "/mnt/data/cuvis_ai_outputs/lentils_video_suite_npz/dinomaly/sliding/Auto_003+01/method_comparison.json"
-        ),
-        "methods": [
-            _method_spec_from_yaml(
-                name="dinomaly_rgb",
-                title=METHOD_TITLES["dinomaly_rgb"],
-                yaml_path=pipelines_dir / "dinomaly_multifile_rgb_two_stage.yaml",
-                pt_path=Path(
-                    "/mnt/data/cuvis_ai_outputs/dinomaly_rgb_npz_50ep_w0/trained_models/dinomaly_multifile_rgb.pt"
-                ),
-            ),
-            _method_spec_from_yaml(
-                name="dinomaly_cir",
-                title=METHOD_TITLES["dinomaly_cir"],
-                yaml_path=pipelines_dir / "dinomaly_multifile_cir_two_stage.yaml",
-                pt_path=Path(
-                    "/mnt/data/cuvis_ai_outputs/dinomaly_cir_npz_50ep_w0/trained_models_best/dinomaly_multifile_cir.pt"
-                ),
-            ),
-            _method_spec_from_yaml(
-                name="dinomaly_concrete",
-                title=METHOD_TITLES["dinomaly_concrete"],
-                yaml_path=pipelines_dir / "dinomaly_multifile_custom_two_stage.yaml",
-                pt_path=Path(
-                    "/mnt/data/cuvis_ai_outputs/dinomaly_rgb_frozen_adaclip_bands_npz_50ep_w0/trained_models/dinomaly_multifile_rgb_frozen_adaclip_bands.pt"
-                ),
-            ),
-        ],
+        "method_comparison_json": None,  # Reference-metrics JSON is not on HF.
+        "methods": methods,
     }
 
 
 def assert_paths_exist(config: dict[str, Any]) -> None:
+    """Verify locally-resolvable paths in *config* exist.
+
+    HF-fetched paths are validated by ``hf_hub_download`` itself; we only
+    re-check the ones we resolve from the repo (the plugin manifest) and any
+    paths the caller may have overridden.
+    """
     required = [
         config["cu3s_path"],
         config["annotation_json_path"],
         config["plugins_manifest"],
-        config["method_comparison_json"],
     ]
+    if config.get("method_comparison_json") is not None:
+        required.append(config["method_comparison_json"])
     for method in config["methods"]:
         required.extend([method.yaml_path, method.pt_path])
     missing = [str(p) for p in required if not Path(p).is_file()]

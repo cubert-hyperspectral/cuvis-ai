@@ -45,6 +45,7 @@ dependencies = [
     "transformers>=4.36.0",
     "hf-xet>=1.2.0",
     "opencv-python>=4.13.0.92",
+    "requests>=2.31.0",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
