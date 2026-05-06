@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import Any
 
 import numpy as np
@@ -122,29 +123,81 @@ class StatefulSpectralAngleMapper(SpectralAngleMapper):
             torch.tensor(False, dtype=torch.bool),
             persistent=True,
         )
+        self._statistically_initialized = False
 
-    @torch.no_grad()
-    def fit_signature(self, signature: torch.Tensor | np.ndarray) -> None:
-        """Set and persist one or more reference signatures with shape [N, C]."""
+    def _canonicalize_signature_tensor(self, signature: torch.Tensor | np.ndarray) -> torch.Tensor:
+        """Convert input signatures to canonical shape [N, C]."""
         tensor = torch.as_tensor(signature, dtype=torch.float32, device=self.learned_signature.device)
         if tensor.ndim == 1:
-            tensor = tensor.unsqueeze(0)
+            tensor = tensor.unsqueeze(0)  # [C] -> [1, C]
+        elif tensor.ndim == 2:
+            pass  # [N, C]
+        elif tensor.ndim == 4:
+            # [N, 1, 1, C] -> [N, C]
+            tensor = tensor.squeeze(1).squeeze(1)
+        else:
+            raise ValueError(
+                "signature must have shape [C], [N, C], or [N, 1, 1, C], "
+                f"got {tuple(tensor.shape)}."
+            )
+
         if tensor.ndim != 2:
             raise ValueError(
-                f"signature must have shape [N, C] or [C], got {tuple(tensor.shape)}."
+                f"signature must canonicalize to [N, C], got {tuple(tensor.shape)}."
             )
+
         if int(tensor.shape[-1]) != self.num_channels:
             raise ValueError(
                 "signature channel mismatch: "
                 f"expected {self.num_channels}, got {int(tensor.shape[-1])}."
             )
-        # Current workflow stores one class signature per pipeline artifact.
+
         if int(tensor.shape[0]) != 1:
             raise ValueError(
                 f"StatefulSpectralAngleMapper expects one signature [1, C], got {tuple(tensor.shape)}."
             )
+
+        return tensor.contiguous()
+
+    @torch.no_grad()
+    def fit_signature(self, signature: torch.Tensor | np.ndarray) -> None:
+        """Set and persist one or more reference signatures with shape [N, C]."""
+        tensor = self._canonicalize_signature_tensor(signature)
         self.learned_signature.copy_(tensor.unsqueeze(1).unsqueeze(1).contiguous())
         self._has_learned_signature.fill_(True)
+        self._statistically_initialized = True
+
+    @torch.no_grad()
+    def statistical_initialization(self, input_stream: Iterable[dict[str, torch.Tensor]]) -> None:
+        """Initialize learned signature from a port-style stream.
+
+        Each stream item must include a ``spectral_signature`` tensor in one of:
+        [C], [N, C], or [N, 1, 1, C]. This node enforces a single signature.
+        """
+        self._statistically_initialized = False
+
+        collected: list[torch.Tensor] = []
+        for batch_data in input_stream:
+            signature = batch_data.get("spectral_signature")
+            if signature is None:
+                continue
+            canonical = self._canonicalize_signature_tensor(signature)
+            collected.append(canonical)
+
+        if not collected:
+            raise RuntimeError(
+                "StatefulSpectralAngleMapper.statistical_initialization() did not receive "
+                "'spectral_signature' data."
+            )
+
+        merged = torch.cat(collected, dim=0)
+        if int(merged.shape[0]) != 1:
+            raise RuntimeError(
+                "StatefulSpectralAngleMapper expects exactly one total signature during "
+                f"statistical_initialization(), got {int(merged.shape[0])}."
+            )
+
+        self.fit_signature(merged)
 
     @torch.no_grad()
     def forward(

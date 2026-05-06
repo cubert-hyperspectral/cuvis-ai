@@ -237,3 +237,43 @@ def test_stateful_state_dict_roundtrip_preserves_learned_signature() -> None:
     cube = learned.view(1, 1, 1, 3)
     out = node_b.forward(cube=cube)
     assert torch.allclose(out["best_scores"], torch.zeros_like(out["best_scores"]), atol=1e-6)
+
+
+def test_stateful_statistical_initialization_accepts_stream_signature() -> None:
+    node = StatefulSpectralAngleMapper(num_channels=3)
+    stream = [{"spectral_signature": torch.tensor([1.0, 2.0, 3.0], dtype=torch.float32)}]
+    node.statistical_initialization(stream)
+    assert bool(node._has_learned_signature.item()) is True
+    assert torch.allclose(
+        node.learned_signature[0, 0, 0], torch.tensor([1.0, 2.0, 3.0], dtype=torch.float32), atol=1e-6
+    )
+
+
+def test_stateful_statistical_initialization_rejects_empty_stream() -> None:
+    node = StatefulSpectralAngleMapper(num_channels=3)
+    with pytest.raises(RuntimeError, match="did not receive 'spectral_signature' data"):
+        node.statistical_initialization([{}])
+
+
+def test_stateful_statistical_initialization_rejects_wrong_channels() -> None:
+    node = StatefulSpectralAngleMapper(num_channels=3)
+    stream = [{"spectral_signature": torch.tensor([1.0, 2.0], dtype=torch.float32)}]
+    with pytest.raises(ValueError, match="signature channel mismatch"):
+        node.statistical_initialization(stream)
+
+
+def test_stateful_statistical_initialization_rejects_multiple_total_signatures() -> None:
+    node = StatefulSpectralAngleMapper(num_channels=3)
+    stream = [
+        {"spectral_signature": torch.tensor([1.0, 2.0, 3.0], dtype=torch.float32)},
+        {"spectral_signature": torch.tensor([4.0, 5.0, 6.0], dtype=torch.float32)},
+    ]
+    with pytest.raises(RuntimeError, match="expects exactly one total signature"):
+        node.statistical_initialization(stream)
+
+
+def test_stateful_statistical_initialization_accepts_n11c_shape() -> None:
+    node = StatefulSpectralAngleMapper(num_channels=3)
+    sig = torch.tensor([[[[1.0, 2.0, 3.0]]]], dtype=torch.float32)
+    node.statistical_initialization([{"spectral_signature": sig}])
+    assert bool(node._has_learned_signature.item()) is True
