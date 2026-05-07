@@ -40,13 +40,13 @@ sys.path.insert(0, str(USE_CASES))
 
 from utils import (  # noqa: E402  - sys.path tweak above
     METHOD_TITLES,
+    _overlay_frame_from_row,  # noqa: E402  - intentional internal reuse
     load_pipeline_for_inference,
     make_predict_loader,
     resolve_default_config,
     run_method_on_frame_subset,
     to_uint8_rgb,
 )
-from utils import _overlay_frame_from_row  # noqa: E402  - intentional internal reuse
 
 HF_DATA_ROOT = Path(r"D:/huggingface_data/data")
 DATA_MEASUREMENTS_DIR = HF_DATA_ROOT / "measurements" / "cu3s" / "2026_04_15_13_32_55"
