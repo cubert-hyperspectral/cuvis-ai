@@ -30,18 +30,18 @@ DATA_SUBFOLDER = "measurements/cu3s/2026_04_15_13_32_55"
 METHOD_HF_ASSETS: dict[str, dict[str, str]] = {
     "dinomaly_rgb": {
         "subfolder": "dinomaly_rgb_full_pipeline",
-        "yaml": "dinomaly_multifile_rgb_two_stage.yaml",
-        "pt": "dinomaly_multifile_rgb_two_stage.pt",
+        "yaml": "dinomaly_rgb.yaml",
+        "pt": "dinomaly_rgb.pt",
     },
     "dinomaly_cir": {
         "subfolder": "dinomaly_cir_full_pipeline",
-        "yaml": "dinomaly_multifile_cir_two_stage.yaml",
-        "pt": "dinomaly_multifile_cir.pt",
+        "yaml": "dinomaly_cir.yaml",
+        "pt": "dinomaly_cir.pt",
     },
     "dinomaly_concrete": {
         "subfolder": "dinomaly_custom_selector_full_pipeline",
-        "yaml": "dinomaly_multifile_custom_two_stage.yaml",
-        "pt": "dinomaly_multifile_custom_two_stage.pt",
+        "yaml": "dinomaly_custom.yaml",
+        "pt": "dinomaly_custom.pt",
     },
 }
 
