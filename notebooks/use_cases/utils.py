@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 import imageio
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import yaml
+from cuvis_ai_schemas.enums import ExecutionStage
+from cuvis_ai_schemas.execution import Context
 from huggingface_hub import hf_hub_download
 from IPython.display import Markdown, display
 from loguru import logger
@@ -17,8 +20,6 @@ from cuvis_ai_core.data.datasets import SingleCu3sDataModule
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_core.utils.graph_helper import restructure_output_to_node_dict
 from cuvis_ai_core.utils.node_registry import NodeRegistry
-from cuvis_ai_schemas.enums import ExecutionStage
-from cuvis_ai_schemas.execution import Context
 
 LENTILS_DEMO_REPO = "cubert-gmbh/XMR_Demo_Industrial_Foreign_Object_Detection_Lentils"
 DATA_SUBFOLDER = "measurements/cu3s/2026_04_15_13_32_55"
@@ -115,9 +116,7 @@ def read_two_stage_decider_thresholds(yaml_path: Path) -> tuple[float, float]:
     return t, q
 
 
-def _method_spec_from_yaml(
-    *, name: str, title: str, yaml_path: Path, pt_path: Path
-) -> MethodSpec:
+def _method_spec_from_yaml(*, name: str, title: str, yaml_path: Path, pt_path: Path) -> MethodSpec:
     t, q, tkf = read_two_stage_decider_hparams(yaml_path)
     return MethodSpec(
         name=name,
@@ -326,7 +325,8 @@ def run_method_on_frame_subset(
                 global_step=running_index,
             )
             batch_dev = {
-                k: (v.to(device, non_blocking=True) if torch.is_tensor(v) else v) for k, v in batch.items()
+                k: (v.to(device, non_blocking=True) if torch.is_tensor(v) else v)
+                for k, v in batch.items()
             }
             raw = pipeline.forward(batch_dev, context=context)
             node_out = restructure_output_to_node_dict(raw)
@@ -401,7 +401,9 @@ def iou(pred: np.ndarray, gt: np.ndarray) -> float:
     return float(inter / union)
 
 
-def overlay_boundaries(rgb_u8: np.ndarray, pred_mask: np.ndarray, gt_mask: np.ndarray) -> np.ndarray:
+def overlay_boundaries(
+    rgb_u8: np.ndarray, pred_mask: np.ndarray, gt_mask: np.ndarray
+) -> np.ndarray:
     out = rgb_u8.copy()
     pred = pred_mask.astype(bool)
     gt = gt_mask.astype(bool)
@@ -459,7 +461,9 @@ def render_input_triplet(rows_by_method: dict[str, list[dict[str, Any]]], frame_
     plt.tight_layout()
 
 
-def summarize_subset(rows_by_method: dict[str, list[dict[str, Any]]]) -> list[dict[str, float | str | int]]:
+def summarize_subset(
+    rows_by_method: dict[str, list[dict[str, Any]]],
+) -> list[dict[str, float | str | int]]:
     table: list[dict[str, float | str | int]] = []
     for method_name in ("dinomaly_rgb", "dinomaly_cir", "dinomaly_concrete"):
         rows = rows_by_method.get(method_name, [])
