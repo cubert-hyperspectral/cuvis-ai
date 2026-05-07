@@ -1,19 +1,18 @@
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
-import cv2
+import imageio
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import yaml
 from huggingface_hub import hf_hub_download
+from IPython.display import Markdown, display
 from loguru import logger
 
-from cuvis_ai.node.video import ToVideoNode
 from cuvis_ai_core.data.datasets import SingleCu3sDataModule
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_core.utils.graph_helper import restructure_output_to_node_dict
@@ -169,8 +168,6 @@ def resolve_default_config() -> dict[str, Any]:
             "subfolder exists."
         )
 
-    # Fetch the .info file alongside the .cu3s + .json so the loader sees
-    # them in the same snapshot directory.
     cu3s_path = _fetch_data("Auto_003+01.cu3s")
     _fetch_data("Auto_003+01.info")
     annotation_json_path = _fetch_data("Auto_003+01.json")
@@ -179,7 +176,6 @@ def resolve_default_config() -> dict[str, Any]:
         "cu3s_path": cu3s_path,
         "annotation_json_path": annotation_json_path,
         "plugins_manifest": repo_root / "configs" / "plugins" / "dinomaly.yaml",
-        "method_comparison_json": None,  # Reference-metrics JSON is not on HF.
         "methods": methods,
     }
 
@@ -196,27 +192,11 @@ def assert_paths_exist(config: dict[str, Any]) -> None:
         config["annotation_json_path"],
         config["plugins_manifest"],
     ]
-    if config.get("method_comparison_json") is not None:
-        required.append(config["method_comparison_json"])
     for method in config["methods"]:
         required.extend([method.yaml_path, method.pt_path])
     missing = [str(p) for p in required if not Path(p).is_file()]
     if missing:
         raise FileNotFoundError("Missing required files:\n" + "\n".join(missing))
-
-
-def load_reference_metrics(path: Path) -> dict[str, dict[str, float]]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    by_method: dict[str, dict[str, float]] = {}
-    for row in payload:
-        m = str(row["method"])
-        by_method[m] = {
-            "pixel_auroc": float(row["pixel_auroc"]),
-            "image_auroc": float(row["image_auroc"]),
-            "pixel_iou": float(row["pixel_iou"]),
-            "image_f1": float(row["image_f1"]),
-        }
-    return by_method
 
 
 def make_predict_loader(
@@ -501,24 +481,6 @@ def _overlay_frame_from_row(row: dict[str, Any]) -> np.ndarray:
     return overlay_boundaries(to_uint8_rgb(row["rgb_image"]), row["pred_mask"], row["gt_mask"])
 
 
-def _write_video_fallback_opencv(rows: list[dict[str, Any]], output_path: Path, fps: float) -> Path:
-    if not rows:
-        raise ValueError("No rows to write")
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    rows_sorted = sorted(rows, key=lambda r: int(r["frame_idx"]))
-    first = _overlay_frame_from_row(rows_sorted[0])
-    h, w = int(first.shape[0]), int(first.shape[1])
-    out_path = output_path.with_suffix(".avi")
-    writer = cv2.VideoWriter(str(out_path), cv2.VideoWriter_fourcc(*"MJPG"), float(fps), (w, h))
-    if not writer.isOpened():
-        raise RuntimeError(f"Could not open fallback VideoWriter for {out_path}")
-    for row in rows_sorted:
-        frame_rgb = _overlay_frame_from_row(row)
-        writer.write(frame_rgb[..., ::-1])  # RGB -> BGR
-    writer.release()
-    return out_path
-
-
 def export_overlay_video(
     *,
     rows: list[dict[str, Any]],
@@ -526,27 +488,49 @@ def export_overlay_video(
     fps: float = 4.0,
     overlay_title: str | None = None,
 ) -> Path:
-    """Export per-frame overlays using ToVideoNode primary, OpenCV fallback."""
+    """Export per-frame overlays as H.264 MP4 using imageio-ffmpeg."""
     if not rows:
         raise ValueError("No rows to export")
     rows_sorted = sorted(rows, key=lambda r: int(r["frame_idx"]))
+    output_path = output_path.with_suffix(".mp4")
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        node = ToVideoNode(
-            output_video_path=str(output_path),
-            frame_rate=float(fps),
-            overlay_title=overlay_title,
-            name="notebook_to_video",
-        )
+    with imageio.get_writer(
+        str(output_path),
+        fps=float(fps),
+        codec="libx264",
+        quality=5,
+        pixelformat="yuv420p",
+        macro_block_size=None,
+    ) as writer:
         for row in rows_sorted:
-            frame = _overlay_frame_from_row(row).astype(np.float32) / 255.0
-            frame_t = torch.from_numpy(frame).unsqueeze(0)  # [1,H,W,3]
-            frame_id_t = torch.tensor([int(row["frame_idx"])], dtype=torch.int64)
-            node.forward(rgb_image=frame_t, frame_id=frame_id_t)
-        node.close()
-        if output_path.is_file():
-            return output_path
-    except Exception:
-        pass
-    return _write_video_fallback_opencv(rows_sorted, output_path=output_path, fps=float(fps))
+            writer.append_data(_overlay_frame_from_row(row))
+    return output_path
 
+
+def _format_table_value(value: Any) -> str:
+    if isinstance(value, float):
+        return f"{value:.4f}"
+    return str(value)
+
+
+def _markdown_table(rows: list[dict[str, Any]], columns: Iterable[str]) -> str:
+    columns = list(columns)
+    if not rows:
+        return "_No rows available._"
+    header = "| " + " | ".join(columns) + " |"
+    sep = "| " + " | ".join(["---"] * len(columns)) + " |"
+    body = []
+    for row in rows:
+        values = [_format_table_value(row.get(col, "")) for col in columns]
+        body.append("| " + " | ".join(values) + " |")
+    return "\n".join([header, sep, *body])
+
+
+def display_records_table(
+    rows: list[dict[str, Any]], columns: Iterable[str], *, title: str | None = None
+) -> None:
+    """Render *rows* as a Markdown table in a Jupyter cell output."""
+    markdown = _markdown_table(rows, columns)
+    if title:
+        markdown = f"**{title}**\n\n{markdown}"
+    display(Markdown(markdown))
