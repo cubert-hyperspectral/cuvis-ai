@@ -30,7 +30,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import cv2
+import imageio
 import numpy as np
 import torch
 
@@ -52,35 +52,27 @@ HF_DATA_ROOT = Path(r"D:/huggingface_data/data")
 DATA_MEASUREMENTS_DIR = HF_DATA_ROOT / "measurements" / "cu3s" / "2026_04_15_13_32_55"
 DATA_ASSETS_DIR = HF_DATA_ROOT / "assets"
 VIDEO_FPS = 4.0
-TEASER_PANEL_LABEL_FONT = cv2.FONT_HERSHEY_SIMPLEX
+TEASER_PANEL_LABEL_FONT_SCALE = 0.9
+TEASER_PANEL_LABEL_THICKNESS = 2
 
 
 def _write_mp4(frames: list[np.ndarray], output_path: Path, fps: float) -> Path:
-    """Write a list of HxWx3 uint8 RGB frames to an mp4 via OpenCV mp4v."""
+    """Write a list of HxWx3 uint8 RGB frames to an H.264 MP4 via imageio-ffmpeg."""
     if not frames:
         raise ValueError(f"No frames to write for {output_path}")
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    h, w = int(frames[0].shape[0]), int(frames[0].shape[1])
-    writer = cv2.VideoWriter(
+    with imageio.get_writer(
         str(output_path),
-        cv2.VideoWriter_fourcc(*"mp4v"),
-        float(fps),
-        (w, h),
-    )
-    if not writer.isOpened():
-        raise RuntimeError(f"Could not open mp4 writer for {output_path}")
-    try:
+        fps=float(fps),
+        codec="libx264",
+        quality=5,
+        pixelformat="yuv420p",
+        macro_block_size=None,
+    ) as writer:
         for frame in frames:
-            if frame.shape[0] != h or frame.shape[1] != w:
-                raise ValueError(
-                    f"Frame size mismatch in {output_path}: "
-                    f"got {frame.shape[:2]}, expected {(h, w)}"
-                )
-            writer.write(frame[..., ::-1])  # RGB -> BGR
-    finally:
-        writer.release()
+            writer.append_data(frame)
     if not output_path.is_file():
-        raise RuntimeError(f"mp4 writer reported success but file is missing: {output_path}")
+        raise RuntimeError(f"Writer reported success but file is missing: {output_path}")
     return output_path
 
 
@@ -95,23 +87,26 @@ def _overlay_frames(rows: list[dict]) -> list[np.ndarray]:
 
 
 def _label_panel(frame: np.ndarray, label: str) -> np.ndarray:
-    """Draw a left-aligned label across the top of an RGB frame (uint8)."""
+    """Draw a left-aligned label across the top of an RGB frame (uint8) using PIL."""
+    from PIL import Image, ImageDraw, ImageFont
+
     canvas = frame.copy()
     h, w = canvas.shape[:2]
     pad = max(8, h // 80)
-    text_size, _ = cv2.getTextSize(label, TEASER_PANEL_LABEL_FONT, 0.9, 2)
-    cv2.rectangle(canvas, (0, 0), (w, text_size[1] + 2 * pad), (0, 0, 0), thickness=-1)
-    cv2.putText(
-        canvas,
-        label,
-        (pad, text_size[1] + pad),
-        TEASER_PANEL_LABEL_FONT,
-        0.9,
-        (255, 255, 255),
-        2,
-        cv2.LINE_AA,
-    )
-    return canvas
+    font_size = max(16, h // 30)
+    try:
+        font = ImageFont.truetype("arial.ttf", font_size)
+    except OSError:
+        font = ImageFont.load_default()
+
+    img = Image.fromarray(canvas)
+    draw = ImageDraw.Draw(img)
+    bbox = draw.textbbox((0, 0), label, font=font)
+    text_h = bbox[3] - bbox[1]
+    bar_h = text_h + 2 * pad
+    draw.rectangle([(0, 0), (w, bar_h)], fill=(0, 0, 0))
+    draw.text((pad, pad), label, fill=(255, 255, 255), font=font)
+    return np.array(img)
 
 
 def _build_teaser_frames(
