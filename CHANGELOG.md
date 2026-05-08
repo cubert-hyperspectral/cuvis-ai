@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Rebranded the mkdocs site to follow Cubert CI. `palette: primary/accent: custom` lets `docs/stylesheets/extra.css` drive the palette directly across both Material schemes; headings use Rajdhani via a Google Fonts `@import` while body and code stay on Roboto / Roboto Mono via Material's font loader. Mermaid theme variables (`docs/javascripts/mermaid-theme.js`) updated to match.
+- Fixed broken cross-doc links surfaced by `mkdocs build --strict`: `docs/how-to/add-builtin-node.md` now links to the in-tree `development/contributing.md` instead of the repo-root `CONTRIBUTING.md`, and the five plugin-manifest links in `docs/plugin-system/index.md` now point at `https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/configs/plugins/*.yaml` instead of relative paths that escape the docs tree. Strict build now passes 0 warnings.
 
 ## 0.7.0 - 2026-05-04
 

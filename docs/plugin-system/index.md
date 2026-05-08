@@ -38,11 +38,11 @@ HOTAMetricNode = registry.get("HOTAMetricNode", instance=registry)
 
 ## Official Plugin Manifests
 
-- [`configs/plugins/adaclip.yaml`](../../configs/plugins/adaclip.yaml): released AdaCLIP plugin manifest
-- [`configs/plugins/ultralytics.yaml`](../../configs/plugins/ultralytics.yaml): released Ultralytics YOLO26 plugin manifest pinned to `v0.1.0`
-- [`configs/plugins/deepeiou.yaml`](../../configs/plugins/deepeiou.yaml): released DeepEIoU plugin manifest pinned to `v0.1.0`
-- [`configs/plugins/trackeval.yaml`](../../configs/plugins/trackeval.yaml): released TrackEval plugin manifest pinned to `v0.1.0`
-- [`configs/plugins/sam3.yaml`](../../configs/plugins/sam3.yaml): local SAM3 plugin manifest for a checkout at `D:\code-repos\cuvis-ai-sam3\sam3-init`
+- [`configs/plugins/adaclip.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/configs/plugins/adaclip.yaml): released AdaCLIP plugin manifest
+- [`configs/plugins/ultralytics.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/configs/plugins/ultralytics.yaml): released Ultralytics YOLO26 plugin manifest pinned to `v0.1.0`
+- [`configs/plugins/deepeiou.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/configs/plugins/deepeiou.yaml): released DeepEIoU plugin manifest pinned to `v0.1.0`
+- [`configs/plugins/trackeval.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/configs/plugins/trackeval.yaml): released TrackEval plugin manifest pinned to `v0.1.0`
+- [`configs/plugins/sam3.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/configs/plugins/sam3.yaml): local SAM3 plugin manifest for a checkout at `D:\code-repos\cuvis-ai-sam3\sam3-init`
 
 ## Official Plugins
 

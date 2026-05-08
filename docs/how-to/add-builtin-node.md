@@ -1068,4 +1068,4 @@ def test_edge_cases():
 - [Node Catalog](../node-catalog/index.md)
 - [Build Pipelines in Python](build-pipeline-python.md)
 - [Build Pipelines in YAML](build-pipeline-yaml.md)
-- [Contributing Guide](../../CONTRIBUTING.md)
+- [Contributing Guide](../development/contributing.md)
