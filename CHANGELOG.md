@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Rebranded the mkdocs site to follow Cubert CI. `palette: primary/accent: custom` lets `docs/stylesheets/extra.css` drive the palette directly across both Material schemes; headings use Rajdhani via a Google Fonts `@import` while body and code stay on Roboto / Roboto Mono via Material's font loader. Mermaid theme variables (`docs/javascripts/mermaid-theme.js`) updated to match.
+
 ## 0.7.0 - 2026-05-04
 
 - Extracted the `examples/` tree (70 files) into a new sister repo, [`cuvis-ai-cookbook`](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook). Removed `docs/grpc/example-clients.md` (now redundant) and rerouted all in-doc `examples/...` links to cookbook GitHub URLs.

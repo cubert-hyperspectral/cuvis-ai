@@ -1,297 +1,276 @@
-/* Custom CSS for Cuvis.AI Documentation - PyTorch-inspired */
+/* Cubert CI palette + Rajdhani headings via Google Fonts.
+   Roboto + Roboto Mono come in via Material's font loader (mkdocs.yml). */
 
-/* Root variables - PyTorch color scheme */
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&display=swap');
+
+/* (b) Brand tokens --------------------------------------------------------- */
 :root {
-    --pytorch-orange: #ee4c2c;
-    --pytorch-dark: #262626;
-    --code-bg: #f8f8f8;
-    --border-color: #e8e8e8;
+  --cu-cool-dark: #191932;
+  --cu-cool-dark-deeper: #0f0f24;
+  --cu-cool-light: #ebf0f5;
+  --cu-turquoise-dark: #00f0c8;   /* on dark bg */
+  --cu-turquoise-light: #00b48c;  /* on light bg */
+  --cu-lilac-dark: #c8aafa;       /* warn on dark bg */
+  --cu-lilac-light: #5a3c96;      /* warn on light bg */
+  --cu-blue-dark: #5abefa;        /* danger on dark bg */
+  --cu-blue-light: #00288c;       /* danger on light bg */
+  --cu-lime-dark: #e6fa00;        /* hover/active on dark bg */
+  --cu-lime-light: #646400;       /* hover/active on light bg */
+  --cu-neutral-light: #fafafa;
 }
 
-/* Clean, readable typography */
+/* (c) Light scheme — page 6 right ----------------------------------------- */
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color:        var(--cu-cool-dark);
+  --md-primary-fg-color--light: var(--cu-cool-dark);
+  --md-primary-fg-color--dark:  var(--cu-cool-dark-deeper);
+  --md-primary-bg-color:        #ffffff;
+  --md-primary-bg-color--light: #ffffffb3;
+
+  --md-accent-fg-color:         var(--cu-turquoise-light);
+  --md-accent-fg-color--transparent: rgba(0, 180, 140, 0.12);
+  --md-accent-bg-color:         #ffffff;
+  --md-accent-bg-color--light:  #ffffffb3;
+
+  --md-default-bg-color:        var(--cu-cool-light);
+  --md-default-fg-color:        var(--cu-cool-dark);
+  --md-default-fg-color--light: rgba(25, 25, 50, 0.75);
+  --md-default-fg-color--lighter: rgba(25, 25, 50, 0.4);
+
+  --md-typeset-a-color:         var(--cu-turquoise-light);
+  --md-code-bg-color:           var(--cu-neutral-light);
+  --md-code-fg-color:           var(--cu-cool-dark);
+}
+
+/* (d) Dark scheme — page 6 left ------------------------------------------- */
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color:        var(--cu-cool-dark-deeper);
+  --md-primary-fg-color--light: var(--cu-cool-dark);
+  --md-primary-fg-color--dark:  var(--cu-cool-dark-deeper);
+  --md-primary-bg-color:        #ffffff;
+  --md-primary-bg-color--light: #ffffffb3;
+
+  --md-accent-fg-color:         var(--cu-turquoise-dark);
+  --md-accent-fg-color--transparent: rgba(0, 240, 200, 0.15);
+  --md-accent-bg-color:         #ffffff;
+  --md-accent-bg-color--light:  #ffffffb3;
+
+  --md-default-bg-color:        var(--cu-cool-dark);
+  --md-default-fg-color:        var(--cu-neutral-light);
+  --md-default-fg-color--light: rgba(250, 250, 250, 0.8);
+  --md-default-fg-color--lighter: rgba(250, 250, 250, 0.5);
+
+  --md-typeset-a-color:         var(--cu-turquoise-dark);
+  --md-code-bg-color:           var(--cu-cool-dark-deeper);
+  --md-code-fg-color:           #e6e6f5;
+}
+
+/* (e) Typography ----------------------------------------------------------- */
+body,
 .md-typeset {
-    font-size: 0.9rem;
-    line-height: 1.5;
-    color: #333;
+  font-family: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 0.9rem;
+  line-height: 1.55;
 }
 
-/* Headings - PyTorch style */
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3,
+.md-typeset h4,
+.md-typeset h5,
+.md-header__topic,
+.md-nav__title {
+  font-family: "Rajdhani", "Roboto", system-ui, sans-serif;
+  letter-spacing: 0.01em;
+}
+
+.md-typeset code,
+.md-typeset pre,
+code,
+pre,
+kbd,
+.md-typeset .md-code__content {
+  font-family: "Roboto Mono", ui-monospace, "SFMono-Regular", monospace;
+}
+
 .md-typeset h1 {
-    font-weight: 300;
-    font-size: 2rem;
-    margin: 0 0 0.75rem;
-    border-bottom: 1px solid var(--border-color);
-    padding-bottom: 0.3rem;
+  font-weight: 800;
+  font-size: 2rem;
+  margin: 0 0 0.75rem;
+  text-transform: uppercase;
 }
 
 .md-typeset h2 {
-    font-weight: 400;
-    font-size: 1.5rem;
-    margin: 1.2rem 0 0.5rem;
-    border-bottom: 1px solid var(--border-color);
-    padding-bottom: 0.2rem;
+  font-weight: 700;
+  font-size: 1.5rem;
+  margin: 1.2rem 0 0.5rem;
+  text-transform: uppercase;
 }
 
 .md-typeset h3 {
-    font-weight: 500;
-    font-size: 1.15rem;
-    margin: 1rem 0 0.4rem;
+  font-weight: 600;
+  font-size: 1.15rem;
+  margin: 1rem 0 0.4rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .md-typeset h4 {
-    font-weight: 600;
-    font-size: 1rem;
-    margin: 0.8rem 0 0.4rem;
+  font-weight: 600;
+  font-size: 1rem;
+  margin: 0.8rem 0 0.4rem;
 }
 
-/* Paragraphs and text */
-.md-typeset p {
-    margin: 0.5rem 0;
-}
+/* (f) H3 turquoise — page 6 hard requirement ------------------------------ */
+[data-md-color-scheme="default"] .md-typeset h3 { color: var(--cu-turquoise-light); }
+[data-md-color-scheme="slate"]   .md-typeset h3 { color: var(--cu-turquoise-dark); }
 
-/* Lists - cleaner spacing */
-.md-typeset ul, .md-typeset ol {
-    margin: 0.5rem 0;
-    padding-left: 1.6rem;
-}
-
-.md-typeset li {
-    margin: 0.2rem 0;
-    line-height: 1.4;
-}
-
-/* Code blocks - PyTorch style */
+/* (g) Code block — turquoise hairline border ------------------------------ */
 .md-typeset pre {
-    background-color: var(--code-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    padding: 0.3rem;
-    margin: 0.65rem 0;
-    font-size: 0.8rem;
-    line-height: 1.25;
-    max-width: 73%;
-    overflow-x: auto;
+  border-radius: 4px;
+  margin: 0.65rem 0;
+  font-size: 0.8rem;
+  line-height: 1.3;
 }
-
-.md-typeset code {
-    background-color: var(--code-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 3px;
-    padding: 0.1rem 0.35rem;
-    font-size: 0.85em;
-}
-
 .md-typeset pre > code {
-    background-color: transparent;
-    border: none;
-    padding: 0;
-    font-size: 0.8rem;
+  background: transparent;
+  border: none;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.8rem;
+}
+.md-typeset code {
+  border-radius: 3px;
+  padding: 0.1rem 0.35rem;
+  font-size: 0.85em;
 }
 
-/* Inline code in headers */
-.md-typeset h1 code,
-.md-typeset h2 code,
-.md-typeset h3 code {
-    font-size: 0.85em;
+[data-md-color-scheme="default"] .md-typeset pre,
+[data-md-color-scheme="default"] .md-typeset .highlight pre {
+  border: 1px solid var(--cu-turquoise-light);
+}
+[data-md-color-scheme="slate"] .md-typeset pre,
+[data-md-color-scheme="slate"] .md-typeset .highlight pre {
+  border: 1px solid var(--cu-turquoise-dark);
 }
 
-/* Tables - cleaner PyTorch style */
-.md-typeset table:not([class]) {
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    margin: 0.75rem 0;
-    font-size: 0.85rem;
+/* Inline code keeps a softer border so it doesn't shout in prose */
+[data-md-color-scheme="default"] .md-typeset code {
+  border: 1px solid rgba(0, 180, 140, 0.35);
 }
-
-.md-typeset table:not([class]) th {
-    background-color: #f6f6f6;
-    font-weight: 600;
-    padding: 0.5rem 0.7rem;
-    border-bottom: 2px solid var(--border-color);
-}
-
-.md-typeset table:not([class]) td {
-    padding: 0.5rem 0.7rem;
-    border-bottom: 1px solid var(--border-color);
-}
-
-/* Admonitions - cleaner style */
-.admonition {
-    margin: 0.75rem 0;
-    padding: 0.6rem 0.8rem;
-    border-radius: 4px;
-    border-left: 4px solid;
-}
-
-.admonition.note {
-    border-left-color: #5890ff;
-    background-color: #f0f5ff;
-}
-
-.admonition.tip {
-    border-left-color: #00c853;
-    background-color: #f1f8f4;
-}
-
-.admonition.warning {
-    border-left-color: var(--pytorch-orange);
-    background-color: #fff8f0;
-}
-
-.admonition.danger {
-    border-left-color: #ff1744;
-    background-color: #fff0f3;
-}
-
-/* Links - PyTorch orange */
-.md-typeset a {
-    color: var(--pytorch-orange);
-    text-decoration: none;
-}
-
-.md-typeset a:hover {
-    color: #d43f27;
-    text-decoration: underline;
-}
-
-/* Horizontal rules */
-.md-typeset hr {
-    border-top: 1px solid var(--border-color);
-    margin: 1.5rem 0;
-}
-
-/* Dark theme adjustments */
-[data-md-color-scheme="slate"] .md-typeset {
-    color: #e0e0e0;
-}
-
-[data-md-color-scheme="slate"] .md-typeset h1,
-[data-md-color-scheme="slate"] .md-typeset h2,
-[data-md-color-scheme="slate"] .md-typeset h3,
-[data-md-color-scheme="slate"] .md-typeset h4 {
-    color: #ffffff;
-    border-bottom-color: #404040;
-}
-
 [data-md-color-scheme="slate"] .md-typeset code {
-    background-color: #2d2d2d;
-    border-color: #404040;
-    color: #e0e0e0;
+  border: 1px solid rgba(0, 240, 200, 0.3);
 }
 
-[data-md-color-scheme="slate"] .md-typeset pre {
-    background-color: #2d2d2d;
-    border-color: #404040;
+/* (h) Admonitions — brand palette (no orange) ----------------------------- */
+.md-typeset .admonition,
+.md-typeset details {
+  border-radius: 4px;
 }
 
-[data-md-color-scheme="slate"] .md-typeset table:not([class]) {
-    border-color: #404040;
+[data-md-color-scheme="default"] .md-typeset .admonition.warning,
+[data-md-color-scheme="default"] .md-typeset details.warning {
+  border-color: var(--cu-lilac-light);
+}
+[data-md-color-scheme="default"] .md-typeset .admonition.warning > .admonition-title,
+[data-md-color-scheme="default"] .md-typeset details.warning > summary {
+  background-color: rgba(90, 60, 150, 0.12);
+  border-color: var(--cu-lilac-light);
+}
+[data-md-color-scheme="slate"] .md-typeset .admonition.warning,
+[data-md-color-scheme="slate"] .md-typeset details.warning {
+  border-color: var(--cu-lilac-dark);
+}
+[data-md-color-scheme="slate"] .md-typeset .admonition.warning > .admonition-title,
+[data-md-color-scheme="slate"] .md-typeset details.warning > summary {
+  background-color: rgba(200, 170, 250, 0.15);
+  border-color: var(--cu-lilac-dark);
 }
 
+[data-md-color-scheme="default"] .md-typeset .admonition.danger,
+[data-md-color-scheme="default"] .md-typeset details.danger {
+  border-color: var(--cu-blue-light);
+}
+[data-md-color-scheme="default"] .md-typeset .admonition.danger > .admonition-title,
+[data-md-color-scheme="default"] .md-typeset details.danger > summary {
+  background-color: rgba(0, 40, 140, 0.12);
+  border-color: var(--cu-blue-light);
+}
+[data-md-color-scheme="slate"] .md-typeset .admonition.danger,
+[data-md-color-scheme="slate"] .md-typeset details.danger {
+  border-color: var(--cu-blue-dark);
+}
+[data-md-color-scheme="slate"] .md-typeset .admonition.danger > .admonition-title,
+[data-md-color-scheme="slate"] .md-typeset details.danger > summary {
+  background-color: rgba(90, 190, 250, 0.15);
+  border-color: var(--cu-blue-dark);
+}
+
+/* (i) Tables --------------------------------------------------------------- */
+.md-typeset table:not([class]) {
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+[data-md-color-scheme="default"] .md-typeset table:not([class]) th {
+  background-color: rgba(0, 180, 140, 0.08);
+  font-weight: 700;
+}
 [data-md-color-scheme="slate"] .md-typeset table:not([class]) th {
-    background-color: #2d2d2d;
-    border-bottom-color: #404040;
-    color: #ffffff;
+  background-color: rgba(0, 240, 200, 0.08);
+  font-weight: 700;
 }
 
-[data-md-color-scheme="slate"] .md-typeset table:not([class]) td {
-    border-bottom-color: #404040;
-    color: #e0e0e0;
-}
+/* Layout — keep PyTorch-era wider grid */
+.md-grid { max-width: 80rem; }
+.md-main__inner { margin-top: 1rem; }
 
-[data-md-color-scheme="slate"] .admonition {
-    background-color: #2d2d2d;
-}
-
-[data-md-color-scheme="slate"] .md-typeset a {
-    color: #ff6e40;
-}
-
-[data-md-color-scheme="slate"] .md-typeset a:hover {
-    color: #ff9e80;
-}
-
-/* Content area - wider like PyTorch */
-.md-grid {
-    max-width: 80rem;
-}
-
-.md-main__inner {
-    margin-top: 1rem;
-}
-
-/* Code block syntax highlighting improvements */
-.highlight .hll { background-color: #ffc; }
-.highlight .c { color: #408080; font-style: italic; }
-.highlight .k { color: #008000; font-weight: bold; }
-.highlight .o { color: #666666; }
-.highlight .cm { color: #408080; font-style: italic; }
-.highlight .cp { color: #bc7a00; }
-.highlight .kd { color: #008000; font-weight: bold; }
-.highlight .kn { color: #008000; font-weight: bold; }
-.highlight .kr { color: #008000; font-weight: bold; }
-.highlight .s { color: #ba2121; }
-.highlight .nc { color: #0000ff; font-weight: bold; }
-.highlight .nf { color: #0000ff; }
-.highlight .bp { color: #008000; }
-
-/* Feature badges */
+/* Feature badges — page-6 orange tag style */
 .feature-badge {
-    display: inline-block;
-    padding: 0.2rem 0.6rem;
-    margin: 0.2rem;
-    border-radius: 3px;
-    font-size: 0.85rem;
-    font-weight: 500;
+  display: inline-block;
+  padding: 0.2rem 0.7rem;
+  margin: 0.2rem;
+  border-radius: 3px;
+  font-family: "Rajdhani", "Roboto", system-ui, sans-serif;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #ffffff;
 }
+.feature-badge.complete    { background-color: var(--cu-turquoise-light); }
+.feature-badge.in-progress { background-color: var(--cu-lilac-light); }
+.feature-badge.pending     { background-color: var(--cu-cool-dark); }
 
-.feature-badge.complete {
-    background-color: #4caf50;
-    color: white;
+/* (j) Mermaid — recolor strokes/labels per scheme ------------------------- */
+.mermaid { background-color: transparent; }
+.mermaid svg { background-color: transparent; max-width: 100%; }
+
+[data-md-color-scheme="default"] .mermaid .node rect,
+[data-md-color-scheme="default"] .mermaid .node circle,
+[data-md-color-scheme="default"] .mermaid .node ellipse,
+[data-md-color-scheme="default"] .mermaid .node polygon {
+  stroke: var(--cu-turquoise-light) !important;
 }
-
-.feature-badge.in-progress {
-    background-color: #ff9800;
-    color: white;
+[data-md-color-scheme="default"] .mermaid .edgeLabel {
+  background-color: var(--cu-cool-light) !important;
+  color: var(--cu-cool-dark) !important;
 }
-
-.feature-badge.pending {
-    background-color: #9e9e9e;
-    color: white;
-}
-
-/* Mermaid diagram dark theme enhancements */
-[data-md-color-scheme="slate"] .mermaid {
-    background-color: transparent;
-}
-
-[data-md-color-scheme="slate"] .mermaid svg {
-    background-color: transparent;
-    max-width: 100%;
+[data-md-color-scheme="default"] .mermaid .label { color: var(--cu-cool-dark) !important; }
+[data-md-color-scheme="default"] .mermaid .cluster rect {
+  fill: rgba(0, 180, 140, 0.06) !important;
+  stroke: var(--cu-turquoise-light) !important;
 }
 
 [data-md-color-scheme="slate"] .mermaid .node rect,
 [data-md-color-scheme="slate"] .mermaid .node circle,
 [data-md-color-scheme="slate"] .mermaid .node ellipse,
 [data-md-color-scheme="slate"] .mermaid .node polygon {
-    stroke: #666666 !important;
+  stroke: var(--cu-turquoise-dark) !important;
 }
-
 [data-md-color-scheme="slate"] .mermaid .edgeLabel {
-    background-color: #2d2d2d !important;
-    color: #e0e0e0 !important;
+  background-color: var(--cu-cool-dark-deeper) !important;
+  color: var(--cu-neutral-light) !important;
 }
-
-[data-md-color-scheme="slate"] .mermaid .label {
-    color: #e0e0e0 !important;
-}
-
+[data-md-color-scheme="slate"] .mermaid .label { color: var(--cu-neutral-light) !important; }
 [data-md-color-scheme="slate"] .mermaid .cluster rect {
-    fill: #2d2d2d !important;
-    stroke: #666666 !important;
-}
-
-/* Light theme - ensure default styling */
-[data-md-color-scheme="default"] .mermaid {
-    background-color: transparent;
+  fill: rgba(0, 240, 200, 0.06) !important;
+  stroke: var(--cu-turquoise-dark) !important;
 }

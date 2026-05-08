@@ -31,20 +31,20 @@ theme:
     - content.code.copy
   palette:
     - scheme: default
-      primary: deep orange
-      accent: deep orange
+      primary: custom
+      accent: custom
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
     - scheme: slate
-      primary: deep orange
-      accent: deep orange
+      primary: custom
+      accent: custom
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
   font:
-    text: Lato
-    code: Source Code Pro
+    text: Roboto
+    code: Roboto Mono
   logo: images/logo.png
   favicon: images/logo.png
   icon:

@@ -7,33 +7,48 @@
   }
 
   // Function to get mermaid config for theme
+  // Colors track Cubert brand book pages 3-4 (cool dark/light bg + Tron Turquoise edges).
   function getMermaidConfig(theme) {
     if (theme === 'dark') {
       return {
-        theme: 'dark',
+        theme: 'base',
         themeVariables: {
-          primaryColor: '#404040',
-          primaryTextColor: '#e0e0e0',
-          primaryBorderColor: '#666666',
-          lineColor: '#888888',
-          secondaryColor: '#2d2d2d',
-          tertiaryColor: '#353535',
-          background: '#1e1e1e',
-          mainBkg: '#2d2d2d',
-          secondBkg: '#353535',
-          mainContrastColor: '#e0e0e0',
+          primaryColor: '#191932',
+          primaryTextColor: '#fafafa',
+          primaryBorderColor: '#00f0c8',
+          lineColor: '#00f0c8',
+          secondaryColor: '#0f0f24',
+          tertiaryColor: '#1f1f3d',
+          background: '#191932',
+          mainBkg: '#0f0f24',
+          secondBkg: '#1f1f3d',
+          mainContrastColor: '#fafafa',
           darkMode: true,
-          clusterBkg: '#2d2d2d',
-          clusterBorder: '#666666',
-          edgeLabelBackground: '#2d2d2d',
-          tertiaryTextColor: '#e0e0e0',
+          clusterBkg: '#0f0f24',
+          clusterBorder: '#00f0c8',
+          edgeLabelBackground: '#0f0f24',
+          tertiaryTextColor: '#fafafa',
+          fontFamily: 'Roboto, system-ui, sans-serif',
           fontSize: '14px'
         }
       };
     } else {
       return {
-        theme: 'default',
+        theme: 'base',
         themeVariables: {
+          primaryColor: '#ebf0f5',
+          primaryTextColor: '#191932',
+          primaryBorderColor: '#00b48c',
+          lineColor: '#00b48c',
+          secondaryColor: '#fafafa',
+          tertiaryColor: '#ffffff',
+          background: '#ebf0f5',
+          mainBkg: '#fafafa',
+          mainContrastColor: '#191932',
+          clusterBkg: '#fafafa',
+          clusterBorder: '#00b48c',
+          edgeLabelBackground: '#ebf0f5',
+          fontFamily: 'Roboto, system-ui, sans-serif',
           fontSize: '14px'
         }
       };
