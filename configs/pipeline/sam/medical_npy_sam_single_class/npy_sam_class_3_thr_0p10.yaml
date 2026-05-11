@@ -1,0 +1,47 @@
+nodes:
+- name: cu3s_data
+  class_name: cuvis_ai.node.data.CU3SDataNode
+  hparams:
+    name: null
+    execution_stages: null
+- name: sam
+  class_name: cuvis_ai.node.spectral_angle_mapper.SpectralAngleMapper
+  hparams:
+    num_channels: 39
+    eps: 1.0e-12
+- name: reference_signature
+  class_name: cuvis_ai.node.numpy_reader.NpyReader
+  hparams:
+    file_path: null
+- name: score_to_logit
+  class_name: cuvis_ai.node.conversion.ScoreToLogit
+  hparams:
+    init_scale: -1.0
+    init_bias: 0.1
+- name: decider
+  class_name: cuvis_ai.deciders.binary_decider.BinaryDecider
+  hparams:
+    threshold: 0.5
+connections:
+- source: cu3s_data.outputs.cube
+  target: sam.inputs.cube
+- source: sam.outputs.best_scores
+  target: score_to_logit.inputs.scores
+- source: reference_signature.outputs.data
+  target: sam.inputs.spectral_signature
+- source: score_to_logit.outputs.logits
+  target: decider.inputs.logits
+metadata:
+  name: npy_sam_class_3_thr_0p10
+  description: "Single-class SAM pipeline for class 3 with absolute angle threshold\
+    \ 0.10 rad (5.7 deg). Pixels with angle < threshold \u2192 True (match)."
+  created: ''
+  tags:
+  - sam
+  - statistical
+  - material_detection
+  - npy_reader
+  - single_class
+  - thresholded
+  author: cuvis.ai
+  cuvis_ai_version: 0.1.0
