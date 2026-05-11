@@ -55,6 +55,7 @@ markdown_extensions:
   - def_list
   - footnotes
   - md_in_html
+  - meta
   - toc:
       permalink: true
   - pymdownx.arithmatex:
@@ -90,10 +91,17 @@ markdown_extensions:
       custom_checkbox: true
   - pymdownx.tilde
 
+# MkDocs hooks (run during build for cross-cutting transforms)
+hooks:
+  - scripts/math_directive_hook.py
+
 # Plugins
 plugins:
   - search:
       separator: '[\s\-,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
+  - gen-files:
+      scripts:
+        - scripts/generate_node_catalog.py
   - macros:
       module_name: scripts/docs_macros
   - llmstxt:
@@ -172,17 +180,8 @@ nav:
           - Deep SVDD: tutorials/gradient/deep-svdd.md
           - AdaCLIP: tutorials/gradient/adaclip.md
   - Catalogs:
-      - Nodes:
-          - Overview: catalogs/nodes/index.md
-          - Data: catalogs/nodes/data-nodes.md
-          - Preprocessing: catalogs/nodes/preprocessing.md
-          - Selectors: catalogs/nodes/selectors.md
-          - Statistical: catalogs/nodes/statistical.md
-          - Loss & Metrics: catalogs/nodes/loss-metrics.md
-          - Visualization: catalogs/nodes/visualization.md
-          - Output: catalogs/nodes/output.md
-          - Utility: catalogs/nodes/utility.md
-          - External Nodes: catalogs/nodes/external.md
+      - Overview: catalogs/index.md
+      - Nodes: catalogs/nodes/index.md
       - Datasets:
           - Overview: catalogs/datasets/index.md
           - XMR Demo Blood Perfusion: catalogs/datasets/XMR_Demo_Blood_Perfusion.md
@@ -254,6 +253,8 @@ extra:
 # CSS
 extra_css:
   - stylesheets/extra.css
+  - stylesheets/node_categories.css
+  - stylesheets/node_catalog.css
 
 # JavaScript
 extra_javascript:
@@ -263,3 +264,4 @@ extra_javascript:
   - https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js
   - javascripts/mermaid-theme.js
   - javascripts/os-tab-sync.js
+  - javascripts/node_catalog_filter.js
