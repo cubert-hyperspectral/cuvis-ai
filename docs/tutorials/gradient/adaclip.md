@@ -3,7 +3,7 @@
 AdaCLIP couples a frozen CLIP backbone with a small adapter trained
 against hyperspectral data, producing anomaly scores conditioned on a
 natural-language prompt. It's the workhorse pipeline for the
-`XMR_Demo_Industrial_Foreign_Object_Detection_Lentils` use case: "is
+`XMR_Demo_Industrial_FOD_Lentils` use case: "is
 this a lentil, or something else?"
 
 This tutorial walks through three AdaCLIP variants, each one a
@@ -14,7 +14,7 @@ different recipe for getting CLIP to work on hyperspectral data.
 - [`examples/adaclip/pca_adaclip_baseline.py`](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/adaclip/pca_adaclip_baseline.py) — PCA-reduced baseline (frozen AdaCLIP).
 - [`examples/adaclip/concrete_adaclip_gradient_training.py`](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/adaclip/concrete_adaclip_gradient_training.py) — Concrete channel selector + AdaCLIP gradient training.
 - [`examples/adaclip/drcnn_adaclip_gradient_training.py`](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/adaclip/drcnn_adaclip_gradient_training.py) — DRCNN-based channel reducer + AdaCLIP.
-- [Dataset on HuggingFace](https://huggingface.co/datasets/cubert-gmbh/XMR_Demo_Industrial_Foreign_Object_Detection_Lentils) — also surfaced in the [datasets catalog](../../catalogs/datasets/XMR_Demo_Industrial_Foreign_Object_Detection_Lentils.md)
+- [Dataset on HuggingFace](https://huggingface.co/datasets/cubert-gmbh/XMR_Demo_Industrial_Foreign_Object_Detection_Lentils) — also surfaced in the [datasets catalog](../../catalogs/datasets/XMR_Demo_Industrial_FOD_Lentils.md)
 
 ## What you'll learn
 

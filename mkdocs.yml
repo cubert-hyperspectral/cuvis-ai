@@ -186,7 +186,7 @@ nav:
       - Datasets:
           - Overview: catalogs/datasets/index.md
           - XMR Demo Blood Perfusion: catalogs/datasets/XMR_Demo_Blood_Perfusion.md
-          - XMR Demo Industrial Foreign Object Detection (Lentils): catalogs/datasets/XMR_Demo_Industrial_Foreign_Object_Detection_Lentils.md
+          - XMR Demo Industrial FOD (Lentils): catalogs/datasets/XMR_Demo_Industrial_FOD_Lentils.md
           - XMR Demo Object Tracking: catalogs/datasets/XMR_Demo_Object_Tracking.md
   - Workflows:
       - Overview: workflows/index.md

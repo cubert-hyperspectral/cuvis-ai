@@ -19,7 +19,7 @@ hyperspectral camera (61 bands, 430–910 nm).
 
     Tissue oxygenation visualised via two-band differential. Pairs with the [Blood Perfusion tutorial](../../tutorials/statistical/blood-perfusion.md).
 
--   :material-food: **[XMR_Demo_Industrial_Foreign_Object_Detection_Lentils](XMR_Demo_Industrial_Foreign_Object_Detection_Lentils.md)**
+-   :material-food: **[XMR_Demo_Industrial_FOD_Lentils](XMR_Demo_Industrial_FOD_Lentils.md)**
 
     ---
 
