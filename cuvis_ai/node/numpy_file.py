@@ -263,7 +263,9 @@ class NumpyFeatureWriterNode(Node):
         super().__init__(output_dir=self.output_dir, prefix=self.prefix, **kwargs)
 
     @torch.no_grad()
-    def forward(self, features: torch.Tensor, frame_id: torch.Tensor, **_: Any) -> dict[str, torch.Tensor]:
+    def forward(
+        self, features: torch.Tensor, frame_id: torch.Tensor, **_: Any
+    ) -> dict[str, torch.Tensor]:
         """Write features to a ``.npy`` file.
 
         Parameters
