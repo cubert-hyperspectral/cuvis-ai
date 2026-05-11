@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 import torch
 
-from cuvis_ai.node.numpy_reader import NpyReader, _pad_to_bhwc4
+from cuvis_ai.node.numpy_file import NpyReader, _pad_to_bhwc4
 
 pytestmark = pytest.mark.unit
 
