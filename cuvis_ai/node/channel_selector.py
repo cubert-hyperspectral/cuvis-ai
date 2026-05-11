@@ -594,6 +594,9 @@ class FixedWavelengthSelector(ChannelSelectorBase):
     target_wavelengths : tuple[float, float, float]
         Target wavelengths for R, G, B channels in nanometers.
         Default: (650.0, 550.0, 450.0)
+    normalize_output : bool
+        If ``True`` (default), apply selector normalization to produce 0-1 RGB output.
+        If ``False``, return raw selected band values without normalization/gamma.
     """
 
     _category = NodeCategory.TRANSFORM
@@ -604,10 +607,16 @@ class FixedWavelengthSelector(ChannelSelectorBase):
     def __init__(
         self,
         target_wavelengths: tuple[float, float, float] = (650.0, 550.0, 450.0),
+        normalize_output: bool = True,
         **kwargs,
     ) -> None:
-        super().__init__(target_wavelengths=target_wavelengths, **kwargs)
+        super().__init__(
+            target_wavelengths=target_wavelengths,
+            normalize_output=normalize_output,
+            **kwargs,
+        )
         self.target_wavelengths = target_wavelengths
+        self.normalize_output = bool(normalize_output)
 
     def _compute_raw_rgb(self, cube: torch.Tensor, wavelengths: Any) -> torch.Tensor:
         """Select the nearest spectral band for each target wavelength."""
@@ -642,14 +651,19 @@ class FixedWavelengthSelector(ChannelSelectorBase):
         # Find nearest bands
         indices = [self._nearest_band_index(wavelengths_np, nm) for nm in self.target_wavelengths]
 
-        # Compose RGB (includes normalization via _normalize_rgb)
-        rgb = self._compose_rgb(cube, indices)
+        # Compose RGB, optionally bypassing selector normalization.
+        if self.normalize_output:
+            rgb = self._compose_rgb(cube, indices)
+        else:
+            bands = [cube[..., idx] for idx in indices]
+            rgb = torch.stack(bands, dim=-1)
 
         band_info = {
             "strategy": "baseline_false_rgb",
             "band_indices": indices,
             "band_wavelengths_nm": [float(wavelengths_np[i]) for i in indices],
             "target_wavelengths_nm": list(self.target_wavelengths),
+            "normalized_output": self.normalize_output,
         }
 
         return {"rgb_image": rgb, "band_info": band_info}

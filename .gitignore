@@ -216,3 +216,4 @@ data_/*
 .gitnexus
 AGENTS.md
 notebooks/**/output/
+notebooks/**/channel_examples/
