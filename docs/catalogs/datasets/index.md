@@ -1,8 +1,3 @@
----
-hide:
-  - toc
----
-
 # Datasets Catalog
 
 Public demo datasets for cuvis-ai, hosted on

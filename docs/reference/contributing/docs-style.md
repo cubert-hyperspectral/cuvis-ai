@@ -214,12 +214,8 @@ is a collapsible `<details>` element keyed off the node class's metadata.
 
 For a built-in `cuvis_ai.node.<module>.ClassName`:
 
-1. Add `_category = NodeCategory.<X>` and `_tags = frozenset({NodeTag.<...>})`
-   on the class. The generator picks these up via live `cls.get_category()` /
-   `cls.get_tags()` calls — no doc edit required.
-2. Make sure the class has a docstring whose first non-empty line summarises
-   what it does. That line becomes the row's collapsed summary; the full
-   docstring is rendered inside the row by mkdocstrings when expanded.
+1. Add `_category = NodeCategory.<X>` and `_tags = frozenset({NodeTag.<...>})` on the class — the generator reads these via live `cls.get_category()` / `cls.get_tags()` calls (no doc edit required).
+2. Make sure the class has a docstring whose first non-empty line summarises what it does. That line becomes the row's collapsed summary; the full docstring is rendered inside the row by mkdocstrings when expanded.
 
 For a plugin class in a sibling repo:
 
