@@ -70,7 +70,7 @@ from loguru import logger
 from cuvis_ai_core.data.public_datasets import PublicDatasets
 
 dataset_dir = Path("../../data")
-cu3s_file_path = dataset_dir / "XMR_Blood_Perfusion" / "Auto_005.cu3s"
+cu3s_file_path = dataset_dir / "XMR_Demo_Blood_Perfusion" / "Auto_005.cu3s"
 
 if not cu3s_file_path.exists():
     logger.info("CU3S not found at {}. Downloading…", cu3s_file_path)
@@ -428,7 +428,7 @@ uv sync --all-extras
 uv run dataset download blood_perfusion
 
 uv run python examples/blood_perfusion/nd_blood_perfusion.py \
-    --cu3s-path data/XMR_Blood_Perfusion/Auto_005.cu3s
+    --cu3s-path data/XMR_Demo_Blood_Perfusion/Auto_005.cu3s
 ```
 
 The script accepts `--help` for a full list of options including frame range, frame rate, and colormap range.

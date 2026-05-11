@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Renamed the local blood-perfusion dataset folder from `data/XMR_Blood_Perfusion/` to `data/XMR_Demo_Blood_Perfusion/` following the HuggingFace rename to `cubert-gmbh/XMR_Demo_Blood_Perfusion`. Updated `cu3s_file_path` in `docs/use_cases/blood-perfusion.md` and `notebooks/use_cases/blood_perfusion.ipynb`, and bumped the `cuvis-ai-core` floor to `>=0.5.3` (the patch that repoints the `Blood_Perfusion` registry entry). Users with the old folder can rename it in place; otherwise `uv run dataset download blood_perfusion` will re-fetch ~7 GB.
 - Rebranded the mkdocs site to follow Cubert CI. `palette: primary/accent: custom` lets `docs/stylesheets/extra.css` drive the palette directly across both Material schemes; headings use Rajdhani via a Google Fonts `@import` while body and code stay on Roboto / Roboto Mono via Material's font loader. Mermaid theme variables (`docs/javascripts/mermaid-theme.js`) updated to match.
 - Fixed broken cross-doc links surfaced by `mkdocs build --strict`: `docs/how-to/add-builtin-node.md` now links to the in-tree `development/contributing.md` instead of the repo-root `CONTRIBUTING.md`, and the five plugin-manifest links in `docs/plugin-system/index.md` now point at `https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/configs/plugins/*.yaml` instead of relative paths that escape the docs tree. Strict build now passes 0 warnings.
 
