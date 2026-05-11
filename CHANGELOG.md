@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.2 - 2026-05-11
+
+- **CI:** run the gh-pages `deploy-docs` job inside `cubertgmbh/cuvis_pyil:3.5.0-ubuntu24.04` with `libgl1` / `libglib2.0-0` / `ffmpeg` installed, matching the working `doc-build` job in `ci.yml`. The 0.7.1 deploy failed because the auto-generated Nodes-catalog generator imports `cuvis_ai.node`, which transitively initializes the `cuvis` package and aborts on a vanilla runner. No `cuvis_ai` code changes — this release exists solely to re-trigger the release pipeline so gh-pages actually updates.
+
 ## 0.7.1 - 2026-05-11
 
 - **Docs IA restructure** (ALL-5655). Nine top-level sections — Home, Get Started, Concepts, Tutorials, Catalogs, Workflows, Agentic Integration, Deployment, Reference — ordered as a learning path. Major moves: `user-guide/{installation,quickstart}` → `get-started/`; `how-to/*` → `workflows/`; `node-catalog/*` → `catalogs/nodes/*`; `config/*` → `reference/configuration/`; `api/*` → `reference/python-api/`; `plugin-system/*` → `reference/plugin-development/`; `development/*` → `reference/contributing/`; `grpc/*` + `use_cases/grpc-workflow.md` → `deployment/`. New: agentic-integration section, datasets catalog mirrored from HuggingFace, notebook tutorial gallery, `get-started/first-pipeline.md`, `workflows/{statistical,gradient}-training.md`. Removed `docs/use_cases/`, `user-guide/configuration.md` stub, duplicate `plugin-system/overview.md`. **All URLs change — no redirects.** `mkdocs build --strict` clean.
