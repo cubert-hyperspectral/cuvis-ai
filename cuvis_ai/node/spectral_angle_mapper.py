@@ -68,6 +68,8 @@ class SpectralAngleMapper(Node):
         **_: Any,
     ) -> dict[str, torch.Tensor]:
         """Run spectral-angle scoring for all references."""
+        # Ensure signature is on the same device as the cube (handles gRPC weight-reload race)
+        spectral_signature = spectral_signature.to(cube.device)
         ref = spectral_signature.squeeze(1).squeeze(1)  # [N, C]
         channel_count = int(ref.shape[-1])
         ref_mean = ref.mean(dim=-1, keepdim=True)

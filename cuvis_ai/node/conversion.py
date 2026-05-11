@@ -175,7 +175,10 @@ class ScoreToLogit(Node):
                 "ScoreToLogit not initialized. Call statistical_initialization() before forward()."
             )
         # Apply affine transformation: logit = scale * (score - bias)
-        logits = self.scale * (scores - self.bias)
+        # Move scalar buffers to the same device as the input (supports CPU/GPU inference)
+        scale = self.scale.to(scores.device)
+        bias = self.bias.to(scores.device)
+        logits = scale * (scores - bias)
 
         return {"logits": logits}
 
