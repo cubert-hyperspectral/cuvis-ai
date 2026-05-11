@@ -185,7 +185,7 @@ docs_dev/
 lightning_logs/
 .vscode/
 
-/tools/*csv.py
+/scripts/*csv.py
 cuvis_ai/outputs/
 runs/
 test_outputs/

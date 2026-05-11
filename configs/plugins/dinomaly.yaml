@@ -1,7 +1,6 @@
 # Dinomaly plugin manifest (Anomalib-backed)
 #
-# Canonical registry: configs/plugins/registry.yaml
-#
+# Load only Dinomaly:
 #   uv run restore-pipeline --plugins-path configs/plugins/dinomaly.yaml
 
 plugins:

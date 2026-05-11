@@ -22,6 +22,7 @@ dependencies = [
     "markupsafe!=3.0.2",
     "matplotlib",
     "opencv-python-headless",
+    "imageio-ffmpeg>=0.6.0",
     "gitpython>=3.1.40",
     "pyyaml",
     "scikit-image",
@@ -64,7 +65,7 @@ classifiers = [
 ]
 
 [project.scripts]
-create-stubs = "tools.generate_node_port_stubs:main"
+create-stubs = "scripts.generate_node_port_stubs:main"
 dataset = "cuvis_ai_core.data.public_datasets:download_data_cli"
 restore-pipeline = "cuvis_ai_core.utils.restore:restore_pipeline_cli"
 restore-trainrun = "cuvis_ai_core.utils.restore:restore_trainrun_cli"
@@ -112,7 +113,7 @@ Changelog = "https://github.com/cubert-hyperspectral/cuvis-ai/releases"
 Issues = "https://github.com/cubert-hyperspectral/cuvis-ai/issues"
 
 [tool.setuptools.packages.find]
-include = ["cuvis_ai*", "tools*", "scripts*"]
+include = ["cuvis_ai*", "scripts*"]
 
 [tool.setuptools.package-data]
 cuvis_ai = ["assets/node_icons/*.svg"]

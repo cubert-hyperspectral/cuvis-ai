@@ -1,4 +1,4 @@
-"""Tests for tools/strip_notebook_videos.py — the notebook size guard."""
+"""Tests for scripts/strip_notebook_videos.py — the notebook size guard."""
 
 from __future__ import annotations
 

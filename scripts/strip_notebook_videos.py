@@ -8,7 +8,7 @@ from `embed=False` are kept.
 
 Usage
 -----
-    python tools/strip_notebook_videos.py [--check] PATH [PATH ...]
+    python scripts/strip_notebook_videos.py [--check] PATH [PATH ...]
 
 `--check` exits non-zero if any of the files would be modified, without
 writing them. Without `--check`, modifies in place and reports what was
@@ -101,7 +101,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.check and any_violations:
         print(
-            "\nRun `python tools/strip_notebook_videos.py <paths>` to fix, "
+            "\nRun `python scripts/strip_notebook_videos.py <paths>` to fix, "
             "then amend or re-commit.",
             file=sys.stderr,
         )

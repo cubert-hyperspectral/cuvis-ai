@@ -98,7 +98,7 @@ plugins:
   - search:
       separator: '[\s\-,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
   - macros:
-      module_name: tools/docs_macros
+      module_name: scripts/docs_macros
   - llmstxt:
       markdown_description: |
         Cuvis.AI is an open-source, extensible framework for building AI-powered

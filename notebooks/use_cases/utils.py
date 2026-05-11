@@ -505,6 +505,7 @@ def export_overlay_video(
         quality=5,
         pixelformat="yuv420p",
         macro_block_size=None,
+        ffmpeg_params=["-movflags", "+faststart"],
     ) as writer:
         for row in rows_sorted:
             writer.append_data(_overlay_frame_from_row(row))
