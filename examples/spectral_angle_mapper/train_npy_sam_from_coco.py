@@ -41,7 +41,7 @@ from cuvis_ai_schemas.pipeline import PipelineMetadata
 from loguru import logger
 
 from cuvis_ai.node.data import CU3SDataNode
-from cuvis_ai.node.numpy_file import NpyReader
+from cuvis_ai.node.numpy_reader import NpyReader
 from cuvis_ai.node.spectral_angle_mapper import SpectralAngleMapper
 from cuvis_ai.node.spectral_extractor import BBoxSpectralExtractor  # noqa: F401 (also available: SpectralSignatureExtractor for mask-based workflows)
 

@@ -18,7 +18,7 @@ nodes:
     hparams: {}
 
   - name: reference_signatures
-    class_name: cuvis_ai.node.numpy_file.NpyReader
+    class_name: cuvis_ai.node.numpy_reader.NpyReader
     hparams:
       file_path: null   # buffer is populated from .pt weights at restore time
 
