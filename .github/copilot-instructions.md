@@ -28,7 +28,7 @@ from cuvis_ai_schemas.execution import Context, InputStream, Artifact
 - [configs/](../configs/) — Hydra/YAML configs. [configs/plugins/cuvis_ai_builtin.yaml](../configs/plugins/cuvis_ai_builtin.yaml) registers every node in this repo with the core plugin loader.
 - Runnable example scripts now live in the [cuvis-ai-cookbook](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook) repo (clone alongside this one).
 - [tests/](../tests/) — organized by domain (`anomaly`, `deciders`, `node`, `preprocessors`, `training`, `utils`, `docs`, `plugins`). Shared fixtures in [tests/fixtures/](../tests/fixtures/) auto-load via [tests/conftest.py](../tests/conftest.py).
-- [tools/](../tools/) — helper scripts: `generate_node_port_stubs.py`, `validate_trainrun_configs.py`.
+- [scripts/](../scripts/) — helper scripts: `generate_node_port_stubs.py`, `validate_trainrun_configs.py`, `strip_notebook_videos.py`, `docs_macros.py`, `sync_hf_readmes.py`, `rewire_internal_links.py`.
 - [docs/](../docs/) — MkDocs source.
 
 ## Development Workflow
@@ -44,7 +44,7 @@ from cuvis_ai_schemas.execution import Context, InputStream, Artifact
 
 Defined in [pyproject.toml](../pyproject.toml) `[project.scripts]`:
 
-- `create-stubs` — local ([tools/generate_node_port_stubs.py](../tools/generate_node_port_stubs.py)), auto-generates node port stubs.
+- `create-stubs` — local ([scripts/generate_node_port_stubs.py](../scripts/generate_node_port_stubs.py)), auto-generates node port stubs.
 - `dataset`, `restore-pipeline`, `restore-trainrun` — provided by `cuvis_ai_core`, available after install.
 
 ## Testing

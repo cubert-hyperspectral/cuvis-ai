@@ -74,6 +74,27 @@ def test_fixed_wavelength_selector_basic() -> None:
     assert result["rgb_image"].max() <= 1.0 + 1e-6
     assert result["band_info"]["strategy"] == "baseline_false_rgb"
     assert len(result["band_info"]["band_indices"]) == 3
+    assert result["band_info"]["normalized_output"] is True
+
+
+@torch.no_grad()
+def test_fixed_wavelength_selector_without_normalization() -> None:
+    """When normalize_output=False, selected raw band values are returned."""
+    B, H, W, C = 1, 4, 4, 12
+    cube = torch.full((B, H, W, C), 500.0)
+    wavelengths = np.linspace(450, 900, C).astype(np.float32)
+
+    node = FixedWavelengthSelector(
+        target_wavelengths=(650.0, 550.0, 450.0),
+        normalize_output=False,
+        apply_gamma=False,
+    )
+    result = node.forward(cube=cube, wavelengths=wavelengths)
+    rgb = result["rgb_image"]
+
+    assert rgb.shape == (B, H, W, 3)
+    assert torch.all(rgb == 500.0)
+    assert result["band_info"]["normalized_output"] is False
 
 
 # ---------------------------------------------------------------------------

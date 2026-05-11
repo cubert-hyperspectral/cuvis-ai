@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import os
 import subprocess  # nosec B404
 from pathlib import Path
 from typing import Any
 
 import cv2
+import imageio_ffmpeg
 import numpy as np
 import torch
 from cuvis_ai_schemas.enums import NodeCategory, NodeTag
@@ -22,6 +24,14 @@ from cuvis_ai_core.data.video import (  # noqa: F401
 )
 from cuvis_ai_core.node import Node
 
+# Resolve the bundled ffmpeg binary once at import. imageio_ffmpeg validates the
+# binary by spawning subprocess.Popen, so resolving lazily inside the class
+# would re-trigger validation under test monkeypatches of subprocess.Popen.
+try:
+    _BUNDLED_FFMPEG_BIN: str | None = imageio_ffmpeg.get_ffmpeg_exe()
+except Exception:  # noqa: BLE001 — bundled binary missing/corrupt; surfaces at use
+    _BUNDLED_FFMPEG_BIN = None
+
 
 # ---------------------------------------------------------------------------
 # ToVideoNode — write RGB frame batches to a video file via ffmpeg subprocess
@@ -35,7 +45,10 @@ class ToVideoNode(Node):
     trailer — callers must invoke it explicitly (e.g. in a ``finally`` block of
     the enclosing pipeline driver) to surface encoder errors.
 
-    Requires the ``ffmpeg`` binary to be resolvable on ``PATH``.
+    The ffmpeg binary is resolved via ``imageio_ffmpeg`` by default (bundled with
+    the wheel — no system install needed). Override with the
+    ``CUVIS_AI_FFMPEG_BIN`` environment variable to point at a custom build
+    (e.g. one with ``h264_nvenc`` / ``vaapi`` / ``amf`` hardware encoders).
 
     Parameters
     ----------
@@ -150,10 +163,24 @@ class ToVideoNode(Node):
             return torch.rot90(frame, k=2, dims=(0, 1))
         return frame
 
+    @staticmethod
+    def _resolve_ffmpeg_binary() -> str:
+        """Return the ffmpeg binary path, honoring CUVIS_AI_FFMPEG_BIN override."""
+        override = os.environ.get("CUVIS_AI_FFMPEG_BIN", "").strip()
+        if override:
+            return override
+        if _BUNDLED_FFMPEG_BIN is None:
+            raise RuntimeError(
+                "imageio_ffmpeg bundled ffmpeg binary not found and "
+                "CUVIS_AI_FFMPEG_BIN is unset; reinstall imageio-ffmpeg or "
+                "point CUVIS_AI_FFMPEG_BIN at a working ffmpeg"
+            )
+        return _BUNDLED_FFMPEG_BIN
+
     def _build_ffmpeg_argv(self, height: int, width: int) -> list[str]:
         """Build the ffmpeg argv for a raw rgb24 stdin pipe -> encoded file."""
         return [
-            "ffmpeg",
+            self._resolve_ffmpeg_binary(),
             "-y",
             "-loglevel",
             "error",
@@ -192,7 +219,9 @@ class ToVideoNode(Node):
             )
         except FileNotFoundError as exc:
             raise RuntimeError(
-                "ffmpeg binary not found on PATH — install ffmpeg to use ToVideoNode"
+                f"ffmpeg binary not found at {argv[0]!r} — "
+                "the bundled imageio_ffmpeg binary is missing or the "
+                "CUVIS_AI_FFMPEG_BIN override points at a non-existent path"
             ) from exc
         self._proc = proc
         self._frame_size = (height, width)

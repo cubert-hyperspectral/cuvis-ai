@@ -1,0 +1,42 @@
+nodes:
+- name: cu3s_data
+  class_name: cuvis_ai.node.data.CU3SDataNode
+  hparams:
+    name: null
+    execution_stages: null
+- name: ndvi
+  class_name: cuvis_ai.node.channel_selector.NDVISelector
+  hparams:
+    nir_nm: 750.0
+    red_nm: 566.0
+    colormap_min: -0.7
+    colormap_max: 0.5
+    eps: 1.0e-06
+    norm_mode: per_frame
+    apply_gamma: false
+    freeze_running_bounds_after_frames: 20
+    running_warmup_frames: 10
+- name: to_video
+  class_name: cuvis_ai.node.video.ToVideoNode
+  hparams:
+    output_video_path: output/blood_perfusion/ndvi_projection.mp4
+    frame_rate: 15.0
+    frame_rotation: null
+    video_codec: libx264
+    bitrate: 12M
+    overlay_title: null
+connections:
+- source: cu3s_data.outputs.cube
+  target: ndvi.inputs.cube
+- source: cu3s_data.outputs.wavelengths
+  target: ndvi.inputs.wavelengths
+- source: cu3s_data.outputs.mesu_index
+  target: to_video.inputs.frame_id
+- source: ndvi.outputs.rgb_image
+  target: to_video.inputs.rgb_image
+metadata:
+  name: BloodPerfusion_NDVI_Projection
+  description: ''
+  tags: []
+  author: ''
+  cuvis_ai_version: 0.5.3

@@ -55,8 +55,10 @@ graph LR
     C -->|No| E[Skip Node]
     D --> F[Continue]
     E --> F
-    style D fill:#d4edda
-    style E fill:#f8d7da
+    classDef success fill:#d4edda,stroke:#28a745,color:#155724
+    classDef error fill:#f8d7da,stroke:#dc3545,color:#721c24
+    class D success
+    class E error
 ```
 
 ---
@@ -247,9 +249,10 @@ graph TD
     D --> E[Loss<br/>TRAIN/VAL/TEST]
     D --> F[Metrics<br/>VAL/TEST]
     D --> G[Inference Optimizer<br/>INFERENCE]
-    style E fill:#d4edda
-    style F fill:#d4edda
-    style G fill:#f8d7da
+    classDef success fill:#d4edda,stroke:#28a745,color:#155724
+    classDef error fill:#f8d7da,stroke:#dc3545,color:#721c24
+    class E,F success
+    class G error
 ```
 
 ---

@@ -14,14 +14,15 @@ authors = [
 ]
 dependencies = [
     "cuvis>=3.5.0",
-    "cuvis-ai-core>=0.5.0",
-    "cuvis-ai-schemas[full]>=0.4.0",
+    "cuvis-ai-core>=0.5.3",
+    "cuvis-ai-schemas[full]>=0.4.1",
     "pydantic>=2.0.0,<3.0.0",
     "defusedxml",
     "ftfy>=6.1.1",
     "markupsafe!=3.0.2",
     "matplotlib",
     "opencv-python-headless",
+    "imageio-ffmpeg>=0.6.0",
     "gitpython>=3.1.40",
     "pyyaml",
     "scikit-image",
@@ -44,6 +45,9 @@ dependencies = [
     "huggingface-hub>=0.20.0",
     "transformers>=4.36.0",
     "hf-xet>=1.2.0",
+    "opencv-python>=4.13.0.92",
+    "requests>=2.31.0",
+    "imageio-ffmpeg>=0.6.0",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -61,7 +65,7 @@ classifiers = [
 ]
 
 [project.scripts]
-create-stubs = "tools.generate_node_port_stubs:main"
+create-stubs = "scripts.generate_node_port_stubs:main"
 dataset = "cuvis_ai_core.data.public_datasets:download_data_cli"
 restore-pipeline = "cuvis_ai_core.utils.restore:restore_pipeline_cli"
 restore-trainrun = "cuvis_ai_core.utils.restore:restore_trainrun_cli"
@@ -70,9 +74,10 @@ restore-trainrun = "cuvis_ai_core.utils.restore:restore_trainrun_cli"
 docs = [
     "mkdocs>=1.5.0",
     "mkdocs-material>=9.5.0",
-    "mkdocstrings[python]>=0.24.0",
+    "mkdocs-macros-plugin>=1.0.0",
     "mkdocs-gen-files>=0.5.0",
-    "mkdocs-literate-nav>=0.6.0",
+    "mkdocstrings[python]>=0.24.0",
+    "mkdocs-llmstxt>=0.2",
     # "opencv-python-headless",
     "pytest-check-links>=0.9.0",
     "pytest-md-report>=0.3.0",
@@ -109,7 +114,7 @@ Changelog = "https://github.com/cubert-hyperspectral/cuvis-ai/releases"
 Issues = "https://github.com/cubert-hyperspectral/cuvis-ai/issues"
 
 [tool.setuptools.packages.find]
-include = ["cuvis_ai*", "tools*", "scripts*"]
+include = ["cuvis_ai*", "scripts*"]
 
 [tool.setuptools.package-data]
 cuvis_ai = ["assets/node_icons/*.svg"]
