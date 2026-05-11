@@ -188,7 +188,14 @@ def _build_thresholded_pipeline(
                 f"({threshold * 57.296:.1f} deg). "
                 "Pixels with angle < threshold → True (match)."
             ),
-            tags=["sam", "statistical", "material_detection", "npy_reader", "single_class", "thresholded"],
+            tags=[
+                "sam",
+                "statistical",
+                "material_detection",
+                "npy_reader",
+                "single_class",
+                "thresholded",
+            ],
             author="cuvis.ai",
         ),
     )

@@ -129,7 +129,9 @@ class StatefulSpectralAngleMapper(SpectralAngleMapper):
 
     def _canonicalize_signature_tensor(self, signature: torch.Tensor | np.ndarray) -> torch.Tensor:
         """Convert input signatures to canonical shape [N, C]."""
-        tensor = torch.as_tensor(signature, dtype=torch.float32, device=self.learned_signature.device)
+        tensor = torch.as_tensor(
+            signature, dtype=torch.float32, device=self.learned_signature.device
+        )
         if tensor.ndim == 1:
             tensor = tensor.unsqueeze(0)  # [C] -> [1, C]
         elif tensor.ndim == 2:
@@ -144,9 +146,7 @@ class StatefulSpectralAngleMapper(SpectralAngleMapper):
             )
 
         if tensor.ndim != 2:
-            raise ValueError(
-                f"signature must canonicalize to [N, C], got {tuple(tensor.shape)}."
-            )
+            raise ValueError(f"signature must canonicalize to [N, C], got {tuple(tensor.shape)}.")
 
         if int(tensor.shape[-1]) != self.num_channels:
             raise ValueError(

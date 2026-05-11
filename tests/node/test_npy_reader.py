@@ -222,10 +222,12 @@ def test_stat_init_averages_multiple_items() -> None:
 
 def test_stat_init_raises_all_empty() -> None:
     """If all items are empty tensors, raise RuntimeError."""
-    stream = _make_stream([
-        {"signatures": torch.empty(1, 0, 39)},
-        {"signatures": torch.empty(1, 0, 39)},
-    ])
+    stream = _make_stream(
+        [
+            {"signatures": torch.empty(1, 0, 39)},
+            {"signatures": torch.empty(1, 0, 39)},
+        ]
+    )
     node = NpyReader(file_path=None)
     with pytest.raises(RuntimeError, match="no usable tensors"):
         node.statistical_initialization(stream)

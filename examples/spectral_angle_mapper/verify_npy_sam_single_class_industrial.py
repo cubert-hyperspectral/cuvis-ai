@@ -95,9 +95,7 @@ def _get_output(out: dict, node_name: str, port: str):
     return out.get((node_name, port))
 
 
-def _run_base_pipeline(
-    class_idx: int, batch: dict, coco_info: dict
-) -> None:
+def _run_base_pipeline(class_idx: int, batch: dict, coco_info: dict) -> None:
     """Load and run the base (no-threshold) pipeline; report inside vs. outside score."""
     info = coco_info[class_idx]
     yaml_path = PIPELINE_DIR / f"npy_sam_class_{class_idx}.yaml"
@@ -134,9 +132,7 @@ def _run_base_pipeline(
     )
 
 
-def _run_thresholded_pipelines(
-    class_idx: int, batch: dict, coco_info: dict
-) -> None:
+def _run_thresholded_pipelines(class_idx: int, batch: dict, coco_info: dict) -> None:
     """Run all threshold variants and report True-pixel coverage inside the bbox."""
     info = coco_info[class_idx]
     cube = batch["cube"]
