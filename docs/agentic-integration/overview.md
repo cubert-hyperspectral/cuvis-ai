@@ -29,11 +29,14 @@ cuvis-ai-env  (runtime; underpins everything)
 - `cuvis-ai-pipeline` emits a pipeline YAML, then auto-invokes
   `cuvis-ai-pipeline-visualize` so you lay eyes on the diagram before
   reviewing the YAML.
+
 - `cuvis-ai-inference` runs the pipeline on cu3s data; Path 2 of
   inference hands off to `cuvis-ai-pipeline-to-cuvisnext` when the
   target is cuvis.next.
+
 - `cuvis-ai-training` builds on a wired pipeline and produces a
   `trainrun.yaml` plus orchestration script.
+
 - Every skill that runs Python defers runtime setup to `cuvis-ai-env`
   — it reads `./.cuvis-ai-env.json` before any `uv run` command and
   invokes `cuvis-ai-env` if the file is absent or invalid.

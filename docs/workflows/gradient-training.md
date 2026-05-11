@@ -51,8 +51,10 @@ trainer.save_trainrun("artifacts/trainrun.yaml")
 
 - **Resume from a checkpoint**: load both the pipeline YAML and the
   Lightning checkpoint, then call `trainer.fit(pipeline, datamodule, ckpt_path=...)`.
+
 - **Multi-stage freezing**: drive unfreezing via callbacks (e.g.
   unfreeze the channel selector after epoch 10).
+
 - **Sweep configurations**: pair with [Hydra sweeps](../reference/configuration/hydra-sweeps.md)
   to run a grid of trainings.
 
