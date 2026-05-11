@@ -63,48 +63,12 @@ registry.
 - Local-path plugins are loaded from the referenced checkout directly.
 - Plugin nodes are stored per `NodeRegistry` instance, so one session can load plugins without affecting another.
 
-## Selective vs. Combined Manifests
+## Loading multiple plugins
 
-Use a selective manifest when you want one plugin family without
-building a larger combined manifest first. Create a custom combined
-manifest when you need multiple plugins together:
-
-```yaml
-plugins:
-  ultralytics:
-    repo: "https://github.com/cubert-hyperspectral/cuvis-ai-ultralytics.git"
-    tag: "v0.1.0"
-    provides:
-      - cuvis_ai_ultralytics.node.YOLOPreprocess
-      - cuvis_ai_ultralytics.node.YOLO26Detection
-      - cuvis_ai_ultralytics.node.YOLOPostprocess
-
-  deepeiou:
-    repo: "https://github.com/cubert-hyperspectral/cuvis-ai-deepeiou.git"
-    tag: "v0.1.0"
-    provides:
-      - cuvis_ai_deepeiou.node.DeepEIoUTrack
-      - cuvis_ai_deepeiou.node.OSNetExtractor
-      - cuvis_ai_deepeiou.node.ResNetExtractor
-
-  trackeval:
-    repo: "https://github.com/cubert-hyperspectral/cuvis-ai-trackeval.git"
-    tag: "v0.1.0"
-    provides:
-      - cuvis_ai_trackeval.node.HOTAMetricNode
-      - cuvis_ai_trackeval.node.CLEARMetricNode
-      - cuvis_ai_trackeval.node.IdentityMetricNode
-
-  sam3:
-    path: "../../../../cuvis-ai-sam3/sam3-init"
-    provides:
-      - cuvis_ai_sam3.node.SAM3TrackerInference
-      - cuvis_ai_sam3.node.SAM3TextPropagation
-      - cuvis_ai_sam3.node.SAM3BboxPropagation
-      - cuvis_ai_sam3.node.SAM3PointPropagation
-      - cuvis_ai_sam3.node.SAM3MaskPropagation
-      - cuvis_ai_sam3.node.SAM3SegmentEverything
-```
+Each official plugin ships its own `plugins.yaml` manifest (see below).
+When a pipeline needs nodes from more than one plugin, pass each
+manifest path to `NodeRegistry.load_plugins()` in turn — there's no
+need to author a single combined file.
 
 ## Official Plugin Manifests
 
@@ -124,5 +88,5 @@ plugins:
 
 ## Next steps
 
-- See the [External Nodes catalog](../../catalogs/nodes/external.md) for CLI and Python examples of loading plugin nodes.
+- See the [Nodes catalog](../../catalogs/nodes/index.md) for CLI and Python examples of loading plugin nodes.
 - See the [Plugin Development Guide](guide.md) for packaging rules, testing, and release workflow.

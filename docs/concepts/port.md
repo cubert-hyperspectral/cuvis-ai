@@ -83,9 +83,10 @@ flowchart LR
     D -->|shape check| E{Compatible?}
     E -->|No| C
     E -->|Yes| F[Connection Valid]
-    style A fill:#e1f5ff
-    style F fill:#d4edda
-    style C fill:#f8d7da
+    classDef success fill:#d4edda,stroke:#28a745,color:#155724
+    classDef error fill:#f8d7da,stroke:#dc3545,color:#721c24
+    class F success
+    class C error
 ```
 
 **Compatibility Rules:**
@@ -243,8 +244,6 @@ graph LR
     A[DataLoader] -->|data| B[Normalizer]
     B -->|normalized| C[Analyzer]
     C -->|scores| D[Output]
-    style A fill:#e1f5ff
-    style D fill:#d4edda
 ```
 
 ```python
@@ -262,9 +261,6 @@ graph LR
     A[Source A] -->|features_a| C[Merger]
     B[Source B] -->|features_b| C
     C -->|merged| D[Downstream]
-    style A fill:#e1f5ff
-    style B fill:#e1f5ff
-    style D fill:#d4edda
 ```
 
 ```python
@@ -281,10 +277,6 @@ graph LR
     A[Preprocessor] -->|data| B[Branch A]
     A -->|data| C[Branch B]
     A -->|data| D[Branch C]
-    style A fill:#e1f5ff
-    style B fill:#d4edda
-    style C fill:#d4edda
-    style D fill:#d4edda
 ```
 
 ```python
@@ -302,10 +294,6 @@ graph LR
     A[Analyzer] -->|scores| B[Decider]
     A -->|embeddings| C[Visualizer]
     A -->|metadata| D[Logger]
-    style A fill:#f3e5f5
-    style B fill:#d4edda
-    style C fill:#d4edda
-    style D fill:#d4edda
 ```
 
 ```python
@@ -348,10 +336,6 @@ graph LR
     N --> S[VisualizationManager.inputs]
     R --> T[Backward Pass]
     S --> U[Monitor Output]
-
-    style A fill:#e1f5ff
-    style T fill:#ffc107
-    style U fill:#2196f3
 ```
 
 ```python

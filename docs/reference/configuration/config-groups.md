@@ -98,7 +98,7 @@ Use the narrow manifest required by the workflow:
 - `configs/plugins/trackeval.yaml`
 - `configs/plugins/ultralytics.yaml`
 
-When you need more than one plugin in a single run, author a combined manifest as shown in the [Plugin Nodes catalog](../../catalogs/nodes/external.md#combined-manifest).
+Each plugin ships its own `plugins.yaml` manifest; reference the ones you need from your config. The full list of plugin-supplied nodes lives in the [Nodes catalog](../../catalogs/nodes/index.md).
 
 ## Related Pages
 

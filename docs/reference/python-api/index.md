@@ -36,7 +36,7 @@ this section is the reference for the framework that hosts the nodes.
 
 ## Node API
 
-Node implementations are documented in the [Nodes catalog](../../catalogs/nodes/index.md);
-each catalog page renders the live module docstrings for the nodes in
-that category. See also the [External Nodes](../../catalogs/nodes/external.md)
-page for plugin-supplied nodes.
+Node implementations are documented in the [Nodes catalog](../../catalogs/nodes/index.md),
+which renders every built-in and plugin node with its category, tags,
+and live docstrings — filter by `category` or `tag` to narrow the
+list (e.g. `#category=model`).

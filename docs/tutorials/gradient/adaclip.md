@@ -18,7 +18,7 @@ different recipe for getting CLIP to work on hyperspectral data.
 
 ## What you'll learn
 
-- How [external plugin nodes](../../catalogs/nodes/external.md) integrate with cuvis-ai pipelines.
+- How [external plugin nodes](../../catalogs/nodes/index.md) integrate with cuvis-ai pipelines.
 - Reducing 60+ band hyperspectral data to 3 channels CLIP can consume (PCA, Concrete, DRCNN).
 - Using `restore-pipeline` to run AdaCLIP on new cu3s data after training.
 

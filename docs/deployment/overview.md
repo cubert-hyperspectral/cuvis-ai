@@ -93,12 +93,6 @@ graph TB
 
     CS --> CFG
     TE --> DATA
-
-    style SVC fill:#fff4e1
-    style C1 fill:#e1f5ff
-    style C2 fill:#e1f5ff
-    style C3 fill:#e1f5ff
-    style GPU fill:#ffe1e1
 ```
 
 **1. CuvisAIService**

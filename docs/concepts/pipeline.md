@@ -140,10 +140,10 @@ flowchart TD
     G -->|No cycle| I{Config<br/>valid?}
     I -->|No| J[ConfigError]
     I -->|Yes| K[✓ Valid]
-    style K fill:#d4edda
-    style C fill:#f8d7da
-    style E fill:#f8d7da
-    style H fill:#f8d7da
+    classDef success fill:#d4edda,stroke:#28a745,color:#155724
+    classDef error fill:#f8d7da,stroke:#dc3545,color:#721c24
+    class K success
+    class C,E,H error
 ```
 
 
@@ -272,10 +272,6 @@ flowchart TD
     K --> L[Type Checking]
     K --> M[Shape Compatibility]
     K --> N[Stage Filtering]
-
-    style A fill:#e1f5ff
-    style J fill:#d4edda
-    style K fill:#fff3cd
 ```
 
 Outputs are returned as a dictionary keyed by `(node_name, port_name)`:

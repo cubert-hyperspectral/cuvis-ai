@@ -50,12 +50,6 @@ flowchart TD
     L -->|No| M[Statistical initialization complete]
     M --> N["Optional: stat_trainer.validate()"]
     N --> O[Validation metrics]
-
-    style A fill:#e1f5ff
-    style C fill:#fff3cd
-    style H fill:#f3e5f5
-    style M fill:#d4edda
-    style O fill:#d4edda
 ```
 
 **Key Steps:**
@@ -252,13 +246,6 @@ flowchart TD
     U -->|No| V[Training Complete]
     V --> W["Optional: grad_trainer.test()"]
     W --> X[Test metrics with best checkpoint]
-
-    style A fill:#e1f5ff
-    style G fill:#fff3cd
-    style M fill:#f3e5f5
-    style O fill:#ffc107
-    style V fill:#d4edda
-    style X fill:#d4edda
 ```
 
 ### Unfreezing Nodes

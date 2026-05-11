@@ -11,7 +11,7 @@ Monitor training progress and visualize results using TensorBoard integration, m
 
 Cuvis.AI provides comprehensive monitoring and visualization capabilities:
 
-- **TensorBoard Integration**: Centralized logging with the [Visualization Nodes](../catalogs/nodes/visualization.md) (TensorBoardMonitorNode and siblings)
+- **TensorBoard Integration**: Centralized logging with the [Visualization Nodes](../catalogs/nodes/index.md#category=visualizer) (TensorBoardMonitorNode and siblings)
 - **Metrics Tracking**: Performance evaluation with specialized metric nodes
 - **Visual Monitoring**: Real-time visualization of predictions, scores, and anomalies
 - **Execution Stage Control**: Automatic filtering to minimize overhead
@@ -1314,9 +1314,8 @@ viz = PipelineComparisonVisualizer(
 ## See Also
 
 - **Node Catalog**:
-  - [Visualization Nodes](../catalogs/nodes/visualization.md) - TensorBoardMonitorNode and visual monitoring
-  - [Metrics Nodes](../catalogs/nodes/loss-metrics.md#metrics) - AnomalyDetectionMetrics, ScoreStatistics, etc.
-  - [Visualization Nodes](../catalogs/nodes/visualization.md) - All visualization node details
+  - [Visualization Nodes](../catalogs/nodes/index.md#category=visualizer) - TensorBoardMonitorNode and visual monitoring
+  - [Metrics Nodes](../catalogs/nodes/index.md#category=metric) - AnomalyDetectionMetrics, ScoreStatistics, etc.
 - **Guides**:
   - [Build Pipelines in Python](build-pipeline-python.md) - Pipeline construction basics
   - [Configuration Guide](../reference/configuration/index.md) - TrainRun configuration

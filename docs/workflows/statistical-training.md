@@ -12,7 +12,7 @@ with [`restore-pipeline`](restore-pipeline.md).
 
 ## Prerequisites
 
-- A pipeline with at least one [statistical node](../catalogs/nodes/statistical.md) (RX, PCA, NormalizeFromStats, …).
+- A pipeline with at least one [statistical node](../catalogs/nodes/index.md#category=model) (RX, PCA, NormalizeFromStats, …).
 - A datamodule that produces unlabelled training data (typically `SingleCu3sDataModule` or `MultiCu3sDataModule`).
 - The [Concepts → Training](../concepts/training.md) page if you want the model behind the trainer.
 

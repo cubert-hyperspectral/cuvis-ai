@@ -65,10 +65,6 @@ graph LR
     C --> F[GPU/CPU Resources]
     D --> F
     E --> F
-
-    style A fill:#e1f5ff
-    style B fill:#fff4e1
-    style F fill:#ffe1e1
 ```
 
 **Workflow:**

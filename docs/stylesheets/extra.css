@@ -274,3 +274,29 @@ kbd,
   fill: rgba(0, 240, 200, 0.06) !important;
   stroke: var(--cu-turquoise-dark) !important;
 }
+
+/* Semantic node fills (success/error) — readable on both palettes */
+[data-md-color-scheme="default"] .mermaid g.node.success > rect,
+[data-md-color-scheme="default"] .mermaid g.node.success > polygon,
+[data-md-color-scheme="default"] .mermaid g.node.success > circle,
+[data-md-color-scheme="default"] .mermaid g.node.success > ellipse {
+  fill: #d4edda !important;
+}
+[data-md-color-scheme="default"] .mermaid g.node.error > rect,
+[data-md-color-scheme="default"] .mermaid g.node.error > polygon,
+[data-md-color-scheme="default"] .mermaid g.node.error > circle,
+[data-md-color-scheme="default"] .mermaid g.node.error > ellipse {
+  fill: #f8d7da !important;
+}
+[data-md-color-scheme="slate"] .mermaid g.node.success > rect,
+[data-md-color-scheme="slate"] .mermaid g.node.success > polygon,
+[data-md-color-scheme="slate"] .mermaid g.node.success > circle,
+[data-md-color-scheme="slate"] .mermaid g.node.success > ellipse {
+  fill: #1f4f33 !important;
+}
+[data-md-color-scheme="slate"] .mermaid g.node.error > rect,
+[data-md-color-scheme="slate"] .mermaid g.node.error > polygon,
+[data-md-color-scheme="slate"] .mermaid g.node.error > circle,
+[data-md-color-scheme="slate"] .mermaid g.node.error > ellipse {
+  fill: #5c2628 !important;
+}

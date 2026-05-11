@@ -203,78 +203,46 @@ def forward(self, x: torch.Tensor) -> torch.Tensor:
 
 ---
 
-## Maintaining Curated API Pages
+## Maintaining the Nodes Catalog
 
-### Structure of Curated Pages
+The Nodes catalog at [`docs/catalogs/nodes/index.md`](../../catalogs/nodes/index.md)
+is **generated at build time** by `scripts/generate_node_catalog.py` (registered
+as a `mkdocs-gen-files` script in `mkdocs.yml`). Each row in the rendered page
+is a collapsible `<details>` element keyed off the node class's metadata.
 
-Curated pages (e.g., `docs/catalogs/nodes/statistical.md`) have this structure:
+### How a node enters the catalog
 
-```markdown
-# Page Title
+For a built-in `cuvis_ai.node.<module>.ClassName`:
 
-Brief introduction explaining what this API section covers.
+1. Add `_category = NodeCategory.<X>` and `_tags = frozenset({NodeTag.<...>})`
+   on the class. The generator picks these up via live `cls.get_category()` /
+   `cls.get_tags()` calls — no doc edit required.
+2. Make sure the class has a docstring whose first non-empty line summarises
+   what it does. That line becomes the row's collapsed summary; the full
+   docstring is rendered inside the row by mkdocstrings when expanded.
 
-## Category Name
+For a plugin class in a sibling repo:
 
-Description of this category and when to use these components.
+1. Add the same `_category` / `_tags` assignments to the class.
+2. Add an entry under `docs/data/plugin_sources.yaml` pointing at the plugin
+   repo's on-disk path and listing the dotted class names. The generator
+   reads the source via `ast` and never imports the plugin — so torch /
+   ultralytics / SAM3 dependencies stay out of the docs venv.
 
-### Component Name
+### Don't edit the catalog page on disk
 
-::: full.module.path
-    options:
-      show_root_heading: true
-      heading_level: 4
-```
+`docs/catalogs/nodes/index.md` is overridden at build time. Edits there are
+silently ignored. Change the generator (`scripts/generate_node_catalog.py`),
+the node's class attributes, or its docstring instead.
 
-### When to Update Curated Pages
-
-Update curated pages when:
-
-1. **New Module Added**: Add entry with `:::` directive
-2. **Module Moved**: Update import path in `:::` directive
-3. **Category Changed**: Move `:::` directive to new category section
-4. **Module Deprecated**: Add deprecation notice, consider removing
-5. **New Category Needed**: Add category header with description
-
-### Example: Adding a New Module
-
-**Step 1:** Create Python module with rich docstrings
-
-```python
-# cuvis_ai/anomaly/new_detector.py
-"""New anomaly detection method.
-
-This module implements...
-"""
-```
-
-**Step 2:** Add to appropriate curated page
-
-```markdown
-<!-- docs/catalogs/nodes/statistical.md -->
-
-## Anomaly Detection Nodes
-
-Statistical and deep learning methods for detecting anomalies in hyperspectral data.
-
-### RX Detector
-::: cuvis_ai.anomaly.rx_detector
-    options:
-      show_root_heading: true
-      heading_level: 4
-
-### New Detector  ← ADD THIS
-::: cuvis_ai.anomaly.new_detector
-    options:
-      show_root_heading: true
-      heading_level: 4
-```
-
-**Step 3:** Verify build
+### After changes, re-run the build
 
 ```bash
 uv run mkdocs build --strict
 ```
+
+Note: `mkdocs serve` does **not** reliably auto-reload when only the
+generator script changes. Restart serve after editing the generator.
 
 ---
 
@@ -296,9 +264,9 @@ When adding a new module to Cuvis.AI:
 
 | Module Type | Curated Page | Example |
 |-------------|--------------|---------|
-| Node implementations | `docs/catalogs/nodes/statistical.md` (or sibling category) | RXDetector, DeepSVDD |
-| Training components | `docs/catalogs/nodes/loss-metrics.md` | Loss functions, metrics |
-| Data handling | `docs/catalogs/nodes/data-nodes.md` | Datasets, data loaders |
+| Node implementations | Auto-generated from `Node._category` + class docstring into `docs/catalogs/nodes/index.md` | RXDetector, DeepSVDD |
+| Training components | Same — set `_category = NodeCategory.LOSS` or `NodeCategory.METRIC` | Loss functions, metrics |
+| Data handling | Same — set `_category = NodeCategory.SOURCE` | Datasets, data loaders |
 | Pipeline building | `docs/reference/python-api/pipeline.md` | Graph, Pipeline |
 | Port definitions | `docs/reference/python-api/ports.md` | PortSpec, StreamType |
 | Utilities | `docs/reference/python-api/utilities.md` | Helpers, factories |

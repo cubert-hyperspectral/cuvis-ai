@@ -42,16 +42,18 @@ MOVE_MAP: dict[str, str] = {
     "how-to/profiling.md": "workflows/profiling.md",
     "how-to/index.md": "workflows/index.md",
     "how-to/add-builtin-node.md": "reference/contributing/add-builtin-node.md",
-    # node-catalog/
-    "node-catalog/data-nodes.md": "catalogs/nodes/data-nodes.md",
-    "node-catalog/preprocessing.md": "catalogs/nodes/preprocessing.md",
-    "node-catalog/selectors.md": "catalogs/nodes/selectors.md",
-    "node-catalog/statistical.md": "catalogs/nodes/statistical.md",
-    "node-catalog/loss-metrics.md": "catalogs/nodes/loss-metrics.md",
-    "node-catalog/visualization.md": "catalogs/nodes/visualization.md",
-    "node-catalog/output.md": "catalogs/nodes/output.md",
-    "node-catalog/utility.md": "catalogs/nodes/utility.md",
-    "node-catalog/node-catalog-plugins.md": "catalogs/nodes/external.md",
+    # node-catalog/ — all per-category pages collapsed into the single
+    # auto-generated catalogs/nodes/index.md. Old per-category URLs map to
+    # the index with a category= hash so the filter pre-applies.
+    "node-catalog/data-nodes.md": "catalogs/nodes/index.md#category=source",
+    "node-catalog/preprocessing.md": "catalogs/nodes/index.md#category=transform",
+    "node-catalog/selectors.md": "catalogs/nodes/index.md#category=transform",
+    "node-catalog/statistical.md": "catalogs/nodes/index.md#category=model",
+    "node-catalog/loss-metrics.md": "catalogs/nodes/index.md#category=loss",
+    "node-catalog/visualization.md": "catalogs/nodes/index.md#category=visualizer",
+    "node-catalog/output.md": "catalogs/nodes/index.md#category=sink",
+    "node-catalog/utility.md": "catalogs/nodes/index.md",
+    "node-catalog/node-catalog-plugins.md": "catalogs/nodes/index.md",
     "node-catalog/index.md": "catalogs/nodes/index.md",
     # config/
     "config/index.md": "reference/configuration/index.md",

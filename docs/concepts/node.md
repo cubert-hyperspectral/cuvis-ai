@@ -41,13 +41,6 @@ flowchart TB
     L -->|Yes| J
     L -->|No| M[Serialization<br/>save state_dict]
     M --> N[Cleanup<br/>release resources]
-
-    style A fill:#e1f5ff
-    style D fill:#fff3cd
-    style G fill:#ffe66d
-    style J fill:#f3e5f5
-    style M fill:#d4edda
-    style N fill:#ffc107
 ```
 
 ---
