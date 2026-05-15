@@ -15,6 +15,7 @@ copyright: Copyright &copy; 2025-2026 Cubert GmbH
 # Configuration
 theme:
   name: material
+  custom_dir: overrides
   language: en
   features:
     - navigation.instant
@@ -249,6 +250,8 @@ extra:
       link: https://www.cubert-hyperspectral.com/
   version:
     provider: mike
+  analytics:
+    provider: custom
 
 # CSS
 extra_css:
