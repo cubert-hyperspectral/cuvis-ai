@@ -1,7 +1,0 @@
-# Data configuration for SWIR liquids — industrial dataset
-# Three liquid classes (H2O, Ac, IPA), one bbox annotation per class.
-
-cu3s_file_path: D:/swir_cu3s/industrial/Industrial_H2O_Ac_IPA_000.cu3s
-annotation_json_path: D:/swir_cu3s/industrial/Industrial_H2O_Ac_IPA_000.json
-processing_mode: Reflectance
-batch_size: 1

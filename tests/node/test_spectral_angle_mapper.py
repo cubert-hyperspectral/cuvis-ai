@@ -7,7 +7,7 @@ import math
 import pytest
 import torch
 
-from cuvis_ai.node.spectral_angle_mapper import SpectralAngleMapper, StatefulSpectralAngleMapper
+from cuvis_ai.node.spectral_angle_mapper import SpectralAngleMapper
 
 pytestmark = pytest.mark.unit
 
@@ -22,7 +22,7 @@ def test_identical_spectrum_zero_angle() -> None:
 
     out = _sam(num_channels=4).forward(cube=cube, spectral_signature=ref)
     assert torch.allclose(out["scores"], torch.zeros_like(out["scores"]), atol=1e-6)
-    assert torch.allclose(out["best_scores"], torch.zeros_like(out["best_scores"]), atol=1e-3)
+    assert torch.allclose(out["best_scores"], torch.zeros_like(out["best_scores"]), atol=1e-6)
 
 
 def test_orthogonal_spectrum_high_angle() -> None:
@@ -165,115 +165,3 @@ def test_best_scores_equals_min(create_test_cube) -> None:
     out = _sam(num_channels=8).forward(cube=cube, spectral_signature=ref)
     expected = out["scores"].amin(dim=-1, keepdim=True)
     assert torch.allclose(out["best_scores"], expected, atol=1e-6)
-
-
-def test_stateful_requires_signature_before_fit() -> None:
-    node = StatefulSpectralAngleMapper(num_channels=3)
-    cube = torch.ones((1, 1, 1, 3), dtype=torch.float32)
-    with pytest.raises(ValueError, match="No learned_signature present"):
-        node.forward(cube=cube)
-
-
-def test_stateful_fit_signature_then_forward_uses_learned_reference() -> None:
-    node = StatefulSpectralAngleMapper(num_channels=3)
-    node.fit_signature(torch.tensor([[1.0, 2.0, 3.0]], dtype=torch.float32))
-    cube = torch.tensor([[[[1.0, 2.0, 3.0]]]], dtype=torch.float32)
-    out = node.forward(cube=cube)
-    assert out["scores"].shape == (1, 1, 1, 1)
-    assert out["best_scores"].shape == (1, 1, 1, 1)
-    assert torch.allclose(out["best_scores"], torch.zeros_like(out["best_scores"]), atol=1e-3)
-    assert torch.equal(out["identity_mask"], torch.ones((1, 1, 1), dtype=torch.int32))
-
-
-def test_stateful_forward_prefers_explicit_signature_over_learned() -> None:
-    node = StatefulSpectralAngleMapper(num_channels=2)
-    node.fit_signature(torch.tensor([[1.0, 0.0]], dtype=torch.float32))
-    cube = torch.tensor([[[[0.0, 1.0]]]], dtype=torch.float32)
-    explicit = torch.tensor([[[[0.0, 1.0]]]], dtype=torch.float32)
-    out = node.forward(cube=cube, spectral_signature=explicit)
-    assert torch.allclose(out["best_scores"], torch.zeros_like(out["best_scores"]), atol=1e-6)
-
-
-def test_stateful_fit_accepts_numpy_signature() -> None:
-    node = StatefulSpectralAngleMapper(num_channels=4)
-    sig = torch.tensor([1.0, 2.0, 3.0, 4.0], dtype=torch.float32).numpy()
-    node.fit_signature(sig)
-    assert tuple(node.learned_signature.shape) == (1, 1, 1, 4)
-    assert bool(node._has_learned_signature.item()) is True
-
-
-def test_stateful_fit_rejects_wrong_shape() -> None:
-    node = StatefulSpectralAngleMapper(num_channels=3)
-    bad = torch.ones((1, 1, 3), dtype=torch.float32)
-    with pytest.raises(ValueError, match="signature must have shape"):
-        node.fit_signature(bad)
-
-
-def test_stateful_fit_rejects_wrong_channel_count() -> None:
-    node = StatefulSpectralAngleMapper(num_channels=3)
-    with pytest.raises(ValueError, match="signature channel mismatch"):
-        node.fit_signature(torch.ones((1, 2), dtype=torch.float32))
-
-
-def test_stateful_fit_rejects_multiple_signatures_for_single_class_node() -> None:
-    node = StatefulSpectralAngleMapper(num_channels=3)
-    multi = torch.tensor([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], dtype=torch.float32)
-    with pytest.raises(ValueError, match="expects one signature"):
-        node.fit_signature(multi)
-
-
-def test_stateful_state_dict_roundtrip_preserves_learned_signature() -> None:
-    node_a = StatefulSpectralAngleMapper(num_channels=3)
-    learned = torch.tensor([[0.5, 1.5, 2.5]], dtype=torch.float32)
-    node_a.fit_signature(learned)
-    state = node_a.state_dict()
-
-    node_b = StatefulSpectralAngleMapper(num_channels=3)
-    node_b.load_state_dict(state)
-
-    assert bool(node_b._has_learned_signature.item()) is True
-    assert torch.allclose(node_b.learned_signature[0, 0, 0], learned[0], atol=1e-6)
-
-    cube = learned.view(1, 1, 1, 3)
-    out = node_b.forward(cube=cube)
-    assert torch.allclose(out["best_scores"], torch.zeros_like(out["best_scores"]), atol=1e-6)
-
-
-def test_stateful_statistical_initialization_accepts_stream_signature() -> None:
-    node = StatefulSpectralAngleMapper(num_channels=3)
-    stream = [{"spectral_signature": torch.tensor([1.0, 2.0, 3.0], dtype=torch.float32)}]
-    node.statistical_initialization(stream)
-    assert bool(node._has_learned_signature.item()) is True
-    assert torch.allclose(
-        node.learned_signature[0, 0, 0], torch.tensor([1.0, 2.0, 3.0], dtype=torch.float32), atol=1e-6
-    )
-
-
-def test_stateful_statistical_initialization_rejects_empty_stream() -> None:
-    node = StatefulSpectralAngleMapper(num_channels=3)
-    with pytest.raises(RuntimeError, match="did not receive 'spectral_signature' data"):
-        node.statistical_initialization([{}])
-
-
-def test_stateful_statistical_initialization_rejects_wrong_channels() -> None:
-    node = StatefulSpectralAngleMapper(num_channels=3)
-    stream = [{"spectral_signature": torch.tensor([1.0, 2.0], dtype=torch.float32)}]
-    with pytest.raises(ValueError, match="signature channel mismatch"):
-        node.statistical_initialization(stream)
-
-
-def test_stateful_statistical_initialization_rejects_multiple_total_signatures() -> None:
-    node = StatefulSpectralAngleMapper(num_channels=3)
-    stream = [
-        {"spectral_signature": torch.tensor([1.0, 2.0, 3.0], dtype=torch.float32)},
-        {"spectral_signature": torch.tensor([4.0, 5.0, 6.0], dtype=torch.float32)},
-    ]
-    with pytest.raises(RuntimeError, match="expects exactly one total signature"):
-        node.statistical_initialization(stream)
-
-
-def test_stateful_statistical_initialization_accepts_n11c_shape() -> None:
-    node = StatefulSpectralAngleMapper(num_channels=3)
-    sig = torch.tensor([[[[1.0, 2.0, 3.0]]]], dtype=torch.float32)
-    node.statistical_initialization([{"spectral_signature": sig}])
-    assert bool(node._has_learned_signature.item()) is True

@@ -1,7 +1,0 @@
-# Data configuration for SWIR liquids — medical dataset
-# Three liquid classes (1=Ac, 2=EtOH97, 3=H2O), one bbox annotation per class.
-
-cu3s_file_path: D:/swir_cu3s/medical/Medical_Ac_EtOH97_H2O_left_to_right_000.cu3s
-annotation_json_path: D:/swir_cu3s/medical/Medical_Ac_EtOH97_H2O_left_to_right_000.json
-processing_mode: Reflectance
-batch_size: 1

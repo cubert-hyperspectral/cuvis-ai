@@ -35,16 +35,17 @@ from typing import Any
 import click
 import numpy as np
 import torch
-from cuvis_ai_core.data.datasets import SingleCu3sDataModule
-from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_schemas.pipeline import PipelineMetadata
 from loguru import logger
 
 from cuvis_ai.node.data import CU3SDataNode
-from cuvis_ai.node.numpy_reader import NpyReader
+from cuvis_ai.node.numpy_file import NpyReader
 from cuvis_ai.node.spectral_angle_mapper import SpectralAngleMapper
-from cuvis_ai.node.spectral_extractor import BBoxSpectralExtractor  # noqa: F401 (also available: SpectralSignatureExtractor for mask-based workflows)
-
+from cuvis_ai.node.spectral_extractor import (
+    BBoxSpectralExtractor,  # noqa: F401 (also available: SpectralSignatureExtractor for mask-based workflows)
+)
+from cuvis_ai_core.data.datasets import SingleCu3sDataModule
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
 # ---------------------------------------------------------------------------
 # Signature extraction (bbox-based, no polygon rasterisation required)
@@ -87,9 +88,7 @@ def _extract_class_signatures(
     id_to_name : dict[int, str]
     """
     coco_data = json.loads(coco_json_path.read_text(encoding="utf-8"))
-    name_by_id: dict[int, str] = {
-        int(c["id"]): str(c["name"]) for c in coco_data["categories"]
-    }
+    name_by_id: dict[int, str] = {int(c["id"]): str(c["name"]) for c in coco_data["categories"]}
 
     # Map category_id → first annotation (image_id + bbox).
     ann_by_class: dict[int, dict[str, Any]] = {}
@@ -176,9 +175,7 @@ def _extract_class_signatures(
         )
         class_sigs[class_id] = sig
 
-    sigs_array = np.stack(
-        [class_sigs[cid] for cid in sorted(class_sigs)], axis=0
-    )  # [N, C]
+    sigs_array = np.stack([class_sigs[cid] for cid in sorted(class_sigs)], axis=0)  # [N, C]
     return sigs_array, {cid: name_by_id.get(cid, str(cid)) for cid in sorted(class_sigs)}
 
 
@@ -290,8 +287,7 @@ def main(
         coco_json_path = cu3s_path.with_suffix(".json")
         if not coco_json_path.exists():
             raise click.UsageError(
-                f"No COCO json found at {coco_json_path}. "
-                "Pass --coco-json-path explicitly."
+                f"No COCO json found at {coco_json_path}. Pass --coco-json-path explicitly."
             )
 
     if pipeline_name is None:
@@ -325,8 +321,7 @@ def main(
     )
 
     logger.success(
-        "Done. Run inference with:\n"
-        "  uv run restore-pipeline {out}/{name}.yaml --cu3s <path>",
+        "Done. Run inference with:\n  uv run restore-pipeline {out}/{name}.yaml --cu3s <path>",
         out=output_dir,
         name=pipeline_name,
     )

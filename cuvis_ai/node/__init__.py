@@ -73,7 +73,7 @@ from cuvis_ai.node.preprocessors import (
     SpatialRotateNode,
 )
 from cuvis_ai.node.prompts import BBoxPrompt, MaskPrompt, TextPrompt
-from cuvis_ai.node.spectral_angle_mapper import SpectralAngleMapper, StatefulSpectralAngleMapper
+from cuvis_ai.node.spectral_angle_mapper import SpectralAngleMapper
 from cuvis_ai.node.spectral_extractor import BBoxSpectralExtractor
 from cuvis_ai.node.spectrum_plot import SpectrumPlotNode
 from cuvis_ai.node.video import (
@@ -140,7 +140,6 @@ __all__ = [
     "SpatialRotateNode",
     "SpectralAngleMapper",
     "SpectrumPlotNode",
-    "StatefulSpectralAngleMapper",
     "SupervisedCIRSelector",
     "SupervisedFullSpectrumSelector",
     "SupervisedSelectorBase",

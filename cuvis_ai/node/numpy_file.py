@@ -7,8 +7,10 @@ from typing import Any
 
 import numpy as np
 import torch
-from cuvis_ai_core.node import Node
+from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.pipeline import PortSpec
+
+from cuvis_ai_core.node import Node
 
 
 def _pad_to_bhwc4(array: np.ndarray) -> np.ndarray:
@@ -40,6 +42,9 @@ class NpyReader(Node):
        - Buffer is populated via load_from_array() or statistical_initialization()
        - Useful for pipelines where learned reference vectors are baked into weights
     """
+
+    _category = NodeCategory.SOURCE
+    _tags = frozenset({NodeTag.METADATA})
 
     TRAINABLE_BUFFERS = ("_data_buf",)
 
@@ -235,6 +240,9 @@ class NumpyFeatureWriterNode(Node):
     prefix : str
         Filename prefix (default ``"features"``).
     """
+
+    _category = NodeCategory.SINK
+    _tags = frozenset({NodeTag.EMBEDDING, NodeTag.METADATA})
 
     INPUT_SPECS = {
         "features": PortSpec(
