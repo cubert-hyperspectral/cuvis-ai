@@ -17,7 +17,7 @@ TRACKED_FILES=$(git diff --name-only --cached)
 STAGED_NOTEBOOKS=$(echo "$TRACKED_FILES" | grep -E '\.ipynb$' || true)
 if [ -n "$STAGED_NOTEBOOKS" ]; then
     echo "→ Stripping video outputs from staged notebooks..."
-    if ! echo "$STAGED_NOTEBOOKS" | xargs -d '\n' python tools/strip_notebook_videos.py; then
+    if ! echo "$STAGED_NOTEBOOKS" | xargs -d '\n' python scripts/strip_notebook_videos.py; then
         echo "✗ Notebook video stripper failed."
         exit 1
     fi

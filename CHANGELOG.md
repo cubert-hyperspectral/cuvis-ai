@@ -1,6 +1,22 @@
 # Changelog
 
-## Unreleased
+## 0.7.2 - 2026-05-11
+
+- **CI:** run the gh-pages `deploy-docs` job inside `cubertgmbh/cuvis_pyil:3.5.0-ubuntu24.04` with `libgl1` / `libglib2.0-0` / `ffmpeg` installed, matching the working `doc-build` job in `ci.yml`. The 0.7.1 deploy failed because the auto-generated Nodes-catalog generator imports `cuvis_ai.node`, which transitively initializes the `cuvis` package and aborts on a vanilla runner. No `cuvis_ai` code changes — this release exists solely to re-trigger the release pipeline so gh-pages actually updates.
+
+## 0.7.1 - 2026-05-11
+
+- **Docs IA restructure** (ALL-5655). Nine top-level sections — Home, Get Started, Concepts, Tutorials, Catalogs, Workflows, Agentic Integration, Deployment, Reference — ordered as a learning path. Major moves: `user-guide/{installation,quickstart}` → `get-started/`; `how-to/*` → `workflows/`; `node-catalog/*` → `catalogs/nodes/*`; `config/*` → `reference/configuration/`; `api/*` → `reference/python-api/`; `plugin-system/*` → `reference/plugin-development/`; `development/*` → `reference/contributing/`; `grpc/*` + `use_cases/grpc-workflow.md` → `deployment/`. New: agentic-integration section, datasets catalog mirrored from HuggingFace, notebook tutorial gallery, `get-started/first-pipeline.md`, `workflows/{statistical,gradient}-training.md`. Removed `docs/use_cases/`, `user-guide/configuration.md` stub, duplicate `plugin-system/overview.md`. **All URLs change — no redirects.** `mkdocs build --strict` clean.
+- **Auto-generated Nodes catalog.** `mkdocs-gen-files` + `scripts/generate_node_catalog.py` build a category-grouped index page from `NodeRegistry` with per-category SVG icons (`docs/images/node-categories/`) and a client-side filter (`docs/javascripts/node_catalog_filter.js`). Replaces nine hand-maintained `docs/catalogs/nodes/*.md` pages. Added `scripts/math_directive_hook.py` MkDocs hook (RST `.. math::` → MathJax; auto-hide TOC on catalog pages).
+- **Lentils Dinomaly use-case notebook** (`notebooks/use_cases/lentils_dinomaly.ipynb`) — HF dataset integration and H.264 video export.
+- **Helper-scripts package renamed** `tools/` → `scripts/`. Updated `[project.scripts]` (`create-stubs = "scripts.generate_node_port_stubs:main"`), MkDocs macros, codecov ignore, `.gitignore`, git hooks, copilot-instructions.
+- **Removed `configs/plugins/registry.yaml`.** Use per-plugin manifests (`configs/plugins/<plugin>.yaml`).
+- **Bundled ffmpeg via `imageio-ffmpeg`.** `ToVideoNode` resolves the binary from the wheel by default — no system install needed. Override with `CUVIS_AI_FFMPEG_BIN` for `h264_nvenc` / `vaapi` / `amf`. Blood-perfusion notebook MP4 export gains `+faststart`.
+- **Site rebrand to Cubert CI.** `palette: custom` lets `docs/stylesheets/extra.css` drive both Material schemes; Rajdhani headings via Google Fonts `@import`, Roboto / Roboto Mono for body and code. Mermaid theme variables updated to match. Mermaid diagrams in `docs/concepts/*.md` switched from inline `style X fill:` to `classDef` so node colors stay legible in dark mode.
+- **mkdocs plugin swap.** Dropped `mkdocs-literate-nav`; added `mkdocs-macros-plugin` (drives `scripts/docs_macros.py`) and `mkdocs-llmstxt` (emits `llms-full.txt`). `mkdocs-gen-files` re-added for the Nodes-catalog generator. API reference consolidated into the Nodes catalog. Install guide gains a Cuvis SDK section.
+- **Renamed local blood-perfusion dataset folder** `data/XMR_Blood_Perfusion/` → `data/XMR_Demo_Blood_Perfusion/` following the HuggingFace rename to `cubert-gmbh/XMR_Demo_Blood_Perfusion`. Users with the old folder can rename it in place; otherwise `uv run dataset download blood_perfusion` re-fetches ~7 GB.
+- **Fixed broken cross-doc links** surfaced by `mkdocs build --strict`.
+- **Dependency floors:** `cuvis-ai-core>=0.5.3` (Blood_Perfusion registry repoint), `cuvis-ai-schemas[full]>=0.4.1`. Locked dev deps bumped to clear pip-audit CVEs.
 
 ## 0.7.0 - 2026-05-04
 

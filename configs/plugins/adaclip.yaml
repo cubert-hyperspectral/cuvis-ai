@@ -1,9 +1,6 @@
-# AdaCLIP Plugin Manifest (selective load convenience)
+# AdaCLIP Plugin Manifest
 #
-# Canonical source of truth for plugin entries remains:
-#   configs/plugins/registry.yaml
-#
-# Use this file when you want to load only AdaCLIP:
+# Load only AdaCLIP:
 #   uv run restore-pipeline --plugins-path configs/plugins/adaclip.yaml
 
 plugins:

@@ -1,4 +1,4 @@
-![Cuvis.AI banner](docs/images/banner.png)
+![image](https://github.com/cubert-hyperspectral/cuvis.sdk/blob/main/branding/logo/banner.png?raw=true)
 
 # Cuvis.AI
 
