@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Added GoatCounter page-view analytics to the docs site via Material's custom-analytics partial (`overrides/partials/integrations/analytics/custom.html`, `extra.analytics.provider: custom`). No cookies, no consent banner; tracked at `https://cuvis-ai.goatcounter.com`.
+
 ## 0.7.2 - 2026-05-11
 
 - **CI:** run the gh-pages `deploy-docs` job inside `cubertgmbh/cuvis_pyil:3.5.0-ubuntu24.04` with `libgl1` / `libglib2.0-0` / `ffmpeg` installed, matching the working `doc-build` job in `ci.yml`. The 0.7.1 deploy failed because the auto-generated Nodes-catalog generator imports `cuvis_ai.node`, which transitively initializes the `cuvis` package and aborts on a vanilla runner. No `cuvis_ai` code changes — this release exists solely to re-trigger the release pipeline so gh-pages actually updates.
