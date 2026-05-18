@@ -1,8 +1,8 @@
 # MkDocs Configuration for cuvis-ai
-site_name: Cuvis.AI
-site_description: PyTorch Lightning Training Pipeline for Hyperspectral Data Analysis
+site_name: Cuvis.AI Documentation
+site_description: Cuvis.AI is an open-source framework for building modular, extensible AI pipelines for real-time hyperspectral video processing, analysis, and deployment.
 site_author: Cubert GmbH
-site_url: https://docs.cuvis.ai/
+site_url: https://cubert-hyperspectral.github.io/cuvis-ai/
 
 # Repository
 repo_name: cubert-hyperspectral/cuvis-ai
