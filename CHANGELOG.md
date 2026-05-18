@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.3 - 2026-05-18
 
 - Added GoatCounter page-view analytics to the docs site via Material's custom-analytics partial (`overrides/partials/integrations/analytics/custom.html`, `extra.analytics.provider: custom`). No cookies, no consent banner; tracked at `https://cuvis-ai.goatcounter.com`.
 
