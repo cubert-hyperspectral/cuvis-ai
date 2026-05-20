@@ -1103,6 +1103,11 @@ class CIRSelector(ChannelSelectorBase):
         Red wavelength in nm. Default: 670.0
     green_nm : float
         Green wavelength in nm. Default: 560.0
+    normalize_output : bool
+        If ``True`` (default), apply selector normalization to produce 0-1 output.
+        If ``False``, return raw selected band values without normalization. Useful
+        when an upstream normalizer (e.g. MinMaxNormalizer) has already scaled the
+        cube to [0, 1] and a second rescaling is undesirable.
     """
 
     _category = NodeCategory.TRANSFORM
@@ -1115,12 +1120,15 @@ class CIRSelector(ChannelSelectorBase):
         nir_nm: float = 860.0,
         red_nm: float = 670.0,
         green_nm: float = 560.0,
+        normalize_output: bool = True,
         **kwargs,
     ) -> None:
-        super().__init__(nir_nm=nir_nm, red_nm=red_nm, green_nm=green_nm, **kwargs)
+        super().__init__(nir_nm=nir_nm, red_nm=red_nm, green_nm=green_nm,
+                         normalize_output=normalize_output, **kwargs)
         self.nir_nm = nir_nm
         self.red_nm = red_nm
         self.green_nm = green_nm
+        self.normalize_output = bool(normalize_output)
 
     def _resolve_band_indices(self, wavelengths: Any) -> tuple[int, int, int]:
         """Resolve nearest spectral indices for CIR channel mapping."""
@@ -1166,7 +1174,8 @@ class CIRSelector(ChannelSelectorBase):
         wavelengths_np = np.asarray(wavelengths, dtype=np.float32).ravel()
         nir_idx, red_idx, green_idx = self._resolve_band_indices(wavelengths_np)
         indices = [nir_idx, red_idx, green_idx]
-        rgb = self._normalize_rgb(self._compute_raw_rgb(cube, wavelengths_np))
+        raw = self._compute_raw_rgb(cube, wavelengths_np)
+        rgb = self._normalize_rgb(raw) if self.normalize_output else raw
 
         band_info = {
             "strategy": "cir_false_color",
