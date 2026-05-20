@@ -13,6 +13,16 @@ echo "Running pre-commit checks..."
 # Get list of tracked files before running checks
 TRACKED_FILES=$(git diff --name-only --cached)
 
+# Strip embedded video outputs from staged notebooks (size guard)
+STAGED_NOTEBOOKS=$(echo "$TRACKED_FILES" | grep -E '\.ipynb$' || true)
+if [ -n "$STAGED_NOTEBOOKS" ]; then
+    echo "→ Stripping video outputs from staged notebooks..."
+    if ! echo "$STAGED_NOTEBOOKS" | xargs -d '\n' python scripts/strip_notebook_videos.py; then
+        echo "✗ Notebook video stripper failed."
+        exit 1
+    fi
+fi
+
 # Run Ruff formatting first
 echo "→ Running Ruff formatting..."
 if ! uv run ruff format .; then

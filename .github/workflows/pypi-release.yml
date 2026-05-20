@@ -216,7 +216,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: Release v${{ steps.get_version.outputs.VERSION }}
           body: ${{ steps.changelog.outputs.CHANGELOG }}
@@ -232,12 +232,17 @@ jobs:
     name: Deploy Documentation to gh-pages
     needs: create-github-release
     runs-on: ubuntu-latest
+    container:
+      image: cubertgmbh/cuvis_pyil:3.5.0-ubuntu24.04
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
           fetch-depth: 0  # Full history for mike
+
+      - name: Mark workspace as safe for Git versioning
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -249,6 +254,12 @@ jobs:
 
       - name: Install documentation dependencies
         run: uv sync --locked --extra docs
+
+      - name: Install system dependencies for OpenCV / ffmpeg imports
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends libgl1 libglib2.0-0 ffmpeg
+          rm -rf /var/lib/apt/lists/*
 
       - name: Configure git for deployment
         run: |

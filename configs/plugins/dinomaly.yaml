@@ -1,0 +1,14 @@
+# Dinomaly plugin manifest (Anomalib-backed)
+#
+# Load only Dinomaly:
+#   uv run restore-pipeline --plugins-path configs/plugins/dinomaly.yaml
+
+plugins:
+  dinomaly:
+    # Local development override (optional):
+    # path: "../../../cuvis-ai-dinomaly"
+    repo: "https://github.com/cubert-hyperspectral/cuvis-ai-dinomaly.git"
+    tag: "v0.1.4"
+    provides:
+      - cuvis_ai_dinomaly.node.dinomaly_detector.DinomalyDetector
+      - cuvis_ai_dinomaly.node.dinomaly_train_loss_bridge.DinomalyTrainLossBridge

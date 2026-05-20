@@ -1,6 +1,6 @@
 # MkDocs Configuration for cuvis-ai
-site_name: CUVIS.AI Documentation
-site_description: PyTorch Lightning Training Pipeline for Hyperspectral Data Analysis
+site_name: Cuvis.AI Documentation
+site_description: Cuvis.AI is an open-source framework for building modular, extensible AI pipelines for real-time hyperspectral video processing, analysis, and deployment.
 site_author: Cubert GmbH
 site_url: https://cubert-hyperspectral.github.io/cuvis-ai/
 
@@ -15,14 +15,12 @@ copyright: Copyright &copy; 2025-2026 Cubert GmbH
 # Configuration
 theme:
   name: material
+  custom_dir: overrides
   language: en
   features:
     - navigation.instant
     - navigation.tracking
-    - navigation.tabs
-    - navigation.tabs.sticky
-    - navigation.sections
-    # - navigation.expand  # Disabled: sections collapsed by default for cleaner navigation
+    - navigation.indexes
     - navigation.top
     - search.suggest
     - search.highlight
@@ -31,20 +29,20 @@ theme:
     - content.code.copy
   palette:
     - scheme: default
-      primary: deep orange
-      accent: deep orange
+      primary: custom
+      accent: custom
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
     - scheme: slate
-      primary: deep orange
-      accent: deep orange
+      primary: custom
+      accent: custom
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
   font:
-    text: Lato
-    code: Source Code Pro
+    text: Roboto
+    code: Roboto Mono
   logo: images/logo.png
   favicon: images/logo.png
   icon:
@@ -58,6 +56,7 @@ markdown_extensions:
   - def_list
   - footnotes
   - md_in_html
+  - meta
   - toc:
       permalink: true
   - pymdownx.arithmatex:
@@ -93,16 +92,49 @@ markdown_extensions:
       custom_checkbox: true
   - pymdownx.tilde
 
+# MkDocs hooks (run during build for cross-cutting transforms)
+hooks:
+  - scripts/math_directive_hook.py
+
 # Plugins
 plugins:
   - search:
       separator: '[\s\-,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
-  # Disable auto-generated API pages to avoid duplicate anchors
-  # - gen-files:
-  #     scripts:
-  #       - docs/gen_ref_pages.py
-  - literate-nav:
-      nav_file: SUMMARY.md
+  - gen-files:
+      scripts:
+        - scripts/generate_node_catalog.py
+  - macros:
+      module_name: scripts/docs_macros
+  - llmstxt:
+      markdown_description: |
+        Cuvis.AI is an open-source, extensible framework for building AI-powered
+        processing pipelines for hyperspectral video data. It lets you process
+        and structure spectral data, train and apply machine learning models,
+        visualize and interpret results, and deploy applications in real-time
+        environments. Pipelines are built from reusable modular nodes and can
+        be extended with custom plugins or external integrations. Cuvis.AI
+        bridges the gap between hyperspectral hardware and real-world
+        applications, enabling faster development, testing, and deployment of
+        new solutions.
+      full_output: llms-full.txt
+      sections:
+        Get Started:
+          - get-started/*.md
+        Concepts:
+          - concepts/*.md
+        Tutorials:
+          - tutorials/**/*.md
+        Catalogs:
+          - catalogs/nodes/*.md
+          - catalogs/datasets/*.md
+        Workflows:
+          - workflows/*.md
+        Agentic Integration:
+          - agentic-integration/*.md
+        Deployment:
+          - deployment/**/*.md
+        Reference:
+          - reference/**/*.md
   - mkdocstrings:
       handlers:
         python:
@@ -126,84 +158,88 @@ plugins:
 # Page tree
 nav:
   - Home: index.md
-  - User Guide:
-      - Installation: user-guide/installation.md
-      - Quickstart: user-guide/quickstart.md
-      - Configuration: user-guide/configuration.md
-      - Core Concepts:
-          - Overview: concepts/overview.md
-          - Node System: concepts/node-system-deep-dive.md
-          - Port System: concepts/port-system-deep-dive.md
-          - Pipeline Lifecycle: concepts/pipeline-lifecycle.md
-          - Two-Phase Training: concepts/two-phase-training.md
-          - Execution Stages: concepts/execution-stages.md
-      - Tutorials:
-          - Overview: tutorials/index.md
-          - RX Statistical: tutorials/rx-statistical.md
-          - Channel Selector: tutorials/channel-selector.md
-          - Deep SVDD: tutorials/deep-svdd-gradient.md
-          - AdaCLIP Workflow: tutorials/adaclip-workflow.md
-          - gRPC Workflow: tutorials/grpc-workflow.md
-          - Blood Perfusion: tutorials/blood-perfusion.md
-      - How-To Guides:
-          - Overview: how-to/index.md
-          - Build Pipeline (Python): how-to/build-pipeline-python.md
-          - Build Pipeline (YAML): how-to/build-pipeline-yaml.md
-          - Restore Pipeline: how-to/restore-pipeline-trainrun.md
-          - Add Built-in Node: how-to/add-builtin-node.md
-          - Monitoring & Visualization: how-to/monitoring-and-viz.md
-          - Profiling: how-to/profiling.md
-  - Nodes:
-      - Overview: node-catalog/index.md
-      - Data: node-catalog/data-nodes.md
-      - Preprocessing: node-catalog/preprocessing.md
-      - Selectors: node-catalog/selectors.md
-      - Statistical: node-catalog/statistical.md
-      - Loss & Metrics: node-catalog/loss-metrics.md
-      - Visualization: node-catalog/visualization.md
-      - Output: node-catalog/output.md
-      - Utility: node-catalog/utility.md
-      - Plugin Nodes: node-catalog/node-catalog-plugins.md
-  - Configuration:
-      - Overview: config/index.md
-      - Config Groups: config/config-groups.md
-      - TrainRun Schema: config/trainrun-schema.md
-      - Hydra Basics: config/hydra-basics.md
-      - Hydra Inheritance & Overrides: config/hydra-inheritance.md
-      - Hydra Sweeps & Advanced: config/hydra-sweeps.md
-  - gRPC & Deployment:
-      - Overview: grpc/index.md
-      - Architecture: grpc/overview.md
-      - API Reference:
-          - Session Management: grpc/api-session.md
-          - Configuration API: grpc/api-config.md
-          - Pipeline API: grpc/api-pipeline.md
-          - Training & Inference: grpc/api-training-inference.md
-          - Types & Errors: grpc/api-types-errors.md
+  - Get Started:
+      - Installation: get-started/installation.md
+      - Quickstart: get-started/quickstart.md
+      - Your First Pipeline: get-started/first-pipeline.md
+  - Concepts:
+      - Overview: concepts/index.md
+      - Node: concepts/node.md
+      - Port: concepts/port.md
+      - Pipeline: concepts/pipeline.md
+      - Training: concepts/training.md
+      - Execution Stages: concepts/execution-stages.md
+  - Tutorials:
+      - Overview: tutorials/index.md
+      - Statistical:
+          - Overview: tutorials/statistical/index.md
+          - RX Anomaly: tutorials/statistical/rx-anomaly.md
+          - Channel Selector: tutorials/statistical/channel-selector.md
+          - Blood Perfusion: tutorials/statistical/blood-perfusion.md
+      - Gradient:
+          - Overview: tutorials/gradient/index.md
+          - Deep SVDD: tutorials/gradient/deep-svdd.md
+          - AdaCLIP: tutorials/gradient/adaclip.md
+  - Catalogs:
+      - Overview: catalogs/index.md
+      - Nodes: catalogs/nodes/index.md
+      - Datasets:
+          - Overview: catalogs/datasets/index.md
+          - XMR Demo Blood Perfusion: catalogs/datasets/XMR_Demo_Blood_Perfusion.md
+          - XMR Demo Industrial FOD (Lentils): catalogs/datasets/XMR_Demo_Industrial_FOD_Lentils.md
+          - XMR Demo Object Tracking: catalogs/datasets/XMR_Demo_Object_Tracking.md
+  - Workflows:
+      - Overview: workflows/index.md
+      - Build Pipeline (Python): workflows/build-pipeline-python.md
+      - Build Pipeline (YAML): workflows/build-pipeline-yaml.md
+      - Restore Pipeline: workflows/restore-pipeline.md
+      - Statistical Training: workflows/statistical-training.md
+      - Gradient Training: workflows/gradient-training.md
+      - Monitoring & Visualization: workflows/monitoring.md
+      - Profiling: workflows/profiling.md
+  - Agentic Integration:
+      - Overview: agentic-integration/index.md
+      - About Skills: agentic-integration/overview.md
+      - Available Skills: agentic-integration/skills.md
+      - Invoking Skills: agentic-integration/invoking.md
+  - Deployment:
+      - Overview: deployment/index.md
+      - Architecture: deployment/overview.md
+      - gRPC Workflow: deployment/grpc-workflow.md
+      - gRPC API:
+          - Session Management: deployment/api/session.md
+          - Configuration API: deployment/api/config.md
+          - Pipeline API: deployment/api/pipeline.md
+          - Training & Inference: deployment/api/training-inference.md
+          - Types & Errors: deployment/api/types-errors.md
       - Client Patterns:
-          - Connections & Sessions: grpc/client-connections.md
-          - Workflows & Error Handling: grpc/client-workflows.md
-      - Sequence Diagrams: grpc/sequence-diagrams.md
-      - Example Clients: grpc/example-clients.md
-      - Deployment: deployment/grpc_deployment.md
-  - Plugins:
-      - Overview: plugin-system/index.md
-      - Plugin System Overview: plugin-system/overview.md
-      - Plugin Development: plugin-system/development.md
-  - Development:
-      - Overview: development/index.md
-      - Contributing: development/contributing.md
-      - Docstrings Guide: development/docstrings.md
-      - Documentation Guidelines: development/documentation-guidelines.md
-      - Git Hooks: development/git-hooks.md
-  - API Reference:
-      - Overview: api/index.md
-      - Pipeline & Graph: api/pipeline.md
-      - Nodes: api/nodes.md
-      - Ports: api/ports.md
-      - Training: api/training.md
-      - Data: api/data.md
-      - Utilities: api/utilities.md
+          - Connections & Sessions: deployment/client-connections.md
+          - Workflows & Error Handling: deployment/client-workflows.md
+      - Sequence Diagrams: deployment/sequence-diagrams.md
+      - Deployment Guide: deployment/grpc-deployment.md
+  - Reference:
+      - Configuration:
+          - Overview: reference/configuration/index.md
+          - Config Groups: reference/configuration/config-groups.md
+          - TrainRun Schema: reference/configuration/trainrun-schema.md
+          - Hydra Basics: reference/configuration/hydra-basics.md
+          - Hydra Inheritance & Overrides: reference/configuration/hydra-inheritance.md
+          - Hydra Sweeps & Advanced: reference/configuration/hydra-sweeps.md
+      - Python API:
+          - Overview: reference/python-api/index.md
+          - Pipeline & Graph: reference/python-api/pipeline.md
+          - Ports: reference/python-api/ports.md
+          - Utilities: reference/python-api/utilities.md
+      - Plugin Development:
+          - Overview: reference/plugin-development/overview.md
+          - Developer Guide: reference/plugin-development/guide.md
+      - Contributing:
+          - Overview: reference/contributing/index.md
+          - Contributing: reference/contributing/contributing.md
+          - Add a Built-in Node: reference/contributing/add-builtin-node.md
+          - Docstrings: reference/contributing/docstrings.md
+          - Docs Style: reference/contributing/docs-style.md
+          - Git Hooks: reference/contributing/git-hooks.md
 
 # Extra
 extra:
@@ -214,10 +250,14 @@ extra:
       link: https://www.cubert-hyperspectral.com/
   version:
     provider: mike
+  analytics:
+    provider: custom
 
 # CSS
 extra_css:
   - stylesheets/extra.css
+  - stylesheets/node_categories.css
+  - stylesheets/node_catalog.css
 
 # JavaScript
 extra_javascript:
@@ -226,3 +266,5 @@ extra_javascript:
   - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
   - https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js
   - javascripts/mermaid-theme.js
+  - javascripts/os-tab-sync.js
+  - javascripts/node_catalog_filter.js

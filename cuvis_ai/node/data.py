@@ -4,10 +4,11 @@ from typing import Any
 
 import numpy as np
 import torch
-from cuvis_ai_core.node import Node
+from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.pipeline import PortSpec
 
 from cuvis_ai.node.labels import BinaryAnomalyLabelMapper
+from cuvis_ai_core.node import Node
 
 
 class CU3SDataNode(Node):
@@ -19,6 +20,9 @@ class CU3SDataNode(Node):
     - passes optional `mask` through unchanged
     - extracts 1D `wavelengths` from batched input
     """
+
+    _category = NodeCategory.SOURCE
+    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.METADATA})
 
     INPUT_SPECS = {
         "cube": PortSpec(
@@ -100,6 +104,9 @@ class LentilsAnomalyDataNode(CU3SDataNode):
     Inherits shared CU3S normalization (cube + wavelengths) and additionally maps
     multi-class masks to binary anomaly masks.
     """
+
+    _category = NodeCategory.SOURCE
+    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.METADATA})
 
     INPUT_SPECS = {
         **CU3SDataNode.INPUT_SPECS,

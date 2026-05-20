@@ -1,7 +1,5 @@
 """Utility functions and helpers for cuvis.ai."""
 
-from cuvis_ai_core.utils.restore import restore_pipeline, restore_trainrun
-
 from cuvis_ai.utils.cli_helpers import (
     append_tracking_metrics,
     resolve_end_frame,
@@ -14,6 +12,7 @@ from cuvis_ai.utils.poisson_inpaint import poisson_inpaint
 from cuvis_ai.utils.vis_helpers import fig_to_array
 from cuvis_ai.utils.welford import WelfordAccumulator
 from cuvis_ai.utils.xml_plugin_parser import parse_numeric_text, read_xml_inputs, xml_local_name
+from cuvis_ai_core.utils.restore import restore_pipeline, restore_trainrun
 
 __all__ = [
     "WelfordAccumulator",

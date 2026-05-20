@@ -6,6 +6,7 @@ import inspect
 from pathlib import Path
 
 import pytest
+
 from cuvis_ai_core.node.node import Node
 from cuvis_ai_core.utils.node_registry import NodeRegistry
 

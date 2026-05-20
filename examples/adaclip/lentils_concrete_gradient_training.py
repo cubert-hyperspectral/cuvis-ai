@@ -26,9 +26,6 @@ from pathlib import Path
 
 import hydra
 import torch
-from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
-from cuvis_ai_core.training import GradientTrainer, StatisticalTrainer
-from cuvis_ai_core.utils.node_registry import NodeRegistry
 from cuvis_ai_schemas.pipeline import PipelineMetadata
 from cuvis_ai_schemas.training import (
     CallbacksConfig,
@@ -49,6 +46,9 @@ from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 from cuvis_ai.node.normalization import MinMaxNormalizer
 from cuvis_ai.training import MultiFileTrainRunConfig
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.training import GradientTrainer, StatisticalTrainer
+from cuvis_ai_core.utils.node_registry import NodeRegistry
 
 
 @hydra.main(

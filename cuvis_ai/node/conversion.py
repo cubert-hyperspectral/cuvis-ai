@@ -7,10 +7,11 @@ This module provides:
 """
 
 import torch
-from cuvis_ai_core.node import Node
+from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.pipeline import PortSpec
 
 from cuvis_ai.utils.welford import WelfordAccumulator
+from cuvis_ai_core.node import Node
 
 
 class ScoreToLogit(Node):
@@ -44,6 +45,9 @@ class ScoreToLogit(Node):
     >>> logit_head.unfreeze()  # Enable gradient training
     >>> graph.connect(rx.scores, logit_head.scores)
     """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.POSTPROCESSING, NodeTag.MASK, NodeTag.TORCH})
 
     INPUT_SPECS = {
         "scores": PortSpec(
@@ -218,6 +222,9 @@ class DecisionToMask(Node):
     The output mask keeps per-pixel identity IDs where the decision is True and
     sets all non-matching pixels to 0.
     """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.POSTPROCESSING, NodeTag.MASK, NodeTag.TORCH})
 
     INPUT_SPECS = {
         "decisions": PortSpec(

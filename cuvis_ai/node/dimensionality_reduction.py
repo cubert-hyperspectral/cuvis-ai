@@ -5,12 +5,13 @@ from __future__ import annotations
 from typing import Any, Literal
 
 import torch
-from cuvis_ai_core.node import Node
+from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.execution import InputStream
 from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
 
 from cuvis_ai.utils.welford import WelfordAccumulator
+from cuvis_ai_core.node import Node
 
 ## This node is not approved
 # missing tests against standard implementations
@@ -19,6 +20,11 @@ from cuvis_ai.utils.welford import WelfordAccumulator
 
 class PCA(Node):
     """Project each frame independently onto its principal components."""
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset(
+        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.TORCH}
+    )
 
     INPUT_SPECS = {
         "data": PortSpec(
@@ -136,6 +142,18 @@ class PCA(Node):
 
 class TrainablePCA(PCA):
     """Trainable PCA node with orthogonality regularization."""
+
+    _category = NodeCategory.MODEL
+    _tags = frozenset(
+        {
+            NodeTag.HYPERSPECTRAL,
+            NodeTag.DIM_REDUCTION,
+            NodeTag.PREPROCESSING,
+            NodeTag.LEARNABLE,
+            NodeTag.STATEFUL,
+            NodeTag.TORCH,
+        }
+    )
 
     TRAINABLE_BUFFERS = ("_components",)
 

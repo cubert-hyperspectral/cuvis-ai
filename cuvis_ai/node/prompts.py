@@ -12,10 +12,12 @@ from typing import Any
 import cv2
 import numpy as np
 import torch
-from cuvis_ai_core.data.rle import coco_rle_decode
-from cuvis_ai_core.node import Node
+from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.execution import Context
 from cuvis_ai_schemas.pipeline import PortSpec
+
+from cuvis_ai_core.data.rle import coco_rle_decode
+from cuvis_ai_core.node import Node
 
 _PROMPT_SPEC_RE = re.compile(r"\s*(\d+):(\d+)@(\d+)\s*")
 _TEXT_PROMPT_MODES = {"repeat", "scheduled"}
@@ -570,6 +572,9 @@ def _resolve_frame_hw(
 class MaskPrompt(Node):
     """Emit a scheduled label-map prompt mask for the requested frame."""
 
+    _category = NodeCategory.SOURCE
+    _tags = frozenset({NodeTag.MASK, NodeTag.INFERENCE, NodeTag.METADATA})
+
     INPUT_SPECS = {
         "frame_id": PortSpec(dtype=torch.int64, shape=(1,), description="Source frame index [1]."),
     }
@@ -626,6 +631,9 @@ class MaskPrompt(Node):
 
 class BBoxPrompt(Node):
     """Emit scheduled runtime bbox prompts plus overlay-friendly debug tensors."""
+
+    _category = NodeCategory.SOURCE
+    _tags = frozenset({NodeTag.BBOX, NodeTag.INFERENCE, NodeTag.METADATA})
 
     INPUT_SPECS = {
         "frame_id": PortSpec(dtype=torch.int64, shape=(1,), description="Source frame index [1]."),
@@ -715,6 +723,9 @@ class BBoxPrompt(Node):
 
 class TextPrompt(Node):
     """Emit a runtime text prompt for the requested frame."""
+
+    _category = NodeCategory.SOURCE
+    _tags = frozenset({NodeTag.TEXT, NodeTag.INFERENCE, NodeTag.METADATA})
 
     INPUT_SPECS = {
         "frame_id": PortSpec(dtype=torch.int64, shape=(1,), description="Source frame index [1]."),

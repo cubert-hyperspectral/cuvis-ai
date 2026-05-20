@@ -2,11 +2,11 @@
 
 import pytest
 import torch
-from cuvis_ai_core.node.node import Node
 from cuvis_ai_schemas.pipeline import InputPort, OutputPort, PortSpec
 
 from cuvis_ai.node.channel_selector import SoftChannelSelector
 from cuvis_ai.node.dimensionality_reduction import TrainablePCA
+from cuvis_ai_core.node.node import Node
 
 pytestmark = pytest.mark.unit
 

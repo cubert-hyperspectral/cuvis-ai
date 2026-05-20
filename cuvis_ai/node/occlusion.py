@@ -9,16 +9,20 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn.functional as F
-from cuvis_ai_core.data.rle import coco_rle_decode
-from cuvis_ai_core.node import Node
+from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.pipeline import PortSpec
 from loguru import logger
 
 from cuvis_ai.utils.poisson_inpaint import poisson_inpaint
+from cuvis_ai_core.data.rle import coco_rle_decode
+from cuvis_ai_core.node import Node
 
 
 class OcclusionNodeBase(Node, abc.ABC):
     """Base class for synthetic occlusion from tracking masks."""
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.AUGMENTATION, NodeTag.TRAINING, NodeTag.STOCHASTIC, NodeTag.NUMPY})
 
     INPUT_SPECS = {
         "rgb_image": PortSpec(
@@ -163,6 +167,9 @@ class OcclusionNodeBase(Node, abc.ABC):
 
 class PoissonOcclusionNode(OcclusionNodeBase):
     """Pure-PyTorch occlusion node for either RGB frames or hyperspectral cubes."""
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.AUGMENTATION, NodeTag.TRAINING, NodeTag.STOCHASTIC, NodeTag.NUMPY})
 
     INPUT_SPECS = {
         "rgb_image": PortSpec(
@@ -434,9 +441,15 @@ class PoissonOcclusionNode(OcclusionNodeBase):
 class SolidOcclusionNode(PoissonOcclusionNode):
     """Deprecated alias of PoissonOcclusionNode."""
 
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.AUGMENTATION, NodeTag.TRAINING, NodeTag.STOCHASTIC, NodeTag.NUMPY})
+
 
 class PoissonCubeOcclusionNode(PoissonOcclusionNode):
     """Deprecated alias of PoissonOcclusionNode with cube-only ports."""
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.AUGMENTATION, NodeTag.TRAINING, NodeTag.STOCHASTIC, NodeTag.NUMPY})
 
     INPUT_SPECS = {
         "cube": PortSpec(

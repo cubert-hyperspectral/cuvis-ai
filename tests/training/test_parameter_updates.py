@@ -2,7 +2,6 @@
 
 import pytest
 import torch
-from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
 from cuvis_ai.anomaly.rx_detector import RXGlobal
 from cuvis_ai.deciders.binary_decider import BinaryDecider
@@ -22,6 +21,7 @@ from cuvis_ai.node.metrics import (
     ExplainedVarianceMetric,
 )
 from cuvis_ai.node.normalization import MinMaxNormalizer
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
 pytestmark = [pytest.mark.integration, pytest.mark.slow]
 

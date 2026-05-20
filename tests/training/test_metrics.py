@@ -4,7 +4,6 @@ import math
 
 import pytest
 import torch
-from cuvis_ai_core.node.node import Node
 from cuvis_ai_schemas.enums import ExecutionStage
 from cuvis_ai_schemas.execution import Context
 
@@ -15,6 +14,7 @@ from cuvis_ai.node.metrics import (
     ExplainedVarianceMetric,
     ScoreStatisticsMetric,
 )
+from cuvis_ai_core.node.node import Node
 
 pytestmark = pytest.mark.unit
 

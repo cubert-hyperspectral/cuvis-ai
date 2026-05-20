@@ -2,17 +2,19 @@
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Sequence
 
 import matplotlib
 
-# Use non-interactive backend to avoid GUI/threading issues in tests
-matplotlib.use("Agg")
+# Default to a non-interactive backend for tests/scripts. Skip in Jupyter
+# kernels (`ipykernel` already loaded) so `%matplotlib inline` survives.
+if "ipykernel" not in sys.modules:
+    matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from cuvis_ai_core.node import Node
-from cuvis_ai_schemas.enums import ArtifactType, ExecutionStage
+from cuvis_ai_schemas.enums import ArtifactType, ExecutionStage, NodeCategory, NodeTag
 from cuvis_ai_schemas.execution import Artifact, Context
 from cuvis_ai_schemas.pipeline import PortSpec
 from loguru import logger
@@ -32,10 +34,14 @@ from cuvis_ai.utils.vis_helpers import (
     fig_to_array,
     tensor_to_numpy,
 )
+from cuvis_ai_core.node import Node
 
 
 class ImageArtifactVizBase(Node):
     """Base class for visualization nodes that produce image artifacts."""
+
+    _category = NodeCategory.VISUALIZER
+    _tags = frozenset({NodeTag.IMAGE, NodeTag.ANOMALY})
 
     OUTPUT_SPECS = {
         "artifacts": PortSpec(
@@ -113,6 +119,9 @@ class AnomalyMask(Node):
     ...     (viz_mask.artifacts, tensorboard_node.artifacts),
     ... )
     """
+
+    _category = NodeCategory.VISUALIZER
+    _tags = frozenset({NodeTag.MASK, NodeTag.ANOMALY})
 
     INPUT_SPECS = {
         "decisions": PortSpec(
@@ -412,6 +421,9 @@ class AnomalyMask(Node):
 class ScoreHeatmapVisualizer(Node):
     """Log LAD/RX score heatmaps as TensorBoard artifacts."""
 
+    _category = NodeCategory.VISUALIZER
+    _tags = frozenset({NodeTag.ANOMALY, NodeTag.RGB})
+
     INPUT_SPECS = {
         "scores": PortSpec(
             dtype=torch.float32,
@@ -535,6 +547,9 @@ class RGBAnomalyMask(Node):
     ...     (viz_mask.artifacts, tensorboard_node.artifacts),
     ... )
     """
+
+    _category = NodeCategory.VISUALIZER
+    _tags = frozenset({NodeTag.MASK, NodeTag.ANOMALY, NodeTag.RGB})
 
     INPUT_SPECS = {
         "decisions": PortSpec(
@@ -801,6 +816,9 @@ class ChannelSelectorFalseRGBViz(ImageArtifactVizBase):
         Log every N-th batch (default: 1).
     """
 
+    _category = NodeCategory.VISUALIZER
+    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.RGB})
+
     INPUT_SPECS = {
         "rgb_output": PortSpec(
             dtype=torch.float32,
@@ -920,6 +938,9 @@ class MaskOverlayNode(Node):
         RGB overlay colour in [0, 1] (default: red ``(1, 0, 0)``).
     """
 
+    _category = NodeCategory.VISUALIZER
+    _tags = frozenset({NodeTag.MASK, NodeTag.RGB})
+
     INPUT_SPECS = {
         "rgb_image": PortSpec(
             dtype=torch.float32,
@@ -996,6 +1017,9 @@ class TrackingOverlayNode(Node):
     draw_ids : bool
         Render numeric object-ID labels above each mask (default True).
     """
+
+    _category = NodeCategory.VISUALIZER
+    _tags = frozenset({NodeTag.TRACKING, NodeTag.BBOX, NodeTag.RGB})
 
     INPUT_SPECS = {
         "rgb_image": PortSpec(
@@ -1139,6 +1163,9 @@ class TrackingPointerOverlayNode(Node):
     draw_ids : bool
         Reserved for API compatibility with :class:`TrackingOverlayNode` (unused).
     """
+
+    _category = NodeCategory.VISUALIZER
+    _tags = frozenset({NodeTag.TRACKING, NodeTag.BBOX, NodeTag.RGB})
 
     INPUT_SPECS = {
         "rgb_image": PortSpec(
@@ -1342,6 +1369,9 @@ def render_bboxes_overlay_torch(
 class BBoxesOverlayNode(Node):
     """Torch-only bounding-box overlay renderer for YOLO-style detections."""
 
+    _category = NodeCategory.VISUALIZER
+    _tags = frozenset({NodeTag.BBOX, NodeTag.RGB})
+
     INPUT_SPECS = {
         "rgb_image": PortSpec(
             dtype=torch.float32,
@@ -1494,6 +1524,9 @@ class ChannelWeightsViz(ImageArtifactVizBase):
     cell_width : int, optional
         Pixel width per matrix column (default: 6).
     """
+
+    _category = NodeCategory.VISUALIZER
+    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.RGB})
 
     INPUT_SPECS = {
         "weights": PortSpec(

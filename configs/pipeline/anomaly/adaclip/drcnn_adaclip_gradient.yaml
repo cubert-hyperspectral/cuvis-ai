@@ -46,7 +46,7 @@ nodes:
     smooth: 1.0e-06
     normalize_method: minmax
 - name: decider
-  class_name: cuvis_ai.deciders.binary_decider.QuantileBinaryDecider
+  class_name: cuvis_ai.node.deciders.binary_decider.QuantileBinaryDecider
   hparams:
     quantile: 0.995
     reduce_dims: null
@@ -113,7 +113,7 @@ connections:
 - source: adaclip.outputs.scores
   target: mask.inputs.scores
 - source: adaclip.outputs.scores
-  target: drcnn_tensorboard_viz.inputs.adaclip_scores
+  target: drcnn_tensorboard_viz.inputs.anomaly_scores
 - source: decider.outputs.decisions
   target: metrics_anomaly.inputs.decisions
 - source: decider.outputs.decisions

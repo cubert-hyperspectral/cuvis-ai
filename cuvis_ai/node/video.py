@@ -2,34 +2,53 @@
 
 from __future__ import annotations
 
+import os
+import subprocess  # nosec B404
 from pathlib import Path
 from typing import Any
 
 import cv2
+import imageio_ffmpeg
 import numpy as np
 import torch
+from cuvis_ai_schemas.enums import NodeCategory, NodeTag
+from cuvis_ai_schemas.execution import Context
+from cuvis_ai_schemas.pipeline import PortSpec
+from loguru import logger
+
+from cuvis_ai.utils.torch_draw import draw_text
 from cuvis_ai_core.data.video import (  # noqa: F401
     VideoFrameDataModule,
     VideoFrameDataset,
     VideoIterator,
 )
 from cuvis_ai_core.node import Node
-from cuvis_ai_schemas.execution import Context
-from cuvis_ai_schemas.pipeline import PortSpec
-from loguru import logger
 
-from cuvis_ai.utils.torch_draw import draw_text
+# Resolve the bundled ffmpeg binary once at import. imageio_ffmpeg validates the
+# binary by spawning subprocess.Popen, so resolving lazily inside the class
+# would re-trigger validation under test monkeypatches of subprocess.Popen.
+try:
+    _BUNDLED_FFMPEG_BIN: str | None = imageio_ffmpeg.get_ffmpeg_exe()
+except Exception:  # noqa: BLE001 — bundled binary missing/corrupt; surfaces at use
+    _BUNDLED_FFMPEG_BIN = None
 
 
 # ---------------------------------------------------------------------------
-# ToVideoNode — write RGB frame batches to MP4 via OpenCV
+# ToVideoNode — write RGB frame batches to a video file via ffmpeg subprocess
 # ---------------------------------------------------------------------------
 class ToVideoNode(Node):
-    """Write incoming RGB frames directly to a video file.
+    """Write incoming RGB frames directly to a video file via ffmpeg.
 
-    This node opens a single OpenCV ``VideoWriter`` and appends frames on each
-    ``forward`` call. It is intended for streaming pipelines where frames arrive
-    incrementally.
+    This node lazily starts a single ``ffmpeg`` subprocess on the first frame and
+    pipes raw ``rgb24`` bytes to its stdin; ffmpeg handles encoding, bitrate
+    control, and muxing. ``close()`` sends EOF and waits for ffmpeg to flush the
+    trailer — callers must invoke it explicitly (e.g. in a ``finally`` block of
+    the enclosing pipeline driver) to surface encoder errors.
+
+    The ffmpeg binary is resolved via ``imageio_ffmpeg`` by default (bundled with
+    the wheel — no system install needed). Override with the
+    ``CUVIS_AI_FFMPEG_BIN`` environment variable to point at a custom build
+    (e.g. one with ``h264_nvenc`` / ``vaapi`` / ``amf`` hardware encoders).
 
     Parameters
     ----------
@@ -42,12 +61,19 @@ class ToVideoNode(Node):
         (and aliases ``270``, ``-270``, ``-180``). Positive values rotate
         anticlockwise (counterclockwise), negative values rotate clockwise.
         Default is ``None`` (no rotation).
-    codec : str, optional
-        FourCC codec string (length 4). Default is ``"mp4v"``.
+    video_codec : str, optional
+        ffmpeg ``-c:v`` codec name (e.g. ``"libx264"``, ``"libx265"``).
+        Default is ``"libx264"``.
+    bitrate : str, optional
+        ffmpeg ``-b:v`` target bitrate (e.g. ``"12M"``, ``"8000k"``).
+        Default is ``"12M"``.
     overlay_title : str | None, optional
         Optional static title rendered at the top center with its own slim
         darkened background block. Default is ``None``.
     """
+
+    _category = NodeCategory.SINK
+    _tags = frozenset({NodeTag.VIDEO})
 
     INPUT_SPECS = {
         "rgb_image": PortSpec(
@@ -63,27 +89,24 @@ class ToVideoNode(Node):
         ),
     }
 
-    OUTPUT_SPECS = {
-        "video_path": PortSpec(
-            dtype=str,
-            shape=(),
-            description="Path to the output video file",
-        )
-    }
+    OUTPUT_SPECS: dict[str, PortSpec] = {}  # sink node
 
     def __init__(
         self,
         output_video_path: str,
         frame_rate: float = 10.0,
         frame_rotation: int | None = None,
-        codec: str = "mp4v",
+        video_codec: str = "libx264",
+        bitrate: str = "12M",
         overlay_title: str | None = None,
         **kwargs: Any,
     ) -> None:
         if frame_rate <= 0:
             raise ValueError("frame_rate must be > 0")
-        if len(codec) != 4:
-            raise ValueError("codec must be a 4-character FourCC string")
+        if not isinstance(video_codec, str) or not video_codec.strip():
+            raise ValueError("video_codec must be a non-empty string")
+        if not isinstance(bitrate, str) or not bitrate.strip():
+            raise ValueError("bitrate must be a non-empty string (e.g. '12M', '8000k')")
         valid_rotations = {None, 0, 90, -90, 180, -180, 270, -270}
         if frame_rotation not in valid_rotations:
             raise ValueError(
@@ -93,13 +116,14 @@ class ToVideoNode(Node):
         self.output_video_path = Path(output_video_path)
         self.frame_rate = float(frame_rate)
         self.frame_rotation = self._normalize_rotation(frame_rotation)
-        self.codec = codec
+        self.video_codec = video_codec.strip()
+        self.bitrate = bitrate.strip()
         self.overlay_title = (
             None
             if overlay_title is None or not str(overlay_title).strip()
             else str(overlay_title).strip()
         )
-        self._writer: cv2.VideoWriter | None = None
+        self._proc: subprocess.Popen[bytes] | None = None
         self._frame_size: tuple[int, int] | None = None
 
         self.output_video_path.parent.mkdir(parents=True, exist_ok=True)
@@ -108,7 +132,8 @@ class ToVideoNode(Node):
             output_video_path=output_video_path,
             frame_rate=frame_rate,
             frame_rotation=frame_rotation,
-            codec=codec,
+            video_codec=self.video_codec,
+            bitrate=self.bitrate,
             overlay_title=self.overlay_title,
             **kwargs,
         )
@@ -138,19 +163,94 @@ class ToVideoNode(Node):
             return torch.rot90(frame, k=2, dims=(0, 1))
         return frame
 
-    def _init_writer(self, height: int, width: int) -> None:
-        """Initialize the OpenCV writer lazily on first frame."""
-        fourcc = cv2.VideoWriter_fourcc(*self.codec)
-        writer = cv2.VideoWriter(
+    @staticmethod
+    def _resolve_ffmpeg_binary() -> str:
+        """Return the ffmpeg binary path, honoring CUVIS_AI_FFMPEG_BIN override."""
+        override = os.environ.get("CUVIS_AI_FFMPEG_BIN", "").strip()
+        if override:
+            return override
+        if _BUNDLED_FFMPEG_BIN is None:
+            raise RuntimeError(
+                "imageio_ffmpeg bundled ffmpeg binary not found and "
+                "CUVIS_AI_FFMPEG_BIN is unset; reinstall imageio-ffmpeg or "
+                "point CUVIS_AI_FFMPEG_BIN at a working ffmpeg"
+            )
+        return _BUNDLED_FFMPEG_BIN
+
+    def _build_ffmpeg_argv(self, height: int, width: int) -> list[str]:
+        """Build the ffmpeg argv for a raw rgb24 stdin pipe -> encoded file."""
+        return [
+            self._resolve_ffmpeg_binary(),
+            "-y",
+            "-loglevel",
+            "error",
+            "-f",
+            "rawvideo",
+            "-pix_fmt",
+            "rgb24",
+            "-s",
+            f"{width}x{height}",
+            "-r",
+            str(self.frame_rate),
+            "-i",
+            "pipe:",
+            "-c:v",
+            self.video_codec,
+            "-b:v",
+            self.bitrate,
+            "-pix_fmt",
+            "yuv420p",
+            "-vf",
+            "pad=ceil(iw/2)*2:ceil(ih/2)*2",
+            "-movflags",
+            "+faststart",
             str(self.output_video_path),
-            fourcc,
-            self.frame_rate,
-            (width, height),
-        )
-        if not writer.isOpened():
-            raise RuntimeError(f"Failed to open video writer at {self.output_video_path}")
-        self._writer = writer
+        ]
+
+    def _init_ffmpeg(self, height: int, width: int) -> None:
+        """Spawn the ffmpeg subprocess lazily on first frame."""
+        argv = self._build_ffmpeg_argv(height=height, width=width)
+        try:
+            proc = subprocess.Popen(  # nosec B603
+                argv,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+            )
+        except FileNotFoundError as exc:
+            raise RuntimeError(
+                f"ffmpeg binary not found at {argv[0]!r} — "
+                "the bundled imageio_ffmpeg binary is missing or the "
+                "CUVIS_AI_FFMPEG_BIN override points at a non-existent path"
+            ) from exc
+        self._proc = proc
         self._frame_size = (height, width)
+
+    def _collect_stderr_after_exit(self) -> str:
+        """Wait for ffmpeg to exit (short timeout) and return its full stderr text.
+
+        Only safe to call when ffmpeg has errored or is expected to exit imminently:
+        the ``stderr.read()`` is blocking and only returns once the writer end is
+        closed by the child. Waiting for the process first guarantees that.
+        """
+        if self._proc is None:
+            return ""
+        if self._proc.poll() is None:
+            try:
+                self._proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self._proc.kill()
+                try:
+                    self._proc.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    return "<ffmpeg did not terminate after kill()>"
+        if self._proc.stderr is None:
+            return ""
+        try:
+            data = self._proc.stderr.read() or b""
+        except (ValueError, OSError):
+            return ""
+        return data.decode("utf-8", errors="replace")
 
     @staticmethod
     def _to_uint8_batch(rgb_image: torch.Tensor) -> torch.Tensor:
@@ -251,8 +351,14 @@ class ToVideoNode(Node):
         frame_id: torch.Tensor | None = None,
         context: Context | None = None,  # noqa: ARG002
         **_: Any,
-    ) -> dict[str, str]:
-        """Append incoming RGB frames to the configured video file."""
+    ) -> dict[str, Any]:
+        """Append incoming RGB frames to the configured video file.
+
+        Returns
+        -------
+        dict
+            Empty dict (sink node).
+        """
         rgb_u8 = self._to_uint8_batch(rgb_image)
 
         for b, frame in enumerate(rgb_u8):
@@ -262,31 +368,88 @@ class ToVideoNode(Node):
                 draw_text(frame, 8, 8, f"frame {fid}", (255, 255, 255), scale=2, bg=True)
             frame = self._rotate_frame(frame)
             height, width = int(frame.shape[0]), int(frame.shape[1])
-            if self._writer is None:
-                self._init_writer(height=height, width=width)
+            if self._proc is None:
+                self._init_ffmpeg(height=height, width=width)
             elif self._frame_size != (height, width):
                 raise ValueError(
                     f"All frames must share one size. Expected {self._frame_size}, got {(height, width)}"
                 )
 
-            # RGB -> BGR for OpenCV writer
-            bgr_frame = frame[..., [2, 1, 0]].numpy()
-            self._writer.write(bgr_frame)
+            assert self._proc is not None and self._proc.stdin is not None
+            frame_bytes = np.ascontiguousarray(frame.numpy()).tobytes()
+            try:
+                self._proc.stdin.write(frame_bytes)
+            except (BrokenPipeError, OSError) as exc:
+                stderr_text = self._collect_stderr_after_exit()
+                returncode = self._proc.poll() if self._proc is not None else None
+                raise RuntimeError(
+                    f"ffmpeg exited during frame write (returncode={returncode}): {stderr_text}"
+                ) from exc
 
-        return {"video_path": str(self.output_video_path)}
+        return {}
 
     def close(self) -> None:
-        """Release the underlying video writer if it exists."""
-        if self._writer is not None:
-            self._writer.release()
-            self._writer = None
+        """Flush EOF to ffmpeg, wait for mux, and surface any encoder errors.
+
+        Idempotent — repeated calls are no-ops. Must be called explicitly by the
+        pipeline driver; do not rely on ``__del__`` for normal teardown.
+        """
+        proc = self._proc
+        if proc is None:
+            return
+        self._proc = None
+
+        if proc.stdin is not None:
+            try:
+                proc.stdin.close()
+            except (BrokenPipeError, OSError) as exc:
+                logger.debug("ffmpeg stdin close raised during teardown: {}", exc)
+
+        try:
+            proc.wait(timeout=30)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                raise RuntimeError(
+                    f"ffmpeg did not terminate for {self.output_video_path} (kill after 30s wait)"
+                ) from None
+            stderr_text = b""
+            if proc.stderr is not None:
+                try:
+                    stderr_text = proc.stderr.read() or b""
+                except (ValueError, OSError):
+                    stderr_text = b""
+            raise RuntimeError(
+                "ffmpeg timed out during mux of "
+                f"{self.output_video_path}: {stderr_text.decode('utf-8', errors='replace')}"
+            ) from None
+
+        stderr_text = b""
+        if proc.stderr is not None:
+            try:
+                stderr_text = proc.stderr.read() or b""
+            except (ValueError, OSError):
+                stderr_text = b""
+
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"ffmpeg exited with non-zero return code {proc.returncode} "
+                f"for {self.output_video_path}: "
+                f"{stderr_text.decode('utf-8', errors='replace')}"
+            )
 
     def __del__(self) -> None:
-        """Best-effort cleanup for writer handle."""
+        """Best-effort cleanup; do not rely on this for normal teardown."""
+        proc = getattr(self, "_proc", None)
+        if proc is None:
+            return
         try:
-            self.close()
+            if proc.poll() is None:
+                proc.kill()
         except Exception as exc:
-            logger.debug("Failed to close video writer during cleanup: {}", exc)
+            logger.debug("Failed to kill ffmpeg during __del__: {}", exc)
 
 
 # ---------------------------------------------------------------------------
@@ -294,6 +457,9 @@ class ToVideoNode(Node):
 # ---------------------------------------------------------------------------
 class VideoFrameNode(Node):
     """Passthrough source node that receives RGB frames from the batch."""
+
+    _category = NodeCategory.SOURCE
+    _tags = frozenset({NodeTag.VIDEO, NodeTag.STREAMING})
 
     INPUT_SPECS = {
         "rgb_image": PortSpec(

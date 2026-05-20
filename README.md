@@ -1,25 +1,37 @@
-![image](https://raw.githubusercontent.com/cubert-hyperspectral/cuvis.sdk/main/branding/logo/banner.png)
+![image](https://github.com/cubert-hyperspectral/cuvis.sdk/blob/main/branding/logo/banner.png?raw=true)
 
-# CUVIS.AI
+# Cuvis.AI
 
-[![PyPI version](https://img.shields.io/pypi/v/cuvis-ai.svg)](https://pypi.org/project/cuvis-ai/)
-[![CI Status](https://github.com/cubert-hyperspectral/cuvis-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/cubert-hyperspectral/cuvis-ai/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/cubert-hyperspectral/cuvis-ai/branch/main/graph/badge.svg)](https://codecov.io/gh/cubert-hyperspectral/cuvis-ai)
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
-[![Documentation](https://img.shields.io/badge/docs-gh--pages-blue)](https://docs.cuvis.ai/latest/)
+[![PyPI][pypi-badge]][pypi-link]
+[![CI][ci-badge]][ci-link]
+[![codecov][cov-badge]][cov-link]
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square)](LICENSE)
+[![Docs](https://img.shields.io/badge/docs-cuvis.ai-8CA1AF?style=flat-square)](https://docs.cuvis.ai/latest/)
 
-A modular toolkit for building graph-based ML pipelines for hyperspectral imaging — from preprocessing through training to deployment.
+[pypi-badge]: https://img.shields.io/pypi/v/cuvis-ai?style=flat-square&logo=pypi&logoColor=white
+[pypi-link]: https://pypi.org/project/cuvis-ai/
+[ci-badge]: https://img.shields.io/github/actions/workflow/status/cubert-hyperspectral/cuvis-ai/ci.yml?style=flat-square&logo=githubactions&logoColor=white&label=CI
+[ci-link]: https://github.com/cubert-hyperspectral/cuvis-ai/actions/workflows/ci.yml
+[cov-badge]: https://img.shields.io/codecov/c/github/cubert-hyperspectral/cuvis-ai?style=flat-square&logo=codecov&logoColor=white
+[cov-link]: https://codecov.io/gh/cubert-hyperspectral/cuvis-ai
+
+Cuvis.AI is an opensource and extensible framework for building AI powered processing pipelines for hyperspectral video data.
+It allows you to process and structure spectral data, train and apply machine learning models, visualize and interpret results, and deploy applications in real time environments.
+Pipelines are built from reusable modular nodes and can be extended with custom plugins or external integrations.
+Cuvis.AI bridges the gap between hyperspectral hardware and real world applications and enables faster development, testing, and deployment of new solutions.
+
 
 ## Platform
 
-cuvis.ai is split across three repositories:
+Cuvis.AI is split across three repositories:
 
 | Repository | Role |
 |---|---|
 | [cuvis-ai-core](https://github.com/cubert-hyperspectral/cuvis-ai-core) | Framework — base `Node` class, pipeline orchestration, two-phase training, gRPC services, plugin system |
 | [cuvis-ai-schemas](https://github.com/cubert-hyperspectral/cuvis-ai-schemas) | Shared Protobuf / gRPC schema definitions and generated types |
 | **cuvis-ai** (this repo) | Catalog — 40+ domain-specific nodes for anomaly detection, preprocessing, band selection, and more |
+
+Companion repo: [cuvis-ai-agentic-skills](https://github.com/cubert-hyperspectral/cuvis-ai-agentic-skills) — agentic skills for authoring nodes, plugins, pipelines, and training runs against this platform.
 
 ## Quick Start
 

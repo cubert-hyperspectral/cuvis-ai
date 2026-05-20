@@ -2,7 +2,6 @@
 
 import pytest
 import torch
-from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
 from cuvis_ai.anomaly.deep_svdd import DeepSVDDCenterTracker, ZScoreNormalizerGlobal
 from cuvis_ai.anomaly.lad_detector import LADGlobal
@@ -12,6 +11,7 @@ from cuvis_ai.node.channel_selector import SoftChannelSelector
 from cuvis_ai.node.conversion import ScoreToLogit
 from cuvis_ai.node.dimensionality_reduction import TrainablePCA
 from cuvis_ai.node.normalization import MinMaxNormalizer
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
 pytestmark = pytest.mark.unit
 

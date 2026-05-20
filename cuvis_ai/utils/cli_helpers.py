@@ -33,6 +33,32 @@ def resolve_run_output_dir(
     return output_root / resolved_basename
 
 
+def compute_real_fps_from_dataset(dataset: object) -> float | None:
+    """Estimate real wall-clock fps from first/last measurement ``capture_time``.
+
+    Reads timestamps directly from the Cuvis session held by a ``SingleCu3sDataset``
+    and returns ``(n_frames - 1) / span_seconds``. This is more reliable than
+    ``session.fps`` (a nominal value) for spectral cameras where per-frame exposure
+    dominates the real capture cadence.
+
+    Returns ``None`` when timestamps are unavailable (missing session/indices,
+    fewer than 2 selected frames, zero span, or any attribute-access failure).
+    """
+    session = getattr(dataset, "session", None)
+    indices = getattr(dataset, "measurement_indices", None)
+    if session is None or indices is None or len(indices) < 2:
+        return None
+    try:
+        first = session.get_measurement(int(indices[0]))
+        last = session.get_measurement(int(indices[-1]))
+        span = (last.capture_time - first.capture_time).total_seconds()
+    except Exception:
+        return None
+    if span <= 0:
+        return None
+    return (len(indices) - 1) / span
+
+
 def resolve_end_frame(
     *,
     start_frame: int,

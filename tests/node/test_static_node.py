@@ -8,7 +8,6 @@ from pathlib import Path
 import numpy as np
 import pytest
 import torch
-from cuvis_ai_core.data.rle import coco_rle_encode
 
 from cuvis_ai.node.prompts import (
     BBoxPrompt,
@@ -18,6 +17,7 @@ from cuvis_ai.node.prompts import (
     parse_spatial_prompt_spec,
     parse_text_prompt_spec,
 )
+from cuvis_ai_core.data.rle import coco_rle_encode
 
 
 def _write_detection_json(

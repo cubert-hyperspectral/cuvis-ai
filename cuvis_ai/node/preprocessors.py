@@ -17,9 +17,11 @@ from typing import Any
 
 import numpy as np
 import torch
-from cuvis_ai_core.node import Node
+from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
+
+from cuvis_ai_core.node import Node
 
 
 class BandpassByWavelength(Node):
@@ -56,6 +58,9 @@ class BandpassByWavelength(Node):
     ...     (data_node.outputs.wavelengths, bandpass.wavelengths),
     ... )
     """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.PREPROCESSING})
 
     INPUT_SPECS = {
         "data": PortSpec(
@@ -148,6 +153,9 @@ class SpatialRotateNode(Node):
         Rotation in degrees.  Supported: 90, -90, 180
         (and aliases 270, -270, -180).  None or 0 means passthrough.
     """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.IMAGE, NodeTag.PREPROCESSING, NodeTag.NUMPY})
 
     INPUT_SPECS = {
         "cube": PortSpec(
@@ -250,6 +258,9 @@ class BBoxRoiCropNode(Node):
         Use sub-pixel aligned roi_align (recommended).
     """
 
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.BBOX, NodeTag.PREPROCESSING, NodeTag.NUMPY})
+
     INPUT_SPECS = {
         "images": PortSpec(
             dtype=torch.float32,
@@ -351,6 +362,11 @@ class ChannelNormalizeNode(Node):
     std : tuple[float, ...]
         Per-channel std.
     """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset(
+        {NodeTag.HYPERSPECTRAL, NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+    )
 
     IMAGENET_MEAN = (0.485, 0.456, 0.406)
     IMAGENET_STD = (0.229, 0.224, 0.225)

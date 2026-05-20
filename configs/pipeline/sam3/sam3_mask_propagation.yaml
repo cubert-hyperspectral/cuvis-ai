@@ -5,7 +5,7 @@ metadata:
     - tracking
     - sam3
     - mask-prompt
-    - false-rgb
+    - rgb
     - video
   author: cuvis.ai
 
@@ -14,8 +14,8 @@ nodes:
     class_name: cuvis_ai.node.data.CU3SDataNode
     hparams: {}
 
-  - name: false_rgb
-    class_name: cuvis_ai.node.channel_selector.CIETristimulusFalseRGBSelector
+  - name: true_rgb
+    class_name: cuvis_ai.node.channel_selector.CIETristimulusRGBSelector
     hparams: {}
 
   - name: sam3_tracker
@@ -30,10 +30,10 @@ nodes:
 
 connections:
   - source: cu3s_data.outputs.cube
-    target: false_rgb.inputs.cube
+    target: true_rgb.inputs.cube
   - source: cu3s_data.outputs.wavelengths
-    target: false_rgb.inputs.wavelengths
-  - source: false_rgb.outputs.rgb_image
+    target: true_rgb.inputs.wavelengths
+  - source: true_rgb.outputs.rgb_image
     target: sam3_tracker.inputs.rgb_frame
   - source: cu3s_data.outputs.mesu_index
     target: sam3_tracker.inputs.frame_id

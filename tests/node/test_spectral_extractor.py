@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import torch
 
-from cuvis_ai.node.spectral_extractor import BBoxSpectralExtractor
+from cuvis_ai.node.spectral_extractor import BBoxSpectralExtractor, MaskedMeanSpectrum
 
 
 def test_basic_extraction(create_test_cube, create_test_bboxes) -> None:
@@ -241,3 +241,42 @@ def test_aggregation_mean_mode(create_test_cube, create_test_bboxes) -> None:
     assert torch.allclose(
         out_median["spectral_signatures"], out_mean["spectral_signatures"], atol=0.05
     )
+
+
+def test_masked_mean_spectrum_averages_foreground_per_frame() -> None:
+    cube = torch.tensor(
+        [
+            [
+                [[1.0, 2.0], [3.0, 4.0]],
+                [[5.0, 6.0], [7.0, 8.0]],
+            ],
+            [
+                [[10.0, 20.0], [30.0, 40.0]],
+                [[50.0, 60.0], [70.0, 80.0]],
+            ],
+        ],
+        dtype=torch.float32,
+    )
+    mask = torch.tensor(
+        [
+            [[1, 0], [1, 0]],
+            [[0, 1], [0, 1]],
+        ],
+        dtype=torch.int32,
+    )
+
+    out = MaskedMeanSpectrum().forward(cube=cube, mask=mask)
+
+    expected = torch.tensor([[3.0, 4.0], [50.0, 60.0]], dtype=torch.float32)
+    assert torch.allclose(out["mean_spectrum"], expected)
+    assert out["valid"].tolist() == [1, 1]
+
+
+def test_masked_mean_spectrum_empty_mask_returns_zero_and_invalid() -> None:
+    cube = torch.ones((2, 3, 3, 4), dtype=torch.float32)
+    mask = torch.zeros((2, 3, 3), dtype=torch.int32)
+
+    out = MaskedMeanSpectrum().forward(cube=cube, mask=mask)
+
+    assert torch.equal(out["mean_spectrum"], torch.zeros((2, 4), dtype=torch.float32))
+    assert out["valid"].tolist() == [0, 0]

@@ -32,7 +32,7 @@ jobs:
       - name: Install system dependencies for plugin imports
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends libgl1 libglib2.0-0
+          apt-get install -y --no-install-recommends libgl1 libglib2.0-0 ffmpeg
           rm -rf /var/lib/apt/lists/*
 
       - name: Run slow plugin runtime smoke tests

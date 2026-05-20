@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+
 from cuvis_ai_core.utils.plugin_config import PluginManifest
 
 pytestmark = pytest.mark.unit
@@ -12,7 +13,7 @@ pytestmark = pytest.mark.unit
 DEEPEIOU_MANIFEST_PATH = Path("configs/plugins/deepeiou.yaml")
 PLUGIN_NAME = "deepeiou"
 EXPECTED_REPO = "https://github.com/cubert-hyperspectral/cuvis-ai-deepeiou.git"
-EXPECTED_TAG = "v0.1.0"
+EXPECTED_TAG = "v0.1.1"
 EXPECTED_PROVIDES = [
     "cuvis_ai_deepeiou.node.DeepEIoUTrack",
     "cuvis_ai_deepeiou.node.OSNetExtractor",

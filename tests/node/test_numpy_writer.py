@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from cuvis_ai.node.numpy_writer import NumpyFeatureWriterNode
+from cuvis_ai.node.numpy_file import NumpyFeatureWriterNode
 
 
 def test_write_single_frame(tmp_path: Path) -> None:
