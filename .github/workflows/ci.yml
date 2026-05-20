@@ -117,9 +117,26 @@ jobs:
 
       - name: Run pip-audit for vulnerabilities
         run: |
-          # PYSEC-2026-89: markdown DoS — fixed in 3.8.1; we ship >=3.10.2 but the advisory's
-          # affected-version range still flags higher releases, so we ignore it.
-          uv run pip-audit --desc on --skip-editable --ignore-vuln PYSEC-2022-42969 --ignore-vuln CVE-2025-71176 --ignore-vuln PYSEC-2026-89
+          # PYSEC-2026-89 (markdown): DoS — fixed in 3.8.1; we ship >=3.10.2 but the
+          #   advisory's affected-version range still flags higher releases.
+          # PYSEC-2024-277 (joblib): disputed by supplier — only applies to caching of
+          #   already-trusted content; not exploitable in our usage.
+          # PYSEC-2025-211..218 (transformers 5.7.0): all 8 CVEs require loading an
+          #   attacker-controlled checkpoint/convert_config — no upstream fix released yet,
+          #   and same trust model as standard HF model loading.
+          uv run pip-audit --desc on --skip-editable \
+            --ignore-vuln PYSEC-2022-42969 \
+            --ignore-vuln CVE-2025-71176 \
+            --ignore-vuln PYSEC-2026-89 \
+            --ignore-vuln PYSEC-2024-277 \
+            --ignore-vuln PYSEC-2025-211 \
+            --ignore-vuln PYSEC-2025-212 \
+            --ignore-vuln PYSEC-2025-213 \
+            --ignore-vuln PYSEC-2025-214 \
+            --ignore-vuln PYSEC-2025-215 \
+            --ignore-vuln PYSEC-2025-216 \
+            --ignore-vuln PYSEC-2025-217 \
+            --ignore-vuln PYSEC-2025-218
 
       - name: Run detect-secrets
         run: |
