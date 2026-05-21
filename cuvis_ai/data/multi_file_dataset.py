@@ -55,7 +55,7 @@ def _build_category_mask(anns: list[dict[str, Any]], h: int, w: int) -> np.ndarr
             try:
                 poly = polygon2mask((h, w), xy[:, [1, 0]])
                 mask[poly] = cat_id
-            except Exception:
+            except Exception:  # nosec B112 — skip malformed polygons; rasterizing the rest is the desired behavior
                 continue
     return mask
 

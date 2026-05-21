@@ -144,7 +144,7 @@ def stratified_group_split(
     """
     import random
 
-    rng = random.Random(seed)
+    rng = random.Random(seed)  # nosec B311 — non-cryptographic; seeded split shuffling for reproducibility
 
     strata: dict[str, list[Group]] = defaultdict(list)
     for g in groups:
