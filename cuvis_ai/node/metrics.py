@@ -142,24 +142,33 @@ class AnomalyDetectionMetrics(Node):
     def __init__(
         self,
         execution_stages: set[ExecutionStage] | None = None,
+        ap_thresholds: int = 200,
         **kwargs,
     ) -> None:
+        self.ap_thresholds = ap_thresholds
         name, execution_stages = Node.consume_base_kwargs(
             kwargs, execution_stages or {ExecutionStage.VAL, ExecutionStage.TEST}
         )
         super().__init__(
             name=name,
             execution_stages=execution_stages,
+            ap_thresholds=ap_thresholds,
             **kwargs,
         )
 
-        # Initialize torchmetrics for binary classification
-        # These are stateless (compute per-batch) since we don't call update()
+        # Precision/Recall/F1/IoU keep O(1) running confmat state and are stateless
+        # under torchmetrics __call__ (full_state_update=False) — per-batch values.
+        # BinaryAveragePrecision uses histogram-based AP (thresholds=N) so state is
+        # O(N) instead of O(n_pixels). We accumulate via update() across batches
+        # within a (stage, epoch) and reset only at the boundary, so the value
+        # emitted each batch is a *running* AP across batches seen so far in the
+        # current epoch — the last batch's value is true epoch-level AP.
         self.precision_metric = BinaryPrecision()
         self.recall_metric = BinaryRecall()
         self.f1_metric = BinaryF1Score()
         self.iou_metric = BinaryJaccardIndex()
-        self.average_precision_metric = BinaryAveragePrecision()
+        self.average_precision_metric = BinaryAveragePrecision(thresholds=ap_thresholds)
+        self._ap_last_key: tuple[ExecutionStage, int] | None = None
 
     def forward(
         self,
@@ -232,7 +241,14 @@ class AnomalyDetectionMetrics(Node):
         if logits is not None:
             raw_scores = logits.squeeze(-1).flatten().float()
             probs_for_ap = torch.sigmoid(raw_scores)
-            average_precision = self.average_precision_metric(probs_for_ap, targets_flat)
+
+            current_key = (context.stage, context.epoch)
+            if self._ap_last_key != current_key:
+                self.average_precision_metric.reset()
+                self._ap_last_key = current_key
+
+            self.average_precision_metric.update(probs_for_ap, targets_flat)
+            average_precision = self.average_precision_metric.compute()
 
             metrics.append(
                 Metric(

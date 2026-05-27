@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+
+- Fixed `AnomalyDetectionMetrics` average precision: switched to histogram-based `BinaryAveragePrecision(thresholds=N)` so state is bounded by construction, and reset only on `(stage, epoch)` boundaries so the metric accumulates across batches via `update()` within a validation epoch — the per-batch emitted value is a running AP that converges to true epoch-level AP, instead of a leak-prone cumulative or a noisy per-batch AP.
+
 ## 0.7.3 - 2026-05-18
 
 - Added GoatCounter page-view analytics to the docs site via Material's custom-analytics partial (`overrides/partials/integrations/analytics/custom.html`, `extra.analytics.provider: custom`). No cookies, no consent banner; tracked at `https://cuvis-ai.goatcounter.com`.
