@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+
+- Fixed `AnomalyDetectionMetrics` average precision: switched to histogram-based `BinaryAveragePrecision(thresholds=N)` so state is bounded by construction, and reset only on `(stage, epoch)` boundaries so the metric accumulates across batches via `update()` within a validation epoch — the per-batch emitted value is a running AP that converges to true epoch-level AP, instead of a leak-prone cumulative or a noisy per-batch AP.
+
 ## 0.7.3 - 2026-05-18
 
 - Added GoatCounter page-view analytics to the docs site via Material's custom-analytics partial (`overrides/partials/integrations/analytics/custom.html`, `extra.analytics.provider: custom`). No cookies, no consent banner; tracked at `https://cuvis-ai.goatcounter.com`.
@@ -113,7 +117,6 @@
 - Fixed SAM3 batch-runner control flow and mask-overlay color handling.
 - Fixed JSON reader robustness and pre-push regressions in manifest sync, CLI commands, and statistical-contract tests.
 - Fixed video/tracking fallback and output handling: `VideoIterator` now falls back to OpenCV when torchcodec is unavailable, `output_video_path` naming is normalized, and ByteTrack JSON output path heuristics were hardened.
-- Fixed `AnomalyDetectionMetrics` average precision: switched to histogram-based `BinaryAveragePrecision(thresholds=N)` so state is bounded by construction, and reset only on `(stage, epoch)` boundaries so the metric accumulates across batches via `update()` within a validation epoch — the per-batch emitted value is a running AP that converges to true epoch-level AP, instead of a leak-prone cumulative or a noisy per-batch AP.
 
 ## 0.4.0 - 2026-02-27
 
