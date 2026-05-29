@@ -49,9 +49,10 @@ PIPELINE_DIR = CONFIGS_DIR / "pipeline"
 @dataclass
 class Result:
     yaml: str
-    step: str  # "resolve" | "load" | "ok"
+    step: str  # "resolve" | "load" | "render" | "ok"
     duration_s: float
     error: str | None = None
+    render_path: str | None = None
 
 
 def _gather_yamls() -> list[Path]:
