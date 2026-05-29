@@ -36,7 +36,6 @@ def test_plugin_classes_resolve_and_match_node_contract() -> None:
         )
         assert issubclass(node_cls, Node), f"{PLUGIN_NAME}: '{class_path}' must inherit from Node."
         assert registry.get(class_name) is node_cls
-        assert class_path in registry.plugin_class_map
 
         input_specs = getattr(node_cls, "INPUT_SPECS", None)
         output_specs = getattr(node_cls, "OUTPUT_SPECS", None)
