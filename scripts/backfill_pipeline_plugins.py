@@ -1,9 +1,9 @@
 """Backfill ``plugins:`` into every pipeline YAML under ``configs/pipeline/``.
 
-One-off mechanical migration for ALL-5349 item 02 (Phase 2): walks every
-pipeline YAML, runs the auto-resolver against ``configs/plugins/``, and
-writes the resolved plugin set back as a top-level ``plugins:`` list
-positioned directly after ``metadata:``.
+One-off mechanical migration: walks every pipeline YAML, runs the
+auto-resolver against ``configs/plugins/``, and writes the resolved
+plugin set back as a top-level ``plugins:`` list positioned directly
+after ``metadata:``.
 
 Idempotent: a yaml that already has ``plugins:`` is skipped (with a log
 line). Re-running the script on the same tree is a no-op once every
@@ -13,11 +13,11 @@ Run from the cuvis-ai repo root::
 
     uv run python scripts/backfill_pipeline_plugins.py [--dry-run]
 
-ALL-5349 Phase 4 note: after Phase 4 ships, ``resolve_pipeline_plugins``
-hard-fails on a missing ``plugins:`` field. This script imports the
-``suggest_plugins_field`` / ``reorder_pipeline_with_plugins`` helpers
-from ``cuvis_ai_core.utils.plugin_fixer`` (same heuristic, non-fatal
-path) so the backfill still works on un-migrated yamls.
+``resolve_pipeline_plugins`` itself hard-fails when ``plugins:`` is
+missing. This script imports ``suggest_plugins_field`` /
+``reorder_pipeline_with_plugins`` from
+``cuvis_ai_core.utils.plugin_fixer`` (same heuristic, non-fatal path)
+so the backfill can run against un-migrated yamls.
 """
 
 from __future__ import annotations
