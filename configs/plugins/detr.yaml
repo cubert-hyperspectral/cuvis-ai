@@ -1,6 +1,7 @@
 plugins:
   detr:
     path: "D:/code-repos/cuvis-ai-detr/detr-init"
+    metadata_path: "detr.metadata.json"
     provides:
       - cuvis_ai_detr.node.RTDETRDetection
       - cuvis_ai_detr.node.RTDETRPostprocess

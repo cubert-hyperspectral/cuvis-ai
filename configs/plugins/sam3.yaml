@@ -9,6 +9,7 @@ plugins:
     # path: "../../../../cuvis-ai-sam3/tracker-reset"
     repo: "https://github.com/cubert-hyperspectral/cuvis-ai-sam3.git"
     tag: "v0.1.5"
+    metadata_path: "sam3.metadata.json"
     provides:
       - cuvis_ai_sam3.node.SAM3TrackerInference
       - cuvis_ai_sam3.node.SAM3TextPropagation

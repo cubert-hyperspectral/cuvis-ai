@@ -3,6 +3,7 @@
 plugins:
   cuvis_ai_builtin:
     path: "../.."
+    metadata_path: "cuvis_ai_builtin.metadata.json"
     provides:
       - cuvis_ai.node.anomaly.deep_svdd.DeepSVDDCenterTracker
       - cuvis_ai.node.anomaly.deep_svdd.DeepSVDDProjection
