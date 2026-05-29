@@ -12,48 +12,28 @@ file has been backfilled.
 Run from the cuvis-ai repo root::
 
     uv run python scripts/backfill_pipeline_plugins.py [--dry-run]
+
+ALL-5349 Phase 4 note: after Phase 4 ships, ``resolve_pipeline_plugins``
+hard-fails on a missing ``plugins:`` field. This script imports the
+``suggest_plugins_field`` / ``reorder_pipeline_with_plugins`` helpers
+from ``cuvis_ai_core.utils.plugin_fixer`` (same heuristic, non-fatal
+path) so the backfill still works on un-migrated yamls.
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
-from collections.abc import Mapping
 from pathlib import Path
 
 import yaml
 from cuvis_ai_schemas.pipeline import PipelineConfig
 from loguru import logger
 
-from cuvis_ai_core.utils.plugin_resolver import resolve_pipeline_plugins
-
-# Canonical leading order for known top-level keys. Any unknown keys are
-# appended in their original order afterwards (non-destructive for
-# future fields like ``version`` / ``defaults``).
-_KNOWN_LEADING_KEYS: tuple[str, ...] = ("metadata", "plugins", "nodes", "connections")
-
-
-def _reorder_with_plugins(
-    original: Mapping[str, object],
-    plugin_names: list[str],
-) -> dict[str, object]:
-    """Build a new top-level dict in the canonical key order with plugins set.
-
-    Known keys (``metadata`` / ``plugins`` / ``nodes`` / ``connections``)
-    come first in that order. Any remaining keys from ``original`` are
-    appended in their original iteration order so unknown fields survive.
-    """
-    rebuilt: dict[str, object] = {}
-    for key in _KNOWN_LEADING_KEYS:
-        if key == "plugins":
-            rebuilt["plugins"] = plugin_names
-        elif key in original:
-            rebuilt[key] = original[key]
-    for key, value in original.items():
-        if key in _KNOWN_LEADING_KEYS:
-            continue
-        rebuilt[key] = value
-    return rebuilt
+from cuvis_ai_core.utils.plugin_fixer import (
+    reorder_pipeline_with_plugins,
+    suggest_plugins_field,
+)
 
 
 def _backfill_one(yaml_path: Path, plugins_dir: Path, dry_run: bool) -> bool:
@@ -68,10 +48,11 @@ def _backfill_one(yaml_path: Path, plugins_dir: Path, dry_run: bool) -> bool:
         return False
 
     pipeline_config = PipelineConfig.load_from_file(yaml_path)
-    resolved = resolve_pipeline_plugins(pipeline_config, [plugins_dir])
-    plugin_names = sorted(resolved)
-
-    rebuilt = _reorder_with_plugins(raw, plugin_names)
+    plugin_names, rebuilt = suggest_plugins_field(pipeline_config, raw, [plugins_dir])
+    # `suggest_plugins_field` already runs reorder under the hood, but
+    # the contract pins canonical leading order so the call is
+    # idempotent. Keep the explicit reorder for clarity / future-proofing.
+    rebuilt = reorder_pipeline_with_plugins(rebuilt, plugin_names)
 
     if dry_run:
         logger.info(f"[dry-run] {yaml_path} → plugins: {plugin_names}")
