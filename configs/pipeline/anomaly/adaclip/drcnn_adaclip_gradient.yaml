@@ -1,3 +1,19 @@
+metadata:
+  name: drcnn_adaclip_gradient
+  description: Trained DRCNN channel mixer + AdaClip model from drcnn_adaclip_gradient
+    trainrun. Mixer reduces 61 channels to 3 for AdaClip compatibility.
+  created: ''
+  tags:
+  - gradient
+  - drcnn
+  - adaclip
+  - channel_mixer
+  - anomaly_detection
+  author: cuvis.ai
+  cuvis_ai_version: 0.1.5.post40+g5d4ea80af.d20260105
+plugins:
+- adaclip
+- cuvis_ai_builtin
 nodes:
 - name: LentilsAnomalyDataNode
   class_name: cuvis_ai.node.data.LentilsAnomalyDataNode
@@ -126,16 +142,3 @@ connections:
   target: TensorBoardMonitorNode.inputs.artifacts
 - source: drcnn_tensorboard_viz.outputs.artifacts
   target: TensorBoardMonitorNode.inputs.artifacts
-metadata:
-  name: drcnn_adaclip_gradient
-  description: Trained DRCNN channel mixer + AdaClip model from drcnn_adaclip_gradient
-    trainrun. Mixer reduces 61 channels to 3 for AdaClip compatibility.
-  created: ''
-  tags:
-  - gradient
-  - drcnn
-  - adaclip
-  - channel_mixer
-  - anomaly_detection
-  author: cuvis.ai
-  cuvis_ai_version: 0.1.5.post40+g5d4ea80af.d20260105

@@ -1,3 +1,17 @@
+metadata:
+  name: AdaCLIP_CIR_FalseRG
+  description: "Statistical AdaCLIP CIR false-RG pipeline (LentilsAnomalyDataNode\
+    \ \u2192 CIRSelector \u2192 AdaCLIPDetector)"
+  created: ''
+  tags:
+  - statistical
+  - adaclip
+  - cir_false_rg
+  author: cuvis.ai
+  cuvis_ai_version: 0.1.5.post30+g6d28af5c2.d20251217
+plugins:
+- adaclip
+- cuvis_ai_builtin
 nodes:
 - name: LentilsAnomalyDataNode
   class_name: cuvis_ai.node.data.LentilsAnomalyDataNode
@@ -79,14 +93,3 @@ connections:
   target: TensorBoardMonitorNode.inputs.artifacts
 - source: detection_metrics.outputs.metrics
   target: TensorBoardMonitorNode.inputs.metrics
-metadata:
-  name: AdaCLIP_CIR_FalseRG
-  description: "Statistical AdaCLIP CIR false-RG pipeline (LentilsAnomalyDataNode\
-    \ \u2192 CIRSelector \u2192 AdaCLIPDetector)"
-  created: ''
-  tags:
-  - statistical
-  - adaclip
-  - cir_false_rg
-  author: cuvis.ai
-  cuvis_ai_version: 0.1.5.post30+g6d28af5c2.d20251217
