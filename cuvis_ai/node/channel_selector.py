@@ -2303,6 +2303,10 @@ class SoftChannelSelector(Node):
             raise ValueError("No data provided for selector initialization")
 
         self._n_channels = x.shape[-1]
+        # Keep everything computed here on the data's device so the
+        # accumulator and logits match channel_logits' device when the
+        # pipeline has been moved to GPU for training.
+        device = x.device
 
         if self.n_select > self._n_channels:
             raise ValueError(
@@ -2312,10 +2316,10 @@ class SoftChannelSelector(Node):
         # Initialize channel logits based on method
         if self.init_method == "uniform":
             # Uniform initialization
-            logits = torch.zeros(self._n_channels)
+            logits = torch.zeros(self._n_channels, device=device)
         elif self.init_method == "variance":
             # Importance-based initialization using channel variance
-            acc = WelfordAccumulator(self._n_channels)
+            acc = WelfordAccumulator(self._n_channels).to(device)
             acc.update(x.reshape(-1, x.shape[-1]))
             for batch_data in input_stream:
                 x_batch = batch_data["data"]
@@ -2329,8 +2333,9 @@ class SoftChannelSelector(Node):
         else:
             raise ValueError(f"Unknown init_method: {self.init_method}")
 
-        # Store as buffer
-        self.channel_logits.data[:] = logits.clone()
+        # copy_ writes into the buffer and handles any residual device
+        # difference between the computed logits and channel_logits.
+        self.channel_logits.data.copy_(logits)
         self._statistically_initialized = True
 
     def update_temperature(self, epoch: int | None = None, step: int | None = None) -> None:
