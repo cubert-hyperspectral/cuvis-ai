@@ -208,7 +208,6 @@ data/
 !configs/data/
 !cuvis_ai/data/
 outputs/
-CLAUDE.md
 output/
 tracking_output/
 .tmp_*/
