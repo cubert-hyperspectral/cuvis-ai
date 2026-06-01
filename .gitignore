@@ -216,3 +216,8 @@ data_/*
 AGENTS.md
 notebooks/**/output/
 notebooks/**/channel_examples/
+
+# Generated pipeline render/smoke artifacts
+# (produced by scripts/render_pipelines.py + scripts/smoke_22_yamls.py)
+*.report.json
+/pipeline_renders/
