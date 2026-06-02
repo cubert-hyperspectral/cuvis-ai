@@ -3,6 +3,8 @@
 ## [Unreleased]
 
 - Fixed `AnomalyDetectionMetrics` average precision: switched to histogram-based `BinaryAveragePrecision(thresholds=N)` so state is bounded by construction, and reset only on `(stage, epoch)` boundaries so the metric accumulates across batches via `update()` within a validation epoch — the per-batch emitted value is a running AP that converges to true epoch-level AP, instead of a leak-prone cumulative or a noisy per-batch AP.
+- Marked `TensorBoardMonitorNode` `artifacts` / `metrics` inputs as single `PortSpec`s with `variadic=True` (was the implicit `list[PortSpec]` fan-in form).
+- Regenerated all plugin manifests to the single-`CatalogPortSpec`-per-port shape and removed the per-manifest `*.metadata.json` sidecars; updated the manifest-contract tests and the port/node docs for the `variadic` flag.
 
 ## 0.7.3 - 2026-05-18
 
