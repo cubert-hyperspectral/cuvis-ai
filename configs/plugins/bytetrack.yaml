@@ -3,4 +3,4 @@ plugins:
   bytetrack:
     path: "../../../../cuvis-ai-bytetrack/bytetrack-init"
     provides:
-      - cuvis_ai_bytetrack.node.ByteTrack
+    - class_name: cuvis_ai_bytetrack.node.ByteTrack

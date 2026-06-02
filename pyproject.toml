@@ -124,8 +124,8 @@ cuvis_ai = ["assets/node_icons/*.svg"]
 torch = { index = "pytorch-cu128" }
 torchvision = { index = "pytorch-cu128" }
 # cuvis-ai-schemas = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-schemas.git", branch = "main" }
-# cuvis-ai-core = { path = "../../cuvis-ai-core/core-simplify-vis", editable = true }
-# cuvis-ai-schemas = { path = "../../cuvis-ai-schemas/schemas-icons", editable = true }
+cuvis-ai-core = { path = "../../cuvis-ai-core/cuvis-ai-core", editable = true }
+cuvis-ai-schemas = { path = "../../cuvis-ai-schemas/cuvis-ai-schemas", editable = true }
 
 [tool.setuptools_scm]
 version_scheme = "post-release"

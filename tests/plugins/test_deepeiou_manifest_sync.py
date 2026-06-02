@@ -36,4 +36,4 @@ def test_deepeiou_manifest_matches_expected_release() -> None:
 
     assert getattr(plugin, "repo", None) == EXPECTED_REPO
     assert getattr(plugin, "tag", None) == EXPECTED_TAG
-    assert plugin.provides == EXPECTED_PROVIDES
+    assert [node.class_name for node in plugin.provides] == EXPECTED_PROVIDES

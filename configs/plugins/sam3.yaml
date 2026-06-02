@@ -10,11 +10,226 @@ plugins:
     repo: "https://github.com/cubert-hyperspectral/cuvis-ai-sam3.git"
     tag: "v0.1.5"
     package_name: "cuvis-ai-sam3"
-    metadata_path: "sam3.metadata.json"
     provides:
-      - cuvis_ai_sam3.node.SAM3TrackerInference
-      - cuvis_ai_sam3.node.SAM3TextPropagation
-      - cuvis_ai_sam3.node.SAM3BboxPropagation
-      - cuvis_ai_sam3.node.SAM3PointPropagation
-      - cuvis_ai_sam3.node.SAM3MaskPropagation
-      - cuvis_ai_sam3.node.SAM3SegmentEverything
+    - class_name: cuvis_ai_sam3.node.SAM3TrackerInference
+      category: model
+      tags: [batched, inference, learnable, mask, rgb, segmentation, stateful, torch, tracking, video]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\r\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\r\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\r\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\r\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\r\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\r\n</svg>\r\n"
+      input_specs:
+        rgb_frame:
+          dtype: float32
+          shape: [1, -1, -1, 3]
+          optional: false
+          description: ''
+        frame_id:
+          dtype: int64
+          shape: [1]
+          optional: true
+          description: Source frame index [1]. If omitted, local stream index is used.
+      output_specs:
+        mask:
+          dtype: int32
+          shape: [1, -1, -1]
+          optional: false
+          description: ''
+        object_ids:
+          dtype: int64
+          shape: [1, -1]
+          optional: false
+          description: ''
+        detection_scores:
+          dtype: float32
+          shape: [1, -1]
+          optional: false
+          description: ''
+      doc_summary: Abstract base for streaming SAM3 propagation nodes.
+    - class_name: cuvis_ai_sam3.node.SAM3TextPropagation
+      category: model
+      tags: [batched, inference, learnable, mask, rgb, segmentation, stateful, text, torch, tracking, video]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\r\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\r\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\r\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\r\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\r\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\r\n</svg>\r\n"
+      input_specs:
+        rgb_frame:
+          dtype: float32
+          shape: [1, -1, -1, 3]
+          optional: false
+          description: ''
+        frame_id:
+          dtype: int64
+          shape: [1]
+          optional: true
+          description: Source frame index [1]. If omitted, local stream index is used.
+        text_prompt:
+          dtype: ''
+          shape: []
+          optional: true
+          description: Optional text prompt applied on the current frame.
+      output_specs:
+        mask:
+          dtype: int32
+          shape: [1, -1, -1]
+          optional: false
+          description: ''
+        object_ids:
+          dtype: int64
+          shape: [1, -1]
+          optional: false
+          description: ''
+        detection_scores:
+          dtype: float32
+          shape: [1, -1]
+          optional: false
+          description: ''
+        category_ids:
+          dtype: int64
+          shape: [1, -1]
+          optional: false
+          description: Category IDs [1,N], aligned with object_ids.
+        category_semantics:
+          dtype: uint8
+          shape: [-1]
+          optional: false
+          description: UTF-8 JSON bytes of the cumulative category-id-to-text mapping, for example {"1":"person","2":"car"}.
+      doc_summary: SAM3 streaming propagation with a text/concept prompt.
+    - class_name: cuvis_ai_sam3.node.SAM3BboxPropagation
+      category: model
+      tags: [batched, bbox, inference, learnable, mask, rgb, segmentation, stateful, torch, tracking, video]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\r\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\r\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\r\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\r\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\r\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\r\n</svg>\r\n"
+      input_specs:
+        rgb_frame:
+          dtype: float32
+          shape: [1, -1, -1, 3]
+          optional: false
+          description: ''
+        frame_id:
+          dtype: int64
+          shape: [1]
+          optional: true
+          description: Source frame index [1]. If omitted, local stream index is used.
+        bboxes:
+          dtype: ''
+          shape: []
+          optional: true
+          description: Optional per-frame list of bbox prompt dicts with keys element_id, object_id, x_min, y_min, x_max, y_max.
+      output_specs:
+        mask:
+          dtype: int32
+          shape: [1, -1, -1]
+          optional: false
+          description: ''
+        object_ids:
+          dtype: int64
+          shape: [1, -1]
+          optional: false
+          description: ''
+        detection_scores:
+          dtype: float32
+          shape: [1, -1]
+          optional: false
+          description: ''
+      doc_summary: SAM3 streaming propagation with runtime bbox prompts.
+    - class_name: cuvis_ai_sam3.node.SAM3PointPropagation
+      category: model
+      tags: [batched, inference, keypoints, learnable, mask, rgb, segmentation, stateful, torch, tracking, video]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\r\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\r\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\r\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\r\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\r\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\r\n</svg>\r\n"
+      input_specs:
+        rgb_frame:
+          dtype: float32
+          shape: [1, -1, -1, 3]
+          optional: false
+          description: ''
+        frame_id:
+          dtype: int64
+          shape: [1]
+          optional: true
+          description: Source frame index [1]. If omitted, local stream index is used.
+      output_specs:
+        mask:
+          dtype: int32
+          shape: [1, -1, -1]
+          optional: false
+          description: ''
+        object_ids:
+          dtype: int64
+          shape: [1, -1]
+          optional: false
+          description: ''
+        detection_scores:
+          dtype: float32
+          shape: [1, -1]
+          optional: false
+          description: ''
+      doc_summary: SAM3 streaming propagation with a point prompt.
+    - class_name: cuvis_ai_sam3.node.SAM3MaskPropagation
+      category: model
+      tags: [batched, inference, learnable, mask, rgb, segmentation, stateful, torch, tracking, video]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\r\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\r\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\r\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\r\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\r\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\r\n</svg>\r\n"
+      input_specs:
+        rgb_frame:
+          dtype: float32
+          shape: [1, -1, -1, 3]
+          optional: false
+          description: ''
+        frame_id:
+          dtype: int64
+          shape: [1]
+          optional: true
+          description: Source frame index [1]. If omitted, local stream index is used.
+        mask:
+          dtype: int32
+          shape: [1, -1, -1]
+          optional: true
+          description: Optional int32 label map [1,H,W]. 0=background, each positive label is treated as an object ID prompt on that frame.
+        text_prompt:
+          dtype: ''
+          shape: []
+          optional: true
+          description: Optional text description applied only while injecting the runtime mask prompt on the current frame.
+      output_specs:
+        mask:
+          dtype: int32
+          shape: [1, -1, -1]
+          optional: false
+          description: ''
+        object_ids:
+          dtype: int64
+          shape: [1, -1]
+          optional: false
+          description: ''
+        detection_scores:
+          dtype: float32
+          shape: [1, -1]
+          optional: false
+          description: ''
+      doc_summary: SAM3 streaming propagation with runtime label-map prompts.
+    - class_name: cuvis_ai_sam3.node.SAM3SegmentEverything
+      category: model
+      tags: [batched, image, inference, learnable, mask, rgb, segmentation, torch]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\r\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\r\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\r\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\r\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\r\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\r\n</svg>\r\n"
+      input_specs:
+        rgb_frame:
+          dtype: float32
+          shape: [1, -1, -1, 3]
+          optional: false
+          description: RGB frame [1,H,W,3] in float32 with values in [0,1].
+        frame_id:
+          dtype: int64
+          shape: [1]
+          optional: true
+          description: Optional source frame index [1]. Ignored by this stateless node.
+      output_specs:
+        mask:
+          dtype: int32
+          shape: [1, -1, -1]
+          optional: false
+          description: ''
+        object_ids:
+          dtype: int64
+          shape: [1, -1]
+          optional: false
+          description: ''
+        detection_scores:
+          dtype: float32
+          shape: [1, -1]
+          optional: false
+          description: ''
+      doc_summary: Segment everything on one RGB frame using SAM3 point-grid prompting.

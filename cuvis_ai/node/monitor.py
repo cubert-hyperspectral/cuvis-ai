@@ -58,22 +58,20 @@ class TensorBoardMonitorNode(Node):
     _tags = frozenset({NodeTag.METADATA, NodeTag.EVALUATION})
 
     INPUT_SPECS = {
-        "artifacts": [
-            PortSpec(
-                dtype=list,
-                shape=(),
-                optional=True,
-                description="Optional list of Artifact objects to log",
-            )
-        ],
-        "metrics": [
-            PortSpec(
-                dtype=list,
-                shape=(),
-                optional=True,
-                description="Optional list of Metric objects to log",
-            )
-        ],
+        "artifacts": PortSpec(
+            dtype=list,
+            shape=(),
+            optional=True,
+            variadic=True,
+            description="Optional list of Artifact objects to log",
+        ),
+        "metrics": PortSpec(
+            dtype=list,
+            shape=(),
+            optional=True,
+            variadic=True,
+            description="Optional list of Metric objects to log",
+        ),
     }
 
     OUTPUT_SPECS = {}  # Sink node - no outputs!

@@ -23,6 +23,9 @@ Code plugin; `dev-docs` = internal ticket docs.
 - Install: `uv sync` (use `uv`, never bare `pip`).
 - Tests: `uv run pytest`. Nodes are tested with **pure-tensor mocking** — no heavy model downloads.
 - CLI entry points: `restore-pipeline`, `restore-trainrun`, `dataset`, `create-stubs`.
+- **Pre-push gotcha:** `git push` runs `uv sync` and uninstalls editable deps not listed in `pyproject.toml`
+  (e.g. `cuvis-ai-ui`, local experiment packages). Push from a clean venv, or warn before pushing if the
+  venv has custom editable installs.
 
 ## Key patterns for nodes
 
@@ -44,7 +47,7 @@ Code plugin; `dev-docs` = internal ticket docs.
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **cuvis-ai** (6470 symbols, 10182 relationships, 137 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **cuvis-ai** (6484 symbols, 10194 relationships, 136 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 

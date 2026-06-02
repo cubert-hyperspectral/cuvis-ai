@@ -10,6 +10,6 @@ plugins:
     repo: "https://github.com/cubert-hyperspectral/cuvis-ai-deepeiou.git"
     tag: "v0.1.1"
     provides:
-      - cuvis_ai_deepeiou.node.DeepEIoUTrack
-      - cuvis_ai_deepeiou.node.OSNetExtractor
-      - cuvis_ai_deepeiou.node.ResNetExtractor
+    - class_name: cuvis_ai_deepeiou.node.DeepEIoUTrack
+    - class_name: cuvis_ai_deepeiou.node.OSNetExtractor
+    - class_name: cuvis_ai_deepeiou.node.ResNetExtractor
