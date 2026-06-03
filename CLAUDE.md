@@ -3,7 +3,8 @@
 The **node/operator library** of the Cuvis.AI ecosystem, built on `cuvis-ai-core`. Ships the
 concrete processing nodes (channel selectors/mixers, false-RGB, normalization, anomaly
 detectors, spectral angle mapper, conversion/decision nodes, mask/compositing ops, video and
-JSON writers, visualization helpers) plus ready-to-run pipeline and plugin configs and examples.
+JSON writers, visualization helpers) plus ready-to-run pipeline and plugin configs. Runnable
+end-to-end examples live in `cuvis-ai-cookbook`.
 
 ## Part of the Cuvis.AI ecosystem
 
@@ -15,7 +16,6 @@ Code plugin; `dev-docs` = internal ticket docs.
 
 - `cuvis_ai/node/` — the node library (one module per family; `anomaly/`, `deciders/` subdirs).
 - `configs/` — `pipeline/`, `plugins/`, `training/`, `trainrun/`, `data/` YAML manifests.
-- `examples/` — runnable end-to-end pipeline scripts.
 - `tests/` — pytest suite; `tools/` — helper scripts.
 - `scripts/` — top-level CLIs (stub generator, pipeline renderers). PEP 420 **namespace package**
   (no `__init__.py`) so it merges with `cuvis-ai-core`'s `scripts/`; register CLIs as `scripts.<mod>:main`.
