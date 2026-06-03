@@ -157,10 +157,10 @@ CustomDetector = NodeRegistry.get('CustomDetector', instance=registry)
 print('Plugin loaded successfully!')
 "
 
-# Test with full pipeline
+# Test with full pipeline (the pipeline yaml must declare `plugins: [my_plugin]`)
 uv run restore-pipeline \
     --pipeline-path configs/pipeline/my_test_pipeline.yaml \
-    --plugins-path plugins.yaml
+    --plugins-dir configs/plugins
 ```
 
 **Verify:**
@@ -203,8 +203,9 @@ Create a new file named after your plugin (use [`configs/plugins/adaclip.yaml`](
 ```yaml
 # My Plugin Manifest
 #
-# Load only my_plugin:
-#   uv run restore-pipeline --plugins-path configs/plugins/my_plugin.yaml
+# Load my_plugin: declare `plugins: [my_plugin]` in the pipeline yaml and point
+# the CLI at the catalog directory that holds this manifest:
+#   uv run restore-pipeline --pipeline-path <pipeline>.yaml --plugins-dir configs/plugins
 
 plugins:
   my_plugin:

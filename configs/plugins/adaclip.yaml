@@ -1,7 +1,8 @@
 # AdaCLIP Plugin Manifest
 #
-# Load only AdaCLIP:
-#   uv run restore-pipeline --plugins-path configs/plugins/adaclip.yaml
+# To use AdaCLIP, declare `plugins: [adaclip]` in the pipeline yaml and point
+# the loader at the catalog directory that holds this manifest:
+#   uv run restore-pipeline --pipeline-path <pipeline>.yaml --plugins-dir configs/plugins
 
 plugins:
   adaclip:

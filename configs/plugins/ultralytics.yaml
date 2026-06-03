@@ -1,7 +1,8 @@
 # Ultralytics YOLO26 Plugin Manifest (selective load convenience)
 #
-# Load only the Ultralytics plugin:
-#   uv run restore-pipeline --plugins-path configs/plugins/ultralytics.yaml
+# To use Ultralytics, declare `plugins: [ultralytics]` in the pipeline yaml and
+# point the loader at the catalog directory that holds this manifest:
+#   uv run restore-pipeline --pipeline-path <pipeline>.yaml --plugins-dir configs/plugins
 
 plugins:
   ultralytics:

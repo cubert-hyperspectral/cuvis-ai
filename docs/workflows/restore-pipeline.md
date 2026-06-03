@@ -620,7 +620,7 @@ Load external plugins when restoring pipelines:
 ```bash
 uv run restore-pipeline \
   --pipeline-path configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml \
-  --plugins-path configs/plugins/adaclip.yaml
+  --plugins-dir configs/plugins
 ```
 
 With inference:
@@ -628,7 +628,7 @@ With inference:
 ```bash
 uv run restore-pipeline \
   --pipeline-path configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml \
-  --plugins-path configs/plugins/adaclip.yaml \
+  --plugins-dir configs/plugins \
   --cu3s-file-path data/Lentils/Lentils_000.cu3s
 ```
 
@@ -637,16 +637,16 @@ uv run restore-pipeline \
 ```python
 from cuvis_ai_core.utils import restore_pipeline
 
-# Load pipeline with plugins
+# Load pipeline with plugins (the pipeline yaml declares `plugins: [adaclip]`)
 pipeline = restore_pipeline(
     pipeline_path="configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml",
-    plugins_path="configs/plugins/adaclip.yaml"
+    plugins_dirs=["configs/plugins"]
 )
 
 # Or with inference
 pipeline = restore_pipeline(
     pipeline_path="configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml",
-    plugins_path="configs/plugins/adaclip.yaml",
+    plugins_dirs=["configs/plugins"],
     cu3s_file_path="data/Lentils/Lentils_000.cu3s"
 )
 ```
