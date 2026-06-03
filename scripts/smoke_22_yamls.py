@@ -31,15 +31,22 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import yaml
+from dotenv import load_dotenv
 from loguru import logger
-
-# Override the run-cache root so the smoke doesn't pollute ~/.cuvis_runs/.
-os.environ.setdefault("CUVIS_RUN_CACHE_DIR", str(Path(tempfile.gettempdir()) / "cuvis_smoke_cache"))
 
 from cuvis_ai_core.grpc import orchestrator_bridge
 from cuvis_ai_core.grpc.service import CuvisAIService
 from cuvis_ai_core.grpc.session_manager import SessionManager
 from cuvis_ai_core.grpc.v1 import cuvis_ai_pb2
+
+# Honour a local .env (e.g. CUVIS_RUNTIME_*_TIMEOUT_SECONDS to extend child-spawn
+# deadlines for slow cold starts on Windows). Existing env vars win over .env.
+# Both this and the run-cache override below are read at child-compose time, so
+# setting them at import (after the imports) is early enough.
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+
+# Override the run-cache root so the smoke doesn't pollute ~/.cuvis_runs/.
+os.environ.setdefault("CUVIS_RUN_CACHE_DIR", str(Path(tempfile.gettempdir()) / "cuvis_smoke_cache"))
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CONFIGS_DIR = REPO_ROOT / "configs"
