@@ -1,0 +1,63 @@
+name: Redeploy docs (manual)
+
+# Docs-only republish of the GitHub Pages site, decoupled from the PyPI release
+# pipeline. Use to refresh the `latest` docs without cutting a release — e.g.
+# after a docs-only fix. Mirrors the deploy-docs job in pypi-release.yml.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to (re)deploy as `latest` (e.g. 0.7.3)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: docs-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy-docs:
+    name: Redeploy Documentation to gh-pages
+    runs-on: ubuntu-latest
+    container:
+      image: cubertgmbh/cuvis_pyil:3.5.0-ubuntu24.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0  # Full history for mike
+
+      - name: Mark workspace as safe for Git versioning
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install documentation dependencies
+        run: uv sync --locked --extra docs
+
+      - name: Install system dependencies for OpenCV / ffmpeg imports
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends libgl1 libglib2.0-0 ffmpeg
+          rm -rf /var/lib/apt/lists/*
+
+      - name: Configure git for deployment
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Deploy documentation with mike
+        run: |
+          uv run mike deploy --push --update-aliases "${{ inputs.version }}" latest
+          uv run mike set-default --push latest
