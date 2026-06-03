@@ -11,5 +11,83 @@ plugins:
     tag: "v0.1.1"
     provides:
     - class_name: cuvis_ai_deepeiou.node.DeepEIoUTrack
+      category: transform
+      tags: [bbox, inference, stateful, torch, tracking]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        bboxes:
+          dtype: float32
+          shape: [1, -1, 4]
+          optional: false
+          description: Detection bounding boxes [1, N, 4] xyxy pixel coordinates.
+        category_ids:
+          dtype: int64
+          shape: [1, -1]
+          optional: false
+          description: Detection category IDs [1, N].
+        confidences:
+          dtype: float32
+          shape: [1, -1]
+          optional: false
+          description: Detection confidence scores [1, N].
+        embeddings:
+          dtype: float32
+          shape: [1, -1, -1]
+          optional: true
+          description: Per-detection ReID embeddings [1, N, D]. Optional; if absent, tracker uses EIoU-only mode.
+      output_specs:
+        bboxes:
+          dtype: float32
+          shape: [1, -1, 4]
+          optional: false
+          description: Input bboxes pass-through [1, N, 4] xyxy pixel coordinates.
+        track_ids:
+          dtype: int64
+          shape: [1, -1]
+          optional: false
+          description: Track IDs aligned with input detections [1, N]. -1 for detections not assigned to any track.
+        confidences:
+          dtype: float32
+          shape: [1, -1]
+          optional: false
+          description: Input confidences pass-through [1, N].
+        category_ids:
+          dtype: int64
+          shape: [1, -1]
+          optional: false
+          description: Input category_ids pass-through [1, N].
+      doc_summary: DeepEIoU multi-object tracker node.
     - class_name: cuvis_ai_deepeiou.node.OSNetExtractor
+      category: model
+      tags: [batched, embedding, image, inference, learnable, rgb, torch]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\r\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\r\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\r\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\r\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\r\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\r\n</svg>\r\n"
+      input_specs:
+        crops:
+          dtype: float32
+          shape: [-1, 3, -1, -1]
+          optional: false
+          description: Normalized crops [N, 3, crop_h, crop_w] in NCHW.
+      output_specs:
+        embeddings:
+          dtype: float32
+          shape: [-1, -1, -1]
+          optional: false
+          description: L2-normalised embeddings [B, N, D].
+      doc_summary: OSNet x1.0 feature extractor (512-dim embeddings).
     - class_name: cuvis_ai_deepeiou.node.ResNetExtractor
+      category: model
+      tags: [batched, embedding, image, inference, learnable, rgb, torch]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\r\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\r\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\r\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\r\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\r\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\r\n</svg>\r\n"
+      input_specs:
+        crops:
+          dtype: float32
+          shape: [-1, 3, -1, -1]
+          optional: false
+          description: Normalized crops [N, 3, crop_h, crop_w] in NCHW.
+      output_specs:
+        embeddings:
+          dtype: float32
+          shape: [-1, -1, -1]
+          optional: false
+          description: L2-normalised embeddings [B, N, D].
+      doc_summary: ResNet-50 feature extractor (2048-dim embeddings).
