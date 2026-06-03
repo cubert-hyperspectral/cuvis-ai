@@ -55,8 +55,9 @@ def _register_plugins(plugin_names: list[str], yaml_path: Path) -> None:
     host venv must already have each plugin's Python package
     installed (this script does not compose its own venv).
     """
+    from cuvis_ai_schemas.plugin import PluginManifest
+
     from cuvis_ai_core.utils.node_registry import NodeRegistry
-    from cuvis_ai_core.utils.plugin_config import PluginManifest
 
     registry = NodeRegistry()
     for plugin_name in plugin_names:
