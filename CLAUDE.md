@@ -16,28 +16,46 @@ Code plugin; `dev-docs` = internal ticket docs.
 - `cuvis_ai/node/` — the node library (one module per family; `anomaly/`, `deciders/` subdirs).
 - `configs/` — `pipeline/`, `plugins/`, `training/`, `trainrun/`, `data/` YAML manifests.
 - `examples/` — runnable end-to-end pipeline scripts.
-- `tests/` — pytest suite; `tools/` — helper scripts; `scripts/` — e.g. node-port stub generator.
+- `tests/` — pytest suite; `tools/` — helper scripts.
+- `scripts/` — top-level CLIs (stub generator, pipeline renderers). PEP 420 **namespace package**
+  (no `__init__.py`) so it merges with `cuvis-ai-core`'s `scripts/`; register CLIs as `scripts.<mod>:main`.
 
 ## Build & test
 
 - Install: `uv sync` (use `uv`, never bare `pip`).
 - Tests: `uv run pytest`. Nodes are tested with **pure-tensor mocking** — no heavy model downloads.
 - CLI entry points: `restore-pipeline`, `restore-trainrun`, `dataset`, `create-stubs`.
-- **Pre-push gotcha:** `git push` runs `uv sync` and uninstalls editable deps not listed in `pyproject.toml`
-  (e.g. `cuvis-ai-ui`, local experiment packages). Push from a clean venv, or warn before pushing if the
-  venv has custom editable installs.
+- Enable hooks once: `git config core.hooksPath .githooks`.
+  - **pre-commit**: strips notebook video outputs, `ruff format`, `ruff check --fix`, re-stages.
+  - **pre-push**: `uv sync --all-extras` → notebook-video check → `ruff format` → `ruff check --fix`
+    → `interrogate cuvis_ai/ --fail-under 95` (docstring coverage) → `pytest -m "not slow and not gpu"`.
+- **Pre-push gotcha:** the `uv sync --all-extras` step uninstalls editable deps not listed in
+  `pyproject.toml` (e.g. `cuvis-ai-ui`, local experiment packages). Push from a clean venv, or
+  re-install editables afterward.
+
+## Plugins
+
+- Each external plugin has a manifest at `configs/plugins/<name>.yaml`: `plugins.<name>.path` plus a
+  `provides:` list of `class_name` entries (optional `category` / `tags` / `icon_svg` / port specs).
+  `configs/plugins/cuvis_ai_builtin.yaml` exposes this repo's own nodes the same way.
+- Pipelines reference plugins by **bare name only** — a top-level `plugins:` list (e.g.
+  `- cuvis_ai_builtin`, `- sam3`). Each name resolves to a manifest in the plugins directory; there
+  are no inline or catalog refs.
+- Load a pipeline against a plugins directory with `--plugins-dir` (`--plugins-path` was removed).
+- Dependency floors are pinned in `pyproject.toml`; the `dep_compat` / `registry_compat` CI
+  workflows keep those floors compatible with the published plugin release tags — bump with care.
 
 ## Key patterns for nodes
 
 - Inherit `cuvis_ai_core.node.Node`; define `INPUT_SPECS`/`OUTPUT_SPECS` as class dicts of
-  `PortSpec` (`shape=(-1, ...)` for dynamic dims). Call `super().__init__(**params, **kwargs)` last.
+  `PortSpec` (`shape=(-1, ...)` for dynamic dims; mark fan-in ports `variadic`). Call
+  `super().__init__(**params, **kwargs)` last.
 - Register a plugin/package via `NodeRegistry().auto_register_package("pkg.node")` in the
-  package `__init__.py`; plugin manifests live at `configs/plugins/<name>.yaml`.
+  package `__init__.py`.
 
 ## Conventions
 
-- ruff line length **100**. `.githooks` pre-commit runs `ruff format` + `ruff check --fix`
-  (verify it is enabled: `git config core.hooksPath .githooks`).
+- ruff line length **100**.
 - New node classes omit the `Node` suffix (e.g. `SpectralAngleMapper`).
 - Anomaly nodes expose `scores: [B,H,W,1]` + `anomaly_score: [B]` — never `anomaly_map` / `image_score`.
 - No Jira IDs / "Phase N" / migration tags in shipped code, comments, or docstrings.
