@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- **Security/docs:** removed the `https://polyfill.io/v3/polyfill.min.js` include from `mkdocs.yml`. The `polyfill.io` domain is hijacked and was injecting a credential-phishing "Sign in" prompt on the docs site; MathJax 3 needs no polyfill on supported browsers. Added a `Redeploy docs (manual)` workflow (`workflow_dispatch` with a version input) so the gh-pages site can be republished without cutting a PyPI release.
 - Fixed `AnomalyDetectionMetrics` average precision: switched to histogram-based `BinaryAveragePrecision(thresholds=N)` so state is bounded by construction, and reset only on `(stage, epoch)` boundaries so the metric accumulates across batches via `update()` within a validation epoch — the per-batch emitted value is a running AP that converges to true epoch-level AP, instead of a leak-prone cumulative or a noisy per-batch AP.
 
 ## 0.7.3 - 2026-05-18
