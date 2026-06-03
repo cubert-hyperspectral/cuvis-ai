@@ -307,7 +307,7 @@ RXGlobal = NodeRegistry.get("RXGlobal")
 all_nodes = NodeRegistry.list_builtin_nodes()
 ```
 
-**Plugin support:**
+**Plugin support** (CLI / dev-mode — pipelines normally declare plugins by bare name in their top-level `plugins:` block):
 
 ```python
 # Create registry instance

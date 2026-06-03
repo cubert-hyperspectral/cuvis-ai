@@ -143,7 +143,7 @@ plugins:
   my_plugin:
     path: "../my-plugin"  # Local directory path for development
     provides:
-      - my_plugin.nodes.CustomDetector
+      - class_name: my_plugin.nodes.CustomDetector
 ```
 
 **Test with example pipelines:**
@@ -212,8 +212,8 @@ plugins:
     repo: "https://github.com/yourorg/my-plugin.git"
     tag: "v1.0.0"  # Your release tag
     provides:
-      - my_plugin.nodes.CustomDetector
-      - my_plugin.nodes.HelperNode  # List all public nodes
+      - class_name: my_plugin.nodes.CustomDetector
+      - class_name: my_plugin.nodes.HelperNode  # list all public nodes
 ```
 
 **4.3 Add documentation entry**

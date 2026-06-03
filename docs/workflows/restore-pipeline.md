@@ -587,16 +587,16 @@ Plugins are specified in a YAML manifest file (e.g., `plugins.yaml`):
 plugins:
   adaclip:
     # For local development
-    path: "D:/code-repos/cuvis-ai-adaclip"
+    path: "../cuvis-ai-adaclip"
     provides:
-      - cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
+      - class_name: cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
 
   # Or for production (Git repository)
   # adaclip:
   #   repo: "https://github.com/cubert-hyperspectral/cuvis-ai-adaclip.git"
-  #   ref: "v1.2.3"
+  #   tag: "v1.2.3"
   #   provides:
-  #     - cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
+  #     - class_name: cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
 ```
 
 ### Automatic Dependency Management
@@ -651,9 +651,11 @@ pipeline = restore_pipeline(
 )
 ```
 
-### Manual Plugin Loading (Advanced)
+### Manual Plugin Loading (CLI / dev-mode)
 
-For more control, load plugins manually with NodeRegistry:
+For quick local control you can load a manifest directly into a `NodeRegistry` instance. This is
+the dev-mode path; the orchestrated server materialises plugins per pipeline from the pipeline
+yaml's `plugins:` declaration instead.
 
 ```python
 from cuvis_ai_core.utils.node_registry import NodeRegistry

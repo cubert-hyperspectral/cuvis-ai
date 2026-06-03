@@ -11,14 +11,28 @@ changes required.
 
 ## Quick Start
 
-```python
-from cuvis_ai_core.utils.node_registry import NodeRegistry
+Pipelines reference plugins by **bare name**. Declare the plugins a pipeline needs in its
+top-level `plugins:` list, then point the loader at the directory that holds the matching
+manifests:
 
-registry = NodeRegistry()
-registry.load_plugins("configs/plugins/trackeval.yaml")
-
-HOTAMetricNode = registry.get("HOTAMetricNode", instance=registry)
+```yaml
+# my_pipeline.yaml
+plugins:
+  - trackeval          # bare name → resolves to configs/plugins/trackeval.yaml
+nodes:
+  - name: hota
+    class_name: cuvis_ai_trackeval.node.HOTAMetricNode
+    hparams: {}
 ```
+
+```bash
+uv run restore-pipeline \
+  --pipeline-path my_pipeline.yaml \
+  --plugins-dir configs/plugins
+```
+
+The loader resolves each bare name to a manifest in the plugins directory and materialises
+only the plugins the pipeline declares — see [Loading Flow](#loading-flow).
 
 ## Manifest Shapes
 
@@ -29,33 +43,34 @@ plugins:
   ultralytics:
     repo: "https://github.com/cubert-hyperspectral/cuvis-ai-ultralytics.git"
     tag: "v0.1.0"
+    package_name: "cuvis-ai-ultralytics"   # optional: real [project].name if it differs from the key
     provides:
-      - cuvis_ai_ultralytics.node.YOLOPreprocess
-      - cuvis_ai_ultralytics.node.YOLO26Detection
-      - cuvis_ai_ultralytics.node.YOLOPostprocess
-
-  trackeval:
-    repo: "https://github.com/cubert-hyperspectral/cuvis-ai-trackeval.git"
-    tag: "v0.1.0"
-    provides:
-      - cuvis_ai_trackeval.node.HOTAMetricNode
+      - class_name: cuvis_ai_ultralytics.node.YOLOPreprocess
+      - class_name: cuvis_ai_ultralytics.node.YOLO26Detection
+      - class_name: cuvis_ai_ultralytics.node.YOLOPostprocess
 
   sam3:
     path: "../../../../cuvis-ai-sam3/sam3-init"
     provides:
-      - cuvis_ai_sam3.node.SAM3TextPropagation
+      - class_name: cuvis_ai_sam3.node.SAM3TextPropagation
 ```
 
-- `repo` + `tag`: clone a released plugin into the local cache.
+- `repo` + `tag`: clone a released plugin. Git **tags** only — branches and commit hashes are not supported, for reproducibility.
 - `path`: load a local checkout directly. Relative paths resolve from the manifest directory.
-- `provides`: list fully-qualified class paths that the plugin exports.
+- `package_name`: optional. The PyPI-style `[project].name` from the plugin's `pyproject.toml`; set it when the manifest key (a logical label) differs from the real package name.
+- `provides`: the plugin's **node catalog** — each entry is one node: a fully-qualified `class_name` plus optional palette metadata (`category`, `tags`, `icon_svg`, `input_specs`, `output_specs`, `doc_summary`). The server reads this catalog to populate the node palette *without importing plugin code*. See [`configs/plugins/adaclip.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/configs/plugins/adaclip.yaml) for a fully populated entry.
 
 ## Loading Flow
 
-`NodeRegistry.load_plugins()` validates the manifest, resolves local
-paths relative to the manifest file, installs plugin dependencies from
-`pyproject.toml`, and registers each provided node class in the instance
-registry.
+1. The pipeline yaml's `plugins:` list names the plugins it needs (bare names).
+2. The loader resolves each name to a manifest entry in the `--plugins-dir` directory.
+3. Only the declared plugins are **materialised**: clone (Git) or read (local), install dependencies from `pyproject.toml`, and import the provided node classes.
+4. In the orchestrated gRPC server this happens in an **isolated per-pipeline environment**, so one pipeline's plugin dependencies never affect the server or another pipeline.
+
+`NodeRegistry.load_plugins(manifest_path)` is the **CLI / dev-mode** path for loading a manifest
+directly into a registry instance — handy for quick local checks (see the
+[Plugin Development Guide](guide.md)) — but pipelines normally declare plugins by bare name as
+shown above.
 
 ## Cache and Isolation
 
@@ -65,10 +80,14 @@ registry.
 
 ## Loading multiple plugins
 
-Each official plugin ships its own `plugins.yaml` manifest (see below).
-When a pipeline needs nodes from more than one plugin, pass each
-manifest path to `NodeRegistry.load_plugins()` in turn — there's no
-need to author a single combined file.
+List every plugin a pipeline needs in its `plugins:` block, and keep all the manifests in one
+directory passed via `--plugins-dir`:
+
+```yaml
+plugins:
+  - ultralytics
+  - trackeval
+```
 
 ## Official Plugin Manifests
 
