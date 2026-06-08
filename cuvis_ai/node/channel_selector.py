@@ -139,8 +139,8 @@ class ChannelSelectorBase(Node):
             dtype=torch.float32,
             shape=(-1, -1, -1, -1),
             description="Composed image [B, H, W, C] in 0-1 range. "
-                        "C == 3 for standard RGB selectors; "
-                        "C == len(target_wavelengths) for FixedWavelengthSelector with n > 3.",
+            "C == 3 for standard RGB selectors; "
+            "C == len(target_wavelengths) for FixedWavelengthSelector with n > 3.",
         ),
         "band_info": PortSpec(
             dtype=dict,
@@ -675,6 +675,7 @@ class FixedWavelengthSelector(ChannelSelectorBase):
         else:
             if self.normalize_output and n != 3:
                 from loguru import logger
+
                 logger.warning(
                     "FixedWavelengthSelector: normalize_output=True is only supported for "
                     "3-channel selection; got {} target wavelengths. "

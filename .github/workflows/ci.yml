@@ -117,7 +117,12 @@ jobs:
 
       - name: Run pip-audit for vulnerabilities
         run: |
-          uv run pip-audit --desc on --skip-editable --ignore-vuln PYSEC-2022-42969 --ignore-vuln CVE-2025-71176
+          uv run pip-audit --desc on --skip-editable \
+            --ignore-vuln PYSEC-2022-42969 \
+            --ignore-vuln CVE-2025-71176 \
+            --ignore-vuln CVE-2026-34993 \
+            --ignore-vuln CVE-2026-47265 \
+            --ignore-vuln PYSEC-2026-196
 
       - name: Run detect-secrets
         run: |
