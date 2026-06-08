@@ -1,10 +1,17 @@
 # Changelog
 
-## [Unreleased]
+## 0.8.0 - 2026-06-08
 
-- Fixed `AnomalyDetectionMetrics` average precision: switched to histogram-based `BinaryAveragePrecision(thresholds=N)` so state is bounded by construction, and reset only on `(stage, epoch)` boundaries so the metric accumulates across batches via `update()` within a validation epoch — the per-batch emitted value is a running AP that converges to true epoch-level AP, instead of a leak-prone cumulative or a noisy per-batch AP.
-- Marked `TensorBoardMonitorNode` `artifacts` / `metrics` inputs as single `PortSpec`s with `variadic=True` (was the implicit `list[PortSpec]` fan-in form).
+- Backfilled a bare-name **`plugins:` block** into every pipeline YAML (e.g. `- cuvis_ai_builtin`) so each pipeline declares its plugin set explicitly; `scripts/backfill_pipeline_plugins.py` seeds the field, delegating to core's `reorder_pipeline_with_plugins` helper.
+- Carried the **inline node catalog** in each plugin manifest: `configs/plugins/<name>.yaml` `provides:` now lists `CatalogNodeEntry` items directly. Added the `turbovec` manifest, declared `package_name` overrides, and imported `PluginManifest` from `cuvis_ai_schemas.plugin`.
 - Regenerated all plugin manifests to the single-`CatalogPortSpec`-per-port shape and removed the per-manifest `*.metadata.json` sidecars; updated the manifest-contract tests and the port/node docs for the `variadic` flag.
+- Marked `TensorBoardMonitorNode` `artifacts` / `metrics` inputs as single `PortSpec`s with `variadic=True` (was the implicit `list[PortSpec]` fan-in form).
+- Fixed the gRPC train flow and made `SoftChannelSelector`'s statistical initialization device-safe — it now computes on the same device as `channel_logits`, so it survives a pipeline moved to GPU.
+- Fixed `AnomalyDetectionMetrics` average precision: switched to histogram-based `BinaryAveragePrecision(thresholds=N)` so state is bounded by construction, and reset only on `(stage, epoch)` boundaries so the metric accumulates across batches via `update()` within a validation epoch — the per-batch emitted value is a running AP that converges to true epoch-level AP, instead of a leak-prone cumulative or a noisy per-batch AP.
+- Added dependency-compatibility CI: `.github/workflows/dep_compat.yml` (host-floor audit) and `registry_compat.yml` (plugin-vs-core audit); pinned dependency floors; documented plugin loading via `--plugins-dir`.
+- Added pipeline render + smoke tooling: `scripts/render_pipelines.py` emits transparent PNG renders of every pipeline YAML, and `scripts/smoke_22_yamls.py` runs the full orchestrator session flow (`CreateSession → ResolveConfig → LoadPipeline → CloseSession`) over every pipeline config. Stopped tracking the generated render/smoke artifacts.
+- Made `scripts/` a PEP 420 namespace package (dropped its `__init__.py`) so it merges with `cuvis-ai-core`'s `scripts/`; unblocked the orchestrator smoke on Windows.
+- Docs: aligned the plugin docs to the bare-name `plugins:` model and clarified that runnable examples live as notebooks in `cuvis-ai-cookbook` (datasets on Hugging Face).
 
 ## 0.7.3 - 2026-05-18
 
