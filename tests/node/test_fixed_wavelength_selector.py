@@ -175,7 +175,6 @@ class TestNChannelOutput:
 class TestNormalizeOutputWarning:
     def test_six_channel_normalize_true_warns_and_returns_raw(self) -> None:
         """normalize_output=True with n=6 must warn and return raw stacked bands."""
-        import warnings
 
         targets = (625.0, 550.0, 450.0, 1450.0, 1200.0, 1050.0)
         sel = FixedWavelengthSelector(target_wavelengths=targets, normalize_output=True)
