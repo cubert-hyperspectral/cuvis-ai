@@ -110,3 +110,21 @@ This repository is listed under GitNexus **group(s): cuvis-ai-group** (see `~/.g
 | Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
 
 <!-- gitnexus:end -->
+
+# GBrain — Semantic Search & Cross-Repo Memory
+
+A local gbrain brain (PGLite) is registered as the `gbrain` MCP server and complements GitNexus.
+GitNexus is the authoritative **code graph** (symbols, callers/callees, impact, execution flows);
+gbrain adds **semantic / hybrid search** and **cross-session, cross-repo memory** over the indexed
+Cuvis.AI repos. Reach for gbrain when a natural-language or cross-repo question is faster than the
+graph; use GitNexus for authoritative impact/refactor safety checks.
+
+- Semantic search across all repos: `gbrain query "<question>"` (federated sources are searched by
+  default; add `--no-expand` to skip the LLM expansion call). Keyword-only, no LLM:
+  `gbrain search "<keywords>"`. Scope to one repo with `--source <name>`.
+- Code-symbol lookup: `gbrain code-def <symbol>` / `code-refs` / `code-callers` / `code-callees`.
+- Indexed sources are the sibling repos under their short names (`gbrain sources list` shows all):
+  `cuvis-ai`, `cuvis-ai-core`, `cuvis-ai-schemas`, the plugin repos (`cuvis-ai-sam3`, `-detr`,
+  `-bytetrack`, …), `dev-docs`, etc.
+- Refresh after code changes: `gbrain sync --source <name> --strategy code` (`--no-pull` skips the
+  auto `git pull`).
