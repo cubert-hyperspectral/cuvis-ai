@@ -44,7 +44,7 @@ def test_plugin_nodes_can_instantiate_and_move_to_cpu() -> None:
     registry.load_plugins(ADACLIP_MANIFEST_PATH)
     assert set(registry.list_plugins()) == {PLUGIN_NAME}
 
-    for entry in registry.plugin_configs[PLUGIN_NAME].provides:
+    for entry in registry.plugin_catalog[PLUGIN_NAME].provides:
         class_path = entry.class_name
         node_cls = registry.get(class_path)
         node = _instantiate_with_default_kwargs(node_cls)

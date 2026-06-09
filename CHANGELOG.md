@@ -2,6 +2,7 @@
 
 ## 0.8.0 - 2026-06-08
 
+- Bumped the `cuvis-ai-core` floor to `>=0.7.0` and `cuvis-ai-schemas[full]` to `>=0.5.1` for the reworked `NodeRegistry`: the plugin contract / runtime-smoke tests now read a loaded plugin's config from `registry.plugin_catalog[name]` (core dropped the redundant `plugin_configs` dict; `plugin_registry` became `loaded_plugin_nodes`, which `cuvis_ai_schemas.is_plugin` reads as of 0.5.1).
 - Backfilled a bare-name **`plugins:` block** into every pipeline YAML (e.g. `- cuvis_ai_builtin`) so each pipeline declares its plugin set explicitly; `scripts/backfill_pipeline_plugins.py` seeds the field, delegating to core's `reorder_pipeline_with_plugins` helper.
 - Carried the **inline node catalog** in each plugin manifest: `configs/plugins/<name>.yaml` `provides:` now lists `CatalogNodeEntry` items directly. Added the `turbovec` manifest, declared `package_name` overrides, and imported `PluginManifest` from `cuvis_ai_schemas.plugin`.
 - Regenerated all plugin manifests to the single-`CatalogPortSpec`-per-port shape and removed the per-manifest `*.metadata.json` sidecars; updated the manifest-contract tests and the port/node docs for the `variadic` flag.
