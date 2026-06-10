@@ -8,7 +8,7 @@ plugins:
   trackeval:
     # TrackEval-based tracking metric nodes for HOTA, CLEAR, and Identity evaluation
     repo: "https://github.com/cubert-hyperspectral/cuvis-ai-trackeval.git"
-    tag: "v0.1.1"
+    tag: "v0.1.2"
     provides:
     - class_name: cuvis_ai_trackeval.node.HOTAMetricNode
       category: metric

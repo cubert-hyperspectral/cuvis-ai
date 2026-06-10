@@ -12,7 +12,7 @@ pytestmark = pytest.mark.unit
 TRACKEVAL_MANIFEST_PATH = Path("configs/plugins/trackeval.yaml")
 PLUGIN_NAME = "trackeval"
 EXPECTED_REPO = "https://github.com/cubert-hyperspectral/cuvis-ai-trackeval.git"
-EXPECTED_TAG = "v0.1.1"
+EXPECTED_TAG = "v0.1.2"
 EXPECTED_PROVIDES = [
     "cuvis_ai_trackeval.node.HOTAMetricNode",
     "cuvis_ai_trackeval.node.CLEARMetricNode",

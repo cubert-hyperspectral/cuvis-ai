@@ -9,7 +9,7 @@ plugins:
     # SAM3-based video object tracking plugin
     # path: "../../../../cuvis-ai-sam3/tracker-reset"
     repo: "https://github.com/cubert-hyperspectral/cuvis-ai-sam3.git"
-    tag: "v0.1.5"
+    tag: "v0.1.6"
     package_name: "cuvis-ai-sam3"
     provides:
     - class_name: cuvis_ai_sam3.node.SAM3TrackerInference

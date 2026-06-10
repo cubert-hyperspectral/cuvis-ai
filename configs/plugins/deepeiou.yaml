@@ -8,7 +8,7 @@ plugins:
   deepeiou:
     # path: "../../../../cuvis-ai-deepeiou/deepeiou-init"
     repo: "https://github.com/cubert-hyperspectral/cuvis-ai-deepeiou.git"
-    tag: "v0.1.1"
+    tag: "v0.1.2"
     provides:
     - class_name: cuvis_ai_deepeiou.node.DeepEIoUTrack
       category: transform
