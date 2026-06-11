@@ -10,7 +10,13 @@ import numpy as np
 import pytest
 import torch
 from cuvis_ai_schemas.grpc.v1 import cuvis_ai_pb2
-from cuvis_ai_schemas.training import DataConfig, OptimizerConfig, TrainerConfig, TrainingConfig
+from cuvis_ai_schemas.training import (
+    DataConfig,
+    DataSplitConfig,
+    OptimizerConfig,
+    TrainerConfig,
+    TrainingConfig,
+)
 from torch.utils.data import DataLoader, Dataset
 
 from cuvis_ai_core.training.datamodule import CuvisDataModule
@@ -84,13 +90,18 @@ def _create_cached_data_config(
 ) -> cuvis_ai_pb2.DataConfig:
     """Cached version of DataConfig creation."""
     return DataConfig(
-        cu3s_file_path=cu3s_file_path,
-        annotation_json_path=json_file_path,
-        train_ids=list(train_ids),
-        val_ids=list(val_ids),
-        test_ids=list(test_ids),
+        data_module="cu3s",
+        splits=DataSplitConfig(
+            train_ids=list(train_ids),
+            val_ids=list(val_ids),
+            test_ids=list(test_ids),
+        ),
         batch_size=batch_size,
-        processing_mode=processing_mode,
+        params={
+            "cu3s_file_path": cu3s_file_path,
+            "annotation_json_path": json_file_path,
+            "processing_mode": processing_mode,
+        },
     ).to_proto()
 
 

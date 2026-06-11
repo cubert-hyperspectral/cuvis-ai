@@ -137,22 +137,22 @@ pipeline:
     author: ''
     cuvis_ai_version: 0.1.5.post40+g5d4ea80af.d20260105
 data:
-  cu3s_file_path: data/Lentils/Lentils_000.cu3s
-  annotation_json_path: data/Lentils/Lentils_000.json
-  train_ids:
-  - 0
-  - 2
-  - 3
-  val_ids:
-  - 1
-  test_ids:
-  - 1
-  - 5
-  train_split: null
-  val_split: null
-  shuffle: true
+  data_module: cu3s
+  splits:
+    train_ids:
+    - 0
+    - 2
+    - 3
+    val_ids:
+    - 1
+    test_ids:
+    - 1
+    - 5
   batch_size: 2
-  processing_mode: Reflectance
+  params:
+    cu3s_file_path: data/Lentils/Lentils_000.cu3s
+    annotation_json_path: data/Lentils/Lentils_000.json
+    processing_mode: Reflectance
 training:
   seed: 42
   optimizer:

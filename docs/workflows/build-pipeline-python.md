@@ -204,7 +204,7 @@ pipeline.save_to_file(
 ### Load and Evaluate Pipeline
 
 ```python
-from cuvis_ai_core.data.datasets import SingleCu3sDataModule
+from cuvis_ai_dataloader.data import SingleCu3sDataModule
 from cuvis_ai_core.training import StatisticalTrainer
 
 # Load pipeline from configuration (automatically finds .pt weights)

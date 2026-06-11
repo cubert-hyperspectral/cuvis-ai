@@ -274,7 +274,7 @@ For production deployment, you typically **train once** and **infer many times**
 """Restore trained pipeline for inference using gRPC."""
 
 from pathlib import Path
-from cuvis_ai_core.data.datasets import SingleCu3sDataset
+from cuvis_ai_dataloader.data import SingleCu3sDataset
 from cuvis_ai_core.grpc import cuvis_ai_pb2, helpers
 from torch.utils.data import DataLoader
 from cuvis_ai.utils.grpc_workflow import (

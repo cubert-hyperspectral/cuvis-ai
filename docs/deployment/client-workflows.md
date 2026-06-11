@@ -267,7 +267,7 @@ print(f"Outputs: {list(outputs.keys())}")
 
 ```python
 from torch.utils.data import DataLoader
-from cuvis_ai_core.data.datasets import SingleCu3sDataModule
+from cuvis_ai_dataloader.data import SingleCu3sDataModule
 
 def batch_inference(stub, session_id, cu3s_path, batch_size=4):
     """Efficient batch inference on CU3S dataset."""

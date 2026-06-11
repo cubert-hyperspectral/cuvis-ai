@@ -10,13 +10,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import yaml
+from cuvis_ai_dataloader.data import SingleCu3sDataModule
 from cuvis_ai_schemas.enums import ExecutionStage
 from cuvis_ai_schemas.execution import Context
 from huggingface_hub import hf_hub_download
 from IPython.display import Markdown, display
 from loguru import logger
 
-from cuvis_ai_core.data.datasets import SingleCu3sDataModule
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_core.utils.graph_helper import restructure_output_to_node_dict
 from cuvis_ai_core.utils.node_registry import NodeRegistry

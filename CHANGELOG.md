@@ -1,5 +1,18 @@
 # Changelog
 
+## [Unreleased]
+
+- **Dropped the `cuvis` SDK (and `cuvis-il`, `ftfy`) from base dependencies.** The SDK now lives only
+  in the `cuvis-ai-dataloader` plugin behind its `[cu3s]` extra, added here as a dev/test dep
+  (`cuvis-ai-dataloader[cu3s,coco]`). Builtin/RGB pipelines no longer pull `cuvis` / `cuvis-il`,
+  closing the Windows `cuvis-il` no-`win_amd64`-wheel gap. The node library imports neither `cuvis`
+  nor `ftfy` (grep-verified); `rle.py` consumers (`occlusion`, `json_file`, `prompts`) are unchanged.
+- **Migrated to the module-agnostic `DataConfig`.** The test data fixture and the
+  `configs/data/*.yaml` + `configs/trainrun/*.yaml` data blocks move from the flat cu3s shape to
+  `{data_module, splits, params}`. cu3s loading imports moved from `cuvis_ai_core.data.datasets` to
+  `cuvis_ai_dataloader.data` (the `SingleCu3sDataModule` / `SingleCu3sDataset` names survive as
+  back-compat aliases, so call sites change only the import path). Docs/notebooks repointed.
+
 ## 0.8.0 - 2026-06-11
 
 - Bumped the `cuvis-ai-core` floor to `>=0.7.1` and `cuvis-ai-schemas[full]` to `>=0.5.2` for the reworked `NodeRegistry`: the plugin contract / runtime-smoke tests now read a loaded plugin's config from `registry.plugin_catalog[name]` (core dropped the redundant `plugin_configs` dict; `plugin_registry` became `loaded_plugin_nodes`, which `cuvis_ai_schemas.is_plugin` reads as of 0.5.1). The `>=0.7.1` floor also inherits core's transitive security patches, pulling `aiohttp` to `3.14.1` (CVE-2026-34993, CVE-2026-47265) and `idna` to `3.18` in the lock.
