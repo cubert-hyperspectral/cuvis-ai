@@ -41,7 +41,7 @@ Companion repo: [cuvis-ai-agentic-skills](https://github.com/cubert-hyperspectra
 uv add cuvis-ai
 ```
 
-> **GPU support**: For PyTorch with CUDA, see the [Installation Guide](https://docs.cuvis.ai/latest/user-guide/installation/) for setup instructions.
+> **GPU support**: For PyTorch with CUDA, see the [Installation Guide](https://docs.cuvis.ai/latest/get-started/installation/) for setup instructions.
 
 **For development** (within this repo):
 
@@ -49,18 +49,18 @@ uv add cuvis-ai
 uv sync
 ```
 
-See the [Installation Guide](https://docs.cuvis.ai/latest/user-guide/installation/) for prerequisites and detailed setup.
+See the [Installation Guide](https://docs.cuvis.ai/latest/get-started/installation/) for prerequisites and detailed setup.
 
 ## Documentation
 
 Full documentation is available at **https://docs.cuvis.ai/latest/**.
 
-- [Quick Start](https://docs.cuvis.ai/latest/user-guide/quickstart/)
-- [Core Concepts](https://docs.cuvis.ai/latest/concepts/overview/)
-- [Node Catalog](https://docs.cuvis.ai/latest/node-catalog/)
-- [Plugin System](https://docs.cuvis.ai/latest/plugin-system/)
-- [API Reference](https://docs.cuvis.ai/latest/api/)
-- [Contributing](https://docs.cuvis.ai/latest/development/contributing/)
+- [Quick Start](https://docs.cuvis.ai/latest/get-started/quickstart/)
+- [Core Concepts](https://docs.cuvis.ai/latest/concepts/)
+- [Node Catalog](https://docs.cuvis.ai/latest/catalogs/nodes/)
+- [Plugin System](https://docs.cuvis.ai/latest/reference/plugin-development/overview/)
+- [API Reference](https://docs.cuvis.ai/latest/reference/python-api/)
+- [Contributing](https://docs.cuvis.ai/latest/reference/contributing/)
 
 ## Links
 

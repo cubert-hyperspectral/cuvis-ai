@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.8.0 - 2026-06-08
+## 0.8.0 - 2026-06-11
 
 - Bumped the `cuvis-ai-core` floor to `>=0.7.1` and `cuvis-ai-schemas[full]` to `>=0.5.2` for the reworked `NodeRegistry`: the plugin contract / runtime-smoke tests now read a loaded plugin's config from `registry.plugin_catalog[name]` (core dropped the redundant `plugin_configs` dict; `plugin_registry` became `loaded_plugin_nodes`, which `cuvis_ai_schemas.is_plugin` reads as of 0.5.1). The `>=0.7.1` floor also inherits core's transitive security patches, pulling `aiohttp` to `3.14.1` (CVE-2026-34993, CVE-2026-47265) and `idna` to `3.18` in the lock.
 - **Security:** raised the dependency floors that lagged the lock so the floor audit and `pip-audit` pass: `cuvis>=3.5.1.0`, `ftfy>=6.3.1`, `setuptools>=81.0.0,<83`, a Windows `cuvis-il>=3.5.0` lower bound, and `pip>=26.1.2` (PYSEC-2026-196) for the release-tooling extra.
@@ -15,6 +15,7 @@
 - Added pipeline render tooling: `scripts/render_pipelines.py` emits transparent PNG renders of every pipeline YAML. Stopped tracking the generated render artifacts.
 - Made `scripts/` a PEP 420 namespace package (dropped its `__init__.py`) so it merges with `cuvis-ai-core`'s `scripts/`; unblocked the orchestrator smoke on Windows.
 - Docs: aligned the plugin docs to the bare-name `plugins:` model and clarified that runnable examples live as notebooks in `cuvis-ai-cookbook` (datasets on Hugging Face).
+- Docs: fixed the README documentation links broken by the docs IA restructure (`user-guide/installation` and `user-guide/quickstart` to `get-started/`, `node-catalog` to `catalogs/nodes`, `plugin-system` to `reference/plugin-development`, `api` to `reference/python-api`, `development/contributing` to `reference/contributing`).
 
 ## 0.7.3 - 2026-05-18
 
