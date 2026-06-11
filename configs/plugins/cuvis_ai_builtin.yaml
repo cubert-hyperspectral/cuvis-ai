@@ -4,105 +4,2449 @@ plugins:
   cuvis_ai_builtin:
     path: "../.."
     provides:
-      - cuvis_ai.node.anomaly.deep_svdd.DeepSVDDCenterTracker
-      - cuvis_ai.node.anomaly.deep_svdd.DeepSVDDProjection
-      - cuvis_ai.node.anomaly.deep_svdd.DeepSVDDScores
-      - cuvis_ai.node.anomaly.deep_svdd.ZScoreNormalizerGlobal
-      - cuvis_ai.node.anomaly.lad_detector.LADGlobal
-      - cuvis_ai.node.anomaly.rx_detector.RXBase
-      - cuvis_ai.node.anomaly.rx_detector.RXGlobal
-      - cuvis_ai.node.anomaly.rx_detector.RXPerBatch
-      - cuvis_ai.node.deciders.binary_decider.BinaryDecider
-      - cuvis_ai.node.deciders.binary_decider.QuantileBinaryDecider
-      - cuvis_ai.node.deciders.two_stage_decider.TwoStageBinaryDecider
-      - cuvis_ai.node.anomaly_visualization.AnomalyMask
-      - cuvis_ai.node.anomaly_visualization.BBoxesOverlayNode
-      - cuvis_ai.node.anomaly_visualization.ChannelSelectorFalseRGBViz
-      - cuvis_ai.node.anomaly_visualization.ChannelWeightsViz
-      - cuvis_ai.node.anomaly_visualization.ImageArtifactVizBase
-      - cuvis_ai.node.anomaly_visualization.MaskOverlayNode
-      - cuvis_ai.node.anomaly_visualization.RGBAnomalyMask
-      - cuvis_ai.node.anomaly_visualization.ScoreHeatmapVisualizer
-      - cuvis_ai.node.anomaly_visualization.TrackingOverlayNode
-      - cuvis_ai.node.anomaly_visualization.TrackingPointerOverlayNode
-      - cuvis_ai.node.channel_mixer.ConcreteChannelMixer
-      - cuvis_ai.node.channel_mixer.LearnableChannelMixer
-      - cuvis_ai.node.colormap.ScalarHSVColormapNode
-      - cuvis_ai.node.channel_selector.CIETristimulusRGBSelector
-      - cuvis_ai.node.channel_selector.CIRSelector
-      - cuvis_ai.node.channel_selector.CameraEmulationFalseRGBSelector
-      - cuvis_ai.node.channel_selector.ChannelSelectorBase
-      - cuvis_ai.node.channel_selector.FastRGBSelector
-      - cuvis_ai.node.channel_selector.FixedWavelengthSelector
-      - cuvis_ai.node.channel_selector.HighContrastSelector
-      - cuvis_ai.node.channel_selector.NDVISelector
-      - cuvis_ai.node.channel_selector.RangeAverageFalseRGBSelector
-      - cuvis_ai.node.channel_selector.SoftChannelSelector
-      - cuvis_ai.node.channel_selector.SupervisedCIRSelector
-      - cuvis_ai.node.channel_selector.SupervisedFullSpectrumSelector
-      - cuvis_ai.node.channel_selector.SupervisedSelectorBase
-      - cuvis_ai.node.channel_selector.SupervisedWindowedSelector
-      - cuvis_ai.node.channel_selector.TopKIndices
-      - cuvis_ai.node.compositing.InsetComposer
-      - cuvis_ai.node.compositing.ROIZoomNode
-      - cuvis_ai.node.conversion.DecisionToMask
-      - cuvis_ai.node.conversion.ScoreToLogit
-      - cuvis_ai.node.data.CU3SDataNode
-      - cuvis_ai.node.data.LentilsAnomalyDataNode
-      - cuvis_ai.node.dimensionality_reduction.PCA
-      - cuvis_ai.node.dimensionality_reduction.TrainablePCA
-      - cuvis_ai.node.json_file.DetectionJsonReader
-      - cuvis_ai.node.json_file.TrackingResultsReader
-      - cuvis_ai.node.json_file.CocoTrackBBoxWriter
-      - cuvis_ai.node.json_file.DetectionCocoJsonNode
-      - cuvis_ai.node.json_file.CocoTrackMaskWriter
-      - cuvis_ai.node.labels.BinaryAnomalyLabelMapper
-      - cuvis_ai.node.losses.AnomalyBCEWithLogits
-      - cuvis_ai.node.losses.DeepSVDDSoftBoundaryLoss
-      - cuvis_ai.node.losses.DistinctnessLoss
-      - cuvis_ai.node.losses.ForegroundContrastLoss
-      - cuvis_ai.node.losses.IoULoss
-      - cuvis_ai.node.losses.LossNode
-      - cuvis_ai.node.losses.MSEReconstructionLoss
-      - cuvis_ai.node.losses.OrthogonalityLoss
-      - cuvis_ai.node.losses.SelectorDiversityRegularizer
-      - cuvis_ai.node.losses.SelectorEntropyRegularizer
-      - cuvis_ai.node.mask_ops.MaskRobustifier
-      - cuvis_ai.node.mask_ops.MaskToBBoxKalman
-      - cuvis_ai.node.metrics.AnomalyDetectionMetrics
-      - cuvis_ai.node.metrics.AnomalyPixelStatisticsMetric
-      - cuvis_ai.node.metrics.ComponentOrthogonalityMetric
-      - cuvis_ai.node.metrics.ExplainedVarianceMetric
-      - cuvis_ai.node.metrics.ScoreStatisticsMetric
-      - cuvis_ai.node.metrics.SelectorDiversityMetric
-      - cuvis_ai.node.metrics.SelectorEntropyMetric
-      - cuvis_ai.node.monitor.TensorBoardMonitorNode
-      - cuvis_ai.node.normalization.IdentityNormalizer
-      - cuvis_ai.node.normalization.MinMaxNormalizer
-      - cuvis_ai.node.normalization.PerPixelUnitNorm
-      - cuvis_ai.node.normalization.SigmoidNormalizer
-      - cuvis_ai.node.normalization.SigmoidTransform
-      - cuvis_ai.node.normalization.ZScoreNormalizer
-      - cuvis_ai.node.numpy_file.NpyReader
-      - cuvis_ai.node.numpy_file.NumpyFeatureWriterNode
-      - cuvis_ai.node.occlusion.OcclusionNodeBase
-      - cuvis_ai.node.occlusion.PoissonCubeOcclusionNode
-      - cuvis_ai.node.occlusion.PoissonOcclusionNode
-      - cuvis_ai.node.occlusion.SolidOcclusionNode
-      - cuvis_ai.node.pipeline_visualization.CubeRGBVisualizer
-      - cuvis_ai.node.pipeline_visualization.PCAVisualization
-      - cuvis_ai.node.pipeline_visualization.PipelineComparisonVisualizer
-      - cuvis_ai.node.preprocessors.BBoxRoiCropNode
-      - cuvis_ai.node.preprocessors.BandpassByWavelength
-      - cuvis_ai.node.preprocessors.ChannelNormalizeNode
-      - cuvis_ai.node.preprocessors.SpatialRotateNode
-      - cuvis_ai.node.prompts.BBoxPrompt
-      - cuvis_ai.node.prompts.MaskPrompt
-      - cuvis_ai.node.prompts.TextPrompt
-      - cuvis_ai.node.spectral_angle_mapper.SpectralAngleMapper
-      - cuvis_ai.node.spectral_extractor.BBoxSpectralExtractor
-      - cuvis_ai.node.spectral_extractor.MaskedMeanSpectrum
-      - cuvis_ai.node.spectral_extractor.SpectralSignatureExtractor
-      - cuvis_ai.node.spectrum_plot.SpectrumPlotNode
-      - cuvis_ai.node.video.ToVideoNode
-      - cuvis_ai.node.video.VideoFrameNode
+    - class_name: cuvis_ai.node.anomaly.deep_svdd.DeepSVDDCenterTracker
+      category: transform
+      tags: [anomaly, stateful, torch, training]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        embeddings:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Deep SVDD embeddings [B, H, W, D]
+      output_specs:
+        center:
+          dtype: float32
+          shape: [-1]
+          optional: false
+          description: Tracked Deep SVDD center vector
+        metrics:
+          dtype: ''
+          shape: []
+          optional: true
+          description: Optional scalar summaries of the center
+      doc_summary: Track and expose Deep SVDD center statistics with optional logging.
+    - class_name: cuvis_ai.node.anomaly.deep_svdd.DeepSVDDProjection
+      category: model
+      tags: [anomaly, hyperspectral, inference, learnable, torch]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\r\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\r\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\r\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\r\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\r\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\r\n</svg>\r\n"
+      input_specs:
+        data:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Per-pixel feature tensor [B, H, W, C]
+      output_specs:
+        embeddings:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Deep SVDD embeddings [B, H, W, rep_dim]
+      doc_summary: Projection head that maps per-pixel features to Deep SVDD embeddings.
+    - class_name: cuvis_ai.node.anomaly.deep_svdd.DeepSVDDScores
+      category: model
+      tags: [anomaly, inference, learnable, torch]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\r\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\r\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\r\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\r\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\r\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\r\n</svg>\r\n"
+      input_specs:
+        embeddings:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Deep SVDD embeddings [B, H, W, D]
+        center:
+          dtype: float32
+          shape: [-1]
+          optional: false
+          description: Center vector from DeepSVDDCenterTracker
+      output_specs:
+        scores:
+          dtype: float32
+          shape: [-1, -1, -1, 1]
+          optional: false
+          description: Squared distance scores [B, H, W, 1]
+      doc_summary: Convert Deep SVDD embeddings + center vector into anomaly scores.
+    - class_name: cuvis_ai.node.anomaly.deep_svdd.ZScoreNormalizerGlobal
+      category: transform
+      tags: [hyperspectral, normalization, numpy, preprocessing]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        data:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Input hyperspectral cube [B, H, W, C]
+      output_specs:
+        normalized:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Per-pixel z-score normalized cube [B, H, W, C]
+      doc_summary: Port-based Deep SVDD z-score normalizer for BHWC cubes.
+    - class_name: cuvis_ai.node.anomaly.lad_detector.LADGlobal
+      category: model
+      tags: [anomaly, hyperspectral, learnable, numpy]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\r\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\r\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\r\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\r\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\r\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\r\n</svg>\r\n"
+      input_specs:
+        data:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Input hyperspectral cube (BHWC format)
+      output_specs:
+        scores:
+          dtype: float32
+          shape: [-1, -1, -1, 1]
+          optional: false
+          description: LAD anomaly scores per pixel (BHW1 format)
+      doc_summary: Laplacian Anomaly Detector (global), variant 'C' (Cauchy), port-based.
+    - class_name: cuvis_ai.node.anomaly.rx_detector.RXBase
+      category: model
+      tags: [anomaly, hyperspectral, learnable, numpy]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\r\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\r\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\r\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\r\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\r\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\r\n</svg>\r\n"
+      input_specs:
+        data:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Input hyperspectral cube (BHWC format)
+      output_specs:
+        scores:
+          dtype: float32
+          shape: [-1, -1, -1, 1]
+          optional: false
+          description: Anomaly scores per pixel (BHW1 format)
+      doc_summary: Base class for RX anomaly detectors.
+    - class_name: cuvis_ai.node.anomaly.rx_detector.RXGlobal
+      category: model
+      tags: [anomaly, hyperspectral, learnable, numpy]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\r\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\r\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\r\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\r\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\r\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\r\n</svg>\r\n"
+      input_specs:
+        data:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Input hyperspectral cube (BHWC format)
+      output_specs:
+        scores:
+          dtype: float32
+          shape: [-1, -1, -1, 1]
+          optional: false
+          description: Anomaly scores per pixel (BHW1 format)
+      doc_summary: RX anomaly detector with global background statistics.
+    - class_name: cuvis_ai.node.anomaly.rx_detector.RXPerBatch
+      category: model
+      tags: [anomaly, hyperspectral, learnable, numpy]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\r\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\r\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\r\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\r\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\r\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\r\n</svg>\r\n"
+      input_specs:
+        data:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Input hyperspectral cube (BHWC format)
+      output_specs:
+        scores:
+          dtype: float32
+          shape: [-1, -1, -1, 1]
+          optional: false
+          description: Anomaly scores per pixel (BHW1 format)
+      doc_summary: Computes μ, Σ per image in the batch on the fly; no fit/finalize.
+    - class_name: cuvis_ai.node.deciders.binary_decider.BinaryDecider
+      category: transform
+      tags: [classification, numpy, postprocessing]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        logits:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Input logits to threshold (BHWC format)
+      output_specs:
+        decisions:
+          dtype: bool
+          shape: [-1, -1, -1, 1]
+          optional: false
+          description: Binary decision mask (BHWC format)
+      doc_summary: Simple decider node using a static threshold to classify data.
+    - class_name: cuvis_ai.node.deciders.binary_decider.QuantileBinaryDecider
+      category: transform
+      tags: [classification, numpy, postprocessing]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        logits:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Input logits or anomaly scores (BHWC format)
+      output_specs:
+        decisions:
+          dtype: bool
+          shape: [-1, -1, -1, 1]
+          optional: false
+          description: Binary decision mask (BHWC format)
+      doc_summary: Quantile-based thresholding node operating on BHWC logits or scores.
+    - class_name: cuvis_ai.node.deciders.two_stage_decider.TwoStageBinaryDecider
+      category: transform
+      tags: [classification, numpy, postprocessing]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        logits:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Anomaly scores (BHWC).
+      output_specs:
+        decisions:
+          dtype: bool
+          shape: [-1, -1, -1, 1]
+          optional: false
+          description: Binary anomaly mask (BHWC).
+      doc_summary: 'Two-stage binary decider: image-level gate + pixel quantile mask.'
+    - class_name: cuvis_ai.node.anomaly_visualization.AnomalyMask
+      category: visualizer
+      tags: [anomaly, mask]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <rect x=\"8\" y=\"10\" width=\"48\" height=\"44\" rx=\"2\"/>\r\n  <path d=\"M14 44l10-12 8 6 12-16\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"24\" cy=\"32\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"32\" cy=\"38\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"44\" cy=\"22\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n</svg>\r\n"
+      input_specs:
+        decisions:
+          dtype: bool
+          shape: [-1, -1, -1, 1]
+          optional: false
+          description: Binary anomaly decisions [B, H, W, 1]
+        mask:
+          dtype: bool
+          shape: [-1, -1, -1, 1]
+          optional: true
+          description: Ground truth anomaly mask [B, H, W, 1] (optional)
+        cube:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Original cube [B, H, W, C] for visualization
+        scores:
+          dtype: float32
+          shape: [-1, -1, -1, 1]
+          optional: true
+          description: Optional anomaly logits/scores [B, H, W, 1]
+      output_specs:
+        artifacts:
+          dtype: ''
+          shape: []
+          optional: false
+          description: List of Artifact objects with heatmap visualizations
+      doc_summary: Visualize anomaly detection with GT and predicted masks.
+    - class_name: cuvis_ai.node.anomaly_visualization.BBoxesOverlayNode
+      category: visualizer
+      tags: [bbox, rgb]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <rect x=\"8\" y=\"10\" width=\"48\" height=\"44\" rx=\"2\"/>\r\n  <path d=\"M14 44l10-12 8 6 12-16\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"24\" cy=\"32\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"32\" cy=\"38\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"44\" cy=\"22\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n</svg>\r\n"
+      input_specs:
+        rgb_image:
+          dtype: float32
+          shape: [1, -1, -1, 3]
+          optional: false
+          description: RGB frame [1, H, W, 3] in [0, 1].
+        bboxes:
+          dtype: float32
+          shape: [1, -1, 4]
+          optional: false
+          description: Bounding boxes [1, N, 4] in xyxy.
+        category_ids:
+          dtype: int64
+          shape: [1, -1]
+          optional: false
+          description: Category IDs [1, N].
+        frame_id:
+          dtype: int64
+          shape: [1]
+          optional: true
+          description: Frame index [1].
+        confidences:
+          dtype: float32
+          shape: [1, -1]
+          optional: true
+          description: Optional confidences [1, N].
+        spectral_signatures:
+          dtype: float32
+          shape: [1, -1, -1]
+          optional: true
+          description: Per-bbox spectral signatures [1, N, C]. Optional.
+      output_specs:
+        rgb_with_overlay:
+          dtype: float32
+          shape: [1, -1, -1, 3]
+          optional: false
+          description: RGB frame with bbox overlays [1, H, W, 3] in [0, 1].
+      doc_summary: Torch-only bounding-box overlay renderer for YOLO-style detections.
+    - class_name: cuvis_ai.node.anomaly_visualization.ChannelSelectorFalseRGBViz
+      category: visualizer
+      tags: [hyperspectral, rgb]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <rect x=\"8\" y=\"10\" width=\"48\" height=\"44\" rx=\"2\"/>\r\n  <path d=\"M14 44l10-12 8 6 12-16\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"24\" cy=\"32\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"32\" cy=\"38\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"44\" cy=\"22\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n</svg>\r\n"
+      input_specs:
+        rgb_output:
+          dtype: float32
+          shape: [-1, -1, -1, 3]
+          optional: false
+          description: False RGB output from channel selector [B, H, W, 3]
+        mask:
+          dtype: int32
+          shape: [-1, -1, -1]
+          optional: true
+          description: Segmentation mask [B, H, W] where >0 is foreground
+        mesu_index:
+          dtype: int64
+          shape: [-1]
+          optional: true
+          description: Measurement index per batch element [B] for artifact naming
+      output_specs:
+        artifacts:
+          dtype: ''
+          shape: []
+          optional: false
+          description: List of Artifact objects for TensorBoard
+      doc_summary: Visualize false RGB output from channel selectors with optional mask overlay.
+    - class_name: cuvis_ai.node.anomaly_visualization.ChannelWeightsViz
+      category: visualizer
+      tags: [hyperspectral, rgb]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <rect x=\"8\" y=\"10\" width=\"48\" height=\"44\" rx=\"2\"/>\r\n  <path d=\"M14 44l10-12 8 6 12-16\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"24\" cy=\"32\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"32\" cy=\"38\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"44\" cy=\"22\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n</svg>\r\n"
+      input_specs:
+        weights:
+          dtype: float32
+          shape: [-1, -1]
+          optional: false
+          description: Mixing matrix weights [K, C]
+        wavelengths:
+          dtype: int32
+          shape: [-1]
+          optional: true
+          description: Wavelengths [C] in nm
+      output_specs:
+        artifacts:
+          dtype: ''
+          shape: []
+          optional: false
+          description: List of Artifact objects for TensorBoard
+      doc_summary: Visualize channel mixer weights as a heatmap.
+    - class_name: cuvis_ai.node.anomaly_visualization.ImageArtifactVizBase
+      category: visualizer
+      tags: [anomaly, image]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <rect x=\"8\" y=\"10\" width=\"48\" height=\"44\" rx=\"2\"/>\r\n  <path d=\"M14 44l10-12 8 6 12-16\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"24\" cy=\"32\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"32\" cy=\"38\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"44\" cy=\"22\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n</svg>\r\n"
+      output_specs:
+        artifacts:
+          dtype: ''
+          shape: []
+          optional: false
+          description: List of Artifact objects for TensorBoard
+      doc_summary: Base class for visualization nodes that produce image artifacts.
+    - class_name: cuvis_ai.node.anomaly_visualization.MaskOverlayNode
+      category: visualizer
+      tags: [mask, rgb]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <rect x=\"8\" y=\"10\" width=\"48\" height=\"44\" rx=\"2\"/>\r\n  <path d=\"M14 44l10-12 8 6 12-16\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"24\" cy=\"32\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"32\" cy=\"38\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"44\" cy=\"22\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n</svg>\r\n"
+      input_specs:
+        rgb_image:
+          dtype: float32
+          shape: [-1, -1, -1, 3]
+          optional: false
+          description: RGB frames [B, H, W, 3] in [0, 1]
+        mask:
+          dtype: int32
+          shape: [-1, -1, -1]
+          optional: true
+          description: Segmentation mask [B, H, W] where >0 is foreground
+      output_specs:
+        rgb_with_overlay:
+          dtype: float32
+          shape: [-1, -1, -1, 3]
+          optional: false
+          description: RGB frames with mask overlay [B, H, W, 3] in [0, 1]
+      doc_summary: Alpha-blend a coloured mask overlay onto RGB frames.
+    - class_name: cuvis_ai.node.anomaly_visualization.RGBAnomalyMask
+      category: visualizer
+      tags: [anomaly, mask, rgb]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <rect x=\"8\" y=\"10\" width=\"48\" height=\"44\" rx=\"2\"/>\r\n  <path d=\"M14 44l10-12 8 6 12-16\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"24\" cy=\"32\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"32\" cy=\"38\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"44\" cy=\"22\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n</svg>\r\n"
+      input_specs:
+        decisions:
+          dtype: bool
+          shape: [-1, -1, -1, 1]
+          optional: false
+          description: Binary anomaly decisions [B, H, W, 1]
+        mask:
+          dtype: bool
+          shape: [-1, -1, -1, 1]
+          optional: true
+          description: Ground truth anomaly mask [B, H, W, 1] (optional)
+        rgb_image:
+          dtype: float32
+          shape: [-1, -1, -1, 3]
+          optional: false
+          description: RGB image [B, H, W, 3] for visualization
+        scores:
+          dtype: float32
+          shape: [-1, -1, -1, 1]
+          optional: true
+          description: Optional anomaly logits/scores [B, H, W, 1]
+      output_specs:
+        artifacts:
+          dtype: ''
+          shape: []
+          optional: false
+          description: List of Artifact objects with RGB visualization artifacts
+      doc_summary: Visualize anomaly detection with GT and predicted masks on RGB images.
+    - class_name: cuvis_ai.node.anomaly_visualization.ScoreHeatmapVisualizer
+      category: visualizer
+      tags: [anomaly, rgb]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <rect x=\"8\" y=\"10\" width=\"48\" height=\"44\" rx=\"2\"/>\r\n  <path d=\"M14 44l10-12 8 6 12-16\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"24\" cy=\"32\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"32\" cy=\"38\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"44\" cy=\"22\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n</svg>\r\n"
+      input_specs:
+        scores:
+          dtype: float32
+          shape: [-1, -1, -1, 1]
+          optional: false
+          description: Anomaly scores [B, H, W, 1]
+      output_specs:
+        artifacts:
+          dtype: ''
+          shape: []
+          optional: false
+          description: List of Artifact objects with score heatmaps
+      doc_summary: Log LAD/RX score heatmaps as TensorBoard artifacts.
+    - class_name: cuvis_ai.node.anomaly_visualization.TrackingOverlayNode
+      category: visualizer
+      tags: [bbox, rgb, tracking]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <rect x=\"8\" y=\"10\" width=\"48\" height=\"44\" rx=\"2\"/>\r\n  <path d=\"M14 44l10-12 8 6 12-16\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"24\" cy=\"32\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"32\" cy=\"38\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"44\" cy=\"22\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n</svg>\r\n"
+      input_specs:
+        rgb_image:
+          dtype: float32
+          shape: [1, -1, -1, 3]
+          optional: false
+          description: Single RGB frame [1, H, W, 3] in [0, 1].
+        mask:
+          dtype: int32
+          shape: [1, -1, -1]
+          optional: false
+          description: SAM3 label map [1, H, W]; pixel value = object ID, 0 = background.
+        object_ids:
+          dtype: int64
+          shape: [1, -1]
+          optional: true
+          description: Active object IDs [1, N] for deterministic ordering. If absent, IDs are derived from unique non-zero mask values.
+        frame_id:
+          dtype: int64
+          shape: [1]
+          optional: true
+          description: Frame / measurement index to render as text overlay.
+      output_specs:
+        rgb_with_overlay:
+          dtype: float32
+          shape: [1, -1, -1, 3]
+          optional: false
+          description: RGB frame with coloured mask overlays [1, H, W, 3] in [0, 1].
+      doc_summary: Alpha-blend per-object coloured masks onto RGB frames.
+    - class_name: cuvis_ai.node.anomaly_visualization.TrackingPointerOverlayNode
+      category: visualizer
+      tags: [bbox, rgb, tracking]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <rect x=\"8\" y=\"10\" width=\"48\" height=\"44\" rx=\"2\"/>\r\n  <path d=\"M14 44l10-12 8 6 12-16\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"24\" cy=\"32\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"32\" cy=\"38\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"44\" cy=\"22\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n</svg>\r\n"
+      input_specs:
+        rgb_image:
+          dtype: float32
+          shape: [1, -1, -1, 3]
+          optional: false
+          description: Single RGB frame [1, H, W, 3] in [0, 1].
+        mask:
+          dtype: int32
+          shape: [1, -1, -1]
+          optional: false
+          description: SAM3 label map [1, H, W]; pixel value = object ID, 0 = background.
+        object_ids:
+          dtype: int64
+          shape: [1, -1]
+          optional: true
+          description: Active object IDs [1, N] for deterministic ordering. If absent, IDs are derived from unique non-zero mask values.
+        frame_id:
+          dtype: int64
+          shape: [1]
+          optional: true
+          description: Frame / measurement index to render as text overlay.
+      output_specs:
+        rgb_with_overlay:
+          dtype: float32
+          shape: [1, -1, -1, 3]
+          optional: false
+          description: RGB frame with pointer overlays [1, H, W, 3] in [0, 1].
+      doc_summary: Draw downward triangle pointers for all tracked objects.
+    - class_name: cuvis_ai.node.channel_mixer.ConcreteChannelMixer
+      category: model
+      tags: [dim_reduction, hyperspectral, learnable, preprocessing, torch]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\r\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\r\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\r\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\r\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\r\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\r\n</svg>\r\n"
+      input_specs:
+        data:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Input hyperspectral cube [B, H, W, C_in] in BHWC format.
+      output_specs:
+        rgb:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Selected-band RGB-like image [B, H, W, C_out].
+        selection_weights:
+          dtype: float32
+          shape: [-1, -1]
+          optional: false
+          description: Current selection weights [C_out, C_in].
+      doc_summary: Concrete/Gumbel-Softmax channel mixer for hyperspectral cubes.
+    - class_name: cuvis_ai.node.channel_mixer.LearnableChannelMixer
+      category: model
+      tags: [dim_reduction, hyperspectral, learnable, preprocessing, torch]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\r\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\r\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\r\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\r\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\r\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\r\n</svg>\r\n"
+      input_specs:
+        data:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Input hyperspectral cube (BHWC format)
+      output_specs:
+        rgb:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Reduced channel output (e.g., RGB-like) [B, H, W, output_channels]
+        weights:
+          dtype: float32
+          shape: [-1, -1]
+          optional: true
+          description: Last-layer mixing weights [output_channels, hidden_dim]
+      doc_summary: Learnable channel mixer for hyperspectral data reduction (DRCNN-style).
+    - class_name: cuvis_ai.node.colormap.ScalarHSVColormapNode
+      category: visualizer
+      tags: [rgb]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <rect x=\"8\" y=\"10\" width=\"48\" height=\"44\" rx=\"2\"/>\r\n  <path d=\"M14 44l10-12 8 6 12-16\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"24\" cy=\"32\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"32\" cy=\"38\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"44\" cy=\"22\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n</svg>\r\n"
+      input_specs:
+        data:
+          dtype: float32
+          shape: [-1, -1, -1, 1]
+          optional: false
+          description: Scalar image [B, H, W, 1].
+      output_specs:
+        rgb_image:
+          dtype: float32
+          shape: [-1, -1, -1, 3]
+          optional: false
+          description: HSV color-mapped RGB image [B, H, W, 3] in [0, 1].
+      doc_summary: Map a scalar BHWC image to RGB using an HSV colormap.
+    - class_name: cuvis_ai.node.channel_selector.CIETristimulusRGBSelector
+      category: transform
+      tags: [dim_reduction, hyperspectral, numpy, preprocessing]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        cube:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Hyperspectral cube [B, H, W, C]
+        wavelengths:
+          dtype: int32
+          shape: [-1]
+          optional: false
+          description: Wavelength array [C] in nanometers
+      output_specs:
+        rgb_image:
+          dtype: float32
+          shape: [-1, -1, -1, 3]
+          optional: false
+          description: Composed RGB image [B, H, W, 3] in 0-1 range
+        band_info:
+          dtype: ''
+          shape: []
+          optional: false
+          description: Selected band metadata
+      doc_summary: CIE 1931 tristimulus-based RGB rendering.
+    - class_name: cuvis_ai.node.channel_selector.CIRSelector
+      category: transform
+      tags: [dim_reduction, hyperspectral, numpy, preprocessing]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        cube:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Hyperspectral cube [B, H, W, C]
+        wavelengths:
+          dtype: int32
+          shape: [-1]
+          optional: false
+          description: Wavelength array [C] in nanometers
+      output_specs:
+        rgb_image:
+          dtype: float32
+          shape: [-1, -1, -1, 3]
+          optional: false
+          description: Composed RGB image [B, H, W, 3] in 0-1 range
+        band_info:
+          dtype: ''
+          shape: []
+          optional: false
+          description: Selected band metadata
+      doc_summary: Color Infrared (CIR) false color composition.
+    - class_name: cuvis_ai.node.channel_selector.CameraEmulationFalseRGBSelector
+      category: transform
+      tags: [dim_reduction, hyperspectral, numpy, preprocessing]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        cube:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Hyperspectral cube [B, H, W, C]
+        wavelengths:
+          dtype: int32
+          shape: [-1]
+          optional: false
+          description: Wavelength array [C] in nanometers
+      output_specs:
+        rgb_image:
+          dtype: float32
+          shape: [-1, -1, -1, 3]
+          optional: false
+          description: Composed RGB image [B, H, W, 3] in 0-1 range
+        band_info:
+          dtype: ''
+          shape: []
+          optional: false
+          description: Selected band metadata
+      doc_summary: Camera-emulation false RGB using smooth Gaussian sensitivity curves.
+    - class_name: cuvis_ai.node.channel_selector.ChannelSelectorBase
+      category: transform
+      tags: [dim_reduction, hyperspectral, numpy, preprocessing]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        cube:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Hyperspectral cube [B, H, W, C]
+        wavelengths:
+          dtype: int32
+          shape: [-1]
+          optional: false
+          description: Wavelength array [C] in nanometers
+      output_specs:
+        rgb_image:
+          dtype: float32
+          shape: [-1, -1, -1, 3]
+          optional: false
+          description: Composed RGB image [B, H, W, 3] in 0-1 range
+        band_info:
+          dtype: ''
+          shape: []
+          optional: false
+          description: Selected band metadata
+      doc_summary: Base class for hyperspectral band selection strategies.
+    - class_name: cuvis_ai.node.channel_selector.FastRGBSelector
+      category: transform
+      tags: [dim_reduction, hyperspectral, numpy, preprocessing]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        cube:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Hyperspectral cube [B, H, W, C]
+        wavelengths:
+          dtype: int32
+          shape: [-1]
+          optional: false
+          description: Wavelength array [C] in nanometers
+      output_specs:
+        rgb_image:
+          dtype: float32
+          shape: [-1, -1, -1, 3]
+          optional: false
+          description: Composed RGB image [B, H, W, 3] in 0-1 range
+        band_info:
+          dtype: ''
+          shape: []
+          optional: false
+          description: Selected band metadata
+      doc_summary: cuvis-next parity FastRGB renderer.
+    - class_name: cuvis_ai.node.channel_selector.FixedWavelengthSelector
+      category: transform
+      tags: [dim_reduction, hyperspectral, numpy, preprocessing]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        cube:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Hyperspectral cube [B, H, W, C]
+        wavelengths:
+          dtype: int32
+          shape: [-1]
+          optional: false
+          description: Wavelength array [C] in nanometers
+      output_specs:
+        rgb_image:
+          dtype: float32
+          shape: [-1, -1, -1, 3]
+          optional: false
+          description: Composed RGB image [B, H, W, 3] in 0-1 range
+        band_info:
+          dtype: ''
+          shape: []
+          optional: false
+          description: Selected band metadata
+      doc_summary: Fixed wavelength band selection (e.g., 650, 550, 450 nm).
+    - class_name: cuvis_ai.node.channel_selector.HighContrastSelector
+      category: transform
+      tags: [dim_reduction, hyperspectral, numpy, preprocessing]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        cube:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Hyperspectral cube [B, H, W, C]
+        wavelengths:
+          dtype: int32
+          shape: [-1]
+          optional: false
+          description: Wavelength array [C] in nanometers
+      output_specs:
+        rgb_image:
+          dtype: float32
+          shape: [-1, -1, -1, 3]
+          optional: false
+          description: Composed RGB image [B, H, W, 3] in 0-1 range
+        band_info:
+          dtype: ''
+          shape: []
+          optional: false
+          description: Selected band metadata
+      doc_summary: Data-driven band selection using spatial variance + Laplacian energy.
+    - class_name: cuvis_ai.node.channel_selector.NDVISelector
+      category: transform
+      tags: [dim_reduction, hyperspectral, numpy, preprocessing]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        cube:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Hyperspectral cube [B, H, W, C]
+        wavelengths:
+          dtype: int32
+          shape: [-1]
+          optional: false
+          description: Wavelength array [C] in nanometers
+      output_specs:
+        rgb_image:
+          dtype: float32
+          shape: [-1, -1, -1, 3]
+          optional: false
+          description: Composed RGB image [B, H, W, 3] in 0-1 range
+        band_info:
+          dtype: ''
+          shape: []
+          optional: false
+          description: Selected band metadata
+        index_image:
+          dtype: float32
+          shape: [-1, -1, -1, 1]
+          optional: false
+          description: Raw normalized-difference index image [B, H, W, 1]
+      doc_summary: Normalized Difference Vegetation Index renderer.
+    - class_name: cuvis_ai.node.channel_selector.RangeAverageFalseRGBSelector
+      category: transform
+      tags: [dim_reduction, hyperspectral, numpy, preprocessing]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        cube:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Hyperspectral cube [B, H, W, C]
+        wavelengths:
+          dtype: int32
+          shape: [-1]
+          optional: false
+          description: Wavelength array [C] in nanometers
+      output_specs:
+        rgb_image:
+          dtype: float32
+          shape: [-1, -1, -1, 3]
+          optional: false
+          description: Composed RGB image [B, H, W, 3] in 0-1 range
+        band_info:
+          dtype: ''
+          shape: []
+          optional: false
+          description: Selected band metadata
+      doc_summary: Range-based false RGB selection by averaging bands per channel.
+    - class_name: cuvis_ai.node.channel_selector.SoftChannelSelector
+      category: model
+      tags: [dim_reduction, hyperspectral, learnable, preprocessing, torch]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\r\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\r\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\r\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\r\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\r\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\r\n</svg>\r\n"
+      input_specs:
+        data:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Input hyperspectral cube (BHWC format)
+      output_specs:
+        selected:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Channel-weighted output (same shape as input)
+        weights:
+          dtype: float32
+          shape: [-1]
+          optional: false
+          description: Current channel selection weights
+      doc_summary: Soft channel selector with temperature-based Gumbel-Softmax selection.
+    - class_name: cuvis_ai.node.channel_selector.SupervisedCIRSelector
+      category: model
+      tags: [dim_reduction, hyperspectral, learnable, preprocessing, torch]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\r\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\r\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\r\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\r\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\r\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\r\n</svg>\r\n"
+      input_specs:
+        cube:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Hyperspectral cube [B, H, W, C]
+        wavelengths:
+          dtype: int32
+          shape: [-1]
+          optional: false
+          description: Wavelength array [C] in nanometers
+        mask:
+          dtype: bool
+          shape: [-1, -1, -1, 1]
+          optional: true
+          description: Binary mask [B, H, W, 1] with 1=positive, 0=negative
+      output_specs:
+        rgb_image:
+          dtype: float32
+          shape: [-1, -1, -1, 3]
+          optional: false
+          description: Composed RGB image [B, H, W, 3] in 0-1 range
+        band_info:
+          dtype: ''
+          shape: []
+          optional: false
+          description: Selected band metadata
+      doc_summary: Supervised CIR/NIR band selection with window constraints.
+    - class_name: cuvis_ai.node.channel_selector.SupervisedFullSpectrumSelector
+      category: model
+      tags: [dim_reduction, hyperspectral, learnable, preprocessing, torch]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\r\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\r\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\r\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\r\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\r\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\r\n</svg>\r\n"
+      input_specs:
+        cube:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Hyperspectral cube [B, H, W, C]
+        wavelengths:
+          dtype: int32
+          shape: [-1]
+          optional: false
+          description: Wavelength array [C] in nanometers
+        mask:
+          dtype: bool
+          shape: [-1, -1, -1, 1]
+          optional: true
+          description: Binary mask [B, H, W, 1] with 1=positive, 0=negative
+      output_specs:
+        rgb_image:
+          dtype: float32
+          shape: [-1, -1, -1, 3]
+          optional: false
+          description: Composed RGB image [B, H, W, 3] in 0-1 range
+        band_info:
+          dtype: ''
+          shape: []
+          optional: false
+          description: Selected band metadata
+      doc_summary: Supervised selection without window constraints.
+    - class_name: cuvis_ai.node.channel_selector.SupervisedSelectorBase
+      category: model
+      tags: [dim_reduction, hyperspectral, learnable, preprocessing, torch]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\r\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\r\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\r\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\r\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\r\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\r\n</svg>\r\n"
+      input_specs:
+        cube:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Hyperspectral cube [B, H, W, C]
+        wavelengths:
+          dtype: int32
+          shape: [-1]
+          optional: false
+          description: Wavelength array [C] in nanometers
+        mask:
+          dtype: bool
+          shape: [-1, -1, -1, 1]
+          optional: true
+          description: Binary mask [B, H, W, 1] with 1=positive, 0=negative
+      output_specs:
+        rgb_image:
+          dtype: float32
+          shape: [-1, -1, -1, 3]
+          optional: false
+          description: Composed RGB image [B, H, W, 3] in 0-1 range
+        band_info:
+          dtype: ''
+          shape: []
+          optional: false
+          description: Selected band metadata
+      doc_summary: Base class for supervised band selection strategies.
+    - class_name: cuvis_ai.node.channel_selector.SupervisedWindowedSelector
+      category: model
+      tags: [dim_reduction, hyperspectral, learnable, preprocessing, torch]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\r\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\r\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\r\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\r\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\r\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\r\n</svg>\r\n"
+      input_specs:
+        cube:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Hyperspectral cube [B, H, W, C]
+        wavelengths:
+          dtype: int32
+          shape: [-1]
+          optional: false
+          description: Wavelength array [C] in nanometers
+        mask:
+          dtype: bool
+          shape: [-1, -1, -1, 1]
+          optional: true
+          description: Binary mask [B, H, W, 1] with 1=positive, 0=negative
+      output_specs:
+        rgb_image:
+          dtype: float32
+          shape: [-1, -1, -1, 3]
+          optional: false
+          description: Composed RGB image [B, H, W, 3] in 0-1 range
+        band_info:
+          dtype: ''
+          shape: []
+          optional: false
+          description: Selected band metadata
+      doc_summary: Supervised band selection constrained to visible RGB windows.
+    - class_name: cuvis_ai.node.channel_selector.TopKIndices
+      category: transform
+      tags: [dim_reduction, hyperspectral, numpy, preprocessing]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        weights:
+          dtype: float32
+          shape: [-1]
+          optional: false
+          description: Channel selection weights
+      output_specs:
+        indices:
+          dtype: int64
+          shape: [-1]
+          optional: false
+          description: Top-k channel indices
+      doc_summary: Utility node that surfaces the top-k channel indices from selector weights.
+    - class_name: cuvis_ai.node.compositing.InsetComposer
+      category: transform
+      tags: [image, numpy, preprocessing]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        base:
+          dtype: float32
+          shape: [-1, -1, -1, 3]
+          optional: false
+          description: Base RGB frames [B, H, W, 3] in [0, 1].
+        inset:
+          dtype: float32
+          shape: [-1, -1, -1, 3]
+          optional: false
+          description: Inset RGB frames [B, h, w, 3] in [0, 1] at final size.
+        valid:
+          dtype: int32
+          shape: [-1]
+          optional: true
+          description: Per-frame validity [B]; 0 leaves the base untouched.
+      output_specs:
+        composite:
+          dtype: float32
+          shape: [-1, -1, -1, 3]
+          optional: false
+          description: Base frames with inset pasted in [B, H, W, 3] in [0, 1].
+      doc_summary: Paste a fixed-size inset frame into a corner of a larger base frame.
+    - class_name: cuvis_ai.node.compositing.ROIZoomNode
+      category: transform
+      tags: [image, numpy, preprocessing]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        source:
+          dtype: float32
+          shape: [-1, -1, -1, 3]
+          optional: false
+          description: Source RGB frames [B, H, W, 3] in [0, 1].
+        bbox:
+          dtype: float32
+          shape: [-1, 4]
+          optional: false
+          description: Per-frame bbox [B, 4] in xyxy pixel coordinates.
+        valid:
+          dtype: int32
+          shape: [-1]
+          optional: true
+          description: Per-frame validity [B]; 0 yields a blank zoom frame.
+      output_specs:
+        zoom:
+          dtype: float32
+          shape: [-1, -1, -1, 3]
+          optional: false
+          description: Zoomed RGB frames [B, zoom_height, zoom_width, 3] in [0, 1].
+      doc_summary: Crop a region defined by a bbox and resize it to a fixed output frame.
+    - class_name: cuvis_ai.node.conversion.DecisionToMask
+      category: transform
+      tags: [mask, postprocessing, torch]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        decisions:
+          dtype: bool
+          shape: [-1, -1, -1, 1]
+          optional: false
+          description: Binary decisions [B, H, W, 1]
+        identity_mask:
+          dtype: int32
+          shape: [-1, -1, -1]
+          optional: false
+          description: Identity labels [B, H, W], 1-based IDs
+      output_specs:
+        mask:
+          dtype: int32
+          shape: [-1, -1, -1]
+          optional: false
+          description: Final mask [B, H, W], 0=background, 1..N=identity
+      doc_summary: Combine binary decisions and identity labels into a single int32 mask.
+    - class_name: cuvis_ai.node.conversion.ScoreToLogit
+      category: transform
+      tags: [mask, postprocessing, torch]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        scores:
+          dtype: float32
+          shape: [-1, -1, -1, 1]
+          optional: false
+          description: RX anomaly scores (Mahalanobis distances)
+      output_specs:
+        logits:
+          dtype: float32
+          shape: [-1, -1, -1, 1]
+          optional: false
+          description: Anomaly logits for BCEWithLogitsLoss
+      doc_summary: Trainable head that converts RX scores to anomaly logits.
+    - class_name: cuvis_ai.node.data.CU3SDataNode
+      category: source
+      tags: [hyperspectral, metadata]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#E8A33D\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <ellipse cx=\"22\" cy=\"18\" rx=\"12\" ry=\"4\"/>\r\n  <path d=\"M10 18v26c0 2.2 5.4 4 12 4s12-1.8 12-4V18\"/>\r\n  <path d=\"M10 28c0 2.2 5.4 4 12 4s12-1.8 12-4\"/>\r\n  <path d=\"M10 38c0 2.2 5.4 4 12 4s12-1.8 12-4\"/>\r\n  <path d=\"M40 32h14\"/>\r\n  <path d=\"M48 26l6 6-6 6\"/>\r\n</svg>\r\n"
+      input_specs:
+        cube:
+          dtype: ''
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Input hyperspectral cube [B, H, W, C]
+        mask:
+          dtype: int32
+          shape: [-1, -1, -1]
+          optional: true
+          description: Segmentation mask [B, H, W]
+        wavelengths:
+          dtype: int32
+          shape: [-1, -1]
+          optional: false
+          description: Wavelengths for each channel [B, C]
+        mesu_index:
+          dtype: int64
+          shape: [-1]
+          optional: true
+          description: Measurement/frame index per batch element [B]
+      output_specs:
+        cube:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Hyperspectral cube [B, H, W, C] as float32
+        mask:
+          dtype: int32
+          shape: [-1, -1, -1]
+          optional: true
+          description: Segmentation mask passthrough [B, H, W]
+        wavelengths:
+          dtype: int32
+          shape: [-1]
+          optional: true
+          description: Wavelengths [C] in nm
+        mesu_index:
+          dtype: int64
+          shape: [-1]
+          optional: true
+          description: Measurement/frame index per batch element [B]
+      doc_summary: General-purpose data node for CU3S hyperspectral sequences.
+    - class_name: cuvis_ai.node.data.LentilsAnomalyDataNode
+      category: source
+      tags: [hyperspectral, metadata]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#E8A33D\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <ellipse cx=\"22\" cy=\"18\" rx=\"12\" ry=\"4\"/>\r\n  <path d=\"M10 18v26c0 2.2 5.4 4 12 4s12-1.8 12-4V18\"/>\r\n  <path d=\"M10 28c0 2.2 5.4 4 12 4s12-1.8 12-4\"/>\r\n  <path d=\"M10 38c0 2.2 5.4 4 12 4s12-1.8 12-4\"/>\r\n  <path d=\"M40 32h14\"/>\r\n  <path d=\"M48 26l6 6-6 6\"/>\r\n</svg>\r\n"
+      input_specs:
+        cube:
+          dtype: ''
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Input hyperspectral cube [B, H, W, C]
+        mask:
+          dtype: int32
+          shape: [-1, -1, -1]
+          optional: true
+          description: Multi-class segmentation mask [B, H, W]
+        wavelengths:
+          dtype: int32
+          shape: [-1, -1]
+          optional: false
+          description: Wavelengths for each channel [B, C]
+        mesu_index:
+          dtype: int64
+          shape: [-1]
+          optional: true
+          description: Measurement/frame index per batch element [B]
+      output_specs:
+        cube:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Hyperspectral cube [B, H, W, C] as float32
+        mask:
+          dtype: bool
+          shape: [-1, -1, -1, 1]
+          optional: true
+          description: Binary anomaly mask (0=normal, 1=anomaly) [B, H, W, 1]
+        wavelengths:
+          dtype: int32
+          shape: [-1]
+          optional: true
+          description: Wavelengths [C] in nm
+        mesu_index:
+          dtype: int64
+          shape: [-1]
+          optional: true
+          description: Measurement/frame index per batch element [B]
+      doc_summary: Lentils-specific CU3S data node with binary anomaly label mapping.
+    - class_name: cuvis_ai.node.dimensionality_reduction.PCA
+      category: transform
+      tags: [dim_reduction, hyperspectral, preprocessing, torch]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        data:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Input hyperspectral cube (BHWC format)
+      output_specs:
+        projected:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: PCA-projected data with reduced dimensions
+        explained_variance_ratio:
+          dtype: float32
+          shape: [-1]
+          optional: true
+          description: Proportion of variance explained by each component
+        components:
+          dtype: float32
+          shape: [-1, -1]
+          optional: true
+          description: Principal components matrix
+      doc_summary: Project each frame independently onto its principal components.
+    - class_name: cuvis_ai.node.dimensionality_reduction.TrainablePCA
+      category: model
+      tags: [dim_reduction, hyperspectral, learnable, preprocessing, stateful, torch]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\r\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\r\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\r\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\r\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\r\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\r\n</svg>\r\n"
+      input_specs:
+        data:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Input hyperspectral cube (BHWC format)
+      output_specs:
+        projected:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: PCA-projected data with reduced dimensions
+        explained_variance_ratio:
+          dtype: float32
+          shape: [-1]
+          optional: true
+          description: Proportion of variance explained by each component
+        components:
+          dtype: float32
+          shape: [-1, -1]
+          optional: true
+          description: Principal components matrix
+      doc_summary: Trainable PCA node with orthogonality regularization.
+    - class_name: cuvis_ai.node.json_file.DetectionJsonReader
+      category: source
+      tags: [bbox, detection, metadata]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#E8A33D\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <ellipse cx=\"22\" cy=\"18\" rx=\"12\" ry=\"4\"/>\r\n  <path d=\"M10 18v26c0 2.2 5.4 4 12 4s12-1.8 12-4V18\"/>\r\n  <path d=\"M10 28c0 2.2 5.4 4 12 4s12-1.8 12-4\"/>\r\n  <path d=\"M10 38c0 2.2 5.4 4 12 4s12-1.8 12-4\"/>\r\n  <path d=\"M40 32h14\"/>\r\n  <path d=\"M48 26l6 6-6 6\"/>\r\n</svg>\r\n"
+      output_specs:
+        frame_id:
+          dtype: int64
+          shape: [1]
+          optional: false
+          description: Frame index.
+        bboxes:
+          dtype: float32
+          shape: [1, -1, 4]
+          optional: false
+          description: Boxes [1,N,4] xyxy
+        category_ids:
+          dtype: int64
+          shape: [1, -1]
+          optional: false
+          description: Category IDs [1,N]
+        confidences:
+          dtype: float32
+          shape: [1, -1]
+          optional: false
+          description: Scores [1,N]
+        orig_hw:
+          dtype: int64
+          shape: [1, 2]
+          optional: false
+          description: Original [H,W]
+      doc_summary: Read COCO detection JSON and emit tensors per frame.
+    - class_name: cuvis_ai.node.json_file.TrackingResultsReader
+      category: source
+      tags: [bbox, metadata, tracking]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#E8A33D\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <ellipse cx=\"22\" cy=\"18\" rx=\"12\" ry=\"4\"/>\r\n  <path d=\"M10 18v26c0 2.2 5.4 4 12 4s12-1.8 12-4V18\"/>\r\n  <path d=\"M10 28c0 2.2 5.4 4 12 4s12-1.8 12-4\"/>\r\n  <path d=\"M10 38c0 2.2 5.4 4 12 4s12-1.8 12-4\"/>\r\n  <path d=\"M40 32h14\"/>\r\n  <path d=\"M48 26l6 6-6 6\"/>\r\n</svg>\r\n"
+      input_specs:
+        frame_id:
+          dtype: int64
+          shape: [1]
+          optional: true
+          description: Frame index to look up. When connected, disables cursor and emits detections for this specific frame.
+      output_specs:
+        frame_id:
+          dtype: int64
+          shape: [1]
+          optional: false
+          description: Frame index.
+        orig_hw:
+          dtype: int64
+          shape: [1, 2]
+          optional: false
+          description: Frame [H, W].
+        bboxes:
+          dtype: float32
+          shape: [1, -1, 4]
+          optional: true
+          description: Boxes [1,N,4] xyxy. Present in bbox-tracking format.
+        category_ids:
+          dtype: int64
+          shape: [1, -1]
+          optional: true
+          description: Category IDs [1,N]. Present in bbox-tracking format.
+        confidences:
+          dtype: float32
+          shape: [1, -1]
+          optional: true
+          description: Scores [1,N]. Present in bbox-tracking format.
+        track_ids:
+          dtype: int64
+          shape: [1, -1]
+          optional: true
+          description: Track IDs [1,N]. Present in bbox-tracking format.
+        mask:
+          dtype: int32
+          shape: [1, -1, -1]
+          optional: true
+          description: Label map [1,H,W]; pixel = object ID. Present in mask formats.
+        object_ids:
+          dtype: int64
+          shape: [1, -1]
+          optional: true
+          description: Active object IDs [1,N]. Present in mask formats.
+      doc_summary: Read tracking results JSON (bbox or mask format) and emit per-frame tensors.
+    - class_name: cuvis_ai.node.json_file.CocoTrackBBoxWriter
+      category: sink
+      tags: [bbox, metadata, tracking]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#E8A33D\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M6 32h12\"/>\r\n  <path d=\"M12 26l6 6-6 6\"/>\r\n  <rect x=\"22\" y=\"12\" width=\"36\" height=\"40\" rx=\"3\"/>\r\n  <path d=\"M28 12v18h24V12\"/>\r\n  <rect x=\"32\" y=\"36\" width=\"16\" height=\"14\"/>\r\n  <path d=\"M44 16v10\"/>\r\n</svg>\r\n"
+      input_specs:
+        frame_id:
+          dtype: int64
+          shape: [1]
+          optional: false
+          description: Frame identifier [1].
+        bboxes:
+          dtype: float32
+          shape: [1, -1, 4]
+          optional: false
+          description: Boxes [1,N,4] xyxy.
+        category_ids:
+          dtype: int64
+          shape: [1, -1]
+          optional: false
+          description: Class IDs [1,N].
+        confidences:
+          dtype: float32
+          shape: [1, -1]
+          optional: false
+          description: Scores [1,N].
+        track_ids:
+          dtype: int64
+          shape: [1, -1]
+          optional: false
+          description: Track IDs [1,N].
+        orig_hw:
+          dtype: int64
+          shape: [1, 2]
+          optional: false
+          description: '[H,W] for metadata.'
+      doc_summary: Write tracked bbox outputs into COCO tracking JSON.
+    - class_name: cuvis_ai.node.json_file.DetectionCocoJsonNode
+      category: sink
+      tags: [bbox, detection, metadata]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#E8A33D\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M6 32h12\"/>\r\n  <path d=\"M12 26l6 6-6 6\"/>\r\n  <rect x=\"22\" y=\"12\" width=\"36\" height=\"40\" rx=\"3\"/>\r\n  <path d=\"M28 12v18h24V12\"/>\r\n  <rect x=\"32\" y=\"36\" width=\"16\" height=\"14\"/>\r\n  <path d=\"M44 16v10\"/>\r\n</svg>\r\n"
+      input_specs:
+        frame_id:
+          dtype: int64
+          shape: [1]
+          optional: false
+          description: Frame identifier tensor [1]. Required.
+        bboxes:
+          dtype: float32
+          shape: [1, -1, 4]
+          optional: false
+          description: Boxes [1, N, 4] xyxy in original image coordinates.
+        category_ids:
+          dtype: int64
+          shape: [1, -1]
+          optional: false
+          description: COCO class IDs [1, N].
+        confidences:
+          dtype: float32
+          shape: [1, -1]
+          optional: false
+          description: Detection scores [1, N].
+        orig_hw:
+          dtype: int64
+          shape: [1, 2]
+          optional: false
+          description: Frame [H, W] for image metadata.
+      doc_summary: Write frame-wise detections into COCO detection JSON.
+    - class_name: cuvis_ai.node.json_file.CocoTrackMaskWriter
+      category: sink
+      tags: [mask, metadata, tracking]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#E8A33D\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M6 32h12\"/>\r\n  <path d=\"M12 26l6 6-6 6\"/>\r\n  <rect x=\"22\" y=\"12\" width=\"36\" height=\"40\" rx=\"3\"/>\r\n  <path d=\"M28 12v18h24V12\"/>\r\n  <rect x=\"32\" y=\"36\" width=\"16\" height=\"14\"/>\r\n  <path d=\"M44 16v10\"/>\r\n</svg>\r\n"
+      input_specs:
+        frame_id:
+          dtype: int64
+          shape: [1]
+          optional: false
+          description: Frame identifier tensor [1]. Required.
+        mask:
+          dtype: int32
+          shape: [1, -1, -1]
+          optional: false
+          description: Label map [1, H, W], pixel value = object ID, 0 = background.
+        object_ids:
+          dtype: int64
+          shape: [1, -1]
+          optional: false
+          description: Object IDs [1, N], index-aligned to score tensors.
+        detection_scores:
+          dtype: float32
+          shape: [1, -1]
+          optional: false
+          description: Detection scores [1, N], index-aligned to object_ids.
+        category_ids:
+          dtype: int64
+          shape: [1, -1]
+          optional: true
+          description: Optional category IDs [1, N], index-aligned to object_ids.
+        category_semantics:
+          dtype: uint8
+          shape: [-1]
+          optional: true
+          description: Optional UTF-8 JSON bytes mapping category IDs to category names.
+      doc_summary: Write mask tracking outputs into video_coco JSON.
+    - class_name: cuvis_ai.node.labels.BinaryAnomalyLabelMapper
+      category: transform
+      tags: [anomaly, mask, numpy, postprocessing]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        cube:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Features/scores to pass through [B, H, W, C]
+        mask:
+          dtype: int32
+          shape: [-1, -1, -1, 1]
+          optional: false
+          description: Multi-class segmentation masks [B, H, W, 1]
+      output_specs:
+        cube:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Pass-through features/scores [B, H, W, C]
+        mask:
+          dtype: bool
+          shape: [-1, -1, -1, 1]
+          optional: false
+          description: Binary anomaly labels (0=normal, 1=anomaly) [B, H, W, 1]
+      doc_summary: Convert multi-class segmentation masks to binary anomaly targets.
+    - class_name: cuvis_ai.node.losses.AnomalyBCEWithLogits
+      category: loss
+      tags: [anomaly, differentiable, torch, training]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M10 14v40h44\"/>\r\n  <path d=\"M14 18c8 0 12 8 18 18s12 14 22 14\"/>\r\n  <path d=\"M48 44l6 6-6 6\" transform=\"translate(0 -6)\"/>\r\n</svg>\r\n"
+      input_specs:
+        predictions:
+          dtype: float32
+          shape: [-1, -1, -1, 1]
+          optional: false
+          description: Predicted anomaly scores (logits) [B, H, W, 1]
+        targets:
+          dtype: bool
+          shape: [-1, -1, -1, 1]
+          optional: false
+          description: Ground truth binary masks [B, H, W, 1]
+      output_specs:
+        loss:
+          dtype: float32
+          shape: []
+          optional: false
+          description: Scalar BCE loss value
+      doc_summary: Binary cross-entropy loss for anomaly detection with logits.
+    - class_name: cuvis_ai.node.losses.DeepSVDDSoftBoundaryLoss
+      category: loss
+      tags: [anomaly, differentiable, torch, training]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M10 14v40h44\"/>\r\n  <path d=\"M14 18c8 0 12 8 18 18s12 14 22 14\"/>\r\n  <path d=\"M48 44l6 6-6 6\" transform=\"translate(0 -6)\"/>\r\n</svg>\r\n"
+      input_specs:
+        embeddings:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Deep SVDD embeddings [B, H, W, D]
+        center:
+          dtype: float32
+          shape: [-1]
+          optional: false
+          description: Deep SVDD center vector
+      output_specs:
+        loss:
+          dtype: float32
+          shape: []
+          optional: false
+          description: Deep SVDD soft-boundary loss
+      doc_summary: Soft-boundary Deep SVDD objective operating on BHWD embeddings.
+    - class_name: cuvis_ai.node.losses.DistinctnessLoss
+      category: loss
+      tags: [differentiable, torch, training]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M10 14v40h44\"/>\r\n  <path d=\"M14 18c8 0 12 8 18 18s12 14 22 14\"/>\r\n  <path d=\"M48 44l6 6-6 6\" transform=\"translate(0 -6)\"/>\r\n</svg>\r\n"
+      input_specs:
+        selection_weights:
+          dtype: float32
+          shape: [-1, -1]
+          optional: false
+          description: Selector weight matrix [output_channels, input_channels] from a band/channel selector node.
+      output_specs:
+        loss:
+          dtype: float32
+          shape: []
+          optional: false
+          description: Scalar distinctness (repulsion) loss
+      doc_summary: Repulsion loss encouraging different selectors to choose different bands.
+    - class_name: cuvis_ai.node.losses.ForegroundContrastLoss
+      category: loss
+      tags: [differentiable, torch, training]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M10 14v40h44\"/>\r\n  <path d=\"M14 18c8 0 12 8 18 18s12 14 22 14\"/>\r\n  <path d=\"M48 44l6 6-6 6\" transform=\"translate(0 -6)\"/>\r\n</svg>\r\n"
+      input_specs:
+        rgb:
+          dtype: float32
+          shape: [-1, -1, -1, 3]
+          optional: false
+          description: RGB output from channel mixer [B, H, W, 3]
+        mask:
+          dtype: int32
+          shape: [-1, -1, -1]
+          optional: false
+          description: Segmentation mask [B, H, W] where >0 is foreground
+      output_specs:
+        loss:
+          dtype: float32
+          shape: []
+          optional: false
+          description: Scalar foreground contrast loss
+      doc_summary: Maximize visual separation between foreground and background mean colors.
+    - class_name: cuvis_ai.node.losses.IoULoss
+      category: loss
+      tags: [differentiable, segmentation, torch, training]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M10 14v40h44\"/>\r\n  <path d=\"M14 18c8 0 12 8 18 18s12 14 22 14\"/>\r\n  <path d=\"M48 44l6 6-6 6\" transform=\"translate(0 -6)\"/>\r\n</svg>\r\n"
+      input_specs:
+        predictions:
+          dtype: float32
+          shape: [-1, -1, -1, 1]
+          optional: false
+          description: Predicted anomaly scores [B, H, W, 1] (continuous values)
+        targets:
+          dtype: bool
+          shape: [-1, -1, -1, 1]
+          optional: false
+          description: Ground truth binary masks [B, H, W, 1]
+      output_specs:
+        loss:
+          dtype: float32
+          shape: []
+          optional: false
+          description: Scalar IoU loss value
+      doc_summary: Differentiable IoU (Intersection over Union) loss.
+    - class_name: cuvis_ai.node.losses.LossNode
+      category: loss
+      tags: [differentiable, torch, training]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M10 14v40h44\"/>\r\n  <path d=\"M14 18c8 0 12 8 18 18s12 14 22 14\"/>\r\n  <path d=\"M48 44l6 6-6 6\" transform=\"translate(0 -6)\"/>\r\n</svg>\r\n"
+      doc_summary: Base class for loss nodes that restricts execution to training stages.
+    - class_name: cuvis_ai.node.losses.MSEReconstructionLoss
+      category: loss
+      tags: [differentiable, reconstruction, torch, training]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M10 14v40h44\"/>\r\n  <path d=\"M14 18c8 0 12 8 18 18s12 14 22 14\"/>\r\n  <path d=\"M48 44l6 6-6 6\" transform=\"translate(0 -6)\"/>\r\n</svg>\r\n"
+      input_specs:
+        reconstruction:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Reconstructed data
+        target:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Target data for reconstruction
+      output_specs:
+        loss:
+          dtype: float32
+          shape: []
+          optional: false
+          description: Scalar MSE loss value
+      doc_summary: Mean squared error reconstruction loss.
+    - class_name: cuvis_ai.node.losses.OrthogonalityLoss
+      category: regularizer
+      tags: [differentiable, torch, training]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M50 14C40 14 14 26 14 50h12c0-12 12-22 24-24z\"/>\r\n  <path d=\"M14 50l36-36\"/>\r\n  <path d=\"M22 38h12\"/>\r\n  <path d=\"M28 30h12\"/>\r\n  <path d=\"M34 22h12\"/>\r\n</svg>\r\n"
+      input_specs:
+        components:
+          dtype: float32
+          shape: [-1, -1]
+          optional: false
+          description: PCA components matrix [n_components, n_features]
+      output_specs:
+        loss:
+          dtype: float32
+          shape: []
+          optional: false
+          description: Weighted orthogonality loss
+      doc_summary: Orthogonality regularization loss for TrainablePCA.
+    - class_name: cuvis_ai.node.losses.SelectorDiversityRegularizer
+      category: regularizer
+      tags: [differentiable, torch, training]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M50 14C40 14 14 26 14 50h12c0-12 12-22 24-24z\"/>\r\n  <path d=\"M14 50l36-36\"/>\r\n  <path d=\"M22 38h12\"/>\r\n  <path d=\"M28 30h12\"/>\r\n  <path d=\"M34 22h12\"/>\r\n</svg>\r\n"
+      input_specs:
+        weights:
+          dtype: float32
+          shape: [-1]
+          optional: false
+          description: Channel selection weights from selector node
+      output_specs:
+        loss:
+          dtype: float32
+          shape: []
+          optional: false
+          description: Weighted diversity loss
+      doc_summary: Diversity regularization for SoftChannelSelector.
+    - class_name: cuvis_ai.node.losses.SelectorEntropyRegularizer
+      category: regularizer
+      tags: [differentiable, torch, training]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M50 14C40 14 14 26 14 50h12c0-12 12-22 24-24z\"/>\r\n  <path d=\"M14 50l36-36\"/>\r\n  <path d=\"M22 38h12\"/>\r\n  <path d=\"M28 30h12\"/>\r\n  <path d=\"M34 22h12\"/>\r\n</svg>\r\n"
+      input_specs:
+        weights:
+          dtype: float32
+          shape: [-1]
+          optional: false
+          description: Channel selection weights from selector node
+      output_specs:
+        loss:
+          dtype: float32
+          shape: []
+          optional: false
+          description: Entropy regularization loss
+      doc_summary: Entropy regularization for SoftChannelSelector.
+    - class_name: cuvis_ai.node.mask_ops.MaskRobustifier
+      category: transform
+      tags: [mask, numpy, postprocessing, segmentation]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        mask:
+          dtype: int32
+          shape: [-1, -1, -1]
+          optional: false
+          description: Input mask [B, H, W]; >0 is foreground.
+      output_specs:
+        mask:
+          dtype: int32
+          shape: [-1, -1, -1]
+          optional: false
+          description: Cleaned mask [B, H, W]; preserves input label values.
+      doc_summary: Clean a binary/labelled mask with morphology + largest-component filter.
+    - class_name: cuvis_ai.node.mask_ops.MaskToBBoxKalman
+      category: transform
+      tags: [bbox, mask, numpy, postprocessing, stateful, tracking]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        mask:
+          dtype: int32
+          shape: [-1, -1, -1]
+          optional: false
+          description: Robust mask [B, H, W]; >0 is foreground.
+      output_specs:
+        bbox:
+          dtype: float32
+          shape: [-1, 4]
+          optional: false
+          description: Bounding box per frame [B, 4] in xyxy pixel coordinates.
+        valid:
+          dtype: int32
+          shape: [-1]
+          optional: false
+          description: 'Track status per frame [B]: 0=none, 1=measured, 2=predicted.'
+      doc_summary: Mask -> bounding box with constant-velocity Kalman smoothing.
+    - class_name: cuvis_ai.node.metrics.AnomalyDetectionMetrics
+      category: metric
+      tags: [anomaly, evaluation]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#C9615A\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M10 14v40h44\"/>\r\n  <rect x=\"16\" y=\"38\" width=\"8\" height=\"12\"/>\r\n  <rect x=\"28\" y=\"28\" width=\"8\" height=\"22\"/>\r\n  <rect x=\"40\" y=\"18\" width=\"8\" height=\"32\"/>\r\n</svg>\r\n"
+      input_specs:
+        decisions:
+          dtype: bool
+          shape: [-1, -1, -1, 1]
+          optional: false
+          description: Binary anomaly decisions [B, H, W, 1]
+        targets:
+          dtype: bool
+          shape: [-1, -1, -1, 1]
+          optional: false
+          description: Ground truth binary masks [B, H, W, 1]
+        logits:
+          dtype: float32
+          shape: [-1, -1, -1, 1]
+          optional: true
+          description: Optional anomaly logits/probabilities for AP
+      output_specs:
+        metrics:
+          dtype: ''
+          shape: []
+          optional: false
+          description: List of Metric objects
+      doc_summary: Compute anomaly detection metrics (precision, recall, F1, etc.).
+    - class_name: cuvis_ai.node.metrics.AnomalyPixelStatisticsMetric
+      category: metric
+      tags: [anomaly, evaluation]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#C9615A\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M10 14v40h44\"/>\r\n  <rect x=\"16\" y=\"38\" width=\"8\" height=\"12\"/>\r\n  <rect x=\"28\" y=\"28\" width=\"8\" height=\"22\"/>\r\n  <rect x=\"40\" y=\"18\" width=\"8\" height=\"32\"/>\r\n</svg>\r\n"
+      input_specs:
+        decisions:
+          dtype: bool
+          shape: [-1, -1, -1, 1]
+          optional: false
+          description: Binary anomaly decisions [B, H, W, 1]
+      output_specs:
+        metrics:
+          dtype: ''
+          shape: []
+          optional: false
+          description: List of Metric objects
+      doc_summary: Compute anomaly pixel statistics from binary decisions.
+    - class_name: cuvis_ai.node.metrics.ComponentOrthogonalityMetric
+      category: metric
+      tags: [dim_reduction, evaluation]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#C9615A\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M10 14v40h44\"/>\r\n  <rect x=\"16\" y=\"38\" width=\"8\" height=\"12\"/>\r\n  <rect x=\"28\" y=\"28\" width=\"8\" height=\"22\"/>\r\n  <rect x=\"40\" y=\"18\" width=\"8\" height=\"32\"/>\r\n</svg>\r\n"
+      input_specs:
+        components:
+          dtype: float32
+          shape: [-1, -1]
+          optional: false
+          description: PCA components matrix [n_components, n_features]
+      output_specs:
+        metrics:
+          dtype: ''
+          shape: []
+          optional: false
+          description: List of Metric objects
+      doc_summary: Track orthogonality of PCA components during training.
+    - class_name: cuvis_ai.node.metrics.ExplainedVarianceMetric
+      category: metric
+      tags: [dim_reduction, evaluation]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#C9615A\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M10 14v40h44\"/>\r\n  <rect x=\"16\" y=\"38\" width=\"8\" height=\"12\"/>\r\n  <rect x=\"28\" y=\"28\" width=\"8\" height=\"22\"/>\r\n  <rect x=\"40\" y=\"18\" width=\"8\" height=\"32\"/>\r\n</svg>\r\n"
+      input_specs:
+        explained_variance_ratio:
+          dtype: float32
+          shape: [-1]
+          optional: false
+          description: Explained variance ratio from PCA node
+      output_specs:
+        metrics:
+          dtype: ''
+          shape: []
+          optional: false
+          description: List of Metric objects
+      doc_summary: Track explained variance ratio for PCA components.
+    - class_name: cuvis_ai.node.metrics.ScoreStatisticsMetric
+      category: metric
+      tags: [anomaly, evaluation]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#C9615A\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M10 14v40h44\"/>\r\n  <rect x=\"16\" y=\"38\" width=\"8\" height=\"12\"/>\r\n  <rect x=\"28\" y=\"28\" width=\"8\" height=\"22\"/>\r\n  <rect x=\"40\" y=\"18\" width=\"8\" height=\"32\"/>\r\n</svg>\r\n"
+      input_specs:
+        scores:
+          dtype: float32
+          shape: [-1, -1, -1]
+          optional: false
+          description: Score values [B, H, W]
+      output_specs:
+        metrics:
+          dtype: ''
+          shape: []
+          optional: false
+          description: List of Metric objects
+      doc_summary: Compute statistical properties of score distributions.
+    - class_name: cuvis_ai.node.metrics.SelectorDiversityMetric
+      category: metric
+      tags: [dim_reduction, evaluation]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#C9615A\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M10 14v40h44\"/>\r\n  <rect x=\"16\" y=\"38\" width=\"8\" height=\"12\"/>\r\n  <rect x=\"28\" y=\"28\" width=\"8\" height=\"22\"/>\r\n  <rect x=\"40\" y=\"18\" width=\"8\" height=\"32\"/>\r\n</svg>\r\n"
+      input_specs:
+        weights:
+          dtype: float32
+          shape: [-1]
+          optional: false
+          description: Channel selection weights from selector node
+      output_specs:
+        metrics:
+          dtype: ''
+          shape: []
+          optional: false
+          description: List of Metric objects
+      doc_summary: Track diversity of channel selection.
+    - class_name: cuvis_ai.node.metrics.SelectorEntropyMetric
+      category: metric
+      tags: [dim_reduction, evaluation]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#C9615A\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M10 14v40h44\"/>\r\n  <rect x=\"16\" y=\"38\" width=\"8\" height=\"12\"/>\r\n  <rect x=\"28\" y=\"28\" width=\"8\" height=\"22\"/>\r\n  <rect x=\"40\" y=\"18\" width=\"8\" height=\"32\"/>\r\n</svg>\r\n"
+      input_specs:
+        weights:
+          dtype: float32
+          shape: [-1]
+          optional: false
+          description: Channel selection weights from selector node
+      output_specs:
+        metrics:
+          dtype: ''
+          shape: []
+          optional: false
+          description: List of Metric objects
+      doc_summary: Track entropy of channel selection distribution.
+    - class_name: cuvis_ai.node.monitor.TensorBoardMonitorNode
+      category: sink
+      tags: [evaluation, metadata]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#E8A33D\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M6 32h12\"/>\r\n  <path d=\"M12 26l6 6-6 6\"/>\r\n  <rect x=\"22\" y=\"12\" width=\"36\" height=\"40\" rx=\"3\"/>\r\n  <path d=\"M28 12v18h24V12\"/>\r\n  <rect x=\"32\" y=\"36\" width=\"16\" height=\"14\"/>\r\n  <path d=\"M44 16v10\"/>\r\n</svg>\r\n"
+      input_specs:
+        artifacts:
+          dtype: ''
+          shape: []
+          optional: true
+          description: Optional list of Artifact objects to log
+          variadic: true
+        metrics:
+          dtype: ''
+          shape: []
+          optional: true
+          description: Optional list of Metric objects to log
+          variadic: true
+      doc_summary: TensorBoard monitoring node for logging artifacts and metrics.
+    - class_name: cuvis_ai.node.normalization.IdentityNormalizer
+      category: transform
+      tags: [normalization, numpy, preprocessing]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        data:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Input data tensor to normalize (BHWC format)
+      output_specs:
+        normalized:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Normalized output tensor
+      doc_summary: No-op normalizer; preserves incoming scores.
+    - class_name: cuvis_ai.node.normalization.MinMaxNormalizer
+      category: transform
+      tags: [normalization, numpy, preprocessing]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        data:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Input data tensor to normalize (BHWC format)
+      output_specs:
+        normalized:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Normalized output tensor
+      doc_summary: Min-max normalization per sample and channel (keeps gradients).
+    - class_name: cuvis_ai.node.normalization.PerPixelUnitNorm
+      category: transform
+      tags: [normalization, numpy, preprocessing]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        data:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Input data tensor to normalize (BHWC format)
+      output_specs:
+        normalized:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Normalized output tensor
+      doc_summary: Per-pixel mean-centering and L2 normalization across channels.
+    - class_name: cuvis_ai.node.normalization.SigmoidNormalizer
+      category: transform
+      tags: [normalization, numpy, preprocessing]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        data:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Input data tensor to normalize (BHWC format)
+      output_specs:
+        normalized:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Normalized output tensor
+      doc_summary: Median-centered sigmoid squashing per sample and channel.
+    - class_name: cuvis_ai.node.normalization.SigmoidTransform
+      category: transform
+      tags: [postprocessing, torch]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        data:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Input tensor (any shape)
+      output_specs:
+        transformed:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Sigmoid-transformed tensor
+      doc_summary: Applies sigmoid transformation to convert logits to probabilities [0,1].
+    - class_name: cuvis_ai.node.normalization.ZScoreNormalizer
+      category: transform
+      tags: [normalization, numpy, preprocessing]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        data:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Input data tensor to normalize (BHWC format)
+      output_specs:
+        normalized:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Normalized output tensor
+      doc_summary: Z-score (standardization) normalization along specified dimensions.
+    - class_name: cuvis_ai.node.numpy_file.NpyReader
+      category: source
+      tags: [metadata]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#E8A33D\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <ellipse cx=\"22\" cy=\"18\" rx=\"12\" ry=\"4\"/>\r\n  <path d=\"M10 18v26c0 2.2 5.4 4 12 4s12-1.8 12-4V18\"/>\r\n  <path d=\"M10 28c0 2.2 5.4 4 12 4s12-1.8 12-4\"/>\r\n  <path d=\"M10 38c0 2.2 5.4 4 12 4s12-1.8 12-4\"/>\r\n  <path d=\"M40 32h14\"/>\r\n  <path d=\"M48 26l6 6-6 6\"/>\r\n</svg>\r\n"
+      input_specs:
+        frame_id:
+          dtype: int64
+          shape: [1]
+          optional: true
+          description: Optional trigger input to emit one output per frame
+      output_specs:
+        data:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Loaded tensor padded to 4D BHWC-compatible shape
+      doc_summary: Load a `.npy` file once and return the same tensor every forward call.
+    - class_name: cuvis_ai.node.numpy_file.NumpyFeatureWriterNode
+      category: sink
+      tags: [embedding, metadata]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#E8A33D\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M6 32h12\"/>\r\n  <path d=\"M12 26l6 6-6 6\"/>\r\n  <rect x=\"22\" y=\"12\" width=\"36\" height=\"40\" rx=\"3\"/>\r\n  <path d=\"M28 12v18h24V12\"/>\r\n  <rect x=\"32\" y=\"36\" width=\"16\" height=\"14\"/>\r\n  <path d=\"M44 16v10\"/>\r\n</svg>\r\n"
+      input_specs:
+        features:
+          dtype: float32
+          shape: [-1, -1, -1]
+          optional: false
+          description: Feature tensor to save, e.g. embeddings [B, N, D].
+        frame_id:
+          dtype: int64
+          shape: [1]
+          optional: false
+          description: Frame index for file naming.
+      doc_summary: Save per-frame feature tensors to ``.npy`` files.
+    - class_name: cuvis_ai.node.occlusion.OcclusionNodeBase
+      category: transform
+      tags: [augmentation, numpy, stochastic, training]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        rgb_image:
+          dtype: float32
+          shape: [1, -1, -1, 3]
+          optional: false
+          description: Single RGB frame [1, H, W, 3] in [0, 1].
+        frame_id:
+          dtype: int64
+          shape: [1]
+          optional: false
+          description: Frame index [1].
+      output_specs:
+        rgb_image:
+          dtype: float32
+          shape: [1, -1, -1, 3]
+          optional: false
+          description: Possibly occluded RGB frame [1, H, W, 3] in [0, 1].
+      doc_summary: Base class for synthetic occlusion from tracking masks.
+    - class_name: cuvis_ai.node.occlusion.PoissonCubeOcclusionNode
+      category: transform
+      tags: [augmentation, numpy, stochastic, training]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        cube:
+          dtype: float32
+          shape: [1, -1, -1, -1]
+          optional: false
+          description: Single cube frame [1, H, W, C].
+        frame_id:
+          dtype: int64
+          shape: [1]
+          optional: false
+          description: Frame index [1].
+      output_specs:
+        cube:
+          dtype: float32
+          shape: [1, -1, -1, -1]
+          optional: false
+          description: Possibly occluded cube frame [1, H, W, C].
+      doc_summary: Deprecated alias of PoissonOcclusionNode with cube-only ports.
+    - class_name: cuvis_ai.node.occlusion.PoissonOcclusionNode
+      category: transform
+      tags: [augmentation, numpy, stochastic, training]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        rgb_image:
+          dtype: float32
+          shape: [1, -1, -1, 3]
+          optional: true
+          description: Single RGB frame [1, H, W, 3] in [0, 1].
+        cube:
+          dtype: float32
+          shape: [1, -1, -1, -1]
+          optional: true
+          description: Single cube frame [1, H, W, C].
+        frame_id:
+          dtype: int64
+          shape: [1]
+          optional: false
+          description: Frame index [1].
+      output_specs:
+        rgb_image:
+          dtype: float32
+          shape: [1, -1, -1, 3]
+          optional: true
+          description: Possibly occluded RGB frame [1, H, W, 3].
+        cube:
+          dtype: float32
+          shape: [1, -1, -1, -1]
+          optional: true
+          description: Possibly occluded cube frame [1, H, W, C].
+      doc_summary: Pure-PyTorch occlusion node for either RGB frames or hyperspectral cubes.
+    - class_name: cuvis_ai.node.occlusion.SolidOcclusionNode
+      category: transform
+      tags: [augmentation, numpy, stochastic, training]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        rgb_image:
+          dtype: float32
+          shape: [1, -1, -1, 3]
+          optional: true
+          description: Single RGB frame [1, H, W, 3] in [0, 1].
+        cube:
+          dtype: float32
+          shape: [1, -1, -1, -1]
+          optional: true
+          description: Single cube frame [1, H, W, C].
+        frame_id:
+          dtype: int64
+          shape: [1]
+          optional: false
+          description: Frame index [1].
+      output_specs:
+        rgb_image:
+          dtype: float32
+          shape: [1, -1, -1, 3]
+          optional: true
+          description: Possibly occluded RGB frame [1, H, W, 3].
+        cube:
+          dtype: float32
+          shape: [1, -1, -1, -1]
+          optional: true
+          description: Possibly occluded cube frame [1, H, W, C].
+      doc_summary: Deprecated alias of PoissonOcclusionNode.
+    - class_name: cuvis_ai.node.pipeline_visualization.CubeRGBVisualizer
+      category: visualizer
+      tags: [hyperspectral, rgb]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <rect x=\"8\" y=\"10\" width=\"48\" height=\"44\" rx=\"2\"/>\r\n  <path d=\"M14 44l10-12 8 6 12-16\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"24\" cy=\"32\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"32\" cy=\"38\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"44\" cy=\"22\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n</svg>\r\n"
+      input_specs:
+        cube:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Hyperspectral cube [B, H, W, C]
+        weights:
+          dtype: float32
+          shape: [-1]
+          optional: false
+          description: Channel selection weights [C]
+        wavelengths:
+          dtype: int32
+          shape: [-1]
+          optional: false
+          description: Wavelengths for each channel [C]
+      output_specs:
+        artifacts:
+          dtype: ''
+          shape: []
+          optional: false
+          description: List of Artifact objects with RGB visualizations
+      doc_summary: Creates false-color RGB images from hyperspectral cube using channel weights.
+    - class_name: cuvis_ai.node.pipeline_visualization.PCAVisualization
+      category: visualizer
+      tags: [hyperspectral, rgb]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <rect x=\"8\" y=\"10\" width=\"48\" height=\"44\" rx=\"2\"/>\r\n  <path d=\"M14 44l10-12 8 6 12-16\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"24\" cy=\"32\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"32\" cy=\"38\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"44\" cy=\"22\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n</svg>\r\n"
+      input_specs:
+        data:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: PCA-projected data [B, H, W, C] (uses first 2 components)
+      output_specs:
+        artifacts:
+          dtype: ''
+          shape: []
+          optional: false
+          description: List of Artifact objects with PCA visualizations
+      doc_summary: Visualize PCA-projected data with scatter and image plots.
+    - class_name: cuvis_ai.node.pipeline_visualization.PipelineComparisonVisualizer
+      category: visualizer
+      tags: [hyperspectral, rgb]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <rect x=\"8\" y=\"10\" width=\"48\" height=\"44\" rx=\"2\"/>\r\n  <path d=\"M14 44l10-12 8 6 12-16\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"24\" cy=\"32\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"32\" cy=\"38\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"44\" cy=\"22\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n</svg>\r\n"
+      input_specs:
+        hsi_cube:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Input HSI cube [B, H, W, C]
+        mixer_output:
+          dtype: float32
+          shape: [-1, -1, -1, 3]
+          optional: false
+          description: Mixer output (RGB-like) [B, H, W, 3]
+        ground_truth_mask:
+          dtype: bool
+          shape: [-1, -1, -1, 1]
+          optional: false
+          description: Ground truth anomaly mask [B, H, W, 1]
+        anomaly_scores:
+          dtype: float32
+          shape: [-1, -1, -1, 1]
+          optional: false
+          description: Anomaly scores [B, H, W, 1]
+      output_specs:
+        artifacts:
+          dtype: ''
+          shape: []
+          optional: false
+          description: List of Artifact objects for TensorBoard logging
+      doc_summary: TensorBoard visualization node for comparing pipeline stages.
+    - class_name: cuvis_ai.node.preprocessors.BBoxRoiCropNode
+      category: transform
+      tags: [bbox, numpy, preprocessing]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        images:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Input images [B, H, W, C] in BHWC format, values in [0, 1].
+        bboxes:
+          dtype: float32
+          shape: [-1, -1, 4]
+          optional: false
+          description: Detection bboxes [B, N, 4] in xyxy pixel coordinates.
+      output_specs:
+        crops:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: RoI-aligned crops [N, C, crop_h, crop_w] in NCHW format. N = number of valid (non-padding) bboxes.
+      doc_summary: Differentiable bbox cropping via torchvision roi_align.
+    - class_name: cuvis_ai.node.preprocessors.BandpassByWavelength
+      category: transform
+      tags: [hyperspectral, preprocessing]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        data:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Input hyperspectral cube [B, H, W, C]
+        wavelengths:
+          dtype: int32
+          shape: [-1]
+          optional: false
+          description: Wavelengths for each channel [C] in nanometers (can be int32 or float32)
+      output_specs:
+        filtered:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Filtered hyperspectral cube with selected channels [B, H, W, C_filtered]
+      doc_summary: Select channels by wavelength interval from BHWC tensors.
+    - class_name: cuvis_ai.node.preprocessors.ChannelNormalizeNode
+      category: transform
+      tags: [hyperspectral, normalization, numpy, preprocessing]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        images:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Input images [N, C, H, W] in NCHW format.
+      output_specs:
+        normalized:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Normalized images [N, C, H, W] in NCHW format.
+      doc_summary: Per-channel mean/std normalization for NCHW tensors.
+    - class_name: cuvis_ai.node.preprocessors.SpatialRotateNode
+      category: transform
+      tags: [image, numpy, preprocessing]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        cube:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Hyperspectral cube [B, H, W, C]
+        mask:
+          dtype: int32
+          shape: [-1, -1, -1]
+          optional: true
+          description: Segmentation mask [B, H, W]
+        rgb_image:
+          dtype: float32
+          shape: [-1, -1, -1, 3]
+          optional: true
+          description: RGB image [B, H, W, 3]
+      output_specs:
+        cube:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Rotated hyperspectral cube [B, H', W', C]
+        mask:
+          dtype: int32
+          shape: [-1, -1, -1]
+          optional: true
+          description: Rotated segmentation mask [B, H', W']
+        rgb_image:
+          dtype: float32
+          shape: [-1, -1, -1, 3]
+          optional: true
+          description: Rotated RGB image [B, H', W', 3]
+      doc_summary: Rotate spatial dimensions of cubes, masks, and RGB images.
+    - class_name: cuvis_ai.node.prompts.BBoxPrompt
+      category: source
+      tags: [bbox, inference, metadata]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#E8A33D\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <ellipse cx=\"22\" cy=\"18\" rx=\"12\" ry=\"4\"/>\r\n  <path d=\"M10 18v26c0 2.2 5.4 4 12 4s12-1.8 12-4V18\"/>\r\n  <path d=\"M10 28c0 2.2 5.4 4 12 4s12-1.8 12-4\"/>\r\n  <path d=\"M10 38c0 2.2 5.4 4 12 4s12-1.8 12-4\"/>\r\n  <path d=\"M40 32h14\"/>\r\n  <path d=\"M48 26l6 6-6 6\"/>\r\n</svg>\r\n"
+      input_specs:
+        frame_id:
+          dtype: int64
+          shape: [1]
+          optional: false
+          description: Source frame index [1].
+      output_specs:
+        bboxes:
+          dtype: ''
+          shape: []
+          optional: false
+          description: Per-frame list of bbox prompt dicts with keys element_id, object_id, x_min, y_min, x_max, y_max.
+        prompt_boxes_xyxy:
+          dtype: float32
+          shape: [1, -1, 4]
+          optional: false
+          description: Prompt boxes [1,N,4] in xyxy pixels for optional debug overlay.
+        prompt_object_ids:
+          dtype: int64
+          shape: [1, -1]
+          optional: false
+          description: Prompt object IDs [1,N] aligned with prompt_boxes_xyxy.
+      doc_summary: Emit scheduled runtime bbox prompts plus overlay-friendly debug tensors.
+    - class_name: cuvis_ai.node.prompts.MaskPrompt
+      category: source
+      tags: [inference, mask, metadata]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#E8A33D\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <ellipse cx=\"22\" cy=\"18\" rx=\"12\" ry=\"4\"/>\r\n  <path d=\"M10 18v26c0 2.2 5.4 4 12 4s12-1.8 12-4V18\"/>\r\n  <path d=\"M10 28c0 2.2 5.4 4 12 4s12-1.8 12-4\"/>\r\n  <path d=\"M10 38c0 2.2 5.4 4 12 4s12-1.8 12-4\"/>\r\n  <path d=\"M40 32h14\"/>\r\n  <path d=\"M48 26l6 6-6 6\"/>\r\n</svg>\r\n"
+      input_specs:
+        frame_id:
+          dtype: int64
+          shape: [1]
+          optional: false
+          description: Source frame index [1].
+      output_specs:
+        mask:
+          dtype: int32
+          shape: [1, -1, -1]
+          optional: false
+          description: Prompt label map [1,H,W]. 0=background, positive values are object IDs.
+      doc_summary: Emit a scheduled label-map prompt mask for the requested frame.
+    - class_name: cuvis_ai.node.prompts.TextPrompt
+      category: source
+      tags: [inference, metadata, text]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#E8A33D\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <ellipse cx=\"22\" cy=\"18\" rx=\"12\" ry=\"4\"/>\r\n  <path d=\"M10 18v26c0 2.2 5.4 4 12 4s12-1.8 12-4V18\"/>\r\n  <path d=\"M10 28c0 2.2 5.4 4 12 4s12-1.8 12-4\"/>\r\n  <path d=\"M10 38c0 2.2 5.4 4 12 4s12-1.8 12-4\"/>\r\n  <path d=\"M40 32h14\"/>\r\n  <path d=\"M48 26l6 6-6 6\"/>\r\n</svg>\r\n"
+      input_specs:
+        frame_id:
+          dtype: int64
+          shape: [1]
+          optional: false
+          description: Source frame index [1].
+      output_specs:
+        text_prompt:
+          dtype: ''
+          shape: []
+          optional: false
+          description: Resolved text prompt for the current frame or an empty string.
+      doc_summary: Emit a runtime text prompt for the requested frame.
+    - class_name: cuvis_ai.node.spectral_angle_mapper.SpectralAngleMapper
+      category: model
+      tags: [classification, hyperspectral, numpy, stateful]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\r\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\r\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\r\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\r\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\r\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\r\n</svg>\r\n"
+      input_specs:
+        cube:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Hyperspectral cube [B, H, W, C]
+        spectral_signature:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Reference spectra [N, 1, 1, C]
+      output_specs:
+        scores:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Spectral angle scores [B, H, W, N] in radians
+        best_scores:
+          dtype: float32
+          shape: [-1, -1, -1, 1]
+          optional: false
+          description: Best score per pixel [B, H, W, 1]
+        identity_mask:
+          dtype: int32
+          shape: [-1, -1, -1]
+          optional: false
+          description: 1-based best-matching identity [B, H, W]
+      doc_summary: Compute per-pixel spectral angle against one or more reference spectra.
+    - class_name: cuvis_ai.node.spectral_extractor.BBoxSpectralExtractor
+      category: transform
+      tags: [embedding, hyperspectral, numpy]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        cube:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Hyperspectral cube [B, H, W, C].
+        bboxes:
+          dtype: float32
+          shape: [-1, -1, 4]
+          optional: false
+          description: Detection bboxes [B, N, 4] in xyxy format.
+      output_specs:
+        spectral_signatures:
+          dtype: float32
+          shape: [-1, -1, -1]
+          optional: false
+          description: Per-bbox spectral signatures [B, N, C].
+        spectral_std:
+          dtype: float32
+          shape: [-1, -1, -1]
+          optional: false
+          description: Per-bbox spectral std [B, N, C].
+        spectral_valid:
+          dtype: int32
+          shape: [-1, -1]
+          optional: false
+          description: Validity mask [B, N]. 1=valid, 0=invalid.
+      doc_summary: Extract per-bbox spectral signatures with trimmed median/mean and std.
+    - class_name: cuvis_ai.node.spectral_extractor.MaskedMeanSpectrum
+      category: transform
+      tags: [embedding, hyperspectral, numpy]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        cube:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Hyperspectral cube [B, H, W, C].
+        mask:
+          dtype: int32
+          shape: [-1, -1, -1]
+          optional: false
+          description: Binary/labelled mask [B, H, W]; >0 is foreground.
+      output_specs:
+        mean_spectrum:
+          dtype: float32
+          shape: [-1, -1]
+          optional: false
+          description: Mean spectrum per frame [B, C].
+        valid:
+          dtype: int32
+          shape: [-1]
+          optional: false
+          description: Per-frame validity [B]; 1 if mask had pixels.
+      doc_summary: Per-frame mean spectrum of a hyperspectral cube over a binary mask.
+    - class_name: cuvis_ai.node.spectral_extractor.SpectralSignatureExtractor
+      category: transform
+      tags: [embedding, hyperspectral, numpy]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+      input_specs:
+        cube:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Hyperspectral cube [B, H, W, C].
+        mask:
+          dtype: int32
+          shape: [1, -1, -1]
+          optional: false
+          description: Label map [1, H, W], values are object IDs (0 is background).
+        object_ids:
+          dtype: int64
+          shape: [1, -1]
+          optional: true
+          description: Active object IDs [1, N]. If omitted, infer from mask.
+        wavelengths:
+          dtype: int32
+          shape: [-1]
+          optional: true
+          description: Optional wavelengths [C] in nanometers.
+      output_specs:
+        signatures:
+          dtype: float32
+          shape: [1, -1, -1]
+          optional: false
+          description: Per-object mean spectral signatures [1, N, C].
+        signatures_std:
+          dtype: float32
+          shape: [1, -1, -1]
+          optional: false
+          description: Per-object spectral std vectors [1, N, C].
+      doc_summary: Extract per-object spectral signatures from SAM-style label masks.
+    - class_name: cuvis_ai.node.spectrum_plot.SpectrumPlotNode
+      category: visualizer
+      tags: [hyperspectral]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <rect x=\"8\" y=\"10\" width=\"48\" height=\"44\" rx=\"2\"/>\r\n  <path d=\"M14 44l10-12 8 6 12-16\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"24\" cy=\"32\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"32\" cy=\"38\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n  <circle cx=\"44\" cy=\"22\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\r\n</svg>\r\n"
+      input_specs:
+        tracked_spectrum:
+          dtype: float32
+          shape: [-1, -1]
+          optional: false
+          description: Per-frame masked mean spectrum [B, C_full].
+        reference_spectrum:
+          dtype: float32
+          shape: [-1, -1, -1, -1]
+          optional: false
+          description: Reference spectrum (any leading shape, last dim is C_ref).
+        valid:
+          dtype: int32
+          shape: [-1]
+          optional: true
+          description: Per-frame tracked validity [B]; 0 suppresses the tracked line.
+        frame_id:
+          dtype: int64
+          shape: [-1]
+          optional: true
+          description: Per-frame index [B] rendered in plot title.
+      output_specs:
+        rgb_image:
+          dtype: float32
+          shape: [-1, -1, -1, 3]
+          optional: false
+          description: Rendered plot frames [B, plot_height, plot_width, 3] in [0, 1].
+      doc_summary: Render a per-frame line plot of tracked vs reference spectrum.
+    - class_name: cuvis_ai.node.video.ToVideoNode
+      category: sink
+      tags: [video]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#E8A33D\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M6 32h12\"/>\r\n  <path d=\"M12 26l6 6-6 6\"/>\r\n  <rect x=\"22\" y=\"12\" width=\"36\" height=\"40\" rx=\"3\"/>\r\n  <path d=\"M28 12v18h24V12\"/>\r\n  <rect x=\"32\" y=\"36\" width=\"16\" height=\"14\"/>\r\n  <path d=\"M44 16v10\"/>\r\n</svg>\r\n"
+      input_specs:
+        rgb_image:
+          dtype: float32
+          shape: [-1, -1, -1, 3]
+          optional: false
+          description: RGB frames [B, H, W, 3] in [0, 1] or [0, 255]
+        frame_id:
+          dtype: int64
+          shape: [-1]
+          optional: true
+          description: Frame / measurement index [B] to render as text overlay.
+      doc_summary: Write incoming RGB frames directly to a video file via ffmpeg.
+    - class_name: cuvis_ai.node.video.VideoFrameNode
+      category: source
+      tags: [streaming, video]
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#E8A33D\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <ellipse cx=\"22\" cy=\"18\" rx=\"12\" ry=\"4\"/>\r\n  <path d=\"M10 18v26c0 2.2 5.4 4 12 4s12-1.8 12-4V18\"/>\r\n  <path d=\"M10 28c0 2.2 5.4 4 12 4s12-1.8 12-4\"/>\r\n  <path d=\"M10 38c0 2.2 5.4 4 12 4s12-1.8 12-4\"/>\r\n  <path d=\"M40 32h14\"/>\r\n  <path d=\"M48 26l6 6-6 6\"/>\r\n</svg>\r\n"
+      input_specs:
+        rgb_image:
+          dtype: float32
+          shape: [-1, -1, -1, 3]
+          optional: false
+          description: RGB frame [B, H, W, 3] in [0, 1].
+        frame_id:
+          dtype: int64
+          shape: [-1]
+          optional: true
+          description: Frame index [B].
+      output_specs:
+        rgb_image:
+          dtype: float32
+          shape: [-1, -1, -1, 3]
+          optional: false
+          description: RGB frame [B, H, W, 3] in [0, 1].
+        frame_id:
+          dtype: int64
+          shape: [-1]
+          optional: false
+          description: Frame index [B].
+      doc_summary: Passthrough source node that receives RGB frames from the batch.

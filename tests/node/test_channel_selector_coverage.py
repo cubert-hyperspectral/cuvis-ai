@@ -217,3 +217,16 @@ def test_soft_channel_selector_variance_init() -> None:
     # Higher variance channels should have higher logits
     logits = node.channel_logits.data
     assert logits[-1] > logits[0]  # channel 5 (var~25) > channel 1 (var~1)
+
+
+def test_soft_channel_selector_uniform_init() -> None:
+    """Uniform initialization should zero the channel logits on the data's device."""
+    node = SoftChannelSelector(n_select=3, input_channels=5, init_method="uniform")
+
+    stream = iter([{"data": torch.randn(2, 4, 4, 5)}])
+    node.statistical_initialization(stream)
+
+    assert node._statistically_initialized is True
+    logits = node.channel_logits.data
+    assert torch.equal(logits, torch.zeros_like(logits))
+    assert logits.device == node.channel_logits.device

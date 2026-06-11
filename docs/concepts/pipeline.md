@@ -355,13 +355,25 @@ outputs = pipeline.forward(batch=test_data)
 
 ### With Plugins
 
+When a pipeline declares plugins (a top-level `plugins: [<name>, ...]` list), restore it with
+the directory that holds those manifests:
+
+```python
+from cuvis_ai_core.utils import restore_pipeline
+
+pipeline = restore_pipeline(
+    pipeline_path="outputs/my_pipeline.yaml",
+    plugins_dirs=["configs/plugins"],   # dir holding the bare-named manifests
+)
+```
+
+For manual, dev-mode control you can still load a manifest into a registry instance directly:
+
 ```python
 registry = NodeRegistry()
-registry.load_plugins("plugins.yaml")
-
+registry.load_plugins("configs/plugins/adaclip.yaml")   # CLI / dev-mode path
 builder = PipelineBuilder(node_registry=registry)
 pipeline = builder.build_from_config("outputs/my_pipeline.yaml")
-pipeline.load_state_dict(torch.load("outputs/my_pipeline.pt")["state_dict"])
 ```
 
 ---

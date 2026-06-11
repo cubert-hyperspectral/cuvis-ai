@@ -587,16 +587,16 @@ Plugins are specified in a YAML manifest file (e.g., `plugins.yaml`):
 plugins:
   adaclip:
     # For local development
-    path: "D:/code-repos/cuvis-ai-adaclip"
+    path: "../cuvis-ai-adaclip"
     provides:
-      - cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
+      - class_name: cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
 
   # Or for production (Git repository)
   # adaclip:
   #   repo: "https://github.com/cubert-hyperspectral/cuvis-ai-adaclip.git"
-  #   ref: "v1.2.3"
+  #   tag: "v1.2.3"
   #   provides:
-  #     - cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
+  #     - class_name: cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
 ```
 
 ### Automatic Dependency Management
@@ -620,7 +620,7 @@ Load external plugins when restoring pipelines:
 ```bash
 uv run restore-pipeline \
   --pipeline-path configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml \
-  --plugins-path configs/plugins/adaclip.yaml
+  --plugins-dir configs/plugins
 ```
 
 With inference:
@@ -628,7 +628,7 @@ With inference:
 ```bash
 uv run restore-pipeline \
   --pipeline-path configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml \
-  --plugins-path configs/plugins/adaclip.yaml \
+  --plugins-dir configs/plugins \
   --cu3s-file-path data/Lentils/Lentils_000.cu3s
 ```
 
@@ -637,23 +637,25 @@ uv run restore-pipeline \
 ```python
 from cuvis_ai_core.utils import restore_pipeline
 
-# Load pipeline with plugins
+# Load pipeline with plugins (the pipeline yaml declares `plugins: [adaclip]`)
 pipeline = restore_pipeline(
     pipeline_path="configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml",
-    plugins_path="configs/plugins/adaclip.yaml"
+    plugins_dirs=["configs/plugins"]
 )
 
 # Or with inference
 pipeline = restore_pipeline(
     pipeline_path="configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml",
-    plugins_path="configs/plugins/adaclip.yaml",
+    plugins_dirs=["configs/plugins"],
     cu3s_file_path="data/Lentils/Lentils_000.cu3s"
 )
 ```
 
-### Manual Plugin Loading (Advanced)
+### Manual Plugin Loading (CLI / dev-mode)
 
-For more control, load plugins manually with NodeRegistry:
+For quick local control you can load a manifest directly into a `NodeRegistry` instance. This is
+the dev-mode path; the orchestrated server materialises plugins per pipeline from the pipeline
+yaml's `plugins:` declaration instead.
 
 ```python
 from cuvis_ai_core.utils.node_registry import NodeRegistry

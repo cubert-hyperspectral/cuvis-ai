@@ -1,3 +1,19 @@
+metadata:
+  name: AdaCLIP_CIR_FalseColor_OptimalThreshold
+  description: Statistical AdaCLIP CIR false-color pipeline with optimal threshold
+    (LentilsAnomalyDataNode -> CIRSelector -> AdaCLIPDetector -> TwoStageBinaryDecider)
+  created: ''
+  tags:
+  - statistical
+  - adaclip
+  - cir_false_color
+  - optimal_threshold
+  - two_stage
+  author: cuvis.ai
+  cuvis_ai_version: 0.1.0
+plugins:
+- adaclip
+- cuvis_ai_builtin
 nodes:
 - name: LentilsAnomalyDataNode
   class_name: cuvis_ai.node.data.LentilsAnomalyDataNode
@@ -84,16 +100,3 @@ connections:
   target: TensorBoardMonitorNode.inputs.artifacts
 - source: detection_metrics.outputs.metrics
   target: TensorBoardMonitorNode.inputs.metrics
-metadata:
-  name: AdaCLIP_CIR_FalseColor_OptimalThreshold
-  description: Statistical AdaCLIP CIR false-color pipeline with optimal threshold
-    (LentilsAnomalyDataNode -> CIRSelector -> AdaCLIPDetector -> TwoStageBinaryDecider)
-  created: ''
-  tags:
-  - statistical
-  - adaclip
-  - cir_false_color
-  - optimal_threshold
-  - two_stage
-  author: cuvis.ai
-  cuvis_ai_version: 0.1.0

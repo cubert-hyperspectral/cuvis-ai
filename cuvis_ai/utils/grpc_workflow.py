@@ -100,11 +100,37 @@ def apply_trainrun_config(
     session_id: str,
     config_bytes: bytes,
 ) -> cuvis_ai_pb2.SetTrainRunConfigResponse:
-    """Apply resolved trainrun config to a session."""
+    """Build the trainrun's pipeline, then attach the rest of the trainrun config.
+
+    ``SetTrainRunConfig`` no longer builds a pipeline and rejects a trainrun
+    config that still carries a ``pipeline:`` section. So this helper splits the
+    resolved trainrun: it ``LoadPipeline``s the embedded ``pipeline`` section
+    first (the server composes the per-run env from that pipeline's ``plugins:``
+    block), then sends the remaining trainrun config to ``SetTrainRunConfig``.
+
+    The embedded pipeline must declare a ``plugins:`` block (the standalone
+    ``configs/pipeline/`` yamls already do); a trainrun whose resolved pipeline
+    omits it is rejected at ``LoadPipeline`` with a ``suggest-plugins-fix`` hint.
+    For a single-call alternative that does the same server-side, see
+    ``RestoreTrainRun`` (e.g. ``examples/grpc/core/restore_trainrun_grpc.py``).
+    """
+    config = json.loads(config_bytes.decode("utf-8"))
+    pipeline_section = config.pop("pipeline", None)
+    if pipeline_section is not None:
+        stub.LoadPipeline(
+            cuvis_ai_pb2.LoadPipelineRequest(
+                session_id=session_id,
+                pipeline=cuvis_ai_pb2.PipelineConfig(
+                    config_bytes=normalize_pipeline_bytes(
+                        json.dumps(pipeline_section).encode("utf-8")
+                    )
+                ),
+            )
+        )
     return stub.SetTrainRunConfig(
         cuvis_ai_pb2.SetTrainRunConfigRequest(
             session_id=session_id,
-            config=cuvis_ai_pb2.TrainRunConfig(config_bytes=config_bytes),
+            config=cuvis_ai_pb2.TrainRunConfig(config_bytes=json.dumps(config).encode("utf-8")),
         )
     )
 

@@ -5,15 +5,14 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
-from cuvis_ai_core.utils.plugin_config import PluginManifest
+from cuvis_ai_schemas.plugin import PluginManifest
 
 pytestmark = pytest.mark.unit
 
 DEEPEIOU_MANIFEST_PATH = Path("configs/plugins/deepeiou.yaml")
 PLUGIN_NAME = "deepeiou"
 EXPECTED_REPO = "https://github.com/cubert-hyperspectral/cuvis-ai-deepeiou.git"
-EXPECTED_TAG = "v0.1.1"
+EXPECTED_TAG = "v0.1.2"
 EXPECTED_PROVIDES = [
     "cuvis_ai_deepeiou.node.DeepEIoUTrack",
     "cuvis_ai_deepeiou.node.OSNetExtractor",
@@ -36,4 +35,4 @@ def test_deepeiou_manifest_matches_expected_release() -> None:
 
     assert getattr(plugin, "repo", None) == EXPECTED_REPO
     assert getattr(plugin, "tag", None) == EXPECTED_TAG
-    assert plugin.provides == EXPECTED_PROVIDES
+    assert [node.class_name for node in plugin.provides] == EXPECTED_PROVIDES

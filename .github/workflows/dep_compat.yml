@@ -1,0 +1,43 @@
+name: Dependency Compatibility
+
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+    branches: [main, staging]
+
+concurrency:
+  group: dep-compat-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # cuvis-ai-core ref to fetch the shared audit script from. Pin to a release
+  # tag once the audit ships in a tagged cuvis-ai-core release.
+  AUDIT_REF: main
+
+jobs:
+  dep-compat:
+    name: Audit dependency floors
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Fetch audit script from cuvis-ai-core
+        run: >
+          curl -fsSL
+          https://raw.githubusercontent.com/cubert-hyperspectral/cuvis-ai-core/${{ env.AUDIT_REF }}/scripts/audit_plugin_deps.py
+          -o audit_plugin_deps.py
+
+      # The audit only reads pyproject.toml + uv.lock, so run it in a tiny
+      # ephemeral environment instead of installing cuvis-ai-core in full.
+      - name: Audit dependency floors
+        run: >
+          uv run --no-project --python 3.11 --with click --with packaging
+          python audit_plugin_deps.py --check host --strict

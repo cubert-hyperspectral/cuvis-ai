@@ -1,3 +1,17 @@
+metadata:
+  name: AdaCLIP_Supervised_FullSpectrum
+  description: "Statistical AdaCLIP supervised full-spectrum pipeline (LentilsAnomalyDataNode\
+    \ \u2192 SupervisedFullSpectrumSelector \u2192 AdaCLIPDetector)"
+  created: ''
+  tags:
+  - statistical
+  - adaclip
+  - supervised_full_spectrum
+  author: cuvis.ai
+  cuvis_ai_version: 0.1.5.post30+g6d28af5c2.d20251217
+plugins:
+- adaclip
+- cuvis_ai_builtin
 nodes:
 - name: LentilsAnomalyDataNode
   class_name: cuvis_ai.node.data.LentilsAnomalyDataNode
@@ -84,14 +98,3 @@ connections:
   target: TensorBoardMonitorNode.inputs.artifacts
 - source: detection_metrics.outputs.metrics
   target: TensorBoardMonitorNode.inputs.metrics
-metadata:
-  name: AdaCLIP_Supervised_FullSpectrum
-  description: "Statistical AdaCLIP supervised full-spectrum pipeline (LentilsAnomalyDataNode\
-    \ \u2192 SupervisedFullSpectrumSelector \u2192 AdaCLIPDetector)"
-  created: ''
-  tags:
-  - statistical
-  - adaclip
-  - supervised_full_spectrum
-  author: cuvis.ai
-  cuvis_ai_version: 0.1.5.post30+g6d28af5c2.d20251217

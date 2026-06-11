@@ -34,6 +34,7 @@ class PortSpec:
     shape: tuple[int | str, ...]        # Shape with -1 for flexible, strings for symbolic
     description: str = ""               # Documentation
     optional: bool = False              # Connection required?
+    variadic: bool = False              # Input-only: fan-in from multiple connections
 ```
 
 ### Port Types
@@ -209,19 +210,23 @@ resolved_shape = DimensionResolver.resolve(
 
 ### Variadic Ports (Fan-in)
 
-*Multiple connections to one port.*
+*Multiple connections to one port.* Mark an **input** port `variadic=True`; the node
+then receives a `list` of values, one per inbound connection. Variadic applies to input
+ports only — outputs are always single.
 
 ```python
 class AggregatorNode(Node):
     INPUT_SPECS = {
-        "features": [PortSpec(
+        "features": PortSpec(
             dtype=torch.float32,
             shape=(-1, -1),
-            description="Feature tensors to aggregate"
-        )]
+            variadic=True,  # accepts fan-in from multiple sources
+            description="Feature tensors to aggregate",
+        )
     }
 
     def forward(self, features: list[torch.Tensor], **_):
+        # A variadic port delivers a list of values, one per connection.
         concatenated = torch.cat(features, dim=-1)
         return {"aggregated": concatenated}
 

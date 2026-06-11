@@ -1,9 +1,21 @@
 # Changelog
 
-## [Unreleased]
+## 0.8.0 - 2026-06-11
 
+- Bumped the `cuvis-ai-core` floor to `>=0.7.1` and `cuvis-ai-schemas[full]` to `>=0.5.2` for the reworked `NodeRegistry`: the plugin contract / runtime-smoke tests now read a loaded plugin's config from `registry.plugin_catalog[name]` (core dropped the redundant `plugin_configs` dict; `plugin_registry` became `loaded_plugin_nodes`, which `cuvis_ai_schemas.is_plugin` reads as of 0.5.1). The `>=0.7.1` floor also inherits core's transitive security patches, pulling `aiohttp` to `3.14.1` (CVE-2026-34993, CVE-2026-47265) and `idna` to `3.18` in the lock.
+- **Security:** raised the dependency floors that lagged the lock so the floor audit and `pip-audit` pass: `cuvis>=3.5.1.0`, `ftfy>=6.3.1`, `setuptools>=81.0.0,<83`, a Windows `cuvis-il>=3.5.0` lower bound, and `pip>=26.1.2` (PYSEC-2026-196) for the release-tooling extra.
+- Backfilled a bare-name **`plugins:` block** into every pipeline YAML (e.g. `- cuvis_ai_builtin`) so each pipeline declares its plugin set explicitly; `scripts/backfill_pipeline_plugins.py` seeds the field, delegating to core's `reorder_pipeline_with_plugins` helper.
+- Carried the **inline node catalog** in each plugin manifest: `configs/plugins/<name>.yaml` `provides:` now lists `CatalogNodeEntry` items directly. Added the `turbovec` manifest, declared `package_name` overrides, and imported `PluginManifest` from `cuvis_ai_schemas.plugin`.
+- Regenerated all plugin manifests to the single-`CatalogPortSpec`-per-port shape and removed the per-manifest `*.metadata.json` sidecars; updated the manifest-contract tests and the port/node docs for the `variadic` flag.
+- Marked `TensorBoardMonitorNode` `artifacts` / `metrics` inputs as single `PortSpec`s with `variadic=True` (was the implicit `list[PortSpec]` fan-in form).
+- Fixed the gRPC train flow and made `SoftChannelSelector`'s statistical initialization device-safe — it now computes on the same device as `channel_logits`, so it survives a pipeline moved to GPU.
 - **Security/docs:** removed the `https://polyfill.io/v3/polyfill.min.js` include from `mkdocs.yml`. The `polyfill.io` domain is hijacked and was injecting a credential-phishing "Sign in" prompt on the docs site; MathJax 3 needs no polyfill on supported browsers. Added a `Redeploy docs (manual)` workflow (`workflow_dispatch` with a version input) so the gh-pages site can be republished without cutting a PyPI release.
 - Fixed `AnomalyDetectionMetrics` average precision: switched to histogram-based `BinaryAveragePrecision(thresholds=N)` so state is bounded by construction, and reset only on `(stage, epoch)` boundaries so the metric accumulates across batches via `update()` within a validation epoch — the per-batch emitted value is a running AP that converges to true epoch-level AP, instead of a leak-prone cumulative or a noisy per-batch AP.
+- Added dependency-compatibility CI: `.github/workflows/dep_compat.yml` (host-floor audit) and `registry_compat.yml` (plugin-vs-core audit); pinned dependency floors; documented plugin loading via `--plugins-dir`.
+- Added pipeline render tooling: `scripts/render_pipelines.py` emits transparent PNG renders of every pipeline YAML. Stopped tracking the generated render artifacts.
+- Made `scripts/` a PEP 420 namespace package (dropped its `__init__.py`) so it merges with `cuvis-ai-core`'s `scripts/`; unblocked the orchestrator smoke on Windows.
+- Docs: aligned the plugin docs to the bare-name `plugins:` model and clarified that runnable examples live as notebooks in `cuvis-ai-cookbook` (datasets on Hugging Face).
+- Docs: fixed the README documentation links broken by the docs IA restructure (`user-guide/installation` and `user-guide/quickstart` to `get-started/`, `node-catalog` to `catalogs/nodes`, `plugin-system` to `reference/plugin-development`, `api` to `reference/python-api`, `development/contributing` to `reference/contributing`).
 
 ## 0.7.3 - 2026-05-18
 

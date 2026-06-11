@@ -9,6 +9,8 @@ metadata:
   - channel_selector
   - rx
   author: cuvis.ai
+plugins:
+- cuvis_ai_builtin
 nodes:
 - name: LentilsAnomalyDataNode
   class_name: cuvis_ai.node.data.LentilsAnomalyDataNode

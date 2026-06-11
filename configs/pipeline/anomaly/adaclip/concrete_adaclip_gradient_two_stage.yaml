@@ -1,3 +1,22 @@
+metadata:
+  name: concrete_adaclip_gradient
+  description: 'Trained Concrete band selector + AdaClip model from concrete_adaclip_gradient
+    trainrun. Selector reduces 61 channels to 3 for AdaClip compatibility. Selected
+    bands: [55, 56, 24]. Updated with TwoStageBinaryDecider (image_threshold=0.24,
+    quantile=0.995)'
+  created: ''
+  tags:
+  - gradient
+  - concrete
+  - gumbel
+  - adaclip
+  - band_selector
+  - anomaly_detection
+  author: cuvis.ai
+  cuvis_ai_version: 0.1.5.post40+g5d4ea80af.d20260105
+plugins:
+- adaclip
+- cuvis_ai_builtin
 nodes:
 - name: LentilsAnomalyDataNode
   class_name: cuvis_ai.node.data.LentilsAnomalyDataNode
@@ -50,7 +69,7 @@ nodes:
 - name: decider
   class_name: cuvis_ai.node.deciders.two_stage_decider.TwoStageBinaryDecider
   hparams:
-    image_threshold: 0.24 # 0.15 with cuvis next works
+    image_threshold: 0.24
     top_k_fraction: 0.001
     quantile: 0.995
     reduce_dims: null
@@ -132,18 +151,3 @@ connections:
   target: TensorBoardMonitorNode.inputs.artifacts
 - source: concrete_tensorboard_viz.outputs.artifacts
   target: TensorBoardMonitorNode.inputs.artifacts
-metadata:
-  name: concrete_adaclip_gradient
-  description: 'Trained Concrete band selector + AdaClip model from concrete_adaclip_gradient
-    trainrun. Selector reduces 61 channels to 3 for AdaClip compatibility. Selected
-    bands: [55, 56, 24]. Updated with TwoStageBinaryDecider (image_threshold=0.24, quantile=0.995)'
-  created: ''
-  tags:
-  - gradient
-  - concrete
-  - gumbel
-  - adaclip
-  - band_selector
-  - anomaly_detection
-  author: cuvis.ai
-  cuvis_ai_version: 0.1.5.post40+g5d4ea80af.d20260105

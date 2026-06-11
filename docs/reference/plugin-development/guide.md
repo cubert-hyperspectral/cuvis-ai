@@ -1,8 +1,3 @@
-!!! warning "Status: Needs Review"
-    This page has not been reviewed for accuracy and completeness. Content may be outdated or contain errors.
-
----
-
 # Plugin Development Guide
 
 This guide covers the minimum structure needed to build a cuvis-ai plugin that can be loaded through a manifest.
@@ -54,7 +49,7 @@ plugins:
   my_plugin:
     path: "../my-plugin"
     provides:
-      - my_plugin.node.custom_node.CustomNode
+      - class_name: my_plugin.node.custom_node.CustomNode
 ```
 
 Relative paths resolve from the manifest file location, not from the current shell directory.
@@ -67,8 +62,12 @@ plugins:
     repo: "https://github.com/your-org/cuvis-ai-my-plugin.git"
     tag: "v0.1.0"
     provides:
-      - my_plugin.node.custom_node.CustomNode
+      - class_name: my_plugin.node.custom_node.CustomNode
 ```
+
+Each `provides` entry needs at least `class_name` (a fully-qualified path); it may also carry
+palette metadata (`category`, `tags`, `icon_svg`, `input_specs`, `output_specs`, `doc_summary`).
+See [Plugin System Overview](overview.md).
 
 ## Verification
 
@@ -76,7 +75,12 @@ Use `uv` for local validation:
 
 ```bash
 uv run pytest tests/ -q
+
+# Dev-mode check: load the manifest directly and list the registered plugins
 uv run python -c "from cuvis_ai_core.utils.node_registry import NodeRegistry; r=NodeRegistry(); r.load_plugins('plugins.yaml'); print(r.list_plugins())"
+
+# End-to-end: run a pipeline that declares `plugins: [my_plugin]`
+uv run restore-pipeline --pipeline-path <pipeline>.yaml --plugins-dir <dir-with-manifest>
 ```
 
 ## Release Notes

@@ -5,15 +5,14 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
-from cuvis_ai_core.utils.plugin_config import PluginManifest
+from cuvis_ai_schemas.plugin import PluginManifest
 
 pytestmark = pytest.mark.unit
 
 ULTRALYTICS_MANIFEST_PATH = Path("configs/plugins/ultralytics.yaml")
 PLUGIN_NAME = "ultralytics"
 EXPECTED_REPO = "https://github.com/cubert-hyperspectral/cuvis-ai-ultralytics.git"
-EXPECTED_TAG = "v0.1.1"
+EXPECTED_TAG = "v0.1.2"
 EXPECTED_PROVIDES = [
     "cuvis_ai_ultralytics.node.YOLOPreprocess",
     "cuvis_ai_ultralytics.node.YOLO26Detection",
@@ -38,4 +37,4 @@ def test_ultralytics_manifest_matches_expected_release() -> None:
 
     assert getattr(plugin, "repo", None) == EXPECTED_REPO
     assert getattr(plugin, "tag", None) == EXPECTED_TAG
-    assert plugin.provides == EXPECTED_PROVIDES
+    assert [node.class_name for node in plugin.provides] == EXPECTED_PROVIDES

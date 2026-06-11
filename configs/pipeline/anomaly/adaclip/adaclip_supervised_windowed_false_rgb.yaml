@@ -1,3 +1,17 @@
+metadata:
+  name: AdaCLIP_Supervised_WindowedFalseRGB
+  description: "Statistical AdaCLIP supervised windowed false-RGB pipeline (LentilsAnomalyDataNode\
+    \ \u2192 SupervisedWindowedSelector \u2192 AdaCLIPDetector)"
+  created: ''
+  tags:
+  - statistical
+  - adaclip
+  - supervised_windowed_false_rgb
+  author: cuvis.ai
+  cuvis_ai_version: 0.1.5.post30+g6d28af5c2.d20251217
+plugins:
+- adaclip
+- cuvis_ai_builtin
 nodes:
 - name: LentilsAnomalyDataNode
   class_name: cuvis_ai.node.data.LentilsAnomalyDataNode
@@ -91,14 +105,3 @@ connections:
   target: TensorBoardMonitorNode.inputs.artifacts
 - source: detection_metrics.outputs.metrics
   target: TensorBoardMonitorNode.inputs.metrics
-metadata:
-  name: AdaCLIP_Supervised_WindowedFalseRGB
-  description: "Statistical AdaCLIP supervised windowed false-RGB pipeline (LentilsAnomalyDataNode\
-    \ \u2192 SupervisedWindowedSelector \u2192 AdaCLIPDetector)"
-  created: ''
-  tags:
-  - statistical
-  - adaclip
-  - supervised_windowed_false_rgb
-  author: cuvis.ai
-  cuvis_ai_version: 0.1.5.post30+g6d28af5c2.d20251217

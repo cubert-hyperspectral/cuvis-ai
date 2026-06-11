@@ -1,12 +1,33 @@
 # AdaCLIP Plugin Manifest
 #
-# Load only AdaCLIP:
-#   uv run restore-pipeline --plugins-path configs/plugins/adaclip.yaml
+# To use AdaCLIP, declare `plugins: [adaclip]` in the pipeline yaml and point
+# the loader at the catalog directory that holds this manifest:
+#   uv run restore-pipeline --pipeline-path <pipeline>.yaml --plugins-dir configs/plugins
 
 plugins:
   adaclip:
     # AdaCLIP-based anomaly detection with advanced band selection
     repo: "https://github.com/cubert-hyperspectral/cuvis-ai-adaclip.git"
-    tag: "v0.1.3"
+    tag: "v0.1.4"
+    package_name: "cuvis-ai-adaclip"
     provides:
-      - cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
+    - class_name: cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
+      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#AAAAAA\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"32\" cy=\"32\" r=\"22\" stroke-dasharray=\"4 3\"/>\r\n  <path d=\"M25 26a7 7 0 0 1 14 0c0 4-3.5 4.5-7 8v3\"/>\r\n  <circle cx=\"32\" cy=\"45\" r=\"1.2\" fill=\"#AAAAAA\" stroke=\"none\"/>\r\n</svg>\r\n"
+      input_specs:
+        rgb_image:
+          dtype: float32
+          shape: [-1, -1, -1, 3]
+          optional: false
+          description: RGB image [B, H, W, 3] in float32 (0-1 or 0-255 range)
+      output_specs:
+        scores:
+          dtype: float32
+          shape: [-1, -1, -1, 1]
+          optional: false
+          description: Pixel-level anomaly scores [B, H, W, 1]
+        anomaly_score:
+          dtype: float32
+          shape: [-1]
+          optional: false
+          description: Image-level anomaly score [B]
+      doc_summary: AdaCLIP zero-shot anomaly detector node (plugin version).

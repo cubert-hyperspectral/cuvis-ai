@@ -57,9 +57,10 @@ import torch
 class Node(nn.Module, ABC, Serializable):
     """Base class for all nodes."""
 
-    # Class-level port specifications
-    INPUT_SPECS: dict[str, PortSpec | list[PortSpec]] = {}
-    OUTPUT_SPECS: dict[str, PortSpec | list[PortSpec]] = {}
+    # Class-level port specifications (one PortSpec per port;
+    # mark an input PortSpec variadic=True for fan-in).
+    INPUT_SPECS: dict[str, PortSpec] = {}
+    OUTPUT_SPECS: dict[str, PortSpec] = {}
 
     def __init__(self, name: str | None = None, **kwargs):
         super().__init__()
@@ -306,7 +307,7 @@ RXGlobal = NodeRegistry.get("RXGlobal")
 all_nodes = NodeRegistry.list_builtin_nodes()
 ```
 
-**Plugin support:**
+**Plugin support** (CLI / dev-mode — pipelines normally declare plugins by bare name in their top-level `plugins:` block):
 
 ```python
 # Create registry instance

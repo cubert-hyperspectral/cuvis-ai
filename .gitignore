@@ -208,7 +208,6 @@ data/
 !configs/data/
 !cuvis_ai/data/
 outputs/
-CLAUDE.md
 output/
 tracking_output/
 .tmp_*/
@@ -217,3 +216,8 @@ data_/*
 AGENTS.md
 notebooks/**/output/
 notebooks/**/channel_examples/
+
+# Generated pipeline render/smoke artifacts
+# (produced by scripts/render_pipelines.py + scripts/smoke_22_yamls.py)
+*.report.json
+/pipeline_renders/

@@ -1,3 +1,17 @@
+metadata:
+  name: AdaCLIP_Baseline
+  description: "Statistical AdaCLIP baseline pipeline (LentilsAnomalyDataNode \u2192\
+    \ FixedWavelengthSelector \u2192 AdaCLIPDetector)"
+  created: ''
+  tags:
+  - statistical
+  - adaclip
+  - baseline
+  author: cuvis.ai
+  cuvis_ai_version: 0.1.5.post30+g6d28af5c2.d20251217
+plugins:
+- adaclip
+- cuvis_ai_builtin
 nodes:
 - name: lentils_data_node
   class_name: cuvis_ai.node.data.LentilsAnomalyDataNode
@@ -81,14 +95,3 @@ connections:
   target: tensorboard_monitor.inputs.artifacts
 - source: anomaly_metrics.outputs.metrics
   target: tensorboard_monitor.inputs.metrics
-metadata:
-  name: AdaCLIP_Baseline
-  description: "Statistical AdaCLIP baseline pipeline (LentilsAnomalyDataNode \u2192\
-    \ FixedWavelengthSelector \u2192 AdaCLIPDetector)"
-  created: ''
-  tags:
-  - statistical
-  - adaclip
-  - baseline
-  author: cuvis.ai
-  cuvis_ai_version: 0.1.5.post30+g6d28af5c2.d20251217

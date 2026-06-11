@@ -143,7 +143,7 @@ plugins:
   my_plugin:
     path: "../my-plugin"  # Local directory path for development
     provides:
-      - my_plugin.nodes.CustomDetector
+      - class_name: my_plugin.nodes.CustomDetector
 ```
 
 **Test with example pipelines:**
@@ -157,10 +157,10 @@ CustomDetector = NodeRegistry.get('CustomDetector', instance=registry)
 print('Plugin loaded successfully!')
 "
 
-# Test with full pipeline
+# Test with full pipeline (the pipeline yaml must declare `plugins: [my_plugin]`)
 uv run restore-pipeline \
     --pipeline-path configs/pipeline/my_test_pipeline.yaml \
-    --plugins-path plugins.yaml
+    --plugins-dir configs/plugins
 ```
 
 **Verify:**
@@ -203,16 +203,17 @@ Create a new file named after your plugin (use [`configs/plugins/adaclip.yaml`](
 ```yaml
 # My Plugin Manifest
 #
-# Load only my_plugin:
-#   uv run restore-pipeline --plugins-path configs/plugins/my_plugin.yaml
+# Load my_plugin: declare `plugins: [my_plugin]` in the pipeline yaml and point
+# the CLI at the catalog directory that holds this manifest:
+#   uv run restore-pipeline --pipeline-path <pipeline>.yaml --plugins-dir configs/plugins
 
 plugins:
   my_plugin:
     repo: "https://github.com/yourorg/my-plugin.git"
     tag: "v1.0.0"  # Your release tag
     provides:
-      - my_plugin.nodes.CustomDetector
-      - my_plugin.nodes.HelperNode  # List all public nodes
+      - class_name: my_plugin.nodes.CustomDetector
+      - class_name: my_plugin.nodes.HelperNode  # list all public nodes
 ```
 
 **4.3 Add documentation entry**
