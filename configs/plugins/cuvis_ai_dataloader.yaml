@@ -1,0 +1,17 @@
+# cuvis-ai-dataloader plugin manifest (data modules: cu3s / cu3s_multi / tiff_paired).
+# kind=data_module entries register into the DataModule registry (never the node
+# palette); `extras` names the pip extras the orchestrator composer installs for a
+# run that selects that module. Without this manifest in the catalog the gRPC
+# server cannot resolve `data_module: cu3s` ("no plugin provides data module 'cu3s'").
+#
+# Dev: a local-checkout path source (matches the repo's own manifest + the
+# local-sources dev approach). At release this swaps to a published git tag, like
+# the sibling plugin manifests here.
+plugins:
+  cuvis_ai_dataloader:
+    path: "../../../../cuvis-ai-dataloader/cuvis-ai-dataloader"
+    package_name: cuvis-ai-dataloader
+    provides:
+      - { class_name: cuvis_ai_dataloader.data.datamodule_cu3s.Cu3sDataModule,              kind: data_module, data_module_name: cu3s,        extras: [cu3s, coco] }
+      - { class_name: cuvis_ai_dataloader.data.datamodule_cu3s_multi.MultiCu3sDataModule,   kind: data_module, data_module_name: cu3s_multi,  extras: [cu3s, coco] }
+      - { class_name: cuvis_ai_dataloader.data.datamodule_tiff_paired.TiffPairedDataModule, kind: data_module, data_module_name: tiff_paired, extras: [tiff] }
