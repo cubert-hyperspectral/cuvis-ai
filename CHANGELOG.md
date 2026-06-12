@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+- **Plugin registration is import-only: `load_plugins` becomes `register_plugins`.** Core dropped the
+  in-process clone / install plugin loader, so call sites in the use-case notebooks,
+  `scripts/render_pipelines.py`, the plugin contract / runtime-smoke tests, and the docs move from
+  `registry.load_plugins(...)` / `load_plugin(...)` to `register_plugins(...)` / `register_plugin(...)`.
+  Plugins must be provisioned into the environment first (see the new `provision` CLI in core); the
+  runtime-smoke test `importorskip`s the plugin package so it skips cleanly when unprovisioned.
 - **Dropped the `cuvis` SDK (and `cuvis-il`, `ftfy`) from base dependencies.** The SDK now lives only
   in the `cuvis-ai-dataloader` plugin behind its `[cu3s]` extra, added here as a dev/test dep
   (`cuvis-ai-dataloader[cu3s,coco]`). Builtin/RGB pipelines no longer pull `cuvis` / `cuvis-il`,

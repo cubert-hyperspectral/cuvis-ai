@@ -64,19 +64,19 @@ plugins:
 
 1. The pipeline yaml's `plugins:` list names the plugins it needs (bare names).
 2. The loader resolves each name to a manifest entry in the `--plugins-dir` directory.
-3. Only the declared plugins are **materialised**: clone (Git) or read (local), install dependencies from `pyproject.toml`, and import the provided node classes.
-4. In the orchestrated gRPC server this happens in an **isolated per-pipeline environment**, so one pipeline's plugin dependencies never affect the server or another pipeline.
+3. The declared plugins are **registered import-only**: their node classes are imported from packages already installed in the active environment. Registration never clones, installs dependencies, or mutates `sys.path`, so provision the plugins first (see the `provision` CLI).
+4. In the orchestrated gRPC server, the composer builds an **isolated per-pipeline environment** (git plugins pinned to a commit + `uv sync`) and the child registers the now-installed plugins the same import-only way, so one pipeline's dependencies never affect the server or another pipeline.
 
-`NodeRegistry.load_plugins(manifest_path)` is the **CLI / dev-mode** path for loading a manifest
-directly into a registry instance — handy for quick local checks (see the
+`NodeRegistry.register_plugins(manifest_path)` is the **in-process** path for registering a manifest
+directly into a registry instance — handy for quick local checks and notebooks (see the
 [Plugin Development Guide](guide.md)) — but pipelines normally declare plugins by bare name as
 shown above.
 
 ## Cache and Isolation
 
-- Git plugins are cached under `~/.cuvis_plugins/`.
-- Local-path plugins are loaded from the referenced checkout directly.
-- Plugin nodes are stored per `NodeRegistry` instance, so one session can load plugins without affecting another.
+- In-process registration imports plugins from the active environment; install them with the `provision` CLI, `uv pip install`, or an editable `[tool.uv.sources]` checkout.
+- The orchestrated server composes an isolated venv per plugin set, cached by a content hash of its generated `pyproject.toml`, so identical plugin sets reuse the same child environment.
+- Plugin nodes are stored per `NodeRegistry` instance, so one session can register plugins without affecting another.
 
 ## Loading multiple plugins
 

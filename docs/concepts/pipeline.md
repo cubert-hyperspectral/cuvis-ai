@@ -371,7 +371,7 @@ For manual, dev-mode control you can still load a manifest into a registry insta
 
 ```python
 registry = NodeRegistry()
-registry.load_plugins("configs/plugins/adaclip.yaml")   # CLI / dev-mode path
+registry.register_plugins("configs/plugins/adaclip.yaml")   # CLI / dev-mode path
 builder = PipelineBuilder(node_registry=registry)
 pipeline = builder.build_from_config("outputs/my_pipeline.yaml")
 ```

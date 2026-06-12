@@ -76,10 +76,10 @@ def _register_plugins(plugin_names: list[str], yaml_path: Path) -> None:
             )
             continue
         try:
-            registry.load_plugin(plugin_name, config.model_dump())
+            registry.register_plugin(plugin_name, config.model_dump())
         except Exception as exc:
             logger.warning(
-                f"{yaml_path.name}: load_plugin('{plugin_name}') raised "
+                f"{yaml_path.name}: register_plugin('{plugin_name}') raised "
                 f"{type(exc).__name__}: {exc} — continuing"
             )
 

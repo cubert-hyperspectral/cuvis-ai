@@ -77,7 +77,7 @@ Use `uv` for local validation:
 uv run pytest tests/ -q
 
 # Dev-mode check: load the manifest directly and list the registered plugins
-uv run python -c "from cuvis_ai_core.utils.node_registry import NodeRegistry; r=NodeRegistry(); r.load_plugins('plugins.yaml'); print(r.list_plugins())"
+uv run python -c "from cuvis_ai_core.utils.node_registry import NodeRegistry; r=NodeRegistry(); r.register_plugins('plugins.yaml'); print(r.list_plugins())"
 
 # End-to-end: run a pipeline that declares `plugins: [my_plugin]`
 uv run restore-pipeline --pipeline-path <pipeline>.yaml --plugins-dir <dir-with-manifest>

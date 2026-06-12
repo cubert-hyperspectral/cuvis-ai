@@ -152,7 +152,7 @@ plugins:
 uv run python -c "
 from cuvis_ai_core.utils.node_registry import NodeRegistry
 registry = NodeRegistry()
-registry.load_plugins('plugins.yaml')
+registry.register_plugins('plugins.yaml')
 CustomDetector = NodeRegistry.get('CustomDetector', instance=registry)
 print('Plugin loaded successfully!')
 "

@@ -228,7 +228,7 @@ def load_pipeline_for_inference(
     device: str,
 ) -> CuvisPipeline:
     registry = NodeRegistry()
-    registry.load_plugins(str(plugins_manifest))
+    registry.register_plugins(str(plugins_manifest))
     pipeline = CuvisPipeline.load_pipeline(
         yaml_path,
         weights_path=str(pt_path),
