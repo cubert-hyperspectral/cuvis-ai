@@ -108,6 +108,25 @@ dev = [
     "cuvis-ai-dataloader[cu3s,coco]",
 ]
 
+# Plugin node packages, wired as local editable checkouts for day-to-day
+# development so the notebooks + cookbook examples import them in-process. These
+# are a temporary local-dev convenience for this coordinated PR window: at
+# release the PRs merge in cascade (schemas -> core -> dataloader -> plugins ->
+# cuvis-ai) and each local-path source below is replaced with a published
+# version pin. Heavy/conflicting plugins may not all co-resolve in one env; sync
+# the subset you need (e.g. `uv sync --extra plugins`).
+plugins = [
+    "cuvis-ai-dinomaly",
+    "cuvis-ai-ultralytics",
+    "cuvis-ai-adaclip",
+    "cuvis-ai-deepeiou",
+    "cuvis-ai-trackeval",
+    # NOTE: cuvis-ai-sam3 is intentionally NOT here. It pins setuptools<81
+    # (runtime pkg_resources) which conflicts with this project's setuptools>=81,
+    # so it cannot share an env with the cuvis-ai package. Run sam3-based
+    # notebooks/examples in a dedicated env. Its source stays below for that use.
+]
+
 
 [project.urls]
 Homepage = "https://www.cubert-hyperspectral.com/"
@@ -132,6 +151,14 @@ torchvision = { index = "pytorch-cu128" }
 cuvis-ai-core = { path = "../../cuvis-ai-core/cuvis-ai-core", editable = true }
 cuvis-ai-schemas = { path = "../../cuvis-ai-schemas/cuvis-ai-schemas", editable = true }
 cuvis-ai-dataloader = { path = "../../cuvis-ai-dataloader/cuvis-ai-dataloader", editable = true }
+# Plugin checkouts (the `plugins` extra). Replaced with published version pins at
+# release; the PRs merge in cascade before this repo's.
+cuvis-ai-dinomaly = { path = "../../cuvis-ai-dinomaly/cuvis-ai-dinomaly", editable = true }
+cuvis-ai-sam3 = { path = "../../cuvis-ai-sam3/cuvis-ai-sam3", editable = true }
+cuvis-ai-ultralytics = { path = "../../cuvis-ai-ultralytics/cuvis-ai-ultralytics", editable = true }
+cuvis-ai-adaclip = { path = "../../cuvis-ai-adaclip/cuvis-ai-adaclip", editable = true }
+cuvis-ai-deepeiou = { path = "../../cuvis-ai-deepeiou/cuvis-ai-deepeiou", editable = true }
+cuvis-ai-trackeval = { path = "../../cuvis-ai-trackeval/cuvis-ai-trackeval", editable = true }
 
 [tool.setuptools_scm]
 version_scheme = "post-release"
