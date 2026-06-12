@@ -121,10 +121,11 @@ plugins = [
     "cuvis-ai-adaclip",
     "cuvis-ai-deepeiou",
     "cuvis-ai-trackeval",
-    # NOTE: cuvis-ai-sam3 is intentionally NOT here. It pins setuptools<81
-    # (runtime pkg_resources) which conflicts with this project's setuptools>=81,
-    # so it cannot share an env with the cuvis-ai package. Run sam3-based
-    # notebooks/examples in a dedicated env. Its source stays below for that use.
+    # sam3 co-installs only via a local dev branch that relaxes its setuptools cap
+    # to <83 (it had setuptools<81, conflicting with this project's setuptools>=81).
+    # The source below points at that working copy; at release it becomes a
+    # published sam3 tag and the notebook manifest tag is bumped to match.
+    "cuvis-ai-sam3",
 ]
 
 
