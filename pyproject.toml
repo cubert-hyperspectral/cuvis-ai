@@ -16,7 +16,7 @@ dependencies = [
     "cuvis>=3.5.1.0",
     # cuvis-il 3.5.3.x publishes no win_amd64 wheel (3.5.0 is the last that does);
     # cap below it on Windows so uv resolves a wheel-backed build.
-    "cuvis-il>=3.5.0,<3.5.3; sys_platform == 'win32'",
+    "cuvis-il>=3.5.0,<3.5.4; sys_platform == 'win32'",
     "cuvis-ai-core>=0.7.1",
     "cuvis-ai-schemas[full]>=0.5.2",
     "pydantic>=2.13.3,<3.0.0",
