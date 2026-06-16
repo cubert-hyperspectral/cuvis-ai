@@ -1052,10 +1052,25 @@ class HighContrastSelector(ChannelSelectorBase):
             Dictionary with "rgb_image" and "band_info" keys.
         """
         wavelengths_np = np.asarray(wavelengths, dtype=np.float32)
+        selected_indices = self._select_indices(cube, wavelengths_np)
+        rgb = self._compose_rgb(cube, selected_indices)
+
+        band_info = {
+            "strategy": "high_contrast",
+            "band_indices": selected_indices,
+            "band_wavelengths_nm": [float(wavelengths_np[i]) for i in selected_indices],
+            "windows_nm": [[float(s), float(e)] for s, e in self.windows],
+            "alpha": self.alpha,
+        }
+
+        return {"rgb_image": rgb, "band_info": band_info}
+
+    def _select_indices(self, cube: torch.Tensor, wavelengths_np: np.ndarray) -> list[int]:
+        """Select the highest-contrast band per window (variance + Laplacian energy)."""
         # Use first batch item for band selection
         cube_np = cube[0].cpu().numpy()
 
-        selected_indices = []
+        selected_indices: list[int] = []
         for start, end in self.windows:
             mask = (wavelengths_np >= start) & (wavelengths_np <= end)
             window_indices = np.where(mask)[0]
@@ -1076,17 +1091,14 @@ class HighContrastSelector(ChannelSelectorBase):
             best_idx = int(window_indices[int(np.argmax(scores))])
             selected_indices.append(best_idx)
 
-        rgb = self._compose_rgb(cube, selected_indices)
+        return selected_indices
 
-        band_info = {
-            "strategy": "high_contrast",
-            "band_indices": selected_indices,
-            "band_wavelengths_nm": [float(wavelengths_np[i]) for i in selected_indices],
-            "windows_nm": [[float(s), float(e)] for s, e in self.windows],
-            "alpha": self.alpha,
-        }
-
-        return {"rgb_image": rgb, "band_info": band_info}
+    def _compute_raw_rgb(self, cube: torch.Tensor, wavelengths: Any) -> torch.Tensor:
+        """Compose unnormalized RGB from the selected high-contrast bands."""
+        wavelengths_np = np.asarray(wavelengths, dtype=np.float32)
+        selected_indices = self._select_indices(cube, wavelengths_np)
+        bands = [cube[..., idx] for idx in selected_indices]  # each [B, H, W]
+        return torch.stack(bands, dim=-1)  # [B, H, W, 3], unnormalized
 
 
 class CIRSelector(ChannelSelectorBase):
