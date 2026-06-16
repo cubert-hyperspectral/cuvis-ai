@@ -14,6 +14,8 @@ from cuvis_ai_schemas.training import (
     DataConfig,
     DataSplitConfig,
     OptimizerConfig,
+    Selector,
+    SelectorKind,
     TrainerConfig,
     TrainingConfig,
 )
@@ -89,12 +91,18 @@ def _create_cached_data_config(
     test_ids: tuple[int, ...],
 ) -> cuvis_ai_pb2.DataConfig:
     """Cached version of DataConfig creation."""
+
+    def _file_indices(ids: tuple[int, ...]) -> list[Selector]:
+        if not ids:
+            return []
+        return [Selector(kind=SelectorKind.FILE_INDICES, source=cu3s_file_path, ids=list(ids))]
+
     return DataConfig(
         data_module="cu3s",
         splits=DataSplitConfig(
-            train_ids=list(train_ids),
-            val_ids=list(val_ids),
-            test_ids=list(test_ids),
+            train=_file_indices(train_ids),
+            val=_file_indices(val_ids),
+            test=_file_indices(test_ids),
         ),
         batch_size=batch_size,
         params={

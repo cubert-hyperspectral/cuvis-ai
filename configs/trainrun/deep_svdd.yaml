@@ -10,9 +10,12 @@ defaults:
 
 data:
   splits:
-    train_ids: [0]
-    val_ids: [3, 4, 6]
-    test_ids: [1, 5]
+    train:
+      - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [0]}
+    val:
+      - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [3, 4, 6]}
+    test:
+      - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [1, 5]}
 
 training:
   seed: 42

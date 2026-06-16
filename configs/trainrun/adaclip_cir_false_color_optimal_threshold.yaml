@@ -97,16 +97,13 @@ pipeline:
 data:
   data_module: cu3s
   splits:
-    train_ids:
-    - 0
-    - 2
-    - 3
-    val_ids:
-    - 1
-    - 5
-    test_ids:
-    - 1
-    - 5
+    leakage_check: warn  # val/test intentionally identical (small-dataset reuse)
+    train:
+      - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [0, 2, 3]}
+    val:
+      - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [1, 5]}
+    test:
+      - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [1, 5]}
   batch_size: 1
   params:
     cu3s_file_path: data/Lentils/Lentils_000.cu3s

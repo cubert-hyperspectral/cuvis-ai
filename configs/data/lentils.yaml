@@ -4,9 +4,14 @@
 
 data_module: cu3s
 splits:
-  train_ids: [0, 2, 3]
-  val_ids: [1, 5]
-  test_ids: [1, 5]
+  # Selectors over the cu3s measurement universe; val/test disjoint so the default
+  # leakage_check (error) passes.
+  train:
+    - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [0, 2, 3]}
+  val:
+    - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [1]}
+  test:
+    - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [5]}
 batch_size: 2
 params:
   cu3s_file_path: data/Lentils/Lentils_000.cu3s
