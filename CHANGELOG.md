@@ -23,6 +23,11 @@
   helper now sets `LoadPipelineRequest.data_module` from the trainrun's `data.data_module` (a bare
   name) instead of copying the whole `DataConfig`, so the server composes the child env with that
   module's plugin. Only a pipeline run needs a data module, the pipeline graph does not.
+- **Refreshed the `cuvis_ai_version` metadata stamps in the bundled configs.** The pipeline
+  library under `configs/pipeline/**` and the two `configs/trainrun/*_pipeline.yaml` snapshots
+  carried stale `0.1.x` dev-version stamps (down to a hardcoded `0.1.0`); bumped to `0.5.3` to
+  match the current schemas line. Pairs with the schemas fix that auto-stamps freshly serialized
+  pipelines with the installed version.
 
 ## 0.8.0 - 2026-06-11
 

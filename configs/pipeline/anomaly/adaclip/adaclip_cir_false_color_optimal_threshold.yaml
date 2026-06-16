@@ -10,7 +10,7 @@ metadata:
   - optimal_threshold
   - two_stage
   author: cuvis.ai
-  cuvis_ai_version: 0.1.0
+  cuvis_ai_version: 0.5.3
 plugins:
 - adaclip
 - cuvis_ai_builtin

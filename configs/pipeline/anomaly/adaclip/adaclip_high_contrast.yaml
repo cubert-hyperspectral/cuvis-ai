@@ -8,7 +8,7 @@ metadata:
   - adaclip
   - high_contrast
   author: cuvis.ai
-  cuvis_ai_version: 0.1.5.post30+g6d28af5c2.d20251217
+  cuvis_ai_version: 0.5.3
 plugins:
 - adaclip
 - cuvis_ai_builtin
