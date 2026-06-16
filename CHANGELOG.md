@@ -35,6 +35,11 @@
   `test_data_files_cached`) and the plugin's `[tool.uv.sources]` editable entry. The default test
   env is now fully SDK-free (no Windows `cuvis-il` wheel gap); notebooks that load `.cu3s` provision
   the plugin themselves.
+- **Use-case notebooks updated for the plugin-based data layer.** The four `notebooks/use_cases/`
+  notebooks now install `cuvis-ai-dataloader[cu3s,coco]` in their Colab bootstrap (cuvis-ai no longer
+  bundles the cu3s reader) and select frames via `measurement_indices` instead of the removed
+  `predict_ids` id-lists. Added `notebooks/use_cases/README.md` covering the env setup (install the
+  data plus model plugins, then `uv run jupyter lab`).
 
 ## 0.8.0 - 2026-06-11
 

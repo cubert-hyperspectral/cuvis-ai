@@ -208,13 +208,9 @@ def make_predict_loader(
     dm = SingleCu3sDataModule(
         cu3s_file_path=str(cu3s_path),
         annotation_json_path=str(annotation_json_path),
-        train_ids=[],
-        val_ids=[],
-        test_ids=[],
-        predict_ids=None,
         batch_size=batch_size,
         processing_mode=processing_mode,
-        normalize_to_unit=False,
+        measurement_indices=None,  # predict every measurement in the session
     )
     dm.setup(stage="predict")
     return dm, dm.predict_dataloader()
