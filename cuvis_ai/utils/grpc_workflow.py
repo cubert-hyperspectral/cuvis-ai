@@ -111,12 +111,24 @@ def apply_trainrun_config(
     The embedded pipeline must declare a ``plugins:`` block (the standalone
     ``configs/pipeline/`` yamls already do); a trainrun whose resolved pipeline
     omits it is rejected at ``LoadPipeline`` with a ``suggest-plugins-fix`` hint.
-    For a single-call alternative that does the same server-side, see
-    ``RestoreTrainRun`` (e.g. ``examples/grpc/core/restore_trainrun_grpc.py``).
+
+    A trainrun whose ``pipeline`` is a path *reference* (a string) cannot be
+    split this way: the pipeline lives in a separate YAML resolved relative to
+    the trainrun file on the server, which only ``RestoreTrainRun`` knows how to
+    locate and build. Use ``RestoreTrainRun`` for referenced trainruns (e.g.
+    ``examples/grpc/core/restore_trainrun_grpc.py``); it is also the single-call
+    equivalent of this helper for inline pipelines.
     """
     config = json.loads(config_bytes.decode("utf-8"))
     pipeline_section = config.pop("pipeline", None)
     data_section = config.get("data")
+    if isinstance(pipeline_section, str):
+        raise ValueError(
+            "This trainrun references its pipeline by path "
+            f"({pipeline_section!r}); apply_trainrun_config can only inline an "
+            "embedded pipeline. Use RestoreTrainRun, which resolves the reference "
+            "relative to the trainrun file and builds the pipeline server-side."
+        )
     if pipeline_section is not None:
         load_request = cuvis_ai_pb2.LoadPipelineRequest(
             session_id=session_id,

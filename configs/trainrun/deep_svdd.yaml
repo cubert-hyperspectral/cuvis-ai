@@ -2,8 +2,10 @@
 
 name: deep_svdd
 
+# Pipeline reference, resolved relative to this trainrun's directory.
+pipeline: ../pipeline/anomaly/deep_svdd/deep_svdd.yaml
+
 defaults:
-  - /pipeline/anomaly/deep_svdd@pipeline: deep_svdd
   - /data@data: lentils
   - /training@training: default
   - _self_

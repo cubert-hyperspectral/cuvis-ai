@@ -2,8 +2,10 @@
 
 name: adaclip_cir_false_rg_color
 
+# Pipeline reference, resolved relative to this trainrun's directory.
+pipeline: ../pipeline/anomaly/adaclip/adaclip_cir_false_rg_color.yaml
+
 defaults:
-  - /pipeline/anomaly/adaclip@pipeline: adaclip_cir_false_rg_color
   - /data@data: lentils
   - _self_
 

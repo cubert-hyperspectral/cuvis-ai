@@ -2,8 +2,10 @@
 
 name: adaclip_supervised_cir
 
+# Pipeline reference, resolved relative to this trainrun's directory.
+pipeline: ../pipeline/anomaly/adaclip/adaclip_supervised_cir.yaml
+
 defaults:
-  - /pipeline/anomaly/adaclip@pipeline: adaclip_supervised_cir
   - /data@data: lentils
   - _self_
 

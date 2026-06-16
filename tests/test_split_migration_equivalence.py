@@ -54,3 +54,32 @@ def test_overlapping_config_declares_warn():
     universe = _universe("data/Lentils/Lentils_000.cu3s")
     assert _resolved_ids(splits.train, universe) == [0, 2]
     assert _resolved_ids(splits.val, universe) == [2, 4]
+
+
+_TRAINRUN_DIR = _CONFIGS / "trainrun"
+
+
+def _string_pipeline_configs():
+    """Trainrun configs whose ``pipeline`` is a path reference (the migrated form).
+
+    Skips script-driven configs whose ``pipeline`` is a parameter-override mapping
+    (not a real pipeline) and configs with no pipeline at all.
+    """
+    for path in sorted(_TRAINRUN_DIR.glob("*.yaml")):
+        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+        if isinstance(raw, dict) and isinstance(raw.get("pipeline"), str):
+            yield path, raw["pipeline"]
+
+
+def test_trainrun_pipeline_references_resolve():
+    """Every migrated trainrun references its pipeline by path (no inline nodes/connections)."""
+    from cuvis_ai_schemas.pipeline.config import PipelineConfig
+
+    checked = 0
+    for trainrun_path, ref in _string_pipeline_configs():
+        resolved = (trainrun_path.parent / ref).resolve()
+        assert resolved.is_file(), f"{trainrun_path.name}: pipeline ref {ref!r} not found"
+        pipeline = PipelineConfig.load_from_file(resolved)
+        assert pipeline.nodes, f"{trainrun_path.name}: referenced pipeline has no nodes"
+        checked += 1
+    assert checked >= 12  # 12 migrated Hydra configs + 2 extracted snapshots

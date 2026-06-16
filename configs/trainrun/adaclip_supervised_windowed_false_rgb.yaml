@@ -2,8 +2,10 @@
 
 name: adaclip_supervised_windowed_false_rgb
 
+# Pipeline reference, resolved relative to this trainrun's directory.
+pipeline: ../pipeline/anomaly/adaclip/adaclip_supervised_windowed_false_rgb.yaml
+
 defaults:
-  - /pipeline/anomaly/adaclip@pipeline: adaclip_supervised_windowed_false_rgb
   - /data@data: lentils
   - _self_
 

@@ -45,6 +45,19 @@ def test_apply_trainrun_config_loads_pipeline_then_sets_config() -> None:
     assert sent == {"trainer": {"max_epochs": 1}}
 
 
+def test_apply_trainrun_config_rejects_pipeline_reference() -> None:
+    """A path-reference pipeline can't be inlined; the helper points at RestoreTrainRun."""
+    stub = MagicMock()
+    config = {"pipeline": "../pipeline/anomaly/adaclip/adaclip_baseline.yaml", "trainer": {}}
+    config_bytes = json.dumps(config).encode("utf-8")
+
+    with pytest.raises(ValueError, match="RestoreTrainRun"):
+        apply_trainrun_config(stub, "sess-ref", config_bytes)
+
+    stub.LoadPipeline.assert_not_called()
+    stub.SetTrainRunConfig.assert_not_called()
+
+
 def test_apply_trainrun_config_without_pipeline_skips_load() -> None:
     """A trainrun with no ``pipeline`` section goes straight to SetTrainRunConfig."""
     stub = MagicMock()

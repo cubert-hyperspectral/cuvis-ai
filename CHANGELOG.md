@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- **Trainrun configs reference their pipeline by path.** Following the schemas/core change to a `pipeline:` reference, the bundled trainrun configs no longer inline or Hydra-compose a pipeline: the twelve `@pipeline`-group configs drop that `defaults` entry for a top-level `pipeline: ../pipeline/<group>/<name>.yaml` reference, and the two resolved snapshot configs (`drcnn_adaclip_trainrun`, `adaclip_cir_false_color_optimal_threshold`) extract their inline pipeline to a `<name>_pipeline.yaml` sibling and reference it. The migration-equivalence test now also asserts every string `pipeline` reference resolves to a loadable `PipelineConfig`. Script-driven configs that use `pipeline:` as a parameter-override mapping are unchanged.
 - **Plugin registration is import-only: `load_plugins` becomes `register_plugins`.** Core dropped the
   in-process clone / install plugin loader, so call sites in the use-case notebooks,
   `scripts/render_pipelines.py`, the plugin contract / runtime-smoke tests, and the docs move from
