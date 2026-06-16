@@ -202,6 +202,37 @@ def normalize_pipeline_bytes(config_bytes: bytes) -> bytes:
     )
 
 
+def resolve_pipeline_ref(ref: str, *, trainrun_dir: Path | None = None) -> dict:
+    """Load a trainrun's path-referenced pipeline YAML into an inline dict.
+
+    The bundled ``configs/trainrun/*.yaml`` reference their pipeline by a path
+    relative to the trainrun file. Resolve it against ``trainrun_dir`` (default
+    the package ``configs/trainrun``) and load the pipeline YAML directly. The
+    bundled pipeline yamls are self-contained ``PipelineConfig``s (nodes +
+    ``plugins:``), so a direct file load avoids the Hydra group-path wrapping a
+    server-side ``ResolveConfig(config_type="pipeline")`` would add.
+    """
+    base = Path(trainrun_dir) if trainrun_dir is not None else (CONFIG_ROOT / "trainrun")
+    pipeline_path = (base / ref).resolve()
+    return yaml.safe_load(pipeline_path.read_text(encoding="utf-8"))
+
+
+def inline_pipeline_ref(config_dict: dict, *, trainrun_dir: Path | None = None) -> dict:
+    """Return ``config_dict`` with a path-referenced ``pipeline`` inlined.
+
+    No-op when ``pipeline`` is already an inline mapping or absent. Lets a
+    resolved trainrun be handed to ``apply_trainrun_config`` even though the
+    bundled trainruns reference their pipeline by path.
+    """
+    pipeline = config_dict.get("pipeline")
+    if isinstance(pipeline, str):
+        return {
+            **config_dict,
+            "pipeline": resolve_pipeline_ref(pipeline, trainrun_dir=trainrun_dir),
+        }
+    return config_dict
+
+
 __all__ = [
     "CONFIG_ROOT",
     "apply_trainrun_config",
@@ -209,7 +240,9 @@ __all__ = [
     "config_search_paths",
     "create_session_with_search_paths",
     "format_progress",
+    "inline_pipeline_ref",
     "load_manifest_bytes",
     "normalize_pipeline_bytes",
+    "resolve_pipeline_ref",
     "resolve_trainrun_config",
 ]
