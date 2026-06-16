@@ -28,6 +28,13 @@
   carried stale `0.1.x` dev-version stamps (down to a hardcoded `0.1.0`); bumped to `0.5.3` to
   match the current schemas line. Pairs with the schemas fix that auto-stamps freshly serialized
   pipelines with the installed version.
+- **Dropped the `cuvis-ai-dataloader` dev/test dependency entirely.** cuvis-ai no longer depends on
+  the data plugin (or, transitively, the cuvis SDK) at all. Tests mock the data layer
+  (`SyntheticAnomalyDataModule` / `create_test_cube`); the real cu3s reader is covered by the
+  plugin's own suite. Removed the unused real-cube fixtures (`data_config_factory`,
+  `test_data_files_cached`) and the plugin's `[tool.uv.sources]` editable entry. The default test
+  env is now fully SDK-free (no Windows `cuvis-il` wheel gap); notebooks that load `.cu3s` provision
+  the plugin themselves.
 
 ## 0.8.0 - 2026-06-11
 

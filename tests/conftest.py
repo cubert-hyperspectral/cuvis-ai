@@ -4,7 +4,7 @@ All fixtures have been organized into separate modules in tests/fixtures/:
 
 Core Fixtures:
 - paths.py: Path and configuration fixtures (temp dirs, mock_pipeline_dir, etc.)
-- data_factory.py: Test data creation (test_data_files, data_config_factory, create_test_cube, training_config_factory)
+- data_factory.py: Synthetic test data (create_test_cube, synthetic_anomaly_datamodule, training_config_factory)
 - mock_nodes.py: Mock node implementations
 
 For detailed documentation and usage examples, see tests/README.md

@@ -893,7 +893,6 @@ dependencies = [
 [package.optional-dependencies]
 dev = [
     { name = "bandit" },
-    { name = "cuvis-ai-dataloader", extra = ["coco", "cu3s"] },
     { name = "cyclonedx-bom" },
     { name = "detect-secrets" },
     { name = "interrogate" },
@@ -936,7 +935,6 @@ requires-dist = [
     { name = "bandit", extras = ["toml"], marker = "extra == 'dev'", specifier = ">=1.7.0" },
     { name = "cuvis-ai-adaclip", marker = "extra == 'plugins'", editable = "../../cuvis-ai-adaclip/cuvis-ai-adaclip" },
     { name = "cuvis-ai-core", editable = "../../cuvis-ai-core/cuvis-ai-core" },
-    { name = "cuvis-ai-dataloader", extras = ["coco", "cu3s"], marker = "extra == 'dev'", editable = "../../cuvis-ai-dataloader/cuvis-ai-dataloader" },
     { name = "cuvis-ai-deepeiou", marker = "extra == 'plugins'", editable = "../../cuvis-ai-deepeiou/cuvis-ai-deepeiou" },
     { name = "cuvis-ai-dinomaly", marker = "extra == 'plugins'", editable = "../../cuvis-ai-dinomaly/cuvis-ai-dinomaly" },
     { name = "cuvis-ai-sam3", marker = "extra == 'plugins'", editable = "../../cuvis-ai-sam3/cuvis-ai-sam3" },
@@ -1151,53 +1149,6 @@ requires-dist = [
     { name = "urllib3", specifier = ">=2.7.0" },
 ]
 provides-extras = ["hf", "dev", "test"]
-
-[[package]]
-name = "cuvis-ai-dataloader"
-source = { editable = "../../cuvis-ai-dataloader/cuvis-ai-dataloader" }
-dependencies = [
-    { name = "cuvis-ai-core" },
-    { name = "cuvis-ai-schemas" },
-    { name = "loguru" },
-    { name = "numpy" },
-    { name = "pillow" },
-    { name = "pytorch-lightning" },
-    { name = "torch" },
-]
-
-[package.optional-dependencies]
-coco = [
-    { name = "dataclass-wizard" },
-    { name = "pycocotools" },
-    { name = "scikit-image" },
-]
-cu3s = [
-    { name = "cuvis" },
-    { name = "cuvis-il", marker = "sys_platform == 'win32'" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "cuvis", marker = "extra == 'cu3s'", specifier = ">=3.5.0" },
-    { name = "cuvis-ai-core", editable = "../../cuvis-ai-core/cuvis-ai-core" },
-    { name = "cuvis-ai-dataloader", extras = ["all"], marker = "extra == 'dev'" },
-    { name = "cuvis-ai-dataloader", extras = ["coco", "cu3s", "tiff"], marker = "extra == 'all'" },
-    { name = "cuvis-ai-schemas", editable = "../../cuvis-ai-schemas/cuvis-ai-schemas" },
-    { name = "cuvis-il", marker = "sys_platform == 'win32' and extra == 'cu3s'", specifier = "<3.5.3" },
-    { name = "dataclass-wizard", marker = "extra == 'coco'", specifier = ">=0.39.1" },
-    { name = "loguru", specifier = ">=0.7.3" },
-    { name = "numpy" },
-    { name = "pillow", specifier = ">=12.2.0" },
-    { name = "pycocotools", marker = "extra == 'coco'", specifier = ">=2.0.11" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0" },
-    { name = "pytorch-lightning" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.14.13" },
-    { name = "scikit-image", marker = "extra == 'coco'", specifier = ">=0.26.0" },
-    { name = "tifffile", marker = "extra == 'tiff'", specifier = ">=2024.5.0" },
-    { name = "torch" },
-]
-provides-extras = ["cu3s", "coco", "tiff", "all", "dev"]
 
 [[package]]
 name = "cuvis-ai-deepeiou"
@@ -1607,18 +1558,6 @@ validation = [
     { name = "jsonschema", extra = ["format-nongpl"] },
     { name = "lxml" },
     { name = "referencing" },
-]
-
-[[package]]
-name = "dataclass-wizard"
-version = "0.39.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/36/ea/6b2811092feecbe9d672e3641196ac5fcbec6664074da5dec8b9fd9b9059/dataclass_wizard-0.39.1.tar.gz", hash = "sha256:1679948ed7c62103f40b34df97d03b35e6b2ad50f58173fdbe30074e2e4730f2", size = 361190, upload-time = "2026-01-06T03:30:57.054Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/27/a0/a221942b3fbbafaea4e211744d298366b6a9712c1aa336b05fc1c865ac0c/dataclass_wizard-0.39.1-py3-none-any.whl", hash = "sha256:3324e59eca705882eb34e2b3989b2beadd8c2b523e6269d4002cf1a4a5bf703b", size = 215344, upload-time = "2026-01-06T03:30:54.915Z" },
 ]
 
 [[package]]
