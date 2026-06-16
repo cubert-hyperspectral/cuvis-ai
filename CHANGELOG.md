@@ -19,6 +19,10 @@
   `{data_module, splits, params}`. cu3s loading imports moved from `cuvis_ai_core.data.datasets` to
   `cuvis_ai_dataloader.data` (the `SingleCu3sDataModule` / `SingleCu3sDataset` names survive as
   back-compat aliases, so call sites change only the import path). Docs/notebooks repointed.
+- **`apply_trainrun_config` forwards the data-module name on `LoadPipeline`.** The gRPC example
+  helper now sets `LoadPipelineRequest.data_module` from the trainrun's `data.data_module` (a bare
+  name) instead of copying the whole `DataConfig`, so the server composes the child env with that
+  module's plugin. Only a pipeline run needs a data module, the pipeline graph does not.
 
 ## 0.8.0 - 2026-06-11
 

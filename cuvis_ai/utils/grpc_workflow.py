@@ -136,14 +136,13 @@ def apply_trainrun_config(
                 config_bytes=normalize_pipeline_bytes(json.dumps(pipeline_section).encode("utf-8"))
             ),
         )
-        # Forward the data config so the server composes the per-run child env
-        # with the selected data module's plugin (e.g. cu3s -> cuvis-ai-dataloader).
-        # Without it the compose runs with data_module=None and Train fails with
+        # Forward the data-module name so the server composes the per-run child
+        # env with that module's plugin (e.g. cu3s -> cuvis-ai-dataloader).
+        # Without it the compose runs with no data module and Train fails with
         # "no plugin provides data module '<name>'".
-        if data_section is not None:
-            load_request.data.CopyFrom(
-                cuvis_ai_pb2.DataConfig(config_bytes=json.dumps(data_section).encode("utf-8"))
-            )
+        data_module = (data_section or {}).get("data_module")
+        if data_module:
+            load_request.data_module = data_module
         stub.LoadPipeline(load_request)
     return stub.SetTrainRunConfig(
         cuvis_ai_pb2.SetTrainRunConfigRequest(

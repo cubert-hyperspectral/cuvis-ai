@@ -36,6 +36,9 @@ def test_apply_trainrun_config_loads_pipeline_then_sets_config() -> None:
         json.dumps(pipeline_section).encode("utf-8")
     )
 
+    # No data section -> no data_module hint on the load request.
+    assert load_req.data_module == ""
+
     # The trainrun config sent on is the same one with the pipeline section removed.
     stub.SetTrainRunConfig.assert_called_once()
     set_req = stub.SetTrainRunConfig.call_args.args[0]
@@ -43,6 +46,23 @@ def test_apply_trainrun_config_loads_pipeline_then_sets_config() -> None:
     sent = json.loads(set_req.config.config_bytes.decode("utf-8"))
     assert "pipeline" not in sent
     assert sent == {"trainer": {"max_epochs": 1}}
+
+
+def test_apply_trainrun_config_forwards_data_module() -> None:
+    """The data section's ``data_module`` rides on the load request as a bare name."""
+    stub = MagicMock()
+    config = {
+        "pipeline": {"nodes": {"n0": {"type": "FastRGBSelector"}}, "plugins": ["cuvis_ai_builtin"]},
+        "data": {"data_module": "cu3s", "params": {"cu3s_file_path": "/x.cu3s"}},
+        "trainer": {"max_epochs": 1},
+    }
+    config_bytes = json.dumps(config).encode("utf-8")
+
+    apply_trainrun_config(stub, "sess-data", config_bytes)
+
+    load_req = stub.LoadPipeline.call_args.args[0]
+    # Only the module name is forwarded, not the splits/params payload.
+    assert load_req.data_module == "cu3s"
 
 
 def test_apply_trainrun_config_rejects_pipeline_reference() -> None:
