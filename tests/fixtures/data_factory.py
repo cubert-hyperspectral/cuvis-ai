@@ -14,7 +14,7 @@ from cuvis_ai_schemas.training import (
 )
 from torch.utils.data import DataLoader, Dataset
 
-from cuvis_ai_core.training.datamodule import CuvisDataModule
+from cuvis_ai_core.data.datamodule import BaseCuvisAIDataModule
 
 
 def _make_wavelengths_np(
@@ -254,7 +254,7 @@ class _SyntheticDictDataset(Dataset):
         return sample
 
 
-class SyntheticAnomalyDataModule(CuvisDataModule):
+class SyntheticAnomalyDataModule(BaseCuvisAIDataModule):
     """Lightweight datamodule that generates deterministic synthetic anomaly data.
 
     This datamodule reuses the create_test_cube logic to ensure consistency
