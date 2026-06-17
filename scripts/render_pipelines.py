@@ -55,7 +55,7 @@ def _register_plugins(plugin_names: list[str], yaml_path: Path) -> None:
     host venv must already have each plugin's Python package
     installed (this script does not compose its own venv).
     """
-    from cuvis_ai_schemas.plugin import PluginManifest
+    from cuvis_ai_schemas.plugin import load_plugin_manifest
 
     from cuvis_ai_core.utils.node_registry import NodeRegistry
 
@@ -68,15 +68,15 @@ def _register_plugins(plugin_names: list[str], yaml_path: Path) -> None:
                 "skipping registration — the import may still succeed if installed"
             )
             continue
-        manifest = PluginManifest.from_yaml(manifest_file)
-        config = manifest.plugins.get(plugin_name)
-        if config is None:
+        manifest = load_plugin_manifest(manifest_file)
+        if manifest.name != plugin_name:
             logger.warning(
-                f"{yaml_path.name}: plugin '{plugin_name}' has no entry in {manifest_file.name}"
+                f"{yaml_path.name}: manifest {manifest_file.name} declares name "
+                f"'{manifest.name}', expected '{plugin_name}'"
             )
             continue
         try:
-            registry.register_plugin(plugin_name, config.model_dump())
+            registry.register_plugin(plugin_name, manifest.model_dump())
         except Exception as exc:
             logger.warning(
                 f"{yaml_path.name}: register_plugin('{plugin_name}') raised "

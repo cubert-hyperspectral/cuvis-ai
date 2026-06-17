@@ -1,6 +1,5 @@
-plugins:
-  turbovec:
-    path: "D:/code-repos/cuvis-ai-turbovec"
-    provides:
-    - class_name: cuvis_ai_turbovec.node.QuantizedSpectralSearch
-    - class_name: cuvis_ai_turbovec.node.TurboQuantAnomaly
+name: turbovec
+path: "D:/code-repos/cuvis-ai-turbovec"
+capabilities:
+- class_name: cuvis_ai_turbovec.node.QuantizedSpectralSearch
+- class_name: cuvis_ai_turbovec.node.TurboQuantAnomaly

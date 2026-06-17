@@ -38,8 +38,10 @@ plugin (local checkout only, not published or referenced from public docs);
 
 ## Plugins
 
-- Each external plugin has a manifest at `configs/plugins/<name>.yaml`: `plugins.<name>.path` plus a
-  `provides:` list of `class_name` entries (optional `category` / `tags` / `icon_svg` / port specs).
+- Each external plugin has a bare manifest at `configs/plugins/<name>.yaml` (one file = one plugin):
+  an explicit `name:` (never derived from the filename), a source (`path:` or `repo:` + `tag:`), and a
+  `capabilities:` list of `class_name` entries (optional `category` / `tags` / `icon_svg` / port specs;
+  a `kind: data_module` entry instead carries `data_module_name` + `extras`).
   `configs/plugins/cuvis_ai_builtin.yaml` exposes this repo's own nodes the same way.
 - Pipelines reference plugins by **bare name only** — a top-level `plugins:` list (e.g.
   `- cuvis_ai_builtin`, `- sam3`). Each name resolves to a manifest in the plugins directory; there
