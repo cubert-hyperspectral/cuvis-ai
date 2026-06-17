@@ -160,7 +160,7 @@ uv run restore-trainrun \
 ### Basic Restoration
 
 ```python
-from cuvis_ai.utils import restore_trainrun
+from cuvis_ai_core.utils import restore_trainrun
 
 # Display info
 restore_trainrun(
@@ -184,7 +184,7 @@ restore_trainrun(
 ### Restoration with Overrides
 
 ```python
-from cuvis_ai.utils import restore_trainrun
+from cuvis_ai_core.utils import restore_trainrun
 from omegaconf import OmegaConf
 
 # Load and modify config

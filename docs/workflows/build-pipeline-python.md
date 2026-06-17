@@ -23,7 +23,7 @@ This is the pattern used in all cuvis-ai examples. Nodes are instantiated direct
 ```python
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai.node.data import LentilsAnomalyDataNode
-from cuvis_ai.anomaly.rx_detector import RXGlobal
+from cuvis_ai.node.anomaly.rx_detector import RXGlobal
 from cuvis_ai.node.normalization import MinMaxNormalizer
 
 # Create pipeline
@@ -50,7 +50,7 @@ Group connections by purpose using comments for better readability:
 
 ```python
 from cuvis_ai.node.conversion import ScoreToLogit
-from cuvis_ai.deciders.binary_decider import BinaryDecider
+from cuvis_ai.node.deciders.binary_decider import BinaryDecider
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 
@@ -86,7 +86,7 @@ pipeline.connect(
 A common pattern from Deep SVDD example showing multiple processing branches:
 
 ```python
-from cuvis_ai.anomaly.deep_svdd import (
+from cuvis_ai.node.anomaly.deep_svdd import (
     DeepSVDDProjection,
     DeepSVDDCenterTracker,
     DeepSVDDScores,

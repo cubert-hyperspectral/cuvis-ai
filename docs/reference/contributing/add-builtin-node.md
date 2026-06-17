@@ -519,6 +519,12 @@ class AdaptiveThresholdFilter(Node):
 
 ### Manual Registration
 
+<!-- Note: `AdaptiveThresholdFilter` / `cuvis_ai.node.filters` is an illustrative example used
+throughout this guide, not a shipped symbol. There is no `cuvis_ai/node/filters.py`. The
+adaptive-threshold behavior now lives in the decider nodes (e.g. `QuantileBinaryDecider` /
+`TwoStageBinaryDecider` in `cuvis_ai.node.deciders`). Substitute a real module path when adapting
+these snippets. -->
+
 ```python
 from cuvis_ai_core.utils.node_registry import NodeRegistry
 from cuvis_ai.node.filters import AdaptiveThresholdFilter

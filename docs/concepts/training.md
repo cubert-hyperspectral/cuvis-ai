@@ -69,14 +69,19 @@ flowchart TD
 ### Loading Initialization Data
 
 ```python
-from cuvis_ai.data.datamodule import SingleCu3sDataModule
+from cuvis_ai_dataloader.data import Cu3sDataModule
+from cuvis_ai_schemas.training.data import DataSplitConfig, Selector, SelectorKind
 
-datamodule = SingleCu3sDataModule(
-    cu3s_file_path="data/initialization/samples.cu3s",
+cu3s_path = "data/initialization/samples.cu3s"
+
+datamodule = Cu3sDataModule(
+    cu3s_file_path=cu3s_path,
     annotation_json_path="data/initialization/annotations.json",
-    train_ids=[0, 1, 2],  # Use for initialization
-    val_ids=[3],
-    test_ids=[4],
+    splits=DataSplitConfig(
+        train=[Selector(kind=SelectorKind.FILE_INDICES, source=cu3s_path, ids=[0, 1, 2])],
+        val=[Selector(kind=SelectorKind.FILE_INDICES, source=cu3s_path, ids=[3])],
+        test=[Selector(kind=SelectorKind.FILE_INDICES, source=cu3s_path, ids=[4])],
+    ),
     batch_size=4
 )
 
@@ -86,7 +91,7 @@ datamodule.setup(stage="fit")
 ### Computing Statistics
 
 ```python
-from cuvis_ai.trainer.statistical_trainer import StatisticalTrainer
+from cuvis_ai_core.training import StatisticalTrainer
 
 stat_trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
 stat_trainer.fit()  # Process all batches
@@ -100,7 +105,7 @@ assert pipeline.nodes["rx_detector"]._statistically_initialized
 #### RXGlobal (Anomaly Detection)
 
 ```python
-from cuvis_ai.anomaly.rx_detector import RXGlobal
+from cuvis_ai.node.anomaly.rx_detector import RXGlobal
 
 from cuvis_ai_core.training import StatisticalTrainer
 
@@ -280,8 +285,13 @@ pipeline.connect(
 ### Gradient Training
 
 ```python
-from cuvis_ai.trainer.gradient_trainer import GradientTrainer
-from cuvis_ai.config.trainrun import TrainingConfig, OptimizerConfig, SchedulerConfig
+from cuvis_ai_core.training import GradientTrainer
+from cuvis_ai_schemas.training import (
+    TrainingConfig,
+    OptimizerConfig,
+    SchedulerConfig,
+    TrainerConfig,
+)
 
 training_config = TrainingConfig(
     seed=42,
@@ -353,15 +363,25 @@ training_config = TrainingConfig(
 ## Complete Two-Phase Example
 
 ```python
-from cuvis_ai.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.normalization import MinMaxNormalizer
 from cuvis_ai.node.channel_selector import SoftChannelSelector
-from cuvis_ai.anomaly.rx_detector import RXGlobal
+from cuvis_ai.node.anomaly.rx_detector import RXGlobal
+from cuvis_ai.node.conversion import ScoreToLogit
+from cuvis_ai.node.deciders.binary_decider import BinaryDecider
 from cuvis_ai.node.losses import AnomalyBCEWithLogits
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics
-from cuvis_ai.trainer.statistical_trainer import StatisticalTrainer
-from cuvis_ai.trainer.gradient_trainer import GradientTrainer
+from cuvis_ai_core.training import StatisticalTrainer, GradientTrainer
+from cuvis_ai_schemas.training import (
+    TrainingConfig,
+    OptimizerConfig,
+    SchedulerConfig,
+    TrainerConfig,
+)
+from cuvis_ai_schemas.pipeline import PipelineMetadata
+from cuvis_ai_dataloader.data import Cu3sDataModule
+from cuvis_ai_schemas.training.data import DataSplitConfig, Selector, SelectorKind
 
 # ============ SETUP ============
 
@@ -389,12 +409,16 @@ pipeline.connect(
     (data_node.mask, metrics_node.targets)
 )
 
-datamodule = SingleCu3sDataModule(
-    cu3s_file_path="data/Lentils/Lentils_000.cu3s",
+cu3s_path = "data/Lentils/Lentils_000.cu3s"
+
+datamodule = Cu3sDataModule(
+    cu3s_file_path=cu3s_path,
     annotation_json_path="data/Lentils/Lentils_000.json",
-    train_ids=[0, 2, 3],
-    val_ids=[1],
-    test_ids=[1, 5],
+    splits=DataSplitConfig(
+        train=[Selector(kind=SelectorKind.FILE_INDICES, source=cu3s_path, ids=[0, 2, 3])],
+        val=[Selector(kind=SelectorKind.FILE_INDICES, source=cu3s_path, ids=[1])],
+        test=[Selector(kind=SelectorKind.FILE_INDICES, source=cu3s_path, ids=[4, 5])],
+    ),
     batch_size=2
 )
 
@@ -440,8 +464,6 @@ print(f"✓ Test IoU: {test_results['metrics_anomaly/iou']:.3f}")
 
 # ============ SAVE ============
 
-from cuvis_ai.pipeline.config import PipelineMetadata
-
 pipeline.save_to_file(
     "outputs/channel_selector.yaml",
     metadata=PipelineMetadata(
@@ -471,7 +493,7 @@ pipeline.save_to_file(
 ### Loading a Saved Pipeline
 
 ```python
-pipeline = CuvisPipeline.load_from_file(
+pipeline = CuvisPipeline.load_pipeline(
     config_path="outputs/trained_pipeline.yaml",
     weights_path="outputs/trained_pipeline.pt",
     device="cuda"
@@ -526,6 +548,6 @@ outputs = pipeline.forward(batch=test_data)
     ```python
     indices = torch.randperm(len(calib_data))[:10000]
     calib_data = calib_data[indices]
-    datamodule = SingleCu3sDataModule(..., batch_size=32)
+    datamodule = Cu3sDataModule(..., batch_size=32)
     pipeline = pipeline.to("cuda")
     ```

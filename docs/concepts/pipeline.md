@@ -53,7 +53,7 @@ stateDiagram-v2
 ### Creating a Pipeline
 
 ```python
-from cuvis_ai.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
 pipeline = CuvisPipeline(
     name="my_anomaly_detector",
@@ -88,7 +88,7 @@ pipeline.connect(
 ### Pipeline Builder (YAML)
 
 ```python
-from cuvis_ai.pipeline.pipeline_builder import PipelineBuilder
+from cuvis_ai_core.pipeline.factory import PipelineBuilder
 
 builder = PipelineBuilder()
 pipeline = builder.build_from_config("configs/pipeline/my_pipeline.yaml")
@@ -106,7 +106,7 @@ nodes:
       normal_class_ids: [0, 1]
 
   - name: rx_detector
-    class_name: cuvis_ai.anomaly.rx_detector.RXGlobal
+    class_name: cuvis_ai.node.anomaly.rx_detector.RXGlobal
     hparams:
       num_channels: 61
 
@@ -167,7 +167,7 @@ for node in sorted_nodes:
 ### Two-Phase Initialization
 
 ```python
-from cuvis_ai.trainer.statistical_trainer import StatisticalTrainer
+from cuvis_ai_core.training import StatisticalTrainer
 
 # Phase 1: Statistical initialization
 datamodule = SingleCu3sDataModule(...)
@@ -193,7 +193,8 @@ pipeline = pipeline.to("cuda")
 ### Sequential Execution
 
 ```python
-from cuvis_ai_core.pipeline.context import Context, ExecutionStage
+from cuvis_ai_schemas.execution import Context
+from cuvis_ai_schemas.enums import ExecutionStage
 
 context = Context(stage=ExecutionStage.INFERENCE)
 outputs = pipeline.forward(
@@ -218,7 +219,7 @@ all_scores = torch.cat(results, dim=0)
 ### Trainer-Managed Execution
 
 ```python
-from cuvis_ai.trainer.gradient_trainer import GradientTrainer
+from cuvis_ai_core.training import GradientTrainer
 
 trainer = GradientTrainer(
     pipeline=pipeline,
@@ -315,7 +316,7 @@ outputs = pipeline.forward(
 ### Saving Pipelines
 
 ```python
-from cuvis_ai.pipeline.config import PipelineMetadata
+from cuvis_ai_schemas.pipeline import PipelineMetadata
 
 pipeline.save_to_file(
     config_path="outputs/my_pipeline.yaml",
@@ -402,7 +403,7 @@ torch.cuda.empty_cache()
 ### Statistical Training Only
 
 ```python
-from cuvis_ai.trainer.statistical_trainer import StatisticalTrainer
+from cuvis_ai_core.training import StatisticalTrainer
 
 stat_trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
 stat_trainer.fit()
@@ -415,7 +416,7 @@ pipeline.save_to_file("outputs/statistical_pipeline.yaml")
 ### Gradient Training (Two-Phase)
 
 ```python
-from cuvis_ai.trainer.gradient_trainer import GradientTrainer
+from cuvis_ai_core.training import GradientTrainer
 
 # Phase 1: Statistical init (if needed)
 if any(node.requires_initial_fit for node in pipeline.nodes):
