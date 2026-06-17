@@ -64,8 +64,12 @@ def test_runnable_examples_count():
     assert len(RUNNABLE_EXAMPLES) > 0, "No runnable examples found in documentation"
     # Lowered from 90 after the ALL-5655 IA restructure removed docs/use_cases/*.md
     # (long use-case pages replaced by short tutorial blurbs in docs/tutorials/).
-    assert len(RUNNABLE_EXAMPLES) >= 85, (
-        f"Expected at least 85 runnable examples, found {len(RUNNABLE_EXAMPLES)}"
+    # Lowered to 84 after a docs API-correctness pass: examples that demonstrated
+    # removed methods (pipeline.summary / get_connections, Port.is_compatible_with
+    # returning a bool, Port.port_type) were corrected, which reclassifies them out
+    # of the "runnable" bucket.
+    assert len(RUNNABLE_EXAMPLES) >= 84, (
+        f"Expected at least 84 runnable examples, found {len(RUNNABLE_EXAMPLES)}"
     )
 
 
