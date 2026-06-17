@@ -85,7 +85,7 @@ python -c "import torchcodec"  # reader-side shared libs
 
 ## Graphviz (required for pipeline graph rendering)
 
-The Python `graphviz` wrapper shells out to the system `dot` binary, so `pipeline.visualize(format="png" | "svg" | "render_graphviz", ...)` needs it on PATH. Pure DOT/Mermaid output (`format="dot_string"` / `"mermaid"`) doesn't.
+The Python `graphviz` wrapper shells out to the system `dot` binary, so `pipeline.visualize(format="render_graphviz", output_path=...)` (alias `format="render"`) needs it on PATH. Pure DOT/Mermaid string output (`format="dot_string"` / `"mermaid"`) doesn't.
 
 === "Linux"
 

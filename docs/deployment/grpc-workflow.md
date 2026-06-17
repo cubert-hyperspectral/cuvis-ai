@@ -69,7 +69,7 @@ graph LR
 
 **Workflow:**
 
-1. **Server:** Launch on GPU machine (`uv run python -m cuvis_ai.grpc.production_server`)
+1. **Server:** Launch on GPU machine (`uv run python -m cuvis_ai_core.grpc.production_server`)
 2. **Client:** Connect, create session, configure pipeline
 3. **Training:** Stream progress updates back to client
 4. **Inference:** Send data, receive predictions
@@ -83,7 +83,7 @@ graph LR
 
 ```bash
 # Terminal 1: Start gRPC server
-uv run python -m cuvis_ai.grpc.production_server
+uv run python -m cuvis_ai_core.grpc.production_server
 ```
 
 **Expected Output:**
@@ -657,7 +657,7 @@ COPY configs/ ./configs/
 EXPOSE 50051
 
 # Run server
-CMD ["uv", "run", "python", "-m", "cuvis_ai.grpc.production_server"]
+CMD ["uv", "run", "python", "-m", "cuvis_ai_core.grpc.production_server"]
 ```
 
 **Build & Run:**
@@ -859,7 +859,7 @@ stub = build_stub(
    pkill -f production_server
 
    # Restart
-   uv run python -m cuvis_ai.grpc.production_server
+   uv run python -m cuvis_ai_core.grpc.production_server
    ```
 
 ---
