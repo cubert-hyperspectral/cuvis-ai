@@ -684,7 +684,7 @@ pipeline.connect(
 )
 
 # Validate
-pipeline.validate()
+pipeline.verify()
 
 # Statistical training (no gradients)
 from cuvis_ai_core.training import StatisticalTrainer
@@ -705,10 +705,10 @@ datamodule = Cu3sDataModule(
 trainer = StatisticalTrainer(
     pipeline=pipeline,
     datamodule=datamodule,
-    metric_nodes=[metrics],
-    monitors=[monitor],
 )
 
+# The metrics and monitor nodes are wired into the graph above, so they run
+# as part of the pipeline; the trainer takes only pipeline + datamodule.
 trainer.fit()
 trainer.test()
 ```
@@ -803,7 +803,7 @@ pipeline.connect(
 )
 
 # Validate
-pipeline.validate()
+pipeline.verify()
 
 # Gradient training
 from cuvis_ai_core.training import GradientTrainer
@@ -934,7 +934,7 @@ pipeline.connect(
 )
 
 # Validate
-pipeline.validate()
+pipeline.verify()
 
 # Gradient training with multiple losses
 from cuvis_ai_core.training import GradientTrainer

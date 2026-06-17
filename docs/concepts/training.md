@@ -97,7 +97,8 @@ stat_trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
 stat_trainer.fit()  # Process all batches
 
 # Nodes now initialized
-assert pipeline.nodes["rx_detector"]._statistically_initialized
+rx_detector = {node.name: node for node in pipeline.nodes()}["rx_detector"]
+assert rx_detector._statistically_initialized
 ```
 
 ### Statistical Nodes
@@ -110,7 +111,7 @@ from cuvis_ai.node.anomaly.rx_detector import RXGlobal
 from cuvis_ai_core.training import StatisticalTrainer
 
 rx_node = RXGlobal(num_channels=61, eps=1e-6)
-pipeline.add_node(rx_node)
+# Nodes are added automatically when you wire them with pipeline.connect(...)
 
 # Use StatisticalTrainer to initialize
 trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
@@ -153,7 +154,7 @@ from cuvis_ai.node.normalization import MinMaxNormalizer
 from cuvis_ai_core.training import StatisticalTrainer
 
 normalizer = MinMaxNormalizer(eps=1e-6, use_running_stats=True)
-pipeline.add_node(normalizer)
+# Nodes are added automatically when you wire them with pipeline.connect(...)
 
 # Use StatisticalTrainer to initialize
 trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
@@ -176,7 +177,7 @@ selector = SoftChannelSelector(
     init_method="variance",
     temperature_init=5.0
 )
-pipeline.add_node(selector)
+# Nodes are added automatically when you wire them with pipeline.connect(...)
 
 # Use StatisticalTrainer to initialize
 trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
@@ -191,7 +192,7 @@ from cuvis_ai.node.dimensionality_reduction import TrainablePCA
 from cuvis_ai_core.training import StatisticalTrainer
 
 pca = TrainablePCA(n_components=10, input_dim=61)
-pipeline.add_node(pca)
+# Nodes are added automatically when you wire them with pipeline.connect(...)
 
 # Use StatisticalTrainer to initialize
 trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
@@ -204,10 +205,10 @@ print(pca.explained_variance)    # Variance per component
 ### Validation After Phase 1
 
 ```python
-val_results = stat_trainer.validate()
-
-for metric in val_results["metrics"]:
-    print(f"{metric.name}: {metric.value:.4f}")
+# validate() runs the validation pass; the metric nodes log their results to
+# TensorBoard. StatisticalTrainer.validate() does not return a metrics object,
+# so inspect the run in TensorBoard (or read the metric nodes directly).
+stat_trainer.validate()
 
 # Expected: Reasonable performance with just statistics
 # Example: IoU > 0.5, F1 > 0.6
@@ -429,8 +430,8 @@ stat_trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
 stat_trainer.fit()
 
 print("✓ Statistical initialization complete")
-val_results = stat_trainer.validate()
-print(f"  Validation IoU: {val_results['metrics_anomaly/iou']:.3f}")
+# Run validation; the metric nodes log results (e.g. IoU) to TensorBoard.
+stat_trainer.validate()
 
 # ============ PHASE 2: GRADIENT TRAINING ============
 
@@ -460,7 +461,7 @@ grad_trainer = GradientTrainer(
 
 grad_trainer.fit()
 test_results = grad_trainer.test()
-print(f"✓ Test IoU: {test_results['metrics_anomaly/iou']:.3f}")
+print(f"✓ Test IoU: {test_results[0]['metrics_anomaly/iou']:.3f}")
 
 # ============ SAVE ============
 

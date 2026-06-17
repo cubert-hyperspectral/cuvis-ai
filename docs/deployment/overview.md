@@ -160,7 +160,7 @@ For complete method documentation, see the [gRPC API Reference](api/session.md).
 
 ```bash
 # Start gRPC server locally (default port: 50051)
-uv run python -m cuvis_ai.grpc.production_server
+uv run python -m cuvis_ai_core.grpc.production_server
 ```
 
 **Expected Output:**

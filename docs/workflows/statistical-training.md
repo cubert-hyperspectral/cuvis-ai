@@ -13,23 +13,23 @@ with [`restore-pipeline`](restore-pipeline.md).
 ## Prerequisites
 
 - A pipeline with at least one [statistical node](../catalogs/nodes/index.md#category=model) (RX, PCA, NormalizeFromStats, …).
-- A datamodule that produces unlabelled training data (typically `SingleCu3sDataModule` or `MultiCu3sDataModule`).
+- A datamodule that produces unlabelled training data (`SingleCu3sDataModule` for one cube, or `Cu3sDataModule` pointed at a folder of cubes).
 - The [Concepts → Training](../concepts/training.md) page if you want the model behind the trainer.
 
 ## Recipe
 
 ```python
-from cuvis_ai_core.trainer import StatisticalTrainer
-from cuvis_ai_core.pipeline import Pipeline
-from cuvis_ai_core.data.datamodule import SingleCu3sDataModule
+from cuvis_ai_core.training import StatisticalTrainer
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_dataloader.data import SingleCu3sDataModule
 
-pipeline = Pipeline.from_yaml("configs/pipeline/anomaly/rx/rx_statistical.yaml")
+pipeline = CuvisPipeline.load_pipeline("configs/pipeline/anomaly/rx/rx_statistical.yaml")
 datamodule = SingleCu3sDataModule(cu3s_file_path="data/Lentils/Demo_000.cu3s")
 
-trainer = StatisticalTrainer()
-trainer.fit(pipeline=pipeline, datamodule=datamodule)
+trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
+trainer.fit()
 
-pipeline.save("artifacts/rx_statistical_fitted.yaml")
+pipeline.save_to_file("artifacts/rx_statistical_fitted.yaml")
 ```
 
 ## What happens under the hood
@@ -43,7 +43,7 @@ pipeline.save("artifacts/rx_statistical_fitted.yaml")
 
 - **Inference only on the trained pipeline**: skip authoring a fresh YAML — run [`restore-pipeline --pipeline-path artifacts/rx_statistical_fitted.yaml --cu3s-file-path …`](restore-pipeline.md).
 - **Statistical phase as part of two-phase training**: pair with [`GradientTrainer`](gradient-training.md) — the statistical phase initialises weights for the gradient phase. See [Concepts → Training](../concepts/training.md).
-- **Multi-cube training**: swap `SingleCu3sDataModule` for `MultiCu3sDataModule` and point it at a directory.
+- **Multi-cube training**: swap `SingleCu3sDataModule` for `Cu3sDataModule` and point it at a directory of cubes.
 
 ## Related
 

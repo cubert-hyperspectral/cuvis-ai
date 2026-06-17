@@ -546,12 +546,12 @@ cube_tensor = cube_tensor.unsqueeze(0)      # (1, C, H, W)
 
 # Run pipeline
 with torch.no_grad():
-    result = pipeline.forward(batch={"cube": cube_tensor})
+    outputs = pipeline.forward(batch={"cube": cube_tensor})
 
-# Extract outputs
-anomaly_scores = result["scores"]     # Anomaly heatmap
-decisions = result["decisions"]       # Binary mask
-metrics = result.get("metrics", {})   # Optional metrics
+# forward() returns a dict keyed by (node_name, port). The node names match the
+# pipeline YAML; adjust them to your graph.
+anomaly_scores = outputs[("detector", "scores")]      # Anomaly heatmap
+decisions = outputs[("decider", "decisions")]          # Binary mask
 
 print(f"Detected anomalies: {decisions.sum().item()} pixels")
 ```

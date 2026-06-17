@@ -41,7 +41,7 @@ pipeline.connect(
 )
 
 # Validate and run
-pipeline.validate()
+pipeline.verify()
 ```
 
 ### Multi-Branch Pipeline
@@ -252,7 +252,7 @@ test_results = trainer.test()
 1. **Use direct port connections** - More readable and type-safe than string-based connections
 2. **Group related connections with comments** - Organize connection tuples by purpose (processing flow, metrics flow, visualization flow)
 3. **Store nodes in descriptive variables** - Use `data_node`, `normalizer`, `rx` instead of generic names
-4. **Validate early** - Call `pipeline.validate()` before training to catch connection errors
+4. **Validate early** - Call `pipeline.verify()` before training to catch connection errors
 5. **Leverage port attributes** - Use `node.port_name` for direct port access (e.g., `data_node.outputs.cube`)
 6. **Connect in logical order** - Group connections by data flow (processing → metrics → visualization)
 7. **Use factory functions** - Create reusable pipeline patterns for common workflows

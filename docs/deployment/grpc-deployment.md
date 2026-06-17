@@ -37,7 +37,7 @@ cd proto && buf generate
 
 Start the reference server with the current entrypoint:
 ```bash
-uv run python -m cuvis_ai.grpc.production_server
+uv run python -m cuvis_ai_core.grpc.production_server
 ```
 
 Configure message sizes or thread pool depth as needed:
@@ -77,7 +77,7 @@ COPY . .
 RUN cd proto && buf generate
 
 EXPOSE 50051
-CMD ["uv", "run", "python", "-m", "cuvis_ai.grpc.production_server"]
+CMD ["uv", "run", "python", "-m", "cuvis_ai_core.grpc.production_server"]
 ```
 
 Build and run:

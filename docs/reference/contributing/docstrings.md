@@ -129,7 +129,7 @@ class MyNode(BaseNode):
 
     >>> from cuvis_ai_core.training import StatisticalTrainer
     >>> node = MyNode(param1=20, param2=0.5)
-    >>> pipeline.add_node(node)
+    >>> # pipeline.connect(...) adds the node automatically when wired
     >>> trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
     >>> trainer.fit()  # Initializes node
     >>> result = node.forward(test_data)
@@ -335,7 +335,7 @@ With custom parameters:
 
 >>> from cuvis_ai_core.training import StatisticalTrainer
 >>> detector = RXGlobal(use_global_covariance=True)
->>> pipeline.add_node(detector)
+>>> # pipeline.connect(...) adds the detector automatically when wired
 >>> trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
 >>> trainer.fit()  # Initializes detector with background data
 >>> result = detector.forward(test_data)
@@ -468,7 +468,7 @@ Basic usage with statistical initialization:
 >>> # Create detector and load background data
 >>> from cuvis_ai_core.training import StatisticalTrainer
 >>> detector = RXDetector()
->>> pipeline.add_node(detector)
+>>> # pipeline.connect(...) adds the detector automatically when wired
 >>> background = load_hyperspectral_data("background.npy")
 >>>
 >>> # Initialize with background statistics
