@@ -83,8 +83,12 @@ Hydra uses **merge** strategy by default — only explicitly set fields are over
 ```yaml
 # Base
 data:
-  train_ids: [0, 2, 3]
-  val_ids: [1, 5]
+  data_module: cu3s
+  splits:
+    train:
+      - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [0, 2, 3]}
+    val:
+      - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [1, 5]}
   batch_size: 2
 
 # Override (only batch_size changes)
@@ -92,7 +96,7 @@ defaults:
   - base
   - _self_
 data:
-  batch_size: 16  # train_ids and val_ids unchanged
+  batch_size: 16  # splits unchanged
 ```
 
 ---
@@ -155,7 +159,9 @@ defaults:
   - _self_  # ← Must be last
 
 data:
-  train_ids: [0, 1, 2]
+  splits:
+    train:
+      - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [0, 1, 2]}
   batch_size: 16
 training:
   optimizer:
@@ -173,7 +179,7 @@ python train.py \
     data.batch_size=16
 
 # List/dict assignment
-python train.py data.train_ids=[0,1,2,3]
+python train.py data.params.measurement_indices=[0,1,2,3]
 python train.py training.scheduler={name:reduce_on_plateau,patience:10}
 ```
 

@@ -9,10 +9,7 @@ name: drcnn_adaclip
 
 output_dir: ./outputs/${name}
 
-# Data split IDs (from configs/data/lentils.yaml, shown here for visibility)
-# train_ids: [0, 2, 3]  # Training frames
-# val_ids: [1]       # Validation frames  
-# test_ids: [1, 5]   # Test frames
+# Data splits come from configs/data/lentils.yaml (selector lists under `splits:`).
 
 # Debug settings - save intermediate tensors for inspection
 debug:

@@ -150,7 +150,7 @@ uv run restore-trainrun \
 
 - `output_dir` - Change save location
 - `data.batch_size` - Adjust batch size
-- `data.train_ids`, `data.val_ids`, `data.test_ids` - Change data splits
+- `data.params.cu3s_file_path`, `data.splits.splits_path` - Change the data source / splits
 - `training.optimizer.lr` - Modify learning rate
 - `training.trainer.max_epochs` - Adjust training duration
 - `nodes.N.hparams.*` - Override node constructor arguments (N = node index)
@@ -505,9 +505,8 @@ uv run restore-trainrun \
   --trainrun-path outputs/lentils_model/trained_models/lentils_trainrun.yaml \
   --mode train \
   --override output_dir=outputs/beans_model \
-  --override data.train_ids=[10,11,12] \
-  --override data.val_ids=[13] \
-  --override data.test_ids=[14,15] \
+  --override data.params.cu3s_file_path=data/Beans/Beans_000.cu3s \
+  --override data.splits.splits_path=configs/data/beans_splits.json \
   --override training.optimizer.lr=0.0001 \
   --override training.trainer.max_epochs=30
 ```
