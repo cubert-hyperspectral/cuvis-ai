@@ -10,7 +10,8 @@ examples — Jupyter notebooks pairing data, explanation, code, and results — 
 
 `cuvis-ai-schemas` (contracts) → `cuvis-ai-core` (framework) → **`cuvis-ai`** (this repo:
 nodes + CLIs) → plugins. `cuvis-ai-cookbook` = example notebooks (datasets on Hugging Face:
-<https://huggingface.co/cubert-gmbh>); `cuvis-ai-agentic-skills` = Claude Code plugin;
+<https://huggingface.co/cubert-gmbh>); `cuvis-ai-agentic-skills` = private/internal Claude Code
+plugin (local checkout only, not published or referenced from public docs);
 `dev-docs` = internal ticket docs.
 
 ## Layout
@@ -66,7 +67,7 @@ nodes + CLIs) → plugins. `cuvis-ai-cookbook` = example notebooks (datasets on 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **cuvis-ai** (6497 symbols, 10208 relationships, 136 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **cuvis-ai** (6490 symbols, 10215 relationships, 138 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 

@@ -103,8 +103,6 @@ plugins:
   - gen-files:
       scripts:
         - scripts/generate_node_catalog.py
-  - macros:
-      module_name: scripts/docs_macros
   - llmstxt:
       markdown_description: |
         Cuvis.AI is an open-source, extensible framework for building AI-powered
@@ -129,8 +127,6 @@ plugins:
           - catalogs/datasets/*.md
         Workflows:
           - workflows/*.md
-        Agentic Integration:
-          - agentic-integration/*.md
         Deployment:
           - deployment/**/*.md
         Reference:
@@ -197,11 +193,6 @@ nav:
       - Gradient Training: workflows/gradient-training.md
       - Monitoring & Visualization: workflows/monitoring.md
       - Profiling: workflows/profiling.md
-  - Agentic Integration:
-      - Overview: agentic-integration/index.md
-      - About Skills: agentic-integration/overview.md
-      - Available Skills: agentic-integration/skills.md
-      - Invoking Skills: agentic-integration/invoking.md
   - Deployment:
       - Overview: deployment/index.md
       - Architecture: deployment/overview.md
