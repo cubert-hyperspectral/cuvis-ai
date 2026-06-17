@@ -193,6 +193,7 @@ tensorboard/
 .clinerules
 experiments/
 *.pt
+*.pth
 /.venv-adaclip-test/
 !configs/pipeline/anomaly/rx/channel_selector.pt
 configs/**/*.png
