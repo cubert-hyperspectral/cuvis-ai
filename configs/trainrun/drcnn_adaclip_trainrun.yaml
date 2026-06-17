@@ -1,6 +1,6 @@
 name: drcnn_adaclip
-# Pipeline reference (extracted snapshot), resolved next to this trainrun.
-pipeline: drcnn_adaclip_trainrun_pipeline.yaml
+# Pipeline reference, resolved relative to this trainrun's directory.
+pipeline: ../pipeline/anomaly/adaclip/drcnn_adaclip_gradient.yaml
 data:
   data_module: cu3s
   splits:

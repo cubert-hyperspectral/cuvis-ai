@@ -1,6 +1,6 @@
 name: adaclip_cir_false_color_optimal_threshold
-# Pipeline reference (extracted snapshot), resolved next to this trainrun.
-pipeline: adaclip_cir_false_color_optimal_threshold_pipeline.yaml
+# Pipeline reference, resolved relative to this trainrun's directory.
+pipeline: ../pipeline/anomaly/adaclip/adaclip_cir_false_color_optimal_threshold.yaml
 data:
   data_module: cu3s
   splits:
