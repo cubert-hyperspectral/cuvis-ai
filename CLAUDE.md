@@ -26,6 +26,7 @@ plugin (local checkout only, not published or referenced from public docs);
 
 - Install: `uv sync` (use `uv`, never bare `pip`).
 - Tests: `uv run pytest`. Nodes are tested with **pure-tensor mocking** — no heavy model downloads.
+- Docs: `uv run mkdocs build --strict` (Material + gen-files node catalog + llmstxt; needs the `docs` extra).
 - CLI entry points: `restore-pipeline`, `restore-trainrun`, `dataset`, `create-stubs`.
 - Enable hooks once: `git config core.hooksPath .githooks`.
   - **pre-commit**: strips notebook video outputs, `ruff format`, `ruff check --fix`, re-stages.
@@ -46,6 +47,18 @@ plugin (local checkout only, not published or referenced from public docs);
 - Load a pipeline against a plugins directory with `--plugins-dir` (`--plugins-path` was removed).
 - Dependency floors are pinned in `pyproject.toml`; the `dep_compat` / `registry_compat` CI
   workflows keep those floors compatible with the published plugin release tags — bump with care.
+
+## Data layer
+
+- cuvis-ai pins **no** `cuvis` SDK. cu3s/cu3 I/O (and `tiff_paired`) live in the
+  `cuvis-ai-dataloader` plugin (`[cu3s]` extra); its manifest ships at
+  `configs/plugins/cuvis_ai_dataloader.yaml`.
+- `restore-pipeline` picks data with `--data-module <name>` + repeatable `--data-arg key=value`
+  (no `--cu3s-file-path` / `--processing-mode`). It runs **in-process**, so the env must have the
+  data plugin installed for a cu3s run; the gRPC orchestrator composes a child env per run instead.
+- Trainrun `data:` is `{data_module, splits, params}` with a **selector** split model
+  (`{kind: file_indices, source, ids}`), not flat `train_ids`. `SingleCu3sDataset` /
+  `SingleCu3sDataModule` are gone (now `Cu3sDataModule` in `cuvis_ai_dataloader`).
 
 ## Key patterns for nodes
 
