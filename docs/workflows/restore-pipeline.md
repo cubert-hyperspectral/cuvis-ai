@@ -185,24 +185,17 @@ restore_trainrun(
 
 ```python
 from cuvis_ai_core.utils import restore_trainrun
-from omegaconf import OmegaConf
 
-# Load and modify config
-config_overrides = OmegaConf.create({
-    "output_dir": "outputs/my_experiment_v2",
-    "training": {
-        "optimizer": {"lr": 0.0001},
-        "trainer": {"max_epochs": 100}
-    },
-    "data": {
-        "batch_size": 32
-    }
-})
-
+# Overrides are Hydra-style dotlist "key=value" strings (same as --override on the CLI)
 restore_trainrun(
     trainrun_path="outputs/my_experiment/trained_models/my_experiment_trainrun.yaml",
     mode="train",
-    config_overrides=config_overrides
+    overrides=[
+        "output_dir=outputs/my_experiment_v2",
+        "training.optimizer.lr=0.0001",
+        "training.trainer.max_epochs=100",
+        "data.batch_size=32",
+    ],
 )
 ```
 
@@ -210,26 +203,18 @@ restore_trainrun(
 
 ```python
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
-from cuvis_ai_core.training.config import TrainRunConfig
 
-# Load TrainRun config
-trainrun_config = TrainRunConfig.load_from_file(
-    "outputs/my_experiment/trained_models/my_experiment_trainrun.yaml"
+# Load the restored pipeline together with its trained weights. The paths come
+# from the TrainRun output directory (My_Pipeline.yaml + My_Pipeline.pt).
+pipeline = CuvisPipeline.load_pipeline(
+    "outputs/my_experiment/trained_models/My_Pipeline.yaml",
+    weights_path="outputs/my_experiment/trained_models/My_Pipeline.pt",
+    strict_weight_loading=True,
 )
 
-# Extract and build pipeline
-pipeline_config = trainrun_config.pipeline
-pipeline = CuvisPipeline.from_config(pipeline_config)
-
-# Load weights
-pipeline.load_weights(
-    "outputs/my_experiment/trained_models/My_Pipeline.pt",
-    strict=True
-)
-
-# Run inference
-pipeline.validate()
-result = pipeline.execute()
+# Check the graph wiring, then run inference on a prepared batch
+pipeline.verify()
+outputs = pipeline.forward(batch={"cube": cube_tensor})  # cube_tensor: your [B, H, W, C] input
 ```
 
 ## Statistical vs Gradient Training
@@ -382,22 +367,16 @@ uv run restore-trainrun \
 ```python
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
-# Load pipeline
+# Load the pipeline together with its trained weights
 pipeline = CuvisPipeline.load_pipeline(
-    "outputs/my_experiment/trained_models/My_Pipeline.yaml"
+    "outputs/my_experiment/trained_models/My_Pipeline.yaml",
+    weights_path="outputs/my_experiment/trained_models/My_Pipeline.pt",
+    strict_weight_loading=True,  # Require exact parameter match
 )
 
-# Load weights explicitly
-pipeline.load_weights(
-    "outputs/my_experiment/trained_models/My_Pipeline.pt",
-    strict=True  # Require exact parameter match
-)
-
-# Or load from checkpoint
-pipeline.load_from_checkpoint(
-    "outputs/my_experiment/checkpoints/epoch=09.ckpt",
-    strict=False  # Allow partial loading
-)
+# To resume from a Lightning .ckpt instead, use the restore-trainrun CLI with
+# --checkpoint-path (see "Continue from checkpoint" above); there is no
+# pipeline-level checkpoint-loading method.
 ```
 
 ## Checkpoint Configuration
@@ -459,14 +438,19 @@ else:
 ```python
 from pathlib import Path
 
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+
 trainrun_path = Path("outputs/my_experiment/trained_models/my_experiment_trainrun.yaml")
-weights_path = trainrun_path.parent / f"{trainrun_path.stem.replace('_trainrun', '')}.pt"
+stem = trainrun_path.stem.replace("_trainrun", "")
+weights_path = trainrun_path.parent / f"{stem}.pt"
+pipeline_path = trainrun_path.parent / f"{stem}.yaml"
 
 if weights_path.exists():
     print("Loading with trained weights")
-    pipeline.load_weights(str(weights_path), strict=True)
+    pipeline = CuvisPipeline.load_pipeline(str(pipeline_path), weights_path=str(weights_path))
 else:
     print("No weights found - statistical initialization required")
+    pipeline = CuvisPipeline.load_pipeline(str(pipeline_path))
     # Must run training first
 ```
 
@@ -544,8 +528,8 @@ pipeline = CuvisPipeline.load_pipeline(
     device="cuda" if torch.cuda.is_available() else "cpu"
 )
 
-# Validate pipeline
-pipeline.validate()
+# Check the graph wiring
+pipeline.verify()
 
 # Run inference on new data
 import cuvis
@@ -562,7 +546,7 @@ cube_tensor = cube_tensor.unsqueeze(0)      # (1, C, H, W)
 
 # Run pipeline
 with torch.no_grad():
-    result = pipeline.execute(cube=cube_tensor)
+    result = pipeline.forward(batch={"cube": cube_tensor})
 
 # Extract outputs
 anomaly_scores = result["scores"]     # Anomaly heatmap
@@ -642,11 +626,12 @@ pipeline = restore_pipeline(
     plugins_dirs=["configs/plugins"]
 )
 
-# Or with inference
+# Or with inference on a cu3s session (selected via the data module)
 pipeline = restore_pipeline(
     pipeline_path="configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml",
     plugins_dirs=["configs/plugins"],
-    cu3s_file_path="data/Lentils/Lentils_000.cu3s"
+    data_module="cu3s",
+    data_args={"cu3s_file_path": "data/Lentils/Lentils_000.cu3s"},
 )
 ```
 
@@ -733,8 +718,10 @@ RuntimeError: Error(s) in loading state_dict: size mismatch for selector.weights
 3. Manually adapt weights
 
 ```python
-# Load with strict=False
-pipeline.load_weights("My_Pipeline.pt", strict=False)
+# Load with strict_weight_loading=False
+pipeline = CuvisPipeline.load_pipeline(
+    "My_Pipeline.yaml", weights_path="My_Pipeline.pt", strict_weight_loading=False
+)
 ```
 
 ### Issue: Checkpoint Not Found
@@ -812,9 +799,10 @@ trainrun_config.save_to_file(
     str(output_dir / "trained_models" / f"{experiment_name}_trainrun.yaml")
 )
 
-# Save weights separately
-pipeline.save_weights(
-    str(output_dir / "trained_models" / f"{pipeline_name}.pt")
+# Save the pipeline and its weights (writes {pipeline_name}.yaml + .pt)
+pipeline.save_to_file(
+    str(output_dir / "trained_models" / f"{pipeline_name}.yaml"),
+    save_weights=True,
 )
 ```
 
