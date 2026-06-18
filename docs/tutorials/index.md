@@ -10,6 +10,11 @@ Tutorials are grouped by training style:
 - **Statistical** — pipelines that learn from background statistics alone, no gradient steps. Fast to train, interpretable, strong baselines.
 - **Gradient** — pipelines that include trainable parameters fit by backpropagation. More expressive, more compute.
 
+!!! tip "Running these locally"
+    Each tutorial is a runnable notebook in `notebooks/use_cases/`. See
+    [Running the Notebooks](running-notebooks.md) for the repeatable recipe to
+    provision an environment (base install, per-notebook plugins, JupyterLab).
+
 ## Statistical
 
 <div class="grid cards" markdown>

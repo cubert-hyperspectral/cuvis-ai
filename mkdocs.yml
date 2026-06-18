@@ -167,6 +167,7 @@ nav:
       - Execution Stages: concepts/execution-stages.md
   - Tutorials:
       - Overview: tutorials/index.md
+      - Running the Notebooks: tutorials/running-notebooks.md
       - Statistical:
           - Overview: tutorials/statistical/index.md
           - RX Anomaly: tutorials/statistical/rx-anomaly.md
