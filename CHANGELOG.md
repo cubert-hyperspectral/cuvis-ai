@@ -23,6 +23,11 @@
   helper now sets `LoadPipelineRequest.data_module` from the trainrun's `data.data_module` (a bare
   name) instead of copying the whole `DataConfig`, so the server composes the child env with that
   module's plugin. Only a pipeline run needs a data module, the pipeline graph does not.
+- **`load_manifest_bytes` sends one bare manifest with an absolute local path.** The gRPC example
+  helper now loads a single bare plugin manifest (`name` + source + `capabilities`) for a `LoadPlugin`
+  call and resolves a local plugin's relative `path` to absolute against the manifest file's
+  directory, since the server runs elsewhere and `LoadPlugin` rejects a client-relative path. Git
+  manifests (`repo` + `tag`) are sent unchanged.
 - **Refreshed the `cuvis_ai_version` metadata stamps in the bundled configs.** The pipeline
   library under `configs/pipeline/**` and the two `configs/trainrun/*_pipeline.yaml` snapshots
   carried stale `0.1.x` dev-version stamps (down to a hardcoded `0.1.0`); bumped to `0.5.3` to

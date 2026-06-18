@@ -11,9 +11,40 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from cuvis_ai.utils.grpc_workflow import apply_trainrun_config, normalize_pipeline_bytes
+from cuvis_ai.utils.grpc_workflow import (
+    apply_trainrun_config,
+    load_manifest_bytes,
+    normalize_pipeline_bytes,
+)
 
 pytestmark = pytest.mark.unit
+
+
+def test_load_manifest_bytes_resolves_local_path_to_absolute(tmp_path) -> None:
+    """A bare local manifest's relative path is resolved to absolute (server can't)."""
+    manifest = tmp_path / "my_plugin.yaml"
+    manifest.write_text(
+        "name: my_plugin\npath: ../sibling\ncapabilities:\n  - class_name: pkg.mod.Node\n",
+        encoding="utf-8",
+    )
+    payload = json.loads(load_manifest_bytes(manifest).decode("utf-8"))
+    assert payload["name"] == "my_plugin"
+    assert "plugins" not in payload  # bare manifest, no wrapper
+    assert payload["path"] == str((tmp_path / ".." / "sibling").resolve())
+
+
+def test_load_manifest_bytes_leaves_git_manifest_unchanged(tmp_path) -> None:
+    """A git manifest (repo + tag) has no local path to resolve."""
+    manifest = tmp_path / "sam3.yaml"
+    manifest.write_text(
+        "name: sam3\nrepo: https://github.com/x/sam3.git\ntag: v1.0.0\n"
+        "capabilities:\n  - class_name: cuvis_ai_sam3.node.Sam3\n",
+        encoding="utf-8",
+    )
+    payload = json.loads(load_manifest_bytes(manifest).decode("utf-8"))
+    assert payload["repo"] == "https://github.com/x/sam3.git"
+    assert payload["tag"] == "v1.0.0"
+    assert "path" not in payload
 
 
 def test_apply_trainrun_config_loads_pipeline_then_sets_config() -> None:

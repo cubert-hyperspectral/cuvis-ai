@@ -169,17 +169,21 @@ def format_progress(progress: cuvis_ai_pb2.TrainResponse) -> str:
 
 
 def load_manifest_bytes(path: Path) -> bytes:
-    """Load a plugin YAML manifest, resolve relative plugin paths, and return JSON bytes."""
+    """Load one bare plugin manifest and return the JSON bytes for a LoadPlugin call.
+
+    The file is a single bare manifest (``name`` + source + ``capabilities``).
+    A local plugin's relative ``path`` is resolved to absolute against the
+    manifest file's directory, since the server runs elsewhere and cannot
+    resolve a client-relative path (``LoadPlugin`` rejects a relative local
+    path). Git manifests (``repo`` + ``tag``) are returned unchanged.
+    """
     manifest = yaml.safe_load(path.read_text(encoding="utf-8"))
-    plugins = manifest.get("plugins", {}) if isinstance(manifest, dict) else {}
-    for plugin_config in plugins.values():
-        if not isinstance(plugin_config, dict):
-            continue
-        plugin_path = plugin_config.get("path")
+    if isinstance(manifest, dict) and "repo" not in manifest:
+        plugin_path = manifest.get("path")
         if isinstance(plugin_path, str) and plugin_path:
             resolved = Path(plugin_path)
             if not resolved.is_absolute():
-                plugin_config["path"] = str((path.parent / resolved).resolve())
+                manifest["path"] = str((path.parent / resolved).resolve())
     return json.dumps(manifest).encode("utf-8")
 
 
