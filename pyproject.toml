@@ -18,7 +18,7 @@ dependencies = [
     # Builtin/RGB pipelines pull neither cuvis nor cuvis-il, closing the Windows wheel gap.
     # Tests mock the data layer (no plugin dep); the real cu3s reader is tested in the plugin.
     "cuvis-ai-core>=0.7.1",
-    "cuvis-ai-schemas[full]>=0.5.2",
+    "cuvis-ai-schemas[full]>=0.6.0",
     "pydantic>=2.13.3,<3.0.0",
     "defusedxml>=0.7.1",
     "markupsafe>=3.0.3",
@@ -149,7 +149,6 @@ torchvision = { index = "pytorch-cu128" }
 # Local editable overrides for day-to-day development against working copies of the
 # core libs (this coordinated PR window predates their releases).
 cuvis-ai-core = { path = "../../cuvis-ai-core/cuvis-ai-core", editable = true }
-cuvis-ai-schemas = { path = "../../cuvis-ai-schemas/cuvis-ai-schemas", editable = true }
 # Plugin checkouts (the `plugins` extra). Replaced with published version pins at
 # release; the PRs merge in cascade before this repo's.
 cuvis-ai-dinomaly = { path = "../../cuvis-ai-dinomaly/cuvis-ai-dinomaly", editable = true }

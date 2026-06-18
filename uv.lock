@@ -938,7 +938,7 @@ requires-dist = [
     { name = "cuvis-ai-deepeiou", marker = "extra == 'plugins'", editable = "../../cuvis-ai-deepeiou/cuvis-ai-deepeiou" },
     { name = "cuvis-ai-dinomaly", marker = "extra == 'plugins'", editable = "../../cuvis-ai-dinomaly/cuvis-ai-dinomaly" },
     { name = "cuvis-ai-sam3", marker = "extra == 'plugins'", editable = "../../cuvis-ai-sam3/cuvis-ai-sam3" },
-    { name = "cuvis-ai-schemas", extras = ["full"], editable = "../../cuvis-ai-schemas/cuvis-ai-schemas" },
+    { name = "cuvis-ai-schemas", extras = ["full"], specifier = ">=0.6.0" },
     { name = "cuvis-ai-trackeval", marker = "extra == 'plugins'", editable = "../../cuvis-ai-trackeval/cuvis-ai-trackeval" },
     { name = "cuvis-ai-ultralytics", marker = "extra == 'plugins'", editable = "../../cuvis-ai-ultralytics/cuvis-ai-ultralytics" },
     { name = "cyclonedx-bom", marker = "extra == 'dev'", specifier = ">=4.0.0" },
@@ -1098,7 +1098,7 @@ requires-dist = [
     { name = "aiohttp", specifier = ">=3.14.1" },
     { name = "bandit", extras = ["toml"], marker = "extra == 'dev'", specifier = ">=1.7.0" },
     { name = "click", specifier = ">=8.3.1" },
-    { name = "cuvis-ai-schemas", extras = ["proto"], editable = "../../cuvis-ai-schemas/cuvis-ai-schemas" },
+    { name = "cuvis-ai-schemas", extras = ["proto"], specifier = ">=0.6.0" },
     { name = "cyclonedx-bom", marker = "extra == 'dev'", specifier = ">=4.0.0" },
     { name = "detect-secrets", marker = "extra == 'dev'", specifier = ">=1.4.0" },
     { name = "dotenv", specifier = ">=0.9.9" },
@@ -1305,10 +1305,15 @@ dev = [{ name = "setuptools-scm", specifier = ">=9.2.2" }]
 
 [[package]]
 name = "cuvis-ai-schemas"
-source = { editable = "../../cuvis-ai-schemas/cuvis-ai-schemas" }
+version = "0.6.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/9f/61/369e7d86d84a6addb08eb9a37d0db8b49538d2e9e64fcff852e1958f27f1/cuvis_ai_schemas-0.6.0.tar.gz", hash = "sha256:318fc842c170ced1a7b81b133208de3507c511d7d38ce083f652470d748092aa", size = 246603, upload-time = "2026-06-18T11:16:36.553Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c6/cd/842fd2e606d25c2c8a2028391591ebf637ce0f61f8ce7697f6da863d9313/cuvis_ai_schemas-0.6.0-py3-none-any.whl", hash = "sha256:677320af1354370471411b0266450813731a4572f576d3a99b6ee058c26c0899", size = 75539, upload-time = "2026-06-18T11:16:35.406Z" },
 ]
 
 [package.optional-dependencies]
@@ -1326,35 +1331,6 @@ proto = [
     { name = "grpcio-tools" },
     { name = "protobuf" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "bandit", extras = ["toml"], marker = "extra == 'dev'", specifier = ">=1.7.0" },
-    { name = "cuvis-ai-schemas", extras = ["lightning", "numpy", "proto", "torch"], marker = "extra == 'full'" },
-    { name = "cyclonedx-bom", marker = "extra == 'dev'", specifier = ">=4.0.0" },
-    { name = "detect-secrets", marker = "extra == 'dev'", specifier = ">=1.4.0" },
-    { name = "grpcio", marker = "extra == 'proto'", specifier = ">=1.56.0" },
-    { name = "grpcio-tools", marker = "extra == 'proto'", specifier = ">=1.56.0" },
-    { name = "interrogate", marker = "extra == 'dev'", specifier = ">=1.7.0" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8.0" },
-    { name = "numpy", marker = "extra == 'numpy'", specifier = ">=1.21.0" },
-    { name = "pip-audit", marker = "extra == 'dev'", specifier = ">=2.7.0" },
-    { name = "pip-licenses", marker = "extra == 'dev'", specifier = ">=4.0.0" },
-    { name = "protobuf", marker = "extra == 'proto'", specifier = ">=6.33.5,<8" },
-    { name = "pydantic", specifier = ">=2.12.5,<3.0.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0.0" },
-    { name = "pytorch-lightning", marker = "extra == 'lightning'", specifier = ">=2.0.0" },
-    { name = "pyyaml", specifier = ">=6.0.3" },
-    { name = "ruff", marker = "extra == 'dev'" },
-    { name = "torch", marker = "extra == 'torch'", specifier = ">=2.0.0" },
-    { name = "torchvision", marker = "extra == 'torch'" },
-    { name = "twine", marker = "extra == 'dev'", specifier = ">=6.2.0" },
-    { name = "types-grpcio", marker = "extra == 'dev'" },
-    { name = "types-protobuf", marker = "extra == 'dev'" },
-    { name = "types-pyyaml", marker = "extra == 'dev'" },
-]
-provides-extras = ["proto", "torch", "numpy", "lightning", "full", "dev"]
 
 [[package]]
 name = "cuvis-ai-trackeval"
