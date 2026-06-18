@@ -222,3 +222,4 @@ notebooks/**/channel_examples/
 # (produced by scripts/render_pipelines.py + scripts/smoke_22_yamls.py)
 *.report.json
 /pipeline_renders/
+.gstack/
