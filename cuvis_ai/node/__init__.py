@@ -53,7 +53,13 @@ from cuvis_ai.node.json_file import (
 from cuvis_ai.node.labels import BinaryAnomalyLabelMapper
 from cuvis_ai.node.losses import DistinctnessLoss, ForegroundContrastLoss
 from cuvis_ai.node.mask_ops import MaskRobustifier, MaskToBBoxKalman
-from cuvis_ai.node.normalization import IdentityNormalizer, MinMaxNormalizer, SigmoidNormalizer
+from cuvis_ai.node.normalization import (
+    DisplayNormalizer,
+    IdentityNormalizer,
+    MinMaxNormalizer,
+    PercentileNormalizer,
+    SigmoidNormalizer,
+)
 from cuvis_ai.node.numpy_file import NpyReader, NumpyFeatureWriterNode
 from cuvis_ai.node.occlusion import (
     OcclusionNodeBase,
@@ -105,6 +111,7 @@ __all__ = [
     "DetectionCocoJsonNode",
     "DetectionJsonReader",
     "DecisionToMask",
+    "DisplayNormalizer",
     "DistinctnessLoss",
     "FixedWavelengthSelector",
     "ForegroundContrastLoss",
@@ -130,6 +137,7 @@ __all__ = [
     "PoissonOcclusionNode",
     "PCA",
     "PCAVisualization",
+    "PercentileNormalizer",
     "PipelineComparisonVisualizer",
     "RangeAverageFalseRGBSelector",
     "RGBAnomalyMask",

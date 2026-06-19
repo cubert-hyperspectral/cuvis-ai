@@ -49,7 +49,6 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-from enum import StrEnum
 from typing import Any, Literal
 
 import numpy as np
@@ -64,16 +63,15 @@ from sklearn.metrics import roc_auc_score
 from torch import Tensor
 
 from cuvis_ai.node.colormap import render_scalar_hsv_colormap
+from cuvis_ai.node.normalization import NormMode
 from cuvis_ai.utils.welford import WelfordAccumulator
 from cuvis_ai_core.node import Node
 
-
-class NormMode(StrEnum):
-    """RGB normalization mode for channel selectors."""
-
-    PER_FRAME = "per_frame"
-    RUNNING = "running"
-    STATISTICAL = "statistical"
+# ``NormMode`` now lives in :mod:`cuvis_ai.node.normalization` alongside
+# ``PercentileNormalizer`` / ``DisplayNormalizer``; it is re-exported here so the
+# in-selector normalization API stays backward compatible. New pipelines should
+# stack a ``PercentileNormalizer`` (+ ``DisplayNormalizer`` for false-RGB) after
+# the selector instead of relying on the selector's built-in normalization.
 
 
 class ChannelSelectorBase(Node):
