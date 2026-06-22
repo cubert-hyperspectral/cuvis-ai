@@ -45,6 +45,15 @@
   bundles the cu3s reader) and select frames via `measurement_indices` instead of the removed
   `predict_ids` id-lists. Added `notebooks/use_cases/README.md` covering the env setup (install the
   data plus model plugins, then `uv run jupyter lab`).
+- **Bumped the `cuvis-ai-core` floor to `>=0.8.0` and consume core + schemas from PyPI.** The floor
+  matches the adopted `cuvis-ai-dataloader` / `Cu3sDataModule` APIs (0.8.0 dropped
+  `SingleCu3sDataModule` / `load_plugins`) and pairs with `cuvis-ai-schemas[full]>=0.6.0`. The
+  dev-only editable `[tool.uv.sources]` for core and the unpublished `plugins` extra are kept as a
+  commented local-dev scaffold, so the committed lock resolves both libs from their published
+  releases instead of sibling working copies (which a CI checkout cannot resolve).
+- **Security:** upgraded dev/doc tooling to clear `pip-audit` advisories: `bleach 6.4.0`,
+  `cryptography 49.0.0`, `jupyter-server 2.20.0`, `jupyterlab 4.6.0`, `msgpack 1.2.1`, and
+  `tornado 6.5.7` (lock-only; these are dev/doc transitive dependencies, not runtime deps).
 
 ## 0.8.0 - 2026-06-11
 
