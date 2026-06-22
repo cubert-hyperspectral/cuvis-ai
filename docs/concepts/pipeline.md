@@ -172,7 +172,7 @@ for node in sorted_nodes:
 from cuvis_ai_core.training import StatisticalTrainer
 
 # Phase 1: Statistical initialization
-datamodule = SingleCu3sDataModule(...)
+datamodule = Cu3sDataModule(...)
 stat_trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
 stat_trainer.fit()  # Initialize statistical nodes
 

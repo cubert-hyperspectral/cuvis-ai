@@ -274,7 +274,7 @@ For production deployment, you typically **train once** and **infer many times**
 """Restore trained pipeline for inference using gRPC."""
 
 from pathlib import Path
-from cuvis_ai_dataloader.data import SingleCu3sDataset
+from cuvis_ai_dataloader.data import Cu3sDataModule
 from cuvis_ai_core.grpc import cuvis_ai_pb2, helpers
 from torch.utils.data import DataLoader
 from cuvis_ai.utils.grpc_workflow import (
@@ -347,10 +347,12 @@ def run_inference(
 
     # 7. Load CU3S data
     print(f"\nLoading data from {cu3s_file_path}")
-    dataset = SingleCu3sDataset(
+    dm = Cu3sDataModule(
         cu3s_file_path=str(cu3s_file_path),
         processing_mode="Reflectance",
     )
+    dm.setup("predict")
+    dataset = dm.predict_ds
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
 
     # 8. Run inference on each batch

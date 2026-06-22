@@ -36,7 +36,7 @@ def resolve_run_output_dir(
 def compute_real_fps_from_dataset(dataset: object) -> float | None:
     """Estimate real wall-clock fps from first/last measurement ``capture_time``.
 
-    Reads timestamps directly from the Cuvis session held by a ``SingleCu3sDataset``
+    Reads timestamps directly from the Cuvis session held by a cu3s predict dataset
     and returns ``(n_frames - 1) / span_seconds``. This is more reliable than
     ``session.fps`` (a nominal value) for spectral cameras where per-frame exposure
     dominates the real capture cadence.

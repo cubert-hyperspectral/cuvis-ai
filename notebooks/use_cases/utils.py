@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import yaml
-from cuvis_ai_dataloader.data import SingleCu3sDataModule
+from cuvis_ai_dataloader.data import Cu3sDataModule
 from cuvis_ai_schemas.enums import ExecutionStage
 from cuvis_ai_schemas.execution import Context
 from huggingface_hub import hf_hub_download
@@ -204,8 +204,8 @@ def make_predict_loader(
     *,
     processing_mode: str = "Reflectance",
     batch_size: int = 1,
-) -> tuple[SingleCu3sDataModule, Any]:
-    dm = SingleCu3sDataModule(
+) -> tuple[Cu3sDataModule, Any]:
+    dm = Cu3sDataModule(
         cu3s_file_path=str(cu3s_path),
         annotation_json_path=str(annotation_json_path),
         batch_size=batch_size,
