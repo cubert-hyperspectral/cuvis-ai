@@ -10,11 +10,14 @@ import json
 from unittest.mock import MagicMock
 
 import pytest
+import yaml
 
 from cuvis_ai.utils.grpc_workflow import (
     apply_trainrun_config,
+    inline_pipeline_ref,
     load_manifest_bytes,
     normalize_pipeline_bytes,
+    resolve_pipeline_ref,
 )
 
 pytestmark = pytest.mark.unit
@@ -122,3 +125,33 @@ def test_apply_trainrun_config_without_pipeline_skips_load() -> None:
     set_req = stub.SetTrainRunConfig.call_args.args[0]
     assert set_req.session_id == "sess-2"
     assert json.loads(set_req.config.config_bytes.decode("utf-8")) == config
+
+
+def test_resolve_pipeline_ref_loads_yaml_relative_to_trainrun_dir(tmp_path) -> None:
+    """A path-referenced pipeline is loaded relative to the given trainrun directory."""
+    pipeline = {"nodes": {"n0": {"type": "FastRGBSelector"}}, "plugins": ["cuvis_ai_builtin"]}
+    (tmp_path / "pipe.yaml").write_text(yaml.safe_dump(pipeline), encoding="utf-8")
+
+    loaded = resolve_pipeline_ref("pipe.yaml", trainrun_dir=tmp_path)
+    assert loaded == pipeline
+
+
+def test_inline_pipeline_ref_inlines_string_reference(tmp_path) -> None:
+    """A string ``pipeline`` is replaced by the loaded mapping; the input is not mutated."""
+    pipeline = {"nodes": {"n0": {"type": "FastRGBSelector"}}, "plugins": ["cuvis_ai_builtin"]}
+    (tmp_path / "pipe.yaml").write_text(yaml.safe_dump(pipeline), encoding="utf-8")
+    config = {"pipeline": "pipe.yaml", "trainer": {"max_epochs": 1}}
+
+    inlined = inline_pipeline_ref(config, trainrun_dir=tmp_path)
+    assert inlined["pipeline"] == pipeline
+    assert inlined["trainer"] == {"max_epochs": 1}
+    assert config["pipeline"] == "pipe.yaml"  # original left untouched
+
+
+def test_inline_pipeline_ref_is_noop_for_inline_or_absent_pipeline() -> None:
+    """An already-inline or missing ``pipeline`` returns the same dict unchanged."""
+    inline = {"pipeline": {"nodes": {"n0": {"type": "FastRGBSelector"}}}, "trainer": {}}
+    assert inline_pipeline_ref(inline) is inline
+
+    absent = {"trainer": {"max_epochs": 3}}
+    assert inline_pipeline_ref(absent) is absent
