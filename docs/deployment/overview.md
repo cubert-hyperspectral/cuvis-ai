@@ -218,8 +218,8 @@ response = stub.Inference(
 
 # Process outputs
 for name, tensor_proto in response.outputs.items():
-    output_array = helpers.proto_to_numpy(tensor_proto)
-    print(f"{name}: shape={output_array.shape}")
+    with helpers.proto_to_numpy(tensor_proto) as output_array:
+        print(f"{name}: shape={output_array.shape}")
 ```
 
 ### Step 5: Clean Up

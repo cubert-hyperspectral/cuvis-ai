@@ -245,11 +245,12 @@ def run_inference(stub, session_id, cube, wavelengths):
         )
     )
 
-    # Convert outputs
-    outputs = {
-        name: helpers.proto_to_numpy(tensor_proto)
-        for name, tensor_proto in response.outputs.items()
-    }
+    # Convert outputs (proto_to_numpy is a context manager; copy=True, the
+    # default, keeps each array valid after its mapping is released)
+    outputs = {}
+    for name, tensor_proto in response.outputs.items():
+        with helpers.proto_to_numpy(tensor_proto) as arr:
+            outputs[name] = arr
 
     return outputs
 
@@ -298,10 +299,10 @@ def batch_inference(stub, session_id, cu3s_path, batch_size=4):
         )
 
         # Convert and store outputs
-        batch_outputs = {
-            name: helpers.proto_to_numpy(tensor_proto)
-            for name, tensor_proto in response.outputs.items()
-        }
+        batch_outputs = {}
+        for name, tensor_proto in response.outputs.items():
+            with helpers.proto_to_numpy(tensor_proto) as arr:
+                batch_outputs[name] = arr
         all_results.append(batch_outputs)
 
     return all_results
@@ -331,10 +332,10 @@ def filtered_inference(stub, session_id, cube, wavelengths, output_specs):
         )
     )
 
-    outputs = {
-        name: helpers.proto_to_numpy(tensor_proto)
-        for name, tensor_proto in response.outputs.items()
-    }
+    outputs = {}
+    for name, tensor_proto in response.outputs.items():
+        with helpers.proto_to_numpy(tensor_proto) as arr:
+            outputs[name] = arr
 
     return outputs
 
@@ -372,10 +373,11 @@ def safe_inference(stub, session_id, cube, wavelengths):
             )
         )
 
-        return {
-            name: helpers.proto_to_numpy(tensor_proto)
-            for name, tensor_proto in response.outputs.items()
-        }
+        outputs = {}
+        for name, tensor_proto in response.outputs.items():
+            with helpers.proto_to_numpy(tensor_proto) as arr:
+                outputs[name] = arr
+        return outputs
 
     except grpc.RpcError as e:
         code = e.code()

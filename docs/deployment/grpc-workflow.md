@@ -374,7 +374,8 @@ def run_inference(
         # Convert outputs back to numpy
         output_dict = {}
         for name, tensor_proto in inference_response.outputs.items():
-            output_dict[name] = helpers.proto_to_numpy(tensor_proto)
+            with helpers.proto_to_numpy(tensor_proto) as arr:
+                output_dict[name] = arr
 
         results.append(output_dict)
 
