@@ -23,7 +23,7 @@ def test_plugin_manifest_loads() -> None:
 def test_plugin_classes_resolve_and_match_node_contract() -> None:
     pytest.importorskip("cuvis_ai_adaclip")
     registry = NodeRegistry()
-    registry.register_plugins(ADACLIP_MANIFEST_PATH)
+    registry.register_plugin(ADACLIP_MANIFEST_PATH)
 
     assert set(registry.list_plugins()) == {PLUGIN_NAME}
 

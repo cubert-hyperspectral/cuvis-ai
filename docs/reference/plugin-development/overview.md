@@ -67,7 +67,7 @@ plugins:
 3. The declared plugins are **registered import-only**: their node classes are imported from packages already installed in the active environment. Registration never clones, installs dependencies, or mutates `sys.path`, so provision the plugins first (see the `provision` CLI).
 4. In the orchestrated gRPC server, the composer builds an **isolated per-pipeline environment** (git plugins pinned to a commit + `uv sync`) and the child registers the now-installed plugins the same import-only way, so one pipeline's dependencies never affect the server or another pipeline.
 
-`NodeRegistry.register_plugins(manifest_path)` is the **in-process** path for registering a manifest
+`NodeRegistry.register_plugin(manifest_path)` is the **in-process** path for registering a manifest
 directly into a registry instance — handy for quick local checks and notebooks (see the
 [Plugin Development Guide](guide.md)) — but pipelines normally declare plugins by bare name as
 shown above.

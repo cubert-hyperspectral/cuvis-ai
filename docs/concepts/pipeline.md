@@ -374,7 +374,7 @@ For manual, dev-mode control you can still load a manifest into a registry insta
 
 ```python
 registry = NodeRegistry()
-registry.register_plugins("configs/plugins/adaclip.yaml")   # CLI / dev-mode path
+registry.register_plugin("configs/plugins/adaclip.yaml")   # CLI / dev-mode path
 pipeline = CuvisPipeline.load_pipeline(
     "outputs/my_pipeline.yaml", node_registry=registry
 )

@@ -312,7 +312,7 @@ all_nodes = NodeRegistry.list_builtin_nodes()
 ```python
 # Create registry instance
 registry = NodeRegistry()
-registry.register_plugins("path/to/plugins.yaml")
+registry.register_plugin("path/to/plugins.yaml")
 
 # Get plugin node
 AdaCLIPDetector = registry.get("AdaCLIPDetector")

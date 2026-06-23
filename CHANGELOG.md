@@ -3,10 +3,11 @@
 ## [Unreleased]
 
 - **Trainrun configs reference their pipeline by path.** Following the schemas/core change to a `pipeline:` reference, the bundled trainrun configs no longer inline or Hydra-compose a pipeline: the twelve `@pipeline`-group configs drop that `defaults` entry for a top-level `pipeline: ../pipeline/<group>/<name>.yaml` reference, and the two resolved snapshot configs (`drcnn_adaclip_trainrun`, `adaclip_cir_false_color_optimal_threshold`) extract their inline pipeline to a `<name>_pipeline.yaml` sibling and reference it. The migration-equivalence test now also asserts every string `pipeline` reference resolves to a loadable `PipelineConfig`. Script-driven configs that use `pipeline:` as a parameter-override mapping are unchanged.
-- **Plugin registration is import-only: `load_plugins` becomes `register_plugins`.** Core dropped the
-  in-process clone / install plugin loader, so call sites in the use-case notebooks,
-  `scripts/render_pipelines.py`, the plugin contract / runtime-smoke tests, and the docs move from
-  `registry.load_plugins(...)` / `load_plugin(...)` to `register_plugins(...)` / `register_plugin(...)`.
+- **Plugin registration is import-only via `register_plugin(path)`.** Core dropped the
+  in-process clone / install plugin loader and collapsed registration to a single file-path
+  front door, so call sites in the use-case notebooks, `scripts/render_pipelines.py`, the plugin
+  contract / runtime-smoke tests, and the docs move to `registry.register_plugin(<manifest.yaml>)`
+  (in-memory manifests register via `register_plugins_installed`).
   Plugins must be provisioned into the environment first (see the new `provision` CLI in core); the
   runtime-smoke test `importorskip`s the plugin package so it skips cleanly when unprovisioned.
 - **Dropped the `cuvis` SDK (and `cuvis-il`, `ftfy`) from base dependencies.** The SDK now lives only

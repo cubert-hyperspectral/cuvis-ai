@@ -649,7 +649,7 @@ from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 registry = NodeRegistry()
 
 # Register the manifest's plugins (import-only; provision them first)
-registry.register_plugins("configs/plugins/adaclip.yaml")
+registry.register_plugin("configs/plugins/adaclip.yaml")
 
 # Load pipeline with plugin-aware registry
 pipeline = CuvisPipeline.load_pipeline(

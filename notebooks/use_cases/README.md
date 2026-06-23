@@ -61,10 +61,10 @@ on a `NodeRegistry`:
 from cuvis_ai_core.utils.node_registry import NodeRegistry
 
 registry = NodeRegistry()
-registry.register_plugins("configs/plugins/dinomaly.yaml")
+registry.register_plugin("configs/plugins/dinomaly.yaml")
 ```
 
-`register_plugins` only registers already-installed packages; install the
+`register_plugin` only registers already-installed packages; install the
 plugin first (step 2/3 above). For a config-driven setup, `provision`
 (shipped by `cuvis-ai-core`) resolves a pipeline's `plugins:` block plus a
 `--data-module` into the exact install command.
