@@ -8,7 +8,9 @@
 # local-sources dev approach). At release this swaps to a published git tag, like
 # the sibling plugin manifests here.
 name: cuvis_ai_dataloader
-path: "../../../../cuvis-ai-dataloader/cuvis-ai-dataloader"
+# path: "../../../../cuvis-ai-dataloader/cuvis-ai-dataloader"
+repo: "https://github.com/cubert-hyperspectral/cuvis-ai-dataloader.git"
+tag: "v0.1.0"
 package_name: cuvis-ai-dataloader
 capabilities:
   - { class_name: cuvis_ai_dataloader.data.datamodule_cu3s.Cu3sDataModule,              kind: data_module, data_module_name: cu3s,        extras: [cu3s, coco] }

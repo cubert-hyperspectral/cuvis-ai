@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## 0.9.0 - 2026-06-23
 
 - **Trainrun configs reference their pipeline by path.** Following the schemas/core change to a `pipeline:` reference, the bundled trainrun configs no longer inline or Hydra-compose a pipeline: the twelve `@pipeline`-group configs drop that `defaults` entry for a top-level `pipeline: ../pipeline/<group>/<name>.yaml` reference, and the two resolved snapshot configs (`drcnn_adaclip_trainrun`, `adaclip_cir_false_color_optimal_threshold`) extract their inline pipeline to a `<name>_pipeline.yaml` sibling and reference it. The migration-equivalence test now also asserts every string `pipeline` reference resolves to a loadable `PipelineConfig`. Script-driven configs that use `pipeline:` as a parameter-override mapping are unchanged.
 - **Plugin registration is import-only via `register_plugin(path)`.** Core dropped the
@@ -10,12 +10,14 @@
   (in-memory manifests register via `register_plugins_installed`).
   Plugins must be provisioned into the environment first (see the new `provision` CLI in core); the
   runtime-smoke test `importorskip`s the plugin package so it skips cleanly when unprovisioned.
-  Floors `cuvis-ai-core>=0.10.0` (the release carrying the renamed API).
+  Floors `cuvis-ai-core>=0.10.0` (renamed plugin API) and `cuvis-ai-schemas[full]>=0.7.0`.
 - **Dropped the `cuvis` SDK (and `cuvis-il`, `ftfy`) from base dependencies.** The SDK now lives only
-  in the `cuvis-ai-dataloader` plugin behind its `[cu3s]` extra, added here as a dev/test dep
-  (`cuvis-ai-dataloader[cu3s,coco]`). Builtin/RGB pipelines no longer pull `cuvis` / `cuvis-il`,
+  in the `cuvis-ai-dataloader` plugin behind its `[cu3s]` extra. Builtin/RGB pipelines no longer pull `cuvis` / `cuvis-il`,
   closing the Windows `cuvis-il` no-`win_amd64`-wheel gap. The node library imports neither `cuvis`
   nor `ftfy` (grep-verified); `rle.py` consumers (`occlusion`, `json_file`, `prompts`) are unchanged.
+- **Pinned the `cuvis_ai_dataloader` plugin manifest to the published `v0.1.0` tag.**
+  `configs/plugins/cuvis_ai_dataloader.yaml` moves from a local dev `path:` to `repo:` + `tag: v0.1.0`,
+  matching the sibling plugin manifests now that the data plugin is released.
 - **Migrated to the module-agnostic `DataConfig`.** The test data fixture and the
   `configs/data/*.yaml` + `configs/trainrun/*.yaml` data blocks move from the flat cu3s shape to
   `{data_module, splits, params}`. cu3s loading imports moved from `cuvis_ai_core.data.datasets` to

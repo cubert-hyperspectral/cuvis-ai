@@ -48,16 +48,22 @@ local env. Two equivalent ways:
 
     For a pipeline-YAML-backed run, the `provision` CLI resolves a pipeline's
     `plugins:` list plus `--data-module` into the right install specs (git
-    plugins pinned to their manifest tag) and installs them:
+    plugins pinned to their manifest tag) and installs them. For example, the
+    bundled Blood Perfusion NDVI pipeline (builtin nodes feeding a `cu3s` data
+    module):
 
     ```bash
-    uv run provision --pipeline-path <pipeline.yaml> \
+    uv run provision \
+      --pipeline-path configs/pipeline/medical/blood_perfusion/ndvi.yaml \
       --plugins-dir configs/plugins --data-module cu3s --apply
     ```
 
-    Drop `--apply` to print the specs instead of installing. This is the same
-    step [`restore-pipeline`](../workflows/restore-pipeline.md) expects to have
-    run first.
+    resolves to `cuvis-ai-dataloader[cu3s,coco]` (the only plugin the pipeline's
+    builtin nodes plus `--data-module cu3s` require) and installs it. Drop
+    `--apply` to print the specs instead of installing; add `--include-satisfied`
+    to list plugins that are already present too. This is the same step
+    [`restore-pipeline`](../workflows/restore-pipeline.md) expects to have run
+    first.
 
 !!! warning "Re-provision after any `uv sync`"
     `uv sync` installs only what is in `pyproject.toml` and **removes** anything
