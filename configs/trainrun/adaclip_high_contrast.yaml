@@ -2,16 +2,23 @@
 
 name: adaclip_high_contrast
 
+# Pipeline reference, resolved relative to this trainrun's directory.
+pipeline: ../pipeline/anomaly/adaclip/adaclip_high_contrast.yaml
+
 defaults:
-  - /pipeline/anomaly/adaclip@pipeline: adaclip_high_contrast
   - /data@data: lentils
   - _self_
 
 data:
   # Override splits for this example
-  train_ids: [0, 2]
-  val_ids: [2, 4]
-  test_ids: [1, 3, 5]
+  splits:
+    leakage_check: warn  # train/val intentionally share frame 2 (small-dataset reuse)
+    train:
+      - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [0, 2]}
+    val:
+      - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [2, 4]}
+    test:
+      - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [1, 3, 5]}
   batch_size: 1
 
 output_dir: outputs\adaclip_high_contrast

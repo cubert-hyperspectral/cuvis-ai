@@ -10,7 +10,7 @@ metadata:
   - channel_mixer
   - anomaly_detection
   author: cuvis.ai
-  cuvis_ai_version: 0.1.5.post40+g5d4ea80af.d20260105
+  cuvis_ai_version: 0.5.3
 plugins:
 - adaclip
 - cuvis_ai_builtin
@@ -47,7 +47,7 @@ nodes:
   hparams:
     weight_name: pretrained_all
     backbone: ViT-L-14-336
-    prompt_text: ''
+    prompt_text: 'normal: lentils, anomaly: stones'
     image_size: 518
     prompting_depth: 4
     prompting_length: 5

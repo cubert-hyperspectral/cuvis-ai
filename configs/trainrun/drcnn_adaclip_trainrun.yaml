@@ -1,158 +1,21 @@
 name: drcnn_adaclip
-pipeline:
-  name: ''
-  nodes:
-  - name: LentilsAnomalyDataNode
-    class_name: cuvis_ai.node.data.LentilsAnomalyDataNode
-    hparams:
-      normal_class_ids:
-      - 0
-      - 1
-  - name: MinMaxNormalizer
-    class_name: cuvis_ai.node.normalization.MinMaxNormalizer
-    hparams:
-      eps: 1.0e-06
-      use_running_stats: true
-  - name: channel_mixer
-    class_name: cuvis_ai.node.channel_mixer.LearnableChannelMixer
-    hparams:
-      input_channels: 61
-      output_channels: 3
-      leaky_relu_negative_slope: 0.1
-      use_bias: true
-      use_activation: true
-      normalize_output: true
-      init_method: pca
-      eps: 1.0e-06
-      reduction_scheme:
-      - 61
-      - 16
-      - 8
-      - 3
-  - name: adaclip
-    class_name: cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
-    hparams:
-      weight_name: pretrained_all
-      backbone: ViT-L-14-336
-      prompt_text: 'normal: lentils, anomaly: stones'
-      image_size: 518
-      prompting_depth: 4
-      prompting_length: 5
-      gaussian_sigma: 4.0
-      use_half_precision: false
-      enable_warmup: false
-      enable_gradients: true
-  - name: iou_loss
-    class_name: cuvis_ai.node.losses.IoULoss
-    hparams:
-      weight: 1.0
-      smooth: 1.0e-06
-      normalize_method: minmax
-  - name: decider
-    class_name: cuvis_ai.node.deciders.binary_decider.QuantileBinaryDecider
-    hparams:
-      quantile: 0.995
-      reduce_dims: null
-  - name: metrics_anomaly
-    class_name: cuvis_ai.node.metrics.AnomalyDetectionMetrics
-    hparams:
-      execution_stages: null
-  - name: score_heatmap
-    class_name: cuvis_ai.node.anomaly_visualization.ScoreHeatmapVisualizer
-    hparams:
-      normalize_scores: true
-      cmap: inferno
-      up_to: 5
-  - name: mask
-    class_name: cuvis_ai.node.anomaly_visualization.AnomalyMask
-    hparams:
-      channel: 30
-      up_to: 5
-  - name: drcnn_tensorboard_viz
-    class_name: cuvis_ai.node.pipeline_visualization.PipelineComparisonVisualizer
-    hparams:
-      hsi_channels:
-      - 0
-      - 20
-      - 40
-      max_samples: 4
-      log_every_n_batches: 1
-  - name: TensorBoardMonitorNode
-    class_name: cuvis_ai.node.monitor.TensorBoardMonitorNode
-    hparams:
-      output_dir: outputs\drcnn_adaclip\tensorboard
-      run_name: drcnn_adaclip_gradient
-      comment: ''
-      flush_secs: 120
-  connections:
-  - source: LentilsAnomalyDataNode.outputs.cube
-    target: MinMaxNormalizer.inputs.data
-  - source: LentilsAnomalyDataNode.outputs.mask
-    target: iou_loss.inputs.targets
-  - source: LentilsAnomalyDataNode.outputs.mask
-    target: metrics_anomaly.inputs.targets
-  - source: LentilsAnomalyDataNode.outputs.mask
-    target: mask.inputs.mask
-  - source: LentilsAnomalyDataNode.outputs.cube
-    target: mask.inputs.cube
-  - source: LentilsAnomalyDataNode.outputs.cube
-    target: drcnn_tensorboard_viz.inputs.hsi_cube
-  - source: LentilsAnomalyDataNode.outputs.mask
-    target: drcnn_tensorboard_viz.inputs.ground_truth_mask
-  - source: MinMaxNormalizer.outputs.normalized
-    target: channel_mixer.inputs.data
-  - source: channel_mixer.outputs.rgb
-    target: adaclip.inputs.rgb_image
-  - source: channel_mixer.outputs.rgb
-    target: drcnn_tensorboard_viz.inputs.mixer_output
-  - source: adaclip.outputs.scores
-    target: iou_loss.inputs.predictions
-  - source: adaclip.outputs.scores
-    target: decider.inputs.logits
-  - source: adaclip.outputs.scores
-    target: metrics_anomaly.inputs.logits
-  - source: adaclip.outputs.scores
-    target: score_heatmap.inputs.scores
-  - source: adaclip.outputs.scores
-    target: mask.inputs.scores
-  - source: adaclip.outputs.scores
-    target: drcnn_tensorboard_viz.inputs.anomaly_scores
-  - source: decider.outputs.decisions
-    target: metrics_anomaly.inputs.decisions
-  - source: decider.outputs.decisions
-    target: mask.inputs.decisions
-  - source: metrics_anomaly.outputs.metrics
-    target: TensorBoardMonitorNode.inputs.metrics
-  - source: score_heatmap.outputs.artifacts
-    target: TensorBoardMonitorNode.inputs.artifacts
-  - source: mask.outputs.artifacts
-    target: TensorBoardMonitorNode.inputs.artifacts
-  - source: drcnn_tensorboard_viz.outputs.artifacts
-    target: TensorBoardMonitorNode.inputs.artifacts
-  metadata:
-    name: drcnn_adaclip_gradient
-    description: ''
-    created: '2026-01-05T11:33:21.691178'
-    tags: []
-    author: ''
-    cuvis_ai_version: 0.1.5.post40+g5d4ea80af.d20260105
+# Pipeline reference, resolved relative to this trainrun's directory.
+pipeline: ../pipeline/anomaly/adaclip/drcnn_adaclip_gradient.yaml
 data:
-  cu3s_file_path: data/Lentils/Lentils_000.cu3s
-  annotation_json_path: data/Lentils/Lentils_000.json
-  train_ids:
-  - 0
-  - 2
-  - 3
-  val_ids:
-  - 1
-  test_ids:
-  - 1
-  - 5
-  train_split: null
-  val_split: null
-  shuffle: true
+  data_module: cu3s
+  splits:
+    leakage_check: warn  # val/test intentionally share frame 1 (small-dataset reuse)
+    train:
+      - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [0, 2, 3]}
+    val:
+      - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [1]}
+    test:
+      - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [1, 5]}
   batch_size: 2
-  processing_mode: Reflectance
+  params:
+    cu3s_file_path: data/Lentils/Lentils_000.cu3s
+    annotation_json_path: data/Lentils/Lentils_000.json
+    processing_mode: Reflectance
 training:
   seed: 42
   optimizer:

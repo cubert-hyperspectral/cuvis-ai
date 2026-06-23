@@ -408,11 +408,10 @@ optimizer = torch.optim.Adam(node.parameters(), lr=0.001)
 **In production pipelines** (recommended):
 
 ```python
-from cuvis_ai_core.training import StatisticalTrainer
+from cuvis_ai_core.training import GradientTrainer, StatisticalTrainer
 
-# Add node to pipeline
+# Create the node; connect() adds it to the pipeline automatically when wired
 node = AdaptiveThresholdFilter(num_channels=61)
-pipeline.add_node(node)
 
 # Phase 1: Statistical initialization
 trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
@@ -519,6 +518,12 @@ class AdaptiveThresholdFilter(Node):
 
 ### Manual Registration
 
+<!-- Note: `AdaptiveThresholdFilter` / `cuvis_ai.node.filters` is an illustrative example used
+throughout this guide, not a shipped symbol. There is no `cuvis_ai/node/filters.py`. The
+adaptive-threshold behavior now lives in the decider nodes (e.g. `QuantileBinaryDecider` /
+`TwoStageBinaryDecider` in `cuvis_ai.node.deciders`). Substitute a real module path when adapting
+these snippets. -->
+
 ```python
 from cuvis_ai_core.utils.node_registry import NodeRegistry
 from cuvis_ai.node.filters import AdaptiveThresholdFilter
@@ -534,10 +539,10 @@ assert node_class is AdaptiveThresholdFilter
 ### List Available Nodes
 
 ```python
-# List all built-in nodes
+# List all built-in nodes (returns a sorted list of class names)
 all_nodes = NodeRegistry.list_builtin_nodes()
 print(f"Available nodes: {len(all_nodes)}")
-for name in sorted(all_nodes.keys()):
+for name in all_nodes:
     print(f"  - {name}")
 ```
 
@@ -593,7 +598,7 @@ class TestAdaptiveThresholdFilter:
         node = AdaptiveThresholdFilter(num_channels=3)
 
         # Initialize
-        data_stream = [{"data": torch.tensor([[[[1.0, 2.0, 3.0]]]]))}]
+        data_stream = [{"data": torch.tensor([[[[1.0, 2.0, 3.0]]]])}]
         node.statistical_initialization(data_stream)
 
         # Forward pass
@@ -809,17 +814,12 @@ from cuvis_ai.node.filters import AdaptiveThresholdFilter
 
 pipeline = CuvisPipeline("my_pipeline")
 
-# Add node
-filter_node = pipeline.add_node(
-    "adaptive_filter",
-    AdaptiveThresholdFilter,
-    num_channels=61,
-    init_threshold=0.5
-)
+# Create the node
+filter_node = AdaptiveThresholdFilter(num_channels=61, init_threshold=0.5)
 
-# Connect to pipeline
-pipeline.connect("normalizer.outputs.normalized", "adaptive_filter.inputs.data")
-pipeline.connect("adaptive_filter.outputs.filtered", "detector.inputs.data")
+# connect() wires ports (and adds nodes to the graph automatically)
+pipeline.connect(normalizer.outputs.normalized, filter_node.inputs.data)
+pipeline.connect(filter_node.outputs.filtered, detector.inputs.data)
 ```
 
 ## Contributing to Cuvis.AI
@@ -895,7 +895,7 @@ Adaptive threshold filter with per-channel learned thresholds.
 from cuvis_ai_core.training import StatisticalTrainer
 
 node = AdaptiveThresholdFilter(num_channels=61)
-pipeline.add_node(node)
+# connect() adds the node to the pipeline automatically when it is wired
 
 # Initialize using trainer
 trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)

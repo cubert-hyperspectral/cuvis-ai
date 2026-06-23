@@ -185,7 +185,7 @@ class AnalysisNode(Node):
 ### Symbolic Dimension Resolution
 
 ```python
-from cuvis_ai.pipeline.ports import DimensionResolver
+from cuvis_ai_schemas.pipeline import DimensionResolver
 
 class SelectorNode(Node):
     def __init__(self, n_select: int, **kwargs):

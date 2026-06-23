@@ -111,22 +111,39 @@ def apply_trainrun_config(
     The embedded pipeline must declare a ``plugins:`` block (the standalone
     ``configs/pipeline/`` yamls already do); a trainrun whose resolved pipeline
     omits it is rejected at ``LoadPipeline`` with a ``suggest-plugins-fix`` hint.
-    For a single-call alternative that does the same server-side, see
-    ``RestoreTrainRun`` (e.g. ``examples/grpc/core/restore_trainrun_grpc.py``).
+
+    A trainrun whose ``pipeline`` is a path *reference* (a string) cannot be
+    split this way: the pipeline lives in a separate YAML resolved relative to
+    the trainrun file on the server, which only ``RestoreTrainRun`` knows how to
+    locate and build. Use ``RestoreTrainRun`` for referenced trainruns (e.g.
+    ``examples/grpc/core/restore_trainrun_grpc.py``); it is also the single-call
+    equivalent of this helper for inline pipelines.
     """
     config = json.loads(config_bytes.decode("utf-8"))
     pipeline_section = config.pop("pipeline", None)
-    if pipeline_section is not None:
-        stub.LoadPipeline(
-            cuvis_ai_pb2.LoadPipelineRequest(
-                session_id=session_id,
-                pipeline=cuvis_ai_pb2.PipelineConfig(
-                    config_bytes=normalize_pipeline_bytes(
-                        json.dumps(pipeline_section).encode("utf-8")
-                    )
-                ),
-            )
+    data_section = config.get("data")
+    if isinstance(pipeline_section, str):
+        raise ValueError(
+            "This trainrun references its pipeline by path "
+            f"({pipeline_section!r}); apply_trainrun_config can only inline an "
+            "embedded pipeline. Use RestoreTrainRun, which resolves the reference "
+            "relative to the trainrun file and builds the pipeline server-side."
         )
+    if pipeline_section is not None:
+        load_request = cuvis_ai_pb2.LoadPipelineRequest(
+            session_id=session_id,
+            pipeline=cuvis_ai_pb2.PipelineConfig(
+                config_bytes=normalize_pipeline_bytes(json.dumps(pipeline_section).encode("utf-8"))
+            ),
+        )
+        # Forward the data-module name so the server composes the per-run child
+        # env with that module's plugin (e.g. cu3s -> cuvis-ai-dataloader).
+        # Without it the compose runs with no data module and Train fails with
+        # "no plugin provides data module '<name>'".
+        data_module = (data_section or {}).get("data_module")
+        if data_module:
+            load_request.data_module = data_module
+        stub.LoadPipeline(load_request)
     return stub.SetTrainRunConfig(
         cuvis_ai_pb2.SetTrainRunConfigRequest(
             session_id=session_id,
@@ -152,17 +169,21 @@ def format_progress(progress: cuvis_ai_pb2.TrainResponse) -> str:
 
 
 def load_manifest_bytes(path: Path) -> bytes:
-    """Load a plugin YAML manifest, resolve relative plugin paths, and return JSON bytes."""
+    """Load one bare plugin manifest and return the JSON bytes for a LoadPlugin call.
+
+    The file is a single bare manifest (``name`` + source + ``capabilities``).
+    A local plugin's relative ``path`` is resolved to absolute against the
+    manifest file's directory, since the server runs elsewhere and cannot
+    resolve a client-relative path (``LoadPlugin`` rejects a relative local
+    path). Git manifests (``repo`` + ``tag``) are returned unchanged.
+    """
     manifest = yaml.safe_load(path.read_text(encoding="utf-8"))
-    plugins = manifest.get("plugins", {}) if isinstance(manifest, dict) else {}
-    for plugin_config in plugins.values():
-        if not isinstance(plugin_config, dict):
-            continue
-        plugin_path = plugin_config.get("path")
+    if isinstance(manifest, dict) and "repo" not in manifest:
+        plugin_path = manifest.get("path")
         if isinstance(plugin_path, str) and plugin_path:
             resolved = Path(plugin_path)
             if not resolved.is_absolute():
-                plugin_config["path"] = str((path.parent / resolved).resolve())
+                manifest["path"] = str((path.parent / resolved).resolve())
     return json.dumps(manifest).encode("utf-8")
 
 
@@ -185,6 +206,37 @@ def normalize_pipeline_bytes(config_bytes: bytes) -> bytes:
     )
 
 
+def resolve_pipeline_ref(ref: str, *, trainrun_dir: Path | None = None) -> dict:
+    """Load a trainrun's path-referenced pipeline YAML into an inline dict.
+
+    The bundled ``configs/trainrun/*.yaml`` reference their pipeline by a path
+    relative to the trainrun file. Resolve it against ``trainrun_dir`` (default
+    the package ``configs/trainrun``) and load the pipeline YAML directly. The
+    bundled pipeline yamls are self-contained ``PipelineConfig``s (nodes +
+    ``plugins:``), so a direct file load avoids the Hydra group-path wrapping a
+    server-side ``ResolveConfig(config_type="pipeline")`` would add.
+    """
+    base = Path(trainrun_dir) if trainrun_dir is not None else (CONFIG_ROOT / "trainrun")
+    pipeline_path = (base / ref).resolve()
+    return yaml.safe_load(pipeline_path.read_text(encoding="utf-8"))
+
+
+def inline_pipeline_ref(config_dict: dict, *, trainrun_dir: Path | None = None) -> dict:
+    """Return ``config_dict`` with a path-referenced ``pipeline`` inlined.
+
+    No-op when ``pipeline`` is already an inline mapping or absent. Lets a
+    resolved trainrun be handed to ``apply_trainrun_config`` even though the
+    bundled trainruns reference their pipeline by path.
+    """
+    pipeline = config_dict.get("pipeline")
+    if isinstance(pipeline, str):
+        return {
+            **config_dict,
+            "pipeline": resolve_pipeline_ref(pipeline, trainrun_dir=trainrun_dir),
+        }
+    return config_dict
+
+
 __all__ = [
     "CONFIG_ROOT",
     "apply_trainrun_config",
@@ -192,7 +244,9 @@ __all__ = [
     "config_search_paths",
     "create_session_with_search_paths",
     "format_progress",
+    "inline_pipeline_ref",
     "load_manifest_bytes",
     "normalize_pipeline_bytes",
+    "resolve_pipeline_ref",
     "resolve_trainrun_config",
 ]

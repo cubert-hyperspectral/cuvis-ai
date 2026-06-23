@@ -19,29 +19,31 @@ The `PortSpec` class defines the specification for a port, including its type, s
 
 **Attributes:**
 
-- `name`: Port identifier
-- `port_type`: "input" or "output"
-- `shape`: Expected tensor shape with dimension constraints
-- `dtype`: Expected data type (optional)
+- `dtype`: Expected element data type (e.g. `torch.float32`)
+- `shape`: Expected tensor shape with dimension constraints (`-1` for dynamic dims)
 - `description`: Human-readable description
-- `stage`: Execution stage ("train", "eval", "both")
+- `optional`: Whether the port may be left unconnected
+- `variadic`: Whether the port accepts a fan-in of multiple connections
+
+The port *name* is the key under which a spec is registered in a node's
+`INPUT_SPECS` / `OUTPUT_SPECS` dict, not a field on `PortSpec` itself. Input/output
+direction likewise comes from which dict the spec lives in, not from the spec.
 
 **Example:**
 ```python
+import torch
 from cuvis_ai_schemas.pipeline import PortSpec
 
-# Define an input port for hyperspectral data
+# Define a spec for hyperspectral data (port name is the dict key on the node)
 data_port = PortSpec(
-    name="data",
-    port_type="input",
+    dtype=torch.float32,
     shape=(-1, -1, -1, -1),  # (batch, height, width, channels)
     description="Raw hyperspectral cube input"
 )
 
-# Define an output port for normalized data
+# Define a spec for normalized data
 normalized_port = PortSpec(
-    name="normalized", 
-    port_type="output",
+    dtype=torch.float32,
     shape=(-1, -1, -1, -1),
     description="Normalized hyperspectral cube"
 )
@@ -55,9 +57,9 @@ Port instances that are attached to nodes and used for connections.
 ```python
 from cuvis_ai_schemas.pipeline import InputPort, OutputPort
 
-# Create port instances
-input_port = InputPort(spec=data_port, node=normalizer)
-output_port = OutputPort(spec=normalized_port, node=normalizer)
+# Create port instances (node, name, spec)
+input_port = InputPort(node=normalizer, name="data", spec=data_port)
+output_port = OutputPort(node=normalizer, name="normalized", spec=normalized_port)
 ```
 
 ## Port Compatibility Rules
@@ -78,11 +80,14 @@ Ports can be connected if they satisfy compatibility rules:
 
 ### Connection Validation
 ```python
-# Check if ports are compatible
-if input_port.is_compatible_with(output_port):
+# Check if specs are compatible (PortSpec.is_compatible_with returns (bool, message))
+is_compatible, message = output_port.spec.is_compatible_with(
+    input_port.spec, source_node=normalizer, target_node=normalizer
+)
+if is_compatible:
     pipeline.connect(output_port, input_port)
 else:
-    print("Ports are incompatible")
+    print(f"Ports are incompatible: {message}")
 ```
 
 ## Node Port Declarations
@@ -92,31 +97,30 @@ Nodes declare their ports using `INPUT_SPECS` and `OUTPUT_SPECS` class attribute
 ### Example Node Implementation
 
 ```python
+import torch
 from cuvis_ai_core.node.node import Node
 from cuvis_ai_schemas.pipeline import PortSpec
 
 class MinMaxNormalizer(Node):
     """Min-max normalization node."""
     
-    # Input port specifications
-    INPUT_SPECS = [
-        PortSpec(
-            name="data",
-            port_type="input",
+    # Input port specifications (dict keyed by port name)
+    INPUT_SPECS = {
+        "data": PortSpec(
+            dtype=torch.float32,
             shape=(-1, -1, -1, -1),
             description="Raw hyperspectral cube"
         )
-    ]
+    }
     
-    # Output port specifications  
-    OUTPUT_SPECS = [
-        PortSpec(
-            name="normalized",
-            port_type="output", 
+    # Output port specifications (dict keyed by port name)
+    OUTPUT_SPECS = {
+        "normalized": PortSpec(
+            dtype=torch.float32,
             shape=(-1, -1, -1, -1),
             description="Normalized cube [0, 1]"
         )
-    ]
+    }
     
     def __init__(self, eps=1e-6, use_running_stats=True):
         super().__init__()
@@ -151,10 +155,13 @@ pipeline.connect(
 
 ### Stage-Aware Connections
 
+Stage routing is controlled per node via `execution_stages`, not on `connect`.
+Connections themselves are stage-agnostic.
+
 ```python
-# Connect nodes for specific execution stages
-pipeline.connect(normalizer.normalized, selector.data, stage="train")
-pipeline.connect(selector.selected, pca.features, stage="both")
+# Connections carry no stage argument
+pipeline.connect(normalizer.normalized, selector.data)
+pipeline.connect(selector.selected, pca.features)
 ```
 
 ### Loss Nodes Without an Aggregator
@@ -189,24 +196,26 @@ The port system enables explicit batch distribution to specific input ports.
 ### Single Input
 
 ```python
-# Distribute batch to a specific input port
-outputs = pipeline.forward(batch={f"{normalizer.id}.data": input_data})
+# Feed an input port by its bare port name
+outputs = pipeline.forward(batch={"data": input_data})
 ```
 
 ### Multiple Inputs
 
 ```python
-# Distribute different data to different input ports
+# Feed several input ports by name
 outputs = pipeline.forward(batch={
-    f"{node1.id}.data1": data1,
-    f"{node2.id}.data2": data2,
-    f"{node3.id}.features": features
+    "data1": data1,
+    "data2": data2,
+    "features": features,
 })
 ```
 
 ### Batch Key Format
 
-Batch keys follow the pattern: `{node_id}.{port_name}`
+Batch keys are **bare port names**. A value is distributed to every node whose
+`INPUT_SPECS` declare a port of that name (an entry-point port left unconnected
+from any predecessor). Keys are not node-qualified.
 
 ## Dimension Resolution
 
@@ -217,8 +226,7 @@ The port system automatically resolves variable dimensions during execution.
 ```python
 # Port with variable dimensions
 port_spec = PortSpec(
-    name="features",
-    port_type="input", 
+    dtype=torch.float32,
     shape=(-1, -1, -1, -1)  # All dimensions variable
 )
 
@@ -231,8 +239,7 @@ port_spec = PortSpec(
 ```python
 # Port with fixed channel dimension
 port_spec = PortSpec(
-    name="features",
-    port_type="input",
+    dtype=torch.float32,
     shape=(-1, -1, -1, 100)  # Fixed channel dimension
 )
 
@@ -298,9 +305,11 @@ except AttributeError as e:
 ### Incompatible Ports
 
 ```python
+from cuvis_ai_schemas.pipeline.exceptions import PortCompatibilityError
+
 try:
     pipeline.connect(normalizer.normalized, pca.features)
-except ValueError as e:
+except PortCompatibilityError as e:
     print(f"Compatibility error: {e}")
     # Error: Port shapes are incompatible: (-1, -1, -1, -1) vs (-1, -1, -1, 3)
 ```
@@ -322,10 +331,8 @@ except KeyError as e:
 ```python
 # Create custom port with specific constraints
 custom_port = PortSpec(
-    name="embedding",
-    port_type="output",
-    shape=(-1, 512),  # Fixed embedding dimension
     dtype=torch.float32,
+    shape=(-1, 512),  # Fixed embedding dimension
     description="Feature embeddings"
 )
 ```
@@ -333,21 +340,19 @@ custom_port = PortSpec(
 ### Port Inspection
 
 ```python
-# Inspect port properties
+# Inspect port properties (shape/description live on the spec)
 port = normalizer.normalized
 print(f"Port name: {port.name}")
-print(f"Port type: {port.port_type}")
-print(f"Expected shape: {port.shape}")
-print(f"Description: {port.description}")
+print(f"Expected shape: {port.spec.shape}")
+print(f"Description: {port.spec.description}")
 ```
 
 ### Connection Graph
 
 ```python
-# Get all connections in the pipeline
-connections = pipeline.get_connections()
-for source, target in connections:
-    print(f"{source.node.name}.{source.name} → {target.node.name}.{target.name}")
+# There is no public connection-listing method; iterate the pipeline's nodes
+for node in pipeline.nodes:
+    print(node.name)
 ```
 
 ## Best Practices

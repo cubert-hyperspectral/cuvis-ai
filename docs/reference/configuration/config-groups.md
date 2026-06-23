@@ -55,18 +55,24 @@ pipeline:
 
 ## Data Group
 
-Use `configs/data/` for dataset paths, IDs, and loader settings.
+Use `configs/data/` for the data module, split selectors, and loader settings.
 
 Example:
 
 ```yaml
 data:
-  cu3s_file_path: data/Lentils/Lentils_000.cu3s
-  annotation_json_path: data/Lentils/Lentils_000.json
-  train_ids: [0, 2, 3]
-  val_ids: [1, 5]
-  test_ids: [1, 5]
+  data_module: cu3s
+  splits:
+    train:
+      - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [0, 2, 3]}
+    val:
+      - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [1]}
+    test:
+      - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [5]}
   batch_size: 2
+  params:
+    cu3s_file_path: data/Lentils/Lentils_000.cu3s
+    annotation_json_path: data/Lentils/Lentils_000.json
 ```
 
 ## Training Group

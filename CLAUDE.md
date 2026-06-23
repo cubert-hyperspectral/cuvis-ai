@@ -10,7 +10,8 @@ examples — Jupyter notebooks pairing data, explanation, code, and results — 
 
 `cuvis-ai-schemas` (contracts) → `cuvis-ai-core` (framework) → **`cuvis-ai`** (this repo:
 nodes + CLIs) → plugins. `cuvis-ai-cookbook` = example notebooks (datasets on Hugging Face:
-<https://huggingface.co/cubert-gmbh>); `cuvis-ai-agentic-skills` = Claude Code plugin;
+<https://huggingface.co/cubert-gmbh>); `cuvis-ai-agentic-skills` = private/internal Claude Code
+plugin (local checkout only, not published or referenced from public docs);
 `dev-docs` = internal ticket docs.
 
 ## Layout
@@ -25,6 +26,7 @@ nodes + CLIs) → plugins. `cuvis-ai-cookbook` = example notebooks (datasets on 
 
 - Install: `uv sync` (use `uv`, never bare `pip`).
 - Tests: `uv run pytest`. Nodes are tested with **pure-tensor mocking** — no heavy model downloads.
+- Docs: `uv run mkdocs build --strict` (Material + gen-files node catalog + llmstxt; needs the `docs` extra).
 - CLI entry points: `restore-pipeline`, `restore-trainrun`, `dataset`, `create-stubs`.
 - Enable hooks once: `git config core.hooksPath .githooks`.
   - **pre-commit**: strips notebook video outputs, `ruff format`, `ruff check --fix`, re-stages.
@@ -36,8 +38,10 @@ nodes + CLIs) → plugins. `cuvis-ai-cookbook` = example notebooks (datasets on 
 
 ## Plugins
 
-- Each external plugin has a manifest at `configs/plugins/<name>.yaml`: `plugins.<name>.path` plus a
-  `provides:` list of `class_name` entries (optional `category` / `tags` / `icon_svg` / port specs).
+- Each external plugin has a bare manifest at `configs/plugins/<name>.yaml` (one file = one plugin):
+  an explicit `name:` (never derived from the filename), a source (`path:` or `repo:` + `tag:`), and a
+  `capabilities:` list of `class_name` entries (optional `category` / `tags` / `icon_svg` / port specs;
+  a `kind: data_module` entry instead carries `data_module_name` + `extras`).
   `configs/plugins/cuvis_ai_builtin.yaml` exposes this repo's own nodes the same way.
 - Pipelines reference plugins by **bare name only** — a top-level `plugins:` list (e.g.
   `- cuvis_ai_builtin`, `- sam3`). Each name resolves to a manifest in the plugins directory; there
@@ -45,6 +49,18 @@ nodes + CLIs) → plugins. `cuvis-ai-cookbook` = example notebooks (datasets on 
 - Load a pipeline against a plugins directory with `--plugins-dir` (`--plugins-path` was removed).
 - Dependency floors are pinned in `pyproject.toml`; the `dep_compat` / `registry_compat` CI
   workflows keep those floors compatible with the published plugin release tags — bump with care.
+
+## Data layer
+
+- cuvis-ai pins **no** `cuvis` SDK. cu3s/cu3 I/O (and `tiff_paired`) live in the
+  `cuvis-ai-dataloader` plugin (`[cu3s]` extra); its manifest ships at
+  `configs/plugins/cuvis_ai_dataloader.yaml`.
+- `restore-pipeline` picks data with `--data-module <name>` + repeatable `--data-arg key=value`
+  (no `--cu3s-file-path` / `--processing-mode`). It runs **in-process**, so the env must have the
+  data plugin installed for a cu3s run; the gRPC orchestrator composes a child env per run instead.
+- Trainrun `data:` is `{data_module, splits, params}` with a **selector** split model
+  (`{kind: file_indices, source, ids}`), not flat `train_ids`. `SingleCu3sDataset` /
+  `SingleCu3sDataModule` are gone (now `Cu3sDataModule` in `cuvis_ai_dataloader`).
 
 ## Key patterns for nodes
 
@@ -66,7 +82,7 @@ nodes + CLIs) → plugins. `cuvis-ai-cookbook` = example notebooks (datasets on 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **cuvis-ai** (6497 symbols, 10208 relationships, 136 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **cuvis-ai** (6490 symbols, 10215 relationships, 138 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 

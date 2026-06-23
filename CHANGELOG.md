@@ -1,5 +1,64 @@
 # Changelog
 
+## 0.9.0 - 2026-06-23
+
+- **Trainrun configs reference their pipeline by path.** Following the schemas/core change to a `pipeline:` reference, the bundled trainrun configs no longer inline or Hydra-compose a pipeline: the twelve `@pipeline`-group configs drop that `defaults` entry for a top-level `pipeline: ../pipeline/<group>/<name>.yaml` reference, and the two resolved snapshot configs (`drcnn_adaclip_trainrun`, `adaclip_cir_false_color_optimal_threshold`) extract their inline pipeline to a `<name>_pipeline.yaml` sibling and reference it. The migration-equivalence test now also asserts every string `pipeline` reference resolves to a loadable `PipelineConfig`. Script-driven configs that use `pipeline:` as a parameter-override mapping are unchanged.
+- **Plugin registration is import-only via `register_plugin(path)`.** Core dropped the
+  in-process clone / install plugin loader and collapsed registration to a single file-path
+  front door, so call sites in the use-case notebooks, `scripts/render_pipelines.py`, the plugin
+  contract / runtime-smoke tests, and the docs move to `registry.register_plugin(<manifest.yaml>)`
+  (in-memory manifests register via `register_plugins_installed`).
+  Plugins must be provisioned into the environment first (see the new `provision` CLI in core); the
+  runtime-smoke test `importorskip`s the plugin package so it skips cleanly when unprovisioned.
+  Floors `cuvis-ai-core>=0.10.0` (renamed plugin API) and `cuvis-ai-schemas[full]>=0.7.0`.
+- **Dropped the `cuvis` SDK (and `cuvis-il`, `ftfy`) from base dependencies.** The SDK now lives only
+  in the `cuvis-ai-dataloader` plugin behind its `[cu3s]` extra. Builtin/RGB pipelines no longer pull `cuvis` / `cuvis-il`,
+  closing the Windows `cuvis-il` no-`win_amd64`-wheel gap. The node library imports neither `cuvis`
+  nor `ftfy` (grep-verified); `rle.py` consumers (`occlusion`, `json_file`, `prompts`) are unchanged.
+- **Pinned the `cuvis_ai_dataloader` plugin manifest to the published `v0.1.0` tag.**
+  `configs/plugins/cuvis_ai_dataloader.yaml` moves from a local dev `path:` to `repo:` + `tag: v0.1.0`,
+  matching the sibling plugin manifests now that the data plugin is released.
+- **Migrated to the module-agnostic `DataConfig`.** The test data fixture and the
+  `configs/data/*.yaml` + `configs/trainrun/*.yaml` data blocks move from the flat cu3s shape to
+  `{data_module, splits, params}`. cu3s loading imports moved from `cuvis_ai_core.data.datasets` to
+  `cuvis_ai_dataloader.data` (the `SingleCu3sDataModule` / `SingleCu3sDataset` names survive as
+  back-compat aliases, so call sites change only the import path). Docs/notebooks repointed.
+- **`apply_trainrun_config` forwards the data-module name on `LoadPipeline`.** The gRPC example
+  helper now sets `LoadPipelineRequest.data_module` from the trainrun's `data.data_module` (a bare
+  name) instead of copying the whole `DataConfig`, so the server composes the child env with that
+  module's plugin. Only a pipeline run needs a data module, the pipeline graph does not.
+- **`load_manifest_bytes` sends one bare manifest with an absolute local path.** The gRPC example
+  helper now loads a single bare plugin manifest (`name` + source + `capabilities`) for a `LoadPlugin`
+  call and resolves a local plugin's relative `path` to absolute against the manifest file's
+  directory, since the server runs elsewhere and `LoadPlugin` rejects a client-relative path. Git
+  manifests (`repo` + `tag`) are sent unchanged.
+- **Refreshed the `cuvis_ai_version` metadata stamps in the bundled configs.** The pipeline
+  library under `configs/pipeline/**` and the two `configs/trainrun/*_pipeline.yaml` snapshots
+  carried stale `0.1.x` dev-version stamps (down to a hardcoded `0.1.0`); bumped to `0.5.3` to
+  match the current schemas line. Pairs with the schemas fix that auto-stamps freshly serialized
+  pipelines with the installed version.
+- **Dropped the `cuvis-ai-dataloader` dev/test dependency entirely.** cuvis-ai no longer depends on
+  the data plugin (or, transitively, the cuvis SDK) at all. Tests mock the data layer
+  (`SyntheticAnomalyDataModule` / `create_test_cube`); the real cu3s reader is covered by the
+  plugin's own suite. Removed the unused real-cube fixtures (`data_config_factory`,
+  `test_data_files_cached`) and the plugin's `[tool.uv.sources]` editable entry. The default test
+  env is now fully SDK-free (no Windows `cuvis-il` wheel gap); notebooks that load `.cu3s` provision
+  the plugin themselves.
+- **Use-case notebooks updated for the plugin-based data layer.** The four `notebooks/use_cases/`
+  notebooks now install `cuvis-ai-dataloader[cu3s,coco]` in their Colab bootstrap (cuvis-ai no longer
+  bundles the cu3s reader) and select frames via `measurement_indices` instead of the removed
+  `predict_ids` id-lists. Added `notebooks/use_cases/README.md` covering the env setup (install the
+  data plus model plugins, then `uv run jupyter lab`).
+- **Bumped the `cuvis-ai-core` floor to `>=0.8.0` and consume core + schemas from PyPI.** The floor
+  matches the adopted `cuvis-ai-dataloader` / `Cu3sDataModule` APIs (0.8.0 dropped
+  `SingleCu3sDataModule` / `load_plugins`) and pairs with `cuvis-ai-schemas[full]>=0.6.0`. The
+  dev-only editable `[tool.uv.sources]` for core and the unpublished `plugins` extra are kept as a
+  commented local-dev scaffold, so the committed lock resolves both libs from their published
+  releases instead of sibling working copies (which a CI checkout cannot resolve).
+- **Security:** upgraded dev/doc tooling to clear `pip-audit` advisories: `bleach 6.4.0`,
+  `cryptography 49.0.0`, `jupyter-server 2.20.0`, `jupyterlab 4.6.0`, `msgpack 1.2.1`, and
+  `tornado 6.5.7` (lock-only; these are dev/doc transitive dependencies, not runtime deps).
+
 ## 0.8.0 - 2026-06-11
 
 - Bumped the `cuvis-ai-core` floor to `>=0.7.1` and `cuvis-ai-schemas[full]` to `>=0.5.2` for the reworked `NodeRegistry`: the plugin contract / runtime-smoke tests now read a loaded plugin's config from `registry.plugin_catalog[name]` (core dropped the redundant `plugin_configs` dict; `plugin_registry` became `loaded_plugin_nodes`, which `cuvis_ai_schemas.is_plugin` reads as of 0.5.1). The `>=0.7.1` floor also inherits core's transitive security patches, pulling `aiohttp` to `3.14.1` (CVE-2026-34993, CVE-2026-47265) and `idna` to `3.18` in the lock.

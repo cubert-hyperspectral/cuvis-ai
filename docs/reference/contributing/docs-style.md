@@ -60,7 +60,7 @@ Cuvis.AI follows the **PyTorch documentation model**:
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  Layer 2: Python Docstrings (Auto-Generated Content)        │
-│  - cuvis_ai/anomaly/rx_detector.py                          │
+│  - cuvis_ai/node/anomaly/rx_detector.py                     │
 │  - cuvis_ai/node/losses.py                                  │
 │  - Google-style docstrings                                  │
 │  - Pulled at build time via mkdocstrings                    │
@@ -111,7 +111,7 @@ Examples:
     Basic usage with global statistics:
 
     ```python
-    from cuvis_ai.anomaly.rx_detector import RXGlobal
+    from cuvis_ai.node.anomaly.rx_detector import RXGlobal
 
     detector = RXGlobal(
         in_channels=224,

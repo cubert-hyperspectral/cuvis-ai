@@ -157,6 +157,26 @@ def test_high_contrast_selector_fallback_empty_window() -> None:
     assert len(result["band_info"]["band_indices"]) == 3
 
 
+@torch.no_grad()
+def test_high_contrast_selector_compute_raw_rgb_unnormalized() -> None:
+    """_compute_raw_rgb stacks the selected bands as-is (no normalization)."""
+    B, H, W, C = 2, 8, 8, 30
+    cube = torch.rand(B, H, W, C)
+    wavelengths = np.linspace(400, 800, C).astype(np.float32)
+
+    node = HighContrastSelector(
+        windows=((440, 500), (500, 580), (610, 700)),
+        alpha=0.1,
+    )
+    raw = node._compute_raw_rgb(cube, wavelengths)
+
+    assert raw.shape == (B, H, W, 3)
+    # Each output channel is exactly the corresponding selected cube band, unchanged.
+    selected = node._select_indices(cube, np.asarray(wavelengths, dtype=np.float32))
+    for channel, band_idx in enumerate(selected):
+        assert torch.equal(raw[..., channel], cube[..., band_idx])
+
+
 # ---------------------------------------------------------------------------
 # SoftChannelSelector edge cases
 # ---------------------------------------------------------------------------

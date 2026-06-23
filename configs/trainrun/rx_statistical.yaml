@@ -2,13 +2,15 @@
 
 
 defaults:
-  - /pipeline/anomaly/rx@pipeline: rx_statistical
   - /data@data: lentils
   - /training@training: default
   - _self_
 
 
 name: rx_statistical
+
+# Pipeline reference, resolved relative to this trainrun's directory.
+pipeline: ../pipeline/anomaly/rx/rx_statistical.yaml
 
 training:
   seed: 42

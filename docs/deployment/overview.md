@@ -160,7 +160,7 @@ For complete method documentation, see the [gRPC API Reference](api/session.md).
 
 ```bash
 # Start gRPC server locally (default port: 50051)
-uv run python -m cuvis_ai.grpc.production_server
+uv run python -m cuvis_ai_core.grpc.production_server
 ```
 
 **Expected Output:**
@@ -218,8 +218,8 @@ response = stub.Inference(
 
 # Process outputs
 for name, tensor_proto in response.outputs.items():
-    output_array = helpers.proto_to_numpy(tensor_proto)
-    print(f"{name}: shape={output_array.shape}")
+    with helpers.proto_to_numpy(tensor_proto) as output_array:
+        print(f"{name}: shape={output_array.shape}")
 ```
 
 ### Step 5: Clean Up

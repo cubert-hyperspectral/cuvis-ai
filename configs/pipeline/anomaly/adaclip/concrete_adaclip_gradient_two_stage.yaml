@@ -13,7 +13,7 @@ metadata:
   - band_selector
   - anomaly_detection
   author: cuvis.ai
-  cuvis_ai_version: 0.1.5.post40+g5d4ea80af.d20260105
+  cuvis_ai_version: 0.5.3
 plugins:
 - adaclip
 - cuvis_ai_builtin

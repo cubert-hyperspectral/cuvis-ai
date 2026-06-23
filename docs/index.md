@@ -5,8 +5,6 @@ It is developed at [Cubert GmbH](https://cubert-hyperspectral.com/de/), the lead
 
 Cuvis.AI works by reduction: every pipeline is assembled from reusable, atomic nodes. Process data, train models, interpret results, and deploy to production, all from the same modular toolkit. Extend it with custom plugins or integrate it into existing systems.
 
-With [agentic skills](https://github.com/cubert-hyperspectral/cuvis-ai-agentic-skills), Cuvis.AI also brings agentic AI directly to your pixels. Query, analyze, and reason about spectral data in natural language.
-
 One framework, from sensor to shipped application.
 
 
@@ -40,12 +38,6 @@ One framework, from sensor to shipped application.
     ---
 
     The mental model behind cuvis-ai: nodes, ports, pipelines, execution stages, and two-phase training.
-
--   :material-robot: **[Agentic Integration](agentic-integration/index.md)**
-
-    ---
-
-    Let assistants and automation tools interact with cuvis-ai through structured skills.
 
 </div>
 

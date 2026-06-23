@@ -10,13 +10,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import yaml
+from cuvis_ai_dataloader.data import Cu3sDataModule
 from cuvis_ai_schemas.enums import ExecutionStage
 from cuvis_ai_schemas.execution import Context
 from huggingface_hub import hf_hub_download
 from IPython.display import Markdown, display
 from loguru import logger
 
-from cuvis_ai_core.data.datasets import SingleCu3sDataModule
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_core.utils.graph_helper import restructure_output_to_node_dict
 from cuvis_ai_core.utils.node_registry import NodeRegistry
@@ -204,17 +204,13 @@ def make_predict_loader(
     *,
     processing_mode: str = "Reflectance",
     batch_size: int = 1,
-) -> tuple[SingleCu3sDataModule, Any]:
-    dm = SingleCu3sDataModule(
+) -> tuple[Cu3sDataModule, Any]:
+    dm = Cu3sDataModule(
         cu3s_file_path=str(cu3s_path),
         annotation_json_path=str(annotation_json_path),
-        train_ids=[],
-        val_ids=[],
-        test_ids=[],
-        predict_ids=None,
         batch_size=batch_size,
         processing_mode=processing_mode,
-        normalize_to_unit=False,
+        measurement_indices=None,  # predict every measurement in the session
     )
     dm.setup(stage="predict")
     return dm, dm.predict_dataloader()
@@ -228,7 +224,7 @@ def load_pipeline_for_inference(
     device: str,
 ) -> CuvisPipeline:
     registry = NodeRegistry()
-    registry.load_plugins(str(plugins_manifest))
+    registry.register_plugin(str(plugins_manifest))
     pipeline = CuvisPipeline.load_pipeline(
         yaml_path,
         weights_path=str(pt_path),

@@ -45,18 +45,11 @@ cd cuvis-ai
 uv sync --all-extras
 ```
 
-## Cuvis SDK (required for cu3s/cu3 I/O)
+## Cuvis SDK (only for cu3s/cu3 I/O)
 
-The `cuvis` Python package is just a binding — the **C++ Cuvis SDK** must be installed system-wide, or any `.cu3s` / `.cu3` read fails at runtime.
+Reading `.cu3s` / `.cu3` files needs the system-wide **C++ Cuvis SDK** plus the `cuvis` Python binding. Neither ships with cuvis-ai: cu3s/cu3 support lives in the [`cuvis-ai-dataloader`](https://github.com/cubert-hyperspectral/cuvis-ai-dataloader) plugin, which owns the `cuvis` pin and the full setup steps. Pipelines that only use numpy, TIFF, or video input don't need it.
 
-!!! warning "macOS not supported"
-    Cuvis SDK ships for Windows and Linux only. On macOS, `.cu3s` / `.cu3` reads will fail at runtime; everything else (numpy / video / TIFF input) still works.
-
-Obtain a suitable build of **Cuvis SDK {{ cuvis_sdk_version }}** for your OS from the [Cuvis SDK download page](https://cubert-hyperspectral.github.io/cuvis.sdk/installation/), then verify:
-
-```bash
-uv run python -c "import cuvis; print(cuvis.__version__)"
-```
+See the [cuvis-ai-dataloader README](https://github.com/cubert-hyperspectral/cuvis-ai-dataloader#cuvis-sdk-system-install-required-for-cu3s) for the SDK download, OS support, and verification.
 
 ## FFmpeg (required for video pipelines)
 
@@ -92,7 +85,7 @@ python -c "import torchcodec"  # reader-side shared libs
 
 ## Graphviz (required for pipeline graph rendering)
 
-The Python `graphviz` wrapper shells out to the system `dot` binary, so `pipeline.visualize(format="png" | "svg" | "render_graphviz", ...)` needs it on PATH. Pure DOT/Mermaid output (`format="dot_string"` / `"mermaid"`) doesn't.
+The Python `graphviz` wrapper shells out to the system `dot` binary, so `pipeline.visualize(format="render_graphviz", output_path=...)` (alias `format="render"`) needs it on PATH. Pure DOT/Mermaid string output (`format="dot_string"` / `"mermaid"`) doesn't.
 
 === "Linux"
 

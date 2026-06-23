@@ -134,7 +134,7 @@ trainer.fit()  # Automatically initializes normalizer with statistics
 ```python
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_core.training import StatisticalTrainer
-from cuvis_ai.anomaly.rx_detector import RXGlobal
+from cuvis_ai.node.anomaly.rx_detector import RXGlobal
 from cuvis_ai.node.normalization import MinMaxNormalizer
 from cuvis_ai.node.data import LentilsAnomalyDataNode
 
@@ -169,7 +169,7 @@ Requires initialization via `statistical_initialization()`, stores statistics as
 ```python
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_core.training import StatisticalTrainer, GradientTrainer
-from cuvis_ai.anomaly.deep_svdd import (
+from cuvis_ai.node.anomaly.deep_svdd import (
     DeepSVDDProjection,
     DeepSVDDCenterTracker,
     DeepSVDDScores,
@@ -312,13 +312,13 @@ all_nodes = NodeRegistry.list_builtin_nodes()
 ```python
 # Create registry instance
 registry = NodeRegistry()
-registry.load_plugins("path/to/plugins.yaml")
+registry.register_plugin("path/to/plugins.yaml")
 
 # Get plugin node
 AdaCLIPDetector = registry.get("AdaCLIPDetector")
 
 # Use with PipelineBuilder
-from cuvis_ai.pipeline.pipeline_builder import PipelineBuilder
+from cuvis_ai_core.pipeline.factory import PipelineBuilder
 builder = PipelineBuilder(node_registry=registry)
 ```
 

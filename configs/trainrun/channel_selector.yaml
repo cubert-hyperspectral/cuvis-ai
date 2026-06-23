@@ -2,13 +2,15 @@
 
 
 defaults:
-  - /pipeline/anomaly/rx@pipeline: channel_selector
   - /data@data: lentils
   - /training@training: default
   - _self_
 
 
 name: channel_selector
+
+# Pipeline reference, resolved relative to this trainrun's directory.
+pipeline: ../pipeline/anomaly/rx/channel_selector.yaml
 
 training:
   seed: 42

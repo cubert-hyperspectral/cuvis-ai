@@ -69,14 +69,19 @@ flowchart TD
 ### Loading Initialization Data
 
 ```python
-from cuvis_ai.data.datamodule import SingleCu3sDataModule
+from cuvis_ai_dataloader.data import Cu3sDataModule
+from cuvis_ai_schemas.training.data import DataSplitConfig, Selector, SelectorKind
 
-datamodule = SingleCu3sDataModule(
-    cu3s_file_path="data/initialization/samples.cu3s",
+cu3s_path = "data/initialization/samples.cu3s"
+
+datamodule = Cu3sDataModule(
+    cu3s_file_path=cu3s_path,
     annotation_json_path="data/initialization/annotations.json",
-    train_ids=[0, 1, 2],  # Use for initialization
-    val_ids=[3],
-    test_ids=[4],
+    splits=DataSplitConfig(
+        train=[Selector(kind=SelectorKind.FILE_INDICES, source=cu3s_path, ids=[0, 1, 2])],
+        val=[Selector(kind=SelectorKind.FILE_INDICES, source=cu3s_path, ids=[3])],
+        test=[Selector(kind=SelectorKind.FILE_INDICES, source=cu3s_path, ids=[4])],
+    ),
     batch_size=4
 )
 
@@ -86,13 +91,14 @@ datamodule.setup(stage="fit")
 ### Computing Statistics
 
 ```python
-from cuvis_ai.trainer.statistical_trainer import StatisticalTrainer
+from cuvis_ai_core.training import StatisticalTrainer
 
 stat_trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
 stat_trainer.fit()  # Process all batches
 
 # Nodes now initialized
-assert pipeline.nodes["rx_detector"]._statistically_initialized
+rx_detector = {node.name: node for node in pipeline.nodes()}["rx_detector"]
+assert rx_detector._statistically_initialized
 ```
 
 ### Statistical Nodes
@@ -100,12 +106,12 @@ assert pipeline.nodes["rx_detector"]._statistically_initialized
 #### RXGlobal (Anomaly Detection)
 
 ```python
-from cuvis_ai.anomaly.rx_detector import RXGlobal
+from cuvis_ai.node.anomaly.rx_detector import RXGlobal
 
 from cuvis_ai_core.training import StatisticalTrainer
 
 rx_node = RXGlobal(num_channels=61, eps=1e-6)
-pipeline.add_node(rx_node)
+# Nodes are added automatically when you wire them with pipeline.connect(...)
 
 # Use StatisticalTrainer to initialize
 trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
@@ -148,7 +154,7 @@ from cuvis_ai.node.normalization import MinMaxNormalizer
 from cuvis_ai_core.training import StatisticalTrainer
 
 normalizer = MinMaxNormalizer(eps=1e-6, use_running_stats=True)
-pipeline.add_node(normalizer)
+# Nodes are added automatically when you wire them with pipeline.connect(...)
 
 # Use StatisticalTrainer to initialize
 trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
@@ -171,7 +177,7 @@ selector = SoftChannelSelector(
     init_method="variance",
     temperature_init=5.0
 )
-pipeline.add_node(selector)
+# Nodes are added automatically when you wire them with pipeline.connect(...)
 
 # Use StatisticalTrainer to initialize
 trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
@@ -186,7 +192,7 @@ from cuvis_ai.node.dimensionality_reduction import TrainablePCA
 from cuvis_ai_core.training import StatisticalTrainer
 
 pca = TrainablePCA(n_components=10, input_dim=61)
-pipeline.add_node(pca)
+# Nodes are added automatically when you wire them with pipeline.connect(...)
 
 # Use StatisticalTrainer to initialize
 trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
@@ -199,10 +205,10 @@ print(pca.explained_variance)    # Variance per component
 ### Validation After Phase 1
 
 ```python
-val_results = stat_trainer.validate()
-
-for metric in val_results["metrics"]:
-    print(f"{metric.name}: {metric.value:.4f}")
+# validate() runs the validation pass; the metric nodes log their results to
+# TensorBoard. StatisticalTrainer.validate() does not return a metrics object,
+# so inspect the run in TensorBoard (or read the metric nodes directly).
+stat_trainer.validate()
 
 # Expected: Reasonable performance with just statistics
 # Example: IoU > 0.5, F1 > 0.6
@@ -280,8 +286,13 @@ pipeline.connect(
 ### Gradient Training
 
 ```python
-from cuvis_ai.trainer.gradient_trainer import GradientTrainer
-from cuvis_ai.config.trainrun import TrainingConfig, OptimizerConfig, SchedulerConfig
+from cuvis_ai_core.training import GradientTrainer
+from cuvis_ai_schemas.training import (
+    TrainingConfig,
+    OptimizerConfig,
+    SchedulerConfig,
+    TrainerConfig,
+)
 
 training_config = TrainingConfig(
     seed=42,
@@ -353,15 +364,25 @@ training_config = TrainingConfig(
 ## Complete Two-Phase Example
 
 ```python
-from cuvis_ai.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.normalization import MinMaxNormalizer
 from cuvis_ai.node.channel_selector import SoftChannelSelector
-from cuvis_ai.anomaly.rx_detector import RXGlobal
+from cuvis_ai.node.anomaly.rx_detector import RXGlobal
+from cuvis_ai.node.conversion import ScoreToLogit
+from cuvis_ai.node.deciders.binary_decider import BinaryDecider
 from cuvis_ai.node.losses import AnomalyBCEWithLogits
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics
-from cuvis_ai.trainer.statistical_trainer import StatisticalTrainer
-from cuvis_ai.trainer.gradient_trainer import GradientTrainer
+from cuvis_ai_core.training import StatisticalTrainer, GradientTrainer
+from cuvis_ai_schemas.training import (
+    TrainingConfig,
+    OptimizerConfig,
+    SchedulerConfig,
+    TrainerConfig,
+)
+from cuvis_ai_schemas.pipeline import PipelineMetadata
+from cuvis_ai_dataloader.data import Cu3sDataModule
+from cuvis_ai_schemas.training.data import DataSplitConfig, Selector, SelectorKind
 
 # ============ SETUP ============
 
@@ -389,12 +410,16 @@ pipeline.connect(
     (data_node.mask, metrics_node.targets)
 )
 
-datamodule = SingleCu3sDataModule(
-    cu3s_file_path="data/Lentils/Lentils_000.cu3s",
+cu3s_path = "data/Lentils/Lentils_000.cu3s"
+
+datamodule = Cu3sDataModule(
+    cu3s_file_path=cu3s_path,
     annotation_json_path="data/Lentils/Lentils_000.json",
-    train_ids=[0, 2, 3],
-    val_ids=[1],
-    test_ids=[1, 5],
+    splits=DataSplitConfig(
+        train=[Selector(kind=SelectorKind.FILE_INDICES, source=cu3s_path, ids=[0, 2, 3])],
+        val=[Selector(kind=SelectorKind.FILE_INDICES, source=cu3s_path, ids=[1])],
+        test=[Selector(kind=SelectorKind.FILE_INDICES, source=cu3s_path, ids=[4, 5])],
+    ),
     batch_size=2
 )
 
@@ -405,8 +430,8 @@ stat_trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
 stat_trainer.fit()
 
 print("✓ Statistical initialization complete")
-val_results = stat_trainer.validate()
-print(f"  Validation IoU: {val_results['metrics_anomaly/iou']:.3f}")
+# Run validation; the metric nodes log results (e.g. IoU) to TensorBoard.
+stat_trainer.validate()
 
 # ============ PHASE 2: GRADIENT TRAINING ============
 
@@ -436,11 +461,9 @@ grad_trainer = GradientTrainer(
 
 grad_trainer.fit()
 test_results = grad_trainer.test()
-print(f"✓ Test IoU: {test_results['metrics_anomaly/iou']:.3f}")
+print(f"✓ Test IoU: {test_results[0]['metrics_anomaly/iou']:.3f}")
 
 # ============ SAVE ============
-
-from cuvis_ai.pipeline.config import PipelineMetadata
 
 pipeline.save_to_file(
     "outputs/channel_selector.yaml",
@@ -471,7 +494,7 @@ pipeline.save_to_file(
 ### Loading a Saved Pipeline
 
 ```python
-pipeline = CuvisPipeline.load_from_file(
+pipeline = CuvisPipeline.load_pipeline(
     config_path="outputs/trained_pipeline.yaml",
     weights_path="outputs/trained_pipeline.pt",
     device="cuda"
@@ -526,6 +549,6 @@ outputs = pipeline.forward(batch=test_data)
     ```python
     indices = torch.randperm(len(calib_data))[:10000]
     calib_data = calib_data[indices]
-    datamodule = SingleCu3sDataModule(..., batch_size=32)
+    datamodule = Cu3sDataModule(..., batch_size=32)
     pipeline = pipeline.to("cuda")
     ```

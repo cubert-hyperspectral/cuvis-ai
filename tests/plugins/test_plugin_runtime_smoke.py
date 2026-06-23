@@ -40,11 +40,12 @@ def _instantiate_with_default_kwargs(node_cls: type[Node]) -> Node:
 
 
 def test_plugin_nodes_can_instantiate_and_move_to_cpu() -> None:
+    pytest.importorskip("cuvis_ai_adaclip")
     registry = NodeRegistry()
-    registry.load_plugins(ADACLIP_MANIFEST_PATH)
+    registry.register_plugin(ADACLIP_MANIFEST_PATH)
     assert set(registry.list_plugins()) == {PLUGIN_NAME}
 
-    for entry in registry.plugin_catalog[PLUGIN_NAME].provides:
+    for entry in registry.plugin_catalog[PLUGIN_NAME].capabilities:
         class_path = entry.class_name
         node_cls = registry.get(class_path)
         node = _instantiate_with_default_kwargs(node_cls)

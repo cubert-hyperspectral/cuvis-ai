@@ -1,60 +1,59 @@
 # ByteTrack Plugin Manifest
-plugins:
-  bytetrack:
-    path: "../../../../cuvis-ai-bytetrack/bytetrack-init"
-    provides:
-    - class_name: cuvis_ai_bytetrack.node.ByteTrack
-      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#AAAAAA\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"32\" cy=\"32\" r=\"22\" stroke-dasharray=\"4 3\"/>\r\n  <path d=\"M25 26a7 7 0 0 1 14 0c0 4-3.5 4.5-7 8v3\"/>\r\n  <circle cx=\"32\" cy=\"45\" r=\"1.2\" fill=\"#AAAAAA\" stroke=\"none\"/>\r\n</svg>\r\n"
-      input_specs:
-        bboxes:
-          dtype: float32
-          shape: [1, -1, 4]
-          optional: false
-          description: Detection bounding boxes [1, N, 4] xyxy in image coordinates.
-        category_ids:
-          dtype: int64
-          shape: [1, -1]
-          optional: false
-          description: Detection category IDs [1, N].
-        confidences:
-          dtype: float32
-          shape: [1, -1]
-          optional: false
-          description: Detection confidence scores [1, N].
-        spectral_signatures:
-          dtype: float32
-          shape: [-1, -1, -1]
-          optional: true
-          description: Per-detection spectral signatures [B, N, C]. Optional.
-        spectral_valid:
-          dtype: int32
-          shape: [-1, -1]
-          optional: true
-          description: Validity mask [B, N]. Optional.
-        spectral_std:
-          dtype: float32
-          shape: [-1, -1, -1]
-          optional: true
-          description: Per-detection spectral std [B, N, C]. Optional.
-      output_specs:
-        bboxes:
-          dtype: float32
-          shape: [1, -1, 4]
-          optional: false
-          description: Pass-through bounding boxes [1, N, 4] xyxy.
-        track_ids:
-          dtype: int64
-          shape: [1, -1]
-          optional: false
-          description: Track IDs aligned to input detections [1, N], -1 if unmatched.
-        confidences:
-          dtype: float32
-          shape: [1, -1]
-          optional: false
-          description: Pass-through detection confidences [1, N].
-        category_ids:
-          dtype: int64
-          shape: [1, -1]
-          optional: false
-          description: Pass-through category IDs [1, N].
-      doc_summary: Wrapper around yolox.tracker.BYTETracker for cuvis.ai pipelines.
+name: bytetrack
+path: "../../../../cuvis-ai-bytetrack/bytetrack-init"
+capabilities:
+- class_name: cuvis_ai_bytetrack.node.ByteTrack
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#AAAAAA\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"32\" cy=\"32\" r=\"22\" stroke-dasharray=\"4 3\"/>\r\n  <path d=\"M25 26a7 7 0 0 1 14 0c0 4-3.5 4.5-7 8v3\"/>\r\n  <circle cx=\"32\" cy=\"45\" r=\"1.2\" fill=\"#AAAAAA\" stroke=\"none\"/>\r\n</svg>\r\n"
+  input_specs:
+    bboxes:
+      dtype: float32
+      shape: [1, -1, 4]
+      optional: false
+      description: Detection bounding boxes [1, N, 4] xyxy in image coordinates.
+    category_ids:
+      dtype: int64
+      shape: [1, -1]
+      optional: false
+      description: Detection category IDs [1, N].
+    confidences:
+      dtype: float32
+      shape: [1, -1]
+      optional: false
+      description: Detection confidence scores [1, N].
+    spectral_signatures:
+      dtype: float32
+      shape: [-1, -1, -1]
+      optional: true
+      description: Per-detection spectral signatures [B, N, C]. Optional.
+    spectral_valid:
+      dtype: int32
+      shape: [-1, -1]
+      optional: true
+      description: Validity mask [B, N]. Optional.
+    spectral_std:
+      dtype: float32
+      shape: [-1, -1, -1]
+      optional: true
+      description: Per-detection spectral std [B, N, C]. Optional.
+  output_specs:
+    bboxes:
+      dtype: float32
+      shape: [1, -1, 4]
+      optional: false
+      description: Pass-through bounding boxes [1, N, 4] xyxy.
+    track_ids:
+      dtype: int64
+      shape: [1, -1]
+      optional: false
+      description: Track IDs aligned to input detections [1, N], -1 if unmatched.
+    confidences:
+      dtype: float32
+      shape: [1, -1]
+      optional: false
+      description: Pass-through detection confidences [1, N].
+    category_ids:
+      dtype: int64
+      shape: [1, -1]
+      optional: false
+      description: Pass-through category IDs [1, N].
+  doc_summary: Wrapper around yolox.tracker.BYTETracker for cuvis.ai pipelines.

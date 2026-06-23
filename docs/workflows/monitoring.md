@@ -63,7 +63,7 @@ pipeline.connect(
 )
 
 # Pass monitor to trainer
-from cuvis_ai.trainers.gradient_trainer import GradientTrainer
+from cuvis_ai_core.training import GradientTrainer
 
 trainer = GradientTrainer(
     pipeline=pipeline,
@@ -629,9 +629,9 @@ Simple monitoring for statistical initialization.
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.normalization import MinMaxNormalizer
-from cuvis_ai.anomaly.rx_detector import RXGlobal
+from cuvis_ai.node.anomaly.rx_detector import RXGlobal
 from cuvis_ai.node.conversion import ScoreToLogit
-from cuvis_ai.anomaly.binary_decider import BinaryDecider
+from cuvis_ai.node.deciders.binary_decider import BinaryDecider
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.anomaly_visualization import AnomalyMask, ScoreHeatmapVisualizer
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
@@ -684,27 +684,31 @@ pipeline.connect(
 )
 
 # Validate
-pipeline.validate()
+pipeline.verify()
 
 # Statistical training (no gradients)
-from cuvis_ai.trainers.statistical_trainer import StatisticalTrainer
-from cuvis_ai.datamodule.cu3s_datamodule import Cu3sDataModule
+from cuvis_ai_core.training import StatisticalTrainer
+from cuvis_ai_dataloader.data import Cu3sDataModule
+from cuvis_ai_schemas.training.data import DataSplitConfig, Selector, SelectorKind
 
+cu3s_path = "data/Lentils/Lentils_000.cu3s"
 datamodule = Cu3sDataModule(
-    cu3s_file_path="data/Lentils/Lentils_000.cu3s",
-    train_ids=[0, 2, 3],
-    val_ids=[1, 5],
-    test_ids=[1, 5],
+    cu3s_file_path=cu3s_path,
+    splits=DataSplitConfig(
+        train=[Selector(kind=SelectorKind.FILE_INDICES, source=cu3s_path, ids=[0, 2, 3])],
+        val=[Selector(kind=SelectorKind.FILE_INDICES, source=cu3s_path, ids=[1, 5])],
+        test=[Selector(kind=SelectorKind.FILE_INDICES, source=cu3s_path, ids=[4, 6])],
+    ),
     batch_size=1,
 )
 
 trainer = StatisticalTrainer(
     pipeline=pipeline,
     datamodule=datamodule,
-    metric_nodes=[metrics],
-    monitors=[monitor],
 )
 
+# The metrics and monitor nodes are wired into the graph above, so they run
+# as part of the pipeline; the trainer takes only pipeline + datamodule.
 trainer.fit()
 trainer.test()
 ```
@@ -723,13 +727,16 @@ from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.normalization import MinMaxNormalizer
 from cuvis_ai.node.channel_mixer import LearnableChannelMixer
-from cuvis_ai.anomaly.adaclip_anomaly_detector import AdaClipAnomalyDetector
-from cuvis_ai.anomaly.binary_decider import BinaryDecider
+
+# AdaCLIPDetector ships in the AdaClip plugin (cuvis_ai_adaclip), loaded via its plugin
+# manifest, not imported directly from this repo.
+from cuvis_ai_adaclip.node.adaclip_node import AdaCLIPDetector
+from cuvis_ai.node.deciders.binary_decider import BinaryDecider
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.anomaly_visualization import AnomalyMask, ScoreHeatmapVisualizer
 from cuvis_ai.node.pipeline_visualization import PipelineComparisonVisualizer
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
-from cuvis_ai.anomaly.iou_loss import IoULoss
+from cuvis_ai.node.losses import IoULoss
 
 # Create pipeline
 pipeline = CuvisPipeline("drcnn_adaclip_gradient")
@@ -738,7 +745,7 @@ pipeline = CuvisPipeline("drcnn_adaclip_gradient")
 data_node = LentilsAnomalyDataNode(normal_class_ids=[0, 1])
 normalizer = MinMaxNormalizer(eps=1.0e-6, use_running_stats=True)
 channel_mixer = LearnableChannelMixer(num_channels=61)
-adaclip = AdaClipAnomalyDetector()
+adaclip = AdaCLIPDetector()
 decider = BinaryDecider(threshold=0.5)
 iou_loss = IoULoss(weight=1.0, normalize_method="minmax")
 
@@ -796,17 +803,21 @@ pipeline.connect(
 )
 
 # Validate
-pipeline.validate()
+pipeline.verify()
 
 # Gradient training
-from cuvis_ai.trainers.gradient_trainer import GradientTrainer
-from cuvis_ai.datamodule.cu3s_datamodule import Cu3sDataModule
+from cuvis_ai_core.training import GradientTrainer
+from cuvis_ai_dataloader.data import Cu3sDataModule
+from cuvis_ai_schemas.training.data import DataSplitConfig, Selector, SelectorKind
 
+cu3s_path = "data/Lentils/Lentils_000.cu3s"
 datamodule = Cu3sDataModule(
-    cu3s_file_path="data/Lentils/Lentils_000.cu3s",
-    train_ids=[0],
-    val_ids=[3, 4],
-    test_ids=[1, 5],
+    cu3s_file_path=cu3s_path,
+    splits=DataSplitConfig(
+        train=[Selector(kind=SelectorKind.FILE_INDICES, source=cu3s_path, ids=[0])],
+        val=[Selector(kind=SelectorKind.FILE_INDICES, source=cu3s_path, ids=[3, 4])],
+        test=[Selector(kind=SelectorKind.FILE_INDICES, source=cu3s_path, ids=[1, 5])],
+    ),
     batch_size=1,
 )
 
@@ -846,14 +857,17 @@ from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.normalization import MinMaxNormalizer
 from cuvis_ai.node.channel_mixer import ConcreteChannelMixer
-from cuvis_ai.anomaly.adaclip_anomaly_detector import AdaClipAnomalyDetector
-from cuvis_ai.anomaly.binary_decider import BinaryDecider
+
+# AdaCLIPDetector ships in the AdaClip plugin (cuvis_ai_adaclip), loaded via its plugin
+# manifest, not imported directly from this repo.
+from cuvis_ai_adaclip.node.adaclip_node import AdaCLIPDetector
+from cuvis_ai.node.deciders.binary_decider import BinaryDecider
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics, SelectorEntropyMetric
 from cuvis_ai.node.anomaly_visualization import AnomalyMask
 from cuvis_ai.node.pipeline_visualization import CubeRGBVisualizer
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
-from cuvis_ai.anomaly.iou_loss import IoULoss
-from cuvis_ai.anomaly.distinctness_loss import DistinctnessLoss
+from cuvis_ai.node.losses import IoULoss
+from cuvis_ai.node.losses import DistinctnessLoss
 
 # Create pipeline
 pipeline = CuvisPipeline("concrete_adaclip")
@@ -866,7 +880,7 @@ selector = ConcreteChannelMixer(
     num_bands_to_select=3,
     temperature=0.5,
 )
-adaclip = AdaClipAnomalyDetector()
+adaclip = AdaCLIPDetector()
 decider = BinaryDecider(threshold=0.5)
 
 # Loss nodes
@@ -920,17 +934,21 @@ pipeline.connect(
 )
 
 # Validate
-pipeline.validate()
+pipeline.verify()
 
 # Gradient training with multiple losses
-from cuvis_ai.trainers.gradient_trainer import GradientTrainer
-from cuvis_ai.datamodule.cu3s_datamodule import Cu3sDataModule
+from cuvis_ai_core.training import GradientTrainer
+from cuvis_ai_dataloader.data import Cu3sDataModule
+from cuvis_ai_schemas.training.data import DataSplitConfig, Selector, SelectorKind
 
+cu3s_path = "data/Lentils/Lentils_000.cu3s"
 datamodule = Cu3sDataModule(
-    cu3s_file_path="data/Lentils/Lentils_000.cu3s",
-    train_ids=[0],
-    val_ids=[3, 4],
-    test_ids=[1, 5],
+    cu3s_file_path=cu3s_path,
+    splits=DataSplitConfig(
+        train=[Selector(kind=SelectorKind.FILE_INDICES, source=cu3s_path, ids=[0])],
+        val=[Selector(kind=SelectorKind.FILE_INDICES, source=cu3s_path, ids=[3, 4])],
+        test=[Selector(kind=SelectorKind.FILE_INDICES, source=cu3s_path, ids=[1, 5])],
+    ),
     batch_size=1,
 )
 

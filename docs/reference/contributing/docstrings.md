@@ -58,7 +58,7 @@ into processing pipelines.
 
 See Also
 --------
-cuvis_ai.deciders : Binary decision nodes for classification
+cuvis_ai.node.deciders : Binary decision nodes for classification
 cuvis_ai.node.normalization : Preprocessing nodes
 """
 ```
@@ -129,7 +129,7 @@ class MyNode(BaseNode):
 
     >>> from cuvis_ai_core.training import StatisticalTrainer
     >>> node = MyNode(param1=20, param2=0.5)
-    >>> pipeline.add_node(node)
+    >>> # pipeline.connect(...) adds the node automatically when wired
     >>> trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
     >>> trainer.fit()  # Initializes node
     >>> result = node.forward(test_data)
@@ -324,8 +324,8 @@ Examples
 --------
 Basic RX detection:
 
->>> from cuvis_ai.anomaly import RXDetector
->>> detector = RXDetector()
+>>> from cuvis_ai.node.anomaly import RXGlobal
+>>> detector = RXGlobal()
 >>> data = torch.randn(1, 150, 64, 64)  # (batch, channels, H, W)
 >>> result = detector.forward(data)
 >>> result['scores'].shape
@@ -334,8 +334,8 @@ torch.Size([1, 64, 64])
 With custom parameters:
 
 >>> from cuvis_ai_core.training import StatisticalTrainer
->>> detector = RXDetector(use_global_covariance=True)
->>> pipeline.add_node(detector)
+>>> detector = RXGlobal(use_global_covariance=True)
+>>> # pipeline.connect(...) adds the detector automatically when wired
 >>> trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
 >>> trainer.fit()  # Initializes detector with background data
 >>> result = detector.forward(test_data)
@@ -352,7 +352,7 @@ See Also
 --------
 RXDetector : Reed-Xiaoli anomaly detector
 LADDetector : Local anomaly density detector
-cuvis_ai.deciders.BinaryDecider : Convert scores to binary decisions
+cuvis_ai.node.deciders.BinaryDecider : Convert scores to binary decisions
 """
 ```
 
@@ -468,7 +468,7 @@ Basic usage with statistical initialization:
 >>> # Create detector and load background data
 >>> from cuvis_ai_core.training import StatisticalTrainer
 >>> detector = RXDetector()
->>> pipeline.add_node(detector)
+>>> # pipeline.connect(...) adds the detector automatically when wired
 >>> background = load_hyperspectral_data("background.npy")
 >>>
 >>> # Initialize with background statistics
@@ -484,11 +484,11 @@ Basic usage with statistical initialization:
 
 Complete pipeline example:
 
->>> from cuvis_ai.anomaly import RXDetector
->>> from cuvis_ai.deciders import BinaryDecider
+>>> from cuvis_ai.node.anomaly import RXGlobal
+>>> from cuvis_ai.node.deciders import BinaryDecider
 >>>
 >>> # Build detection pipeline
->>> detector = RXDetector(use_global_covariance=True)
+>>> detector = RXGlobal(use_global_covariance=True)
 >>> decider = BinaryDecider(threshold=0.5)
 >>>
 >>> # Process data

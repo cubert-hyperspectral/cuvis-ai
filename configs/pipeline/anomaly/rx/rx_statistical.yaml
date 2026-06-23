@@ -6,7 +6,7 @@ metadata:
   - statistical
   - rx
   author: cuvis.ai
-  cuvis_ai_version: 0.1.5.post26+g6df1b4549.d20251202
+  cuvis_ai_version: 0.5.3
 plugins:
 - cuvis_ai_builtin
 nodes:

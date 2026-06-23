@@ -1,99 +1,98 @@
-plugins:
-  detr:
-    path: "D:/code-repos/cuvis-ai-detr/detr-init"
-    provides:
-    - class_name: cuvis_ai_detr.node.RTDETRDetection
-      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#AAAAAA\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"32\" cy=\"32\" r=\"22\" stroke-dasharray=\"4 3\"/>\r\n  <path d=\"M25 26a7 7 0 0 1 14 0c0 4-3.5 4.5-7 8v3\"/>\r\n  <circle cx=\"32\" cy=\"45\" r=\"1.2\" fill=\"#AAAAAA\" stroke=\"none\"/>\r\n</svg>\r\n"
-      input_specs:
-        rgb_image:
-          dtype: float32
-          shape: [-1, -1, -1, 3]
-          optional: false
-          description: RGB image [B, H, W, 3] in [0, 1]
-      output_specs:
-        raw_logits:
-          dtype: float32
-          shape: [-1, -1, -1]
-          optional: false
-          description: Decoder class logits [1, num_queries, num_classes]
-        raw_boxes:
-          dtype: float32
-          shape: [-1, -1, 4]
-          optional: false
-          description: Decoder box predictions [1, num_queries, 4] cxcywh normalised
-        orig_hw:
-          dtype: int64
-          shape: [1, 2]
-          optional: false
-          description: Original frame [H, W] before preprocessing
-      doc_summary: Run RT-DETR forward pass and expose raw decoder tensors.
-    - class_name: cuvis_ai_detr.node.RTDETRPostprocess
-      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#AAAAAA\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"32\" cy=\"32\" r=\"22\" stroke-dasharray=\"4 3\"/>\r\n  <path d=\"M25 26a7 7 0 0 1 14 0c0 4-3.5 4.5-7 8v3\"/>\r\n  <circle cx=\"32\" cy=\"45\" r=\"1.2\" fill=\"#AAAAAA\" stroke=\"none\"/>\r\n</svg>\r\n"
-      input_specs:
-        raw_logits:
-          dtype: float32
-          shape: [-1, -1, -1]
-          optional: false
-          description: Raw logits from RTDETRDetection [1, num_queries, num_classes]
-        raw_boxes:
-          dtype: float32
-          shape: [-1, -1, 4]
-          optional: false
-          description: Raw boxes (cxcywh, normalised) from RTDETRDetection [1, num_queries, 4]
-        orig_hw:
-          dtype: int64
-          shape: [1, 2]
-          optional: false
-          description: Original frame [H, W]
-      output_specs:
-        bboxes:
-          dtype: float32
-          shape: [1, -1, 4]
-          optional: false
-          description: Final boxes [1, N, 4] xyxy in original image coordinates
-        category_ids:
-          dtype: int64
-          shape: [1, -1]
-          optional: false
-          description: Class IDs [1, N]
-        confidences:
-          dtype: float32
-          shape: [1, -1]
-          optional: false
-          description: Confidence scores [1, N]
-      doc_summary: 'Apply HF RT-DETR postprocessor: sigmoid scoring, box scaling, top-K threshold.'
-    - class_name: cuvis_ai_detr.node.CategoryFilterNode
-      icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#AAAAAA\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"32\" cy=\"32\" r=\"22\" stroke-dasharray=\"4 3\"/>\r\n  <path d=\"M25 26a7 7 0 0 1 14 0c0 4-3.5 4.5-7 8v3\"/>\r\n  <circle cx=\"32\" cy=\"45\" r=\"1.2\" fill=\"#AAAAAA\" stroke=\"none\"/>\r\n</svg>\r\n"
-      input_specs:
-        bboxes:
-          dtype: float32
-          shape: [1, -1, 4]
-          optional: false
-          description: Detection boxes [1, N, 4] xyxy
-        category_ids:
-          dtype: int64
-          shape: [1, -1]
-          optional: false
-          description: Detection class IDs [1, N]
-        confidences:
-          dtype: float32
-          shape: [1, -1]
-          optional: false
-          description: Detection scores [1, N]
-      output_specs:
-        bboxes:
-          dtype: float32
-          shape: [1, -1, 4]
-          optional: false
-          description: Filtered detection boxes [1, M, 4] xyxy
-        category_ids:
-          dtype: int64
-          shape: [1, -1]
-          optional: false
-          description: Filtered class IDs [1, M]
-        confidences:
-          dtype: float32
-          shape: [1, -1]
-          optional: false
-          description: Filtered scores [1, M]
-      doc_summary: Filter detection outputs to a specific set of allowed COCO category IDs.
+name: detr
+path: "D:/code-repos/cuvis-ai-detr/detr-init"
+capabilities:
+- class_name: cuvis_ai_detr.node.RTDETRDetection
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#AAAAAA\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"32\" cy=\"32\" r=\"22\" stroke-dasharray=\"4 3\"/>\r\n  <path d=\"M25 26a7 7 0 0 1 14 0c0 4-3.5 4.5-7 8v3\"/>\r\n  <circle cx=\"32\" cy=\"45\" r=\"1.2\" fill=\"#AAAAAA\" stroke=\"none\"/>\r\n</svg>\r\n"
+  input_specs:
+    rgb_image:
+      dtype: float32
+      shape: [-1, -1, -1, 3]
+      optional: false
+      description: RGB image [B, H, W, 3] in [0, 1]
+  output_specs:
+    raw_logits:
+      dtype: float32
+      shape: [-1, -1, -1]
+      optional: false
+      description: Decoder class logits [1, num_queries, num_classes]
+    raw_boxes:
+      dtype: float32
+      shape: [-1, -1, 4]
+      optional: false
+      description: Decoder box predictions [1, num_queries, 4] cxcywh normalised
+    orig_hw:
+      dtype: int64
+      shape: [1, 2]
+      optional: false
+      description: Original frame [H, W] before preprocessing
+  doc_summary: Run RT-DETR forward pass and expose raw decoder tensors.
+- class_name: cuvis_ai_detr.node.RTDETRPostprocess
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#AAAAAA\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"32\" cy=\"32\" r=\"22\" stroke-dasharray=\"4 3\"/>\r\n  <path d=\"M25 26a7 7 0 0 1 14 0c0 4-3.5 4.5-7 8v3\"/>\r\n  <circle cx=\"32\" cy=\"45\" r=\"1.2\" fill=\"#AAAAAA\" stroke=\"none\"/>\r\n</svg>\r\n"
+  input_specs:
+    raw_logits:
+      dtype: float32
+      shape: [-1, -1, -1]
+      optional: false
+      description: Raw logits from RTDETRDetection [1, num_queries, num_classes]
+    raw_boxes:
+      dtype: float32
+      shape: [-1, -1, 4]
+      optional: false
+      description: Raw boxes (cxcywh, normalised) from RTDETRDetection [1, num_queries, 4]
+    orig_hw:
+      dtype: int64
+      shape: [1, 2]
+      optional: false
+      description: Original frame [H, W]
+  output_specs:
+    bboxes:
+      dtype: float32
+      shape: [1, -1, 4]
+      optional: false
+      description: Final boxes [1, N, 4] xyxy in original image coordinates
+    category_ids:
+      dtype: int64
+      shape: [1, -1]
+      optional: false
+      description: Class IDs [1, N]
+    confidences:
+      dtype: float32
+      shape: [1, -1]
+      optional: false
+      description: Confidence scores [1, N]
+  doc_summary: 'Apply HF RT-DETR postprocessor: sigmoid scoring, box scaling, top-K threshold.'
+- class_name: cuvis_ai_detr.node.CategoryFilterNode
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#AAAAAA\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"32\" cy=\"32\" r=\"22\" stroke-dasharray=\"4 3\"/>\r\n  <path d=\"M25 26a7 7 0 0 1 14 0c0 4-3.5 4.5-7 8v3\"/>\r\n  <circle cx=\"32\" cy=\"45\" r=\"1.2\" fill=\"#AAAAAA\" stroke=\"none\"/>\r\n</svg>\r\n"
+  input_specs:
+    bboxes:
+      dtype: float32
+      shape: [1, -1, 4]
+      optional: false
+      description: Detection boxes [1, N, 4] xyxy
+    category_ids:
+      dtype: int64
+      shape: [1, -1]
+      optional: false
+      description: Detection class IDs [1, N]
+    confidences:
+      dtype: float32
+      shape: [1, -1]
+      optional: false
+      description: Detection scores [1, N]
+  output_specs:
+    bboxes:
+      dtype: float32
+      shape: [1, -1, 4]
+      optional: false
+      description: Filtered detection boxes [1, M, 4] xyxy
+    category_ids:
+      dtype: int64
+      shape: [1, -1]
+      optional: false
+      description: Filtered class IDs [1, M]
+    confidences:
+      dtype: float32
+      shape: [1, -1]
+      optional: false
+      description: Filtered scores [1, M]
+  doc_summary: Filter detection outputs to a specific set of allowed COCO category IDs.

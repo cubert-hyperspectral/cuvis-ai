@@ -19,20 +19,27 @@ Produce a saved, fully-trained pipeline (and a matching
 ## Recipe
 
 ```python
-from cuvis_ai_core.trainer import GradientTrainer
-from cuvis_ai_core.config import OptimizerConfig, SchedulerConfig
+from cuvis_ai_core.training import (
+    GradientTrainer,
+    OptimizerConfig,
+    SchedulerConfig,
+    TrainerConfig,
+)
 
 trainer = GradientTrainer(
-    max_epochs=50,
-    optimizer=OptimizerConfig(name="adam", lr=1e-3),
-    scheduler=SchedulerConfig(name="cosine", t_max=50),
+    pipeline=pipeline,
+    datamodule=datamodule,
+    loss_nodes=loss_nodes,
+    metric_nodes=metric_nodes,
+    trainer_config=TrainerConfig(max_epochs=50),
+    optimizer_config=OptimizerConfig(name="adam", lr=1e-3),
+    scheduler_config=SchedulerConfig(name="cosine", t_max=50),
     callbacks=["early_stopping", "model_checkpoint"],
 )
 
-trainer.fit(pipeline=pipeline, datamodule=datamodule)
+trainer.fit()
 
-pipeline.save("artifacts/trained_pipeline.yaml")
-trainer.save_trainrun("artifacts/trainrun.yaml")
+pipeline.save_to_file("artifacts/trained_pipeline.yaml")
 ```
 
 ## What happens under the hood
@@ -44,13 +51,16 @@ trainer.save_trainrun("artifacts/trainrun.yaml")
    - the optimizer steps,
    - nodes whose stages include `METRIC` log validation metrics.
 3. Callbacks (early stopping, model checkpoint) fire at epoch boundaries.
-4. At the end, `save_trainrun()` writes a YAML capturing the entire
-   training config so the run can be reproduced.
+4. The trained pipeline is written with `pipeline.save_to_file(...)`. A
+   `trainrun.yaml` capturing the entire training config (so the run can be
+   reproduced via `restore-trainrun`) is produced by the `SaveTrainRun`
+   gRPC RPC when training under a `cuvis-ai-core` server session.
 
 ## Common variations
 
-- **Resume from a checkpoint**: load both the pipeline YAML and the
-  Lightning checkpoint, then call `trainer.fit(pipeline, datamodule, ckpt_path=...)`.
+- **Resume from a checkpoint**: replay the saved `trainrun.yaml` with a
+  Lightning checkpoint via `restore_trainrun(trainrun_path, mode="train",
+  checkpoint_path=...)` (or the `restore-trainrun` CLI).
 
 - **Multi-stage freezing**: drive unfreezing via callbacks (e.g.
   unfreeze the channel selector after epoch 10).

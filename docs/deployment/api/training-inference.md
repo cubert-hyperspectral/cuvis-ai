@@ -222,8 +222,8 @@ response = stub.Inference(
 
 # Process outputs
 for name, tensor_proto in response.outputs.items():
-    output_array = helpers.proto_to_numpy(tensor_proto)
-    print(f"{name}: shape={output_array.shape}, dtype={output_array.dtype}")
+    with helpers.proto_to_numpy(tensor_proto) as output_array:
+        print(f"{name}: shape={output_array.shape}, dtype={output_array.dtype}")
 ```
 
 **Python Example - Output Filtering:**
@@ -244,9 +244,14 @@ response = stub.Inference(
     )
 )
 
-selected = helpers.proto_to_numpy(response.outputs["selector.selected"])
-scores = helpers.proto_to_numpy(response.outputs["detector.scores"])
-decisions = helpers.proto_to_numpy(response.outputs["decider.decisions"])
+# proto_to_numpy is a context manager; hold the mappings open while you use the
+# arrays (copy=True, the default, also keeps them valid after the block).
+with (
+    helpers.proto_to_numpy(response.outputs["selector.selected"]) as selected,
+    helpers.proto_to_numpy(response.outputs["detector.scores"]) as scores,
+    helpers.proto_to_numpy(response.outputs["decider.decisions"]) as decisions,
+):
+    print(selected.shape, scores.shape, decisions.shape)
 ```
 
 **Python Example - Complex Input Types:**

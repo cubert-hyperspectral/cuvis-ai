@@ -53,7 +53,7 @@ stateDiagram-v2
 ### Creating a Pipeline
 
 ```python
-from cuvis_ai.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
 pipeline = CuvisPipeline(
     name="my_anomaly_detector",
@@ -64,11 +64,7 @@ pipeline = CuvisPipeline(
 ### Adding Nodes
 
 ```python
-# Explicit addition
-pipeline.add_node(data_loader)
-pipeline.add_node(normalizer)
-
-# Or automatic during connection
+# Nodes are added automatically the first time you connect their ports
 pipeline.connect((data_loader.cube, normalizer.data))
 ```
 
@@ -88,10 +84,15 @@ pipeline.connect(
 ### Pipeline Builder (YAML)
 
 ```python
-from cuvis_ai.pipeline.pipeline_builder import PipelineBuilder
+from cuvis_ai_core.pipeline.factory import PipelineBuilder
+
+import yaml
+
+with open("configs/pipeline/my_pipeline.yaml") as f:
+    config = yaml.safe_load(f)
 
 builder = PipelineBuilder()
-pipeline = builder.build_from_config("configs/pipeline/my_pipeline.yaml")
+pipeline = builder.build_from_config(config)
 ```
 
 **YAML Format:**
@@ -106,7 +107,7 @@ nodes:
       normal_class_ids: [0, 1]
 
   - name: rx_detector
-    class_name: cuvis_ai.anomaly.rx_detector.RXGlobal
+    class_name: cuvis_ai.node.anomaly.rx_detector.RXGlobal
     hparams:
       num_channels: 61
 
@@ -156,8 +157,9 @@ flowchart TD
 ### Node Initialization Order
 
 ```python
-# Nodes initialized in topological order
-sorted_nodes = pipeline._get_topologically_sorted_nodes()
+# Nodes are initialized in topological order. StatisticalTrainer does this for
+# you; the resolved order is the internal cached `pipeline._sorted_nodes` property.
+sorted_nodes = pipeline._sorted_nodes
 
 for node in sorted_nodes:
     if node.requires_initial_fit:
@@ -167,10 +169,10 @@ for node in sorted_nodes:
 ### Two-Phase Initialization
 
 ```python
-from cuvis_ai.trainer.statistical_trainer import StatisticalTrainer
+from cuvis_ai_core.training import StatisticalTrainer
 
 # Phase 1: Statistical initialization
-datamodule = SingleCu3sDataModule(...)
+datamodule = Cu3sDataModule(...)
 stat_trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
 stat_trainer.fit()  # Initialize statistical nodes
 
@@ -193,7 +195,8 @@ pipeline = pipeline.to("cuda")
 ### Sequential Execution
 
 ```python
-from cuvis_ai_core.pipeline.context import Context, ExecutionStage
+from cuvis_ai_schemas.execution import Context
+from cuvis_ai_schemas.enums import ExecutionStage
 
 context = Context(stage=ExecutionStage.INFERENCE)
 outputs = pipeline.forward(
@@ -218,7 +221,7 @@ all_scores = torch.cat(results, dim=0)
 ### Trainer-Managed Execution
 
 ```python
-from cuvis_ai.trainer.gradient_trainer import GradientTrainer
+from cuvis_ai_core.training import GradientTrainer
 
 trainer = GradientTrainer(
     pipeline=pipeline,
@@ -315,7 +318,7 @@ outputs = pipeline.forward(
 ### Saving Pipelines
 
 ```python
-from cuvis_ai.pipeline.config import PipelineMetadata
+from cuvis_ai_schemas.pipeline import PipelineMetadata
 
 pipeline.save_to_file(
     config_path="outputs/my_pipeline.yaml",
@@ -343,11 +346,11 @@ Generates a YAML config (structure, node hparams, connections) and a `.pt` check
 ### Loading Pipelines
 
 ```python
-pipeline = CuvisPipeline.load_from_file(
+pipeline = CuvisPipeline.load_pipeline(
     config_path="outputs/my_pipeline.yaml",
-    weights_path="outputs/my_pipeline.pt",  # Auto-detected if None
+    weights_path="outputs/my_pipeline.pt",  # Optional; None loads structure only
     device="cuda",
-    strict_weight_loading=True
+    strict_weight_loading=True,
 )
 
 outputs = pipeline.forward(batch=test_data)
@@ -371,9 +374,10 @@ For manual, dev-mode control you can still load a manifest into a registry insta
 
 ```python
 registry = NodeRegistry()
-registry.load_plugins("configs/plugins/adaclip.yaml")   # CLI / dev-mode path
-builder = PipelineBuilder(node_registry=registry)
-pipeline = builder.build_from_config("outputs/my_pipeline.yaml")
+registry.register_plugin("configs/plugins/adaclip.yaml")   # CLI / dev-mode path
+pipeline = CuvisPipeline.load_pipeline(
+    "outputs/my_pipeline.yaml", node_registry=registry
+)
 ```
 
 ---
@@ -384,11 +388,6 @@ pipeline = builder.build_from_config("outputs/my_pipeline.yaml")
 
 ```python
 pipeline.cleanup()
-
-# Or context manager (automatic)
-with CuvisPipeline.load_from_file("pipeline.yaml") as pipeline:
-    results = pipeline.forward(batch=data)
-# Auto-cleanup on exit
 
 # Manual resource release
 pipeline = pipeline.to("cpu")
@@ -402,7 +401,7 @@ torch.cuda.empty_cache()
 ### Statistical Training Only
 
 ```python
-from cuvis_ai.trainer.statistical_trainer import StatisticalTrainer
+from cuvis_ai_core.training import StatisticalTrainer
 
 stat_trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
 stat_trainer.fit()
@@ -415,7 +414,7 @@ pipeline.save_to_file("outputs/statistical_pipeline.yaml")
 ### Gradient Training (Two-Phase)
 
 ```python
-from cuvis_ai.trainer.gradient_trainer import GradientTrainer
+from cuvis_ai_core.training import GradientTrainer
 
 # Phase 1: Statistical init (if needed)
 if any(node.requires_initial_fit for node in pipeline.nodes):
@@ -447,8 +446,10 @@ pipeline.save_to_file("outputs/gradient_trained_pipeline.yaml")
 ### Pipeline Introspection
 
 ```python
-summary = pipeline.summary()
-print(summary)
+# Walk the graph
+print(pipeline.name)
+for node in pipeline.nodes:
+    print(node.name)
 
 input_specs = pipeline.get_input_specs()
 output_specs = pipeline.get_output_specs()
@@ -457,8 +458,7 @@ output_specs = pipeline.get_output_specs()
 ### Visualization
 
 ```python
-pipeline.visualize(output_path="pipeline_graph.png", format="png")
-dot_source = pipeline.to_dot()
+pipeline.visualize(output_path="pipeline_graph.png", format="render")
 ```
 
 ### Execution Profiling
@@ -480,7 +480,6 @@ For details, see [Profiling & Performance](../workflows/profiling.md).
 ```python
 import logging
 logging.basicConfig(level=logging.DEBUG)
-pipeline.set_log_level(logging.DEBUG)
 
 outputs = pipeline.forward(batch=data)
 ```
@@ -494,9 +493,9 @@ outputs = pipeline.forward(batch=data)
 | Validate early | `pipeline.verify()` before training |
 | Check init state | Inspect `node.requires_initial_fit` and `node._statistically_initialized` |
 | Save checkpoints | `pipeline.save_to_file(f"checkpoints/epoch_{epoch+1}.yaml")` periodically |
-| Use context managers | `with CuvisPipeline.load_from_file(...) as pipeline:` for auto-cleanup |
+| Release resources | call `pipeline.cleanup()` at terminal teardown (session close / pipeline replacement) |
 | Monitor performance | `pipeline.set_profiling(enabled=True)` -- see [Profiling](../workflows/profiling.md) |
-| Version pipelines | Pass `PipelineMetadata(version="2.1.0", tags=[...])` to `save_to_file()` |
+| Annotate pipelines | Pass `PipelineMetadata(description=..., tags=["v2.1.0", ...], author=...)` to `save_to_file()` |
 
 ---
 
@@ -518,10 +517,11 @@ outputs = pipeline.forward(batch=data)
 
     **Cyclic Dependencies** -- Pipeline graph must be a DAG. Connecting `node_c` back to `node_a` raises `CycleError`.
 
-    **Memory Leaks** -- Use context managers when loading pipelines in a loop:
+    **Memory Leaks** -- Load the pipeline once and reuse it across iterations; call `cleanup()` when done:
 
     ```python
+    pipeline = CuvisPipeline.load_pipeline("pipeline.yaml")
     for i in range(1000):
-        with CuvisPipeline.load_from_file("pipeline.yaml") as pipeline:
-            pipeline.forward(batch=data)
+        pipeline.forward(batch=data)
+    pipeline.cleanup()
     ```

@@ -2,16 +2,24 @@
 
 name: adaclip_baseline
 
+# Pipeline reference, resolved relative to this trainrun's directory.
+pipeline: ../pipeline/anomaly/adaclip/adaclip_baseline.yaml
+
 defaults:
-  - /pipeline/anomaly/adaclip@pipeline: adaclip_baseline
   - /data@data: lentils
   - _self_
 
 data:
-  # Override splits for this example
-  train_ids: [0, 2]
-  val_ids: []
-  test_ids: [1, 3, 5]
+  # Override splits for this example. train/val/test are disjoint so the
+  # default leakage_check (error) passes; the base lentils val ([1]) would
+  # otherwise collide with this run's test, so val is overridden explicitly.
+  splits:
+    train:
+      - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [0, 2]}
+    val:
+      - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [4]}
+    test:
+      - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [1, 3, 5]}
   batch_size: 3
 
 output_dir: outputs\adaclip_baseline

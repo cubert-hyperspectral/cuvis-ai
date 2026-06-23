@@ -344,8 +344,9 @@ from cuvis_ai_core.grpc import helpers
 array = np.random.rand(1, 32, 32, 61).astype(np.float32)
 tensor_proto = helpers.numpy_to_proto(array)
 
-# Tensor to NumPy array
-array_recovered = helpers.proto_to_numpy(tensor_proto)
+# Tensor to NumPy array (context manager; the array stays valid after the block)
+with helpers.proto_to_numpy(tensor_proto) as array_recovered:
+    print(array_recovered.shape)
 
 # PyTorch tensor to Tensor
 tensor = torch.randn(1, 32, 32, 61)

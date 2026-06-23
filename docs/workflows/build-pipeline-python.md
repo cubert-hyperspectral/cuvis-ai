@@ -23,7 +23,7 @@ This is the pattern used in all cuvis-ai examples. Nodes are instantiated direct
 ```python
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai.node.data import LentilsAnomalyDataNode
-from cuvis_ai.anomaly.rx_detector import RXGlobal
+from cuvis_ai.node.anomaly.rx_detector import RXGlobal
 from cuvis_ai.node.normalization import MinMaxNormalizer
 
 # Create pipeline
@@ -41,7 +41,7 @@ pipeline.connect(
 )
 
 # Validate and run
-pipeline.validate()
+pipeline.verify()
 ```
 
 ### Multi-Branch Pipeline
@@ -50,7 +50,7 @@ Group connections by purpose using comments for better readability:
 
 ```python
 from cuvis_ai.node.conversion import ScoreToLogit
-from cuvis_ai.deciders.binary_decider import BinaryDecider
+from cuvis_ai.node.deciders.binary_decider import BinaryDecider
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 
@@ -86,7 +86,7 @@ pipeline.connect(
 A common pattern from Deep SVDD example showing multiple processing branches:
 
 ```python
-from cuvis_ai.anomaly.deep_svdd import (
+from cuvis_ai.node.anomaly.deep_svdd import (
     DeepSVDDProjection,
     DeepSVDDCenterTracker,
     DeepSVDDScores,
@@ -204,7 +204,7 @@ pipeline.save_to_file(
 ### Load and Evaluate Pipeline
 
 ```python
-from cuvis_ai_core.data.datasets import SingleCu3sDataModule
+from cuvis_ai_dataloader.data import Cu3sDataModule
 from cuvis_ai_core.training import StatisticalTrainer
 
 # Load pipeline from configuration (automatically finds .pt weights)
@@ -225,7 +225,7 @@ loaded_pipeline = CuvisPipeline.load_pipeline(
 )
 
 # To evaluate the loaded pipeline, use a trainer with datamodule
-datamodule = SingleCu3sDataModule(
+datamodule = Cu3sDataModule(
     cu3s_file_path="data/test.cu3s",
     batch_size=1,
     processing_mode="Reflectance"
@@ -252,7 +252,7 @@ test_results = trainer.test()
 1. **Use direct port connections** - More readable and type-safe than string-based connections
 2. **Group related connections with comments** - Organize connection tuples by purpose (processing flow, metrics flow, visualization flow)
 3. **Store nodes in descriptive variables** - Use `data_node`, `normalizer`, `rx` instead of generic names
-4. **Validate early** - Call `pipeline.validate()` before training to catch connection errors
+4. **Validate early** - Call `pipeline.verify()` before training to catch connection errors
 5. **Leverage port attributes** - Use `node.port_name` for direct port access (e.g., `data_node.outputs.cube`)
 6. **Connect in logical order** - Group connections by data flow (processing → metrics → visualization)
 7. **Use factory functions** - Create reusable pipeline patterns for common workflows

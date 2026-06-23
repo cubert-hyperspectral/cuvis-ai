@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from cuvis_ai_schemas.plugin import PluginManifest
+from cuvis_ai_schemas.plugin import load_plugin_manifest
 
 pytestmark = pytest.mark.unit
 
@@ -27,14 +27,14 @@ def test_trackeval_manifest_exists() -> None:
 
 
 def test_trackeval_manifest_contains_only_trackeval_plugin() -> None:
-    manifest = PluginManifest.from_yaml(TRACKEVAL_MANIFEST_PATH)
-    assert set(manifest.plugins.keys()) == {PLUGIN_NAME}
+    manifest = load_plugin_manifest(TRACKEVAL_MANIFEST_PATH)
+    assert manifest.name == PLUGIN_NAME
 
 
 def test_trackeval_manifest_matches_expected_release() -> None:
-    manifest = PluginManifest.from_yaml(TRACKEVAL_MANIFEST_PATH)
-    plugin = manifest.plugins[PLUGIN_NAME]
+    manifest = load_plugin_manifest(TRACKEVAL_MANIFEST_PATH)
+    plugin = manifest
 
     assert getattr(plugin, "repo", None) == EXPECTED_REPO
     assert getattr(plugin, "tag", None) == EXPECTED_TAG
-    assert [node.class_name for node in plugin.provides] == EXPECTED_PROVIDES
+    assert [node.class_name for node in plugin.capabilities] == EXPECTED_PROVIDES

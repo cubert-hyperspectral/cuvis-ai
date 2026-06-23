@@ -75,9 +75,8 @@ overrides = [
 
     # Data parameters
     "data.batch_size=16",
-    "data.train_ids=[0,1,2]",
-    "data.val_ids=[3,4]",
-    "data.cu3s_file_path=/data/Lentils_000.cu3s",
+    "data.params.cu3s_file_path=/data/Lentils_000.cu3s",
+    "data.params.measurement_indices=[0,1,2]",
 
     # Pipeline node parameters
     "pipeline.nodes.channel_selector.hparams.tau_start=8.0",

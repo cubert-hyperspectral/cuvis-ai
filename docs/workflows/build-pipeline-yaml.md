@@ -23,7 +23,7 @@ nodes:
       normal_class_ids: [0, 1]
 
   - name: rx
-    class_name: cuvis_ai.anomaly.rx_detector.RXGlobal
+    class_name: cuvis_ai.node.anomaly.rx_detector.RXGlobal
     hparams:
       num_channels: 61
       eps: 1.0e-06
