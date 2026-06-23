@@ -10,6 +10,7 @@
   (in-memory manifests register via `register_plugins_installed`).
   Plugins must be provisioned into the environment first (see the new `provision` CLI in core); the
   runtime-smoke test `importorskip`s the plugin package so it skips cleanly when unprovisioned.
+  Floors `cuvis-ai-core>=0.10.0` (the release carrying the renamed API).
 - **Dropped the `cuvis` SDK (and `cuvis-il`, `ftfy`) from base dependencies.** The SDK now lives only
   in the `cuvis-ai-dataloader` plugin behind its `[cu3s]` extra, added here as a dev/test dep
   (`cuvis-ai-dataloader[cu3s,coco]`). Builtin/RGB pipelines no longer pull `cuvis` / `cuvis-il`,
