@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.11.0 - 2026-06-24
+## 0.10.1 - 2026-06-24
 
 - **Refreshed plugin manifest pins to the latest releases.** Bumped the `configs/plugins/` tags to
   the published standards-adoption releases: adaclip `v0.1.5`, dinomaly `v0.2.0`, deepeiou `v0.2.0`,
