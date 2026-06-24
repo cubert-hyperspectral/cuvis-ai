@@ -121,7 +121,7 @@ jobs:
 
       - name: Run detect-secrets
         run: |
-          uv run detect-secrets scan --all-files \
+          uv run detect-secrets scan \
             --exclude-files '\.lock$|\.egg-info|\.pyc$|site/|\.git/|\.pytest_cache' \
             --baseline .secrets.baseline
 
