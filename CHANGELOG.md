@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.10.0 - 2026-06-24
+
+- **`FixedWavelengthSelector` generalized to n-channel output.** `OUTPUT_SPECS["rgb_image"]` is
+  relaxed to `(-1, -1, -1, -1)` and `target_wavelengths` accepts any tuple of length `>= 1`, so the
+  node can emit any number of bands (e.g. a 6-channel VIS+SWIR stack) instead of exactly three. The
+  3-channel default and its running/gamma normalization path are unchanged; `STATISTICAL` /
+  `RUNNING` normalization stays 3-channel only and raises for `n != 3`, while `per_frame` works for
+  any `n`. The contract stays tight on `ChannelSelectorBase` (the 11 fixed-3-channel selectors keep
+  their `(-1, -1, -1, 3)` validation); only `FixedWavelengthSelector` overrides it.
+- **Added `PercentileNormalizer` and `DisplayNormalizer`.** Per-channel percentile / min-max
+  normalization for any channel count (`per_frame`, `running`, or `statistical` modes), plus a thin
+  stateless sRGB gamma step, factored out of `ChannelSelectorBase` so a selector can be a pure
+  band-picker and normalization composes downstream. `NormMode` moves to `normalization.py` and is
+  re-exported from `channel_selector` for backward compatibility. Both nodes are registered in the
+  built-in catalog.
+
 ## 0.9.0 - 2026-06-23
 
 - **Trainrun configs reference their pipeline by path.** Following the schemas/core change to a `pipeline:` reference, the bundled trainrun configs no longer inline or Hydra-compose a pipeline: the twelve `@pipeline`-group configs drop that `defaults` entry for a top-level `pipeline: ../pipeline/<group>/<name>.yaml` reference, and the two resolved snapshot configs (`drcnn_adaclip_trainrun`, `adaclip_cir_false_color_optimal_threshold`) extract their inline pipeline to a `<name>_pipeline.yaml` sibling and reference it. The migration-equivalence test now also asserts every string `pipeline` reference resolves to a loadable `PipelineConfig`. Script-driven configs that use `pipeline:` as a parameter-override mapping are unchanged.
