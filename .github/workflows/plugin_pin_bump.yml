@@ -1,7 +1,8 @@
 name: Plugin Pin Bump
 
 # Opens (or updates) a PR that bumps each configs/plugins/*.yaml tag pin to the plugin's
-# latest GitHub release, so the catalog tracks plugin releases without manual edits.
+# latest GitHub release, so the catalog tracks plugin releases without manual edits. The bump is
+# tag-only; if a release changed its node set the PR is flagged for a manual capabilities regen.
 #
 # Runs weekly and on demand. A PR opened with the default GITHUB_TOKEN does NOT trigger
 # this repo's CI on that PR, so the bot must authenticate as a GitHub App. The job is
@@ -46,12 +47,17 @@ jobs:
         uses: astral-sh/setup-uv@v7
 
       - name: Bump stale pins
+        id: bump
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: >
           uv run --no-project --python 3.11 --with pyyaml
           python scripts/bump_plugin_pins.py | tee bump.log
 
+      # On capability drift the bump script sets `drift=true`; flag the PR via title and (if the
+      # `needs-capabilities-review` label exists) a label, so the stale capabilities block gets a
+      # manual regen. Applying an existing label needs only pull_requests:write; creating the label
+      # would need issues:write, which the App lacks, so the label must pre-exist in the repo.
       - name: Open / update the bump PR
         uses: peter-evans/create-pull-request@v7
         with:
@@ -59,7 +65,11 @@ jobs:
           branch: bot/bump-plugin-pins
           delete-branch: true
           commit-message: "chore(plugins): bump plugin manifest pins to latest releases"
-          title: "chore(plugins): bump plugin manifest pins"
+          title: >-
+            ${{ steps.bump.outputs.drift == 'true'
+            && 'chore(plugins): bump plugin manifest pins (CAPABILITIES REVIEW NEEDED)'
+            || 'chore(plugins): bump plugin manifest pins' }}
+          labels: ${{ steps.bump.outputs.drift == 'true' && 'needs-capabilities-review' || '' }}
           body-path: bump.log
           add-paths: |
             configs/plugins/*.yaml
