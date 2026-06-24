@@ -550,7 +550,7 @@ capabilities:
       dtype: float32
       shape: [-1, -1, -1, 3]
       optional: false
-      description: Composed RGB image [B, H, W, 3] in 0-1 range
+      description: Composed RGB image [B, H, W, 3] in 0-1 range.
     band_info:
       dtype: ''
       shape: []
@@ -577,7 +577,7 @@ capabilities:
       dtype: float32
       shape: [-1, -1, -1, 3]
       optional: false
-      description: Composed RGB image [B, H, W, 3] in 0-1 range
+      description: Composed RGB image [B, H, W, 3] in 0-1 range.
     band_info:
       dtype: ''
       shape: []
@@ -604,7 +604,7 @@ capabilities:
       dtype: float32
       shape: [-1, -1, -1, 3]
       optional: false
-      description: Composed RGB image [B, H, W, 3] in 0-1 range
+      description: Composed RGB image [B, H, W, 3] in 0-1 range.
     band_info:
       dtype: ''
       shape: []
@@ -631,7 +631,7 @@ capabilities:
       dtype: float32
       shape: [-1, -1, -1, 3]
       optional: false
-      description: Composed RGB image [B, H, W, 3] in 0-1 range
+      description: Composed RGB image [B, H, W, 3] in 0-1 range.
     band_info:
       dtype: ''
       shape: []
@@ -658,7 +658,7 @@ capabilities:
       dtype: float32
       shape: [-1, -1, -1, 3]
       optional: false
-      description: Composed RGB image [B, H, W, 3] in 0-1 range
+      description: Composed RGB image [B, H, W, 3] in 0-1 range.
     band_info:
       dtype: ''
       shape: []
@@ -683,15 +683,15 @@ capabilities:
   output_specs:
     rgb_image:
       dtype: float32
-      shape: [-1, -1, -1, 3]
+      shape: [-1, -1, -1, -1]
       optional: false
-      description: Composed RGB image [B, H, W, 3] in 0-1 range
+      description: Composed image [B, H, W, C] in 0-1 range. C == 3 for the standard RGB default; C == len(target_wavelengths) for FixedWavelengthSelector with n > 3.
     band_info:
       dtype: ''
       shape: []
       optional: false
       description: Selected band metadata
-  doc_summary: Fixed wavelength band selection (e.g., 650, 550, 450 nm).
+  doc_summary: Fixed wavelength band selection — picks the nearest band for each target wavelength.
 - class_name: cuvis_ai.node.channel_selector.HighContrastSelector
   category: transform
   tags: [dim_reduction, hyperspectral, numpy, preprocessing]
@@ -712,7 +712,7 @@ capabilities:
       dtype: float32
       shape: [-1, -1, -1, 3]
       optional: false
-      description: Composed RGB image [B, H, W, 3] in 0-1 range
+      description: Composed RGB image [B, H, W, 3] in 0-1 range.
     band_info:
       dtype: ''
       shape: []
@@ -739,7 +739,7 @@ capabilities:
       dtype: float32
       shape: [-1, -1, -1, 3]
       optional: false
-      description: Composed RGB image [B, H, W, 3] in 0-1 range
+      description: Composed RGB image [B, H, W, 3] in 0-1 range.
     band_info:
       dtype: ''
       shape: []
@@ -771,7 +771,7 @@ capabilities:
       dtype: float32
       shape: [-1, -1, -1, 3]
       optional: false
-      description: Composed RGB image [B, H, W, 3] in 0-1 range
+      description: Composed RGB image [B, H, W, 3] in 0-1 range.
     band_info:
       dtype: ''
       shape: []
@@ -825,7 +825,7 @@ capabilities:
       dtype: float32
       shape: [-1, -1, -1, 3]
       optional: false
-      description: Composed RGB image [B, H, W, 3] in 0-1 range
+      description: Composed RGB image [B, H, W, 3] in 0-1 range.
     band_info:
       dtype: ''
       shape: []
@@ -857,7 +857,7 @@ capabilities:
       dtype: float32
       shape: [-1, -1, -1, 3]
       optional: false
-      description: Composed RGB image [B, H, W, 3] in 0-1 range
+      description: Composed RGB image [B, H, W, 3] in 0-1 range.
     band_info:
       dtype: ''
       shape: []
@@ -889,7 +889,7 @@ capabilities:
       dtype: float32
       shape: [-1, -1, -1, 3]
       optional: false
-      description: Composed RGB image [B, H, W, 3] in 0-1 range
+      description: Composed RGB image [B, H, W, 3] in 0-1 range.
     band_info:
       dtype: ''
       shape: []
@@ -921,7 +921,7 @@ capabilities:
       dtype: float32
       shape: [-1, -1, -1, 3]
       optional: false
-      description: Composed RGB image [B, H, W, 3] in 0-1 range
+      description: Composed RGB image [B, H, W, 3] in 0-1 range.
     band_info:
       dtype: ''
       shape: []
@@ -1768,6 +1768,23 @@ capabilities:
       description: Optional list of Metric objects to log
       variadic: true
   doc_summary: TensorBoard monitoring node for logging artifacts and metrics.
+- class_name: cuvis_ai.node.normalization.DisplayNormalizer
+  category: transform
+  tags: [normalization, numpy, preprocessing]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+  input_specs:
+    data:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Input data tensor to normalize (BHWC format)
+  output_specs:
+    normalized:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Normalized output tensor
+  doc_summary: Apply sRGB gamma companding (IEC 61966-2-1) to a ``[0, 1]`` BHWC tensor.
 - class_name: cuvis_ai.node.normalization.IdentityNormalizer
   category: transform
   tags: [normalization, numpy, preprocessing]
@@ -1802,6 +1819,23 @@ capabilities:
       optional: false
       description: Normalized output tensor
   doc_summary: Min-max normalization per sample and channel (keeps gradients).
+- class_name: cuvis_ai.node.normalization.PercentileNormalizer
+  category: transform
+  tags: [normalization, numpy, preprocessing]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+  input_specs:
+    data:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Input data tensor to normalize (BHWC format)
+  output_specs:
+    normalized:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Normalized output tensor
+  doc_summary: Per-channel normalization to ``[0, 1]`` for BHWC data of any channel count.
 - class_name: cuvis_ai.node.normalization.PerPixelUnitNorm
   category: transform
   tags: [normalization, numpy, preprocessing]
