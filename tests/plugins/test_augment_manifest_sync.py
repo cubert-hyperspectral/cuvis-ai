@@ -1,4 +1,4 @@
-"""Validate the selective DeepEIoU plugin manifest."""
+"""Validate the augment plugin manifest."""
 
 from __future__ import annotations
 
@@ -16,27 +16,25 @@ pytestmark = pytest.mark.unit
 # guard against a plugin's exposed surface drifting out of sync with this manifest.
 SEMVER_TAG = re.compile(r"v\d+\.\d+\.\d+")
 
-DEEPEIOU_MANIFEST_PATH = Path("configs/plugins/deepeiou.yaml")
-PLUGIN_NAME = "deepeiou"
-EXPECTED_REPO = "https://github.com/cubert-hyperspectral/cuvis-ai-deepeiou.git"
+AUGMENT_MANIFEST_PATH = Path("configs/plugins/augment.yaml")
+PLUGIN_NAME = "augment"
+EXPECTED_REPO = "https://github.com/cubert-hyperspectral/cuvis-ai-augment.git"
 EXPECTED_PROVIDES = [
-    "cuvis_ai_deepeiou.node.DeepEIoUTrack",
-    "cuvis_ai_deepeiou.node.OSNetExtractor",
-    "cuvis_ai_deepeiou.node.ResNetExtractor",
+    "cuvis_ai_augment.node.compose.AugmentationCompose",
 ]
 
 
-def test_deepeiou_manifest_exists() -> None:
-    assert DEEPEIOU_MANIFEST_PATH.exists(), f"Missing DeepEIoU manifest: {DEEPEIOU_MANIFEST_PATH}"
+def test_augment_manifest_exists() -> None:
+    assert AUGMENT_MANIFEST_PATH.exists(), f"Missing augment manifest: {AUGMENT_MANIFEST_PATH}"
 
 
-def test_deepeiou_manifest_contains_only_deepeiou_plugin() -> None:
-    manifest = load_plugin_manifest(DEEPEIOU_MANIFEST_PATH)
+def test_augment_manifest_contains_only_augment_plugin() -> None:
+    manifest = load_plugin_manifest(AUGMENT_MANIFEST_PATH)
     assert manifest.name == PLUGIN_NAME
 
 
-def test_deepeiou_manifest_matches_expected_release() -> None:
-    manifest = load_plugin_manifest(DEEPEIOU_MANIFEST_PATH)
+def test_augment_manifest_matches_expected_release() -> None:
+    manifest = load_plugin_manifest(AUGMENT_MANIFEST_PATH)
     plugin = manifest
 
     assert getattr(plugin, "repo", None) == EXPECTED_REPO

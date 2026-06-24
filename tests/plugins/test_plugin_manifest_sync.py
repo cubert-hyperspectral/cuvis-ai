@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -9,10 +10,15 @@ from cuvis_ai_schemas.plugin import load_plugin_manifest
 
 pytestmark = pytest.mark.unit
 
+# The pinned tag is intentionally not frozen here: pins are refreshed (manually or by
+# the plugin-pin-bump workflow) whenever a plugin releases, so this asserts the tag is
+# present and well-formed rather than a specific value. The node set below is the real
+# guard against a plugin's exposed surface drifting out of sync with this manifest.
+SEMVER_TAG = re.compile(r"v\d+\.\d+\.\d+")
+
 TRACKEVAL_MANIFEST_PATH = Path("configs/plugins/trackeval.yaml")
 PLUGIN_NAME = "trackeval"
 EXPECTED_REPO = "https://github.com/cubert-hyperspectral/cuvis-ai-trackeval.git"
-EXPECTED_TAG = "v0.1.2"
 EXPECTED_PROVIDES = [
     "cuvis_ai_trackeval.node.HOTAMetricNode",
     "cuvis_ai_trackeval.node.CLEARMetricNode",
@@ -36,5 +42,6 @@ def test_trackeval_manifest_matches_expected_release() -> None:
     plugin = manifest
 
     assert getattr(plugin, "repo", None) == EXPECTED_REPO
-    assert getattr(plugin, "tag", None) == EXPECTED_TAG
+    tag = getattr(plugin, "tag", None)
+    assert tag is not None and SEMVER_TAG.fullmatch(tag), f"unexpected tag: {tag!r}"
     assert [node.class_name for node in plugin.capabilities] == EXPECTED_PROVIDES

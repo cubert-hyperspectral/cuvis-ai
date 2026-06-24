@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.11.0 - 2026-06-24
+
+- **Refreshed plugin manifest pins to the latest releases.** Bumped the `configs/plugins/` tags to
+  the published standards-adoption releases: adaclip `v0.1.5`, dinomaly `v0.2.0`, deepeiou `v0.2.0`,
+  trackeval `v0.1.3`, ultralytics `v0.1.3`, and the `cuvis_ai_dataloader` data-module plugin
+  `v0.2.0`. These are tag-only bumps; the releases carried no node or port changes, so each
+  manifest's `capabilities:` block is unchanged.
+- **Pinned sam3 to its first co-installable release.** `configs/plugins/sam3.yaml` swaps from the
+  local dev `path:` to `repo:` + `tag: v0.1.7`; v0.1.7 relaxes `setuptools<83`, resolving the
+  `setuptools>=81` conflict that had forced the local checkout.
+- **Registered the augment plugin.** Added `configs/plugins/augment.yaml` (capabilities format,
+  `tag: v0.3.0`) exposing `AugmentationCompose` for training-time cube/mask augmentation, plus a
+  manifest-sync test.
+- **Added a plugin-pin auto-bump workflow.** `.github/workflows/plugin_pin_bump.yml` +
+  `scripts/bump_plugin_pins.py` open a PR whenever a pinned plugin publishes a newer release. The
+  per-plugin manifest-sync tests now assert the pinned tag's *shape* (a well-formed `vX.Y.Z`)
+  instead of a frozen value, so a refresh only touches YAML. Also fixed
+  `scripts/fetch_plugin_pyprojects.py` to read the one-file manifest format (it had silently skipped
+  every manifest in the registry-compat audit).
+
 ## 0.10.0 - 2026-06-24
 
 - **`FixedWavelengthSelector` generalized to n-channel output.** `OUTPUT_SPECS["rgb_image"]` is

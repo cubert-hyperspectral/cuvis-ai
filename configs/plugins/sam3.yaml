@@ -1,4 +1,4 @@
-# SAM3 Plugin Manifest (local development)
+# SAM3 Plugin Manifest
 #
 # To use SAM3, declare `plugins: [sam3]` in the pipeline yaml and point
 # the loader at the catalog directory that holds this manifest:
@@ -6,14 +6,11 @@
 
 name: sam3
 # SAM3-based video object tracking plugin.
-# Dev: local checkout (the features/nima/setuptools-coinstall branch relaxes
-# setuptools to <83 so sam3 co-installs with the cuvis-ai package in the
-# composed child env; the published v0.1.6 pins setuptools<81 and conflicts
-# with cuvis-ai's setuptools>=81). At release: swap back to repo + a published
-# tag that carries the relaxation.
-path: "../../../../cuvis-ai-sam3/cuvis-ai-sam3"
-# repo: "https://github.com/cubert-hyperspectral/cuvis-ai-sam3.git"
-# tag: "v0.1.6"
+# v0.1.7 relaxes setuptools to <83 so sam3 co-installs with the cuvis-ai package
+# in the composed child env (v0.1.6 pinned setuptools<81 and conflicted with
+# cuvis-ai's setuptools>=81).
+repo: "https://github.com/cubert-hyperspectral/cuvis-ai-sam3.git"
+tag: "v0.1.7"
 package_name: "cuvis-ai-sam3"
 capabilities:
 - class_name: cuvis_ai_sam3.node.SAM3TrackerInference

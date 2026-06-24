@@ -1,0 +1,40 @@
+# Augment plugin manifest (training-time data augmentation)
+#
+# To use Augment, declare `plugins: [augment]` in the pipeline yaml and point
+# the loader at the catalog directory that holds this manifest:
+#   uv run restore-pipeline --pipeline-path <pipeline>.yaml --plugins-dir configs/plugins
+
+name: augment
+# Local development override (optional):
+# path: "../../../cuvis-ai-augment"
+repo: "https://github.com/cubert-hyperspectral/cuvis-ai-augment.git"
+tag: "v0.3.0"
+package_name: "cuvis-ai-augment"
+capabilities:
+- class_name: cuvis_ai_augment.node.compose.AugmentationCompose
+  category: transform
+  tags: [torch, training]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#AAAAAA\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <rect x=\"14\" y=\"14\" width=\"36\" height=\"36\" rx=\"3\" stroke-dasharray=\"5 4\"/>\n  <path d=\"M24 29a8 8 0 0 1 15-3\"/>\n  <path d=\"M39 22v4h-4\"/>\n  <path d=\"M40 35a8 8 0 0 1-15 3\"/>\n  <path d=\"M25 42v-4h4\"/>\n</svg>\n"
+  input_specs:
+    cube:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Hyperspectral cube [B, H, W, C] in float32
+    mask:
+      dtype: int32
+      shape: [-1, -1, -1]
+      optional: true
+      description: Per-pixel mask [B, H, W] (int32 or bool)
+  output_specs:
+    cube:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Augmented cube [B, H, W, C]
+    mask:
+      dtype: int32
+      shape: [-1, -1, -1]
+      optional: true
+      description: Augmented mask [B, H, W]
+  doc_summary: Applies a sequence of stochastic augmentation transforms to a cube and paired mask during training only.

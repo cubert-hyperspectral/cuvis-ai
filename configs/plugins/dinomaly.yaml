@@ -8,7 +8,7 @@ name: dinomaly
 # Local development override (optional):
 # path: "../../../cuvis-ai-dinomaly"
 repo: "https://github.com/cubert-hyperspectral/cuvis-ai-dinomaly.git"
-tag: "v0.1.5"
+tag: "v0.2.0"
 capabilities:
 - class_name: cuvis_ai_dinomaly.node.dinomaly_detector.DinomalyDetector
   icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#AAAAAA\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"32\" cy=\"32\" r=\"22\" stroke-dasharray=\"4 3\"/>\r\n  <path d=\"M25 26a7 7 0 0 1 14 0c0 4-3.5 4.5-7 8v3\"/>\r\n  <circle cx=\"32\" cy=\"45\" r=\"1.2\" fill=\"#AAAAAA\" stroke=\"none\"/>\r\n</svg>\r\n"
