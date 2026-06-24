@@ -13,8 +13,8 @@ package_name: "cuvis-ai-augment"
 capabilities:
 - class_name: cuvis_ai_augment.node.compose.AugmentationCompose
   category: transform
-  tags: [torch, training]
-  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#AAAAAA\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <rect x=\"14\" y=\"14\" width=\"36\" height=\"36\" rx=\"3\" stroke-dasharray=\"5 4\"/>\n  <path d=\"M24 29a8 8 0 0 1 15-3\"/>\n  <path d=\"M39 22v4h-4\"/>\n  <path d=\"M40 35a8 8 0 0 1-15 3\"/>\n  <path d=\"M25 42v-4h4\"/>\n</svg>\n"
+  tags: [augmentation, mask, torch, training]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#AAAAAA\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <rect x=\"14\" y=\"14\" width=\"36\" height=\"36\" rx=\"3\" stroke-dasharray=\"5 4\"/>\r\n  <path d=\"M24 29a8 8 0 0 1 15-3\"/>\r\n  <path d=\"M39 22v4h-4\"/>\r\n  <path d=\"M40 35a8 8 0 0 1-15 3\"/>\r\n  <path d=\"M25 42v-4h4\"/>\r\n</svg>\r\n"
   input_specs:
     cube:
       dtype: float32
