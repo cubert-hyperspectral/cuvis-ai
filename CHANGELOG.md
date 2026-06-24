@@ -1,81 +1,6 @@
 # Changelog
 
-## [Unreleased]
-
-## 0.11.0 - 2026-07-14
-
-- **Docs: the node catalog now lists plugin capabilities.** The Catalogs → Nodes generator reads
-  the plugin manifests (`configs/plugins/*.yaml`) instead of the never-created
-  `docs/data/plugin_sources.yaml` that left the published catalog at "0 from plugins". Plugin nodes
-  render manifest-driven I/O port tables, data modules get their own rows and pill, and the filter
-  gains a Source facet (built-in / plugin / data module). An unparseable manifest or an empty
-  plugin collection now fails the docs build instead of silently shipping an empty list.
-- **Added a Savitzky-Golay / pretreatment node family.** Seven composable `cube -> cube` spectral
-  pretreatments under `cuvis_ai/node/pretreatments/`: `SavitzkyGolay` (frozen-kernel `conv1d`,
-  validated against `scipy.signal.savgol_filter`), `ContinuumRemoval` (convex-hull), `SpectralDerivative`,
-  `SNVCorrection`, `Logarithm`, and the fit-required `MeanCenter` / `UnitVarianceScaling` (streaming
-  Welford). All chain into any existing cube consumer.
-- **Added 11 vegetation-index selectors.** `EVI`, `EVI2`, `SAVI`, `MSAVI`, `NDWI`, `NBR`, `GNDVI`,
-  `NDRE`, `CIRedEdge`, `MCARI`, and `PRI` selectors, reusing `NDVISelector`'s `index_image` /
-  `rgb_image` colormap machinery.
-- **Added spectral unmixing nodes.** `NNLSUnmixing` (stateless projected-gradient NNLS, validated
-  against `scipy.optimize.nnls`) and the fit-required `NMFUnmixing` (blind, learns endmembers via
-  sklearn NMF then solves per-pixel abundances in pure torch).
-- **Added clustering nodes.** `KMeansClusterer` and `GaussianMixtureClusterer` fit with scikit-learn
-  during statistical initialization, freeze the result as torch buffers, and run a pure-torch
-  `forward` (nearest-centroid / closed-form Gaussian posterior).
-- **Added a one-class SVM detector.** `OneClassSVMDetector` fits `sklearn.svm.OneClassSVM`, persists
-  the support vectors and resolved gamma, and evaluates the RBF decision function in chunked pure
-  torch (emits `scores` + `decisions`).
-- **Added a shape-morphology descriptor.** `ShapeMorphology` derives per-object area / centroid /
-  axes / eccentricity / orientation in torch (`scatter_reduce` + closed-form covariance), reusing a
-  shared OpenCV connected-components helper factored out of `MaskRobustifier`.
-- **Added saturated-pixel, multi-range slicer, and intensity-threshold nodes.**
-  `SaturatedPixelDetector` (`scores` + `decisions`), `MultiRangeSlicer` (`torch.bucketize` into a
-  `class_mask`), and `IntensityThresholdSegmenter` (`cube` -> binary `mask`).
-- **Added object-level inspection nodes.** `BlobDetector` (brightness reduction + Otsu/quantile/fixed
-  threshold + morphological clean + the shared OpenCV connected-components helper, with an area
-  filter and `keep_largest` count-pinning, emitting a blob label map plus bboxes / centroids /
-  count), `SignaturesToReferences` (per-object signatures `[1, N, C]` -> Spectral Angle Mapper
-  references `[N, 1, 1, C]`), and `MajorityVoteByBlob` (collapse a noisy per-pixel label map to one
-  majority label per blob). `SpectralSignatureExtractor` is now also exported from `cuvis_ai.node`.
-- **Added image-assembly nodes.** `ImageConcatenator` (variadic fan-in of RGB frames into one
-  side-by-side or stacked strip, padding to a common size with a background colour) and `PngWriter`
-  (a sink that writes RGB frames to PNG via `torchvision.io.write_png`), so a result image can be
-  composed and written entirely inside a pipeline.
-- **Clustering nodes can fit on a foreground mask.** `KMeansClusterer` and `GaussianMixtureClusterer`
-  take an optional `mask` input; when connected, the statistical fit uses only pixels where the mask
-  is non-zero while inference still labels every pixel. Other statistical-fit nodes are unaffected.
-- **Added `scipy` as a direct dependency floor** (`>=1.17.1`, tracking the lock) for the
-  Savitzky-Golay coefficient build.
-- **Added two patch-inference nodes.** `PatchSampler` extracts labelled center-pixel patches from a
-  cube plus an integer target map (for training a classifier); `ClassMapAccumulator` (a sink)
-  scatters per-patch predictions back into per-frame class maps. They are separate nodes, not a
-  directly wired pair: `ClassMapAccumulator` consumes a `frame_id`/`y`/`x`/`height`/`width`
-  provenance contract supplied by a patch-tiler data module (not emitted by `PatchSampler`), runs as
-  `reset()` -> `forward()*` -> `close()`, and retains one map per frame until `reset()` (finished
-  maps read from `class_maps`).
-- **`TitleOverlay` gained a per-frame caption port.** An optional `caption` input (a `list[str]`,
-  one entry per batch element) lets a DataModule title each frame independently; it falls back to
-  the `text=` forward argument and then the constructor default. Captions render through the
-  pure-torch `draw_text` bitmap font.
-- **Added a metal-scrap classification cookbook notebook.**
-  `notebooks/use_cases/metal_scrap_classification.ipynb` rebuilds the Gursch et al. 2026 SWIR
-  steel-scrap classifier as a Cuvis.AI pipeline (per-band standardizer, 3D-CNN, weighted
-  cross-entropy and segmentation metrics), derives the inverse-frequency class weights in the
-  statistical-training phase, runs dense per-pixel inference, and adds a mask-cleanup stage. It runs
-  on Colab: the dataset is provisioned from Zenodo (DOI 10.5281/zenodo.17076238) and training is
-  gated on a CUDA GPU.
-
-## 0.10.2 - 2026-07-13
-
-- `AnomalyDetectionMetrics.average_precision` is now epoch-pooled through the trainer's native
-  metric-object logging: the node exposes the live `BinaryAveragePrecision` via `pooled_metrics()`
-  (replacing `compute_epoch_metrics()`), and the trainer logs it once per epoch with `on_epoch=True`,
-  so the reported AP is the exact pooled value rather than the per-batch running value. Floors
-  `cuvis-ai-core` to `>=0.10.1` (the release carrying the native `pooled_metrics()` logging).
-
-## 0.10.1 - 2026-06-24
+## 0.11.0 - 2026-06-24
 
 - **Refreshed plugin manifest pins to the latest releases.** Bumped the `configs/plugins/` tags to
   the published standards-adoption releases: adaclip `v0.1.5`, dinomaly `v0.2.0`, deepeiou `v0.2.0`,
@@ -86,19 +11,12 @@
   local dev `path:` to `repo:` + `tag: v0.1.7`; v0.1.7 relaxes `setuptools<83`, resolving the
   `setuptools>=81` conflict that had forced the local checkout.
 - **Registered the augment plugin.** Added `configs/plugins/augment.yaml` (capabilities format,
-  `tag: v0.3.1`) exposing `AugmentationCompose` for training-time cube/mask augmentation, plus a
+  `tag: v0.3.0`) exposing `AugmentationCompose` for training-time cube/mask augmentation, plus a
   manifest-sync test.
-- **Added a no-local-sources CI gate.** `.github/workflows/no-local-sources.yml` fails if
-  `pyproject.toml` declares a local `[tool.uv.sources]` path entry, so a machine-specific editable
-  path can never ship in a release.
 - **Added a plugin-pin auto-bump workflow.** `.github/workflows/plugin_pin_bump.yml` +
   `scripts/bump_plugin_pins.py` open a PR whenever a pinned plugin publishes a newer release. The
-  bump is tag-only, so it also compares the plugin's declared node set at the new tag against the
-  manifest's `capabilities` and flags the PR (title + `needs-capabilities-review` label) when the
-  release declares a node the manifest is missing (or the node set can't be verified), prompting a
-  manual capabilities regen. The per-plugin
-  manifest-sync tests now assert the pinned tag's *shape* (a well-formed `vX.Y.Z`) instead of a
-  frozen value, so a routine refresh only touches YAML. Also fixed
+  per-plugin manifest-sync tests now assert the pinned tag's *shape* (a well-formed `vX.Y.Z`)
+  instead of a frozen value, so a refresh only touches YAML. Also fixed
   `scripts/fetch_plugin_pyprojects.py` to read the one-file manifest format (it had silently skipped
   every manifest in the registry-compat audit).
 
