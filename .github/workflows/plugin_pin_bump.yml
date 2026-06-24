@@ -1,0 +1,76 @@
+name: Plugin Pin Bump
+
+# Opens (or updates) a PR that bumps each configs/plugins/*.yaml tag pin to the plugin's
+# latest GitHub release, so the catalog tracks plugin releases without manual edits. The bump is
+# tag-only; if a release changed its node set the PR is flagged for a manual capabilities regen.
+#
+# Runs weekly and on demand. A PR opened with the default GITHUB_TOKEN does NOT trigger
+# this repo's CI on that PR, so the bot must authenticate as a GitHub App. The job is
+# guarded on the App id being configured: until the `PIN_BUMP_APP_ID` repo variable and
+# `PIN_BUMP_APP_PRIVATE_KEY` secret exist, it is skipped (never red). When no plugin has a
+# newer release, the script no-ops and no PR is opened.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"  # Mondays 06:00 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: plugin-pin-bump
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  bump:
+    name: Bump plugin manifest pins
+    runs-on: ubuntu-latest
+    if: vars.PIN_BUMP_APP_ID != ''
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Generate a token for the bump PR
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.PIN_BUMP_APP_ID }}
+          private-key: ${{ secrets.PIN_BUMP_APP_PRIVATE_KEY }}
+
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Bump stale pins
+        id: bump
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: >
+          uv run --no-project --python 3.11 --with pyyaml
+          python scripts/bump_plugin_pins.py | tee bump.log
+
+      # On capability drift the bump script sets `drift=true`; flag the PR via title and (if the
+      # `needs-capabilities-review` label exists) a label, so the stale capabilities block gets a
+      # manual regen. Applying an existing label needs only pull_requests:write; creating the label
+      # would need issues:write, which the App lacks, so the label must pre-exist in the repo.
+      - name: Open / update the bump PR
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          branch: bot/bump-plugin-pins
+          delete-branch: true
+          commit-message: "chore(plugins): bump plugin manifest pins to latest releases"
+          title: >-
+            ${{ steps.bump.outputs.drift == 'true'
+            && 'chore(plugins): bump plugin manifest pins (CAPABILITIES REVIEW NEEDED)'
+            || 'chore(plugins): bump plugin manifest pins' }}
+          labels: ${{ steps.bump.outputs.drift == 'true' && 'needs-capabilities-review' || '' }}
+          body-path: bump.log
+          add-paths: |
+            configs/plugins/*.yaml
+            CHANGELOG.md
