@@ -15,8 +15,12 @@
   manifest-sync test.
 - **Added a plugin-pin auto-bump workflow.** `.github/workflows/plugin_pin_bump.yml` +
   `scripts/bump_plugin_pins.py` open a PR whenever a pinned plugin publishes a newer release. The
-  per-plugin manifest-sync tests now assert the pinned tag's *shape* (a well-formed `vX.Y.Z`)
-  instead of a frozen value, so a refresh only touches YAML. Also fixed
+  bump is tag-only, so it also compares the plugin's declared node set at the new tag against the
+  manifest's `capabilities` and flags the PR (title + `needs-capabilities-review` label) when the
+  release declares a node the manifest is missing (or the node set can't be verified), prompting a
+  manual capabilities regen. The per-plugin
+  manifest-sync tests now assert the pinned tag's *shape* (a well-formed `vX.Y.Z`) instead of a
+  frozen value, so a routine refresh only touches YAML. Also fixed
   `scripts/fetch_plugin_pyprojects.py` to read the one-file manifest format (it had silently skipped
   every manifest in the registry-compat audit).
 
