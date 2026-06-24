@@ -11,8 +11,11 @@
   local dev `path:` to `repo:` + `tag: v0.1.7`; v0.1.7 relaxes `setuptools<83`, resolving the
   `setuptools>=81` conflict that had forced the local checkout.
 - **Registered the augment plugin.** Added `configs/plugins/augment.yaml` (capabilities format,
-  `tag: v0.3.0`) exposing `AugmentationCompose` for training-time cube/mask augmentation, plus a
+  `tag: v0.3.1`) exposing `AugmentationCompose` for training-time cube/mask augmentation, plus a
   manifest-sync test.
+- **Added a no-local-sources CI gate.** `.github/workflows/no-local-sources.yml` fails if
+  `pyproject.toml` declares a local `[tool.uv.sources]` path entry, so a machine-specific editable
+  path can never ship in a release.
 - **Added a plugin-pin auto-bump workflow.** `.github/workflows/plugin_pin_bump.yml` +
   `scripts/bump_plugin_pins.py` open a PR whenever a pinned plugin publishes a newer release. The
   bump is tag-only, so it also compares the plugin's declared node set at the new tag against the
