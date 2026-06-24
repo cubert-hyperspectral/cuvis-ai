@@ -32,24 +32,42 @@ All normalizers expect BHWC input format. For HWC tensors, add batch dimension:
 
 from __future__ import annotations
 
+from enum import StrEnum
 from typing import Any
 
 import torch
 from cuvis_ai_schemas.enums import NodeCategory, NodeTag
+from cuvis_ai_schemas.execution import InputStream
 from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
 
 from cuvis_ai_core.node import Node
 
 
+class NormMode(StrEnum):
+    """Normalization mode for percentile-based normalizers.
+
+    Shared by :class:`PercentileNormalizer` and the channel selectors in
+    :mod:`cuvis_ai.node.channel_selector` (which re-exports this enum).
+    """
+
+    PER_FRAME = "per_frame"
+    RUNNING = "running"
+    STATISTICAL = "statistical"
+
+
 class _ScoreNormalizerBase(Node):
-    """Base class for differentiable score normalizers operating on BHWC tensors.
+    """Base class for BHWC normalization nodes.
 
     Notes
     -----
     All normalization nodes in this module expect inputs in BHWC format
     ([batch, height, width, channels]). Callers are responsible for adding
     a batch dimension when working with HWC tensors (use `x.unsqueeze(0)`).
+
+    Most subclasses are differentiable, but some keep fitted statistical state
+    (e.g. :class:`MinMaxNormalizer` with running stats, :class:`PercentileNormalizer`)
+    and update it under ``no_grad`` during ``forward``.
     """
 
     _category = NodeCategory.TRANSFORM
@@ -504,9 +522,234 @@ class PerPixelUnitNorm(_ScoreNormalizerBase):
         return normalized
 
 
+class PercentileNormalizer(_ScoreNormalizerBase):
+    """Per-channel normalization to ``[0, 1]`` for BHWC data of any channel count.
+
+    Extracted from ``ChannelSelectorBase`` so band selection and display
+    normalization are separate, composable steps. Operates on any channel count
+    ``C`` (fixed at construction via ``n_channels``). Does **not** apply sRGB
+    gamma; chain :class:`DisplayNormalizer` after it for the false-RGB display
+    path. ML / n-channel callers use this node alone.
+
+    Modes (``norm_mode``):
+
+    - ``per_frame``: per-batch, per-channel absolute min/max; no inter-frame state.
+    - ``statistical``: global percentile bounds precomputed via ``StatisticalTrainer``.
+    - ``running`` (default): the first ``running_warmup_frames`` frames use per-frame
+      percentile normalization while accumulating global percentile bounds (min-of-lows,
+      max-of-highs); afterwards those bounds are used, frozen after
+      ``freeze_running_bounds_after_frames`` calls. Bounds update on every call including
+      inference, which live false-RGB video relies on; the freeze guards late drift.
+
+    Parameters
+    ----------
+    n_channels : int
+        Channel count ``C`` of the input. Sizes the per-channel bound buffers.
+    norm_mode : str | NormMode
+        Normalization mode. Default ``running``.
+    freeze_running_bounds_after_frames : int | None
+        Stop updating ``running`` bounds after this many calls. Default ``20``;
+        ``None`` keeps unbounded accumulation.
+    running_warmup_frames : int
+        Frames to normalize per-frame while accumulating bounds. Default ``10``.
+    quantile_low, quantile_high : float
+        Percentile bounds (fractions) for ``running`` / ``statistical`` modes.
+        Default ``0.005`` / ``0.995``.
+    eps : float
+        Floor for the ``(max - min)`` denominator. Default ``1e-8``.
+
+    Ports
+    -----
+    INPUT_SPECS
+        ``data`` : float32, shape (-1, -1, -1, -1), BHWC tensor with ``C == n_channels``.
+    OUTPUT_SPECS
+        ``normalized`` : float32, shape (-1, -1, -1, -1), same shape, values in ``[0, 1]``.
+    """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
+
+    def __init__(
+        self,
+        n_channels: int,
+        norm_mode: str | NormMode = NormMode.RUNNING,
+        freeze_running_bounds_after_frames: int | None = 20,
+        running_warmup_frames: int = 10,
+        quantile_low: float = 0.005,
+        quantile_high: float = 0.995,
+        eps: float = 1e-8,
+        **kwargs: Any,
+    ) -> None:
+        if isinstance(n_channels, bool) or not isinstance(n_channels, int) or n_channels < 1:
+            raise ValueError("PercentileNormalizer: n_channels must be an integer >= 1")
+        norm_mode = NormMode(str(norm_mode) if isinstance(norm_mode, NormMode) else norm_mode)
+        if freeze_running_bounds_after_frames is not None and (
+            isinstance(freeze_running_bounds_after_frames, bool)
+            or not isinstance(freeze_running_bounds_after_frames, int)
+            or freeze_running_bounds_after_frames < 1
+        ):
+            raise ValueError("freeze_running_bounds_after_frames must be an integer >= 1 or None")
+        if (
+            isinstance(running_warmup_frames, bool)
+            or not isinstance(running_warmup_frames, int)
+            or running_warmup_frames < 0
+        ):
+            raise ValueError("running_warmup_frames must be an integer >= 0")
+        if not 0.0 <= float(quantile_low) < float(quantile_high) <= 1.0:
+            raise ValueError("PercentileNormalizer: require 0 <= quantile_low < quantile_high <= 1")
+
+        self.n_channels = int(n_channels)
+        self.norm_mode = norm_mode
+        self.freeze_running_bounds_after_frames = freeze_running_bounds_after_frames
+        self.running_warmup_frames = int(running_warmup_frames)
+        self.quantile_low = float(quantile_low)
+        self.quantile_high = float(quantile_high)
+        self.eps = float(eps)
+
+        super().__init__(
+            n_channels=self.n_channels,
+            norm_mode=str(norm_mode),
+            freeze_running_bounds_after_frames=freeze_running_bounds_after_frames,
+            running_warmup_frames=self.running_warmup_frames,
+            quantile_low=self.quantile_low,
+            quantile_high=self.quantile_high,
+            eps=self.eps,
+            **kwargs,
+        )
+
+        # Per-channel bounds + frame counter persist in state_dict (so warmup /
+        # freeze survive a reload) but are deliberately NOT in TRAINABLE_BUFFERS:
+        # they are fitted display statistics, and a gradient-learned bound could
+        # violate lo < hi and turn normalization into an unconstrained transform.
+        self.register_buffer("running_min", torch.full((self.n_channels,), float("nan")))
+        self.register_buffer("running_max", torch.full((self.n_channels,), float("nan")))
+        self.register_buffer("_norm_frame_count", torch.zeros((), dtype=torch.long))
+
+        # Only the statistical path needs a fit pass; running / per_frame do not.
+        self._requires_initial_fit_override = self.norm_mode == NormMode.STATISTICAL
+
+    def _fitted(self) -> bool:
+        """Whether per-channel bounds have been populated (non-NaN)."""
+        return not bool(torch.isnan(self.running_min).any())
+
+    def _per_frame_minmax(self, data: Tensor) -> Tensor:
+        """Per-batch, per-channel absolute min/max to ``[0, 1]``."""
+        lo = data.amin(dim=(1, 2), keepdim=True)
+        hi = data.amax(dim=(1, 2), keepdim=True)
+        denom = (hi - lo).clamp_min(self.eps)
+        return ((data - lo) / denom).clamp_(0.0, 1.0)
+
+    def _per_frame_percentile(self, data: Tensor) -> Tensor:
+        """Per-frame percentile normalization (matches the running quantiles)."""
+        flat = data.reshape(-1, self.n_channels).float()
+        lo = torch.quantile(flat, self.quantile_low, dim=0).view(1, 1, 1, self.n_channels)
+        hi = torch.quantile(flat, self.quantile_high, dim=0).view(1, 1, 1, self.n_channels)
+        denom = (hi - lo).clamp_min(self.eps)
+        return ((data - lo) / denom).clamp_(0.0, 1.0)
+
+    def _apply_bounds(self, data: Tensor) -> Tensor:
+        """Normalize using the accumulated per-channel bounds."""
+        lo = self.running_min.view(1, 1, 1, self.n_channels)
+        hi = self.running_max.view(1, 1, 1, self.n_channels)
+        denom = (hi - lo).clamp_min(self.eps)
+        return ((data - lo) / denom).clamp_(0.0, 1.0)
+
+    @torch.no_grad()
+    def _running_normalize(self, data: Tensor) -> Tensor:
+        """Warmup + min/max percentile accumulation hybrid normalization."""
+        flat = data.reshape(-1, self.n_channels).float()
+        frame_lo = torch.quantile(flat, self.quantile_low, dim=0)
+        frame_hi = torch.quantile(flat, self.quantile_high, dim=0)
+
+        self._norm_frame_count.add_(1)
+        count = int(self._norm_frame_count.item())
+        should_update = (
+            self.freeze_running_bounds_after_frames is None
+            or count <= self.freeze_running_bounds_after_frames
+        )
+        if should_update:
+            if torch.isnan(self.running_min).any():
+                self.running_min.copy_(frame_lo)
+                self.running_max.copy_(frame_hi)
+            else:
+                torch.minimum(self.running_min, frame_lo, out=self.running_min)
+                torch.maximum(self.running_max, frame_hi, out=self.running_max)
+
+        if count <= self.running_warmup_frames:
+            return self._per_frame_percentile(data)
+        return self._apply_bounds(data)
+
+    def _normalize(self, tensor: Tensor) -> Tensor:
+        """Dispatch on ``norm_mode`` (raises on channel mismatch / unfitted statistical)."""
+        if tensor.shape[-1] != self.n_channels:
+            raise ValueError(
+                f"PercentileNormalizer expected {self.n_channels} channels, got {tensor.shape[-1]}"
+            )
+        if self.norm_mode == NormMode.STATISTICAL:
+            if not self._fitted():
+                raise RuntimeError(
+                    "PercentileNormalizer: statistical mode requires "
+                    "statistical_initialization() before forward()"
+                )
+            return self._apply_bounds(tensor)
+        if self.norm_mode == NormMode.RUNNING:
+            return self._running_normalize(tensor)
+        return self._per_frame_minmax(tensor)
+
+    def statistical_initialization(self, input_stream: InputStream) -> None:
+        """Accumulate global per-channel percentile bounds across the dataset.
+
+        Preserves the established min-of-batch-lows / max-of-batch-highs
+        accumulation (batch-order sensitive); a true streaming percentile is a
+        deliberate follow-up, not changed here.
+        """
+        for batch_data in input_stream:
+            data = batch_data["data"]
+            flat = data.reshape(-1, self.n_channels).float()
+            frame_lo = torch.quantile(flat, self.quantile_low, dim=0)
+            frame_hi = torch.quantile(flat, self.quantile_high, dim=0)
+            if torch.isnan(self.running_min).any():
+                self.running_min.copy_(frame_lo)
+                self.running_max.copy_(frame_hi)
+            else:
+                torch.minimum(self.running_min, frame_lo, out=self.running_min)
+                torch.maximum(self.running_max, frame_hi, out=self.running_max)
+        if torch.isnan(self.running_min).any():
+            raise RuntimeError("PercentileNormalizer.statistical_initialization received no data")
+
+
+class DisplayNormalizer(_ScoreNormalizerBase):
+    """Apply sRGB gamma companding (IEC 61966-2-1) to a ``[0, 1]`` BHWC tensor.
+
+    The stateless display-encoding companion to :class:`PercentileNormalizer`:
+    chain it after the normalizer on the false-RGB display path
+    (``selector -> PercentileNormalizer -> DisplayNormalizer``) to lift midtones
+    so images look natural on standard displays. ML / n-channel paths skip it.
+
+    Ports
+    -----
+    INPUT_SPECS
+        ``data`` : float32, shape (-1, -1, -1, -1), BHWC tensor, values in ``[0, 1]``.
+    OUTPUT_SPECS
+        ``normalized`` : float32, shape (-1, -1, -1, -1), sRGB gamma-encoded, ``[0, 1]``.
+    """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
+
+    def _normalize(self, tensor: Tensor) -> Tensor:
+        """sRGB companding: linear ``[0, 1]`` -> gamma-encoded ``[0, 1]``."""
+        low = 12.92 * tensor
+        high = 1.055 * tensor.clamp_min(1e-10).pow(1.0 / 2.4) - 0.055
+        return torch.where(tensor <= 0.0031308, low, high)
+
+
 __all__ = [
+    "DisplayNormalizer",
     "IdentityNormalizer",
     "MinMaxNormalizer",
+    "NormMode",
+    "PercentileNormalizer",
     "SigmoidNormalizer",
     "ZScoreNormalizer",
     "SigmoidTransform",

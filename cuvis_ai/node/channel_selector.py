@@ -49,7 +49,6 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-from enum import StrEnum
 from typing import Any, Literal
 
 import numpy as np
@@ -58,21 +57,21 @@ import torch.nn.functional as F
 from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.execution import Context, InputStream
 from cuvis_ai_schemas.pipeline import PortSpec
+from loguru import logger
 from scipy.ndimage import laplace
 from sklearn.metrics import roc_auc_score
 from torch import Tensor
 
 from cuvis_ai.node.colormap import render_scalar_hsv_colormap
+from cuvis_ai.node.normalization import NormMode
 from cuvis_ai.utils.welford import WelfordAccumulator
 from cuvis_ai_core.node import Node
 
-
-class NormMode(StrEnum):
-    """RGB normalization mode for channel selectors."""
-
-    PER_FRAME = "per_frame"
-    RUNNING = "running"
-    STATISTICAL = "statistical"
+# ``NormMode`` now lives in :mod:`cuvis_ai.node.normalization` alongside
+# ``PercentileNormalizer`` / ``DisplayNormalizer``; it is re-exported here so the
+# in-selector normalization API stays backward compatible. New pipelines should
+# stack a ``PercentileNormalizer`` (+ ``DisplayNormalizer`` for false-RGB) after
+# the selector instead of relying on the selector's built-in normalization.
 
 
 class ChannelSelectorBase(Node):
@@ -111,7 +110,13 @@ class ChannelSelectorBase(Node):
             Wavelength array in nanometers.
     OUTPUT_SPECS
         ``rgb_image`` : float32, shape (-1, -1, -1, 3)
-            Composed RGB image in BHWC format (0-1 range).
+            Composed RGB image in BHWC format (0-1 range). Subclasses that emit
+            a different channel count (e.g. :class:`FixedWavelengthSelector`
+            with ``n != 3``) must override ``OUTPUT_SPECS`` to widen the channel
+            dimension; the base class keeps the tight 3-channel contract so
+            pipeline validation catches accidental mis-wiring of the standard
+            RGB selectors (``FastRGBSelector``, ``RangeAverageFalseRGBSelector``,
+            ``CIRSelector``, ``CIETristimulusRGBSelector``, NDVI variants, …).
         ``band_info`` : dict
             Metadata about selected bands.
     """
@@ -138,7 +143,7 @@ class ChannelSelectorBase(Node):
         "rgb_image": PortSpec(
             dtype=torch.float32,
             shape=(-1, -1, -1, 3),
-            description="Composed RGB image [B, H, W, 3] in 0-1 range",
+            description="Composed RGB image [B, H, W, 3] in 0-1 range.",
         ),
         "band_info": PortSpec(
             dtype=dict,
@@ -584,19 +589,40 @@ class NDVISelector(_NormalizedDifferenceIndexBase):
 
 
 class FixedWavelengthSelector(ChannelSelectorBase):
-    """Fixed wavelength band selection (e.g., 650, 550, 450 nm).
+    """Fixed wavelength band selection — picks the nearest band for each target wavelength.
 
-    Selects bands nearest to the specified target wavelengths for R, G, B channels.
-    This is the simplest band selection strategy that produces "true color-ish" images.
+    For the standard 3-channel case (default) this produces a "true color-ish" RGB image.
+    For ``n > 3`` target wavelengths the node stacks ``n`` bands into a
+    ``[B, H, W, n]`` output — useful for multi-channel hyperspectral models (e.g.
+    a 6-channel VIS+SWIR input to a Dinomaly detector).
 
     Parameters
     ----------
-    target_wavelengths : tuple[float, float, float]
-        Target wavelengths for R, G, B channels in nanometers.
-        Default: (650.0, 550.0, 450.0)
+    target_wavelengths : tuple[float, ...]
+        Target wavelengths in nanometers, in the order they should be stacked.
+        Must contain at least one wavelength.
+        Default: (650.0, 550.0, 450.0) — standard false-RGB.
     normalize_output : bool
-        If ``True`` (default), apply selector normalization to produce 0-1 RGB output.
-        If ``False``, return raw selected band values without normalization/gamma.
+        If ``True`` (default), apply selector normalization to produce a 0–1 output.
+        Normalization (running bounds + optional sRGB gamma) is only available for
+        the 3-channel case (``len(target_wavelengths) == 3``). For ``n != 3`` the
+        bands are stacked raw regardless of this flag; a single warning is emitted
+        at construction so callers know to pass ``normalize_output=False`` to silence
+        it. ``norm_mode`` settings of ``running`` / ``statistical`` rely on
+        3-element running buffers and a hard ``reshape(-1, 3)`` and are therefore
+        rejected at construction for ``n != 3`` — pass ``norm_mode="per_frame"``
+        (the only mode the n-channel path supports today).
+
+    Ports
+    -----
+    OUTPUT_SPECS
+        ``rgb_image`` : float32, shape ``(-1, -1, -1, -1)``
+            Stacked selected bands ``[B, H, W, len(target_wavelengths)]``.
+            Port name kept as ``rgb_image`` for graph compatibility with
+            downstream consumers. For the 3-channel default the output is the
+            normalised RGB image; for ``n != 3`` it is the raw stacked bands.
+        ``band_info`` : dict
+            See ``forward`` for keys.
     """
 
     _category = NodeCategory.TRANSFORM
@@ -604,12 +630,54 @@ class FixedWavelengthSelector(ChannelSelectorBase):
         {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
     )
 
+    # Override the base class's tight 3-channel contract so this selector can
+    # emit an n-channel stack. Keep the rest of the base spec dict intact.
+    OUTPUT_SPECS = {
+        **ChannelSelectorBase.OUTPUT_SPECS,
+        "rgb_image": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, -1),
+            description="Composed image [B, H, W, C] in 0-1 range. "
+            "C == 3 for the standard RGB default; "
+            "C == len(target_wavelengths) for FixedWavelengthSelector with n > 3.",
+        ),
+    }
+
     def __init__(
         self,
-        target_wavelengths: tuple[float, float, float] = (650.0, 550.0, 450.0),
+        target_wavelengths: tuple[float, ...] = (650.0, 550.0, 450.0),
         normalize_output: bool = True,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
+        target_wavelengths = tuple(float(w) for w in target_wavelengths)
+        if len(target_wavelengths) < 1:
+            raise ValueError(
+                "FixedWavelengthSelector: target_wavelengths must contain at least one wavelength"
+            )
+        n = len(target_wavelengths)
+
+        # The base class's running/statistical normalisation machinery assumes a
+        # 3-channel output: running_min/running_max are 3-element buffers, and
+        # statistical_initialization / _running_normalize do `reshape(-1, 3)`.
+        # For n != 3 those modes either silently mix unrelated channels (e.g.
+        # n=6 reshapes into (-1, 3) and pairs c0+c3, c1+c4, c2+c5 per row), or
+        # raise RuntimeError on non-divisible totals (n=4). Reject them at
+        # construction so the failure mode is obvious. ``per_frame`` (which
+        # operates only on the forward path's branch below) is the only mode
+        # supported for the n != 3 case today.
+        norm_mode_arg = kwargs.get("norm_mode", NormMode.RUNNING)
+        norm_mode_resolved = NormMode(
+            str(norm_mode_arg) if isinstance(norm_mode_arg, NormMode) else norm_mode_arg
+        )
+        if n != 3 and norm_mode_resolved in (NormMode.STATISTICAL, NormMode.RUNNING):
+            raise ValueError(
+                f"FixedWavelengthSelector: norm_mode={norm_mode_resolved.value!r} requires "
+                f"exactly 3 target wavelengths (got n={n}). The running/statistical paths "
+                f"rely on 3-element buffers and reshape(-1, 3). Pass "
+                f"norm_mode='per_frame' (the only mode supported for n != 3) or use "
+                f"len(target_wavelengths) == 3."
+            )
+
         super().__init__(
             target_wavelengths=target_wavelengths,
             normalize_output=normalize_output,
@@ -617,6 +685,23 @@ class FixedWavelengthSelector(ChannelSelectorBase):
         )
         self.target_wavelengths = target_wavelengths
         self.normalize_output = bool(normalize_output)
+
+        # Whether the forward path will actually normalise. The band_info flag
+        # downstream MUST mirror this — `normalize_output=True` with n != 3
+        # silently returns raw bands, so any consumer that trusts the flag
+        # would skip a normalisation it still needs.
+        self._effective_normalize_output = self.normalize_output and n == 3
+
+        # Warn ONCE at construction (not per forward call — n and
+        # normalize_output are both known here and don't change later).
+        if self.normalize_output and n != 3:
+            logger.warning(
+                "FixedWavelengthSelector: normalize_output=True is only supported for "
+                "3-channel selection; got {} target wavelengths. The forward path will "
+                "return raw stacked bands; pass normalize_output=False to suppress this "
+                "warning.",
+                n,
+            )
 
     def _compute_raw_rgb(self, cube: torch.Tensor, wavelengths: Any) -> torch.Tensor:
         """Select the nearest spectral band for each target wavelength."""
@@ -651,19 +736,26 @@ class FixedWavelengthSelector(ChannelSelectorBase):
         # Find nearest bands
         indices = [self._nearest_band_index(wavelengths_np, nm) for nm in self.target_wavelengths]
 
-        # Compose RGB, optionally bypassing selector normalization.
-        if self.normalize_output:
+        # 3-channel path goes through the (running / statistical / per-frame)
+        # normalisation machinery in ChannelSelectorBase. For n != 3 we always
+        # stack raw bands — the construction-time guard guarantees we only see
+        # `per_frame` mode here, and the n != 3 + normalize_output=True warning
+        # was emitted once in __init__.
+        if self._effective_normalize_output:
             rgb = self._compose_rgb(cube, indices)
         else:
             bands = [cube[..., idx] for idx in indices]
             rgb = torch.stack(bands, dim=-1)
 
+        n = len(self.target_wavelengths)
         band_info = {
-            "strategy": "baseline_false_rgb",
+            "strategy": "baseline_false_rgb" if n == 3 else "stacked_bands",
             "band_indices": indices,
             "band_wavelengths_nm": [float(wavelengths_np[i]) for i in indices],
             "target_wavelengths_nm": list(self.target_wavelengths),
-            "normalized_output": self.normalize_output,
+            # Mirror what actually happened — `normalize_output=True` with
+            # n != 3 returns raw bands, so this MUST be False there.
+            "normalized_output": self._effective_normalize_output,
         }
 
         return {"rgb_image": rgb, "band_info": band_info}
