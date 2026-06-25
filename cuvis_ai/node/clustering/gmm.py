@@ -159,9 +159,9 @@ class GaussianMixtureClusterer(_StatisticalFitNode):
         torch.Tensor
             ``[P, K]`` weighted log-probabilities ``log p(x | k) + log w_k``.
         """
-        means = self.means.to(flat.dtype)
-        weights = self.weights.to(flat.dtype)
-        precisions_chol = self.precisions_chol.to(flat.dtype)
+        means = self.means.to(device=flat.device, dtype=flat.dtype)
+        weights = self.weights.to(device=flat.device, dtype=flat.dtype)
+        precisions_chol = self.precisions_chol.to(device=flat.device, dtype=flat.dtype)
         _, n_features = flat.shape
 
         # log-det of each Cholesky factor: sum of logs of its diagonal entries.
@@ -179,13 +179,15 @@ class GaussianMixtureClusterer(_StatisticalFitNode):
         return log_gaussian + torch.log(weights).unsqueeze(0)
 
     @torch.no_grad()
-    def forward(self, cube: torch.Tensor) -> dict[str, torch.Tensor]:
+    def forward(self, cube: torch.Tensor, **_: Any) -> dict[str, torch.Tensor]:
         """Evaluate the mixture posterior for every pixel.
 
         Parameters
         ----------
         cube : torch.Tensor
             Input hyperspectral cube ``[B, H, W, C]``.
+        **_ : Any
+            Additional unused keyword arguments (e.g. the pipeline ``context``).
 
         Returns
         -------

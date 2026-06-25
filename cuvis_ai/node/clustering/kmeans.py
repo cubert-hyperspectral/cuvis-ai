@@ -116,13 +116,15 @@ class KMeansClusterer(_StatisticalFitNode):
         self.centroids = torch.tensor(model.cluster_centers_, dtype=torch.float32)
 
     @torch.no_grad()
-    def forward(self, cube: torch.Tensor) -> dict[str, torch.Tensor]:
+    def forward(self, cube: torch.Tensor, **_: Any) -> dict[str, torch.Tensor]:
         """Assign each pixel to its nearest centroid.
 
         Parameters
         ----------
         cube : torch.Tensor
             Input hyperspectral cube ``[B, H, W, C]``.
+        **_ : Any
+            Additional unused keyword arguments (e.g. the pipeline ``context``).
 
         Returns
         -------
@@ -134,7 +136,7 @@ class KMeansClusterer(_StatisticalFitNode):
         self._require_initialized()
         B, H, W, C = cube.shape
         flat = cube.reshape(-1, C).to(torch.float32)
-        d = torch.cdist(flat, self.centroids.to(flat.dtype))
+        d = torch.cdist(flat, self.centroids.to(device=flat.device, dtype=flat.dtype))
         class_mask = d.argmin(dim=1).reshape(B, H, W).to(torch.int32)
         scores = d.min(dim=1).values.reshape(B, H, W, 1).to(torch.float32)
         return {"class_mask": class_mask, "scores": scores}
