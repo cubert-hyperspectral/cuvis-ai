@@ -1,0 +1,25 @@
+metadata:
+  name: SAM3_Point_Expansion_Video
+  description: SAM3 single-frame interactive point expansion (positive/negative points to one
+    object mask) with RGB video frame source
+  tags:
+  - segmentation
+  - sam3
+  - point-prompt
+  - video
+  author: cuvis.ai
+plugins:
+- cuvis_ai_builtin
+- sam3
+nodes:
+- name: video_frame
+  class_name: cuvis_ai.node.video.VideoFrameNode
+  hparams: {}
+- name: sam3_point_expansion
+  class_name: cuvis_ai_sam3.node.SAM3PointExpansion
+  hparams: {}
+connections:
+- source: video_frame.outputs.rgb_image
+  target: sam3_point_expansion.inputs.rgb_frame
+- source: video_frame.outputs.frame_id
+  target: sam3_point_expansion.inputs.frame_id

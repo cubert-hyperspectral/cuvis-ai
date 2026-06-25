@@ -123,7 +123,7 @@ from cuvis_ai.node.pretreatments import (
     SpectralDerivative,
     UnitVarianceScaling,
 )
-from cuvis_ai.node.prompts import BBoxPrompt, MaskPrompt, TextPrompt
+from cuvis_ai.node.prompts import BBoxPrompt, MaskPrompt, PointPrompt, TextPrompt
 from cuvis_ai.node.segmentation import IntensityThresholdSegmenter
 from cuvis_ai.node.spectral_angle_mapper import SpectralAngleMapper
 from cuvis_ai.node.spectral_extractor import (
@@ -184,6 +184,7 @@ __all__ = [
     "MaskedMeanSpectrum",
     "MaskOverlayNode",
     "MaskPrompt",
+    "PointPrompt",
     "MaskRobustifier",
     "MaskToBBoxKalman",
     "NearestLabelFill",

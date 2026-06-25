@@ -6,12 +6,14 @@
 
 name: sam3
 # SAM3-based video object tracking plugin.
-# v0.1.7 relaxes setuptools to <83 so sam3 co-installs with the cuvis-ai package
-# in the composed child env (v0.1.6 pinned setuptools<81 and conflicted with
-# cuvis-ai's setuptools>=81).
-repo: "https://github.com/cubert-hyperspectral/cuvis-ai-sam3.git"
-tag: "v0.1.7"
-package_name: "cuvis-ai-sam3"
+#
+# Temporary local-checkout source. SAM3PointExpansion is not yet in a tagged
+# sam3 release, so the loader points at the local working tree. Restore the
+# repo/tag pin below once sam3 ships a release that includes the node.
+path: "D:/code-repos/cuvis-ai-sam3/cuvis-ai-sam3"
+# repo: "https://github.com/cubert-hyperspectral/cuvis-ai-sam3.git"
+# tag: "v0.1.7"  # v0.1.7 relaxes setuptools to <83 so sam3 co-installs with cuvis-ai (>=81)
+# package_name: "cuvis-ai-sam3"
 capabilities:
 - class_name: cuvis_ai_sam3.node.SAM3TrackerInference
   category: model
@@ -235,3 +237,40 @@ capabilities:
       optional: false
       description: ''
   doc_summary: Segment everything on one RGB frame using SAM3 point-grid prompting.
+- class_name: cuvis_ai_sam3.node.SAM3PointExpansion
+  category: model
+  tags: [batched, image, inference, keypoints, learnable, mask, rgb, segmentation, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\r\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\r\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\r\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\r\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\r\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\r\n</svg>\r\n"
+  input_specs:
+    rgb_frame:
+      dtype: float32
+      shape: [1, -1, -1, 3]
+      optional: false
+      description: RGB frame [1,H,W,3] in float32 with values in [0,1].
+    points:
+      dtype: ''
+      shape: []
+      optional: true
+      description: Optional per-frame list of point prompt dicts with keys element_id, x, y, type (type in {positive, negative, neutral}). Positive=object, negative=background.
+    frame_id:
+      dtype: int64
+      shape: [1]
+      optional: true
+      description: Optional source frame index [1]; keys the image-embedding cache.
+  output_specs:
+    mask:
+      dtype: int32
+      shape: [1, -1, -1]
+      optional: false
+      description: ''
+    object_ids:
+      dtype: int64
+      shape: [1, -1]
+      optional: false
+      description: ''
+    detection_scores:
+      dtype: float32
+      shape: [1, -1]
+      optional: false
+      description: ''
+  doc_summary: Expand positive/negative click points into one object mask on a single frame.

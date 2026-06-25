@@ -773,9 +773,110 @@ class TextPrompt(Node):
         }
 
 
+class PointPrompt(Node):
+    """Emit a scheduled list of point prompts for the requested frame.
+
+    Unlike :class:`MaskPrompt` / :class:`BBoxPrompt` (which read prompts from a COCO
+    detection JSON), point prompts are supplied directly as ``(x, y, type)`` because
+    object selection is interactive, not stored in a detection file. Each point is a
+    pixel coordinate with a ``type`` of ``positive`` (object), ``negative``
+    (background), or ``neutral`` (ignored). All points fire on ``prompt_frame_id``
+    and address a single object; every other frame emits an empty list.
+    """
+
+    _category = NodeCategory.SOURCE
+    _tags = frozenset({NodeTag.KEYPOINTS, NodeTag.INFERENCE, NodeTag.METADATA})
+
+    _VALID_TYPES = frozenset({"positive", "negative", "neutral"})
+
+    INPUT_SPECS = {
+        "frame_id": PortSpec(dtype=torch.int64, shape=(1,), description="Source frame index [1]."),
+    }
+    OUTPUT_SPECS = {
+        "points": PortSpec(
+            dtype=list,
+            shape=(),
+            description=(
+                "Per-frame list of point prompt dicts with keys element_id, x, y, type "
+                "(type in {positive, negative, neutral})."
+            ),
+        ),
+    }
+
+    def __init__(
+        self,
+        points: Sequence[Any],
+        prompt_frame_id: int,
+        **kwargs: Any,
+    ) -> None:
+        """Configure the point prompts and the frame they fire on.
+
+        Args:
+            points: Iterable of ``(x, y[, type])`` tuples or ``{x, y, type, element_id}``
+                dicts in pixel coordinates. ``type`` defaults to ``positive``.
+            prompt_frame_id: Source frame index on which to emit the points.
+        """
+        self._prompt_frame_id = int(prompt_frame_id)
+        self._points = self._normalize_points(points)
+        super().__init__(
+            points=self._points,
+            prompt_frame_id=self._prompt_frame_id,
+            **kwargs,
+        )
+
+    @classmethod
+    def _normalize_points(cls, points: Sequence[Any]) -> list[dict[str, Any]]:
+        """Coerce each point into a canonical ``{element_id, x, y, type}`` dict."""
+        normalized: list[dict[str, Any]] = []
+        for idx, raw in enumerate(points or []):
+            if isinstance(raw, dict):
+                if "x" not in raw or "y" not in raw:
+                    raise ValueError(f"Point prompt at index {idx} is missing 'x' or 'y'.")
+                x_val, y_val = float(raw["x"]), float(raw["y"])
+                point_type = str(raw.get("type", "positive")).lower()
+                element_id = int(raw.get("element_id", 0))
+            elif isinstance(raw, (list, tuple)):
+                if len(raw) < 2:
+                    raise ValueError(
+                        f"Point prompt at index {idx} must be (x, y[, type]); got {raw!r}."
+                    )
+                x_val, y_val = float(raw[0]), float(raw[1])
+                point_type = str(raw[2]).lower() if len(raw) >= 3 else "positive"
+                element_id = 0
+            else:
+                raise ValueError(
+                    f"Point prompt at index {idx} must be a dict or (x, y[, type]) tuple, "
+                    f"got {type(raw).__name__}."
+                )
+            if point_type not in cls._VALID_TYPES:
+                raise ValueError(
+                    f"Point prompt at index {idx} has unknown type {point_type!r}; "
+                    "expected positive, negative, or neutral."
+                )
+            normalized.append(
+                {"element_id": element_id, "x": x_val, "y": y_val, "type": point_type}
+            )
+        return normalized
+
+    def forward(
+        self,
+        frame_id: torch.Tensor,
+        context: Context | None = None,  # noqa: ARG002
+        **_: Any,
+    ) -> dict[str, list[dict[str, Any]]]:
+        """Emit the configured point prompts on ``prompt_frame_id``, else an empty list."""
+        if frame_id is None or frame_id.numel() == 0:
+            raise ValueError("PointPrompt requires a non-empty frame_id input.")
+        current_frame_id = int(frame_id.reshape(-1)[0].item())
+        if current_frame_id != self._prompt_frame_id:
+            return {"points": []}
+        return {"points": [dict(point) for point in self._points]}
+
+
 __all__ = [
     "BBoxPrompt",
     "MaskPrompt",
+    "PointPrompt",
     "SpatialPromptSpec",
     "TextPrompt",
     "TextPromptSpec",

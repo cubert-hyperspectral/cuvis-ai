@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased]
+
+- **Added `PointPrompt`, an interactive point-prompt source node.** Emits a scheduled per-frame list
+  of `{element_id, x, y, type}` dicts (`type` in `positive` / `negative` / `neutral`) on a configured
+  `prompt_frame_id`, and an empty list on every other frame. Accepts `(x, y[, type])` tuples or
+  dicts, validates the type, and defaults to `positive`. Registered in
+  `configs/plugins/cuvis_ai_builtin.yaml`. Its output dict shape matches `SAM3PointExpansion`'s
+  `points` input, so it drives point expansion in a scripted (non-interactive) pipeline.
+- **Added the SAM3 single-frame point-expansion use case.** Two pipeline configs
+  (`configs/pipeline/sam3/sam3_point_expansion.yaml`, cu3s-sourced, and `…_video.yaml`, video-frame
+  sourced) plus the `notebooks/use_cases/object_selection_point_expansion.ipynb` walkthrough.
+- **Registered `SAM3PointExpansion` in `configs/plugins/sam3.yaml`.** Temporarily switched the sam3
+  source from `tag: v0.1.7` to a local `path:` checkout, since the node is not yet in a tagged sam3
+  release. **Restore the `repo:` + `tag:` pin before release** — a local source trips the
+  `no-local-sources` CI gate added in 0.11.0.
+
 ## 0.11.0 - 2026-06-24
 
 - **Refreshed plugin manifest pins to the latest releases.** Bumped the `configs/plugins/` tags to

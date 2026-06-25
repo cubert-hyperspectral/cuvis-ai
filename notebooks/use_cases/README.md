@@ -9,6 +9,7 @@ builds a pipeline, runs it on a Hugging Face dataset, and renders a result
 | [`blood_perfusion.ipynb`](./blood_perfusion.ipynb) | NDVI blood-perfusion video from a CU3S hand session | none (builtin nodes) | `XMR_Demo_Blood_Perfusion` (~7 GB) | recommended |
 | [`object_tracking_active.ipynb`](./object_tracking_active.ipynb) | SPAM invisible-ink tracking (spectral-angle, no model) | none (builtin nodes) | `XMR_Demo_Object_Tracking` (~25 GB) | recommended |
 | [`object_tracking_passive.ipynb`](./object_tracking_passive.ipynb) | SAM3 mask-propagation tracking | `cuvis-ai-sam3` | `XMR_Demo_Object_Tracking` | yes |
+| [`object_selection_point_expansion.ipynb`](./object_selection_point_expansion.ipynb) | SAM3 point expansion: click points into a mask, then propagate it 100 frames | `cuvis-ai-sam3` | `XMR_Demo_Object_Tracking` | yes |
 | [`lentils_dinomaly.ipynb`](./lentils_dinomaly.ipynb) | Dinomaly anomaly detection (RGB / CIR / custom selector) | `cuvis-ai-dinomaly` | fetched per method from the demo model repo | yes |
 
 All four read `.cu3s` sessions, so all four need the **`cuvis-ai-dataloader`

@@ -2429,6 +2429,23 @@ capabilities:
       optional: false
       description: Resolved text prompt for the current frame or an empty string.
   doc_summary: Emit a runtime text prompt for the requested frame.
+- class_name: cuvis_ai.node.prompts.PointPrompt
+  category: source
+  tags: [inference, keypoints, metadata]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#E8A33D\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <ellipse cx=\"22\" cy=\"18\" rx=\"12\" ry=\"4\"/>\r\n  <path d=\"M10 18v26c0 2.2 5.4 4 12 4s12-1.8 12-4V18\"/>\r\n  <path d=\"M10 28c0 2.2 5.4 4 12 4s12-1.8 12-4\"/>\r\n  <path d=\"M10 38c0 2.2 5.4 4 12 4s12-1.8 12-4\"/>\r\n  <path d=\"M40 32h14\"/>\r\n  <path d=\"M48 26l6 6-6 6\"/>\r\n</svg>\r\n"
+  input_specs:
+    frame_id:
+      dtype: int64
+      shape: [1]
+      optional: false
+      description: Source frame index [1].
+  output_specs:
+    points:
+      dtype: ''
+      shape: []
+      optional: false
+      description: Per-frame list of point prompt dicts with keys element_id, x, y, type (type in {positive, negative, neutral}).
+  doc_summary: Emit a scheduled list of point prompts for the requested frame.
 - class_name: cuvis_ai.node.spectral_angle_mapper.SpectralAngleMapper
   category: model
   tags: [classification, hyperspectral, numpy, stateful]
