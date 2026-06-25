@@ -210,10 +210,10 @@ class OneClassSVMDetector(_StatisticalFitNode):
         self._require_initialized()
 
         B, H, W, C = cube.shape
-        support = self.support_vectors.to(cube.dtype)
-        dual = self.dual_coef.to(cube.dtype)
-        gamma = self.gamma_buf.to(cube.dtype)
-        offset = self.offset_buf.to(cube.dtype)
+        support = self.support_vectors.to(device=cube.device, dtype=cube.dtype)
+        dual = self.dual_coef.to(device=cube.device, dtype=cube.dtype)
+        gamma = self.gamma_buf.to(device=cube.device, dtype=cube.dtype)
+        offset = self.offset_buf.to(device=cube.device, dtype=cube.dtype)
 
         flat = cube.reshape(-1, C)
         P = flat.shape[0]
