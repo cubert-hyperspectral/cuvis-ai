@@ -10,6 +10,7 @@ builds a pipeline, runs it on a Hugging Face dataset, and renders a result
 | [`object_tracking_active.ipynb`](./object_tracking_active.ipynb) | SPAM invisible-ink tracking (spectral-angle, no model) | none (builtin nodes) | `XMR_Demo_Object_Tracking` (~25 GB) | recommended |
 | [`object_tracking_passive.ipynb`](./object_tracking_passive.ipynb) | SAM3 mask-propagation tracking | `cuvis-ai-sam3` | `XMR_Demo_Object_Tracking` | yes |
 | [`lentils_dinomaly.ipynb`](./lentils_dinomaly.ipynb) | Dinomaly anomaly detection (RGB / CIR / custom selector) | `cuvis-ai-dinomaly` | fetched per method from the demo model repo | yes |
+| [`node_catalog_lentils.ipynb`](./node_catalog_lentils.ipynb) | New node families end to end: SNV pretreatment, K-Means, NNLS unmixing, one-class novelty / foreign-material, morphology, wired as a `CuvisPipeline` | none (builtin nodes) | `XMR_Lentils` (~0.9 GB) | optional |
 
 All four read `.cu3s` sessions, so all four need the **`cuvis-ai-dataloader`
 plugin** (the cu3s reader + the cuvis SDK). It is **not** a dependency of
