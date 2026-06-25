@@ -22,6 +22,7 @@ import torch.nn.functional as F
 from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.pipeline import PortSpec
 
+from cuvis_ai.utils.connected_components import label_connected_components
 from cuvis_ai_core.node import Node
 
 
@@ -134,14 +135,15 @@ class MaskRobustifier(Node):
         binary_np = binary.to(torch.uint8).cpu().numpy()
         surviving = np.zeros_like(binary_np, dtype=bool)
         for i in range(binary_np.shape[0]):
-            frame = binary_np[i]
-            if not frame.any():
+            frame = binary[i]
+            if not bool(frame.any()):
                 continue
-            num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(frame, connectivity=8)
-            if num_labels <= 1:
+            labels = label_connected_components(frame, connectivity=8).cpu().numpy()
+            num_labels = int(labels.max())
+            if num_labels < 1:
                 continue
-            areas = stats[1:, cv2.CC_STAT_AREA]
-            keep_ids = np.arange(1, num_labels, dtype=np.int32)
+            areas = np.bincount(labels.reshape(-1), minlength=num_labels + 1)[1:]
+            keep_ids = np.arange(1, num_labels + 1, dtype=np.int32)
             if self.min_area > 0:
                 m = areas >= self.min_area
                 keep_ids = keep_ids[m]

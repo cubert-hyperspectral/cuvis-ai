@@ -425,9 +425,94 @@ class ChannelNormalizeNode(Node):
         return {"normalized": normalized}
 
 
+class SaturatedPixelDetector(Node):
+    """Flag pixels whose channels reach the sensor saturation value.
+
+    For every pixel the node computes the fraction of bands that sit at or above
+    ``saturation_value`` and exposes it as a per-pixel ``scores`` map. A boolean
+    ``decisions`` mask marks pixels whose saturated-band fraction exceeds
+    ``mask_threshold``.
+
+    Parameters
+    ----------
+    saturation_value : float
+        Reflectance/intensity level at which a band counts as saturated.
+        Bands with ``cube >= saturation_value`` are saturated. Default: 1.0
+    mask_threshold : float
+        Threshold on the saturated-band fraction. Pixels with
+        ``scores > mask_threshold`` are flagged in ``decisions``. Default: 0.0
+        (any saturated band flags the pixel).
+
+    Examples
+    --------
+    >>> detector = SaturatedPixelDetector(saturation_value=1.0, mask_threshold=0.0)
+    >>> cube = torch.rand(2, 8, 8, 16)
+    >>> out = detector.forward(cube=cube)
+    >>> out["scores"].shape, out["decisions"].shape
+    (torch.Size([2, 8, 8, 1]), torch.Size([2, 8, 8, 1]))
+    """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.PREPROCESSING, NodeTag.TORCH})
+
+    INPUT_SPECS = {
+        "cube": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, -1),
+            description="Input hyperspectral cube [B, H, W, C]",
+        ),
+    }
+
+    OUTPUT_SPECS = {
+        "scores": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 1),
+            description="Per-pixel fraction of bands at/above saturation [B, H, W, 1]",
+        ),
+        "decisions": PortSpec(
+            dtype=torch.bool,
+            shape=(-1, -1, -1, 1),
+            description="Per-pixel saturation mask where scores > mask_threshold [B, H, W, 1]",
+        ),
+    }
+
+    def __init__(
+        self,
+        saturation_value: float = 1.0,
+        mask_threshold: float = 0.0,
+        **kwargs: Any,
+    ) -> None:
+        self.saturation_value = float(saturation_value)
+        self.mask_threshold = float(mask_threshold)
+        super().__init__(
+            saturation_value=self.saturation_value,
+            mask_threshold=self.mask_threshold,
+            **kwargs,
+        )
+
+    @torch.no_grad()
+    def forward(self, cube: Tensor, **_: Any) -> dict[str, Tensor]:
+        """Compute the per-pixel saturated-band fraction and saturation mask.
+
+        Parameters
+        ----------
+        cube : Tensor
+            Input hyperspectral cube ``[B, H, W, C]``.
+
+        Returns
+        -------
+        dict[str, Tensor]
+            ``{"scores": Tensor [B, H, W, 1], "decisions": Tensor [B, H, W, 1]}``.
+        """
+        scores = (cube >= self.saturation_value).float().mean(dim=-1, keepdim=True)
+        decisions = scores > self.mask_threshold
+        return {"scores": scores, "decisions": decisions}
+
+
 __all__ = [
     "BandpassByWavelength",
     "BBoxRoiCropNode",
     "ChannelNormalizeNode",
+    "SaturatedPixelDetector",
     "SpatialRotateNode",
 ]

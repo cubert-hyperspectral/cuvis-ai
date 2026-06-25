@@ -24,13 +24,24 @@ from cuvis_ai.node.channel_selector import (
     CameraEmulationFalseRGBSelector,
     ChannelSelectorBase,
     CIETristimulusRGBSelector,
+    CIRedEdgeSelector,
     CIRSelector,
+    EVI2Selector,
+    EVISelector,
     FastRGBSelector,
     FixedWavelengthSelector,
+    GNDVISelector,
     HighContrastSelector,
+    MCARISelector,
+    MSAVISelector,
+    NBRSelector,
+    NDRESelector,
     NDVISelector,
+    NDWISelector,
     NormMode,
+    PRISelector,
     RangeAverageFalseRGBSelector,
+    SAVISelector,
     SoftChannelSelector,
     SupervisedCIRSelector,
     SupervisedFullSpectrumSelector,
@@ -38,10 +49,16 @@ from cuvis_ai.node.channel_selector import (
     SupervisedWindowedSelector,
     TopKIndices,
 )
+from cuvis_ai.node.clustering import GaussianMixtureClusterer, KMeansClusterer
 from cuvis_ai.node.colormap import ScalarHSVColormapNode
 from cuvis_ai.node.compositing import InsetComposer, ROIZoomNode
 from cuvis_ai.node.conversion import DecisionToMask
-from cuvis_ai.node.deciders import BinaryDecider, QuantileBinaryDecider, TwoStageBinaryDecider
+from cuvis_ai.node.deciders import (
+    BinaryDecider,
+    MultiRangeSlicer,
+    QuantileBinaryDecider,
+    TwoStageBinaryDecider,
+)
 from cuvis_ai.node.dimensionality_reduction import PCA, TrainablePCA
 from cuvis_ai.node.json_file import (
     CocoTrackBBoxWriter,
@@ -53,6 +70,7 @@ from cuvis_ai.node.json_file import (
 from cuvis_ai.node.labels import BinaryAnomalyLabelMapper
 from cuvis_ai.node.losses import DistinctnessLoss, ForegroundContrastLoss
 from cuvis_ai.node.mask_ops import MaskRobustifier, MaskToBBoxKalman
+from cuvis_ai.node.morphology import ShapeMorphology
 from cuvis_ai.node.normalization import (
     DisplayNormalizer,
     IdentityNormalizer,
@@ -76,12 +94,25 @@ from cuvis_ai.node.preprocessors import (
     BandpassByWavelength,
     BBoxRoiCropNode,
     ChannelNormalizeNode,
+    SaturatedPixelDetector,
     SpatialRotateNode,
 )
+from cuvis_ai.node.pretreatments import (
+    ContinuumRemoval,
+    Logarithm,
+    MeanCenter,
+    SavitzkyGolay,
+    SNVCorrection,
+    SpectralDerivative,
+    UnitVarianceScaling,
+)
 from cuvis_ai.node.prompts import BBoxPrompt, MaskPrompt, TextPrompt
+from cuvis_ai.node.segmentation import IntensityThresholdSegmenter
 from cuvis_ai.node.spectral_angle_mapper import SpectralAngleMapper
 from cuvis_ai.node.spectral_extractor import BBoxSpectralExtractor, MaskedMeanSpectrum
 from cuvis_ai.node.spectrum_plot import SpectrumPlotNode
+from cuvis_ai.node.svm import OneClassSVMDetector
+from cuvis_ai.node.unmixing import NMFUnmixing, NNLSUnmixing
 from cuvis_ai.node.video import (
     ToVideoNode,
     VideoFrameDataModule,
@@ -173,4 +204,31 @@ __all__ = [
     "RXPerBatch",
     "TwoStageBinaryDecider",
     "ZScoreNormalizerGlobal",
+    "SavitzkyGolay",
+    "ContinuumRemoval",
+    "SpectralDerivative",
+    "SNVCorrection",
+    "Logarithm",
+    "MeanCenter",
+    "UnitVarianceScaling",
+    "EVISelector",
+    "EVI2Selector",
+    "SAVISelector",
+    "MSAVISelector",
+    "NDWISelector",
+    "NBRSelector",
+    "GNDVISelector",
+    "NDRESelector",
+    "CIRedEdgeSelector",
+    "MCARISelector",
+    "PRISelector",
+    "NNLSUnmixing",
+    "NMFUnmixing",
+    "ShapeMorphology",
+    "KMeansClusterer",
+    "GaussianMixtureClusterer",
+    "OneClassSVMDetector",
+    "SaturatedPixelDetector",
+    "MultiRangeSlicer",
+    "IntensityThresholdSegmenter",
 ]

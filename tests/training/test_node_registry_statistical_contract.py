@@ -14,7 +14,15 @@ from cuvis_ai_core.utils.node_registry import NodeRegistry
 pytestmark = pytest.mark.unit
 
 EMPTY_INIT_ERRORS = (RuntimeError, ValueError, StopIteration)
-REGISTRY_PACKAGES = ("cuvis_ai.node", "cuvis_ai.anomaly", "cuvis_ai.deciders")
+REGISTRY_PACKAGES = (
+    "cuvis_ai.node",
+    "cuvis_ai.anomaly",
+    "cuvis_ai.deciders",
+    "cuvis_ai.node.pretreatments",
+    "cuvis_ai.node.unmixing",
+    "cuvis_ai.node.clustering",
+    "cuvis_ai.node.segmentation",
+)
 
 REQUIRED_ARG_DEFAULTS: dict[str, object] = {
     "num_channels": 5,
