@@ -1,5 +1,32 @@
 # Changelog
 
+## [Unreleased]
+
+- **Added a Savitzky-Golay / pretreatment node family.** Seven composable `cube -> cube` spectral
+  pretreatments under `cuvis_ai/node/pretreatments/`: `SavitzkyGolay` (frozen-kernel `conv1d`,
+  validated against `scipy.signal.savgol_filter`), `ContinuumRemoval` (convex-hull), `SpectralDerivative`,
+  `SNVCorrection`, `Logarithm`, and the fit-required `MeanCenter` / `UnitVarianceScaling` (streaming
+  Welford). All chain into any existing cube consumer.
+- **Added 11 vegetation-index selectors.** `EVI`, `EVI2`, `SAVI`, `MSAVI`, `NDWI`, `NBR`, `GNDVI`,
+  `NDRE`, `CIRedEdge`, `MCARI`, and `PRI` selectors, reusing `NDVISelector`'s `index_image` /
+  `rgb_image` colormap machinery.
+- **Added spectral unmixing nodes.** `NNLSUnmixing` (stateless projected-gradient NNLS, validated
+  against `scipy.optimize.nnls`) and the fit-required `NMFUnmixing` (blind, learns endmembers via
+  sklearn NMF then solves per-pixel abundances in pure torch).
+- **Added clustering nodes.** `KMeansClusterer` and `GaussianMixtureClusterer` fit with scikit-learn
+  during statistical initialization, freeze the result as torch buffers, and run a pure-torch
+  `forward` (nearest-centroid / closed-form Gaussian posterior).
+- **Added a one-class SVM detector.** `OneClassSVMDetector` fits `sklearn.svm.OneClassSVM`, persists
+  the support vectors and resolved gamma, and evaluates the RBF decision function in chunked pure
+  torch (emits `scores` + `decisions`).
+- **Added a shape-morphology descriptor.** `ShapeMorphology` derives per-object area / centroid /
+  axes / eccentricity / orientation in torch (`scatter_reduce` + closed-form covariance), reusing a
+  shared OpenCV connected-components helper factored out of `MaskRobustifier`.
+- **Added saturated-pixel, multi-range slicer, and intensity-threshold nodes.**
+  `SaturatedPixelDetector` (`scores` + `decisions`), `MultiRangeSlicer` (`torch.bucketize` into a
+  `class_mask`), and `IntensityThresholdSegmenter` (`cube` -> binary `mask`).
+- **Added `scipy` as a direct dependency floor** (`>=1.11`) for the Savitzky-Golay coefficient build.
+
 ## 0.10.2 - 2026-07-13
 
 - `AnomalyDetectionMetrics.average_precision` is now epoch-pooled through the trainer's native
