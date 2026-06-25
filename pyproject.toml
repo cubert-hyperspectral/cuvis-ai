@@ -136,11 +136,16 @@ Changelog = "https://github.com/cubert-hyperspectral/cuvis-ai/releases"
 Issues = "https://github.com/cubert-hyperspectral/cuvis-ai/issues"
 
 [tool.setuptools.packages.find]
-include = ["cuvis_ai*", "scripts*"]
+include = ["cuvis_ai*", "scripts*", "configs*"]
 namespaces = true
 
 [tool.setuptools.package-data]
 cuvis_ai = ["assets/node_icons/*.svg"]
+# Ship the ready-to-run pipeline/plugin/trainrun/training/data manifests so a
+# pip-installed cuvis-ai exposes them at CONFIG_ROOT (site-packages/configs).
+# YAML only: the gitignored model weights (*.pt) under configs/pipeline are local
+# artifacts, never bundled.
+"*" = ["*.yaml"]
 
 
 [tool.uv.sources]
