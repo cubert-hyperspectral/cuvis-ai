@@ -490,7 +490,7 @@ uv run restore-trainrun \
   --mode train \
   --override output_dir=outputs/beans_model \
   --override data.params.cu3s_file_path=data/Beans/Beans_000.cu3s \
-  --override data.splits.splits_path=configs/data/beans_splits.json \
+  --override data.splits.splits_path=cuvis_ai/configs/data/beans_splits.json \
   --override training.optimizer.lr=0.0001 \
   --override training.trainer.max_epochs=30
 ```
@@ -602,16 +602,16 @@ Load external plugins when restoring pipelines:
 
 ```bash
 uv run restore-pipeline \
-  --pipeline-path configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml \
-  --plugins-dir configs/plugins
+  --pipeline-path cuvis_ai/configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml \
+  --plugins-dir cuvis_ai/configs/plugins
 ```
 
 With inference:
 
 ```bash
 uv run restore-pipeline \
-  --pipeline-path configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml \
-  --plugins-dir configs/plugins \
+  --pipeline-path cuvis_ai/configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml \
+  --plugins-dir cuvis_ai/configs/plugins \
   --cu3s-file-path data/Lentils/Lentils_000.cu3s
 ```
 
@@ -622,14 +622,14 @@ from cuvis_ai_core.utils import restore_pipeline
 
 # Load pipeline with plugins (the pipeline yaml declares `plugins: [adaclip]`)
 pipeline = restore_pipeline(
-    pipeline_path="configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml",
-    plugins_dirs=["configs/plugins"]
+    pipeline_path="cuvis_ai/configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml",
+    plugins_dirs=["cuvis_ai/configs/plugins"]
 )
 
 # Or with inference on a cu3s session (selected via the data module)
 pipeline = restore_pipeline(
-    pipeline_path="configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml",
-    plugins_dirs=["configs/plugins"],
+    pipeline_path="cuvis_ai/configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml",
+    plugins_dirs=["cuvis_ai/configs/plugins"],
     data_module="cu3s",
     data_args={"cu3s_file_path": "data/Lentils/Lentils_000.cu3s"},
 )
@@ -649,11 +649,11 @@ from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 registry = NodeRegistry()
 
 # Register the manifest's plugins (import-only; provision them first)
-registry.register_plugin("configs/plugins/adaclip.yaml")
+registry.register_plugin("cuvis_ai/configs/plugins/adaclip.yaml")
 
 # Load pipeline with plugin-aware registry
 pipeline = CuvisPipeline.load_pipeline(
-    "configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml",
+    "cuvis_ai/configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml",
     node_registry=registry
 )
 ```

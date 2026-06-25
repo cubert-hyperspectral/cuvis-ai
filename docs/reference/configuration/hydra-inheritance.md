@@ -11,7 +11,7 @@ Config inheritance, variable interpolation, and override mechanisms.
 
 ### Simple Inheritance
 
-**Base config:** `configs/training/base.yaml`
+**Base config:** `cuvis_ai/configs/training/base.yaml`
 ```yaml
 seed: 42
 
@@ -25,7 +25,7 @@ optimizer:
   betas: [0.9, 0.999]
 ```
 
-**Variant:** `configs/training/high_lr.yaml`
+**Variant:** `cuvis_ai/configs/training/high_lr.yaml`
 ```yaml
 defaults:
   - base
@@ -53,12 +53,12 @@ optimizer:
 ### Multi-Level Inheritance
 
 ```yaml
-# Level 1: configs/training/base_optimizer.yaml
+# Level 1: cuvis_ai/configs/training/base_optimizer.yaml
 optimizer:
   name: adamw
   betas: [0.9, 0.999]
 
-# Level 2: configs/training/base_training.yaml
+# Level 2: cuvis_ai/configs/training/base_training.yaml
 defaults:
   - base_optimizer
   - _self_
@@ -66,7 +66,7 @@ seed: 42
 trainer:
   max_epochs: 5
 
-# Level 3: configs/training/custom_training.yaml
+# Level 3: cuvis_ai/configs/training/custom_training.yaml
 defaults:
   - base_training
   - _self_

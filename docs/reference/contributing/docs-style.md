@@ -318,7 +318,7 @@ After fixes, expect **14 warnings** for external file references:
 
 ```
 WARNING - Doc file contains a link '../../examples/grpc/...'
-WARNING - Doc file contains a link '../../configs/plugins/...'
+WARNING - Doc file contains a link '../../cuvis_ai/configs/plugins/...'
 ```
 
 These are **acceptable** - they reference legitimate source files outside `docs/`.

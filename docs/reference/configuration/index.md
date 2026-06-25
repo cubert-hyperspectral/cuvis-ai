@@ -5,7 +5,7 @@ overrides, and config groups. This section is the reference for the
 Hydra layout and the schemas the trainers consume.
 
 If you are looking for the directory layout of a typical
-`configs/` tree, see [Config Groups](config-groups.md).
+`cuvis_ai/configs/` tree, see [Config Groups](config-groups.md).
 
 ## Configuration Documentation
 

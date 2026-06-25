@@ -44,8 +44,8 @@ All tests are classified with at least one marker:
 
 | Fixture | Scope | Description |
 |---------|-------|-------------|
-| `config_dir` | function | Path to `configs/` directory |
-| `pipeline_dir` | function | Path to `configs/pipeline/` directory |
+| `config_dir` | function | Path to `cuvis_ai/configs/` directory |
+| `pipeline_dir` | function | Path to `cuvis_ai/configs/pipeline/` directory |
 | `test_data_path` | session | Path to `data/` test data directory |
 | `temp_workspace` | function | Temp dir with `pipeline/`, `experiments/`, `models/` subdirs |
 | `mock_pipeline_dir` | function | Temp pipeline dir with `CUVIS_CONFIGS_DIR` monkeypatched |

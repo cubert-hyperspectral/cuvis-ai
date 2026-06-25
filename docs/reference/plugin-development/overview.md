@@ -18,7 +18,7 @@ manifests:
 ```yaml
 # my_pipeline.yaml
 plugins:
-  - trackeval          # bare name → resolves to configs/plugins/trackeval.yaml
+  - trackeval          # bare name → resolves to cuvis_ai/configs/plugins/trackeval.yaml
 nodes:
   - name: hota
     class_name: cuvis_ai_trackeval.node.HOTAMetricNode
@@ -28,7 +28,7 @@ nodes:
 ```bash
 uv run restore-pipeline \
   --pipeline-path my_pipeline.yaml \
-  --plugins-dir configs/plugins
+  --plugins-dir cuvis_ai/configs/plugins
 ```
 
 The loader resolves each bare name to a manifest in the plugins directory and materialises
@@ -58,7 +58,7 @@ plugins:
 - `repo` + `tag`: clone a released plugin. Git **tags** only — branches and commit hashes are not supported, for reproducibility.
 - `path`: load a local checkout directly. Relative paths resolve from the manifest directory.
 - `package_name`: optional. The PyPI-style `[project].name` from the plugin's `pyproject.toml`; set it when the manifest key (a logical label) differs from the real package name.
-- `provides`: the plugin's **node catalog** — each entry is one node: a fully-qualified `class_name` plus optional palette metadata (`category`, `tags`, `icon_svg`, `input_specs`, `output_specs`, `doc_summary`). The server reads this catalog to populate the node palette *without importing plugin code*. See [`configs/plugins/adaclip.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/configs/plugins/adaclip.yaml) for a fully populated entry.
+- `provides`: the plugin's **node catalog** — each entry is one node: a fully-qualified `class_name` plus optional palette metadata (`category`, `tags`, `icon_svg`, `input_specs`, `output_specs`, `doc_summary`). The server reads this catalog to populate the node palette *without importing plugin code*. See [`cuvis_ai/configs/plugins/adaclip.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/plugins/adaclip.yaml) for a fully populated entry.
 
 ## Loading Flow
 
@@ -91,11 +91,11 @@ plugins:
 
 ## Official Plugin Manifests
 
-- [`configs/plugins/adaclip.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/configs/plugins/adaclip.yaml): released AdaCLIP plugin manifest
-- [`configs/plugins/ultralytics.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/configs/plugins/ultralytics.yaml): released Ultralytics YOLO26 plugin manifest pinned to `v0.1.0`
-- [`configs/plugins/deepeiou.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/configs/plugins/deepeiou.yaml): released DeepEIoU plugin manifest pinned to `v0.1.0`
-- [`configs/plugins/trackeval.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/configs/plugins/trackeval.yaml): released TrackEval plugin manifest pinned to `v0.1.0`
-- [`configs/plugins/sam3.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/configs/plugins/sam3.yaml): local SAM3 plugin manifest
+- [`cuvis_ai/configs/plugins/adaclip.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/plugins/adaclip.yaml): released AdaCLIP plugin manifest
+- [`cuvis_ai/configs/plugins/ultralytics.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/plugins/ultralytics.yaml): released Ultralytics YOLO26 plugin manifest pinned to `v0.1.0`
+- [`cuvis_ai/configs/plugins/deepeiou.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/plugins/deepeiou.yaml): released DeepEIoU plugin manifest pinned to `v0.1.0`
+- [`cuvis_ai/configs/plugins/trackeval.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/plugins/trackeval.yaml): released TrackEval plugin manifest pinned to `v0.1.0`
+- [`cuvis_ai/configs/plugins/sam3.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/plugins/sam3.yaml): local SAM3 plugin manifest
 
 ## Official Plugins
 

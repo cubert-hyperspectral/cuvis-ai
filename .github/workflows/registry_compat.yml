@@ -8,10 +8,10 @@ name: Registry Compatibility
 on:
   push:
     branches: [main, staging]
-    paths: ["configs/plugins/**"]
+    paths: ["cuvis_ai/configs/plugins/**"]
   pull_request:
     branches: [main, staging]
-    paths: ["configs/plugins/**"]
+    paths: ["cuvis_ai/configs/plugins/**"]
 
 concurrency:
   group: registry-compat-${{ github.ref }}
@@ -53,6 +53,6 @@ jobs:
           uv run --no-project --python 3.11 --with click --with packaging --with pyyaml
           python audit_plugin_deps.py
           --check plugins
-          --plugins-dir configs/plugins
+          --plugins-dir cuvis_ai/configs/plugins
           --against-core core
           --strict

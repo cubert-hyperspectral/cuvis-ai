@@ -50,7 +50,7 @@ python train.py -m \
 ### Custom Sweep Configurations
 
 ```yaml
-# configs/trainrun/sweep_base.yaml
+# cuvis_ai/configs/trainrun/sweep_base.yaml
 # @package _global_
 
 defaults:
@@ -77,7 +77,7 @@ python train.py \
 
 ### Pattern 1: Base + Variants
 
-**Base config:** `configs/trainrun/base_experiment.yaml`
+**Base config:** `cuvis_ai/configs/trainrun/base_experiment.yaml`
 ```yaml
 # @package _global_
 
@@ -103,7 +103,7 @@ pipeline_name: rx_statistical
 ### Pattern 2: Hierarchical Configs
 
 ```
-configs/
+cuvis_ai/configs/
 ├── pipeline/
 │   ├── statistical/
 │   │   ├── rx.yaml
@@ -139,7 +139,7 @@ callbacks_preset: null  # Optional
 ### Pattern 4: Config Recipes
 
 ```yaml
-# configs/recipes/fast_prototype.yaml
+# cuvis_ai/configs/recipes/fast_prototype.yaml
 # @package _global_
 
 defaults:
@@ -163,7 +163,7 @@ python train.py --config-name=recipes/fast_prototype
 ### Pattern 5: Mixin Configs
 
 ```yaml
-# configs/mixins/debug.yaml
+# cuvis_ai/configs/mixins/debug.yaml
 # @package training
 
 trainer:
@@ -187,7 +187,7 @@ defaults:
 ### Pattern 6: Dynamic Experiment Generation
 
 ```yaml
-# configs/experiments/generate.yaml
+# cuvis_ai/configs/experiments/generate.yaml
 # @package _global_
 
 defaults:

@@ -1,6 +1,6 @@
 """Refresh plugin manifest tag pins from each plugin's latest GitHub release.
 
-Reads ``configs/plugins/*.yaml``; for every plugin sourced from a git ``repo`` + ``tag``,
+Reads ``cuvis_ai/configs/plugins/*.yaml``; for every plugin sourced from a git ``repo`` + ``tag``,
 queries the repo's latest published release on GitHub and, when that tag is newer than the
 pinned one, rewrites the manifest's top-level ``tag:`` in place. Local-``path`` (dev /
 self-reference) and untagged entries are skipped, as are entries whose pinned or latest
@@ -43,7 +43,7 @@ _SEMVER = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
 # and commented lines start with '#', so neither is matched.
 _TAG_LINE = re.compile(r'^(tag:[ \t]*)(["\']?)v\d+\.\d+\.\d+\2[ \t]*$', re.MULTILINE)
 
-CATALOG = Path("configs/plugins")
+CATALOG = Path("cuvis_ai/configs/plugins")
 CHANGELOG = Path("CHANGELOG.md")
 
 
@@ -125,7 +125,7 @@ def _released_node_set(owner_repo: str, name: str, tag: str) -> set[str] | None:
     candidates = [
         "examples/plugins.yaml",
         f"examples/{name}/plugins.yaml",
-        f"configs/plugins/{name}.yaml",
+        f"cuvis_ai/configs/plugins/{name}.yaml",
         "plugins.yaml",
     ]
     for path in candidates:

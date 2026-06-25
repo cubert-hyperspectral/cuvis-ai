@@ -1,6 +1,6 @@
 name: Plugin Pin Bump
 
-# Opens (or updates) a PR that bumps each configs/plugins/*.yaml tag pin to the plugin's
+# Opens (or updates) a PR that bumps each cuvis_ai/configs/plugins/*.yaml tag pin to the plugin's
 # latest GitHub release, so the catalog tracks plugin releases without manual edits. The bump is
 # tag-only; if a release changed its node set the PR is flagged for a manual capabilities regen.
 #
@@ -72,5 +72,5 @@ jobs:
           labels: ${{ steps.bump.outputs.drift == 'true' && 'needs-capabilities-review' || '' }}
           body-path: bump.log
           add-paths: |
-            configs/plugins/*.yaml
+            cuvis_ai/configs/plugins/*.yaml
             CHANGELOG.md

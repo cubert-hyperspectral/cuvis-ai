@@ -8,7 +8,7 @@ from pathlib import Path
 import yaml
 from hydra import compose, initialize_config_dir
 
-CONFIG_ROOT = Path(__file__).resolve().parents[1] / "configs"
+CONFIG_ROOT = Path(__file__).resolve().parents[1] / "cuvis_ai" / "configs"
 TRAINRUN_DIR = CONFIG_ROOT / "trainrun"
 REQUIRED_DIRECTIVES = ("/pipeline@", "/data@", "/training@")
 

@@ -9,7 +9,7 @@ name: drcnn_adaclip
 
 output_dir: ./outputs/${name}
 
-# Data splits come from configs/data/lentils.yaml (selector lists under `splits:`).
+# Data splits come from cuvis_ai/configs/data/lentils.yaml (selector lists under `splits:`).
 
 # Debug settings - save intermediate tensors for inspection
 debug:

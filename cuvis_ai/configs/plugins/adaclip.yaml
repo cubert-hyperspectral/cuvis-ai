@@ -2,7 +2,7 @@
 #
 # To use AdaCLIP, declare `plugins: [adaclip]` in the pipeline yaml and point
 # the loader at the catalog directory that holds this manifest:
-#   uv run restore-pipeline --pipeline-path <pipeline>.yaml --plugins-dir configs/plugins
+#   uv run restore-pipeline --pipeline-path <pipeline>.yaml --plugins-dir cuvis_ai/configs/plugins
 
 name: adaclip
 # AdaCLIP-based anomaly detection with advanced band selection

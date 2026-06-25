@@ -1,7 +1,7 @@
-"""Backfill ``plugins:`` into every pipeline YAML under ``configs/pipeline/``.
+"""Backfill ``plugins:`` into every pipeline YAML under ``cuvis_ai/configs/pipeline/``.
 
 One-off mechanical migration: walks every pipeline YAML, runs the
-auto-resolver against ``configs/plugins/``, and writes the resolved
+auto-resolver against ``cuvis_ai/configs/plugins/``, and writes the resolved
 plugin set back as a top-level ``plugins:`` list positioned directly
 after ``metadata:``.
 
@@ -71,7 +71,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--configs-root",
         type=Path,
-        default=Path("configs"),
+        default=Path("cuvis_ai/configs"),
         help="Directory containing 'pipeline/' and 'plugins/' subtrees (default: ./configs)",
     )
     parser.add_argument(

@@ -12,7 +12,7 @@ from cuvis_ai_core.utils.node_registry import NodeRegistry
 
 pytestmark = [pytest.mark.integration, pytest.mark.slow]
 
-ADACLIP_MANIFEST_PATH = Path("configs/plugins/adaclip.yaml")
+ADACLIP_MANIFEST_PATH = Path("cuvis_ai/configs/plugins/adaclip.yaml")
 PLUGIN_NAME = "adaclip"
 
 

@@ -16,7 +16,7 @@ pytestmark = pytest.mark.unit
 # guard against a plugin's exposed surface drifting out of sync with this manifest.
 SEMVER_TAG = re.compile(r"v\d+\.\d+\.\d+")
 
-AUGMENT_MANIFEST_PATH = Path("configs/plugins/augment.yaml")
+AUGMENT_MANIFEST_PATH = Path("cuvis_ai/configs/plugins/augment.yaml")
 PLUGIN_NAME = "augment"
 EXPECTED_REPO = "https://github.com/cubert-hyperspectral/cuvis-ai-augment.git"
 EXPECTED_PROVIDES = [

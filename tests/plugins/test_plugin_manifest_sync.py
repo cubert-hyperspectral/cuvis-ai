@@ -16,7 +16,7 @@ pytestmark = pytest.mark.unit
 # guard against a plugin's exposed surface drifting out of sync with this manifest.
 SEMVER_TAG = re.compile(r"v\d+\.\d+\.\d+")
 
-TRACKEVAL_MANIFEST_PATH = Path("configs/plugins/trackeval.yaml")
+TRACKEVAL_MANIFEST_PATH = Path("cuvis_ai/configs/plugins/trackeval.yaml")
 PLUGIN_NAME = "trackeval"
 EXPECTED_REPO = "https://github.com/cubert-hyperspectral/cuvis-ai-trackeval.git"
 EXPECTED_PROVIDES = [

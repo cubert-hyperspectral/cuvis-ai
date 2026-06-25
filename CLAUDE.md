@@ -17,7 +17,8 @@ plugin (local checkout only, not published or referenced from public docs);
 ## Layout
 
 - `cuvis_ai/node/` — the node library (one module per family; `anomaly/`, `deciders/` subdirs).
-- `configs/` — `pipeline/`, `plugins/`, `training/`, `trainrun/`, `data/` YAML manifests.
+- `cuvis_ai/configs/` — `pipeline/`, `plugins/`, `training/`, `trainrun/`, `data/` YAML manifests
+  (packaged with the library so `CONFIG_ROOT` resolves on a pip install, not just a source checkout).
 - `tests/` — pytest suite; `tools/` — helper scripts.
 - `scripts/` — top-level CLIs (stub generator, pipeline renderers). PEP 420 **namespace package**
   (no `__init__.py`) so it merges with `cuvis-ai-core`'s `scripts/`; register CLIs as `scripts.<mod>:main`.
@@ -38,11 +39,11 @@ plugin (local checkout only, not published or referenced from public docs);
 
 ## Plugins
 
-- Each external plugin has a bare manifest at `configs/plugins/<name>.yaml` (one file = one plugin):
+- Each external plugin has a bare manifest at `cuvis_ai/configs/plugins/<name>.yaml` (one file = one plugin):
   an explicit `name:` (never derived from the filename), a source (`path:` or `repo:` + `tag:`), and a
   `capabilities:` list of `class_name` entries (optional `category` / `tags` / `icon_svg` / port specs;
   a `kind: data_module` entry instead carries `data_module_name` + `extras`).
-  `configs/plugins/cuvis_ai_builtin.yaml` exposes this repo's own nodes the same way.
+  `cuvis_ai/configs/plugins/cuvis_ai_builtin.yaml` exposes this repo's own nodes the same way.
 - Pipelines reference plugins by **bare name only** — a top-level `plugins:` list (e.g.
   `- cuvis_ai_builtin`, `- sam3`). Each name resolves to a manifest in the plugins directory; there
   are no inline or catalog refs.
@@ -54,7 +55,7 @@ plugin (local checkout only, not published or referenced from public docs);
 
 - cuvis-ai pins **no** `cuvis` SDK. cu3s/cu3 I/O (and `tiff_paired`) live in the
   `cuvis-ai-dataloader` plugin (`[cu3s]` extra); its manifest ships at
-  `configs/plugins/cuvis_ai_dataloader.yaml`.
+  `cuvis_ai/configs/plugins/cuvis_ai_dataloader.yaml`.
 - `restore-pipeline` picks data with `--data-module <name>` + repeatable `--data-arg key=value`
   (no `--cu3s-file-path` / `--processing-mode`). It runs **in-process**, so the env must have the
   data plugin installed for a cu3s run; the gRPC orchestrator composes a child env per run instead.
@@ -82,7 +83,7 @@ plugin (local checkout only, not published or referenced from public docs);
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **cuvis-ai** (6490 symbols, 10215 relationships, 138 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **cuvis-ai** (6748 symbols, 10718 relationships, 142 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 

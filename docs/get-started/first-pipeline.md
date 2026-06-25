@@ -30,7 +30,7 @@ datasets live in the [datasets catalog](../catalogs/datasets/index.md).
 ## 2. Inspect the pipeline you're about to run
 
 The pre-authored NDVI blood-perfusion pipeline lives at
-`configs/pipeline/medical/blood_perfusion/ndvi.yaml`. It is a three-node
+`cuvis_ai/configs/pipeline/medical/blood_perfusion/ndvi.yaml`. It is a three-node
 graph that loads each cube, computes NDVI at 750 nm vs 566 nm, and writes
 the colormapped frames to an MP4:
 
@@ -39,7 +39,7 @@ the colormapped frames to an MP4:
 View the node graph and port wiring from the CLI:
 
 ```bash
-uv run restore-pipeline --pipeline-path configs/pipeline/medical/blood_perfusion/ndvi.yaml
+uv run restore-pipeline --pipeline-path cuvis_ai/configs/pipeline/medical/blood_perfusion/ndvi.yaml
 ```
 
 ## 3. Run inference
@@ -49,7 +49,7 @@ good first run:
 
 ```bash
 uv run restore-pipeline \
-  --pipeline-path configs/pipeline/medical/blood_perfusion/ndvi.yaml \
+  --pipeline-path cuvis_ai/configs/pipeline/medical/blood_perfusion/ndvi.yaml \
   --cu3s-file-path data/XMR_Demo_Blood_Perfusion/Auto_005.cu3s
 ```
 
