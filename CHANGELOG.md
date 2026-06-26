@@ -31,6 +31,13 @@
   count), `SignaturesToReferences` (per-object signatures `[1, N, C]` -> Spectral Angle Mapper
   references `[N, 1, 1, C]`), and `MajorityVoteByBlob` (collapse a noisy per-pixel label map to one
   majority label per blob). `SpectralSignatureExtractor` is now also exported from `cuvis_ai.node`.
+- **Added image-assembly nodes.** `ImageConcatenator` (variadic fan-in of RGB frames into one
+  side-by-side or stacked strip, padding to a common size with a background colour) and `PngWriter`
+  (a sink that writes RGB frames to PNG via `torchvision.io.write_png`), so a result image can be
+  composed and written entirely inside a pipeline.
+- **Clustering nodes can fit on a foreground mask.** `KMeansClusterer` and `GaussianMixtureClusterer`
+  take an optional `mask` input; when connected, the statistical fit uses only pixels where the mask
+  is non-zero while inference still labels every pixel. Other statistical-fit nodes are unaffected.
 - **Added `scipy` as a direct dependency floor** (`>=1.11`) for the Savitzky-Golay coefficient build.
 
 ## 0.10.1 - 2026-06-24

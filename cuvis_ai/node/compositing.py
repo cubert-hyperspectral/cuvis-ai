@@ -5,6 +5,9 @@
 
 - ``InsetComposer``: pastes a fixed-size inset frame into a corner of a larger
   base frame with optional border, for picture-in-picture video output.
+
+- ``ImageConcatenator``: stitches a variable number of RGB frames into one
+  side-by-side (or stacked) strip, for a single node-native result image.
 """
 
 from __future__ import annotations
@@ -262,3 +265,147 @@ class InsetComposer(Node):
             out[i, iy0:iy1, ix0:ix1] = inset[i].clamp(0.0, 1.0)
 
         return {"composite": out}
+
+
+_AXES = ("horizontal", "vertical")
+_ALIGNS = ("start", "center", "end")
+
+
+class ImageConcatenator(Node):
+    """Concatenate several RGB frames into one side-by-side or stacked strip.
+
+    A fan-in node: connect any number of ``rgb_image`` sources to the single
+    ``images`` port and they are concatenated in **connection order** (the
+    order the edges were added with ``pipeline.connect``). Frames may differ on
+    the cross axis (height for a horizontal strip, width for a vertical one);
+    each is padded to the common size with ``bg_color`` and aligned per
+    ``align``. An optional ``gap`` inserts a ``bg_color`` separator between
+    frames. The whole batch is concatenated together, so every source must
+    share the same batch size.
+
+    Parameters
+    ----------
+    axis : str
+        ``"horizontal"`` places frames left-to-right (pads heights);
+        ``"vertical"`` stacks them top-to-bottom (pads widths). Default
+        ``"horizontal"``.
+    gap : int
+        Width (horizontal) or height (vertical) in pixels of a ``bg_color``
+        separator inserted between adjacent frames. ``0`` disables it. Default
+        ``0``.
+    bg_color : tuple[float, float, float]
+        RGB in [0, 1] used for padding and gaps. Default white ``(1, 1, 1)``.
+    align : str
+        Cross-axis placement of a smaller frame: ``"start"`` (top / left),
+        ``"center"``, or ``"end"`` (bottom / right). Default ``"center"``.
+    """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.IMAGE, NodeTag.RGB})
+
+    INPUT_SPECS = {
+        "images": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 3),
+            description="RGB frames to concatenate, [B, H, W, 3] in [0, 1]; one per connection.",
+            variadic=True,
+        ),
+    }
+
+    OUTPUT_SPECS = {
+        "rgb_image": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 3),
+            description="Concatenated RGB strip [B, H', W', 3] in [0, 1].",
+        ),
+    }
+
+    def __init__(
+        self,
+        axis: str = "horizontal",
+        gap: int = 0,
+        bg_color: tuple[float, float, float] = (1.0, 1.0, 1.0),
+        align: str = "center",
+        **kwargs: Any,
+    ) -> None:
+        if axis not in _AXES:
+            raise ValueError(f"axis must be one of {_AXES}, got {axis!r}")
+        if gap < 0:
+            raise ValueError("gap must be >= 0")
+        if len(bg_color) != 3:
+            raise ValueError("bg_color must have 3 channels")
+        if align not in _ALIGNS:
+            raise ValueError(f"align must be one of {_ALIGNS}, got {align!r}")
+
+        self.axis = axis
+        self.gap = int(gap)
+        self.bg_color = tuple(float(c) for c in bg_color)
+        self.align = align
+
+        super().__init__(
+            axis=self.axis,
+            gap=self.gap,
+            bg_color=self.bg_color,
+            align=self.align,
+            **kwargs,
+        )
+
+    def _pad_cross(self, img: torch.Tensor, target: int, bg: torch.Tensor) -> torch.Tensor:
+        """Pad ``img`` along the cross axis to ``target`` with ``bg``, per ``align``."""
+        cross = 1 if self.axis == "horizontal" else 2
+        cur = img.shape[cross]
+        if cur == target:
+            return img
+        pad_total = target - cur
+        if self.align == "start":
+            before = 0
+        elif self.align == "center":
+            before = pad_total // 2
+        else:  # "end"
+            before = pad_total
+
+        shape = list(img.shape)
+        shape[cross] = target
+        canvas = bg.view(1, 1, 1, 3).expand(shape).clone()
+        if cross == 1:
+            canvas[:, before : before + cur, :, :] = img
+        else:
+            canvas[:, :, before : before + cur, :] = img
+        return canvas
+
+    @torch.no_grad()
+    def forward(self, images: list[torch.Tensor], **_: Any) -> dict[str, torch.Tensor]:
+        if not images:
+            raise ValueError("ImageConcatenator received no images")
+
+        ref = images[0]
+        batch = ref.shape[0]
+        for k, img in enumerate(images):
+            if img.ndim != 4 or img.shape[-1] != 3:
+                raise ValueError(f"images[{k}] must be [B, H, W, 3], got shape {tuple(img.shape)}")
+            if img.shape[0] != batch:
+                raise ValueError(
+                    f"images[{k}] has batch {img.shape[0]}, expected {batch} (all must match)"
+                )
+
+        bg = torch.tensor(self.bg_color, dtype=ref.dtype, device=ref.device)
+        horizontal = self.axis == "horizontal"
+        cross = 1 if horizontal else 2
+        cat_dim = 2 if horizontal else 1
+
+        target = max(img.shape[cross] for img in images)
+        padded = [self._pad_cross(img.to(ref.device), target, bg) for img in images]
+
+        gap_block: torch.Tensor | None = None
+        if self.gap > 0:
+            gap_shape = [batch, target, self.gap, 3] if horizontal else [batch, self.gap, target, 3]
+            gap_block = bg.view(1, 1, 1, 3).expand(gap_shape).clone()
+
+        pieces: list[torch.Tensor] = []
+        for i, img in enumerate(padded):
+            if i > 0 and gap_block is not None:
+                pieces.append(gap_block)
+            pieces.append(img)
+
+        out = torch.cat(pieces, dim=cat_dim).clamp(0.0, 1.0)
+        return {"rgb_image": out}

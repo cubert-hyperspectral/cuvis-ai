@@ -82,3 +82,23 @@ def test_kmeans_state_dict_roundtrip_identical() -> None:
 
     assert torch.equal(before["class_mask"], after["class_mask"])
     assert torch.equal(before["scores"], after["scores"])
+
+
+@torch.no_grad()
+def test_mask_restricts_fit_to_foreground_pixels() -> None:
+    pixels = _three_blob_pixels()  # 600 pixels
+    cube = _as_cube(pixels)  # [1, 600, 1, C]
+    n = pixels.shape[0]
+    mask = torch.zeros(1, n, 1, dtype=torch.int32)
+    mask[0, :150, 0] = 1  # only the first blob is foreground
+
+    node = KMeansClusterer(n_clusters=3, random_state=0)
+    # No mask -> all pixels; with a connected mask -> only the foreground rows.
+    assert node._collect_pixels([{"cube": cube}]).shape[0] == n
+    assert node._collect_pixels([{"cube": cube, "mask": mask}]).shape[0] == 150
+
+
+@torch.no_grad()
+def test_mask_is_declared_as_optional_input() -> None:
+    spec = KMeansClusterer.INPUT_SPECS["mask"]
+    assert spec.optional is True
