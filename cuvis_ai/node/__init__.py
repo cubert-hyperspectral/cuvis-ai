@@ -52,7 +52,7 @@ from cuvis_ai.node.channel_selector import (
 )
 from cuvis_ai.node.clustering import GaussianMixtureClusterer, KMeansClusterer
 from cuvis_ai.node.colormap import ScalarHSVColormapNode
-from cuvis_ai.node.compositing import InsetComposer, ROIZoomNode
+from cuvis_ai.node.compositing import ImageConcatenator, InsetComposer, ROIZoomNode
 from cuvis_ai.node.conversion import DecisionToMask
 from cuvis_ai.node.deciders import (
     BinaryDecider,
@@ -61,6 +61,7 @@ from cuvis_ai.node.deciders import (
     TwoStageBinaryDecider,
 )
 from cuvis_ai.node.dimensionality_reduction import PCA, TrainablePCA
+from cuvis_ai.node.image_file import PngWriter
 from cuvis_ai.node.json_file import (
     CocoTrackBBoxWriter,
     CocoTrackMaskWriter,
@@ -155,6 +156,7 @@ __all__ = [
     "HighContrastSelector",
     "IdentityNormalizer",
     "ImageArtifactVizBase",
+    "ImageConcatenator",
     "InsetComposer",
     "LearnableChannelMixer",
     "ROIZoomNode",
@@ -170,6 +172,7 @@ __all__ = [
     "NumpyFeatureWriterNode",
     "NpyReader",
     "OcclusionNodeBase",
+    "PngWriter",
     "PoissonCubeOcclusionNode",
     "PoissonOcclusionNode",
     "PCA",

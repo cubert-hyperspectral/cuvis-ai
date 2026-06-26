@@ -72,6 +72,21 @@ class GaussianMixtureClusterer(_StatisticalFitNode):
         {NodeTag.HYPERSPECTRAL, NodeTag.CLASSIFICATION, NodeTag.STATEFUL, NodeTag.TORCH}
     )
 
+    INPUT_SPECS = {
+        "cube": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, -1),
+            description="Input hyperspectral cube [B, H, W, C]",
+        ),
+        "mask": PortSpec(
+            dtype=torch.int32,
+            shape=(-1, -1, -1),
+            description="Optional foreground mask [B, H, W]; when connected the fit uses only "
+            "pixels where mask > 0 (inference still labels every pixel).",
+            optional=True,
+        ),
+    }
+
     OUTPUT_SPECS = {
         "class_mask": PortSpec(
             dtype=torch.int32,
