@@ -10,7 +10,7 @@ and renders a result (video, overlays, or spectral plots).
 | [`object_tracking_active.ipynb`](./object_tracking_active.ipynb) | SPAM invisible-ink tracking (spectral-angle, no model) | none (builtin nodes) | `XMR_Demo_Object_Tracking` (~25 GB) | recommended |
 | [`object_tracking_passive.ipynb`](./object_tracking_passive.ipynb) | SAM3 mask-propagation tracking | `cuvis-ai-sam3` | `XMR_Demo_Object_Tracking` | yes |
 | [`lentils_dinomaly.ipynb`](./lentils_dinomaly.ipynb) | Dinomaly anomaly detection (RGB / CIR / custom selector) | `cuvis-ai-dinomaly` | fetched per method from the demo model repo | yes |
-| [`node_catalog_pills.ipynb`](./node_catalog_pills.ipynb) | Broad node-catalog tour on a SWIR pill tray: BlobDetector, continuum / SNV / derivative pretreatments, per-compartment SpectralAngleMapper + MajorityVoteByBlob self-ID, K-Means / GMM clustering, wired as a `CuvisPipeline` | none (builtin nodes) | local SWIR pills (`data/Pills/`, not auto-downloaded) | optional |
+| [`node_catalog_pills.ipynb`](./node_catalog_pills.ipynb) | Broad node-catalog tour on a SWIR pill tray: BlobDetector, continuum / SNV / derivative pretreatments, per-compartment SpectralAngleMapper + MajorityVoteByBlob self-ID, K-Means / GMM clustering, each pipeline rendered inline, wired as a `CuvisPipeline` | none (builtin nodes) | SWIR pill tray (`data/Pills/`) | optional |
 
 They all read `.cu3s` sessions, so they all need the **`cuvis-ai-dataloader`
 plugin** (the cu3s reader + the cuvis SDK). It is **not** a dependency of
