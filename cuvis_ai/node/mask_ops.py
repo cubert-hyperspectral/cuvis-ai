@@ -1,6 +1,4 @@
-"""Mask cleanup and mask-to-bbox tracking nodes.
-
-Provides two nodes used by the SPAM invisible-ink pipeline:
+"""Mask cleanup, mask-to-bbox tracking, and per-blob label-voting nodes.
 
 - ``MaskRobustifier``: morphological open/close + largest-component filter to
   suppress false-positive speckle in per-frame binary masks.
@@ -9,6 +7,10 @@ Provides two nodes used by the SPAM invisible-ink pipeline:
   predict it across frames with a constant-velocity Kalman filter
   (``cv2.KalmanFilter``), so brief empty-mask frames do not make downstream
   zoom insets jitter or disappear.
+
+- ``MajorityVoteByBlob``: collapse a noisy per-pixel label map to one label per
+  detected blob via majority vote, turning soft per-pixel classifications into a
+  clean one-label-per-object map.
 """
 
 from __future__ import annotations
@@ -425,3 +427,76 @@ class MaskToBBoxKalman(Node):
             "bbox": torch.from_numpy(bboxes).to(device=device, dtype=torch.float32),
             "valid": torch.from_numpy(valids).to(device=device, dtype=torch.int32),
         }
+
+
+class MajorityVoteByBlob(Node):
+    """Assign each blob the majority per-pixel label found inside it.
+
+    Per-pixel classifiers (e.g. a Spectral Angle Mapper) produce noisy labels
+    when reference spectra are close together. Voting within each detected blob
+    denoises that into a single robust label per object: for every blob id in
+    ``blob_mask`` (1..N), the most frequent nonzero ``identity_mask`` value over
+    that blob's pixels becomes the blob's label; blobs with no labelled pixels
+    stay ``0``, as does the background.
+    """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.MASK, NodeTag.SEGMENTATION, NodeTag.CLASSIFICATION})
+
+    INPUT_SPECS = {
+        "identity_mask": PortSpec(
+            dtype=torch.int32,
+            shape=(1, -1, -1),
+            description="Per-pixel labels [1, H, W]; 0 = unassigned.",
+        ),
+        "blob_mask": PortSpec(
+            dtype=torch.int32,
+            shape=(1, -1, -1),
+            description="Blob label map [1, H, W]; ids 1..N, 0 = background.",
+        ),
+    }
+
+    OUTPUT_SPECS = {
+        "mask": PortSpec(
+            dtype=torch.int32,
+            shape=(-1, -1, -1),
+            description="Per-blob majority-label map [1, H, W]; 0 = background.",
+        ),
+    }
+
+    @torch.no_grad()
+    def forward(
+        self, identity_mask: torch.Tensor, blob_mask: torch.Tensor, **_: Any
+    ) -> dict[str, torch.Tensor]:
+        """Paint each blob with the majority label of its pixels.
+
+        Parameters
+        ----------
+        identity_mask : torch.Tensor
+            Per-pixel labels ``[1, H, W]`` (int32); ``0`` is unassigned.
+        blob_mask : torch.Tensor
+            Blob label map ``[1, H, W]`` (int32); ids ``1..N``, ``0`` background.
+        **_ : Any
+            Additional unused keyword arguments (e.g. the pipeline ``context``).
+
+        Returns
+        -------
+        dict[str, torch.Tensor]
+            ``mask`` int32 ``[1, H, W]`` with each blob painted its majority
+            label and background left at ``0``.
+        """
+        ident = identity_mask[0].to(torch.int64)
+        blobs = blob_mask[0].to(torch.int64)
+        out = torch.zeros_like(blobs, dtype=torch.int32)
+
+        for blob_id in torch.unique(blobs).tolist():
+            if blob_id == 0:
+                continue
+            region = blobs == blob_id
+            votes = ident[region]
+            votes = votes[votes > 0]
+            if votes.numel() == 0:
+                continue
+            majority = int(torch.bincount(votes).argmax())
+            out[region] = majority
+        return {"mask": out.unsqueeze(0)}

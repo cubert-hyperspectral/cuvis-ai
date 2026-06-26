@@ -3187,3 +3187,79 @@ capabilities:
       optional: false
       description: Foreground mask [B, H, W]; 1 = intensity in [low, high], else 0
   doc_summary: Segment foreground by thresholding a per-pixel reduced intensity.
+- class_name: cuvis_ai.node.blob_detector.BlobDetector
+  category: transform
+  tags: [hyperspectral, mask, segmentation]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    cube:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Hyperspectral cube [B, H, W, C].
+    wavelengths:
+      dtype: int32
+      shape: [-1]
+      optional: true
+      description: Wavelengths [C] in nanometers (used by brightness='index').
+  output_specs:
+    mask:
+      dtype: int32
+      shape: [-1, -1, -1]
+      optional: false
+      description: Dense blob label map [B, H, W]; ids 1..N, 0 = background.
+    bboxes:
+      dtype: float32
+      shape: [-1, -1, 4]
+      optional: false
+      description: Per-blob bounding boxes [B, N, 4] in xyxy pixel coords.
+    centroids:
+      dtype: float32
+      shape: [-1, -1, 2]
+      optional: false
+      description: Per-blob centroids [B, N, 2] as (x, y).
+    count:
+      dtype: int32
+      shape: [-1]
+      optional: false
+      description: Number of blobs per frame [B].
+  doc_summary: Localize bright blobs (e.g. pills, granules, tray compartments) in a cube.
+- class_name: cuvis_ai.node.mask_ops.MajorityVoteByBlob
+  category: transform
+  tags: [classification, mask, segmentation]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    identity_mask:
+      dtype: int32
+      shape: [1, -1, -1]
+      optional: false
+      description: Per-pixel labels [1, H, W]; 0 = unassigned.
+    blob_mask:
+      dtype: int32
+      shape: [1, -1, -1]
+      optional: false
+      description: Blob label map [1, H, W]; ids 1..N, 0 = background.
+  output_specs:
+    mask:
+      dtype: int32
+      shape: [-1, -1, -1]
+      optional: false
+      description: Per-blob majority-label map [1, H, W]; 0 = background.
+  doc_summary: Assign each blob the majority per-pixel label found inside it.
+- class_name: cuvis_ai.node.spectral_extractor.SignaturesToReferences
+  category: transform
+  tags: [classification, hyperspectral]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    signatures:
+      dtype: float32
+      shape: [1, -1, -1]
+      optional: false
+      description: Per-object spectral signatures [1, N, C].
+  output_specs:
+    spectral_signature:
+      dtype: float32
+      shape: [-1, 1, 1, -1]
+      optional: false
+      description: Reference spectra [N, 1, 1, C] for SpectralAngleMapper.
+  doc_summary: Treat each object's signature as its own Spectral Angle Mapper reference.

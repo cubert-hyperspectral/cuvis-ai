@@ -25,6 +25,12 @@
 - **Added saturated-pixel, multi-range slicer, and intensity-threshold nodes.**
   `SaturatedPixelDetector` (`scores` + `decisions`), `MultiRangeSlicer` (`torch.bucketize` into a
   `class_mask`), and `IntensityThresholdSegmenter` (`cube` -> binary `mask`).
+- **Added object-level inspection nodes.** `BlobDetector` (brightness reduction + Otsu/quantile/fixed
+  threshold + morphological clean + the shared OpenCV connected-components helper, with an area
+  filter and `keep_largest` count-pinning, emitting a blob label map plus bboxes / centroids /
+  count), `SignaturesToReferences` (per-object signatures `[1, N, C]` -> Spectral Angle Mapper
+  references `[N, 1, 1, C]`), and `MajorityVoteByBlob` (collapse a noisy per-pixel label map to one
+  majority label per blob). `SpectralSignatureExtractor` is now also exported from `cuvis_ai.node`.
 - **Added `scipy` as a direct dependency floor** (`>=1.11`) for the Savitzky-Golay coefficient build.
 
 ## 0.10.1 - 2026-06-24
