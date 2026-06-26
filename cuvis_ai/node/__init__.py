@@ -19,6 +19,7 @@ from cuvis_ai.node.anomaly_visualization import (
     TrackingOverlayNode,
     TrackingPointerOverlayNode,
 )
+from cuvis_ai.node.blob_detector import BlobDetector
 from cuvis_ai.node.channel_mixer import ConcreteChannelMixer, LearnableChannelMixer
 from cuvis_ai.node.channel_selector import (
     CameraEmulationFalseRGBSelector,
@@ -69,7 +70,7 @@ from cuvis_ai.node.json_file import (
 )
 from cuvis_ai.node.labels import BinaryAnomalyLabelMapper
 from cuvis_ai.node.losses import DistinctnessLoss, ForegroundContrastLoss
-from cuvis_ai.node.mask_ops import MaskRobustifier, MaskToBBoxKalman
+from cuvis_ai.node.mask_ops import MajorityVoteByBlob, MaskRobustifier, MaskToBBoxKalman
 from cuvis_ai.node.morphology import ShapeMorphology
 from cuvis_ai.node.normalization import (
     DisplayNormalizer,
@@ -109,7 +110,12 @@ from cuvis_ai.node.pretreatments import (
 from cuvis_ai.node.prompts import BBoxPrompt, MaskPrompt, TextPrompt
 from cuvis_ai.node.segmentation import IntensityThresholdSegmenter
 from cuvis_ai.node.spectral_angle_mapper import SpectralAngleMapper
-from cuvis_ai.node.spectral_extractor import BBoxSpectralExtractor, MaskedMeanSpectrum
+from cuvis_ai.node.spectral_extractor import (
+    BBoxSpectralExtractor,
+    MaskedMeanSpectrum,
+    SignaturesToReferences,
+    SpectralSignatureExtractor,
+)
 from cuvis_ai.node.spectrum_plot import SpectrumPlotNode
 from cuvis_ai.node.svm import OneClassSVMDetector
 from cuvis_ai.node.unmixing import NMFUnmixing, NNLSUnmixing
@@ -231,4 +237,8 @@ __all__ = [
     "SaturatedPixelDetector",
     "MultiRangeSlicer",
     "IntensityThresholdSegmenter",
+    "BlobDetector",
+    "MajorityVoteByBlob",
+    "SignaturesToReferences",
+    "SpectralSignatureExtractor",
 ]
