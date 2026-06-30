@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import string
+
 import pytest
 import torch
 
 from cuvis_ai.utils.torch_draw import (
+    _glyph,
     draw_box,
     draw_downward_triangle,
     draw_sparkline,
@@ -57,6 +60,36 @@ def test_draw_text_out_of_bounds() -> None:
     img = torch.zeros((10, 12, 3), dtype=torch.uint8)
     draw_text(img, 10, 8, "99", (255, 255, 255), scale=2, bg=True)
     assert img.shape == (10, 12, 3)
+
+
+def test_font_letters_nonempty_and_distinct() -> None:
+    """Every A-Z + % glyph renders a 7x5 non-empty bitmap, and no two are identical.
+
+    Pairwise-distinctness catches copy-paste typos when authoring the font table.
+    """
+    dev = torch.device("cpu")
+    glyphs = {c: _glyph(c, dev) for c in string.ascii_uppercase + "%"}
+    for char, glyph in glyphs.items():
+        assert tuple(glyph.shape) == (7, 5), f"{char} wrong glyph size {tuple(glyph.shape)}"
+        assert int(glyph.sum()) > 0, f"{char} rendered empty"
+    flats = {c: tuple(g.flatten().tolist()) for c, g in glyphs.items()}
+    assert len(set(flats.values())) == len(flats), "duplicate glyph bitmaps in the font table"
+
+
+def test_lowercase_folds_to_uppercase() -> None:
+    dev = torch.device("cpu")
+    assert torch.equal(_glyph("metal", dev), _glyph("METAL", dev))
+
+
+def test_draw_text_word_region_not_blank_regression() -> None:
+    """Regression (D1): lowercase letters used to render as blanks (only digits showed).
+
+    The font extension + uppercase fold means a word like 'frame' now lights pixels. This pins
+    that change for callers such as draw_text(..., f'frame {fid}') in video / anomaly overlays.
+    """
+    img = torch.zeros((24, 200, 3), dtype=torch.uint8)
+    draw_text(img, 8, 8, "frame", (255, 255, 255), scale=2, bg=False)
+    assert torch.any(img > 0), "word 'frame' rendered blank (font regression)"
 
 
 def test_draw_downward_triangle_modifies_pixels() -> None:

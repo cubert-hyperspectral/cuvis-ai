@@ -50,6 +50,7 @@ REQUIRED_ARG_DEFAULTS: dict[str, object] = {
     "output_dir": "test_output_dir",
     "wavelengths": [500.0, 600.0, 700.0, 800.0, 900.0],
     "reference_wavelengths": [500.0, 600.0, 700.0, 800.0, 900.0],
+    "entries": [("1", (255, 0, 0))],
 }
 
 SUPERVISED_SELECTOR_CLASSES = {

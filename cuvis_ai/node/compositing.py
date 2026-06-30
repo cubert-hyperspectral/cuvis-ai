@@ -8,17 +8,26 @@
 
 - ``ImageConcatenator``: stitches a variable number of RGB frames into one
   side-by-side (or stacked) strip, for a single node-native result image.
+
+- ``LabelOverlay``: alpha-blends a colourised label map onto an RGB frame.
+
+- ``TitleOverlay``: burns a text caption into the top-left of an RGB frame.
+
+- ``LegendStrip``: appends a class-colour legend strip below an RGB frame.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.pipeline import PortSpec
+from PIL import Image, ImageDraw, ImageFont
 
+from cuvis_ai.utils.connected_components import label_connected_components
 from cuvis_ai_core.node import Node
 
 
@@ -409,3 +418,328 @@ class ImageConcatenator(Node):
 
         out = torch.cat(pieces, dim=cat_dim).clamp(0.0, 1.0)
         return {"rgb_image": out}
+
+
+# TEMP: lifted verbatim from the cuvis_ai_metalscrapes experiment plugin
+# (node/compositor.py). Remove once those viz nodes ship in the catalog/plugin.
+class LabelOverlay(Node):
+    """Alpha-blend a colourised label map onto an RGB image on its foreground pixels.
+
+    A pixel is "foreground" when its ``label_rgb`` differs from ``background_color``;
+    background pixels keep the original RGB. Returns a single blended frame, so several
+    overlays can be montaged column-by-column.
+
+    Parameters
+    ----------
+    alpha : float
+        Blend factor for the label colour over the base image (default 0.55).
+    background_color : tuple[float, float, float]
+        Label-map background colour in [0, 1]; pixels equal to it are left unblended.
+    """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.IMAGE, NodeTag.RGB})
+
+    INPUT_SPECS = {
+        "rgb_image": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 3),
+            description="Base RGB image [B, H, W, 3] in [0, 1].",
+        ),
+        "label_rgb": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 3),
+            description="Colourised label map [B, H, W, 3] in [0, 1].",
+        ),
+    }
+    OUTPUT_SPECS = {
+        "frame": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 3),
+            description="Blended RGB image [B, H, W, 3] in [0, 1].",
+        ),
+    }
+
+    def __init__(
+        self,
+        alpha: float = 0.55,
+        background_color: tuple[float, float, float] = (0.0, 0.0, 0.0),
+        **kwargs: Any,
+    ) -> None:
+        if not 0.0 <= alpha <= 1.0:
+            raise ValueError(f"alpha must be in [0, 1]; got {alpha}")
+        if len(background_color) != 3:
+            raise ValueError("background_color must have 3 channels")
+        self.alpha = float(alpha)
+        self.background_color = tuple(float(c) for c in background_color)
+        super().__init__(alpha=self.alpha, background_color=self.background_color, **kwargs)
+
+    @torch.no_grad()
+    def forward(
+        self, rgb_image: torch.Tensor, label_rgb: torch.Tensor, **_: Any
+    ) -> dict[str, torch.Tensor]:
+        """Blend ``label_rgb`` onto ``rgb_image`` where the label is non-background."""
+        if not torch.is_floating_point(label_rgb):
+            label_rgb = label_rgb.to(torch.float32) / 255.0
+        label_rgb = label_rgb.to(device=rgb_image.device, dtype=rgb_image.dtype)
+        if rgb_image.shape != label_rgb.shape:
+            raise ValueError(
+                f"rgb_image {tuple(rgb_image.shape)} != label_rgb {tuple(label_rgb.shape)}"
+            )
+        bg = torch.tensor(self.background_color, device=rgb_image.device, dtype=rgb_image.dtype)
+        fg_mask = (label_rgb - bg).abs().sum(dim=-1, keepdim=True) > 1e-6
+        blend_weight = self.alpha * fg_mask.to(rgb_image.dtype)
+        frame = (1.0 - blend_weight) * rgb_image + blend_weight * label_rgb
+        return {"frame": frame.clamp(0.0, 1.0)}
+
+
+# TEMP: lifted verbatim from the cuvis_ai_metalscrapes experiment plugin
+# (node/compositor.py). Remove once those viz nodes ship in the catalog/plugin.
+class TitleOverlay(Node):
+    """Burn a text caption into the top-left of each RGB frame, over a translucent box.
+
+    The caption is set per instance via the constructor ``text`` argument, so one
+    ``TitleOverlay`` per panel captions a montage column without any hand-rolled
+    ``forward`` call. Drawn with PIL over a semi-transparent box so it stays legible
+    on any background.
+
+    Parameters
+    ----------
+    text : str
+        Caption rendered into every frame.
+    font_size : int
+        Caption font size in points (default 20).
+    pad_px : int
+        Inset of the caption box from the top-left corner (default 8).
+    text_color, box_color : tuple[int, int, int]
+        Text and box RGB colours in 0-255.
+    box_alpha : float
+        Opacity of the box behind the text (default 0.5).
+    """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.IMAGE, NodeTag.RGB})
+
+    INPUT_SPECS = {
+        "frame": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 3),
+            description="RGB frame [B, H, W, 3] in [0, 1].",
+        ),
+    }
+    OUTPUT_SPECS = {
+        "frame": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 3),
+            description="RGB frame with the caption drawn in, [B, H, W, 3] in [0, 1].",
+        ),
+    }
+
+    def __init__(
+        self,
+        text: str = "",
+        font_size: int = 20,
+        pad_px: int = 8,
+        text_color: tuple[int, int, int] = (255, 255, 255),
+        box_color: tuple[int, int, int] = (0, 0, 0),
+        box_alpha: float = 0.5,
+        **kwargs: Any,
+    ) -> None:
+        if not 0.0 <= box_alpha <= 1.0:
+            raise ValueError(f"box_alpha must be in [0, 1]; got {box_alpha}")
+        self.text = str(text)
+        self.pad_px = int(pad_px)
+        self.text_color = tuple(int(c) for c in text_color)
+        self.box_color = tuple(int(c) for c in box_color)
+        self.box_alpha = float(box_alpha)
+        super().__init__(
+            text=self.text,
+            font_size=int(font_size),
+            pad_px=self.pad_px,
+            text_color=list(self.text_color),
+            box_color=list(self.box_color),
+            box_alpha=self.box_alpha,
+            **kwargs,
+        )
+        try:
+            self._font = ImageFont.truetype("arial.ttf", int(font_size))
+        except OSError:
+            self._font = ImageFont.load_default()
+
+    def _draw(self, frame_hw3: np.ndarray, text: str) -> np.ndarray:
+        """Draw ``text`` over a translucent box on one [H, W, 3] uint8 frame."""
+        img = Image.fromarray(frame_hw3).convert("RGBA")
+        layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        draw = ImageDraw.Draw(layer)
+        x0, y0 = self.pad_px, self.pad_px
+        left, top, right, bottom = draw.textbbox((x0, y0), text, font=self._font)
+        draw.rectangle(
+            [left - 5, top - 3, right + 5, bottom + 3],
+            fill=(*self.box_color, int(255 * self.box_alpha)),
+        )
+        draw.text((x0, y0), text, fill=(*self.text_color, 255), font=self._font)
+        merged = Image.alpha_composite(img, layer).convert("RGB")
+        return np.asarray(merged, dtype=np.float32) / 255.0
+
+    @torch.no_grad()
+    def forward(
+        self, frame: torch.Tensor, text: str | None = None, **_: Any
+    ) -> dict[str, torch.Tensor]:
+        """Caption every frame in the batch with ``text`` (or the constructor default)."""
+        label = self.text if text is None else str(text)
+        if not label.strip():
+            # An empty caption is a no-op: draw no box and pass the frame through.
+            return {"frame": frame.clamp(0.0, 1.0)}
+        out = torch.empty_like(frame)
+        for i in range(frame.shape[0]):
+            arr = (frame[i].clamp(0.0, 1.0) * 255).round().to(torch.uint8).cpu().numpy()
+            out[i] = torch.from_numpy(self._draw(arr, label)).to(frame.device, frame.dtype)
+        return {"frame": out}
+
+
+class LegendStrip(Node):
+    """Append a horizontal class-colour legend strip below the input frame.
+
+    Each ``(label, rgb)`` entry renders as a swatch plus its text label, wrapped over
+    ``n_columns``. When the optional ``label_rgb`` mask is connected, the legend appends
+    a connected-component instance count ``(N)`` per class for the current frame and dims
+    rows whose count is zero. Generalised from the experiment-plugin version to take an
+    explicit ``entries`` list instead of a Cubert ``LabelMap.txt`` file.
+
+    Parameters
+    ----------
+    entries : list[tuple[str, tuple[int, int, int]]]
+        Ordered ``(label, (r, g, b))`` legend rows; colours in 0-255.
+    n_columns : int
+        Number of legend columns before wrapping to a new row (default 6).
+    tile_height_px, swatch_width_px, text_padding_px, font_size : int
+        Legend layout dimensions in pixels.
+    background_color : tuple[float, float, float]
+        Strip background colour in [0, 1].
+    text_color, dim_text_color : tuple[int, int, int]
+        Text colour for present / zero-count rows, in 0-255.
+    """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.IMAGE, NodeTag.RGB})
+
+    INPUT_SPECS = {
+        "frame": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 3),
+            description="Input frame [B, H, W, 3] in [0, 1].",
+        ),
+        "label_rgb": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 3),
+            description="Optional colourised label map [B, H, W, 3] in [0, 1] for instance counts.",
+            optional=True,
+        ),
+    }
+    OUTPUT_SPECS = {
+        "frame": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 3),
+            description="Frame with the legend strip appended [B, H + legend_h, W, 3] in [0, 1].",
+        ),
+    }
+
+    def __init__(
+        self,
+        entries: list[tuple[str, tuple[int, int, int]]],
+        n_columns: int = 6,
+        tile_height_px: int = 22,
+        swatch_width_px: int = 28,
+        text_padding_px: int = 6,
+        background_color: tuple[float, float, float] = (0.08, 0.08, 0.08),
+        text_color: tuple[int, int, int] = (240, 240, 240),
+        dim_text_color: tuple[int, int, int] = (110, 110, 110),
+        font_size: int = 12,
+        **kwargs: Any,
+    ) -> None:
+        if not entries:
+            raise ValueError("entries must be a non-empty list of (label, (r, g, b))")
+        self._entries = [(str(name), tuple(int(c) for c in rgb)) for name, rgb in entries]
+        self.n_columns = int(n_columns)
+        self.tile_height_px = int(tile_height_px)
+        self.swatch_width_px = int(swatch_width_px)
+        self.text_padding_px = int(text_padding_px)
+        self.background_color = tuple(float(c) for c in background_color)
+        self.text_color = tuple(int(c) for c in text_color)
+        self.dim_text_color = tuple(int(c) for c in dim_text_color)
+        self.font_size = int(font_size)
+        super().__init__(
+            entries=[[name, list(rgb)] for name, rgb in self._entries],
+            n_columns=self.n_columns,
+            tile_height_px=self.tile_height_px,
+            swatch_width_px=self.swatch_width_px,
+            text_padding_px=self.text_padding_px,
+            background_color=list(self.background_color),
+            text_color=list(self.text_color),
+            dim_text_color=list(self.dim_text_color),
+            font_size=self.font_size,
+            **kwargs,
+        )
+        try:
+            self._font = ImageFont.truetype("arial.ttf", self.font_size)
+        except OSError:
+            self._font = ImageFont.load_default()
+        n_rows = (len(self._entries) + self.n_columns - 1) // self.n_columns
+        self._legend_h = n_rows * self.tile_height_px + 2 * self.text_padding_px
+
+    @staticmethod
+    def _count_instances(label_rgb_u8: np.ndarray, color: tuple[int, int, int]) -> int:
+        """Connected-component count for one class colour on an [H, W, 3] uint8 image."""
+        r, g, b = color
+        mask = (
+            (label_rgb_u8[..., 0] == r) & (label_rgb_u8[..., 1] == g) & (label_rgb_u8[..., 2] == b)
+        )
+        if not mask.any():
+            return 0
+        labels = label_connected_components(torch.from_numpy(mask), connectivity=8)
+        return int(labels.max().item())
+
+    def _render_strip(self, width: int, counts: list[int] | None) -> torch.Tensor:
+        """Render the legend strip [legend_h, width, 3] in [0, 1] for the given per-class counts."""
+        bg = tuple(int(c * 255) for c in self.background_color)
+        img = Image.new("RGB", (width, self._legend_h), bg)
+        draw = ImageDraw.Draw(img)
+        col_w = width // self.n_columns
+        for i, (name, rgb) in enumerate(self._entries):
+            row = i // self.n_columns
+            col = i % self.n_columns
+            x0 = col * col_w + self.text_padding_px
+            y0 = self.text_padding_px + row * self.tile_height_px
+            swatch_x1 = x0 + self.swatch_width_px
+            swatch_y1 = y0 + self.tile_height_px - 4
+            n = counts[i] if counts is not None else None
+            present = n is None or n > 0
+            swatch_fill = rgb if present else tuple(c // 3 for c in rgb)
+            draw.rectangle(
+                [x0, y0, swatch_x1, swatch_y1], fill=swatch_fill, outline=(255, 255, 255)
+            )
+            label_text = f"{name} ({n})" if n is not None else name
+            text_color = self.text_color if present else self.dim_text_color
+            text_x = swatch_x1 + self.text_padding_px
+            text_y = y0 + max(0, (self.tile_height_px - self.font_size) // 2 - 2)
+            draw.text((text_x, text_y), label_text, fill=text_color, font=self._font)
+        arr = np.asarray(img, dtype=np.float32) / 255.0
+        return torch.from_numpy(arr)
+
+    @torch.no_grad()
+    def forward(
+        self, frame: torch.Tensor, label_rgb: torch.Tensor | None = None, **_: Any
+    ) -> dict[str, torch.Tensor]:
+        """Append the legend strip below ``frame``; optionally count instances per class."""
+        b, _, w, _ = frame.shape
+        counts: list[int] | None = None
+        if label_rgb is not None:
+            lab = label_rgb[0].detach().cpu()
+            if torch.is_floating_point(lab):
+                arr_u8 = (lab.clamp(0.0, 1.0) * 255.0).round().to(torch.uint8).numpy()
+            else:
+                arr_u8 = lab.to(torch.uint8).numpy()
+            counts = [self._count_instances(arr_u8, color) for _, color in self._entries]
+        strip = self._render_strip(w, counts).to(device=frame.device, dtype=frame.dtype)
+        strip = strip.unsqueeze(0).expand(b, -1, -1, -1)
+        return {"frame": torch.cat([frame, strip], dim=1).clamp(0.0, 1.0)}

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import subprocess  # nosec B404
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -123,6 +124,13 @@ class ToVideoNode(Node):
             if overlay_title is None or not str(overlay_title).strip()
             else str(overlay_title).strip()
         )
+        if self.overlay_title:
+            warnings.warn(
+                "ToVideoNode renders overlay_title with cv2; it will move to the shared torch "
+                "text renderer (cuvis_ai.utils.torch_draw.draw_text) in v1.0.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
         self._proc: subprocess.Popen[bytes] | None = None
         self._frame_size: tuple[int, int] | None = None
 
