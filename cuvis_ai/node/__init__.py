@@ -101,6 +101,7 @@ from cuvis_ai.node.occlusion import (
     PoissonOcclusionNode,
     SolidOcclusionNode,
 )
+from cuvis_ai.node.patch_inference import ClassMapAccumulator, PatchSampler
 from cuvis_ai.node.pipeline_visualization import (
     CubeRGBVisualizer,
     PCAVisualization,
@@ -266,4 +267,6 @@ __all__ = [
     "MajorityVoteByBlob",
     "SignaturesToReferences",
     "SpectralSignatureExtractor",
+    "PatchSampler",
+    "ClassMapAccumulator",
 ]

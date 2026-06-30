@@ -44,6 +44,45 @@ def test_empty_text_leaves_frame_effectively_unchanged():
     assert torch.allclose(out, frame, atol=1e-6)
 
 
+def test_per_frame_caption_port_draws_distinct_captions():
+    """A per-frame caption list captions each frame independently, overriding the default."""
+    frame = _frame()
+    out = TitleOverlay(text="default").forward(frame=frame, caption=["first", "second column"])[
+        "frame"
+    ]
+
+    assert out.shape == frame.shape
+    # Each frame got a (different-length) caption, so neither matches the bare frame...
+    assert not torch.allclose(out[0], frame[0])
+    assert not torch.allclose(out[1], frame[1])
+    # ...and the two distinct captions render differently from each other.
+    assert not torch.allclose(out[0], out[1])
+
+
+def test_caption_port_takes_priority_over_text_arg():
+    """The caption port wins over both the text= arg and the constructor default."""
+    frame = _frame()
+    node = TitleOverlay(text="ctor")
+    from_port = node.forward(frame=frame, caption=["A", "B"], text="ignored")["frame"]
+    from_text = node.forward(frame=frame, text="ignored")["frame"]
+    assert not torch.allclose(from_port, from_text)
+
+
+def test_per_frame_empty_caption_is_passthrough_for_that_frame():
+    """An empty per-frame caption leaves only that frame unchanged."""
+    frame = _frame()
+    out = TitleOverlay().forward(frame=frame, caption=["", "labelled"])["frame"]
+    assert torch.allclose(out[0], frame[0], atol=1e-6)
+    assert not torch.allclose(out[1], frame[1])
+
+
+def test_caption_length_mismatch_raises():
+    """A caption list whose length != batch size is a wiring error, not a silent crop."""
+    frame = _frame()  # batch of 2
+    with pytest.raises(ValueError, match="caption has 1 entries but the batch has 2"):
+        TitleOverlay().forward(frame=frame, caption=["only one"])
+
+
 def test_invalid_box_alpha_rejected():
     with pytest.raises(ValueError, match="box_alpha"):
         TitleOverlay(box_alpha=1.5)

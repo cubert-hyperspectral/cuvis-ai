@@ -139,9 +139,8 @@ class ClassMapToRGB(Node):
     """Colourise an integer class-index map ``[B, H, W]`` into an RGB image ``[B, H, W, 3]``.
 
     Each class id indexes a palette colour; pixels equal to ``background_value`` (and, when a
-    ``mask`` is connected, pixels where ``mask == 0``) render black. Generalised from the
-    experiment-plugin version to take an explicit ``palette`` instead of a Cubert ``LabelMap.txt``
-    file, so it works on arbitrary integer id-maps (compartment ids, cluster ids, class indices).
+    ``mask`` is connected, pixels where ``mask == 0``) render black. The explicit ``palette``
+    lets it colourise arbitrary integer id-maps (compartment ids, cluster ids, class indices).
 
     Parameters
     ----------
