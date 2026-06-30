@@ -687,3 +687,47 @@ class NearestLabelFill(Node):
         still = target & (out == bg)
         out[still] = source[still]
         return {"class_map": out}
+
+
+class LabelOffset(Node):
+    """Add a constant offset to every label in an integer label map.
+
+    Mainly used to lift a 0-based dense label map (e.g. a ``KMeansClusterer`` /
+    ``GaussianMixtureClusterer`` ``class_mask``, where cluster ids run ``0..k-1``)
+    to 1-based ids before :class:`MajorityVoteByBlob`, which treats ``0`` as
+    background in both its vote and its output. Without the shift a cluster-``0``
+    region would be dropped as background and collide with the unassigned label.
+
+    Parameters
+    ----------
+    offset : int
+        Value added to every label. Default ``1``.
+    """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.MASK, NodeTag.SEGMENTATION, NodeTag.CLASSIFICATION})
+
+    INPUT_SPECS = {
+        "class_map": PortSpec(
+            dtype=torch.int32,
+            shape=(-1, -1, -1),
+            description="Integer label map [B, H, W].",
+        ),
+    }
+
+    OUTPUT_SPECS = {
+        "class_map": PortSpec(
+            dtype=torch.int32,
+            shape=(-1, -1, -1),
+            description="Label map [B, H, W] with `offset` added to every label.",
+        ),
+    }
+
+    def __init__(self, offset: int = 1, **kwargs: Any) -> None:
+        self.offset = int(offset)
+        super().__init__(offset=self.offset, **kwargs)
+
+    @torch.no_grad()
+    def forward(self, class_map: torch.Tensor, **_: Any) -> dict[str, torch.Tensor]:
+        """Return the label map with `offset` added to every element."""
+        return {"class_map": (class_map.to(torch.int32) + self.offset).to(torch.int32)}
