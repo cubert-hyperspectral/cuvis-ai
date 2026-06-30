@@ -3432,6 +3432,23 @@ capabilities:
       optional: false
       description: Per-blob majority-label map [1, H, W]; 0 = background.
   doc_summary: Assign each blob the majority per-pixel label found inside it.
+- class_name: cuvis_ai.node.mask_ops.LabelOffset
+  category: transform
+  tags: [classification, mask, segmentation]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    class_map:
+      dtype: int32
+      shape: [-1, -1, -1]
+      optional: false
+      description: Integer label map [B, H, W].
+  output_specs:
+    class_map:
+      dtype: int32
+      shape: [-1, -1, -1]
+      optional: false
+      description: Label map [B, H, W] with `offset` added to every label.
+  doc_summary: Add a constant offset to every label (e.g. 0-based clusters -> 1-based).
 - class_name: cuvis_ai.node.spectral_extractor.SignaturesToReferences
   category: transform
   tags: [classification, hyperspectral]

@@ -80,6 +80,7 @@ from cuvis_ai.node.labels import BinaryAnomalyLabelMapper
 from cuvis_ai.node.losses import DistinctnessLoss, ForegroundContrastLoss
 from cuvis_ai.node.mask_ops import (
     ClassMapRobustifier,
+    LabelOffset,
     MajorityVoteByBlob,
     MaskRobustifier,
     MaskToBBoxKalman,
@@ -174,6 +175,7 @@ __all__ = [
     "ImageConcatenator",
     "InsetComposer",
     "LabelOverlay",
+    "LabelOffset",
     "LearnableChannelMixer",
     "LegendStrip",
     "ROIZoomNode",
