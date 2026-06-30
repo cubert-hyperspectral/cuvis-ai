@@ -2,16 +2,6 @@
 
 ## [Unreleased]
 
-- **Added a dense patch-classification pair.** `PatchSampler` (extract class-balanced or strided
-  center-pixel patches from a cube + integer target map) and `ClassMapAccumulator` (scatter chunked
-  patch predictions back into per-frame `[H, W]` class maps; a stateful sink with a
-  `reset()` / `forward()` / `close()` lifecycle and an out-of-bounds guard), in
-  `cuvis_ai/node/patch_inference.py`. They form an inverse pair coupled by a documented
-  `frame_id` / `y` / `x` / `height` / `width` provenance contract, for memory-bounded dense
-  per-pixel inference.
-- **`TitleOverlay` gained a per-frame `caption` input port.** A `list[str]` caption (one entry per
-  batch element, e.g. streamed from a DataModule) takes precedence over the constructor `text`, with
-  a batch-length check, so a montage can caption each column from its data.
 - **Added a Savitzky-Golay / pretreatment node family.** Seven composable `cube -> cube` spectral
   pretreatments under `cuvis_ai/node/pretreatments/`: `SavitzkyGolay` (frozen-kernel `conv1d`,
   validated against `scipy.signal.savgol_filter`), `ContinuumRemoval` (convex-hull), `SpectralDerivative`,
