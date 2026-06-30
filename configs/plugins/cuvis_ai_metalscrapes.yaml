@@ -1,0 +1,25 @@
+# Local-path manifest for the InSpecScrap metal-scrap classifier plugin, used by the
+# metal_scrap_classification notebook. The plugin is an unpublished local checkout; the
+# `provision` step installs it into the active environment from this `path` (a file:// spec),
+# after which NodeRegistry().register_plugin(...) loads its nodes import-only.
+name: cuvis_ai_metalscrapes
+path: "D:/experiments/20260516/metal_scrapes/cuvis-ai-metalscrapes"
+package_name: cuvis-ai-metalscrapes
+capabilities:
+  - { class_name: cuvis_ai_metalscrapes.node.labels.RgbLabelToClassIndex,              category: transform, tags: [mask, classification, preprocessing] }
+  - { class_name: cuvis_ai_metalscrapes.node.normalization.PerChannelStandardizer,     category: transform, tags: [hyperspectral, normalization, preprocessing] }
+  - { class_name: cuvis_ai_metalscrapes.node.colorize.ClassMapToRGB,                   category: transform, tags: [mask, classification, postprocessing] }
+  - { class_name: cuvis_ai_metalscrapes.node.compositor.LabelOverlay,                  category: transform, tags: [image, rgb, postprocessing] }
+  - { class_name: cuvis_ai_metalscrapes.node.compositor.TitleOverlay,                  category: transform, tags: [image, rgb, postprocessing] }
+  - { class_name: cuvis_ai_metalscrapes.node.patch_sampler.PatchSampler,               category: transform, tags: [hyperspectral, preprocessing] }
+  - { class_name: cuvis_ai_metalscrapes.node.losses.WeightedCrossEntropyLoss,          category: loss,      tags: [training, classification] }
+  - { class_name: cuvis_ai_metalscrapes.node.metrics.MulticlassSegmentationMetrics,    category: metric,    tags: [evaluation, classification] }
+  - { class_name: cuvis_ai_metalscrapes.node.class_map_accumulator.ClassMapAccumulator, category: sink,     tags: [mask, classification, postprocessing] }
+  - { class_name: cuvis_ai_metalscrapes.node.montage_sink.MontageColumnSink,            category: sink,     tags: [image, rgb, postprocessing] }
+  - { class_name: cuvis_ai_metalscrapes.node.classification.mlp.SpectralMLPClassifier, category: model,     tags: [hyperspectral, classification, learnable] }
+  - { class_name: cuvis_ai_metalscrapes.node.classification.cnn2d.SpatialSpectralCNN2D, category: model,    tags: [hyperspectral, classification, learnable] }
+  - { class_name: cuvis_ai_metalscrapes.node.classification.cnn3d.SpectralSpatialCNN3D, category: model,    tags: [hyperspectral, classification, learnable] }
+  - { class_name: cuvis_ai_metalscrapes.data.metal_scrap_datamodule.MetalScrapDataModule,       kind: data_module, data_module_name: metal_scrap,       extras: [tiff] }
+  - { class_name: cuvis_ai_metalscrapes.data.metal_scrap_patch_datamodule.MetalScrapPatchDataModule, kind: data_module, data_module_name: metal_scrap_patch, extras: [tiff] }
+  - { class_name: cuvis_ai_metalscrapes.data.dense_patch_datamodule.DensePatchDataModule, kind: data_module, data_module_name: metal_scrap_dense_patch, extras: [tiff] }
+  - { class_name: cuvis_ai_metalscrapes.data.montage_column_datamodule.MontageColumnDataModule, kind: data_module, data_module_name: metal_scrap_montage_columns }
