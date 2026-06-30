@@ -498,15 +498,16 @@ class LabelOverlay(Node):
 class TitleOverlay(Node):
     """Burn a text caption into the top-left of each RGB frame, over a translucent box.
 
-    The caption is set per instance via the constructor ``text`` argument, so one
-    ``TitleOverlay`` per panel captions a montage column without any hand-rolled
-    ``forward`` call. Drawn with PIL over a semi-transparent box so it stays legible
-    on any background.
+    The caption comes from one of three places, in priority order: the per-frame
+    ``caption`` input port (a ``list[str]``, one entry per frame, so a DataModule can
+    title each montage column), the ``text`` argument to :meth:`forward`, or the
+    constructor ``text`` default. Drawn with PIL over a semi-transparent box so it stays
+    legible on any background.
 
     Parameters
     ----------
     text : str
-        Caption rendered into every frame.
+        Default caption drawn into every frame when no per-frame ``caption`` is wired.
     font_size : int
         Caption font size in points (default 20).
     pad_px : int
@@ -525,6 +526,12 @@ class TitleOverlay(Node):
             dtype=torch.float32,
             shape=(-1, -1, -1, 3),
             description="RGB frame [B, H, W, 3] in [0, 1].",
+        ),
+        "caption": PortSpec(
+            dtype=list,
+            shape=(),
+            description="Optional per-frame captions (list[str], one per batch element).",
+            optional=True,
         ),
     }
     OUTPUT_SPECS = {
@@ -583,17 +590,51 @@ class TitleOverlay(Node):
 
     @torch.no_grad()
     def forward(
-        self, frame: torch.Tensor, text: str | None = None, **_: Any
+        self,
+        frame: torch.Tensor,
+        caption: list[str] | None = None,
+        text: str | None = None,
+        **_: Any,
     ) -> dict[str, torch.Tensor]:
-        """Caption every frame in the batch with ``text`` (or the constructor default)."""
-        label = self.text if text is None else str(text)
-        if not label.strip():
-            # An empty caption is a no-op: draw no box and pass the frame through.
-            return {"frame": frame.clamp(0.0, 1.0)}
+        """Caption each frame from the per-frame ``caption`` port, ``text``, or the default.
+
+        Parameters
+        ----------
+        frame : torch.Tensor
+            RGB frames ``[B, H, W, 3]`` in ``[0, 1]``.
+        caption : list[str] or None, optional
+            Per-frame captions, one per batch element; takes priority over ``text`` and the
+            constructor default. Must have length ``B``.
+        text : str or None, optional
+            Single caption applied to every frame, overriding the constructor default.
+        **_ : Any
+            Additional unused keyword arguments (e.g. the pipeline ``context``).
+
+        Returns
+        -------
+        dict[str, torch.Tensor]
+            ``frame`` float32 ``[B, H, W, 3]`` with each caption drawn in; an empty caption
+            leaves its frame unchanged.
+        """
+        batch = frame.shape[0]
+        if caption is not None:
+            if len(caption) != batch:
+                raise ValueError(
+                    f"caption has {len(caption)} entries but the batch has {batch} frames."
+                )
+            labels = [str(c) for c in caption]
+        else:
+            single = self.text if text is None else str(text)
+            labels = [single] * batch
         out = torch.empty_like(frame)
-        for i in range(frame.shape[0]):
-            arr = (frame[i].clamp(0.0, 1.0) * 255).round().to(torch.uint8).cpu().numpy()
-            out[i] = torch.from_numpy(self._draw(arr, label)).to(frame.device, frame.dtype)
+        for i in range(batch):
+            clamped = frame[i].clamp(0.0, 1.0)
+            if not labels[i].strip():
+                # An empty caption is a no-op: draw no box and pass the frame through.
+                out[i] = clamped
+                continue
+            arr = (clamped * 255).round().to(torch.uint8).cpu().numpy()
+            out[i] = torch.from_numpy(self._draw(arr, labels[i])).to(frame.device, frame.dtype)
         return {"frame": out}
 
 
@@ -603,8 +644,8 @@ class LegendStrip(Node):
     Each ``(label, rgb)`` entry renders as a swatch plus its text label, wrapped over
     ``n_columns``. When the optional ``label_rgb`` mask is connected, the legend appends
     a connected-component instance count ``(N)`` per class for the current frame and dims
-    rows whose count is zero. Generalised from the experiment-plugin version to take an
-    explicit ``entries`` list instead of a Cubert ``LabelMap.txt`` file.
+    rows whose count is zero. The legend is built from an explicit ``entries`` list of
+    ``(label, rgb)`` rows.
 
     Parameters
     ----------

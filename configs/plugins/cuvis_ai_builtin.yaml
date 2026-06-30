@@ -3500,3 +3500,64 @@ capabilities:
       optional: true
       description: Frame index for per-frame file naming.
   doc_summary: Write RGB frames to PNG files on disk.
+- class_name: cuvis_ai.node.patch_inference.PatchSampler
+  category: transform
+  tags: [hyperspectral, preprocessing, stochastic]
+  input_specs:
+    cube:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Hyperspectral cube [B, H, W, C].
+    targets:
+      dtype: int64
+      shape: [-1, -1, -1]
+      optional: false
+      description: Per-pixel class targets [B, H, W]; ignore_index pixels are skipped.
+  output_specs:
+    patches:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Center-pixel patches [N, P, P, C].
+    labels:
+      dtype: int64
+      shape: [-1]
+      optional: false
+      description: Center-pixel class labels [N].
+  doc_summary: Extract labeled center-pixel patches from a cube and an integer target map.
+- class_name: cuvis_ai.node.patch_inference.ClassMapAccumulator
+  category: sink
+  tags: [mask, classification, postprocessing]
+  input_specs:
+    logits:
+      dtype: float32
+      shape: [-1, -1]
+      optional: false
+      description: Per-patch class logits [N, num_classes].
+    frame_id:
+      dtype: int64
+      shape: [-1]
+      optional: false
+      description: Source frame id per patch [N].
+    y:
+      dtype: int64
+      shape: [-1]
+      optional: false
+      description: Pixel row per patch [N].
+    x:
+      dtype: int64
+      shape: [-1]
+      optional: false
+      description: Pixel column per patch [N].
+    height:
+      dtype: int64
+      shape: [-1]
+      optional: false
+      description: Source frame height per patch [N].
+    width:
+      dtype: int64
+      shape: [-1]
+      optional: false
+      description: Source frame width per patch [N].
+  doc_summary: Scatter chunked patch predictions back into per-frame class maps.
