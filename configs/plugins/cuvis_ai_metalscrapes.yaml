@@ -13,6 +13,7 @@ capabilities:
   - { class_name: cuvis_ai_metalscrapes.node.compositor.TitleOverlay,                  category: transform, tags: [image, rgb, postprocessing] }
   - { class_name: cuvis_ai_metalscrapes.node.patch_sampler.PatchSampler,               category: transform, tags: [hyperspectral, preprocessing] }
   - { class_name: cuvis_ai_metalscrapes.node.losses.WeightedCrossEntropyLoss,          category: loss,      tags: [training, classification] }
+  - { class_name: cuvis_ai_metalscrapes.node.losses.InverseFrequencyClassWeights,      category: transform, tags: [training, classification] }
   - { class_name: cuvis_ai_metalscrapes.node.metrics.MulticlassSegmentationMetrics,    category: metric,    tags: [evaluation, classification] }
   - { class_name: cuvis_ai_metalscrapes.node.class_map_accumulator.ClassMapAccumulator, category: sink,     tags: [mask, classification, postprocessing] }
   - { class_name: cuvis_ai_metalscrapes.node.montage_sink.MontageColumnSink,            category: sink,     tags: [image, rgb, postprocessing] }
