@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+- **Added a dense patch-classification pair.** `PatchSampler` (extract class-balanced or strided
+  center-pixel patches from a cube + integer target map) and `ClassMapAccumulator` (scatter chunked
+  patch predictions back into per-frame `[H, W]` class maps; a stateful sink with a
+  `reset()` / `forward()` / `close()` lifecycle and an out-of-bounds guard), in
+  `cuvis_ai/node/patch_inference.py`. They form an inverse pair coupled by a documented
+  `frame_id` / `y` / `x` / `height` / `width` provenance contract, for memory-bounded dense
+  per-pixel inference.
+- **`TitleOverlay` gained a per-frame `caption` input port.** A `list[str]` caption (one entry per
+  batch element, e.g. streamed from a DataModule) takes precedence over the constructor `text`, with
+  a batch-length check, so a montage can caption each column from its data.
 - **Added a Savitzky-Golay / pretreatment node family.** Seven composable `cube -> cube` spectral
   pretreatments under `cuvis_ai/node/pretreatments/`: `SavitzkyGolay` (frozen-kernel `conv1d`,
   validated against `scipy.signal.savgol_filter`), `ContinuumRemoval` (convex-hull), `SpectralDerivative`,
@@ -39,6 +49,20 @@
   take an optional `mask` input; when connected, the statistical fit uses only pixels where the mask
   is non-zero while inference still labels every pixel. Other statistical-fit nodes are unaffected.
 - **Added `scipy` as a direct dependency floor** (`>=1.11`) for the Savitzky-Golay coefficient build.
+- **Added a dense patch-inference node pair.** `PatchSampler` tiles a cube plus an integer target
+  map into center-pixel patches; `ClassMapAccumulator` (a sink) scatters per-patch predictions back
+  into per-frame class maps. They are coupled by a `frame_id`/`y`/`x`/`height`/`width` provenance
+  contract, so patch-based per-pixel classification runs end to end inside a pipeline
+  (`reset()` -> `forward()*` -> `close()`, with the finished maps read from `class_maps`).
+- **`TitleOverlay` gained a per-frame caption port.** An optional `caption` input (a `list[str]`,
+  one entry per batch element) lets a DataModule title each frame independently; it falls back to
+  the `text=` forward argument and then the constructor default. Captions render through the
+  pure-torch `draw_text` bitmap font.
+- **Added a metal-scrap classification cookbook notebook.**
+  `notebooks/use_cases/metal_scrap_classification.ipynb` rebuilds the Gursch et al. 2026 SWIR
+  steel-scrap classifier as a Cuvis.AI pipeline (per-band standardizer, 3D-CNN, weighted
+  cross-entropy and segmentation metrics), derives the inverse-frequency class weights in the
+  statistical-training phase, runs dense per-pixel inference, and adds a mask-cleanup stage.
 
 ## 0.10.1 - 2026-06-24
 
