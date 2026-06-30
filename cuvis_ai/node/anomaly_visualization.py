@@ -1016,6 +1016,9 @@ class TrackingOverlayNode(Node):
         Draw contour outlines on mask edges (default True).
     draw_ids : bool
         Render numeric object-ID labels above each mask (default True).
+    text_scale : int
+        Integer scale of the object-ID label font (default 2). Use 1 for smaller ids
+        on small frames with many objects.
     """
 
     _category = NodeCategory.VISUALIZER
@@ -1060,15 +1063,18 @@ class TrackingOverlayNode(Node):
         alpha: float = 0.4,
         draw_contours: bool = True,
         draw_ids: bool = True,
+        text_scale: int = 2,
         **kwargs,
     ) -> None:
         self.alpha = float(alpha)
         self.draw_contours = bool(draw_contours)
         self.draw_ids = bool(draw_ids)
+        self.text_scale = max(1, int(text_scale))
         super().__init__(
             alpha=alpha,
             draw_contours=draw_contours,
             draw_ids=draw_ids,
+            text_scale=self.text_scale,
             **kwargs,
         )
 
@@ -1136,6 +1142,7 @@ class TrackingOverlayNode(Node):
             alpha=self.alpha,
             draw_edges=self.draw_contours,
             draw_ids=self.draw_ids,
+            text_scale=self.text_scale,
         )
 
         if frame_id is not None:

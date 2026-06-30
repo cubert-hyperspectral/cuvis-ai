@@ -51,8 +51,15 @@ from cuvis_ai.node.channel_selector import (
     TopKIndices,
 )
 from cuvis_ai.node.clustering import GaussianMixtureClusterer, KMeansClusterer
-from cuvis_ai.node.colormap import ScalarHSVColormapNode
-from cuvis_ai.node.compositing import ImageConcatenator, InsetComposer, ROIZoomNode
+from cuvis_ai.node.colormap import ClassMapToRGB, ScalarHSVColormapNode
+from cuvis_ai.node.compositing import (
+    ImageConcatenator,
+    InsetComposer,
+    LabelOverlay,
+    LegendStrip,
+    ROIZoomNode,
+    TitleOverlay,
+)
 from cuvis_ai.node.conversion import DecisionToMask
 from cuvis_ai.node.deciders import (
     BinaryDecider,
@@ -71,7 +78,13 @@ from cuvis_ai.node.json_file import (
 )
 from cuvis_ai.node.labels import BinaryAnomalyLabelMapper
 from cuvis_ai.node.losses import DistinctnessLoss, ForegroundContrastLoss
-from cuvis_ai.node.mask_ops import MajorityVoteByBlob, MaskRobustifier, MaskToBBoxKalman
+from cuvis_ai.node.mask_ops import (
+    ClassMapRobustifier,
+    MajorityVoteByBlob,
+    MaskRobustifier,
+    MaskToBBoxKalman,
+    NearestLabelFill,
+)
 from cuvis_ai.node.morphology import ShapeMorphology
 from cuvis_ai.node.normalization import (
     DisplayNormalizer,
@@ -117,7 +130,7 @@ from cuvis_ai.node.spectral_extractor import (
     SignaturesToReferences,
     SpectralSignatureExtractor,
 )
-from cuvis_ai.node.spectrum_plot import SpectrumPlotNode
+from cuvis_ai.node.spectrum_plot import SpectraPlot, SpectrumPlotNode
 from cuvis_ai.node.svm import OneClassSVMDetector
 from cuvis_ai.node.unmixing import NMFUnmixing, NNLSUnmixing
 from cuvis_ai.node.video import (
@@ -143,6 +156,8 @@ __all__ = [
     "ChannelWeightsViz",
     "CIETristimulusRGBSelector",
     "CIRSelector",
+    "ClassMapRobustifier",
+    "ClassMapToRGB",
     "FastRGBSelector",
     "ConcreteChannelMixer",
     "CubeRGBVisualizer",
@@ -158,13 +173,17 @@ __all__ = [
     "ImageArtifactVizBase",
     "ImageConcatenator",
     "InsetComposer",
+    "LabelOverlay",
     "LearnableChannelMixer",
+    "LegendStrip",
     "ROIZoomNode",
+    "TitleOverlay",
     "MaskedMeanSpectrum",
     "MaskOverlayNode",
     "MaskPrompt",
     "MaskRobustifier",
     "MaskToBBoxKalman",
+    "NearestLabelFill",
     "TextPrompt",
     "MinMaxNormalizer",
     "NDVISelector",
@@ -187,6 +206,7 @@ __all__ = [
     "SolidOcclusionNode",
     "SoftChannelSelector",
     "SpatialRotateNode",
+    "SpectraPlot",
     "SpectralAngleMapper",
     "SpectrumPlotNode",
     "SupervisedCIRSelector",

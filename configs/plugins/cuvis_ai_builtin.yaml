@@ -530,6 +530,89 @@ capabilities:
       optional: false
       description: HSV color-mapped RGB image [B, H, W, 3] in [0, 1].
   doc_summary: Map a scalar BHWC image to RGB using an HSV colormap.
+- class_name: cuvis_ai.node.colormap.ClassMapToRGB
+  category: visualizer
+  tags: [mask, rgb]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <rect x=\"8\" y=\"10\" width=\"48\" height=\"44\" rx=\"2\"/>\n  <path d=\"M14 44l10-12 8 6 12-16\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"24\" cy=\"32\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"32\" cy=\"38\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"44\" cy=\"22\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n</svg>\n"
+  input_specs:
+    class_map:
+      dtype: int32
+      shape: [-1, -1, -1]
+      optional: false
+      description: Integer class-index map [B, H, W]; background_value pixels render black.
+    mask:
+      dtype: int32
+      shape: [-1, -1, -1]
+      optional: true
+      description: Optional foreground mask [B, H, W]; pixels where mask == 0 render black.
+  output_specs:
+    label_rgb:
+      dtype: float32
+      shape: [-1, -1, -1, 3]
+      optional: false
+      description: Colourised RGB image [B, H, W, 3] in [0, 1].
+  doc_summary: Colourise an integer class-index map into an RGB image.
+- class_name: cuvis_ai.node.compositing.LabelOverlay
+  category: transform
+  tags: [image, rgb]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <rect x=\"8\" y=\"10\" width=\"48\" height=\"44\" rx=\"2\"/>\n  <path d=\"M14 44l10-12 8 6 12-16\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"24\" cy=\"32\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"32\" cy=\"38\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"44\" cy=\"22\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n</svg>\n"
+  input_specs:
+    rgb_image:
+      dtype: float32
+      shape: [-1, -1, -1, 3]
+      optional: false
+      description: Base RGB image [B, H, W, 3] in [0, 1].
+    label_rgb:
+      dtype: float32
+      shape: [-1, -1, -1, 3]
+      optional: false
+      description: Colourised label map [B, H, W, 3] in [0, 1].
+  output_specs:
+    frame:
+      dtype: float32
+      shape: [-1, -1, -1, 3]
+      optional: false
+      description: Blended RGB image [B, H, W, 3] in [0, 1].
+  doc_summary: Alpha-blend a colourised label map onto an RGB image.
+- class_name: cuvis_ai.node.compositing.TitleOverlay
+  category: transform
+  tags: [image, rgb]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <rect x=\"8\" y=\"10\" width=\"48\" height=\"44\" rx=\"2\"/>\n  <path d=\"M14 44l10-12 8 6 12-16\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"24\" cy=\"32\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"32\" cy=\"38\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"44\" cy=\"22\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n</svg>\n"
+  input_specs:
+    frame:
+      dtype: float32
+      shape: [-1, -1, -1, 3]
+      optional: false
+      description: RGB frame [B, H, W, 3] in [0, 1].
+  output_specs:
+    frame:
+      dtype: float32
+      shape: [-1, -1, -1, 3]
+      optional: false
+      description: RGB frame with the caption drawn in, [B, H, W, 3] in [0, 1].
+  doc_summary: Burn a text caption into the top-left of each RGB frame.
+- class_name: cuvis_ai.node.compositing.LegendStrip
+  category: transform
+  tags: [image, rgb]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <rect x=\"8\" y=\"10\" width=\"48\" height=\"44\" rx=\"2\"/>\n  <path d=\"M14 44l10-12 8 6 12-16\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"24\" cy=\"32\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"32\" cy=\"38\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"44\" cy=\"22\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n</svg>\n"
+  input_specs:
+    frame:
+      dtype: float32
+      shape: [-1, -1, -1, 3]
+      optional: false
+      description: Input frame [B, H, W, 3] in [0, 1].
+    label_rgb:
+      dtype: float32
+      shape: [-1, -1, -1, 3]
+      optional: true
+      description: Optional colourised label map [B, H, W, 3] in [0, 1] for instance counts.
+  output_specs:
+    frame:
+      dtype: float32
+      shape: [-1, -1, -1, 3]
+      optional: false
+      description: Frame with the legend strip appended [B, H + legend_h, W, 3] in [0, 1].
+  doc_summary: Append a horizontal class-colour legend strip below the input frame.
 - class_name: cuvis_ai.node.channel_selector.CIETristimulusRGBSelector
   category: transform
   tags: [dim_reduction, hyperspectral, numpy, preprocessing]
@@ -1599,6 +1682,50 @@ capabilities:
       optional: false
       description: Cleaned mask [B, H, W]; preserves input label values.
   doc_summary: Clean a binary/labelled mask with morphology + largest-component filter.
+- class_name: cuvis_ai.node.mask_ops.ClassMapRobustifier
+  category: transform
+  tags: [classification, mask, numpy, postprocessing, segmentation]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    class_map:
+      dtype: int64
+      shape: [-1, -1, -1]
+      optional: false
+      description: Integer label map [B, H, W]; background_value elsewhere.
+  output_specs:
+    class_map:
+      dtype: int64
+      shape: [-1, -1, -1]
+      optional: false
+      description: Cleaned label map [B, H, W]; removed speckle -> background_value.
+    source:
+      dtype: int64
+      shape: [-1, -1, -1]
+      optional: false
+      description: Verbatim passthrough of the input label map [B, H, W].
+  doc_summary: Per-class morphological cleanup of an integer label map.
+- class_name: cuvis_ai.node.mask_ops.NearestLabelFill
+  category: transform
+  tags: [classification, mask, postprocessing, segmentation]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    class_map:
+      dtype: int64
+      shape: [-1, -1, -1]
+      optional: false
+      description: Cleaned label map [B, H, W] with background_value gaps to fill.
+    source:
+      dtype: int64
+      shape: [-1, -1, -1]
+      optional: false
+      description: Original label map [B, H, W]; defines foreground + fallback labels.
+  output_specs:
+    class_map:
+      dtype: int64
+      shape: [-1, -1, -1]
+      optional: false
+      description: Gap-filled label map [B, H, W].
+  doc_summary: Fill morphology-removed gaps in a label map with the nearest surviving label.
 - class_name: cuvis_ai.node.mask_ops.MaskToBBoxKalman
   category: transform
   tags: [bbox, mask, numpy, postprocessing, stateful, tracking]
@@ -1665,6 +1792,28 @@ capabilities:
       optional: false
       description: List of Metric objects
   doc_summary: Compute anomaly pixel statistics from binary decisions.
+- class_name: cuvis_ai.node.metrics.DistinctLabelCount
+  category: metric
+  tags: [evaluation, mask]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#C9615A\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M10 14v40h44\"/>\n  <rect x=\"16\" y=\"38\" width=\"8\" height=\"12\"/>\n  <rect x=\"28\" y=\"28\" width=\"8\" height=\"22\"/>\n  <rect x=\"40\" y=\"18\" width=\"8\" height=\"32\"/>\n</svg>\n"
+  input_specs:
+    mask:
+      dtype: int32
+      shape: [-1, -1, -1]
+      optional: false
+      description: Integer label map [B, H, W]; 0 = background.
+  output_specs:
+    count:
+      dtype: int64
+      shape: [-1]
+      optional: false
+      description: Distinct non-zero label count per frame [B].
+    metrics:
+      dtype: ''
+      shape: []
+      optional: false
+      description: List of Metric objects
+  doc_summary: Count the distinct non-zero labels per frame in an integer label map.
 - class_name: cuvis_ai.node.metrics.ComponentOrthogonalityMetric
   category: metric
   tags: [dim_reduction, evaluation]
@@ -2440,6 +2589,33 @@ capabilities:
       optional: false
       description: Rendered plot frames [B, plot_height, plot_width, 3] in [0, 1].
   doc_summary: Render a per-frame line plot of tracked vs reference spectrum.
+- class_name: cuvis_ai.node.spectrum_plot.SpectraPlot
+  category: visualizer
+  tags: [hyperspectral, rgb]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <rect x=\"8\" y=\"10\" width=\"48\" height=\"44\" rx=\"2\"/>\n  <path d=\"M14 44l10-12 8 6 12-16\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"24\" cy=\"32\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"32\" cy=\"38\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"44\" cy=\"22\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n</svg>\n"
+  input_specs:
+    signatures:
+      dtype: float32
+      shape: [-1, -1, -1]
+      optional: false
+      description: Per-class mean spectra [B, N, C]; one line is drawn per row.
+    wavelengths:
+      dtype: int32
+      shape: [-1]
+      optional: false
+      description: Wavelength grid [C] in nm (x-axis).
+    valid:
+      dtype: bool
+      shape: [-1, -1]
+      optional: true
+      description: Optional per-row validity [B, N]; False rows are skipped.
+  output_specs:
+    rgb_image:
+      dtype: float32
+      shape: [-1, -1, -1, 3]
+      optional: false
+      description: Rendered plot frames [B, plot_height, plot_width, 3] in [0, 1].
+  doc_summary: Render a multi-series line plot of per-class mean spectra into an RGB frame.
 - class_name: cuvis_ai.node.video.ToVideoNode
   category: sink
   tags: [video]

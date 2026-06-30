@@ -745,6 +745,75 @@ class AnomalyPixelStatisticsMetric(Node):
         return {"metrics": metrics}
 
 
+class DistinctLabelCount(Node):
+    """Count the distinct non-zero labels per frame in an integer label map.
+
+    Reports how many separate segments a label map contains, e.g. how many compartments survived
+    a per-blob majority vote or how many clusters a frame holds. Emits the per-frame count both as
+    a ``count`` tensor (for pipeline reads / notebook printing) and as ``Metric`` objects for
+    training-time logging. Defaults to ``ExecutionStage.ALWAYS`` so it also runs under ``Predictor``
+    inference, not only validation / test.
+    """
+
+    _category = NodeCategory.METRIC
+    _tags = frozenset({NodeTag.EVALUATION, NodeTag.MASK})
+
+    INPUT_SPECS = {
+        "mask": PortSpec(
+            dtype=torch.int32,
+            shape=(-1, -1, -1),
+            description="Integer label map [B, H, W]; 0 = background.",
+        ),
+    }
+    OUTPUT_SPECS = {
+        "count": PortSpec(
+            dtype=torch.int64,
+            shape=(-1,),
+            description="Distinct non-zero label count per frame [B].",
+        ),
+        "metrics": PortSpec(dtype=list, shape=(), description="List of Metric objects"),
+    }
+
+    def __init__(
+        self,
+        execution_stages: set[ExecutionStage] | None = None,
+        **kwargs,
+    ) -> None:
+        name, execution_stages = Node.consume_base_kwargs(
+            kwargs, execution_stages or {ExecutionStage.ALWAYS}
+        )
+        super().__init__(name=name, execution_stages=execution_stages, **kwargs)
+
+    def forward(self, mask: Tensor, context: Context) -> dict[str, Any]:
+        """Count distinct non-zero labels in each frame of *mask*.
+
+        Parameters
+        ----------
+        mask : Tensor
+            Integer label map [B, H, W]; 0 is background.
+        context : Context
+            Execution context with stage, epoch, batch_idx.
+
+        Returns
+        -------
+        dict[str, Any]
+            ``count`` [B] int64 and a ``metrics`` list with one ``num_distinct_labels`` per frame.
+        """
+        counts = [int((torch.unique(mask[b]) != 0).sum().item()) for b in range(mask.shape[0])]
+        count = torch.tensor(counts, dtype=torch.int64, device=mask.device)
+        metrics = [
+            Metric(
+                name="num_distinct_labels",
+                value=float(c),
+                stage=context.stage,
+                epoch=context.epoch,
+                batch_idx=context.batch_idx,
+            )
+            for c in counts
+        ]
+        return {"count": count, "metrics": metrics}
+
+
 __all__ = [
     "ExplainedVarianceMetric",
     "AnomalyDetectionMetrics",
@@ -753,4 +822,5 @@ __all__ = [
     "SelectorEntropyMetric",
     "SelectorDiversityMetric",
     "AnomalyPixelStatisticsMetric",
+    "DistinctLabelCount",
 ]

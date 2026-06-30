@@ -300,3 +300,160 @@ class SpectrumPlotNode(Node):
 
         device = tracked_spectrum.device
         return {"rgb_image": torch.from_numpy(frames).to(device=device, dtype=torch.float32)}
+
+
+class SpectraPlot(Node):
+    """Render a multi-series line plot of per-class mean spectra into an RGB frame.
+
+    A multi-series sibling of :class:`SpectrumPlotNode`: instead of a tracked-vs-reference pair, it
+    draws one line per row of ``signatures`` (e.g. the per-object mean spectra from
+    :class:`~cuvis_ai.node.spectral_extractor.SpectralSignatureExtractor`), coloured by ``palette``.
+    The plot is rendered to a fixed-size RGB frame so it drops into the graph like any other image
+    output (stitch several with ``ImageConcatenator``).
+
+    Parameters
+    ----------
+    palette : list[tuple[int, int, int]] | None
+        Per-row line colours in 0-255, indexed by row id and wrapped modulo its length. Share the
+        same palette as a ``LegendStrip`` / ``ClassMapToRGB`` so colours agree. ``None`` uses a
+        Tableau-20 palette.
+    title, xlabel, ylabel : str
+        Axis title and labels.
+    plot_width, plot_height : int
+        Pixel dimensions of the rendered frame (default 720 x 540).
+    dpi : int
+        Figure dpi (default 150).
+    linewidth : float
+        Line width for each spectrum (default 1.0).
+    bg_color, fg_color : str
+        Background / foreground (axis, text) colours.
+    """
+
+    _category = NodeCategory.VISUALIZER
+    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.RGB})
+
+    INPUT_SPECS = {
+        "signatures": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1),
+            description="Per-class mean spectra [B, N, C]; one line is drawn per row.",
+        ),
+        "wavelengths": PortSpec(
+            dtype=np.int32,
+            shape=(-1,),
+            description="Wavelength grid [C] in nm (x-axis).",
+        ),
+        "valid": PortSpec(
+            dtype=torch.bool,
+            shape=(-1, -1),
+            description="Optional per-row validity [B, N]; False rows are skipped.",
+            optional=True,
+        ),
+    }
+    OUTPUT_SPECS = {
+        "rgb_image": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 3),
+            description="Rendered plot frames [B, plot_height, plot_width, 3] in [0, 1].",
+        ),
+    }
+
+    def __init__(
+        self,
+        palette: list[tuple[int, int, int]] | None = None,
+        title: str = "",
+        xlabel: str = "wavelength in [nm]",
+        ylabel: str = "value",
+        plot_width: int = 720,
+        plot_height: int = 540,
+        dpi: int = 150,
+        linewidth: float = 1.0,
+        bg_color: str = "white",
+        fg_color: str = "black",
+        **kwargs: Any,
+    ) -> None:
+        if plot_width < 32 or plot_height < 32:
+            raise ValueError("plot dimensions must be >= 32 px")
+        if dpi <= 0:
+            raise ValueError("dpi must be > 0")
+        from cuvis_ai.node.colormap import _TAB20
+
+        colors = list(palette) if palette is not None else list(_TAB20)
+        if not colors:
+            raise ValueError("palette must be a non-empty list of (r, g, b)")
+        self._palette = [tuple(int(c) for c in rgb) for rgb in colors]
+        self.title = str(title)
+        self.xlabel = str(xlabel)
+        self.ylabel = str(ylabel)
+        self.plot_width = int(plot_width)
+        self.plot_height = int(plot_height)
+        self.dpi = int(dpi)
+        self.linewidth = float(linewidth)
+        self.bg_color = str(bg_color)
+        self.fg_color = str(fg_color)
+        super().__init__(
+            palette=[list(rgb) for rgb in self._palette],
+            title=self.title,
+            xlabel=self.xlabel,
+            ylabel=self.ylabel,
+            plot_width=self.plot_width,
+            plot_height=self.plot_height,
+            dpi=self.dpi,
+            linewidth=self.linewidth,
+            bg_color=self.bg_color,
+            fg_color=self.fg_color,
+            **kwargs,
+        )
+
+    def _render(self, spectra: np.ndarray, wl: np.ndarray, valid: np.ndarray) -> np.ndarray:
+        """Render the [N, C] spectra as N coloured lines; return an [H, W, 3] uint8 array."""
+        import matplotlib.pyplot as plt
+
+        fig, ax = plt.subplots(
+            figsize=(self.plot_width / self.dpi, self.plot_height / self.dpi), dpi=self.dpi
+        )
+        fig.patch.set_facecolor(self.bg_color)
+        ax.set_facecolor(self.bg_color)
+        for k in range(spectra.shape[0]):
+            if not bool(valid[k]):
+                continue
+            color = tuple(c / 255.0 for c in self._palette[k % len(self._palette)])
+            ax.plot(wl, spectra[k], color=color, linewidth=self.linewidth)
+        ax.set_xlabel(self.xlabel, color=self.fg_color, fontsize=11)
+        ax.set_ylabel(self.ylabel, color=self.fg_color, fontsize=11)
+        if self.title:
+            ax.set_title(self.title, color=self.fg_color, fontsize=12)
+        if wl.size:
+            ax.set_xlim(float(wl.min()), float(wl.max()))
+        for spine in ax.spines.values():
+            spine.set_color(self.fg_color)
+        ax.tick_params(colors=self.fg_color, labelsize=9)
+        ax.grid(True, color=self.fg_color, alpha=0.15, linewidth=0.6)
+        fig.tight_layout()
+        arr = fig_to_array(fig, dpi=self.dpi)  # closes the figure
+        if arr.shape[:2] != (self.plot_height, self.plot_width):
+            arr = cv2.resize(arr, (self.plot_width, self.plot_height), interpolation=cv2.INTER_AREA)
+        return arr
+
+    @torch.no_grad()
+    def forward(
+        self,
+        signatures: torch.Tensor,
+        wavelengths: torch.Tensor,
+        valid: torch.Tensor | None = None,
+        **_: Any,
+    ) -> dict[str, torch.Tensor]:
+        """Render one multi-series plot frame per batch element."""
+        sig = signatures.detach().cpu().numpy()  # [B, N, C]
+        # wavelengths arrives as a numpy int32 array (the catalog's wavelength port dtype).
+        wl = np.asarray(wavelengths, dtype=np.float32).ravel()
+        b, n = sig.shape[0], sig.shape[1]
+        valid_np = (
+            valid.detach().cpu().numpy() if valid is not None else np.ones((b, n), dtype=bool)
+        )
+        frames = np.empty((b, self.plot_height, self.plot_width, 3), dtype=np.float32)
+        for i in range(b):
+            frames[i] = self._render(sig[i], wl, valid_np[i]).astype(np.float32) / 255.0
+        return {
+            "rgb_image": torch.from_numpy(frames).to(device=signatures.device, dtype=torch.float32)
+        }
