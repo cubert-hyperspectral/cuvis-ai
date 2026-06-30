@@ -8,9 +8,6 @@ package_name: cuvis-ai-metalscrapes
 capabilities:
   - { class_name: cuvis_ai_metalscrapes.node.labels.RgbLabelToClassIndex,              category: transform, tags: [mask, classification, preprocessing] }
   - { class_name: cuvis_ai_metalscrapes.node.normalization.PerChannelStandardizer,     category: transform, tags: [hyperspectral, normalization, preprocessing] }
-  - { class_name: cuvis_ai_metalscrapes.node.colorize.ClassMapToRGB,                   category: transform, tags: [mask, classification, postprocessing] }
-  - { class_name: cuvis_ai_metalscrapes.node.compositor.LabelOverlay,                  category: transform, tags: [image, rgb, postprocessing] }
-  - { class_name: cuvis_ai_metalscrapes.node.compositor.TitleOverlay,                  category: transform, tags: [image, rgb, postprocessing] }
   - { class_name: cuvis_ai_metalscrapes.node.patch_sampler.PatchSampler,               category: transform, tags: [hyperspectral, preprocessing] }
   - { class_name: cuvis_ai_metalscrapes.node.losses.WeightedCrossEntropyLoss,          category: loss,      tags: [training, classification] }
   - { class_name: cuvis_ai_metalscrapes.node.losses.InverseFrequencyClassWeights,      category: transform, tags: [training, classification] }
