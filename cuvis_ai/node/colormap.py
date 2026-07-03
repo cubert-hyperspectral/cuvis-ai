@@ -156,7 +156,7 @@ class ClassMapToRGB(Node):
 
     INPUT_SPECS = {
         "class_map": PortSpec(
-            dtype=torch.int32,
+            dtype=torch.int64,
             shape=(-1, -1, -1),
             description="Integer class-index map [B, H, W]; background_value pixels render black.",
         ),
