@@ -2649,6 +2649,21 @@ capabilities:
       optional: true
       description: Frame / measurement index [B] to render as text overlay.
   doc_summary: Write incoming RGB frames directly to a video file via ffmpeg.
+- class_name: cuvis_ai.node.video.ToImage
+  category: sink
+  tags: [image]
+  input_specs:
+    rgb_image:
+      dtype: float32
+      shape: [-1, -1, -1, 3]
+      optional: false
+      description: RGB frames [B, H, W, 3] in [0, 1] or [0, 255]
+    frame_id:
+      dtype: int64
+      shape: [-1]
+      optional: true
+      description: Frame / measurement index [B] to render as text overlay.
+  doc_summary: Write incoming RGB frames to individual image files, one file per frame.
 - class_name: cuvis_ai.node.video.VideoFrameNode
   category: source
   tags: [streaming, video]

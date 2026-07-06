@@ -16,7 +16,12 @@ nodes:
   hparams: {}
 - name: sam3_tracker
   class_name: cuvis_ai_sam3.node.SAM3TextPropagation
-  hparams: {}
+  hparams:
+    score_threshold_detection: 0.5
+    new_det_thresh: 0.7
+    det_nms_thresh: 0.1
+    overlap_suppress_thresh: 0.7
+    max_tracker_states: 5
 - name: tracking_coco_json
   class_name: cuvis_ai.node.json_file.CocoTrackMaskWriter
   hparams:
@@ -24,7 +29,7 @@ nodes:
     default_category_name: object
 connections:
 - source: video_frame.outputs.rgb_image
-  target: sam3_tracker.inputs.rgb_frame
+  target: sam3_tracker.inputs.rgb_image
 - source: video_frame.outputs.frame_id
   target: sam3_tracker.inputs.frame_id
 - source: video_frame.outputs.frame_id

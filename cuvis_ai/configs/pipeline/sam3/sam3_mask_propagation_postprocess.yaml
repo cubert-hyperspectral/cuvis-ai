@@ -1,6 +1,9 @@
 metadata:
-  name: SAM3_Mask_Propagation
-  description: SAM3 runtime-mask propagation with CU3S source-domain frame mapping
+  name: SAM3_Mask_Propagation_Postprocess
+  description: SAM3 runtime-mask propagation with a per-frame MaskRobustifier cleanup on the tracked
+    mask. Drops small spurious regions (min_area) each frame so a noisy seed does not fragment into
+    many specks over the sequence. keep_largest defaults off to stay multi-object safe (set it on for a
+    single-object track).
   tags:
   - tracking
   - sam3
@@ -27,6 +30,13 @@ nodes:
     det_nms_thresh: 0.1
     overlap_suppress_thresh: 0.7
     max_tracker_states: 5
+- name: mask_cleanup
+  class_name: cuvis_ai.node.mask_ops.MaskRobustifier
+  hparams:
+    opening_kernel: 0
+    closing_kernel: 3
+    min_area: 50
+    keep_largest: false
 - name: tracking_coco_json
   class_name: cuvis_ai.node.json_file.CocoTrackMaskWriter
   hparams:
@@ -44,6 +54,8 @@ connections:
 - source: cu3s_data.outputs.mesu_index
   target: tracking_coco_json.inputs.frame_id
 - source: sam3_tracker.outputs.mask
+  target: mask_cleanup.inputs.mask
+- source: mask_cleanup.outputs.mask
   target: tracking_coco_json.inputs.mask
 - source: sam3_tracker.outputs.object_ids
   target: tracking_coco_json.inputs.object_ids

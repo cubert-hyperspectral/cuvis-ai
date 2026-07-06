@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+- **Unified the SAM3 RGB input port on `rgb_image`.** Renamed `rgb_frame` -> `rgb_image` in
+  `configs/plugins/sam3.yaml` and every `configs/pipeline/sam3/*` connection target and view-preset
+  description, matching the sam3 nodes' renamed port and the `rgb_image` name every other RGB
+  producer/consumer in the library already uses.
+- **Exposed the SAM3 tracker thresholds on every propagation preset.** The `configs/pipeline/sam3/*`
+  propagation presets now list `score_threshold_detection`, `new_det_thresh`, `det_nms_thresh`,
+  `overlap_suppress_thresh`, and `max_tracker_states` in the tracker node's `hparams`, so they render
+  as editable knobs in the host pipeline picker. Mask- and bbox-seeded propagation default
+  `new_det_thresh` to `0.95` (was `0.7`) so a seeded track is not swamped by newly detected objects;
+  text propagation keeps the detection-driven `0.7`.
+- **`ToVideoNode` now finalizes its video on `cleanup()`.** The sink flushes the ffmpeg trailer when
+  the hosting pipeline is torn down (session close / pipeline replacement / run stop), so it produces a
+  playable file in a gRPC/session context that has no explicit driver `close()` call. `close()` stays
+  idempotent, so an explicit driver `close()` is still fine.
 - **Added `PointPrompt`, an interactive point-prompt source node.** Emits a scheduled per-frame list
   of `{element_id, x, y, type}` dicts (`type` in `positive` / `negative` / `neutral`) on a configured
   `prompt_frame_id`, and an empty list on every other frame. Accepts `(x, y[, type])` tuples or

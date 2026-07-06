@@ -3,12 +3,13 @@ from __future__ import annotations
 import io
 from pathlib import Path
 
+import cv2
 import numpy as np
 import pytest
 import torch
 
 import cuvis_ai.node.video as video_module
-from cuvis_ai.node.video import ToVideoNode
+from cuvis_ai.node.video import ToImage, ToVideoNode
 
 
 class _RecordingFfmpegProc:
@@ -270,6 +271,23 @@ def test_to_video_node_validates_frame_rotation() -> None:
         ToVideoNode(output_video_path="out.mp4", frame_rotation=45)
 
 
+def test_to_video_node_write_mode_partial_uses_fragmented_movflags(
+    mock_ffmpeg_popen: list[_RecordingFfmpegProc],
+    tmp_path: Path,
+) -> None:
+    node = ToVideoNode(output_video_path=str(tmp_path / "frag.mp4"), write_mode="partial")
+    node.forward(rgb_image=torch.zeros((1, 4, 4, 3), dtype=torch.float32))
+    node.close()
+
+    argv = mock_ffmpeg_popen[0].argv
+    assert _argv_value_after(argv, "-movflags") == "+frag_keyframe+empty_moov+default_base_moof"
+
+
+def test_to_video_node_validates_write_mode() -> None:
+    with pytest.raises(ValueError, match="write_mode"):
+        ToVideoNode(output_video_path="out.mp4", write_mode="bogus")
+
+
 def test_to_video_node_raises_when_ffmpeg_not_on_path(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -411,3 +429,93 @@ def test_to_video_node_keeps_frame_id_overlay_unchanged_when_title_is_added(
     titled_frame = _written_frames(mock_ffmpeg_popen[1], height=90, width=420)[0]
 
     assert np.array_equal(baseline_frame[:40, :90], titled_frame[:40, :90])
+
+
+# ---------------------------------------------------------------------------
+# ToImage
+# ---------------------------------------------------------------------------
+def test_to_image_writes_one_file_per_frame_named_by_frame_id(tmp_path: Path) -> None:
+    out_dir = tmp_path / "seed"
+    node = ToImage(output_dir=str(out_dir))
+
+    # Two frames (H=6, W=8) with distinct top-left pixels, away from the text overlay.
+    f0 = torch.zeros((6, 8, 3), dtype=torch.float32)
+    f0[0, 0] = torch.tensor([1.0, 0.0, 0.5])  # -> uint8 [255, 0, 127]
+    f1 = torch.zeros((6, 8, 3), dtype=torch.float32)
+    f1[0, 0] = torch.tensor([0.0, 1.0, 0.0])  # -> uint8 [0, 255, 0]
+    batch = torch.stack([f0, f1])  # [2, 6, 8, 3]
+    frame_id = torch.tensor([5, 9], dtype=torch.int64)
+
+    result = node.forward(rgb_image=batch, frame_id=frame_id)
+    assert result == {}
+
+    p5 = out_dir / "frame_000005.png"
+    p9 = out_dir / "frame_000009.png"
+    assert p5.exists() and p9.exists()
+
+    img5 = cv2.imread(str(p5))  # BGR, lossless PNG
+    assert img5.shape == (6, 8, 3)
+    # BGR -> RGB round-trips exactly through a PNG.
+    assert img5[0, 0][::-1].tolist() == [255, 0, 127]
+    assert cv2.imread(str(p9))[0, 0][::-1].tolist() == [0, 255, 0]
+
+
+def test_to_image_uses_running_counter_without_frame_id(tmp_path: Path) -> None:
+    out_dir = tmp_path / "counter"
+    node = ToImage(output_dir=str(out_dir))
+    batch = torch.zeros((2, 4, 4, 3), dtype=torch.float32)
+
+    node.forward(rgb_image=batch)
+    node.forward(rgb_image=batch[:1])  # counter must persist across forward calls
+
+    names = sorted(p.name for p in out_dir.glob("*.png"))
+    assert names == ["frame_000000.png", "frame_000001.png", "frame_000002.png"]
+
+
+def test_to_image_infers_format_from_pattern_extension(tmp_path: Path) -> None:
+    out_dir = tmp_path / "jpg"
+    node = ToImage(output_dir=str(out_dir), filename_pattern="shot_{frame_id:03d}.jpg")
+    node.forward(
+        rgb_image=torch.zeros((1, 4, 4, 3), dtype=torch.float32),
+        frame_id=torch.tensor([7], dtype=torch.int64),
+    )
+    written = out_dir / "shot_007.jpg"
+    assert written.exists()
+    assert cv2.imread(str(written)).shape == (4, 4, 3)
+
+
+def test_to_image_applies_minus_90_rotation(tmp_path: Path) -> None:
+    out_dir = tmp_path / "rot"
+    node = ToImage(output_dir=str(out_dir), frame_rotation=-90)
+    frame = torch.tensor([[[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]]], dtype=torch.float32)
+    node.forward(rgb_image=frame)
+
+    img = cv2.imread(str(out_dir / "frame_000000.png"))
+    # Input H=1,W=2; after -90 rotation H=2,W=1 (same semantics as ToVideoNode).
+    assert img.shape == (2, 1, 3)
+    assert img[0, 0][::-1].tolist() == [255, 0, 0]  # top pixel red
+    assert img[1, 0][::-1].tolist() == [0, 255, 0]  # bottom pixel green
+
+
+def test_to_image_is_sink_with_no_outputs() -> None:
+    assert ToImage.OUTPUT_SPECS == {}
+
+
+def test_to_image_validates_output_dir() -> None:
+    with pytest.raises(ValueError, match="output_dir"):
+        ToImage(output_dir="")
+
+
+def test_to_image_validates_filename_pattern(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="filename_pattern"):
+        ToImage(output_dir=str(tmp_path), filename_pattern="")
+
+
+def test_to_image_requires_extension_in_pattern(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="extension"):
+        ToImage(output_dir=str(tmp_path), filename_pattern="frame_{frame_id}")
+
+
+def test_to_image_validates_frame_rotation(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="frame_rotation"):
+        ToImage(output_dir=str(tmp_path), frame_rotation=45)

@@ -136,6 +136,7 @@ from cuvis_ai.node.spectrum_plot import SpectraPlot, SpectrumPlotNode
 from cuvis_ai.node.svm import OneClassSVMDetector
 from cuvis_ai.node.unmixing import NMFUnmixing, NNLSUnmixing
 from cuvis_ai.node.video import (
+    ToImage,
     ToVideoNode,
     VideoFrameDataModule,
     VideoFrameDataset,
@@ -213,6 +214,7 @@ __all__ = [
     "SpectraPlot",
     "SpectralAngleMapper",
     "SpectrumPlotNode",
+    "ToImage",
     "SupervisedCIRSelector",
     "SupervisedFullSpectrumSelector",
     "SupervisedSelectorBase",

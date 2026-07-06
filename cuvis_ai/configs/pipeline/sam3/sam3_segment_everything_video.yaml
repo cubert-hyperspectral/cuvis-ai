@@ -33,7 +33,7 @@ nodes:
     frame_rate: 10.0
 connections:
 - source: video_frame.outputs.rgb_image
-  target: sam3_segment_everything.inputs.rgb_frame
+  target: sam3_segment_everything.inputs.rgb_image
 - source: video_frame.outputs.frame_id
   target: sam3_segment_everything.inputs.frame_id
 - source: video_frame.outputs.frame_id

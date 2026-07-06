@@ -35,116 +35,15 @@ except Exception:  # noqa: BLE001 — bundled binary missing/corrupt; surfaces a
 
 
 # ---------------------------------------------------------------------------
-# ToVideoNode — write RGB frame batches to a video file via ffmpeg subprocess
+# _FrameRenderMixin — RGB-frame rendering shared by the video/image sink nodes
 # ---------------------------------------------------------------------------
-class ToVideoNode(Node):
-    """Write incoming RGB frames directly to a video file via ffmpeg.
+class _FrameRenderMixin:
+    """Frame-rendering helpers shared by the RGB sink nodes (video and image).
 
-    This node lazily starts a single ``ffmpeg`` subprocess on the first frame and
-    pipes raw ``rgb24`` bytes to its stdin; ffmpeg handles encoding, bitrate
-    control, and muxing. ``close()`` sends EOF and waits for ffmpeg to flush the
-    trailer — callers must invoke it explicitly (e.g. in a ``finally`` block of
-    the enclosing pipeline driver) to surface encoder errors.
-
-    The ffmpeg binary is resolved via ``imageio_ffmpeg`` by default (bundled with
-    the wheel — no system install needed). Override with the
-    ``CUVIS_AI_FFMPEG_BIN`` environment variable to point at a custom build
-    (e.g. one with ``h264_nvenc`` / ``vaapi`` / ``amf`` hardware encoders).
-
-    Parameters
-    ----------
-    output_video_path : str
-        Output path for the generated video file (for example ``.mp4``).
-    frame_rate : float, optional
-        Video frame rate in frames per second. Must be positive. Default is ``10.0``.
-    frame_rotation : int | None, optional
-        Optional frame rotation in degrees. Supported values are ``-90``, ``90``, ``180``
-        (and aliases ``270``, ``-270``, ``-180``). Positive values rotate
-        anticlockwise (counterclockwise), negative values rotate clockwise.
-        Default is ``None`` (no rotation).
-    video_codec : str, optional
-        ffmpeg ``-c:v`` codec name (e.g. ``"libx264"``, ``"libx265"``).
-        Default is ``"libx264"``.
-    bitrate : str, optional
-        ffmpeg ``-b:v`` target bitrate (e.g. ``"12M"``, ``"8000k"``).
-        Default is ``"12M"``.
-    overlay_title : str | None, optional
-        Optional static title rendered at the top center with its own slim
-        darkened background block. Default is ``None``.
+    Provides rotation normalization/application, batch uint8 conversion, and the
+    optional centered-title overlay, so ``ToVideoNode`` and ``ToImage`` prepare
+    frames identically before their differing write backends take over.
     """
-
-    _category = NodeCategory.SINK
-    _tags = frozenset({NodeTag.VIDEO})
-
-    INPUT_SPECS = {
-        "rgb_image": PortSpec(
-            dtype=torch.float32,
-            shape=(-1, -1, -1, 3),
-            description="RGB frames [B, H, W, 3] in [0, 1] or [0, 255]",
-        ),
-        "frame_id": PortSpec(
-            dtype=torch.int64,
-            shape=(-1,),
-            description="Frame / measurement index [B] to render as text overlay.",
-            optional=True,
-        ),
-    }
-
-    OUTPUT_SPECS: dict[str, PortSpec] = {}  # sink node
-
-    def __init__(
-        self,
-        output_video_path: str,
-        frame_rate: float = 10.0,
-        frame_rotation: int | None = None,
-        video_codec: str = "libx264",
-        bitrate: str = "12M",
-        overlay_title: str | None = None,
-        **kwargs: Any,
-    ) -> None:
-        if frame_rate <= 0:
-            raise ValueError("frame_rate must be > 0")
-        if not isinstance(video_codec, str) or not video_codec.strip():
-            raise ValueError("video_codec must be a non-empty string")
-        if not isinstance(bitrate, str) or not bitrate.strip():
-            raise ValueError("bitrate must be a non-empty string (e.g. '12M', '8000k')")
-        valid_rotations = {None, 0, 90, -90, 180, -180, 270, -270}
-        if frame_rotation not in valid_rotations:
-            raise ValueError(
-                "frame_rotation must be one of: None, 0, 90, -90, 180, -180, 270, -270"
-            )
-
-        self.output_video_path = Path(output_video_path)
-        self.frame_rate = float(frame_rate)
-        self.frame_rotation = self._normalize_rotation(frame_rotation)
-        self.video_codec = video_codec.strip()
-        self.bitrate = bitrate.strip()
-        self.overlay_title = (
-            None
-            if overlay_title is None or not str(overlay_title).strip()
-            else str(overlay_title).strip()
-        )
-        if self.overlay_title:
-            warnings.warn(
-                "ToVideoNode renders overlay_title with cv2; it will move to the shared torch "
-                "text renderer (cuvis_ai.utils.torch_draw.draw_text) in v1.0.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-        self._proc: subprocess.Popen[bytes] | None = None
-        self._frame_size: tuple[int, int] | None = None
-
-        self.output_video_path.parent.mkdir(parents=True, exist_ok=True)
-
-        super().__init__(
-            output_video_path=output_video_path,
-            frame_rate=frame_rate,
-            frame_rotation=frame_rotation,
-            video_codec=self.video_codec,
-            bitrate=self.bitrate,
-            overlay_title=self.overlay_title,
-            **kwargs,
-        )
 
     @staticmethod
     def _normalize_rotation(frame_rotation: int | None) -> int | None:
@@ -170,95 +69,6 @@ class ToVideoNode(Node):
         if self.frame_rotation == 180:
             return torch.rot90(frame, k=2, dims=(0, 1))
         return frame
-
-    @staticmethod
-    def _resolve_ffmpeg_binary() -> str:
-        """Return the ffmpeg binary path, honoring CUVIS_AI_FFMPEG_BIN override."""
-        override = os.environ.get("CUVIS_AI_FFMPEG_BIN", "").strip()
-        if override:
-            return override
-        if _BUNDLED_FFMPEG_BIN is None:
-            raise RuntimeError(
-                "imageio_ffmpeg bundled ffmpeg binary not found and "
-                "CUVIS_AI_FFMPEG_BIN is unset; reinstall imageio-ffmpeg or "
-                "point CUVIS_AI_FFMPEG_BIN at a working ffmpeg"
-            )
-        return _BUNDLED_FFMPEG_BIN
-
-    def _build_ffmpeg_argv(self, height: int, width: int) -> list[str]:
-        """Build the ffmpeg argv for a raw rgb24 stdin pipe -> encoded file."""
-        return [
-            self._resolve_ffmpeg_binary(),
-            "-y",
-            "-loglevel",
-            "error",
-            "-f",
-            "rawvideo",
-            "-pix_fmt",
-            "rgb24",
-            "-s",
-            f"{width}x{height}",
-            "-r",
-            str(self.frame_rate),
-            "-i",
-            "pipe:",
-            "-c:v",
-            self.video_codec,
-            "-b:v",
-            self.bitrate,
-            "-pix_fmt",
-            "yuv420p",
-            "-vf",
-            "pad=ceil(iw/2)*2:ceil(ih/2)*2",
-            "-movflags",
-            "+faststart",
-            str(self.output_video_path),
-        ]
-
-    def _init_ffmpeg(self, height: int, width: int) -> None:
-        """Spawn the ffmpeg subprocess lazily on first frame."""
-        argv = self._build_ffmpeg_argv(height=height, width=width)
-        try:
-            proc = subprocess.Popen(  # nosec B603
-                argv,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE,
-            )
-        except FileNotFoundError as exc:
-            raise RuntimeError(
-                f"ffmpeg binary not found at {argv[0]!r} — "
-                "the bundled imageio_ffmpeg binary is missing or the "
-                "CUVIS_AI_FFMPEG_BIN override points at a non-existent path"
-            ) from exc
-        self._proc = proc
-        self._frame_size = (height, width)
-
-    def _collect_stderr_after_exit(self) -> str:
-        """Wait for ffmpeg to exit (short timeout) and return its full stderr text.
-
-        Only safe to call when ffmpeg has errored or is expected to exit imminently:
-        the ``stderr.read()`` is blocking and only returns once the writer end is
-        closed by the child. Waiting for the process first guarantees that.
-        """
-        if self._proc is None:
-            return ""
-        if self._proc.poll() is None:
-            try:
-                self._proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                self._proc.kill()
-                try:
-                    self._proc.wait(timeout=2)
-                except subprocess.TimeoutExpired:
-                    return "<ffmpeg did not terminate after kill()>"
-        if self._proc.stderr is None:
-            return ""
-        try:
-            data = self._proc.stderr.read() or b""
-        except (ValueError, OSError):
-            return ""
-        return data.decode("utf-8", errors="replace")
 
     @staticmethod
     def _to_uint8_batch(rgb_image: torch.Tensor) -> torch.Tensor:
@@ -352,6 +162,229 @@ class ToVideoNode(Node):
         )
 
         frame.copy_(torch.from_numpy(frame_np))
+
+
+# ---------------------------------------------------------------------------
+# ToVideoNode — write RGB frame batches to a video file via ffmpeg subprocess
+# ---------------------------------------------------------------------------
+class ToVideoNode(_FrameRenderMixin, Node):
+    """Write incoming RGB frames directly to a video file via ffmpeg.
+
+    This node lazily starts a single ``ffmpeg`` subprocess on the first frame and
+    pipes raw ``rgb24`` bytes to its stdin; ffmpeg handles encoding, bitrate
+    control, and muxing. ``close()`` sends EOF and waits for ffmpeg to flush the
+    trailer — callers must invoke it explicitly (e.g. in a ``finally`` block of
+    the enclosing pipeline driver) to surface encoder errors.
+
+    The ffmpeg binary is resolved via ``imageio_ffmpeg`` by default (bundled with
+    the wheel — no system install needed). Override with the
+    ``CUVIS_AI_FFMPEG_BIN`` environment variable to point at a custom build
+    (e.g. one with ``h264_nvenc`` / ``vaapi`` / ``amf`` hardware encoders).
+
+    Parameters
+    ----------
+    output_video_path : str
+        Output path for the generated video file (for example ``.mp4``).
+    frame_rate : float, optional
+        Video frame rate in frames per second. Must be positive. Default is ``10.0``.
+    frame_rotation : int | None, optional
+        Optional frame rotation in degrees. Supported values are ``-90``, ``90``, ``180``
+        (and aliases ``270``, ``-270``, ``-180``). Positive values rotate
+        anticlockwise (counterclockwise), negative values rotate clockwise.
+        Default is ``None`` (no rotation).
+    video_codec : str, optional
+        ffmpeg ``-c:v`` codec name (e.g. ``"libx264"``, ``"libx265"``).
+        Default is ``"libx264"``.
+    bitrate : str, optional
+        ffmpeg ``-b:v`` target bitrate (e.g. ``"12M"``, ``"8000k"``).
+        Default is ``"12M"``.
+    overlay_title : str | None, optional
+        Optional static title rendered at the top center with its own slim
+        darkened background block. Default is ``None``.
+    write_mode : str, optional
+        How the mp4 is finalized. ``"full"`` (default) writes a standard file
+        with ``-movflags +faststart`` (the ``moov`` atom is moved to the front on
+        a clean ``close()``); best for a finished run whose driver calls
+        ``close()``, but unreadable until then. ``"partial"`` writes a fragmented
+        mp4 (``-movflags +frag_keyframe+empty_moov+default_base_moof``) that stays
+        playable during recording and after an unclean stop; use it for a
+        streaming / gRPC session with no guaranteed driver ``close()``.
+    """
+
+    _category = NodeCategory.SINK
+    _tags = frozenset({NodeTag.VIDEO})
+
+    _WRITE_MODE_MOVFLAGS = {
+        "full": "+faststart",
+        "partial": "+frag_keyframe+empty_moov+default_base_moof",
+    }
+
+    INPUT_SPECS = {
+        "rgb_image": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 3),
+            description="RGB frames [B, H, W, 3] in [0, 1] or [0, 255]",
+        ),
+        "frame_id": PortSpec(
+            dtype=torch.int64,
+            shape=(-1,),
+            description="Frame / measurement index [B] to render as text overlay.",
+            optional=True,
+        ),
+    }
+
+    OUTPUT_SPECS: dict[str, PortSpec] = {}  # sink node
+
+    def __init__(
+        self,
+        output_video_path: str,
+        frame_rate: float = 10.0,
+        frame_rotation: int | None = None,
+        video_codec: str = "libx264",
+        bitrate: str = "12M",
+        overlay_title: str | None = None,
+        write_mode: str = "full",
+        **kwargs: Any,
+    ) -> None:
+        if frame_rate <= 0:
+            raise ValueError("frame_rate must be > 0")
+        if not isinstance(video_codec, str) or not video_codec.strip():
+            raise ValueError("video_codec must be a non-empty string")
+        if not isinstance(bitrate, str) or not bitrate.strip():
+            raise ValueError("bitrate must be a non-empty string (e.g. '12M', '8000k')")
+        if write_mode not in self._WRITE_MODE_MOVFLAGS:
+            raise ValueError(
+                f"write_mode must be one of {sorted(self._WRITE_MODE_MOVFLAGS)}, got {write_mode!r}"
+            )
+        valid_rotations = {None, 0, 90, -90, 180, -180, 270, -270}
+        if frame_rotation not in valid_rotations:
+            raise ValueError(
+                "frame_rotation must be one of: None, 0, 90, -90, 180, -180, 270, -270"
+            )
+
+        self.output_video_path = Path(output_video_path)
+        self.frame_rate = float(frame_rate)
+        self.frame_rotation = self._normalize_rotation(frame_rotation)
+        self.video_codec = video_codec.strip()
+        self.bitrate = bitrate.strip()
+        self.write_mode = write_mode
+        self.movflags = self._WRITE_MODE_MOVFLAGS[write_mode]
+        self.overlay_title = (
+            None
+            if overlay_title is None or not str(overlay_title).strip()
+            else str(overlay_title).strip()
+        )
+        if self.overlay_title:
+            warnings.warn(
+                "ToVideoNode renders overlay_title with cv2; it will move to the shared torch "
+                "text renderer (cuvis_ai.utils.torch_draw.draw_text) in v1.0.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        self._proc: subprocess.Popen[bytes] | None = None
+        self._frame_size: tuple[int, int] | None = None
+
+        self.output_video_path.parent.mkdir(parents=True, exist_ok=True)
+
+        super().__init__(
+            output_video_path=output_video_path,
+            frame_rate=frame_rate,
+            frame_rotation=frame_rotation,
+            video_codec=self.video_codec,
+            bitrate=self.bitrate,
+            overlay_title=self.overlay_title,
+            write_mode=write_mode,
+            **kwargs,
+        )
+
+    @staticmethod
+    def _resolve_ffmpeg_binary() -> str:
+        """Return the ffmpeg binary path, honoring CUVIS_AI_FFMPEG_BIN override."""
+        override = os.environ.get("CUVIS_AI_FFMPEG_BIN", "").strip()
+        if override:
+            return override
+        if _BUNDLED_FFMPEG_BIN is None:
+            raise RuntimeError(
+                "imageio_ffmpeg bundled ffmpeg binary not found and "
+                "CUVIS_AI_FFMPEG_BIN is unset; reinstall imageio-ffmpeg or "
+                "point CUVIS_AI_FFMPEG_BIN at a working ffmpeg"
+            )
+        return _BUNDLED_FFMPEG_BIN
+
+    def _build_ffmpeg_argv(self, height: int, width: int) -> list[str]:
+        """Build the ffmpeg argv for a raw rgb24 stdin pipe -> encoded file."""
+        return [
+            self._resolve_ffmpeg_binary(),
+            "-y",
+            "-loglevel",
+            "error",
+            "-f",
+            "rawvideo",
+            "-pix_fmt",
+            "rgb24",
+            "-s",
+            f"{width}x{height}",
+            "-r",
+            str(self.frame_rate),
+            "-i",
+            "pipe:",
+            "-c:v",
+            self.video_codec,
+            "-b:v",
+            self.bitrate,
+            "-pix_fmt",
+            "yuv420p",
+            "-vf",
+            "pad=ceil(iw/2)*2:ceil(ih/2)*2",
+            "-movflags",
+            self.movflags,
+            str(self.output_video_path),
+        ]
+
+    def _init_ffmpeg(self, height: int, width: int) -> None:
+        """Spawn the ffmpeg subprocess lazily on first frame."""
+        argv = self._build_ffmpeg_argv(height=height, width=width)
+        try:
+            proc = subprocess.Popen(  # nosec B603
+                argv,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+            )
+        except FileNotFoundError as exc:
+            raise RuntimeError(
+                f"ffmpeg binary not found at {argv[0]!r} — "
+                "the bundled imageio_ffmpeg binary is missing or the "
+                "CUVIS_AI_FFMPEG_BIN override points at a non-existent path"
+            ) from exc
+        self._proc = proc
+        self._frame_size = (height, width)
+
+    def _collect_stderr_after_exit(self) -> str:
+        """Wait for ffmpeg to exit (short timeout) and return its full stderr text.
+
+        Only safe to call when ffmpeg has errored or is expected to exit imminently:
+        the ``stderr.read()`` is blocking and only returns once the writer end is
+        closed by the child. Waiting for the process first guarantees that.
+        """
+        if self._proc is None:
+            return ""
+        if self._proc.poll() is None:
+            try:
+                self._proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self._proc.kill()
+                try:
+                    self._proc.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    return "<ffmpeg did not terminate after kill()>"
+        if self._proc.stderr is None:
+            return ""
+        try:
+            data = self._proc.stderr.read() or b""
+        except (ValueError, OSError):
+            return ""
+        return data.decode("utf-8", errors="replace")
 
     def forward(
         self,
@@ -448,6 +481,18 @@ class ToVideoNode(Node):
                 f"{stderr_text.decode('utf-8', errors='replace')}"
             )
 
+    def cleanup(self) -> None:
+        """Finalize the video file when the hosting pipeline is torn down.
+
+        A gRPC/session pipeline has no explicit driver ``close()`` call, so the
+        session-teardown ``cleanup()`` (invoked by ``CuvisPipeline.cleanup`` on
+        session close, pipeline replacement, or run stop) is where the ffmpeg
+        trailer gets flushed. ``close()`` is idempotent, so calling it here in
+        addition to an explicit driver ``close()`` is safe.
+        """
+        self.close()
+        super().cleanup()
+
     def __del__(self) -> None:
         """Best-effort cleanup; do not rely on this for normal teardown."""
         proc = getattr(self, "_proc", None)
@@ -458,6 +503,141 @@ class ToVideoNode(Node):
                 proc.kill()
         except Exception as exc:
             logger.debug("Failed to kill ffmpeg during __del__: {}", exc)
+
+
+# ---------------------------------------------------------------------------
+# ToImage — write RGB frame batches to individual image files
+# ---------------------------------------------------------------------------
+class ToImage(_FrameRenderMixin, Node):
+    """Write incoming RGB frames to individual image files, one file per frame.
+
+    Mirrors :class:`ToVideoNode` but emits a standalone image per frame instead
+    of an encoded video stream. Each file is written immediately and is complete
+    on disk the moment ``forward`` returns, so there is no lazy encoder process
+    and no explicit ``close()`` / finalization step (and none of the fragmented
+    ``movflags`` playability caveats a streaming video has).
+
+    The output name comes from ``filename_pattern`` with the frame index
+    substituted (the ``{frame_id}`` field); the image format is inferred from the
+    pattern's file extension (for example ``.png`` or ``.jpg``). When the batch
+    carries a ``frame_id`` port, that value drives both the filename and the text
+    overlay; otherwise a running per-node counter is used. A pattern without a
+    ``{frame_id}`` field writes every frame to the same file (last wins).
+
+    Parameters
+    ----------
+    output_dir : str
+        Directory the image files are written to. Created if missing.
+    filename_pattern : str, optional
+        ``str.format`` pattern for each file's name, receiving ``frame_id`` as a
+        keyword field. The extension selects the image format. Default is
+        ``"frame_{frame_id:06d}.png"``.
+    frame_rotation : int | None, optional
+        Optional frame rotation in degrees; same semantics and accepted values as
+        :class:`ToVideoNode`. Default is ``None`` (no rotation).
+    overlay_title : str | None, optional
+        Optional static title rendered at the top center with its own darkened
+        background block. Default is ``None``.
+    """
+
+    _category = NodeCategory.SINK
+    _tags = frozenset({NodeTag.IMAGE})
+
+    INPUT_SPECS = {
+        "rgb_image": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 3),
+            description="RGB frames [B, H, W, 3] in [0, 1] or [0, 255]",
+        ),
+        "frame_id": PortSpec(
+            dtype=torch.int64,
+            shape=(-1,),
+            description="Frame / measurement index [B] to render as text overlay.",
+            optional=True,
+        ),
+    }
+
+    OUTPUT_SPECS: dict[str, PortSpec] = {}  # sink node
+
+    def __init__(
+        self,
+        output_dir: str,
+        filename_pattern: str = "frame_{frame_id:06d}.png",
+        frame_rotation: int | None = None,
+        overlay_title: str | None = None,
+        **kwargs: Any,
+    ) -> None:
+        if not isinstance(output_dir, str) or not output_dir.strip():
+            raise ValueError("output_dir must be a non-empty string")
+        if not isinstance(filename_pattern, str) or not filename_pattern.strip():
+            raise ValueError("filename_pattern must be a non-empty string")
+        if not Path(filename_pattern).suffix:
+            raise ValueError(
+                "filename_pattern must include an image extension (e.g. '.png', '.jpg')"
+            )
+        valid_rotations = {None, 0, 90, -90, 180, -180, 270, -270}
+        if frame_rotation not in valid_rotations:
+            raise ValueError(
+                "frame_rotation must be one of: None, 0, 90, -90, 180, -180, 270, -270"
+            )
+
+        self.output_dir = Path(output_dir)
+        self.filename_pattern = filename_pattern
+        self.frame_rotation = self._normalize_rotation(frame_rotation)
+        self.overlay_title = (
+            None
+            if overlay_title is None or not str(overlay_title).strip()
+            else str(overlay_title).strip()
+        )
+        self._frame_counter = 0
+
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+
+        super().__init__(
+            output_dir=output_dir,
+            filename_pattern=filename_pattern,
+            frame_rotation=frame_rotation,
+            overlay_title=self.overlay_title,
+            **kwargs,
+        )
+
+    def _write_frame(self, frame: torch.Tensor, fid: int) -> None:
+        """Write one uint8 HWC RGB frame to ``output_dir`` as an image file."""
+        rgb_np = np.ascontiguousarray(frame.numpy())
+        bgr_np = cv2.cvtColor(rgb_np, cv2.COLOR_RGB2BGR)  # cv2.imwrite expects BGR
+        path = self.output_dir / self.filename_pattern.format(frame_id=fid)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if not cv2.imwrite(str(path), bgr_np):
+            raise RuntimeError(f"cv2.imwrite failed to write frame to {path}")
+
+    def forward(
+        self,
+        rgb_image: torch.Tensor,
+        frame_id: torch.Tensor | None = None,
+        context: Context | None = None,  # noqa: ARG002
+        **_: Any,
+    ) -> dict[str, Any]:
+        """Write each incoming RGB frame to its own image file.
+
+        Returns
+        -------
+        dict
+            Empty dict (sink node).
+        """
+        rgb_u8 = self._to_uint8_batch(rgb_image)
+
+        for b, frame in enumerate(rgb_u8):
+            self._draw_title_overlay(frame)
+            if frame_id is not None and b < len(frame_id):
+                fid = int(frame_id[b].item())
+                draw_text(frame, 8, 8, f"frame {fid}", (255, 255, 255), scale=2, bg=True)
+            else:
+                fid = self._frame_counter
+            frame = self._rotate_frame(frame)
+            self._write_frame(frame, fid)
+            self._frame_counter += 1
+
+        return {}
 
 
 # ---------------------------------------------------------------------------

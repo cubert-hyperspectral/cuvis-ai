@@ -20,6 +20,6 @@ nodes:
   hparams: {}
 connections:
 - source: video_frame.outputs.rgb_image
-  target: sam3_point_expansion.inputs.rgb_frame
+  target: sam3_point_expansion.inputs.rgb_image
 - source: video_frame.outputs.frame_id
   target: sam3_point_expansion.inputs.frame_id

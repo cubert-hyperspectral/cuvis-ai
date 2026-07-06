@@ -1,0 +1,26 @@
+metadata:
+  name: SAM3_Mask_Propagation_View
+  description: SAM3 runtime-mask propagation driven by the host-rendered view frame. The host supplies
+    the displayed RGB/CIR/SWIR false-color image as rgb_image (no overlays) for every frame it steps
+    through, plus the seed object mask and the source frame_id; the hyperspectral cube never leaves the
+    host. Seed on the current frame, then track that object across the session on the view you see.
+  tags:
+  - tracking
+  - sam3
+  - mask-prompt
+  - rgb
+  - video
+  - propagation
+  author: cuvis.ai
+plugins:
+- sam3
+nodes:
+- name: sam3_tracker
+  class_name: cuvis_ai_sam3.node.SAM3MaskPropagation
+  hparams:
+    score_threshold_detection: 0.5
+    new_det_thresh: 0.95
+    det_nms_thresh: 0.1
+    overlap_suppress_thresh: 0.7
+    max_tracker_states: 5
+connections: []

@@ -41,7 +41,7 @@ connections:
 - source: cu3s_data.outputs.wavelengths
   target: true_rgb.inputs.wavelengths
 - source: true_rgb.outputs.rgb_image
-  target: sam3_segment_everything.inputs.rgb_frame
+  target: sam3_segment_everything.inputs.rgb_image
 - source: cu3s_data.outputs.mesu_index
   target: sam3_segment_everything.inputs.frame_id
 - source: cu3s_data.outputs.mesu_index
