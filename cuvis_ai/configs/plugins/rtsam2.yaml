@@ -1,0 +1,93 @@
+# RTSAM2 Plugin Manifest
+#
+# To use RTSAM2, declare `plugins: [rtsam2]` in the pipeline yaml and point
+# the loader at the catalog directory that holds this manifest:
+#   uv run restore-pipeline --pipeline-path <pipeline>.yaml --plugins-dir cuvis_ai/configs/plugins
+
+name: rtsam2
+# Real-time SAM2 / EfficientTAM streaming tracking plugin.
+#
+# Temporary local-checkout source: rtsam2 has no release tag yet, so the
+# loader points at the local working tree. MERGE GATE: before this branch
+# merges to main, either tag rtsam2 v0.1.0 and switch to the repo/tag pin
+# below, or drop this manifest and the rtsam2 pipelines from the merge --
+# a path pin resolves on this machine only.
+path: "D:/code-repos/cuvis-ai-rtsam2"
+# repo: "https://github.com/cubert-hyperspectral/cuvis-ai-rtsam2.git"
+# tag: "v0.1.0"
+# package_name: "cuvis-ai-rtsam2"
+capabilities:
+- class_name: cuvis_ai_rtsam2.node.rtsam2_streaming_propagation.RTSAM2BboxPropagation
+  category: model
+  tags: [batched, bbox, inference, learnable, mask, rgb, segmentation, stateful, torch, tracking, video]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\n</svg>\n"
+  input_specs:
+    rgb_image:
+      dtype: float32
+      shape: [1, -1, -1, 3]
+      optional: false
+      description: RGB frame [1,H,W,3] in float32 with values in [0, 1].
+    frame_id:
+      dtype: int64
+      shape: [1]
+      optional: true
+      description: Source frame index [1]. Preserved by upstream sinks.
+    bboxes:
+      dtype: ''
+      shape: []
+      optional: true
+      description: Optional per-frame list of bbox prompt dicts with keys element_id, object_id, x_min, y_min, x_max, y_max.
+  output_specs:
+    mask:
+      dtype: int32
+      shape: [1, -1, -1]
+      optional: false
+      description: ''
+    object_ids:
+      dtype: int64
+      shape: [1, -1]
+      optional: false
+      description: ''
+    detection_scores:
+      dtype: float32
+      shape: [1, -1]
+      optional: false
+      description: ''
+  doc_summary: RTSAM2 propagation with runtime bbox prompts.
+- class_name: cuvis_ai_rtsam2.node.rtsam2_streaming_propagation.RTSAM2MaskPropagation
+  category: model
+  tags: [batched, inference, learnable, mask, rgb, segmentation, stateful, torch, tracking, video]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\n</svg>\n"
+  input_specs:
+    rgb_image:
+      dtype: float32
+      shape: [1, -1, -1, 3]
+      optional: false
+      description: RGB frame [1,H,W,3] in float32 with values in [0, 1].
+    frame_id:
+      dtype: int64
+      shape: [1]
+      optional: true
+      description: Source frame index [1]. Preserved by upstream sinks.
+    mask:
+      dtype: int32
+      shape: [1, -1, -1]
+      optional: true
+      description: Optional int32 label map [1,H,W]. 0=background, each positive label is treated as an object ID prompt on that frame.
+  output_specs:
+    mask:
+      dtype: int32
+      shape: [1, -1, -1]
+      optional: false
+      description: ''
+    object_ids:
+      dtype: int64
+      shape: [1, -1]
+      optional: false
+      description: ''
+    detection_scores:
+      dtype: float32
+      shape: [1, -1]
+      optional: false
+      description: ''
+  doc_summary: RTSAM2 propagation with runtime label-map prompts.
