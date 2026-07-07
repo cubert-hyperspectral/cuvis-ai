@@ -25,10 +25,21 @@
 - **Added the SAM3 single-frame point-expansion use case.** Two pipeline configs
   (`configs/pipeline/sam3/sam3_point_expansion.yaml`, cu3s-sourced, and `…_video.yaml`, video-frame
   sourced) plus the `notebooks/use_cases/object_selection_point_expansion.ipynb` walkthrough.
-- **Registered `SAM3PointExpansion` in `configs/plugins/sam3.yaml`.** Temporarily switched the sam3
-  source from `tag: v0.1.7` to a local `path:` checkout, since the node is not yet in a tagged sam3
-  release. **Restore the `repo:` + `tag:` pin before release** — a local source trips the
-  `no-local-sources` CI gate added in 0.11.0.
+- **Pinned the sam3 plugin to `v0.2.0`.** `configs/plugins/sam3.yaml` uses a `repo:` + `tag: v0.2.0`
+  pin (restored from the temporary local `path:` checkout), the first tagged sam3 release to ship
+  `SAM3PointExpansion` and the `rgb_frame` -> `rgb_image` port rename.
+- **Registered the rtsam2 plugin.** Added `configs/plugins/rtsam2.yaml` pinned to
+  `cuvis-ai-rtsam2` `v0.1.0`, exposing the `RTSAM2BboxPropagation` and `RTSAM2MaskPropagation`
+  streaming tracker nodes (SAM2.1 / EfficientTAM camera predictors; prompt once on the first
+  frame, then track frame by frame).
+- **Added the rtsam2 mask-propagation pipelines.** The
+  `configs/pipeline/rtsam2/rtsam2_mask_propagation{,_view}.yaml` pair mirrors the sam3
+  mask-propagation set: a cu3s source (or the host, in the `_view` preset) feeds
+  `RTSAM2MaskPropagation`, seeded at runtime through the tracker's optional `mask` port (the
+  builtin `MaskPrompt` node is the drop-in producer), with tracked masks written by
+  `CocoTrackMaskWriter`.
+- **Dropped the abstract `SAM3TrackerInference` entry from `configs/plugins/sam3.yaml`.** Base
+  classes are not instantiable from pipelines, so the manifest now lists only concrete nodes.
 
 ## 0.11.0 - 2026-06-24
 
