@@ -7,15 +7,11 @@
 name: rtsam2
 # Real-time SAM2 / EfficientTAM streaming tracking plugin.
 #
-# Temporary local-checkout source: rtsam2 has no release tag yet, so the
-# loader points at the local working tree. MERGE GATE: before this branch
-# merges to main, either tag rtsam2 v0.1.0 and switch to the repo/tag pin
-# below, or drop this manifest and the rtsam2 pipelines from the merge --
-# a path pin resolves on this machine only.
-path: "D:/code-repos/cuvis-ai-rtsam2"
-# repo: "https://github.com/cubert-hyperspectral/cuvis-ai-rtsam2.git"
-# tag: "v0.1.0"
-# package_name: "cuvis-ai-rtsam2"
+# For local development against a checkout, comment the repo/tag pin and use:
+# path: "D:/code-repos/cuvis-ai-rtsam2"
+repo: "https://github.com/cubert-hyperspectral/cuvis-ai-rtsam2.git"
+tag: "v0.1.0"
+package_name: "cuvis-ai-rtsam2"
 capabilities:
 - class_name: cuvis_ai_rtsam2.node.rtsam2_streaming_propagation.RTSAM2BboxPropagation
   category: model
