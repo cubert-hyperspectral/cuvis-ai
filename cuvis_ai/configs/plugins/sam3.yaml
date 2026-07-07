@@ -6,51 +6,14 @@
 
 name: sam3
 # SAM3-based video object tracking plugin.
-#
-# Temporary local-checkout source. SAM3PointExpansion is not yet in a tagged
-# sam3 release, so the loader points at the local working tree. Restore the
-# repo/tag pin below once sam3 ships a release that includes the node.
-path: "D:/code-repos/cuvis-ai-sam3/cuvis-ai-sam3"
-# repo: "https://github.com/cubert-hyperspectral/cuvis-ai-sam3.git"
-# tag: "v0.1.7"  # v0.1.7 relaxes setuptools to <83 so sam3 co-installs with cuvis-ai (>=81)
-# package_name: "cuvis-ai-sam3"
+repo: "https://github.com/cubert-hyperspectral/cuvis-ai-sam3.git"
+tag: "v0.2.0"  # first tagged release with SAM3PointExpansion + the rgb_image port rename
+package_name: "cuvis-ai-sam3"
 capabilities:
-- class_name: cuvis_ai_sam3.node.SAM3TrackerInference
-  category: model
-  tags: [batched, inference, learnable, mask, rgb, segmentation, stateful, torch, tracking, video]
-  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\r\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\r\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\r\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\r\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\r\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\r\n</svg>\r\n"
-  input_specs:
-    rgb_image:
-      dtype: float32
-      shape: [1, -1, -1, 3]
-      optional: false
-      description: ''
-    frame_id:
-      dtype: int64
-      shape: [1]
-      optional: true
-      description: Source frame index [1]. If omitted, local stream index is used.
-  output_specs:
-    mask:
-      dtype: int32
-      shape: [1, -1, -1]
-      optional: false
-      description: ''
-    object_ids:
-      dtype: int64
-      shape: [1, -1]
-      optional: false
-      description: ''
-    detection_scores:
-      dtype: float32
-      shape: [1, -1]
-      optional: false
-      description: ''
-  doc_summary: Abstract base for streaming SAM3 propagation nodes.
 - class_name: cuvis_ai_sam3.node.SAM3TextPropagation
   category: model
   tags: [batched, inference, learnable, mask, rgb, segmentation, stateful, text, torch, tracking, video]
-  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\r\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\r\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\r\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\r\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\r\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\r\n</svg>\r\n"
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\n</svg>\n"
   input_specs:
     rgb_image:
       dtype: float32
@@ -97,7 +60,7 @@ capabilities:
 - class_name: cuvis_ai_sam3.node.SAM3BboxPropagation
   category: model
   tags: [batched, bbox, inference, learnable, mask, rgb, segmentation, stateful, torch, tracking, video]
-  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\r\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\r\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\r\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\r\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\r\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\r\n</svg>\r\n"
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\n</svg>\n"
   input_specs:
     rgb_image:
       dtype: float32
@@ -134,7 +97,7 @@ capabilities:
 - class_name: cuvis_ai_sam3.node.SAM3PointPropagation
   category: model
   tags: [batched, inference, keypoints, learnable, mask, rgb, segmentation, stateful, torch, tracking, video]
-  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\r\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\r\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\r\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\r\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\r\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\r\n</svg>\r\n"
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\n</svg>\n"
   input_specs:
     rgb_image:
       dtype: float32
@@ -166,7 +129,7 @@ capabilities:
 - class_name: cuvis_ai_sam3.node.SAM3MaskPropagation
   category: model
   tags: [batched, inference, learnable, mask, rgb, segmentation, stateful, torch, tracking, video]
-  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\r\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\r\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\r\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\r\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\r\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\r\n</svg>\r\n"
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\n</svg>\n"
   input_specs:
     rgb_image:
       dtype: float32
@@ -208,7 +171,7 @@ capabilities:
 - class_name: cuvis_ai_sam3.node.SAM3SegmentEverything
   category: model
   tags: [batched, image, inference, learnable, mask, rgb, segmentation, torch]
-  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\r\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\r\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\r\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\r\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\r\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\r\n</svg>\r\n"
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\n</svg>\n"
   input_specs:
     rgb_image:
       dtype: float32
@@ -240,7 +203,7 @@ capabilities:
 - class_name: cuvis_ai_sam3.node.SAM3PointExpansion
   category: model
   tags: [batched, image, inference, keypoints, learnable, mask, rgb, segmentation, torch]
-  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\r\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\r\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\r\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\r\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\r\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\r\n</svg>\r\n"
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\n</svg>\n"
   input_specs:
     rgb_image:
       dtype: float32
