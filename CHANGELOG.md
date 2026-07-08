@@ -46,7 +46,8 @@
 - **Clustering nodes can fit on a foreground mask.** `KMeansClusterer` and `GaussianMixtureClusterer`
   take an optional `mask` input; when connected, the statistical fit uses only pixels where the mask
   is non-zero while inference still labels every pixel. Other statistical-fit nodes are unaffected.
-- **Added `scipy` as a direct dependency floor** (`>=1.11`) for the Savitzky-Golay coefficient build.
+- **Added `scipy` as a direct dependency floor** (`>=1.17.1`, tracking the lock) for the
+  Savitzky-Golay coefficient build.
 - **Added a dense patch-inference node pair.** `PatchSampler` tiles a cube plus an integer target
   map into center-pixel patches; `ClassMapAccumulator` (a sink) scatters per-patch predictions back
   into per-frame class maps. They are coupled by a `frame_id`/`y`/`x`/`height`/`width` provenance
