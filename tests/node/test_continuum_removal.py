@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 import torch
+from scipy.spatial import ConvexHull
 
 from cuvis_ai.node.pretreatments import ContinuumRemoval
 
@@ -10,20 +11,18 @@ pytestmark = pytest.mark.unit
 
 
 def _upper_hull_ref(x: np.ndarray, y: np.ndarray) -> np.ndarray:
-    """Reference upper convex hull via Andrew's monotone chain (numpy)."""
-    pts = list(zip(x.tolist(), y.tolist(), strict=True))
-    hull: list[tuple[float, float]] = []
-
-    def cross(o, a, b):
-        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
-
-    for p in pts:
-        while len(hull) >= 2 and cross(hull[-2], hull[-1], p) >= 0:
-            hull.pop()
-        hull.append(p)
-    hx = np.array([h[0] for h in hull])
-    hy = np.array([h[1] for h in hull])
-    return np.interp(x, hx, hy)
+    """Reference upper convex hull via scipy's Qhull wrapper."""
+    vertices = ConvexHull(np.column_stack([x, y])).vertices  # counter-clockwise
+    # Walking counter-clockwise from the rightmost vertex to the leftmost one
+    # traverses exactly the upper chain of the hull.
+    idx = int(np.argmax(x[vertices]))
+    end = int(np.argmin(x[vertices]))
+    chain = [vertices[idx]]
+    while idx != end:
+        idx = (idx + 1) % len(vertices)
+        chain.append(vertices[idx])
+    chain = chain[::-1]  # ascending x for np.interp
+    return np.interp(x, x[chain], y[chain])
 
 
 @torch.no_grad()

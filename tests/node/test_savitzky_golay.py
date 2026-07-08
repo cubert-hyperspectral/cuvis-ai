@@ -37,6 +37,27 @@ def test_savgol_matches_scipy_on_interior(deriv: int) -> None:
 
 
 @torch.no_grad()
+@pytest.mark.parametrize("mode", ["nearest", "mirror", "constant"])
+@pytest.mark.parametrize(("deriv", "delta"), [(0, 1.0), (1, 4.0)])
+def test_savgol_matches_scipy_including_edges(mode: str, deriv: int, delta: float) -> None:
+    rng = np.random.default_rng(1)
+    window_length, polyorder = 7, 2
+    x = rng.random((1, 2, 3, 21)).astype(np.float64)
+    wavelengths = np.arange(21, dtype=np.int32)
+
+    ref = savgol_filter(
+        x, window_length, polyorder, deriv=deriv, delta=delta, axis=-1, mode=mode, cval=0.0
+    )
+
+    node = SavitzkyGolay(
+        window_length=window_length, polyorder=polyorder, deriv=deriv, delta=delta, mode=mode
+    )
+    got = node.forward(cube=torch.tensor(x, dtype=torch.float32), wavelengths=wavelengths)["cube"]
+
+    assert torch.allclose(got, torch.tensor(ref, dtype=torch.float32), atol=1e-5)
+
+
+@torch.no_grad()
 def test_savgol_preserves_shape() -> None:
     node = SavitzkyGolay()
     cube = torch.rand(2, 4, 5, 21)
