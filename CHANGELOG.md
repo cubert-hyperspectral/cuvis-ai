@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+- **Docs: the node catalog now lists plugin capabilities.** The Catalogs → Nodes generator reads
+  the plugin manifests (`configs/plugins/*.yaml`) instead of the never-created
+  `docs/data/plugin_sources.yaml` that left the published catalog at "0 from plugins". Plugin nodes
+  render manifest-driven I/O port tables, data modules get their own rows and pill, and the filter
+  gains a Source facet (built-in / plugin / data module). An unparseable manifest or an empty
+  plugin collection now fails the docs build instead of silently shipping an empty list.
 - **Added a Savitzky-Golay / pretreatment node family.** Seven composable `cube -> cube` spectral
   pretreatments under `cuvis_ai/node/pretreatments/`: `SavitzkyGolay` (frozen-kernel `conv1d`,
   validated against `scipy.signal.savgol_filter`), `ContinuumRemoval` (convex-hull), `SpectralDerivative`,
