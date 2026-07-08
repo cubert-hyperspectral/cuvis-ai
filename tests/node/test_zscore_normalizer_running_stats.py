@@ -61,9 +61,11 @@ def test_running_per_band_statistics() -> None:
     assert torch.allclose(node.zscore_mean, flat.mean(dim=0), atol=1e-5)
     assert torch.allclose(node.zscore_std, flat.std(dim=0, unbiased=True), atol=1e-4)
 
-    # Normalized output is ~zero-mean per band despite the distinct offsets.
+    # Forward applies exactly the fitted per-band affine (deterministic check;
+    # a "~zero-mean output" assertion would be sampling-noise-flaky at 32 px/band).
     out = node.forward(data=frames[0])["normalized"]
-    assert out.reshape(-1, 3).mean(dim=0).abs().max() < 0.2
+    expected = (frames[0] - node.zscore_mean) / (node.zscore_std + node.eps)
+    assert torch.equal(out, expected)
 
 
 @torch.no_grad()
