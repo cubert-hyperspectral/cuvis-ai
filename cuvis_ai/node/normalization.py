@@ -382,6 +382,7 @@ class ZScoreNormalizer(_ScoreNormalizerBase):
        mean/std computed in the forward pass along ``dims`` — e.g. the default
        ``dims=[1, 2]`` standardizes each sample per channel over H, W (per-frame
        per-band); ``dims=[1, 2, 3]`` uses one scalar per sample.
+
     2. **Global normalization** (``use_running_stats=True``): mean/std estimated
        once from training data via ``statistical_initialization()`` (Welford)
        and serialized in buffers, so training and inference apply identical
