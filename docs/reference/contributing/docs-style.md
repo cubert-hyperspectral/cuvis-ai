@@ -219,17 +219,8 @@ For a built-in `cuvis_ai.node.<module>.ClassName`:
 
 For a plugin node or data module:
 
-1. Nothing catalog-specific — plugin capabilities are read automatically from
-   the repo's plugin manifest YAMLs (the same files the pipeline loader and
-   the gRPC server consume). The generator parses them with
-   `cuvis_ai_schemas.plugin.load_plugin_manifest` and never imports the
-   plugin package — so torch / ultralytics / SAM3 dependencies stay out of
-   the docs venv.
-2. Each capability's `category`, `tags`, `doc_summary`, and
-   `input_specs` / `output_specs` drive the row's chips, summary line, and
-   port tables. Those fields are emitted by the plugin repo's metadata
-   tooling; to fix catalog content, update the manifest (usually by
-   regenerating it in the plugin repo), not this repo's docs.
+1. Nothing catalog-specific — plugin capabilities are read automatically from the repo's plugin manifest YAMLs (the same files the pipeline loader and the gRPC server consume). The generator parses them with `cuvis_ai_schemas.plugin.load_plugin_manifest` and never imports the plugin package — so torch / ultralytics / SAM3 dependencies stay out of the docs venv.
+2. Each capability's `category`, `tags`, `doc_summary`, and `input_specs` / `output_specs` drive the row's chips, summary line, and port tables. Those fields are emitted by the plugin repo's metadata tooling; to fix catalog content, update the manifest (usually by regenerating it in the plugin repo), not this repo's docs.
 
 ### Don't edit the catalog page on disk
 
