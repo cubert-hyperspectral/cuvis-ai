@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## 0.11.0 - 2026-07-08
+
 - **Docs: the node catalog now lists plugin capabilities.** The Catalogs → Nodes generator reads
   the plugin manifests (`configs/plugins/*.yaml`) instead of the never-created
   `docs/data/plugin_sources.yaml` that left the published catalog at "0 from plugins". Plugin nodes
