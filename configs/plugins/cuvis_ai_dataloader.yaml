@@ -13,6 +13,21 @@ repo: "https://github.com/cubert-hyperspectral/cuvis-ai-dataloader.git"
 tag: "v0.2.0"
 package_name: cuvis-ai-dataloader
 capabilities:
-  - { class_name: cuvis_ai_dataloader.data.datamodule_cu3s.Cu3sDataModule,              kind: data_module, data_module_name: cu3s,        extras: [cu3s, coco] }
-  - { class_name: cuvis_ai_dataloader.data.datamodule_cu3s_multi.MultiCu3sDataModule,   kind: data_module, data_module_name: cu3s_multi,  extras: [cu3s, coco] }
-  - { class_name: cuvis_ai_dataloader.data.datamodule_tiff_paired.TiffPairedDataModule, kind: data_module, data_module_name: tiff_paired, extras: [tiff] }
+  - class_name: cuvis_ai_dataloader.data.datamodule_cu3s.Cu3sDataModule
+    kind: data_module
+    data_module_name: cu3s
+    extras: [cu3s, coco]
+    category: source
+    doc_summary: Single cu3s recording with optional COCO annotations.
+  - class_name: cuvis_ai_dataloader.data.datamodule_cu3s_multi.MultiCu3sDataModule
+    kind: data_module
+    data_module_name: cu3s_multi
+    extras: [cu3s, coco]
+    category: source
+    doc_summary: Multiple cu3s recordings driven by an external splits.csv.
+  - class_name: cuvis_ai_dataloader.data.datamodule_tiff_paired.TiffPairedDataModule
+    kind: data_module
+    data_module_name: tiff_paired
+    extras: [tiff]
+    category: source
+    doc_summary: TIFF cubes with paired PNG label images.
