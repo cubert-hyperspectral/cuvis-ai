@@ -107,3 +107,17 @@ def test_nmf_state_dict_round_trip() -> None:
     assert torch.allclose(out_a["endmembers"], out_b["endmembers"], atol=1e-5)
     assert torch.allclose(out_a["scores"], out_b["scores"], atol=1e-5)
     assert torch.equal(out_a["class_mask"], out_b["class_mask"])
+
+
+@torch.no_grad()
+def test_nmf_forward_validates_cube_shape_and_channels() -> None:
+    channels = 6
+    pixels = _synthetic_pixels(2, channels, 60, seed=2)
+    cube = pixels.reshape(1, 6, 10, channels)
+    node = NMFUnmixing(n_components=2, max_iter=200, random_state=0, max_fit_pixels=0)
+    node.statistical_initialization(iter([{"cube": cube}]))
+
+    with pytest.raises(ValueError, match="Expected cube"):
+        node.forward(cube=cube[0])
+    with pytest.raises(ValueError, match="channels"):
+        node.forward(cube=cube[..., : channels - 1])

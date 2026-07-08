@@ -50,3 +50,10 @@ def test_continuum_removal_flat_spectrum_is_unity() -> None:
     cube = torch.full((1, 1, 1, 4), 0.5)
     out = ContinuumRemoval().forward(cube=cube, wavelengths=wavelengths)["cube"]
     assert torch.allclose(out, torch.ones_like(out), atol=1e-6)
+
+
+@torch.no_grad()
+def test_upper_hull_two_bands_is_the_spectra_itself() -> None:
+    x = torch.tensor([400.0, 500.0])
+    spectra = torch.tensor([[0.3, 0.8], [0.5, 0.2]])
+    assert torch.equal(ContinuumRemoval._upper_hull(x, spectra), spectra)

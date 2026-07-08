@@ -6,8 +6,21 @@ import torch
 from scipy.optimize import nnls
 
 from cuvis_ai.node.unmixing import NNLSUnmixing
+from cuvis_ai.node.unmixing._solve import nnls_batch
 
 pytestmark = pytest.mark.unit
+
+
+@torch.no_grad()
+def test_nnls_batch_empty_pixels() -> None:
+    out = nnls_batch(torch.rand(5, 2), torch.zeros(0, 5))
+    assert out.shape == (0, 2)
+
+
+@torch.no_grad()
+def test_nnls_batch_zero_operator_returns_zeros() -> None:
+    out = nnls_batch(torch.zeros(5, 2), torch.rand(7, 5))
+    assert torch.equal(out, torch.zeros(7, 2))
 
 
 @torch.no_grad()
@@ -55,6 +68,20 @@ def test_nnls_output_shapes_and_class_mask() -> None:
     # Argmax is 1-based and within [1, K] when min_total is 0.
     assert out["class_mask"].min().item() >= 1
     assert out["class_mask"].max().item() <= components
+
+
+@torch.no_grad()
+def test_nnls_rejects_bad_input_shapes() -> None:
+    node = NNLSUnmixing()
+    endmembers = torch.rand(3, 5, dtype=torch.float32)
+    cube = torch.rand(1, 2, 2, 5, dtype=torch.float32)
+
+    with pytest.raises(ValueError, match=r"\[B, H, W, C\]"):
+        node.forward(cube=torch.rand(2, 2, 5), endmembers=endmembers)
+    with pytest.raises(ValueError, match=r"\[K, C\]"):
+        node.forward(cube=cube, endmembers=torch.rand(3, 5, 1))
+    with pytest.raises(ValueError, match="do not match cube channels"):
+        node.forward(cube=cube, endmembers=torch.rand(3, 4))
 
 
 @torch.no_grad()

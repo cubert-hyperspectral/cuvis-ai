@@ -102,3 +102,22 @@ def test_mask_restricts_fit_to_foreground_pixels() -> None:
 def test_mask_is_declared_as_optional_input() -> None:
     spec = KMeansClusterer.INPUT_SPECS["mask"]
     assert spec.optional is True
+
+
+@torch.no_grad()
+def test_collect_pixels_skips_batches_without_cube_port() -> None:
+    cube = _as_cube(_three_blob_pixels())
+    node = KMeansClusterer(n_clusters=3, random_state=0)
+    pixels = node._collect_pixels([{}, {"cube": cube}, {"other": torch.rand(2, 2)}])
+    assert pixels.shape[0] == cube.shape[1]
+
+
+@torch.no_grad()
+def test_collect_pixels_subsamples_to_budget_deterministically() -> None:
+    cube = _as_cube(_three_blob_pixels())  # 600 pixels
+    node = KMeansClusterer(n_clusters=3, random_state=0, max_fit_pixels=50, fit_seed=7)
+    first = node._collect_pixels([{"cube": cube}])
+    second = node._collect_pixels([{"cube": cube}])
+    assert first.shape == (50, cube.shape[-1])
+    # The seeded permutation makes the subsample reproducible.
+    assert torch.equal(first, second)

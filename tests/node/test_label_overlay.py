@@ -52,3 +52,8 @@ def test_shape_mismatch_raises():
 def test_invalid_alpha_rejected():
     with pytest.raises(ValueError, match="alpha"):
         LabelOverlay(alpha=2.0)
+
+
+def test_invalid_background_color_rejected():
+    with pytest.raises(ValueError, match="background_color"):
+        LabelOverlay(background_color=(0.0, 0.0))

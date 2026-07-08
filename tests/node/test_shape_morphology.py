@@ -143,6 +143,34 @@ def test_shape_morphology_padding_and_shapes() -> None:
     assert torch.all(pad == 0)
 
 
+def test_shape_morphology_drops_labels_beyond_max_objects() -> None:
+    mask = _build_mask()  # three objects
+    node = ShapeMorphology(max_objects=2)
+    out = node.forward(mask=mask)
+
+    identity = out["identity_mask"][0]
+    assert int(identity.max().item()) == 2  # third label removed from the map
+    valid = out["valid"][0]
+    assert valid.tolist() == [True, True]
+    assert out["properties"].shape == (1, 2, len(node.properties))
+
+
+def test_shape_morphology_empty_frame_yields_no_objects() -> None:
+    mask = torch.zeros((1, 12, 16), dtype=torch.int32)
+    out = ShapeMorphology(max_objects=4).forward(mask=mask)
+
+    assert torch.all(out["identity_mask"] == 0)
+    assert not bool(out["valid"].any())
+    assert torch.all(out["properties"] == 0)
+
+
+def test_shape_morphology_descriptors_empty_when_no_objects() -> None:
+    node = ShapeMorphology()
+    labels = torch.zeros((6, 6), dtype=torch.int32)
+    desc = node._descriptors_for_frame(labels, 0, torch.device("cpu"))
+    assert desc.shape == (0, len(node.properties))
+
+
 @pytest.mark.parametrize(
     ("kwargs", "match"),
     [

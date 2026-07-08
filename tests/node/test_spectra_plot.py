@@ -55,6 +55,26 @@ def test_batch_renders_each_element():
     assert out["rgb_image"].shape == (2, PH, PW, 3)
 
 
+def test_title_is_drawn_into_frame():
+    """A non-empty title adds the axes title text, changing the rendered pixels."""
+    sig, wl = _inputs()
+    plain = SpectraPlot(plot_width=PW, plot_height=PH).forward(signatures=sig, wavelengths=wl)
+    titled = SpectraPlot(title="per-class spectra", plot_width=PW, plot_height=PH).forward(
+        signatures=sig, wavelengths=wl
+    )
+    assert not torch.allclose(plain["rgb_image"], titled["rgb_image"])
+
+
 def test_invalid_plot_size_rejected():
     with pytest.raises(ValueError, match="plot dimensions"):
         SpectraPlot(plot_width=16)
+
+
+def test_invalid_dpi_rejected():
+    with pytest.raises(ValueError, match="dpi"):
+        SpectraPlot(dpi=0)
+
+
+def test_empty_palette_rejected():
+    with pytest.raises(ValueError, match="palette"):
+        SpectraPlot(palette=[])

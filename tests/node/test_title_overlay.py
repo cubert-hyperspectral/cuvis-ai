@@ -86,3 +86,22 @@ def test_caption_length_mismatch_raises():
 def test_invalid_box_alpha_rejected():
     with pytest.raises(ValueError, match="box_alpha"):
         TitleOverlay(box_alpha=1.5)
+
+
+def test_missing_truetype_font_falls_back_to_default(monkeypatch: pytest.MonkeyPatch):
+    """When arial.ttf is unavailable, PIL's default font is used and drawing still works."""
+    from cuvis_ai.node import compositing
+
+    real_truetype = compositing.ImageFont.truetype
+
+    def fake_truetype(font=None, *args: object, **kwargs: object):
+        # Fail only the named-font lookup; load_default's internal call passes a buffer.
+        if isinstance(font, str):
+            raise OSError("no truetype font")
+        return real_truetype(font, *args, **kwargs)
+
+    monkeypatch.setattr(compositing.ImageFont, "truetype", fake_truetype)
+    node = TitleOverlay(text="fallback")
+    out = node.forward(frame=_frame())["frame"]
+    assert out.shape == (B, H, W, 3)
+    assert not torch.allclose(out, _frame())

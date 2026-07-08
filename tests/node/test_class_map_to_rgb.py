@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 import torch
 
 from cuvis_ai.node.colormap import _TAB20, ClassMapToRGB
@@ -41,6 +42,12 @@ def test_mask_blacks_out_non_foreground():
     assert torch.allclose(out[0, 0, 1], torch.zeros(3))
     assert torch.allclose(out[0, 1, 1], torch.zeros(3))
     assert not torch.allclose(out[0, 0, 0], torch.zeros(3))
+
+
+def test_empty_palette_rejected():
+    """An explicit empty palette is a configuration error."""
+    with pytest.raises(ValueError):
+        ClassMapToRGB(palette=[])
 
 
 def test_default_palette_is_tab20_and_wraps():

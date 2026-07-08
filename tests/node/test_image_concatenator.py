@@ -56,6 +56,43 @@ def test_unequal_cross_axis_is_padded_and_aligned() -> None:
 
 
 @torch.no_grad()
+@pytest.mark.parametrize(
+    ("align", "img_rows"),
+    [("start", slice(0, 2)), ("end", slice(4, 6))],
+)
+def test_start_and_end_alignment_place_the_image(align: str, img_rows: slice) -> None:
+    tall = torch.rand(1, 6, 4, 3)
+    short = torch.rand(1, 2, 4, 3)
+    out = ImageConcatenator(bg_color=(0.5, 0.5, 0.5), align=align).forward(images=[tall, short])[
+        "rgb_image"
+    ]
+    short_panel = out[0, :, 4:8, :]
+    assert torch.allclose(short_panel[img_rows], short[0])
+    bg = torch.tensor([0.5, 0.5, 0.5])
+    pad_rows = torch.ones(6, dtype=torch.bool)
+    pad_rows[img_rows] = False
+    assert torch.allclose(short_panel[pad_rows], bg.expand(4, 4, 3))
+
+
+@torch.no_grad()
+def test_vertical_unequal_widths_are_padded() -> None:
+    wide = torch.rand(1, 3, 6, 3)
+    narrow = torch.rand(1, 2, 2, 3)
+    out = ImageConcatenator(axis="vertical", bg_color=(0.5, 0.5, 0.5), align="center").forward(
+        images=[wide, narrow]
+    )["rgb_image"]
+    # vertical stack: common width = max(6, 2) = 6, height 3 + 2 = 5
+    assert out.shape == (1, 5, 6, 3)
+    assert torch.allclose(out[0, :3], wide[0])
+    narrow_panel = out[0, 3:, :, :]
+    bg = torch.tensor([0.5, 0.5, 0.5])
+    # center align: 2 padding columns left, 2 right, image columns 2..4
+    assert torch.allclose(narrow_panel[:, :2], bg.expand(2, 2, 3))
+    assert torch.allclose(narrow_panel[:, 4:], bg.expand(2, 2, 3))
+    assert torch.allclose(narrow_panel[:, 2:4], narrow[0])
+
+
+@torch.no_grad()
 def test_fan_in_order_is_preserved() -> None:
     red = torch.zeros(1, 2, 1, 3)
     red[..., 0] = 1.0
@@ -84,3 +121,7 @@ def test_errors() -> None:
         ImageConcatenator(axis="diagonal")
     with pytest.raises(ValueError, match="align"):
         ImageConcatenator(align="middle")
+    with pytest.raises(ValueError, match="gap"):
+        ImageConcatenator(gap=-1)
+    with pytest.raises(ValueError, match="bg_color"):
+        ImageConcatenator(bg_color=(1.0, 0.0))

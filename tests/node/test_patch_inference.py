@@ -58,6 +58,31 @@ class TestPatchSampler:
         )
         assert out["patches"].shape[0] <= 10
 
+    def test_unbalanced_sampling_draws_uniformly(self):
+        """class_balanced=False draws samples_per_frame uniform picks per frame."""
+        b, h, w, c = 2, 6, 6, 4
+        cube = torch.rand(b, h, w, c)
+        targets = torch.zeros(b, h, w, dtype=torch.int64)
+        targets[:, 3:, :] = 1
+        out = PatchSampler(
+            patch_size=3, samples_per_frame=8, class_balanced=False, mode="train"
+        ).forward(cube=cube, targets=targets)
+        assert out["patches"].shape == (b * 8, 3, 3, c)
+        assert out["labels"].shape == (b * 8,)
+
+    def test_balanced_sampling_trims_to_samples_per_frame(self):
+        """More classes than samples_per_frame still yields exactly samples_per_frame picks."""
+        cube = torch.rand(1, 4, 4, 3)
+        targets = torch.zeros(1, 4, 4, dtype=torch.int64)
+        targets[0, 0] = 1
+        targets[0, 1] = 2
+        targets[0, 2] = 3  # four classes present, budget of two
+        out = PatchSampler(patch_size=1, samples_per_frame=2, mode="train").forward(
+            cube=cube, targets=targets
+        )
+        assert out["patches"].shape[0] == 2
+        assert out["labels"].shape == (2,)
+
     def test_all_ignored_yields_empty(self):
         """A batch with no labeled pixel returns empty patches/labels of the right rank."""
         cube = torch.rand(1, 4, 4, 6)

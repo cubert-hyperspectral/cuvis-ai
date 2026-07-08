@@ -60,6 +60,28 @@ def test_empty_stream_rejected_and_stays_uninitialized(cls) -> None:
 
 @torch.no_grad()
 @pytest.mark.parametrize("cls", [MeanCenter, UnitVarianceScaling])
+def test_batches_without_cube_port_are_skipped(cls) -> None:
+    """Batches lacking the cube port are ignored; the fit uses the remaining ones."""
+    stream, pixels = _make_stream(24)
+    padded = [{}, *stream, {"other": torch.rand(1, 2, 2, 5)}]
+    node = cls()
+    node.statistical_initialization(iter(padded))
+
+    assert node.is_initialized
+    if cls is MeanCenter:
+        assert np.allclose(node.mean_c.numpy(), pixels.mean(axis=0), atol=1e-4)
+    else:
+        assert np.allclose(node.std_c.numpy(), pixels.std(axis=0, ddof=1), atol=1e-4)
+
+
+def test_base_fit_hook_is_not_implemented() -> None:
+    """Streaming-moment nodes never call the base _fit; its default stays a stub."""
+    with pytest.raises(NotImplementedError):
+        MeanCenter()._fit(torch.rand(4, 5))
+
+
+@torch.no_grad()
+@pytest.mark.parametrize("cls", [MeanCenter, UnitVarianceScaling])
 def test_state_dict_round_trip(cls) -> None:
     stream, _ = _make_stream(23)
     node = cls()

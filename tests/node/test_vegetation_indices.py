@@ -207,3 +207,55 @@ def test_vegetation_index_matches_numpy_formula(
         f"{name}: index_image {index_image.flatten().tolist()} "
         f"!= expected {expected_index.flatten().tolist()}"
     )
+
+
+def _evi_inputs() -> tuple[torch.Tensor, np.ndarray]:
+    wavelengths = np.array([460.0, 660.0, 800.0], dtype=np.float32)
+    cube = torch.tensor(
+        np.array([[0.05, 0.10, 0.60], [0.10, 0.25, 0.55]]).reshape(1, 1, 2, 3),
+        dtype=torch.float32,
+    )
+    return cube, wavelengths
+
+
+@torch.no_grad()
+def test_batched_2d_wavelengths_use_first_row() -> None:
+    """A [B, C] wavelength grid resolves bands from its first row."""
+    cube, wavelengths = _evi_inputs()
+    node = EVISelector()
+    from_1d = node.forward(cube=cube, wavelengths=wavelengths)
+    from_2d = node.forward(cube=cube, wavelengths=wavelengths[np.newaxis, :])
+    assert torch.allclose(from_1d["index_image"], from_2d["index_image"])
+    assert from_1d["band_info"]["band_indices"] == from_2d["band_info"]["band_indices"]
+
+
+@torch.no_grad()
+def test_higher_rank_wavelengths_rejected() -> None:
+    cube, wavelengths = _evi_inputs()
+    with pytest.raises(ValueError, match="1D wavelengths"):
+        EVISelector().forward(cube=cube, wavelengths=wavelengths.reshape(1, 1, -1))
+
+
+@torch.no_grad()
+def test_compute_raw_rgb_matches_forward_render() -> None:
+    cube, wavelengths = _evi_inputs()
+    node = EVISelector()
+    rgb = node._compute_raw_rgb(cube, wavelengths)
+    assert torch.allclose(rgb, node.forward(cube=cube, wavelengths=wavelengths)["rgb_image"])
+
+
+@pytest.mark.parametrize(
+    ("factory", "kwargs", "match"),
+    [
+        (NDWISelector, {"colormap_min": 1.0, "colormap_max": 1.0}, "colormap_max"),
+        (EVISelector, {"eps": -1.0}, "eps"),
+        (EVISelector, {"colormap_min": 2.0, "colormap_max": 1.0}, "colormap_max"),
+    ],
+)
+def test_invalid_constructor_arguments_rejected(
+    factory: Callable[..., object],
+    kwargs: dict[str, float],
+    match: str,
+) -> None:
+    with pytest.raises(ValueError, match=match):
+        factory(**kwargs)

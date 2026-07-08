@@ -106,3 +106,104 @@ def test_blob_detector_rejects_bad_params() -> None:
         BlobDetector(threshold_method="kmeans")
     with pytest.raises(ValueError):
         BlobDetector(connectivity=6)
+    with pytest.raises(ValueError):
+        BlobDetector(threshold=1.5)
+    with pytest.raises(ValueError):
+        BlobDetector(min_area=0)
+    with pytest.raises(ValueError):
+        BlobDetector(min_area=5, max_area=2)
+    with pytest.raises(ValueError):
+        BlobDetector(keep_largest=0)
+
+
+@torch.no_grad()
+def test_blob_detector_otsu_threshold_on_bimodal_scene() -> None:
+    node = BlobDetector(threshold_method="otsu", opening_kernel=0, closing_kernel=0, min_area=4)
+    out = node.forward(cube=_cube_from_brightness(_scene()))
+    assert int(out["count"].item()) == 3
+
+
+def test_blob_detector_otsu_empty_histogram_falls_back() -> None:
+    # histc(min=0, max=1) ignores out-of-range values, so the histogram is empty
+    assert BlobDetector._otsu_threshold(torch.full((4, 4), 2.0)) == 0.5
+
+
+@torch.no_grad()
+def test_blob_detector_quantile_threshold() -> None:
+    node = BlobDetector(
+        threshold_method="quantile",
+        threshold=0.8,
+        opening_kernel=0,
+        closing_kernel=0,
+        min_area=4,
+    )
+    out = node.forward(cube=_cube_from_brightness(_scene()))
+    assert int(out["count"].item()) == 3
+
+
+@torch.no_grad()
+def test_blob_detector_brightness_max() -> None:
+    # signal lives in a single band; band_mean would dilute it, max sees it
+    bright = _scene()
+    cube = torch.zeros((1, 10, 10, 3))
+    cube[0, :, :, 1] = torch.from_numpy(bright)
+    node = BlobDetector(
+        brightness="max",
+        threshold_method="fixed",
+        threshold=0.5,
+        opening_kernel=0,
+        closing_kernel=0,
+        min_area=4,
+    )
+    out = node.forward(cube=cube)
+    assert int(out["count"].item()) == 3
+
+
+@torch.no_grad()
+def test_blob_detector_brightness_index() -> None:
+    # blobs: (1 - 0) / (1 + 0) = +1; background: (0 - 1) / (0 + 1) = -1
+    bright = torch.from_numpy(_scene())
+    cube = torch.zeros((1, 10, 10, 2))
+    cube[0, :, :, 0] = bright
+    cube[0, :, :, 1] = 1.0 - bright
+    node = BlobDetector(
+        brightness="index",
+        index_wavelengths=(800.0, 600.0),
+        threshold_method="fixed",
+        threshold=0.75,
+        opening_kernel=0,
+        closing_kernel=0,
+        min_area=4,
+    )
+    out = node.forward(cube=cube, wavelengths=np.array([800.0, 600.0], dtype=np.float32))
+    assert int(out["count"].item()) == 3
+
+
+@torch.no_grad()
+def test_blob_detector_max_area_filter() -> None:
+    # max_area=9 drops the 12-px component, keeps the two 9-px squares
+    node = BlobDetector(
+        threshold_method="fixed",
+        threshold=0.5,
+        opening_kernel=0,
+        closing_kernel=0,
+        min_area=4,
+        max_area=9,
+    )
+    out = node.forward(cube=_cube_from_brightness(_scene()))
+    assert int(out["count"].item()) == 2
+    assert max(int((out["mask"][0] == k).sum()) for k in (1, 2)) == 9
+
+
+@torch.no_grad()
+def test_blob_detector_all_blobs_area_filtered() -> None:
+    # foreground is non-empty, but every component fails min_area
+    bright = np.zeros((6, 6), dtype=np.float32)
+    bright[2, 2] = 1.0
+    node = BlobDetector(
+        threshold_method="fixed", threshold=0.5, opening_kernel=0, closing_kernel=0, min_area=4
+    )
+    out = node.forward(cube=_cube_from_brightness(bright))
+    assert int(out["count"].item()) == 0
+    assert out["bboxes"].shape == (1, 0, 4)
+    assert out["centroids"].shape == (1, 0, 2)

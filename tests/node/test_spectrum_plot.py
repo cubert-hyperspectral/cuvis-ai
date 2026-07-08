@@ -37,6 +37,27 @@ def test_spectrum_plot_renders_fixed_size_rgb_frames() -> None:
     assert float(out.max()) <= 1.0
 
 
+def test_spectrum_plot_fixed_y_range_renders() -> None:
+    """A fixed y-range pins the axis limits and draws the explicit tick grid."""
+    node = SpectrumPlotNode(
+        wavelengths=[500.0, 600.0, 700.0],
+        reference_wavelengths=[500.0, 700.0],
+        plot_width=64,
+        plot_height=48,
+        dpi=32,
+        y_fixed_range=(0.0, 2.0),
+        y_num_ticks=4,
+    )
+    out = node.forward(
+        tracked_spectrum=torch.tensor([[0.1, 0.5, 0.9]], dtype=torch.float32),
+        reference_spectrum=torch.tensor([[[[0.25, 0.75]]]], dtype=torch.float32),
+    )["rgb_image"]
+
+    assert out.shape == (1, 48, 64, 3)
+    assert float(out.min()) >= 0.0
+    assert float(out.max()) <= 1.0
+
+
 def test_spectrum_plot_holds_last_tracked_spectrum(monkeypatch: pytest.MonkeyPatch) -> None:
     node = SpectrumPlotNode(
         wavelengths=[1.0, 2.0, 3.0],
