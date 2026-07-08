@@ -420,8 +420,6 @@ class ImageConcatenator(Node):
         return {"rgb_image": out}
 
 
-# TEMP: lifted verbatim from the cuvis_ai_metalscrapes experiment plugin
-# (node/compositor.py). Remove once those viz nodes ship in the catalog/plugin.
 class LabelOverlay(Node):
     """Alpha-blend a colourised label map onto an RGB image on its foreground pixels.
 
@@ -493,8 +491,6 @@ class LabelOverlay(Node):
         return {"frame": frame.clamp(0.0, 1.0)}
 
 
-# TEMP: lifted verbatim from the cuvis_ai_metalscrapes experiment plugin
-# (node/compositor.py). Remove once those viz nodes ship in the catalog/plugin.
 class TitleOverlay(Node):
     """Burn a text caption into the top-left of each RGB frame, over a translucent box.
 
