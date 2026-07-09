@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 import torch
 from cuvis_ai_schemas.enums import ExecutionStage, NodeCategory, NodeTag
@@ -139,6 +139,13 @@ class AnomalyDetectionMetrics(Node):
 
     OUTPUT_SPECS = {"metrics": PortSpec(dtype=list, shape=(), description="List of Metric objects")}
 
+    # average_precision accumulates across the epoch and must be reduced by a
+    # single pooled compute() at epoch end, not by averaging the per-batch
+    # running values. The trainer skips these names in per-batch logging and
+    # reads them once via compute_epoch_metrics(). Precision/recall/F1/IoU stay
+    # per-batch (mean reduction is their intended epoch value).
+    POOLED_METRIC_NAMES: ClassVar[frozenset[str]] = frozenset({"average_precision"})
+
     def __init__(
         self,
         execution_stages: set[ExecutionStage] | None = None,
@@ -261,6 +268,27 @@ class AnomalyDetectionMetrics(Node):
             )
 
         return {"metrics": metrics}
+
+    def compute_epoch_metrics(self) -> list[Metric]:
+        """Return epoch-pooled metrics from accumulated torchmetrics state.
+
+        ``average_precision`` accumulates across the epoch (reset only at the
+        ``(stage, epoch)`` boundary), so a single ``compute()`` here yields the
+        exact pooled AP rather than the batch-size-sensitive mean of per-batch
+        running values. Called once by the trainer at validation/test epoch end;
+        returns empty until at least one batch with ``logits`` has been seen.
+        """
+        if self._ap_last_key is None:
+            return []
+        stage, epoch = self._ap_last_key
+        return [
+            Metric(
+                name="average_precision",
+                value=float(self.average_precision_metric.compute()),
+                stage=stage,
+                epoch=epoch,
+            )
+        ]
 
 
 class ScoreStatisticsMetric(Node):

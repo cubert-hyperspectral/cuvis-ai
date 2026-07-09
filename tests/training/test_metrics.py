@@ -327,6 +327,38 @@ class TestAnomalyDetectionMetrics:
         confmat = metric_node.average_precision_metric.confmat
         assert confmat.numel() == 50 * 4
 
+    def test_compute_epoch_metrics_returns_pooled_ap(self):
+        """compute_epoch_metrics() returns the exact pooled AP for the epoch.
+
+        This is what the trainer logs once at epoch end instead of averaging the
+        per-batch running values. It must equal a single compute() over every
+        batch accumulated in the epoch, and average_precision must be declared
+        pooled so the trainer skips it in the per-batch path.
+        """
+        assert "average_precision" in AnomalyDetectionMetrics.POOLED_METRIC_NAMES
+
+        metric_node = AnomalyDetectionMetrics()
+        # Nothing accumulated yet → no pooled metric to report.
+        assert metric_node.compute_epoch_metrics() == []
+
+        b, h, w = 1, 8, 8
+        targets = self._mixed_targets(b, h, w)
+        decisions = torch.zeros(b, h, w, 1).bool()
+        aligned = torch.where(targets, torch.tensor(10.0), torch.tensor(-10.0))
+        inverted = -aligned
+
+        # Two batches within one epoch (aligned then inverted).
+        for batch_idx, logits in enumerate((aligned, inverted)):
+            ctx = Context(stage=ExecutionStage.VAL, epoch=0, batch_idx=batch_idx)
+            metric_node.forward(decisions, targets, ctx, logits=logits)
+
+        pooled = metric_node.compute_epoch_metrics()
+        assert [m.name for m in pooled] == ["average_precision"]
+        # Equals a single pooled compute() over both accumulated batches.
+        expected = float(metric_node.average_precision_metric.compute())
+        assert pooled[0].value == pytest.approx(expected)
+        assert pooled[0].stage == ExecutionStage.VAL
+
 
 class TestScoreStatisticsMetric:
     """Tests for ScoreStatisticsMetric."""
