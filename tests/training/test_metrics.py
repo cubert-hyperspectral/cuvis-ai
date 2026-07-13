@@ -327,19 +327,20 @@ class TestAnomalyDetectionMetrics:
         confmat = metric_node.average_precision_metric.confmat
         assert confmat.numel() == 50 * 4
 
-    def test_compute_epoch_metrics_returns_pooled_ap(self):
-        """compute_epoch_metrics() returns the exact pooled AP for the epoch.
+    def test_pooled_metrics_exposes_live_ap_object(self):
+        """pooled_metrics() exposes the live AP metric for native epoch pooling.
 
-        This is what the trainer logs once at epoch end instead of averaging the
-        per-batch running values. It must equal a single compute() over every
-        batch accumulated in the epoch, and average_precision must be declared
-        pooled so the trainer skips it in the per-batch path.
+        The trainer logs this object with on_epoch=True so Lightning computes a
+        single pooled AP and resets at epoch end, instead of averaging per-batch
+        running values. average_precision must be declared pooled (skipped in the
+        per-batch path), the mapping is empty until a logits batch is seen, and it
+        then exposes the same object whose compute() is the pooled AP.
         """
         assert "average_precision" in AnomalyDetectionMetrics.POOLED_METRIC_NAMES
 
         metric_node = AnomalyDetectionMetrics()
-        # Nothing accumulated yet → no pooled metric to report.
-        assert metric_node.compute_epoch_metrics() == []
+        # Nothing accumulated yet → nothing to pool.
+        assert metric_node.pooled_metrics() == {}
 
         b, h, w = 1, 8, 8
         targets = self._mixed_targets(b, h, w)
@@ -352,12 +353,11 @@ class TestAnomalyDetectionMetrics:
             ctx = Context(stage=ExecutionStage.VAL, epoch=0, batch_idx=batch_idx)
             metric_node.forward(decisions, targets, ctx, logits=logits)
 
-        pooled = metric_node.compute_epoch_metrics()
-        assert [m.name for m in pooled] == ["average_precision"]
-        # Equals a single pooled compute() over both accumulated batches.
-        expected = float(metric_node.average_precision_metric.compute())
-        assert pooled[0].value == pytest.approx(expected)
-        assert pooled[0].stage == ExecutionStage.VAL
+        pooled = metric_node.pooled_metrics()
+        assert list(pooled) == ["average_precision"]
+        # The mapping exposes the LIVE accumulator (same object), which the trainer logs
+        # with on_epoch=True; the pooled AP math itself is covered by the AP-accumulation tests.
+        assert pooled["average_precision"] is metric_node.average_precision_metric
 
 
 class TestScoreStatisticsMetric:

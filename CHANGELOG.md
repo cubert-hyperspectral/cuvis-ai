@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+- `AnomalyDetectionMetrics.average_precision` is now epoch-pooled through the trainer's native
+  metric-object logging: the node exposes the live `BinaryAveragePrecision` via `pooled_metrics()`
+  (replacing `compute_epoch_metrics()`), and the trainer logs it once per epoch with `on_epoch=True`,
+  so the reported AP is the exact pooled value rather than the per-batch running value. Requires a
+  `cuvis-ai-core` that includes the native `pooled_metrics()` logging.
+
 ## 0.10.1 - 2026-06-24
 
 - **Refreshed plugin manifest pins to the latest releases.** Bumped the `configs/plugins/` tags to
