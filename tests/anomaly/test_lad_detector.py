@@ -256,8 +256,7 @@ def test_lad_trainable_parameters_update(synthetic_anomaly_datamodule, training_
         pipeline=pipeline,
         datamodule=datamodule,
         loss_nodes=[loss_node],
-        trainer_config=training_cfg.trainer,
-        optimizer_config=training_cfg.optimizer,
+        training_config=training_cfg,
     )
     grad_trainer.fit()
 

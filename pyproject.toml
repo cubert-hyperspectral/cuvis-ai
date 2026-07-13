@@ -17,8 +17,8 @@ dependencies = [
     # plugin behind its [cu3s] extra, provisioned at runtime when a cu3s run needs it.
     # Builtin/RGB pipelines pull neither cuvis nor cuvis-il, closing the Windows wheel gap.
     # Tests mock the data layer (no plugin dep); the real cu3s reader is tested in the plugin.
-    "cuvis-ai-core>=0.10.1",
-    "cuvis-ai-schemas[full]>=0.7.0",
+    "cuvis-ai-core>=0.11.0",
+    "cuvis-ai-schemas[full]>=0.8.0",
     "pydantic>=2.13.3,<3.0.0",
     "defusedxml>=0.7.1",
     "markupsafe>=3.0.3",
@@ -154,9 +154,10 @@ cuvis_ai = ["assets/node_icons/*.svg", "configs/**/*.yaml"]
 torch = { index = "pytorch-cu128" }
 torchvision = { index = "pytorch-cu128" }
 # Local editable overrides for day-to-day development against working copies of the
-# core libs. Kept commented so CI and PyPI consumers resolve cuvis-ai-core from its
-# published release; uncomment for local work against a core checkout.
-# cuvis-ai-core = { path = "../../cuvis-ai-core/cuvis-ai-core", editable = true }
+# core libs. Strip (re-comment) before release so CI and PyPI consumers resolve the
+# published floors; these are for local work against sibling checkouts.
+cuvis-ai-core = { path = "../../cuvis-ai-core/cuvis-ai-core", editable = true }
+cuvis-ai-schemas = { path = "../../cuvis-ai-schemas/cuvis-ai-schemas", editable = true }
 # Plugin checkouts: uncomment together with the `plugins` extra above to import the
 # plugins in-process locally. These are never committed in their uncommented form.
 # cuvis-ai-dinomaly = { path = "../../cuvis-ai-dinomaly/cuvis-ai-dinomaly", editable = true }

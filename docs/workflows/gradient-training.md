@@ -23,7 +23,7 @@ from cuvis_ai_core.training import (
     GradientTrainer,
     OptimizerConfig,
     SchedulerConfig,
-    TrainerConfig,
+    TrainingConfig,
 )
 
 trainer = GradientTrainer(
@@ -31,9 +31,11 @@ trainer = GradientTrainer(
     datamodule=datamodule,
     loss_nodes=loss_nodes,
     metric_nodes=metric_nodes,
-    trainer_config=TrainerConfig(max_epochs=50),
-    optimizer_config=OptimizerConfig(name="adam", lr=1e-3),
-    scheduler_config=SchedulerConfig(name="cosine", t_max=50),
+    training_config=TrainingConfig(
+        max_epochs=50,
+        optimizer=OptimizerConfig(name="adam", lr=1e-3),
+        scheduler=SchedulerConfig(name="cosine", t_max=50),
+    ),
     callbacks=["early_stopping", "model_checkpoint"],
 )
 

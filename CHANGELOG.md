@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- **Flattened the trainrun/training configs for the folded `TrainingConfig` (needs `cuvis-ai-core>=0.11.0` / `cuvis-ai-schemas>=0.8.0`).** The nested `trainer:` block is gone: its `pytorch_lightning.Trainer` fields now sit directly under `training:` in every `configs/trainrun/*.yaml` and in `configs/training/default.yaml`, and the dead `training.batch_size` / `training.num_workers` keys are dropped. Hydra overrides change from `training.trainer.<field>=…` to `training.<field>=…`. Added `tests/configs/test_trainrun_configs_valid.py`, which validates every shipped training block against the flat schema.
+
 - **Unified the SAM3 RGB input port on `rgb_image`.** Renamed `rgb_frame` -> `rgb_image` in
   `configs/plugins/sam3.yaml` and every `configs/pipeline/sam3/*` connection target and view-preset
   description, matching the sam3 nodes' renamed port and the `rgb_image` name every other RGB

@@ -42,7 +42,7 @@ response = stub.ResolveConfig(
         config_type="trainrun",
         path="trainrun/deep_svdd",  # Or just "deep_svdd"
         overrides=[
-            "training.trainer.max_epochs=50",
+            "training.max_epochs=50",
             "training.optimizer.lr=0.0005",
             "data.batch_size=8",
         ],
@@ -59,15 +59,15 @@ print(f"Pipeline: {config_dict['pipeline']['name']}")
 
 - `"trainrun"` - Complete training run composition (pipeline + data + training)
 - `"pipeline"` - Pipeline-only configuration
-- `"training"` - Training parameters (optimizer, scheduler, trainer)
+- `"training"` - Training parameters (optimizer, scheduler, and trainer settings)
 - `"data"` - Data loading configuration
 
 **Override Patterns:**
 ```python
 overrides = [
     # Training parameters
-    "training.trainer.max_epochs=100",
-    "training.trainer.accelerator=gpu",
+    "training.max_epochs=100",
+    "training.accelerator=gpu",
     "training.optimizer.lr=0.001",
     "training.optimizer.weight_decay=0.01",
     "training.scheduler.mode=min",
@@ -101,7 +101,7 @@ resolved, config_dict = resolve_trainrun_config(
     stub,
     session_id,
     "deep_svdd",
-    overrides=["training.trainer.max_epochs=10"],
+    overrides=["training.max_epochs=10"],
 )
 ```
 
@@ -163,7 +163,7 @@ print("TrainRun config applied, pipeline built")
 1. Parses trainrun configuration JSON
 2. Builds pipeline from pipeline config
 3. Initializes data loader from data config
-4. Sets training parameters (optimizer, scheduler, trainer)
+4. Sets training parameters (optimizer, scheduler, and trainer settings)
 5. Prepares session for training or inference
 
 **Notes:**
@@ -214,7 +214,8 @@ import json
 
 # Validate training config before use
 training_config = {
-    "trainer": {"max_epochs": 10, "accelerator": "gpu"},
+    "max_epochs": 10,
+    "accelerator": "gpu",
     "optimizer": {"name": "adam", "lr": 0.001},
 }
 

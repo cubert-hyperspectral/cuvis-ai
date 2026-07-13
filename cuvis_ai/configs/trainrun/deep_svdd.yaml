@@ -1,54 +1,25 @@
-# @package _global_
+# @package _global_
 
 name: deep_svdd
 
-# Pipeline reference, resolved relative to this trainrun's directory.
+# Pipeline reference, resolved relative to this trainrun's directory.
 pipeline: ../pipeline/anomaly/deep_svdd/deep_svdd.yaml
 
 defaults:
-  - /data@data: lentils
-  - /training@training: default
-  - _self_
+- /data@data: lentils
+- /training@training: default
+- _self_
 
 data:
   splits:
     train:
-      - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [0]}
+    - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [0]}
     val:
-      - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [3, 4, 6]}
+    - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [3, 4, 6]}
     test:
-      - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [1, 5]}
-
+    - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [1, 5]}
 training:
   seed: 42
-  trainer:
-    max_epochs: 20
-    accelerator: auto
-    devices: 1
-    default_root_dir: ./outputs/deepsvdd
-    precision: 32-true
-    accumulate_grad_batches: 1
-    enable_progress_bar: true
-    enable_checkpointing: true
-    log_every_n_steps: 10
-    val_check_interval: 1.0
-    check_val_every_n_epoch: 1
-    gradient_clip_val: 1.0
-    deterministic: false
-    benchmark: false
-    callbacks:
-      checkpoint:
-        dirpath: outputs\deepsvdd\checkpoints
-        monitor: metrics_anomaly/iou
-        filename: "{epoch:02d}"
-        mode: max
-        save_top_k: 3
-        save_last: true
-        verbose: true
-        auto_insert_metric_name: true
-      learning_rate_monitor:
-        logging_interval: epoch
-        log_momentum: false
   optimizer:
     name: adamw
     lr: 0.001
@@ -66,40 +37,67 @@ training:
     min_lr: 1.0e-06
     eps: 1.0e-08
     verbose: false
+  max_epochs: 20
+  accelerator: auto
+  devices: 1
+  default_root_dir: ./outputs/deepsvdd
+  precision: 32-true
+  accumulate_grad_batches: 1
+  enable_progress_bar: true
+  enable_checkpointing: true
+  log_every_n_steps: 10
+  val_check_interval: 1.0
+  check_val_every_n_epoch: 1
+  gradient_clip_val: 1.0
+  deterministic: false
+  benchmark: false
+  callbacks:
+    checkpoint:
+      dirpath: outputs\deepsvdd\checkpoints
+      monitor: metrics_anomaly/iou
+      filename: "{epoch:02d}"
+      mode: max
+      save_top_k: 3
+      save_last: true
+      verbose: true
+      auto_insert_metric_name: true
+    learning_rate_monitor:
+      logging_interval: epoch
+      log_momentum: false
 output_dir: outputs\deepsvdd
 unfreeze_nodes:
-  - ZScoreNormalizerGlobal
+- ZScoreNormalizerGlobal
 freeze_nodes: []
 metric_nodes:
-  - metrics_anomaly
+- metrics_anomaly
 loss_nodes:
-  - deepsvdd_loss
+- deepsvdd_loss
 
-# Node & preprocessing parameters
-# pipeline:
-#   bandpass:
-#     min_wavelength_nm: 700.0
-#     max_wavelength_nm: null
+# Node & preprocessing parameters
+# pipeline:
+#   bandpass:
+#     min_wavelength_nm: 700.0
+#     max_wavelength_nm: null
 
-#   encoder:
-#     num_channels: 27
-#     hidden: 128
+#   encoder:
+#     num_channels: 27
+#     hidden: 128
 
-#   projection:
-#     in_channels: 27
-#     rep_dim: 32
-#     hidden: 128
+#   projection:
+#     in_channels: 27
+#     rep_dim: 32
+#     hidden: 128
 
-#   center_tracker:
-#     rep_dim: 32
-#     alpha: 0.1
+#   center_tracker:
+#     rep_dim: 32
+#     alpha: 0.1
 
-#   loss:
-#     nu: 0.05
+#   loss:
+#     nu: 0.05
 
-#   decider:
-#     quantile: 0.995
+#   decider:
+#     quantile: 0.995
 
-#   viz:
-#     mask_channel: 30
-#     up_to: 5
+#   viz:
+#     mask_channel: 30
+#     up_to: 5

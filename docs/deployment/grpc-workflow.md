@@ -165,7 +165,7 @@ resolved, config_dict = resolve_trainrun_config(
     session_id,
     "deep_svdd",  # Trainrun name from cuvis_ai/configs/trainrun/
     overrides=[
-        "training.trainer.max_epochs=50",
+        "training.max_epochs=50",
         "training.optimizer.lr=0.0005",
         "data.batch_size=8",
     ],
@@ -445,7 +445,7 @@ resolve_trainrun_config(
     session_id,
     "channel_selector",
     overrides=[
-        "training.trainer.max_epochs=100",          # More epochs
+        "training.max_epochs=100",                  # More epochs
         "training.optimizer.lr=0.001",              # Higher learning rate
         "training.optimizer.weight_decay=0.01",     # More regularization
         "data.batch_size=16",                       # Larger batch size

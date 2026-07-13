@@ -273,7 +273,7 @@ response = stub.ResolveConfig(
         config_type="trainrun",
         path="trainrun/deep_svdd",
         overrides=[
-            "training.trainer.max_epochs=50",
+            "training.max_epochs=50",
             "training.optimizer.lr=0.001",
             "data.batch_size=8",
         ],

@@ -25,7 +25,7 @@ resolved, config_dict = resolve_trainrun_config(
     session_id,
     "deep_svdd",
     overrides=[
-        "training.trainer.max_epochs=50",
+        "training.max_epochs=50",
         "training.optimizer.lr=0.0005",
         "data.batch_size=8",
     ],

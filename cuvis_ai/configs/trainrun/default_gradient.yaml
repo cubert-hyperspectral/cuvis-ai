@@ -1,21 +1,19 @@
-# @package _global_
+# @package _global_
 
 
 defaults:
-  - /data@data: lentils
-  - /training@training: default
-  - _self_
+- /data@data: lentils
+- /training@training: default
+- _self_
 
 name: base_trainrun
 
-# Pipeline reference, resolved relative to this trainrun's directory.
+# Pipeline reference, resolved relative to this trainrun's directory.
 pipeline: ../pipeline/anomaly/rx/channel_selector.yaml
 output_dir: ./outputs/${name}
 
 training:
-  trainer:
-    default_root_dir: ${output_dir}
-    
+  default_root_dir: ${output_dir}
 hydra:
   run:
     dir: ${output_dir}

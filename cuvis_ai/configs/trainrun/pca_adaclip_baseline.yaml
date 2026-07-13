@@ -1,32 +1,31 @@
-# @package _global_
+# @package _global_
 
 defaults:
-  - /data@data: lentils
-  - /training@training: default
-  - _self_
+- /data@data: lentils
+- /training@training: default
+- _self_
 
 name: pca_adaclip_baseline
 
 output_dir: ./outputs/${name}
 
-# Debug settings - save intermediate tensors for inspection
+# Debug settings - save intermediate tensors for inspection
 debug:
-  save_intermediates: false  # Set to true to enable debug saving
+  save_intermediates: false  # Set to true to enable debug saving
   save_dir: ${output_dir}/debug_intermediates
 
-# Pipeline configuration
+# Pipeline configuration
 pipeline:
   data_node:
     normal_class_ids: [0, 1]
-  
   normalizer:
     eps: 1e-6
     use_running_stats: true
-  
-  # PCA configuration (for baseline)
+
+  # PCA configuration (for baseline)
   pca:
     eps: 1e-6
-  
+
   adaclip:
     weight_name: pretrained_all
     backbone: ViT-L-14-336
@@ -37,35 +36,19 @@ pipeline:
     gaussian_sigma: 4.0
     use_half_precision: false
     enable_warmup: false
-    enable_gradients: false  # No gradients needed for baseline
-  
+    enable_gradients: false  # No gradients needed for baseline
   decider:
     quantile: 0.995
-  
+
   viz:
     mask_channel: 30
     up_to: 5
 
 training:
   seed: 42
-  trainer:
-    max_epochs: 1  # Minimum allowed (1 epoch, but no loss nodes = no training)
-    accelerator: auto
-    devices: 1
-    default_root_dir: ${output_dir}
-    precision: 32-true
-    accumulate_grad_batches: 1
-    enable_progress_bar: true
-    enable_checkpointing: false  # No checkpoints needed for baseline
-    log_every_n_steps: 10
-    val_check_interval: 1.0
-    check_val_every_n_epoch: 1
-    gradient_clip_val: 1.0
-    deterministic: false
-    benchmark: false
   optimizer:
     name: adamw
-    lr: 0.001  # Not used (no training)
+    lr: 0.001  # Not used (no training)
     weight_decay: 0.01
     betas: [0.9, 0.999]
   scheduler:
@@ -81,15 +64,27 @@ training:
     eps: 1e-8
     verbose: false
 
-# No nodes to unfreeze - everything stays frozen for baseline
+# No nodes to unfreeze - everything stays frozen for baseline
+  max_epochs: 1
+  accelerator: auto
+  devices: 1
+  default_root_dir: ${output_dir}
+  precision: 32-true
+  accumulate_grad_batches: 1
+  enable_progress_bar: true
+  enable_checkpointing: false
+  log_every_n_steps: 10
+  val_check_interval: 1.0
+  check_val_every_n_epoch: 1
+  gradient_clip_val: 1.0
+  deterministic: false
+  benchmark: false
 unfreeze_nodes: []
-
-# No loss nodes - just evaluation
+# No loss nodes - just evaluation
 loss_nodes: []
-
-# Metric nodes for evaluation
+# Metric nodes for evaluation
 metric_nodes:
-  - metrics_anomaly
+- metrics_anomaly
 
-freeze_nodes: []  # All nodes remain frozen (PCA baseline)
+freeze_nodes: []  # All nodes remain frozen (PCA baseline)
 

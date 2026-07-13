@@ -83,10 +83,9 @@ Example:
 
 ```yaml
 training:
-  trainer:
-    max_epochs: 50
-    accelerator: auto
-    devices: 1
+  max_epochs: 50
+  accelerator: auto
+  devices: 1
   optimizer:
     name: adamw
     lr: 0.001

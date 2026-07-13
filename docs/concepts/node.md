@@ -205,7 +205,7 @@ grad_trainer = GradientTrainer(
     pipeline=pipeline,
     datamodule=datamodule,
     loss_nodes=[loss_node],
-    trainer_config=training_config,
+    training_config=training_config,
 )
 grad_trainer.fit()
 ```

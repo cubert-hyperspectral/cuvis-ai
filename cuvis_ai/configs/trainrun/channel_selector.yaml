@@ -1,54 +1,19 @@
-# @package _global_
+# @package _global_
 
 
 defaults:
-  - /data@data: lentils
-  - /training@training: default
-  - _self_
+- /data@data: lentils
+- /training@training: default
+- _self_
 
 
 name: channel_selector
 
-# Pipeline reference, resolved relative to this trainrun's directory.
+# Pipeline reference, resolved relative to this trainrun's directory.
 pipeline: ../pipeline/anomaly/rx/channel_selector.yaml
 
 training:
   seed: 42
-  trainer:
-    max_epochs: 10
-    accelerator: auto
-    devices: 1
-    default_root_dir: ./outputs/channel_selector
-    precision: 32-true
-    accumulate_grad_batches: 1
-    enable_progress_bar: true
-    enable_checkpointing: true
-    log_every_n_steps: 10
-    val_check_interval: 1.0
-    check_val_every_n_epoch: 1
-    gradient_clip_val: 1.0
-    deterministic: false
-    benchmark: false
-    callbacks:
-      early_stopping:
-      - monitor: val/bce
-        patience: 10
-        mode: min
-        min_delta: 1.0e-06
-        stopping_threshold: null
-        verbose: true
-      checkpoint:
-        dirpath: outputs\channel_selector\checkpoints
-        monitor: metrics_anomaly/iou
-        filename: '{epoch:02d}'
-        mode: max
-        save_top_k: 3
-        save_last: true
-        verbose: true
-        auto_insert_metric_name: true
-      learning_rate_monitor:
-        logging_interval: epoch
-        log_momentum: false
   optimizer:
     name: adamw
     lr: 0.001
@@ -68,6 +33,40 @@ training:
     min_lr: 1.0e-06
     eps: 1.0e-08
     verbose: false
+  max_epochs: 10
+  accelerator: auto
+  devices: 1
+  default_root_dir: ./outputs/channel_selector
+  precision: 32-true
+  accumulate_grad_batches: 1
+  enable_progress_bar: true
+  enable_checkpointing: true
+  log_every_n_steps: 10
+  val_check_interval: 1.0
+  check_val_every_n_epoch: 1
+  gradient_clip_val: 1.0
+  deterministic: false
+  benchmark: false
+  callbacks:
+    early_stopping:
+    - monitor: val/bce
+      patience: 10
+      mode: min
+      min_delta: 1.0e-06
+      stopping_threshold:
+      verbose: true
+    checkpoint:
+      dirpath: outputs\channel_selector\checkpoints
+      monitor: metrics_anomaly/iou
+      filename: '{epoch:02d}'
+      mode: max
+      save_top_k: 3
+      save_last: true
+      verbose: true
+      auto_insert_metric_name: true
+    learning_rate_monitor:
+      logging_interval: epoch
+      log_momentum: false
 output_dir: outputs\channel_selector
 unfreeze_nodes:
 - SoftChannelSelector

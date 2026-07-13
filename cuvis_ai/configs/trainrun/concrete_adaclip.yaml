@@ -1,41 +1,26 @@
-# @package _global_
+# @package _global_
 
 defaults:
-  - /data@data: lentils
-  - /training@training: default
-  - _self_
+- /data@data: lentils
+- /training@training: default
+- _self_
 
 name: concrete_adaclip
 
 output_dir: ./outputs/${name}
 
-# Debug settings - save intermediate tensors for inspection
+# Debug settings - save intermediate tensors for inspection
 debug:
-  save_intermediates: False  # Set to false to disable debug saving
+  save_intermediates: false  # Set to false to disable debug saving
   save_dir: ${output_dir}/debug_intermediates
 
-# Pipeline configuration is hardcoded in the script to avoid YAML serialization issues.
+# Pipeline configuration is hardcoded in the script to avoid YAML serialization issues.
 
 training:
   seed: 42
-  trainer:
-    max_epochs: 20
-    accelerator: auto
-    devices: 1
-    default_root_dir: ${output_dir}
-    precision: 32-true
-    accumulate_grad_batches: 1
-    enable_progress_bar: true
-    enable_checkpointing: true
-    log_every_n_steps: 10
-    val_check_interval: 1.0
-    check_val_every_n_epoch: 1
-    gradient_clip_val: 1.0
-    deterministic: false
-    benchmark: false
   optimizer:
     name: adamw
-    lr: 0.001  # Match DRCNN experiment for fair comparison
+    lr: 0.001  # Match DRCNN experiment for fair comparison
     weight_decay: 0.01
     betas: [0.9, 0.999]
   scheduler:
@@ -51,19 +36,33 @@ training:
     eps: 1e-8
     verbose: false
 
-# Nodes to unfreeze for gradient training
+# Nodes to unfreeze for gradient training
+  max_epochs: 20
+  accelerator: auto
+  devices: 1
+  default_root_dir: ${output_dir}
+  precision: 32-true
+  accumulate_grad_batches: 1
+  enable_progress_bar: true
+  enable_checkpointing: true
+  log_every_n_steps: 10
+  val_check_interval: 1.0
+  check_val_every_n_epoch: 1
+  gradient_clip_val: 1.0
+  deterministic: false
+  benchmark: false
 unfreeze_nodes:
-  - concrete_selector
+- concrete_selector
 
-# Loss and metric nodes
+# Loss and metric nodes
 loss_nodes:
-  - iou_loss       # main supervision on AdaClip scores
-  - distinctness_loss  # repulsion penalty on selector weights
+- iou_loss         # main supervision on AdaClip scores
+- distinctness_loss    # repulsion penalty on selector weights
 
 metric_nodes:
-  - metrics_anomaly
+- metrics_anomaly
 
-freeze_nodes: []  # All other nodes remain frozen (AdaClip stays frozen)
+freeze_nodes: []  # All other nodes remain frozen (AdaClip stays frozen)
 
 
 

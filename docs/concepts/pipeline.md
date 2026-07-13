@@ -228,7 +228,7 @@ trainer = GradientTrainer(
     datamodule=datamodule,
     loss_nodes=[bce_loss],
     metric_nodes=[metrics_node],
-    trainer_config=training_config
+    training_config=training_config
 )
 
 trainer.fit()
@@ -429,8 +429,7 @@ grad_trainer = GradientTrainer(
     datamodule=datamodule,
     loss_nodes=[bce_loss],
     metric_nodes=[metrics_node],
-    trainer_config=training_config,
-    optimizer_config=optimizer_config
+    training_config=training_config
 )
 
 grad_trainer.fit()

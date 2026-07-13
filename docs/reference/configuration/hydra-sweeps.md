@@ -147,9 +147,8 @@ defaults:
   - _self_
 
 training:
-  trainer:
-    max_epochs: 3
-    fast_dev_run: false
+  max_epochs: 3
+  log_every_n_steps: 1
 data:
   batch_size: 1
   num_workers: 0
@@ -166,10 +165,9 @@ python train.py --config-name=recipes/fast_prototype
 # cuvis_ai/configs/mixins/debug.yaml
 # @package training
 
-trainer:
-  fast_dev_run: true
-  limit_train_batches: 10
-  enable_progress_bar: true
+max_epochs: 1
+log_every_n_steps: 1
+enable_progress_bar: true
 optimizer:
   lr: 0.01  # Higher LR for fast debugging
 ```

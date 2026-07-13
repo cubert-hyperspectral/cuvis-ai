@@ -142,7 +142,7 @@ uv run restore-trainrun \
   --override output_dir=outputs/my_experiment_v2 \
   --override data.batch_size=32 \
   --override training.optimizer.lr=0.0001 \
-  --override training.trainer.max_epochs=100 \
+  --override training.max_epochs=100 \
   --override nodes.2.hparams.threshold=0.8
 ```
 
@@ -152,7 +152,7 @@ uv run restore-trainrun \
 - `data.batch_size` - Adjust batch size
 - `data.params.cu3s_file_path`, `data.splits.splits_path` - Change the data source / splits
 - `training.optimizer.lr` - Modify learning rate
-- `training.trainer.max_epochs` - Adjust training duration
+- `training.max_epochs` - Adjust training duration
 - `nodes.N.hparams.*` - Override node constructor arguments (N = node index)
 
 ## Python API Usage
@@ -193,7 +193,7 @@ restore_trainrun(
     overrides=[
         "output_dir=outputs/my_experiment_v2",
         "training.optimizer.lr=0.0001",
-        "training.trainer.max_epochs=100",
+        "training.max_epochs=100",
         "data.batch_size=32",
     ],
 )
@@ -286,7 +286,7 @@ uv run restore-trainrun \
   --mode train \
   --checkpoint-path outputs/my_experiment/checkpoints/epoch=05.ckpt \
   --override training.optimizer.lr=0.00001 \
-  --override training.trainer.max_epochs=100 \
+  --override training.max_epochs=100 \
   --override output_dir=outputs/my_experiment_finetuned
 ```
 
@@ -387,19 +387,17 @@ Configure checkpoint saving during training:
 from cuvis_ai_core.training.config import TrainingConfig, ModelCheckpointConfig
 
 training_cfg = TrainingConfig(
-    trainer={
-        "max_epochs": 50,
-        "callbacks": {
-            "checkpoint": ModelCheckpointConfig(
-                dirpath="outputs/my_experiment/checkpoints",
-                monitor="metrics_anomaly/iou",  # Metric to track
-                mode="max",                      # Maximize IoU
-                save_top_k=3,                    # Keep best 3 checkpoints
-                save_last=True,                  # Always save last epoch
-                filename="{epoch:02d}",          # Naming pattern
-                verbose=True
-            )
-        }
+    max_epochs=50,
+    callbacks={
+        "checkpoint": ModelCheckpointConfig(
+            dirpath="outputs/my_experiment/checkpoints",
+            monitor="metrics_anomaly/iou",  # Metric to track
+            mode="max",                      # Maximize IoU
+            save_top_k=3,                    # Keep best 3 checkpoints
+            save_last=True,                  # Always save last epoch
+            filename="{epoch:02d}",          # Naming pattern
+            verbose=True
+        )
     }
 )
 ```
@@ -492,7 +490,7 @@ uv run restore-trainrun \
   --override data.params.cu3s_file_path=data/Beans/Beans_000.cu3s \
   --override data.splits.splits_path=cuvis_ai/configs/data/beans_splits.json \
   --override training.optimizer.lr=0.0001 \
-  --override training.trainer.max_epochs=30
+  --override training.max_epochs=30
 ```
 
 ### Example 3: Hyperparameter Search
@@ -505,7 +503,7 @@ for lr in 0.001 0.0001 0.00001; do
     --mode train \
     --override output_dir=outputs/hp_search_lr_${lr} \
     --override training.optimizer.lr=${lr} \
-    --override training.trainer.max_epochs=50
+    --override training.max_epochs=50
 done
 
 # Compare results
@@ -743,7 +741,7 @@ RuntimeError: CUDA out of memory
 uv run restore-trainrun \
   --trainrun-path ... \
   --override data.batch_size=1 \
-  --override training.trainer.accelerator=cpu
+  --override training.accelerator=cpu
 ```
 
 ### Issue: Statistical Node Not Initialized
