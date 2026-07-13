@@ -40,9 +40,11 @@ in, and how they compose.
   cube/label pairs) or by reading an explicit universe file (`universe.csv`) for formats that
   cannot self-enumerate (npz, and anything else you choose to list). `universe_hash` fingerprints
   the universe so drift can be detected.
+
 - **Rule.** A `splits.json` of selectors. `dir_indices` / `glob` / `tag` / `categories` are the
   live, expressive rules; `file_indices` / `files` are already concrete. Every kind resolves at
   `setup()` via `resolve_selectors`, so a rule-form file trains directly with no extra step.
+
 - **Baked.** A `splits.json` that holds only concrete `file_indices` / `files` plus a pinned
   `universe_hash`. Position-independent, reproducible, and drift-guarded. This is what a GUI edits
   and what you commit next to a dataset. You obtain a baked file by **generating** one (see
@@ -126,13 +128,16 @@ columns: source, index, path[, annotation, format, group]
 - **Optional in general, required for npz.** `cu3s_multi` and `tiff_paired` enumerate from disk, so
   `universe_csv` is optional for them. `npz_multi` cannot self-enumerate, so it requires `universe_csv` and
   raises without it.
+
 - **One universe, many splits, many materializations.** Because `source` is a stable logical
   identity (a cu3s-derived npz carries its originating cu3s path), the same `splits.json` resolves
   against the raw cu3s data and against a converted npz `universe.csv`. You can also point several
   splits (for example `splits/dinomaly.json` and `splits/adaclip.json`) at one universe.
+
 - **Nothing is parsed out of filenames.** Every path is explicit in the CSV. Duplicate
   `(source, index)`, a duplicate `path`, and any `..` path escape are all rejected when the file is
   read.
+
 - **Provenance columns are welcome.** Beyond `source, index, path`, a `universe.csv` (or a split CSV
   a dataset ships alongside it) may carry extra columns purely for traceability, for example `group`
   or dataset-specific fields like acquisition day or camera. Unknown columns are ignored by the
@@ -158,17 +163,23 @@ flowchart LR
   level is the canonically sorted file list; the expensive level (parsing COCO / masks for `tag` or
   `categories`) is only paid for the sources a selector actually touches. `required_attrs`, computed
   from the selectors, tells `enumerate` which attributes are needed.
+
 - **`load_splits` / `save_splits`** read and write a `splits.json` as a `DataSplitConfig`, with
   shape validation on load and stable pretty JSON on save.
+
 - **`universe_hash(refs)`** is a sha256 over the ordered sample `uid`s: the fingerprint pinned into a
   baked split.
+
 - **`has_dir_indices(cfg)`** reports whether a split still holds live position-dependent selectors
   (that is, whether it is a rule or already baked).
+
 - **`verify_universe(cfg, refs)`** is the drift guard: if a split pins a `universe_hash` and still
   carries `dir_indices`, it fails loudly when the universe no longer matches the pin, telling you to
   regenerate rather than silently resolving against shifted positions.
+
 - **`resolve_selectors`** and **`validate_leakage`** turn the selectors into the per-stage sample
   lists and check the split for leakage.
+
 - **`build_dataset_from_refs(refs)`** is the module's heavy step: it maps the resolved samples to
   the actual reads (npz loads, cu3s frames, tiff pairs).
 
@@ -214,6 +225,7 @@ Both modes emit concrete `file_indices` selectors built from the enumerated univ
 - **Selector path** is the general mechanism. The universe is addressable per sample, so a
   `splits.json` can assign any sample to any stage. Every selector-path module (`cu3s_multi`,
   `tiff_paired`, `npz_multi`) reads its assignment from `DataConfig.splits`.
+
 - **Module-owned** is for datasets whose split is intrinsically a rule at the group or dataset level
   (a fixed directory carve, a computed holdout). The module leaves `DataConfig.splits` unset and
   computes the split itself. Such a module can still be frozen to a `splits.json` with a generator
@@ -228,12 +240,15 @@ Both modes emit concrete `file_indices` selectors built from the enumerated univ
   excluded (it may legitimately overlap). The `group` field is carried on each sample (defaulting to
   its `source`) and is **reserved**: group-aware leakage is not yet enforced, so today leakage keys
   purely on `uid`.
+
 - **Drift.** A baked split pins a `universe_hash`. If the underlying universe changes and the split
   still holds position-dependent `dir_indices`, `verify_universe` fails loudly. Baked
   `file_indices` are position-independent and unaffected.
+
 - **Empty `predict`.** An empty `predict` stage resolves to the whole universe (predict-everything).
   That is why the converter mirrors a split into `predict`: to avoid accidentally predicting the
   entire dataset when only a subset was intended.
+
 - **Reproducibility.** `enumerate()` returns a canonically sorted universe, so selector resolution
   and `universe_hash` are deterministic across machines and platforms (`source` is normalized to
   posix).
