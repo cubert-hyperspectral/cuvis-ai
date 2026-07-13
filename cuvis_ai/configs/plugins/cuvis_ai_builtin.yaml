@@ -1168,6 +1168,53 @@ capabilities:
       optional: true
       description: Measurement/frame index per batch element [B]
   doc_summary: General-purpose data node for CU3S hyperspectral sequences.
+- class_name: cuvis_ai.node.data.AnomalyDataNode
+  category: source
+  tags: [hyperspectral, metadata]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#E8A33D\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <ellipse cx=\"22\" cy=\"18\" rx=\"12\" ry=\"4\"/>\r\n  <path d=\"M10 18v26c0 2.2 5.4 4 12 4s12-1.8 12-4V18\"/>\r\n  <path d=\"M10 28c0 2.2 5.4 4 12 4s12-1.8 12-4\"/>\r\n  <path d=\"M10 38c0 2.2 5.4 4 12 4s12-1.8 12-4\"/>\r\n  <path d=\"M40 32h14\"/>\r\n  <path d=\"M48 26l6 6-6 6\"/>\r\n</svg>\r\n"
+  input_specs:
+    cube:
+      dtype: ''
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Input hyperspectral cube [B, H, W, C]
+    mask:
+      dtype: int32
+      shape: [-1, -1, -1]
+      optional: true
+      description: Multi-class segmentation mask [B, H, W]
+    wavelengths:
+      dtype: int32
+      shape: [-1, -1]
+      optional: false
+      description: Wavelengths for each channel [B, C]
+    mesu_index:
+      dtype: int64
+      shape: [-1]
+      optional: true
+      description: Measurement/frame index per batch element [B]
+  output_specs:
+    cube:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Hyperspectral cube [B, H, W, C] as float32
+    mask:
+      dtype: bool
+      shape: [-1, -1, -1, 1]
+      optional: true
+      description: Binary anomaly mask (0=normal, 1=anomaly) [B, H, W, 1]
+    wavelengths:
+      dtype: int32
+      shape: [-1]
+      optional: true
+      description: Wavelengths [C] in nm
+    mesu_index:
+      dtype: int64
+      shape: [-1]
+      optional: true
+      description: Measurement/frame index per batch element [B]
+  doc_summary: CU3S data node with binary anomaly label mapping.
 - class_name: cuvis_ai.node.data.LentilsAnomalyDataNode
   category: source
   tags: [hyperspectral, metadata]
@@ -1214,7 +1261,7 @@ capabilities:
       shape: [-1]
       optional: true
       description: Measurement/frame index per batch element [B]
-  doc_summary: Lentils-specific CU3S data node with binary anomaly label mapping.
+  doc_summary: Deprecated alias of AnomalyDataNode (kept for saved pipelines).
 - class_name: cuvis_ai.node.dimensionality_reduction.PCA
   category: transform
   tags: [dim_reduction, hyperspectral, preprocessing, torch]

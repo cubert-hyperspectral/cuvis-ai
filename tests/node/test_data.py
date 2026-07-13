@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import torch
 
-from cuvis_ai.node.data import CU3SDataNode, LentilsAnomalyDataNode
+from cuvis_ai.node.data import AnomalyDataNode, CU3SDataNode, LentilsAnomalyDataNode
 
 
 def test_cu3s_data_node_converts_cube_and_passthroughs_mask_and_wavelengths(create_test_cube):
@@ -59,12 +59,18 @@ def test_cu3s_data_node_handles_optional_mask_and_wavelengths(create_test_cube):
     assert out["cube"].shape == cube.shape
 
 
-def test_lentils_data_node_inherits_cu3s_data_node():
-    assert issubclass(LentilsAnomalyDataNode, CU3SDataNode)
+def test_anomaly_data_node_inherits_cu3s_data_node():
+    assert issubclass(AnomalyDataNode, CU3SDataNode)
 
 
-def test_lentils_data_node_uses_cu3s_normalization_and_binary_mask_mapping(create_test_cube):
-    node = LentilsAnomalyDataNode(normal_class_ids=[0, 1])
+def test_lentils_data_node_is_deprecated_alias_of_anomaly_data_node():
+    assert issubclass(LentilsAnomalyDataNode, AnomalyDataNode)
+    assert LentilsAnomalyDataNode.INPUT_SPECS == AnomalyDataNode.INPUT_SPECS
+    assert LentilsAnomalyDataNode.OUTPUT_SPECS == AnomalyDataNode.OUTPUT_SPECS
+
+
+def test_anomaly_data_node_uses_cu3s_normalization_and_binary_mask_mapping(create_test_cube):
+    node = AnomalyDataNode(normal_class_ids=[0, 1])
 
     cube, wavelengths = create_test_cube(
         batch_size=1,
@@ -87,7 +93,7 @@ def test_lentils_data_node_uses_cu3s_normalization_and_binary_mask_mapping(creat
     assert out["wavelengths"].dtype == np.int32
     np.testing.assert_array_equal(out["wavelengths"], wavelengths[0].cpu().numpy())
 
-    # Lentils-specific binary mapping behavior.
+    # Binary anomaly mapping behavior.
     assert out["mask"].dtype == torch.bool
     assert out["mask"].shape == (1, 2, 3, 1)
     expected = torch.tensor(

@@ -98,11 +98,12 @@ class CU3SDataNode(Node):
         return result
 
 
-class LentilsAnomalyDataNode(CU3SDataNode):
-    """Lentils-specific CU3S data node with binary anomaly label mapping.
+class AnomalyDataNode(CU3SDataNode):
+    """CU3S data node with binary anomaly label mapping.
 
     Inherits shared CU3S normalization (cube + wavelengths) and additionally maps
-    multi-class masks to binary anomaly masks.
+    multi-class masks to binary anomaly masks: classes in ``normal_class_ids`` become 0,
+    everything else (or ``anomaly_class_ids`` when given) becomes 1.
     """
 
     _category = NodeCategory.SOURCE
@@ -146,7 +147,7 @@ class LentilsAnomalyDataNode(CU3SDataNode):
         wavelengths: torch.Tensor | None = None,
         **_: Any,
     ) -> dict[str, torch.Tensor | np.ndarray]:
-        """Apply CU3S normalization and optional Lentils binary mask mapping."""
+        """Apply CU3S normalization and optional binary anomaly mask mapping."""
         result = super().forward(cube=cube, mask=None, wavelengths=wavelengths, **_)
 
         if mask is not None:
@@ -156,3 +157,13 @@ class LentilsAnomalyDataNode(CU3SDataNode):
             result["mask"] = mapped["mask"]
 
         return result
+
+
+class LentilsAnomalyDataNode(AnomalyDataNode):
+    """Deprecated alias of :class:`AnomalyDataNode` (nothing lentils-specific inside).
+
+    Kept so saved pipelines referencing the old class name keep loading.
+    """
+
+    _category = NodeCategory.SOURCE
+    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.METADATA})
