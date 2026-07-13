@@ -199,8 +199,16 @@ class ChannelSelectorBase(Node):
         self._norm_frame_count = 0
         self._statistically_initialized = False
 
+        # Only STATISTICAL mode needs the StatisticalTrainer pass; without an override,
+        # RUNNING/PER_FRAME would inherit True from the auto-detect because this base
+        # implements statistical_initialization. Subclasses with their own initialization
+        # (e.g. SupervisedSelectorBase) keep the auto-detect.
         if self.norm_mode == NormMode.STATISTICAL:
             self._requires_initial_fit_override = True
+        elif (
+            type(self).statistical_initialization is ChannelSelectorBase.statistical_initialization
+        ):
+            self._requires_initial_fit_override = False
 
     @staticmethod
     def _nearest_band_index(wavelengths: np.ndarray, target_nm: float) -> int:

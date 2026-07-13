@@ -21,7 +21,11 @@ import numpy as np
 import pytest
 import torch
 
-from cuvis_ai.node.channel_selector import ChannelSelectorBase, FixedWavelengthSelector
+from cuvis_ai.node.channel_selector import (
+    ChannelSelectorBase,
+    FixedWavelengthSelector,
+    NormMode,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -392,3 +396,34 @@ class TestConstructorValidation:
         """Integer wavelengths should be accepted and stored as float."""
         sel = FixedWavelengthSelector(target_wavelengths=(650, 550, 450))
         assert all(isinstance(w, float) for w in sel.target_wavelengths)
+
+
+# ---------------------------------------------------------------------------
+# requires_initial_fit per norm mode
+# ---------------------------------------------------------------------------
+
+
+class TestRequiresInitialFit:
+    def test_statistical_mode_requires_fit(self) -> None:
+        sel = FixedWavelengthSelector(norm_mode=NormMode.STATISTICAL)
+        assert sel.requires_initial_fit is True
+
+    @pytest.mark.parametrize("mode", [NormMode.RUNNING, NormMode.PER_FRAME])
+    def test_non_statistical_modes_do_not_require_fit(self, mode: NormMode) -> None:
+        """RUNNING/PER_FRAME need no StatisticalTrainer pass; the base sets the
+        override so core's auto-detect (which sees statistical_initialization
+        implemented) does not force one."""
+        sel = FixedWavelengthSelector(norm_mode=mode)
+        assert sel.requires_initial_fit is False
+
+    def test_subclass_with_own_initialization_keeps_autodetect(self) -> None:
+        """A subclass carrying genuine init logic must still report True in
+        RUNNING mode — the base only claims 'no fit needed' for its own
+        statistical_initialization."""
+
+        class _CustomInitSelector(FixedWavelengthSelector):
+            def statistical_initialization(self, input_stream) -> None:
+                return None
+
+        sel = _CustomInitSelector(norm_mode=NormMode.RUNNING)
+        assert sel.requires_initial_fit is True
