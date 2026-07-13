@@ -47,9 +47,17 @@ uv sync --all-extras
 
 ## Cuvis SDK (only for cu3s/cu3 I/O)
 
-Reading `.cu3s` / `.cu3` files needs the system-wide **C++ Cuvis SDK** plus the `cuvis` Python binding. Neither ships with cuvis-ai: cu3s/cu3 support lives in the [`cuvis-ai-dataloader`](https://github.com/cubert-hyperspectral/cuvis-ai-dataloader) plugin, which owns the `cuvis` pin and the full setup steps. Pipelines that only use numpy, TIFF, or video input don't need it.
+Reading `.cu3s` / `.cu3` files needs the system-wide **C++ Cuvis SDK** plus the `cuvis` Python binding. Neither ships with cuvis-ai, and pipelines that only use numpy, TIFF, or video input don't need it. The `cuvis` binding is installed by the [`cuvis-ai-dataloader`](https://github.com/cubert-hyperspectral/cuvis-ai-dataloader) plugin's `[cu3s]` extra (which owns the `cuvis` pin); the C++ SDK is a separate system install.
 
-See the [cuvis-ai-dataloader README](https://github.com/cubert-hyperspectral/cuvis-ai-dataloader#cuvis-sdk-system-install-required-for-cu3s) for the SDK download, OS support, and verification.
+!!! warning "macOS not supported"
+
+    The Cuvis SDK ships for **Windows and Linux only**. On macOS, `.cu3s` / `.cu3` reads fail at runtime; TIFF, numpy, and video input still work.
+
+Install the binding (`uv pip install "cuvis-ai-dataloader[cu3s,coco]"`), then install a C++ SDK build matching the `cuvis>=3.5.0` pin for your OS from the [Cuvis SDK installation guide](https://sdk.cuvis.ai/latest/installation/), and verify the binding finds it:
+
+```bash
+uv run python -c "import cuvis; print(cuvis.__version__)"
+```
 
 ## FFmpeg (required for video pipelines)
 
