@@ -327,6 +327,38 @@ class TestAnomalyDetectionMetrics:
         confmat = metric_node.average_precision_metric.confmat
         assert confmat.numel() == 50 * 4
 
+    def test_pooled_metrics_exposes_live_ap_object(self):
+        """pooled_metrics() exposes the live AP metric for native epoch pooling.
+
+        The trainer logs this object with on_epoch=True so Lightning computes a
+        single pooled AP and resets at epoch end, instead of averaging per-batch
+        running values. average_precision must be declared pooled (skipped in the
+        per-batch path), the mapping is empty until a logits batch is seen, and it
+        then exposes the same object whose compute() is the pooled AP.
+        """
+        assert "average_precision" in AnomalyDetectionMetrics.POOLED_METRIC_NAMES
+
+        metric_node = AnomalyDetectionMetrics()
+        # Nothing accumulated yet → nothing to pool.
+        assert metric_node.pooled_metrics() == {}
+
+        b, h, w = 1, 8, 8
+        targets = self._mixed_targets(b, h, w)
+        decisions = torch.zeros(b, h, w, 1).bool()
+        aligned = torch.where(targets, torch.tensor(10.0), torch.tensor(-10.0))
+        inverted = -aligned
+
+        # Two batches within one epoch (aligned then inverted).
+        for batch_idx, logits in enumerate((aligned, inverted)):
+            ctx = Context(stage=ExecutionStage.VAL, epoch=0, batch_idx=batch_idx)
+            metric_node.forward(decisions, targets, ctx, logits=logits)
+
+        pooled = metric_node.pooled_metrics()
+        assert list(pooled) == ["average_precision"]
+        # The mapping exposes the LIVE accumulator (same object), which the trainer logs
+        # with on_epoch=True; the pooled AP math itself is covered by the AP-accumulation tests.
+        assert pooled["average_precision"] is metric_node.average_precision_metric
+
 
 class TestScoreStatisticsMetric:
     """Tests for ScoreStatisticsMetric."""
