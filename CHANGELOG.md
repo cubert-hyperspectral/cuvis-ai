@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## 0.10.2 - 2026-07-13
 
 - `AnomalyDetectionMetrics.average_precision` is now epoch-pooled through the trainer's native
   metric-object logging: the node exposes the live `BinaryAveragePrecision` via `pooled_metrics()`
