@@ -77,7 +77,12 @@ from cuvis_ai.node.json_file import (
     TrackingResultsReader,
 )
 from cuvis_ai.node.labels import BinaryAnomalyLabelMapper
-from cuvis_ai.node.losses import DistinctnessLoss, ForegroundContrastLoss
+from cuvis_ai.node.losses import (
+    CrossEntropyLoss,
+    DiceLoss,
+    DistinctnessLoss,
+    ForegroundContrastLoss,
+)
 from cuvis_ai.node.mask_ops import (
     ClassMapRobustifier,
     LabelOffset,
@@ -163,10 +168,12 @@ __all__ = [
     "ClassMapToRGB",
     "FastRGBSelector",
     "ConcreteChannelMixer",
+    "CrossEntropyLoss",
     "CubeRGBVisualizer",
     "DetectionCocoJsonNode",
     "DetectionJsonReader",
     "DecisionToMask",
+    "DiceLoss",
     "DisplayNormalizer",
     "DistinctnessLoss",
     "FixedWavelengthSelector",
