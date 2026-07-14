@@ -1,7 +1,7 @@
 # Built-in cuvis-ai nodes from this repository.
 # Useful when the gRPC server runs in a different venv and cannot import `cuvis_ai.*` directly.
 name: cuvis_ai_builtin
-path: "../.."
+path: "../../.."
 capabilities:
 - class_name: cuvis_ai.node.anomaly.deep_svdd.DeepSVDDCenterTracker
   category: transform
