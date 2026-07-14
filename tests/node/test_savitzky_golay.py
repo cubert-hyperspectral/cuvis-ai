@@ -129,3 +129,13 @@ def test_savgol_preserves_shape() -> None:
     cube = torch.rand(2, 4, 5, 21)
     out = node.forward(cube=cube, wavelengths=np.arange(21, dtype=np.int32))["cube"]
     assert out.shape == cube.shape
+
+
+@torch.no_grad()
+def test_savgol_spacing_rescale_degenerate_wavelengths_are_noop() -> None:
+    # Fewer than two bands or all-equal wavelengths give no usable spacing, so the
+    # rescale factor falls back to 1.0 (no change to the derivative).
+    node = SavitzkyGolay(window_length=7, polyorder=2, deriv=1)
+    cube = torch.rand(1, 1, 1, 7)
+    assert node._spacing_rescale(np.array([500], dtype=np.int32), cube) == 1.0
+    assert node._spacing_rescale(np.array([500, 500, 500], dtype=np.int32), cube) == 1.0

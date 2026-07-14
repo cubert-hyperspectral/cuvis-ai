@@ -294,3 +294,21 @@ def test_in_tolerance_bands_do_not_warn() -> None:
         logger.remove(sink_id)
 
     assert not any("nm away" in w for w in warnings_seen)
+
+
+@torch.no_grad()
+def test_band_tolerance_zero_disables_warning() -> None:
+    """band_tolerance_nm <= 0 disables the tolerance check entirely."""
+    from loguru import logger
+
+    wavelengths = np.array([700.0, 850.0, 900.0], dtype=np.float32)  # no SWIR coverage
+    cube = torch.rand(1, 1, 2, 3)
+
+    warnings_seen: list[str] = []
+    sink_id = logger.add(lambda m: warnings_seen.append(m.record["message"]), level="WARNING")
+    try:
+        NBRSelector(band_tolerance_nm=0.0).forward(cube=cube, wavelengths=wavelengths)
+    finally:
+        logger.remove(sink_id)
+
+    assert not any("nm away" in w for w in warnings_seen)
