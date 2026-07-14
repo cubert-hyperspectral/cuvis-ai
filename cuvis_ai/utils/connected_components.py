@@ -2,7 +2,7 @@
 
 cuvis.ai has no native torch connected-component labeling (CCL) op, so nodes
 that need instance labels round-trip a single 2-D frame through OpenCV's
-``cv2.connectedComponentsWithStats``.  Centralizing that here keeps the
+``cv2.connectedComponents``.  Centralizing that here keeps the
 CPU round-trip in one place and lets ``MaskRobustifier`` and ``ShapeMorphology``
 share an identical labeling path.
 """
@@ -28,7 +28,7 @@ def label_connected_components(
     mask_2d : numpy.ndarray or torch.Tensor
         2-D mask ``[H, W]``; any nonzero value is foreground.
     connectivity : int
-        Pixel connectivity for ``cv2.connectedComponentsWithStats``; either
+        Pixel connectivity for ``cv2.connectedComponents``; either
         ``4`` or ``8``.  Default ``8``.
 
     Returns

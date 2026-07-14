@@ -5,6 +5,10 @@ of a set of *known* endmember spectra supplied at runtime on the ``endmembers``
 port. It solves ``min_{x >= 0} ||A x - b||`` per pixel, where ``A`` is the
 endmember matrix and ``b`` the pixel spectrum, via batched projected-gradient
 descent. The node is stateless: it fits nothing and holds no buffers.
+
+Only the abundance-non-negativity constraint (ANC) is enforced; there is no
+sum-to-one (ASC) constraint, so this is not fully-constrained (FCLS) unmixing and
+the abundances are not guaranteed to sum to 1.
 """
 
 from __future__ import annotations
@@ -28,10 +32,14 @@ class NNLSUnmixing(Node):
     The solve runs as batched projected-gradient descent, so the node is
     stateless and runs entirely in torch on the inputs' device.
 
+    Only non-negativity (ANC) is enforced, not sum-to-one (ASC): abundances are
+    not constrained to sum to 1 (this is not FCLS).
+
     Parameters
     ----------
     max_iter : int, optional
-        Maximum projected-gradient iterations per forward call (default: 200).
+        Maximum projected-gradient iterations per forward call (default: 500).
+        Close or collinear endmembers may need more to converge.
     tol : float, optional
         Early-stop threshold on the per-iteration update norm (default: 1e-6).
     min_total : float, optional
@@ -77,7 +85,7 @@ class NNLSUnmixing(Node):
 
     def __init__(
         self,
-        max_iter: int = 200,
+        max_iter: int = 500,
         tol: float = 1e-6,
         min_total: float = 0.0,
         **kwargs: Any,

@@ -1,13 +1,14 @@
-"""Dense per-pixel classification: tile a cube into patches, then stitch predictions back.
+"""Dense per-pixel classification: sample patches for training, stitch predictions back.
 
-Two nodes form an inverse pair for patch-based per-pixel classification. ``PatchSampler`` turns a
-cube plus an integer target map into a batch of center-pixel patches; ``ClassMapAccumulator``
-scatters per-patch predictions back into per-frame class maps. They are coupled by a provenance
-contract: when a frame is tiled for dense scoring, each patch must carry where it came from so the
-prediction can be written to the right pixel::
+Two independent nodes for patch-based per-pixel classification. They are *not* a directly wired
+pair: ``PatchSampler`` emits only ``patches``/``labels`` (for training a classifier), while
+``ClassMapAccumulator`` consumes a per-patch *provenance* contract
+(``frame_id``/``y``/``x``/``height``/``width``) that ``PatchSampler`` does not produce. That
+provenance is supplied by a patch-tiler data module when a frame is tiled for dense scoring, so each
+patch carries where it came from and the prediction can be written to the right pixel::
 
     frame f  [H, W, C]                         per-patch provenance (one row per pixel)
-    +------------------+        sample          frame_id = f
+    +------------------+       tiler DM         frame_id = f
     | . . . . . . . .  |   ----------------->   y, x      = pixel coords in frame f
     | . . . (y,x) . .  |    P x P window         height   = H   (of frame f)
     | . . . . . . . .  |                         width    = W
@@ -23,9 +24,11 @@ prediction can be written to the right pixel::
     ClassMapAccumulator.class_maps  ->  {frame_id: [H, W] int64}   (background = background_value)
 
 The patch tiler (a data module) produces the ``frame_id``/``y``/``x``/``height``/``width`` keys;
-this module consumes them, it does not invent them. ``ClassMapAccumulator`` is a sink with the run
-lifecycle ``reset() -> forward()* -> close()``; the finished maps are read from
-:attr:`ClassMapAccumulator.class_maps` after the run.
+this module only consumes them. ``ClassMapAccumulator`` is a sink with the run lifecycle
+``reset() -> forward()* -> close()``; the finished maps are read from
+:attr:`ClassMapAccumulator.class_maps` after the run. It retains one ``[H, W]`` map per seen
+``frame_id`` until :meth:`ClassMapAccumulator.reset` is called, so memory grows with the number of
+distinct frames in a run; ``reset()`` must bracket each run and streaming eviction is out of scope.
 """
 
 from __future__ import annotations
@@ -204,14 +207,17 @@ class PatchSampler(Node):
 class ClassMapAccumulator(Node):
     """Scatter chunked patch predictions back into per-frame ``[H, W]`` class maps (sink).
 
-    The inverse of :class:`PatchSampler`: a patch tiler streams a frame's pixels through a
-    classifier in batches (so memory stays bounded), each patch tagged with its provenance
-    ``(frame_id, y, x)`` plus the source frame ``height``/``width``. This sink argmaxes the
-    per-batch ``logits`` and writes each prediction into the right pixel of a per-frame map. After
-    the run the finished maps are read from :attr:`class_maps`.
+    Consumes the provenance contract emitted by a patch-tiler data module (not by
+    :class:`PatchSampler`): a tiler streams a frame's pixels through a classifier in batches, each
+    patch tagged with its provenance ``(frame_id, y, x)`` plus the source frame ``height``/``width``.
+    This sink argmaxes the per-batch ``logits`` and writes each prediction into the right pixel of a
+    per-frame map. After the run the finished maps are read from :attr:`class_maps`.
 
     The run lifecycle is ``reset()`` (clear maps at the start) -> ``forward()`` per batch ->
-    ``close()`` (no external resource; maps stay available via :attr:`class_maps`).
+    ``close()`` (no external resource; maps stay available via :attr:`class_maps`). One ``[H, W]``
+    map is retained per distinct ``frame_id`` until the next :meth:`reset`, so memory grows with the
+    number of frames in a run; call ``reset()`` between runs. Per-frame eviction on long streams is
+    out of scope.
 
     Parameters
     ----------

@@ -72,7 +72,8 @@ class NMFUnmixing(_StatisticalFitNode):
         "scores": PortSpec(
             dtype=torch.float32,
             shape=(-1, -1, -1, 1),
-            description="Per-pixel reconstruction residual ||x - W H|| [B, H, W, 1]",
+            description="Per-pixel reconstruction residual ||E.T a - x|| against the "
+            "frozen endmembers E [B, H, W, 1]",
         ),
         "class_mask": PortSpec(
             dtype=torch.int32,

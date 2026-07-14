@@ -7,6 +7,16 @@ import torch
 from cuvis_ai.node.spectral_extractor import BBoxSpectralExtractor, MaskedMeanSpectrum
 
 
+def test_spectral_signature_extractor_reexported_from_node_package() -> None:
+    """SpectralSignatureExtractor (a pre-existing node) is exported from cuvis_ai.node."""
+    from cuvis_ai.node import SpectralSignatureExtractor
+    from cuvis_ai.node.spectral_extractor import (
+        SpectralSignatureExtractor as _Direct,
+    )
+
+    assert SpectralSignatureExtractor is _Direct
+
+
 def test_basic_extraction(create_test_cube, create_test_bboxes) -> None:
     """Known spectral regions produce correct median signatures and std."""
     cube, _ = create_test_cube(

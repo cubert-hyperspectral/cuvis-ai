@@ -1,8 +1,9 @@
 """Logarithm pretreatment node.
 
-Applies a base-10 or natural logarithm to the cube. Useful for converting
-reflectance/transmittance to (pseudo-)absorbance and compressing dynamic
-range.
+Applies a base-10 or natural logarithm to the cube, optionally negated. The
+plain log (``negate=False``, default) returns ``+log10(x)`` / ``+ln(x)`` and is
+useful for compressing dynamic range. Absorbance is ``A = -log10(R)``, so set
+``negate=True`` to convert reflectance/transmittance to (pseudo-)absorbance.
 """
 
 import torch
@@ -17,12 +18,15 @@ class Logarithm(Node):
 
     Computes ``log10(x)`` (default) or ``ln(x)`` after clamping the input to a
     small positive floor so non-positive values do not produce ``-inf`` or
-    ``nan``.
+    ``nan``. With ``negate=True`` the sign is flipped, yielding true absorbance
+    ``-log10(R)`` from reflectance.
 
     Parameters
     ----------
     mode : str, optional
         ``"log10"`` (default) for base-10, or ``"ln"`` for the natural log.
+    negate : bool, optional
+        Negate the result so reflectance maps to absorbance (default: False).
     eps : float, optional
         Lower clamp applied before the logarithm (default: 1e-8).
     """
@@ -46,10 +50,17 @@ class Logarithm(Node):
         )
     }
 
-    def __init__(self, mode: str = "log10", eps: float = 1e-8, **kwargs) -> None:
+    _MODES = ("log10", "ln")
+
+    def __init__(
+        self, mode: str = "log10", negate: bool = False, eps: float = 1e-8, **kwargs
+    ) -> None:
         self.mode = str(mode)
+        if self.mode not in self._MODES:
+            raise ValueError(f"mode must be one of {list(self._MODES)}, got {self.mode!r}")
+        self.negate = bool(negate)
         self.eps = float(eps)
-        super().__init__(mode=self.mode, eps=self.eps, **kwargs)
+        super().__init__(mode=self.mode, negate=self.negate, eps=self.eps, **kwargs)
 
     def forward(self, cube: torch.Tensor, **_) -> dict[str, torch.Tensor]:
         """Apply the configured logarithm to the cube.
@@ -65,6 +76,7 @@ class Logarithm(Node):
             ``{"cube": log_transformed}`` with the same shape as the input.
         """
         clamped = cube.clamp_min(self.eps)
-        if self.mode == "ln":
-            return {"cube": torch.log(clamped)}
-        return {"cube": torch.log10(clamped)}
+        result = torch.log(clamped) if self.mode == "ln" else torch.log10(clamped)
+        if self.negate:
+            result = -result
+        return {"cube": result}

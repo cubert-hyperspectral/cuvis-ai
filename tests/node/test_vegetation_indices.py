@@ -259,3 +259,38 @@ def test_invalid_constructor_arguments_rejected(
 ) -> None:
     with pytest.raises(ValueError, match=match):
         factory(**kwargs)
+
+
+@torch.no_grad()
+def test_out_of_tolerance_band_warns() -> None:
+    """NBR's 2200 nm SWIR band on a VNIR-only grid snaps to an edge and warns."""
+    from loguru import logger
+
+    wavelengths = np.array([700.0, 850.0, 900.0], dtype=np.float32)  # no SWIR coverage
+    cube = torch.rand(1, 1, 2, 3)
+
+    warnings_seen: list[str] = []
+    sink_id = logger.add(lambda m: warnings_seen.append(m.record["message"]), level="WARNING")
+    try:
+        NBRSelector().forward(cube=cube, wavelengths=wavelengths)
+    finally:
+        logger.remove(sink_id)
+
+    assert any("2200" in w and "nm away" in w for w in warnings_seen)
+
+
+@torch.no_grad()
+def test_in_tolerance_bands_do_not_warn() -> None:
+    """An exact wavelength grid must not emit any band-tolerance warning."""
+    from loguru import logger
+
+    cube, wavelengths = _evi_inputs()
+
+    warnings_seen: list[str] = []
+    sink_id = logger.add(lambda m: warnings_seen.append(m.record["message"]), level="WARNING")
+    try:
+        EVISelector().forward(cube=cube, wavelengths=wavelengths)
+    finally:
+        logger.remove(sink_id)
+
+    assert not any("nm away" in w for w in warnings_seen)

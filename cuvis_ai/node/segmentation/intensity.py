@@ -76,6 +76,8 @@ class IntensityThresholdSegmenter(Node):
             raise ValueError(
                 f"reduction must be one of {self._VALID_REDUCTIONS}, got {reduction!r}"
             )
+        if float(low) > float(high):
+            raise ValueError(f"low must be <= high, got low={low}, high={high}")
         self.low = float(low)
         self.high = float(high)
         self.reduction = reduction

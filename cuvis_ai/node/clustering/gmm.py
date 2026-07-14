@@ -32,9 +32,9 @@ class GaussianMixtureClusterer(_StatisticalFitNode):
     the precision matrices fully determine the Gaussian log-probabilities, so
     they are frozen as torch buffers and the forward pass needs no sklearn.
 
-    Only ``covariance_type="full"`` is supported by the torch forward in this
-    version; the fit accepts the parameter for API symmetry but other values
-    are not evaluated at inference.
+    Only ``covariance_type="full"`` is supported: the torch forward assumes a
+    ``[K, C, C]`` Cholesky factor, so ``__init__`` rejects any other value with
+    ``ValueError`` rather than failing later at inference.
 
     Parameters
     ----------
@@ -42,7 +42,7 @@ class GaussianMixtureClusterer(_StatisticalFitNode):
         Number of mixture components (default: 3).
     covariance_type : str, optional
         scikit-learn covariance parametrization; only ``"full"`` is supported
-        by the torch forward (default: "full").
+        and any other value raises ``ValueError`` (default: "full").
     reg_covar : float, optional
         Non-negative regularization added to the covariance diagonals at fit
         for numerical stability (default: 1e-6).
@@ -118,6 +118,13 @@ class GaussianMixtureClusterer(_StatisticalFitNode):
         """Store mixture hyperparameters and register the fitted-state buffers."""
         self.n_components = int(n_components)
         self.covariance_type = str(covariance_type)
+        if self.covariance_type != "full":
+            raise ValueError(
+                "GaussianMixtureClusterer only supports covariance_type='full'; "
+                f"got {self.covariance_type!r}. Other parametrizations produce a "
+                "differently shaped precisions_cholesky_ that the torch forward "
+                "cannot evaluate."
+            )
         self.reg_covar = float(reg_covar)
         self.max_iter = int(max_iter)
         self.n_init = int(n_init)

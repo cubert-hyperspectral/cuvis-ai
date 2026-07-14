@@ -68,3 +68,9 @@ def test_intensity_segmenter_band_reduction() -> None:
 def test_intensity_segmenter_rejects_bad_reduction() -> None:
     with pytest.raises(ValueError):
         IntensityThresholdSegmenter(reduction="median")
+
+
+def test_intensity_segmenter_rejects_inverted_interval() -> None:
+    # low > high would silently yield an all-zero mask; reject it instead.
+    with pytest.raises(ValueError):
+        IntensityThresholdSegmenter(low=0.8, high=0.2)

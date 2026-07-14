@@ -207,6 +207,36 @@ class ChannelSelectorBase(Node):
         """Find the index of the band nearest to the target wavelength."""
         return int(np.argmin(np.abs(wavelengths - target_nm)))
 
+    def _warn_bands_out_of_tolerance(
+        self,
+        wavelengths: np.ndarray,
+        labels: list[str],
+        requested_nm: list[float],
+        resolved_idx: list[int],
+    ) -> None:
+        """Warn (once per band) when the nearest sensor band is beyond tolerance.
+
+        Nearest-band snapping is unconditional, so a request the camera cannot
+        cover (e.g. a SWIR band on a VNIR-only sensor) silently resolves to the
+        closest edge band. This surfaces that case instead of returning a wrong
+        index quietly. No-op when ``band_tolerance_nm`` is unset or non-positive.
+        """
+        tolerance = getattr(self, "band_tolerance_nm", None)
+        if not tolerance or tolerance <= 0:
+            return
+        warned = self._bands_warned
+        for label, requested, idx in zip(labels, requested_nm, resolved_idx, strict=True):
+            gap = abs(float(wavelengths[idx]) - float(requested))
+            if gap > tolerance and label not in warned:
+                warned.add(label)
+                logger.warning(
+                    f"{getattr(self, 'index_name', type(self).__name__)}: requested "
+                    f"{label} band at {float(requested):.0f} nm, but the nearest sensor "
+                    f"band is {float(wavelengths[idx]):.0f} nm ({gap:.0f} nm away, "
+                    f"tolerance {float(tolerance):.0f} nm). The index may be invalid for "
+                    "this camera's spectral range."
+                )
+
     # ------------------------------------------------------------------
     # RGB normalization
     # ------------------------------------------------------------------
@@ -401,6 +431,7 @@ class _NormalizedDifferenceIndexBase(ChannelSelectorBase, ABC):
         primary_nm: float,
         secondary_nm: float,
         eps: float = 1.0e-6,
+        band_tolerance_nm: float = 50.0,
         **kwargs: Any,
     ) -> None:
         if eps < 0:
@@ -410,11 +441,14 @@ class _NormalizedDifferenceIndexBase(ChannelSelectorBase, ABC):
             primary_nm=float(primary_nm),
             secondary_nm=float(secondary_nm),
             eps=float(eps),
+            band_tolerance_nm=float(band_tolerance_nm),
             **kwargs,
         )
         self.primary_nm = float(primary_nm)
         self.secondary_nm = float(secondary_nm)
         self.eps = float(eps)
+        self.band_tolerance_nm = float(band_tolerance_nm)
+        self._bands_warned: set[str] = set()
 
     @property
     @abstractmethod
@@ -476,6 +510,12 @@ class _NormalizedDifferenceIndexBase(ChannelSelectorBase, ABC):
     ) -> dict[str, Any]:
         """Compute raw index image plus RGB render."""
         wavelengths_np, primary_idx, secondary_idx = self._resolve_band_indices(wavelengths)
+        self._warn_bands_out_of_tolerance(
+            wavelengths_np,
+            [self.primary_label, self.secondary_label],
+            [self.primary_nm, self.secondary_nm],
+            [primary_idx, secondary_idx],
+        )
         index_image = self._compute_index_image(cube, wavelengths_np)
         rgb = self._render_rgb_from_index(index_image)
 
@@ -908,6 +948,7 @@ class _VegetationIndexBase(ChannelSelectorBase, ABC):
         colormap_min: float = -1.0,
         colormap_max: float = 1.0,
         eps: float = 1.0e-6,
+        band_tolerance_nm: float = 50.0,
         **kwargs: Any,
     ) -> None:
         if eps < 0:
@@ -920,10 +961,13 @@ class _VegetationIndexBase(ChannelSelectorBase, ABC):
             colormap_min=float(colormap_min),
             colormap_max=float(colormap_max),
             eps=float(eps),
+            band_tolerance_nm=float(band_tolerance_nm),
             **kwargs,
         )
         self.band_nm = {name: float(nm) for name, nm in band_nm.items()}
         self.eps = float(eps)
+        self.band_tolerance_nm = float(band_tolerance_nm)
+        self._bands_warned: set[str] = set()
         self.colormap = "hsv"
         self.colormap_min = float(colormap_min)
         self.colormap_max = float(colormap_max)
@@ -978,11 +1022,16 @@ class _VegetationIndexBase(ChannelSelectorBase, ABC):
     ) -> dict[str, Any]:
         """Compute the vegetation index plus a colour-mapped RGB output."""
         wavelengths_np, indices = self._resolve_band_indices(wavelengths)
-        index_image = self._compute_index_image(cube, wavelengths_np)
-        rgb = self._render_rgb_from_index(index_image)
-
         band_labels = list(indices.keys())
         band_indices = [indices[name] for name in band_labels]
+        self._warn_bands_out_of_tolerance(
+            wavelengths_np,
+            band_labels,
+            [self.band_nm[name] for name in band_labels],
+            band_indices,
+        )
+        index_image = self._compute_index_image(cube, wavelengths_np)
+        rgb = self._render_rgb_from_index(index_image)
         band_info = {
             "strategy": self.index_name,
             "band_labels": band_labels,
@@ -1009,6 +1058,9 @@ class EVISelector(_VegetationIndexBase):
     Computes ``2.5 * (NIR - Red) / (NIR + 6 * Red - 7.5 * Blue + 1)`` over bands
     resolved by nearest sensor wavelength. The raw index map is returned via
     ``index_image`` and ``rgb_image`` carries an HSV colour-mapped render.
+
+    The additive ``+1`` constant is only meaningful for reflectance in [0, 1];
+    feed reflectance-calibrated cubes, not raw radiance/DN.
     """
 
     _category = NodeCategory.TRANSFORM
@@ -1064,6 +1116,9 @@ class EVI2Selector(_VegetationIndexBase):
     Computes ``2.5 * (NIR - Red) / (NIR + 2.4 * Red + 1)`` over bands resolved by
     nearest sensor wavelength. The raw index map is returned via ``index_image``
     and ``rgb_image`` carries an HSV colour-mapped render.
+
+    The additive ``+1`` constant is only meaningful for reflectance in [0, 1];
+    feed reflectance-calibrated cubes, not raw radiance/DN.
     """
 
     _category = NodeCategory.TRANSFORM
@@ -1117,6 +1172,9 @@ class SAVISelector(_VegetationIndexBase):
     nearest sensor wavelength, where ``L`` is the soil-brightness correction. The
     raw index map is returned via ``index_image`` and ``rgb_image`` carries an HSV
     colour-mapped render.
+
+    The additive ``L`` constant is only meaningful for reflectance in [0, 1];
+    feed reflectance-calibrated cubes, not raw radiance/DN.
     """
 
     _category = NodeCategory.TRANSFORM
@@ -1173,6 +1231,9 @@ class MSAVISelector(_VegetationIndexBase):
     Computes ``0.5 * (2*NIR + 1 - sqrt((2*NIR + 1)^2 - 8*(NIR - Red)))`` over
     bands resolved by nearest sensor wavelength. The raw index map is returned via
     ``index_image`` and ``rgb_image`` carries an HSV colour-mapped render.
+
+    The additive ``+1`` constants are only meaningful for reflectance in [0, 1];
+    feed reflectance-calibrated cubes, not raw radiance/DN.
     """
 
     _category = NodeCategory.TRANSFORM

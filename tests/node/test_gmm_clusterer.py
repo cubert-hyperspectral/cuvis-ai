@@ -72,6 +72,14 @@ def test_gmm_forward_matches_sklearn_predict_proba_and_score() -> None:
     assert np.allclose(node_scores, model.score_samples(pixels), atol=1e-4)
 
 
+@pytest.mark.parametrize("covariance_type", ["diag", "tied", "spherical"])
+def test_gmm_rejects_non_full_covariance_at_construction(covariance_type: str) -> None:
+    # Non-full covariances give a differently shaped precisions_cholesky_ that the
+    # torch forward cannot evaluate, so construction must fail fast before any fit.
+    with pytest.raises(ValueError):
+        GaussianMixtureClusterer(n_components=3, covariance_type=covariance_type)
+
+
 @torch.no_grad()
 def test_gmm_empty_stream_raises_and_stays_uninitialized() -> None:
     node = GaussianMixtureClusterer(n_components=3, random_state=0)

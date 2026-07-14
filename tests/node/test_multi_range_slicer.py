@@ -36,3 +36,10 @@ def test_multi_range_slicer_default_edges() -> None:
     node = MultiRangeSlicer()
     assert node.edges == [0.25, 0.5, 0.75]
     assert node.right is False
+
+
+@pytest.mark.parametrize("edges", [[0.5, 0.25, 0.75], [0.5, 0.5], [0.75, 0.5, 0.25]])
+def test_multi_range_slicer_rejects_non_increasing_edges(edges: list[float]) -> None:
+    # torch.bucketize is silently wrong on unsorted boundaries, so reject them.
+    with pytest.raises(ValueError):
+        MultiRangeSlicer(edges=edges)

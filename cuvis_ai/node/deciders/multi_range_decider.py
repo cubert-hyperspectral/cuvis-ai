@@ -74,6 +74,8 @@ class MultiRangeSlicer(Node):
         **kwargs: Any,
     ) -> None:
         self.edges = [float(e) for e in (edges if edges is not None else [0.25, 0.5, 0.75])]
+        if any(b <= a for a, b in zip(self.edges, self.edges[1:], strict=False)):
+            raise ValueError(f"edges must be strictly increasing, got {self.edges}")
         self.right = bool(right)
         super().__init__(edges=self.edges, right=self.right, **kwargs)
 
