@@ -806,7 +806,7 @@ docs = [
 requires-dist = [
     { name = "bandit", extras = ["toml"], marker = "extra == 'dev'", specifier = ">=1.7.0" },
     { name = "cuvis-ai-core", editable = "../../cuvis-ai-core/cuvis-ai-core" },
-    { name = "cuvis-ai-schemas", extras = ["full"], editable = "../../cuvis-ai-schemas/cuvis-ai-schemas" },
+    { name = "cuvis-ai-schemas", extras = ["full"], specifier = ">=0.8.0" },
     { name = "cyclonedx-bom", marker = "extra == 'dev'", specifier = ">=4.0.0" },
     { name = "defusedxml", specifier = ">=0.7.1" },
     { name = "detect-secrets", marker = "extra == 'dev'", specifier = ">=1.4.0" },
@@ -905,7 +905,7 @@ requires-dist = [
     { name = "aiohttp", specifier = ">=3.14.1" },
     { name = "bandit", extras = ["toml"], marker = "extra == 'dev'", specifier = ">=1.7.0" },
     { name = "click", specifier = ">=8.3.1" },
-    { name = "cuvis-ai-schemas", extras = ["proto"], editable = "../../cuvis-ai-schemas/cuvis-ai-schemas" },
+    { name = "cuvis-ai-schemas", extras = ["proto"], specifier = ">=0.8.0" },
     { name = "cyclonedx-bom", marker = "extra == 'dev'", specifier = ">=4.0.0" },
     { name = "detect-secrets", marker = "extra == 'dev'", specifier = ">=1.4.0" },
     { name = "dotenv", specifier = ">=0.9.9" },
@@ -960,10 +960,15 @@ provides-extras = ["hf", "dev", "test"]
 
 [[package]]
 name = "cuvis-ai-schemas"
-source = { editable = "../../cuvis-ai-schemas/cuvis-ai-schemas" }
+version = "0.8.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/9a/82/d4ca62c7f288816ca551d62a443a709e9ced031194663f907ce459e2a7f2/cuvis_ai_schemas-0.8.0.tar.gz", hash = "sha256:2d05e696610ddf23ce4e313b5434cd1a43ec5d58c999643d22dbcdb04efac4fc", size = 248505, upload-time = "2026-07-14T11:48:52.356Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/70/27/bf85fe21ce9dad1cd4649c611a2c16fa38f0a927b076e75b447d130b1c4c/cuvis_ai_schemas-0.8.0-py3-none-any.whl", hash = "sha256:1a378c4663de79f7b102a101e663296f05f0f40b6305ce369517924b38ff9d4d", size = 76506, upload-time = "2026-07-14T11:48:51.197Z" },
 ]
 
 [package.optional-dependencies]
@@ -981,38 +986,6 @@ proto = [
     { name = "grpcio-tools" },
     { name = "protobuf" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "bandit", extras = ["toml"], marker = "extra == 'dev'", specifier = ">=1.7.0" },
-    { name = "cuvis-ai-schemas", extras = ["lightning", "numpy", "proto", "torch"], marker = "extra == 'full'" },
-    { name = "cuvis-ai-schemas", extras = ["testing"], marker = "extra == 'dev'" },
-    { name = "cyclonedx-bom", marker = "extra == 'dev'", specifier = ">=4.0.0" },
-    { name = "detect-secrets", marker = "extra == 'dev'", specifier = ">=1.4.0" },
-    { name = "grpcio", marker = "extra == 'proto'", specifier = ">=1.76.0" },
-    { name = "grpcio-tools", marker = "extra == 'proto'", specifier = ">=1.76.0" },
-    { name = "hypothesis", marker = "extra == 'testing'", specifier = ">=6.0.0" },
-    { name = "interrogate", marker = "extra == 'dev'", specifier = ">=1.7.0" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8.0" },
-    { name = "numpy", marker = "extra == 'numpy'", specifier = ">=1.21.0" },
-    { name = "omegaconf", marker = "extra == 'dev'", specifier = ">=2.3.0" },
-    { name = "pip-audit", marker = "extra == 'dev'", specifier = ">=2.7.0" },
-    { name = "pip-licenses", marker = "extra == 'dev'", specifier = ">=4.0.0" },
-    { name = "protobuf", marker = "extra == 'proto'", specifier = ">=6.33.5,<8" },
-    { name = "pydantic", specifier = ">=2.12.5,<3.0.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0.0" },
-    { name = "pytorch-lightning", marker = "extra == 'lightning'", specifier = ">=2.0.0" },
-    { name = "pyyaml", specifier = ">=6.0.3" },
-    { name = "ruff", marker = "extra == 'dev'" },
-    { name = "torch", marker = "extra == 'torch'", specifier = ">=2.0.0" },
-    { name = "torchvision", marker = "extra == 'torch'" },
-    { name = "twine", marker = "extra == 'dev'", specifier = ">=6.2.0" },
-    { name = "types-grpcio", marker = "extra == 'dev'" },
-    { name = "types-protobuf", marker = "extra == 'dev'" },
-    { name = "types-pyyaml", marker = "extra == 'dev'" },
-]
-provides-extras = ["proto", "torch", "numpy", "lightning", "testing", "full", "dev"]
 
 [[package]]
 name = "cycler"

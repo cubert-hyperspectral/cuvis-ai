@@ -157,7 +157,6 @@ torchvision = { index = "pytorch-cu128" }
 # core libs. Strip (re-comment) before release so CI and PyPI consumers resolve the
 # published floors; these are for local work against sibling checkouts.
 cuvis-ai-core = { path = "../../cuvis-ai-core/cuvis-ai-core", editable = true }
-cuvis-ai-schemas = { path = "../../cuvis-ai-schemas/cuvis-ai-schemas", editable = true }
 # Plugin checkouts: uncomment together with the `plugins` extra above to import the
 # plugins in-process locally. These are never committed in their uncommented form.
 # cuvis-ai-dinomaly = { path = "../../cuvis-ai-dinomaly/cuvis-ai-dinomaly", editable = true }
