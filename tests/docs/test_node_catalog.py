@@ -82,6 +82,58 @@ def test_browse_url_normalizes_git_remotes(catalog):
     assert catalog._browse_url("git@gitlab.com:user/repo.git") == "https://gitlab.com/user/repo"
 
 
+def test_plugin_collection_counts_have_a_floor(catalog):
+    """Pin count floors so a silent regression to a handful of nodes fails.
+
+    Current manifest-driven collection is ~39 plugin nodes across 11 plugins,
+    7 data modules, and ~147 built-in mirror entries. These are floors, not
+    exact counts, so adding or dropping a plugin does not break the test while a
+    collapse back to "0 from plugins" (the bug this generator fixes) does.
+    """
+    entries = catalog.collect_plugin_nodes(exclude_dotted=set())
+    plugin_nodes = [e for e in entries if e.kind == "node" and e.plugin_name != "cuvis_ai_builtin"]
+    builtin_mirror = [e for e in entries if e.plugin_name == "cuvis_ai_builtin"]
+    data_modules = [e for e in entries if e.kind == "data_module"]
+
+    assert len(plugin_nodes) >= 30, f"only {len(plugin_nodes)} plugin nodes collected"
+    assert len(data_modules) >= 5, f"only {len(data_modules)} data modules collected"
+    assert len(builtin_mirror) >= 100, f"only {len(builtin_mirror)} built-in mirror entries"
+    assert len({e.plugin_name for e in plugin_nodes}) >= 6, "plugin diversity collapsed"
+
+
+def test_empty_manifest_dir_raises(catalog, monkeypatch, tmp_path):
+    """An empty plugins directory must fail the docs build, not ship an empty list."""
+    monkeypatch.setattr(catalog, "PLUGIN_MANIFEST_DIR", tmp_path)
+    with pytest.raises(RuntimeError, match="no plugin manifests"):
+        catalog.collect_plugin_nodes(exclude_dotted=set())
+
+
+def test_unparseable_manifest_raises(catalog, monkeypatch, tmp_path):
+    """A malformed manifest must propagate an error, not be silently dropped."""
+    (tmp_path / "broken.yaml").write_text("name: broken\ncapabilities: [oops\n")
+    monkeypatch.setattr(catalog, "PLUGIN_MANIFEST_DIR", tmp_path)
+    with pytest.raises(Exception):  # noqa: B017 - any load/validation error is acceptable
+        catalog.collect_plugin_nodes(exclude_dotted=set())
+
+
+def test_zero_collected_capabilities_raises(catalog, monkeypatch, tmp_path):
+    """Parsing multiple manifests but collecting zero capabilities must raise.
+
+    This is the exact "0 from plugins" regression the generator guards against;
+    reproduced here by excluding every capability the manifests declare.
+    """
+    src = catalog.PLUGIN_MANIFEST_DIR
+    picked = sorted(src.glob("*.yaml"), key=lambda p: p.stat().st_size)[:2]
+    assert len(picked) >= 2, "need at least two manifests to exercise the guard"
+    for manifest in picked:
+        (tmp_path / manifest.name).write_bytes(manifest.read_bytes())
+
+    monkeypatch.setattr(catalog, "PLUGIN_MANIFEST_DIR", tmp_path)
+    all_dotted = {e.dotted_path for e in catalog.collect_plugin_nodes(exclude_dotted=set())}
+    with pytest.raises(RuntimeError, match="zero plugin capabilities"):
+        catalog.collect_plugin_nodes(exclude_dotted=all_dotted)
+
+
 def test_plugin_card_renders_source_and_ports(catalog):
     entries = catalog.collect_plugin_nodes(exclude_dotted=set())
     sam3 = next(
