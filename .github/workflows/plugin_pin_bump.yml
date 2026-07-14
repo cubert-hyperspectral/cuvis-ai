@@ -33,7 +33,7 @@ jobs:
     steps:
       - name: Generate a token for the bump PR
         id: app-token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ vars.PIN_BUMP_APP_ID }}
           private-key: ${{ secrets.PIN_BUMP_APP_PRIVATE_KEY }}
