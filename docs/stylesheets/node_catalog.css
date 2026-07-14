@@ -230,6 +230,15 @@ details.node-row > summary:hover { background: var(--md-default-fg-color--lighte
   background: var(--md-default-bg-color);
   white-space: nowrap;
 }
+.datamodule-pill {
+  font-size: 0.62rem;
+  padding: 0.08rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--md-accent-fg-color);
+  color: var(--md-accent-fg-color);
+  background: var(--md-default-bg-color);
+  white-space: nowrap;
+}
 .card-repo {
   text-decoration: none;
   font-weight: 700;
@@ -255,6 +264,40 @@ details.node-row > summary:hover { background: var(--md-default-fg-color--lighte
   display: inline-block;
   margin-top: 0.6rem;
   font-size: 0.78rem;
+}
+
+/* Plugin-row port tables (raw HTML, not markdown tables) */
+.row-body .ports-title {
+  margin: 0.6rem 0 0.25rem;
+  font-weight: 700;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--md-default-fg-color--light);
+}
+.row-body .ports-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+.row-body .ports-table th,
+.row-body .ports-table td {
+  padding: 0.25rem 0.6rem 0.25rem 0;
+  border-bottom: 1px solid var(--md-default-fg-color--lightest);
+  text-align: left;
+  vertical-align: top;
+}
+.row-body .ports-table th {
+  font-weight: 600;
+  color: var(--md-default-fg-color--light);
+}
+.row-body .port-mark {
+  font-size: 0.62rem;
+  padding: 0.02rem 0.35rem;
+  border-radius: 999px;
+  border: 1px solid var(--md-default-fg-color--lighter);
+  color: var(--md-default-fg-color--light);
+  white-space: nowrap;
 }
 
 details.node-row.is-hidden { display: none; }

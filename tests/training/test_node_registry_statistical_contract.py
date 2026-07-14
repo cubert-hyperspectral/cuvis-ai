@@ -14,7 +14,15 @@ from cuvis_ai_core.utils.node_registry import NodeRegistry
 pytestmark = pytest.mark.unit
 
 EMPTY_INIT_ERRORS = (RuntimeError, ValueError, StopIteration)
-REGISTRY_PACKAGES = ("cuvis_ai.node", "cuvis_ai.anomaly", "cuvis_ai.deciders")
+REGISTRY_PACKAGES = (
+    "cuvis_ai.node",
+    "cuvis_ai.anomaly",
+    "cuvis_ai.deciders",
+    "cuvis_ai.node.pretreatments",
+    "cuvis_ai.node.unmixing",
+    "cuvis_ai.node.clustering",
+    "cuvis_ai.node.segmentation",
+)
 
 REQUIRED_ARG_DEFAULTS: dict[str, object] = {
     "num_channels": 5,
@@ -38,9 +46,11 @@ REQUIRED_ARG_DEFAULTS: dict[str, object] = {
     "occlusion_start_frame": 0,
     "occlusion_end_frame": 0,
     "output_video_path": "test_output.mp4",
+    "output_path": "test_output.png",
     "output_dir": "test_output_dir",
     "wavelengths": [500.0, 600.0, 700.0, 800.0, 900.0],
     "reference_wavelengths": [500.0, 600.0, 700.0, 800.0, 900.0],
+    "entries": [("1", (255, 0, 0))],
 }
 
 SUPERVISED_SELECTOR_CLASSES = {

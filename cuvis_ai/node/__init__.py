@@ -19,18 +19,30 @@ from cuvis_ai.node.anomaly_visualization import (
     TrackingOverlayNode,
     TrackingPointerOverlayNode,
 )
+from cuvis_ai.node.blob_detector import BlobDetector
 from cuvis_ai.node.channel_mixer import ConcreteChannelMixer, LearnableChannelMixer
 from cuvis_ai.node.channel_selector import (
     CameraEmulationFalseRGBSelector,
     ChannelSelectorBase,
     CIETristimulusRGBSelector,
+    CIRedEdgeSelector,
     CIRSelector,
+    EVI2Selector,
+    EVISelector,
     FastRGBSelector,
     FixedWavelengthSelector,
+    GNDVISelector,
     HighContrastSelector,
+    MCARISelector,
+    MSAVISelector,
+    NBRSelector,
+    NDRESelector,
     NDVISelector,
+    NDWISelector,
     NormMode,
+    PRISelector,
     RangeAverageFalseRGBSelector,
+    SAVISelector,
     SoftChannelSelector,
     SupervisedCIRSelector,
     SupervisedFullSpectrumSelector,
@@ -38,11 +50,25 @@ from cuvis_ai.node.channel_selector import (
     SupervisedWindowedSelector,
     TopKIndices,
 )
-from cuvis_ai.node.colormap import ScalarHSVColormapNode
-from cuvis_ai.node.compositing import InsetComposer, ROIZoomNode
+from cuvis_ai.node.clustering import GaussianMixtureClusterer, KMeansClusterer
+from cuvis_ai.node.colormap import ClassMapToRGB, ScalarHSVColormapNode
+from cuvis_ai.node.compositing import (
+    ImageConcatenator,
+    InsetComposer,
+    LabelOverlay,
+    LegendStrip,
+    ROIZoomNode,
+    TitleOverlay,
+)
 from cuvis_ai.node.conversion import DecisionToMask
-from cuvis_ai.node.deciders import BinaryDecider, QuantileBinaryDecider, TwoStageBinaryDecider
+from cuvis_ai.node.deciders import (
+    BinaryDecider,
+    MultiRangeSlicer,
+    QuantileBinaryDecider,
+    TwoStageBinaryDecider,
+)
 from cuvis_ai.node.dimensionality_reduction import PCA, TrainablePCA
+from cuvis_ai.node.image_file import PngWriter
 from cuvis_ai.node.json_file import (
     CocoTrackBBoxWriter,
     CocoTrackMaskWriter,
@@ -52,7 +78,15 @@ from cuvis_ai.node.json_file import (
 )
 from cuvis_ai.node.labels import BinaryAnomalyLabelMapper
 from cuvis_ai.node.losses import DistinctnessLoss, ForegroundContrastLoss
-from cuvis_ai.node.mask_ops import MaskRobustifier, MaskToBBoxKalman
+from cuvis_ai.node.mask_ops import (
+    ClassMapRobustifier,
+    LabelOffset,
+    MajorityVoteByBlob,
+    MaskRobustifier,
+    MaskToBBoxKalman,
+    NearestLabelFill,
+)
+from cuvis_ai.node.morphology import ShapeMorphology
 from cuvis_ai.node.normalization import (
     DisplayNormalizer,
     IdentityNormalizer,
@@ -67,6 +101,7 @@ from cuvis_ai.node.occlusion import (
     PoissonOcclusionNode,
     SolidOcclusionNode,
 )
+from cuvis_ai.node.patch_inference import ClassMapAccumulator, PatchSampler
 from cuvis_ai.node.pipeline_visualization import (
     CubeRGBVisualizer,
     PCAVisualization,
@@ -76,12 +111,30 @@ from cuvis_ai.node.preprocessors import (
     BandpassByWavelength,
     BBoxRoiCropNode,
     ChannelNormalizeNode,
+    SaturatedPixelDetector,
     SpatialRotateNode,
 )
+from cuvis_ai.node.pretreatments import (
+    ContinuumRemoval,
+    Logarithm,
+    MeanCenter,
+    SavitzkyGolay,
+    SNVCorrection,
+    SpectralDerivative,
+    UnitVarianceScaling,
+)
 from cuvis_ai.node.prompts import BBoxPrompt, MaskPrompt, TextPrompt
+from cuvis_ai.node.segmentation import IntensityThresholdSegmenter
 from cuvis_ai.node.spectral_angle_mapper import SpectralAngleMapper
-from cuvis_ai.node.spectral_extractor import BBoxSpectralExtractor, MaskedMeanSpectrum
-from cuvis_ai.node.spectrum_plot import SpectrumPlotNode
+from cuvis_ai.node.spectral_extractor import (
+    BBoxSpectralExtractor,
+    MaskedMeanSpectrum,
+    SignaturesToReferences,
+    SpectralSignatureExtractor,
+)
+from cuvis_ai.node.spectrum_plot import SpectraPlot, SpectrumPlotNode
+from cuvis_ai.node.svm import OneClassSVMDetector
+from cuvis_ai.node.unmixing import NMFUnmixing, NNLSUnmixing
 from cuvis_ai.node.video import (
     ToVideoNode,
     VideoFrameDataModule,
@@ -105,6 +158,8 @@ __all__ = [
     "ChannelWeightsViz",
     "CIETristimulusRGBSelector",
     "CIRSelector",
+    "ClassMapRobustifier",
+    "ClassMapToRGB",
     "FastRGBSelector",
     "ConcreteChannelMixer",
     "CubeRGBVisualizer",
@@ -118,14 +173,20 @@ __all__ = [
     "HighContrastSelector",
     "IdentityNormalizer",
     "ImageArtifactVizBase",
+    "ImageConcatenator",
     "InsetComposer",
+    "LabelOverlay",
+    "LabelOffset",
     "LearnableChannelMixer",
+    "LegendStrip",
     "ROIZoomNode",
+    "TitleOverlay",
     "MaskedMeanSpectrum",
     "MaskOverlayNode",
     "MaskPrompt",
     "MaskRobustifier",
     "MaskToBBoxKalman",
+    "NearestLabelFill",
     "TextPrompt",
     "MinMaxNormalizer",
     "NDVISelector",
@@ -133,6 +194,7 @@ __all__ = [
     "NumpyFeatureWriterNode",
     "NpyReader",
     "OcclusionNodeBase",
+    "PngWriter",
     "PoissonCubeOcclusionNode",
     "PoissonOcclusionNode",
     "PCA",
@@ -147,6 +209,7 @@ __all__ = [
     "SolidOcclusionNode",
     "SoftChannelSelector",
     "SpatialRotateNode",
+    "SpectraPlot",
     "SpectralAngleMapper",
     "SpectrumPlotNode",
     "SupervisedCIRSelector",
@@ -173,4 +236,37 @@ __all__ = [
     "RXPerBatch",
     "TwoStageBinaryDecider",
     "ZScoreNormalizerGlobal",
+    "SavitzkyGolay",
+    "ContinuumRemoval",
+    "SpectralDerivative",
+    "SNVCorrection",
+    "Logarithm",
+    "MeanCenter",
+    "UnitVarianceScaling",
+    "EVISelector",
+    "EVI2Selector",
+    "SAVISelector",
+    "MSAVISelector",
+    "NDWISelector",
+    "NBRSelector",
+    "GNDVISelector",
+    "NDRESelector",
+    "CIRedEdgeSelector",
+    "MCARISelector",
+    "PRISelector",
+    "NNLSUnmixing",
+    "NMFUnmixing",
+    "ShapeMorphology",
+    "KMeansClusterer",
+    "GaussianMixtureClusterer",
+    "OneClassSVMDetector",
+    "SaturatedPixelDetector",
+    "MultiRangeSlicer",
+    "IntensityThresholdSegmenter",
+    "BlobDetector",
+    "MajorityVoteByBlob",
+    "SignaturesToReferences",
+    "SpectralSignatureExtractor",
+    "PatchSampler",
+    "ClassMapAccumulator",
 ]

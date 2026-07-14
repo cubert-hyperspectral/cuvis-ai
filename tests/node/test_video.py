@@ -367,6 +367,24 @@ def test_to_video_node_renders_title_centered_with_slim_background(
     assert int(ys.min()) <= 10
 
 
+def test_to_video_node_overlay_title_warns_v1_migration(tmp_path: Path) -> None:
+    # overlay_title still renders via cv2; it announces the v1.0 move to the torch text renderer.
+    with pytest.warns(DeprecationWarning, match="v1.0"):
+        ToVideoNode(
+            output_video_path=str(tmp_path / "warn.mp4"),
+            frame_rate=10.0,
+            overlay_title="Some Title",
+        )
+
+
+def test_to_video_node_without_title_does_not_warn(tmp_path: Path) -> None:
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
+        ToVideoNode(output_video_path=str(tmp_path / "ok.mp4"), frame_rate=10.0)
+
+
 def test_to_video_node_keeps_frame_id_overlay_unchanged_when_title_is_added(
     mock_ffmpeg_popen: list[_RecordingFfmpegProc],
     tmp_path: Path,

@@ -1,6 +1,4 @@
-"""Mask cleanup and mask-to-bbox tracking nodes.
-
-Provides two nodes used by the SPAM invisible-ink pipeline:
+"""Mask cleanup, mask-to-bbox tracking, and per-blob label-voting nodes.
 
 - ``MaskRobustifier``: morphological open/close + largest-component filter to
   suppress false-positive speckle in per-frame binary masks.
@@ -9,6 +7,10 @@ Provides two nodes used by the SPAM invisible-ink pipeline:
   predict it across frames with a constant-velocity Kalman filter
   (``cv2.KalmanFilter``), so brief empty-mask frames do not make downstream
   zoom insets jitter or disappear.
+
+- ``MajorityVoteByBlob``: collapse a noisy per-pixel label map to one label per
+  detected blob via majority vote, turning soft per-pixel classifications into a
+  clean one-label-per-object map.
 """
 
 from __future__ import annotations
@@ -22,6 +24,7 @@ import torch.nn.functional as F
 from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.pipeline import PortSpec
 
+from cuvis_ai.utils.connected_components import label_connected_components
 from cuvis_ai_core.node import Node
 
 
@@ -134,14 +137,15 @@ class MaskRobustifier(Node):
         binary_np = binary.to(torch.uint8).cpu().numpy()
         surviving = np.zeros_like(binary_np, dtype=bool)
         for i in range(binary_np.shape[0]):
-            frame = binary_np[i]
-            if not frame.any():
+            frame = binary[i]
+            if not bool(frame.any()):
                 continue
-            num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(frame, connectivity=8)
-            if num_labels <= 1:
+            labels = label_connected_components(frame, connectivity=8).cpu().numpy()
+            num_labels = int(labels.max())
+            if num_labels < 1:
                 continue
-            areas = stats[1:, cv2.CC_STAT_AREA]
-            keep_ids = np.arange(1, num_labels, dtype=np.int32)
+            areas = np.bincount(labels.reshape(-1), minlength=num_labels + 1)[1:]
+            keep_ids = np.arange(1, num_labels + 1, dtype=np.int32)
             if self.min_area > 0:
                 m = areas >= self.min_area
                 keep_ids = keep_ids[m]
@@ -423,3 +427,307 @@ class MaskToBBoxKalman(Node):
             "bbox": torch.from_numpy(bboxes).to(device=device, dtype=torch.float32),
             "valid": torch.from_numpy(valids).to(device=device, dtype=torch.int32),
         }
+
+
+class MajorityVoteByBlob(Node):
+    """Assign each blob the majority per-pixel label found inside it.
+
+    Per-pixel classifiers (e.g. a Spectral Angle Mapper) produce noisy labels
+    when reference spectra are close together. Voting within each detected blob
+    denoises that into a single robust label per object: for every blob id in
+    ``blob_mask`` (1..N), the most frequent nonzero ``identity_mask`` value over
+    that blob's pixels becomes the blob's label; blobs with no labelled pixels
+    stay ``0``, as does the background.
+    """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.MASK, NodeTag.SEGMENTATION, NodeTag.CLASSIFICATION})
+
+    INPUT_SPECS = {
+        "identity_mask": PortSpec(
+            dtype=torch.int32,
+            shape=(1, -1, -1),
+            description="Per-pixel labels [1, H, W]; 0 = unassigned.",
+        ),
+        "blob_mask": PortSpec(
+            dtype=torch.int32,
+            shape=(1, -1, -1),
+            description="Blob label map [1, H, W]; ids 1..N, 0 = background.",
+        ),
+    }
+
+    OUTPUT_SPECS = {
+        "mask": PortSpec(
+            dtype=torch.int32,
+            shape=(-1, -1, -1),
+            description="Per-blob majority-label map [1, H, W]; 0 = background.",
+        ),
+    }
+
+    @torch.no_grad()
+    def forward(
+        self, identity_mask: torch.Tensor, blob_mask: torch.Tensor, **_: Any
+    ) -> dict[str, torch.Tensor]:
+        """Paint each blob with the majority label of its pixels.
+
+        Parameters
+        ----------
+        identity_mask : torch.Tensor
+            Per-pixel labels ``[1, H, W]`` (int32); ``0`` is unassigned.
+        blob_mask : torch.Tensor
+            Blob label map ``[1, H, W]`` (int32); ids ``1..N``, ``0`` background.
+        **_ : Any
+            Additional unused keyword arguments (e.g. the pipeline ``context``).
+
+        Returns
+        -------
+        dict[str, torch.Tensor]
+            ``mask`` int32 ``[1, H, W]`` with each blob painted its majority
+            label and background left at ``0``.
+        """
+        ident = identity_mask[0].to(torch.int64)
+        blobs = blob_mask[0].to(torch.int64)
+        out = torch.zeros_like(blobs, dtype=torch.int32)
+
+        for blob_id in torch.unique(blobs).tolist():
+            if blob_id == 0:
+                continue
+            region = blobs == blob_id
+            votes = ident[region]
+            votes = votes[votes > 0]
+            if votes.numel() == 0:
+                continue
+            majority = int(torch.bincount(votes).argmax())
+            out[region] = majority
+        return {"mask": out.unsqueeze(0)}
+
+
+class ClassMapRobustifier(Node):
+    """Per-class morphological cleanup of an integer label map.
+
+    Runs :class:`MaskRobustifier` independently on the binary mask of each class
+    present in ``class_map`` (despeckle + close + min-area / largest-component
+    filter), then repaints the survivors into one label map. Classes are painted
+    in ascending surviving-area order, so a larger class wins any pixel an
+    overlapping smaller class also kept. Pixels removed as speckle become
+    ``background_value`` (holes); :class:`NearestLabelFill` is the companion node
+    that fills them. The input map is echoed verbatim on the ``source`` port so the
+    fill node has both the foreground extent and the fallback labels.
+
+    Parameters
+    ----------
+    opening_kernel : int
+        Morphological opening kernel for the internal ``MaskRobustifier``. ``0``/``1``
+        disables opening. Default ``0``.
+    closing_kernel : int
+        Morphological closing kernel. ``0``/``1`` disables. Default ``3``.
+    min_area : int
+        Drop per-class connected components smaller than this. ``0`` disables.
+        Default ``10``.
+    keep_largest : bool
+        Keep only the largest surviving component of each class. Default ``True``.
+    background_value : int
+        Label value for unassigned pixels in the output. Default ``-1``.
+    """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset(
+        {
+            NodeTag.MASK,
+            NodeTag.SEGMENTATION,
+            NodeTag.CLASSIFICATION,
+            NodeTag.POSTPROCESSING,
+            NodeTag.NUMPY,
+        }
+    )
+
+    INPUT_SPECS = {
+        "class_map": PortSpec(
+            dtype=torch.int64,
+            shape=(-1, -1, -1),
+            description="Integer label map [B, H, W]; background_value elsewhere.",
+        ),
+    }
+
+    OUTPUT_SPECS = {
+        "class_map": PortSpec(
+            dtype=torch.int64,
+            shape=(-1, -1, -1),
+            description="Cleaned label map [B, H, W]; removed speckle -> background_value.",
+        ),
+        "source": PortSpec(
+            dtype=torch.int64,
+            shape=(-1, -1, -1),
+            description="Verbatim passthrough of the input label map [B, H, W].",
+        ),
+    }
+
+    def __init__(
+        self,
+        opening_kernel: int = 0,
+        closing_kernel: int = 3,
+        min_area: int = 10,
+        keep_largest: bool = True,
+        background_value: int = -1,
+        **kwargs: Any,
+    ) -> None:
+        self.opening_kernel = int(opening_kernel)
+        self.closing_kernel = int(closing_kernel)
+        self.min_area = int(min_area)
+        self.keep_largest = bool(keep_largest)
+        self.background_value = int(background_value)
+
+        super().__init__(
+            opening_kernel=self.opening_kernel,
+            closing_kernel=self.closing_kernel,
+            min_area=self.min_area,
+            keep_largest=self.keep_largest,
+            background_value=self.background_value,
+            **kwargs,
+        )
+
+        # Assigned after super().__init__ so nn.Module is initialised before this
+        # submodule is registered. MaskRobustifier validates its own kwargs (so a
+        # negative kernel/area raises here at construction).
+        self._robust = MaskRobustifier(
+            opening_kernel=self.opening_kernel,
+            closing_kernel=self.closing_kernel,
+            min_area=self.min_area,
+            keep_largest=self.keep_largest,
+        )
+
+    @torch.no_grad()
+    def forward(self, class_map: torch.Tensor, **_: Any) -> dict[str, torch.Tensor]:
+        """Clean each present class with morphology, then repaint area-sorted into one map."""
+        bg = self.background_value
+        out = torch.full_like(class_map, bg)
+        for b in range(class_map.shape[0]):
+            pred = class_map[b]
+            present = [int(c) for c in torch.unique(pred).tolist() if int(c) != bg]
+            surv: dict[int, torch.Tensor] = {}
+            for c in present:
+                binary = (pred == c).to(torch.int32).unsqueeze(0)
+                surv[c] = self._robust.forward(mask=binary)["mask"][0] > 0
+            # Larger classes painted last -> they win pixels a smaller class also kept.
+            for c in sorted(present, key=lambda cc: int(surv[cc].sum())):
+                out[b][surv[c]] = c
+        return {"class_map": out, "source": class_map.clone()}
+
+
+class NearestLabelFill(Node):
+    """Fill morphology-removed gaps in a label map with the nearest surviving label.
+
+    After per-class morphology (:class:`ClassMapRobustifier`) some pixels that were
+    labelled in the original map are dropped to ``background_value``. This node
+    repaints every such gap with the label of its nearest surviving pixel, found by
+    iterative single-pixel dilation (8-connected / Chebyshev nearest; ties resolved
+    toward the larger class id). Gaps no label can reach -- e.g. a class wiped out
+    entirely by an area filter -- fall back to the original label on the ``source``
+    port. The foreground to fill is ``source != background_value``.
+
+    Parameters
+    ----------
+    background_value : int
+        Label value treated as "unassigned" in both inputs and the output.
+        Default ``-1``.
+    """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset(
+        {NodeTag.MASK, NodeTag.SEGMENTATION, NodeTag.CLASSIFICATION, NodeTag.POSTPROCESSING}
+    )
+
+    INPUT_SPECS = {
+        "class_map": PortSpec(
+            dtype=torch.int64,
+            shape=(-1, -1, -1),
+            description="Cleaned label map [B, H, W] with background_value gaps to fill.",
+        ),
+        "source": PortSpec(
+            dtype=torch.int64,
+            shape=(-1, -1, -1),
+            description="Original label map [B, H, W]; defines foreground + fallback labels.",
+        ),
+    }
+
+    OUTPUT_SPECS = {
+        "class_map": PortSpec(
+            dtype=torch.int64,
+            shape=(-1, -1, -1),
+            description="Gap-filled label map [B, H, W].",
+        ),
+    }
+
+    def __init__(self, background_value: int = -1, **kwargs: Any) -> None:
+        self.background_value = int(background_value)
+        super().__init__(background_value=self.background_value, **kwargs)
+
+    @torch.no_grad()
+    def forward(
+        self, class_map: torch.Tensor, source: torch.Tensor, **_: Any
+    ) -> dict[str, torch.Tensor]:
+        """Grow surviving labels into the gaps; fall back to ``source`` where unreachable."""
+        bg = self.background_value
+        neg = -1.0e9  # any class id (>= 0) beats this in the max-pool, so unknown never wins
+        out = class_map.clone()
+        target = source != bg
+        known = out != bg
+        remaining = target & ~known
+        while bool(remaining.any()):
+            filled = out.to(torch.float32).masked_fill(~known, neg)
+            cand = F.max_pool2d(filled.unsqueeze(1), kernel_size=3, stride=1, padding=1).squeeze(1)
+            known_f = known.to(torch.float32).unsqueeze(1)
+            reach = F.max_pool2d(known_f, kernel_size=3, stride=1, padding=1).squeeze(1) > 0
+            newly = remaining & reach
+            if not bool(newly.any()):
+                break
+            out[newly] = cand[newly].round().to(out.dtype)
+            known = out != bg
+            remaining = target & ~known
+        still = target & (out == bg)
+        out[still] = source[still]
+        return {"class_map": out}
+
+
+class LabelOffset(Node):
+    """Add a constant offset to every label in an integer label map.
+
+    Mainly used to lift a 0-based dense label map (e.g. a ``KMeansClusterer`` /
+    ``GaussianMixtureClusterer`` ``class_mask``, where cluster ids run ``0..k-1``)
+    to 1-based ids before :class:`MajorityVoteByBlob`, which treats ``0`` as
+    background in both its vote and its output. Without the shift a cluster-``0``
+    region would be dropped as background and collide with the unassigned label.
+
+    Parameters
+    ----------
+    offset : int
+        Value added to every label. Default ``1``.
+    """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.MASK, NodeTag.SEGMENTATION, NodeTag.CLASSIFICATION})
+
+    INPUT_SPECS = {
+        "class_map": PortSpec(
+            dtype=torch.int32,
+            shape=(-1, -1, -1),
+            description="Integer label map [B, H, W].",
+        ),
+    }
+
+    OUTPUT_SPECS = {
+        "class_map": PortSpec(
+            dtype=torch.int32,
+            shape=(-1, -1, -1),
+            description="Label map [B, H, W] with `offset` added to every label.",
+        ),
+    }
+
+    def __init__(self, offset: int = 1, **kwargs: Any) -> None:
+        self.offset = int(offset)
+        super().__init__(offset=self.offset, **kwargs)
+
+    @torch.no_grad()
+    def forward(self, class_map: torch.Tensor, **_: Any) -> dict[str, torch.Tensor]:
+        """Return the label map with `offset` added to every element."""
+        return {"class_map": (class_map.to(torch.int32) + self.offset).to(torch.int32)}

@@ -207,6 +207,36 @@ class ChannelSelectorBase(Node):
         """Find the index of the band nearest to the target wavelength."""
         return int(np.argmin(np.abs(wavelengths - target_nm)))
 
+    def _warn_bands_out_of_tolerance(
+        self,
+        wavelengths: np.ndarray,
+        labels: list[str],
+        requested_nm: list[float],
+        resolved_idx: list[int],
+    ) -> None:
+        """Warn (once per band) when the nearest sensor band is beyond tolerance.
+
+        Nearest-band snapping is unconditional, so a request the camera cannot
+        cover (e.g. a SWIR band on a VNIR-only sensor) silently resolves to the
+        closest edge band. This surfaces that case instead of returning a wrong
+        index quietly. No-op when ``band_tolerance_nm`` is unset or non-positive.
+        """
+        tolerance = getattr(self, "band_tolerance_nm", None)
+        if not tolerance or tolerance <= 0:
+            return
+        warned = self._bands_warned
+        for label, requested, idx in zip(labels, requested_nm, resolved_idx, strict=True):
+            gap = abs(float(wavelengths[idx]) - float(requested))
+            if gap > tolerance and label not in warned:
+                warned.add(label)
+                logger.warning(
+                    f"{getattr(self, 'index_name', type(self).__name__)}: requested "
+                    f"{label} band at {float(requested):.0f} nm, but the nearest sensor "
+                    f"band is {float(wavelengths[idx]):.0f} nm ({gap:.0f} nm away, "
+                    f"tolerance {float(tolerance):.0f} nm). The index may be invalid for "
+                    "this camera's spectral range."
+                )
+
     # ------------------------------------------------------------------
     # RGB normalization
     # ------------------------------------------------------------------
@@ -401,6 +431,7 @@ class _NormalizedDifferenceIndexBase(ChannelSelectorBase, ABC):
         primary_nm: float,
         secondary_nm: float,
         eps: float = 1.0e-6,
+        band_tolerance_nm: float = 50.0,
         **kwargs: Any,
     ) -> None:
         if eps < 0:
@@ -410,11 +441,14 @@ class _NormalizedDifferenceIndexBase(ChannelSelectorBase, ABC):
             primary_nm=float(primary_nm),
             secondary_nm=float(secondary_nm),
             eps=float(eps),
+            band_tolerance_nm=float(band_tolerance_nm),
             **kwargs,
         )
         self.primary_nm = float(primary_nm)
         self.secondary_nm = float(secondary_nm)
         self.eps = float(eps)
+        self.band_tolerance_nm = float(band_tolerance_nm)
+        self._bands_warned: set[str] = set()
 
     @property
     @abstractmethod
@@ -476,6 +510,12 @@ class _NormalizedDifferenceIndexBase(ChannelSelectorBase, ABC):
     ) -> dict[str, Any]:
         """Compute raw index image plus RGB render."""
         wavelengths_np, primary_idx, secondary_idx = self._resolve_band_indices(wavelengths)
+        self._warn_bands_out_of_tolerance(
+            wavelengths_np,
+            [self.primary_label, self.secondary_label],
+            [self.primary_nm, self.secondary_nm],
+            [primary_idx, secondary_idx],
+        )
         index_image = self._compute_index_image(cube, wavelengths_np)
         rgb = self._render_rgb_from_index(index_image)
 
@@ -586,6 +626,809 @@ class NDVISelector(_NormalizedDifferenceIndexBase):
             }
         )
         return result
+
+
+class _ColormappedNormalizedDifferenceSelector(_NormalizedDifferenceIndexBase, ABC):
+    """Two-band normalized-difference selector with an HSV-colormap RGB render.
+
+    Abstract base: concrete subclasses set the primary/secondary default
+    wavelengths and implement the semantic ``index_name`` / ``primary_label`` /
+    ``secondary_label`` properties. The scalar index image is mapped to
+    ``rgb_image`` with the same Blood_OXY-style HSV colormap path that
+    :class:`NDVISelector` uses, controlled by ``colormap_min`` / ``colormap_max``.
+    """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset(
+        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+    )
+
+    def __init__(
+        self,
+        primary_nm: float,
+        secondary_nm: float,
+        colormap_min: float = -1.0,
+        colormap_max: float = 1.0,
+        eps: float = 1.0e-6,
+        **kwargs: Any,
+    ) -> None:
+        if colormap_max <= colormap_min:
+            raise ValueError("colormap_max must be greater than colormap_min")
+        kwargs.setdefault("norm_mode", NormMode.PER_FRAME)
+        kwargs.setdefault("apply_gamma", False)
+        super().__init__(
+            primary_nm=primary_nm,
+            secondary_nm=secondary_nm,
+            eps=eps,
+            colormap_min=float(colormap_min),
+            colormap_max=float(colormap_max),
+            **kwargs,
+        )
+        self.colormap = "hsv"
+        self.colormap_min = float(colormap_min)
+        self.colormap_max = float(colormap_max)
+        self._colormap_range = self.colormap_max - self.colormap_min
+
+    @property
+    @abstractmethod
+    def index_name(self) -> str:
+        """Canonical strategy / index name."""
+
+    @property
+    @abstractmethod
+    def primary_label(self) -> str:
+        """Semantic label for the first operand."""
+
+    @property
+    @abstractmethod
+    def secondary_label(self) -> str:
+        """Semantic label for the second operand."""
+
+    def _render_rgb_from_index(self, index_image: torch.Tensor) -> torch.Tensor:
+        """Render the scalar index image using the Blood_OXY HSV colormap."""
+        normalized = ((index_image - self.colormap_min) / self._colormap_range).clamp(0.0, 1.0)
+        return render_scalar_hsv_colormap(normalized)
+
+    def forward(
+        self,
+        cube: torch.Tensor,
+        wavelengths: Any,
+        context: Context | None = None,
+        **_: Any,
+    ) -> dict[str, Any]:
+        """Compute the normalized-difference index plus a colour-mapped RGB output."""
+        result = super().forward(cube=cube, wavelengths=wavelengths, context=context, **_)
+        result["band_info"].update(
+            {
+                "rendering": f"{self.colormap}_colormap",
+                "colormap": self.colormap,
+                "colormap_min": self.colormap_min,
+                "colormap_max": self.colormap_max,
+            }
+        )
+        return result
+
+
+class NDWISelector(_ColormappedNormalizedDifferenceSelector):
+    """Normalized Difference Water Index renderer.
+
+    Computes ``(CUBE(green_nm) - CUBE(nir_nm)) / (CUBE(green_nm) + CUBE(nir_nm))``.
+    Bands are resolved by nearest available sensor wavelength. The raw index map
+    is returned via ``index_image`` and ``rgb_image`` carries an HSV colour-mapped
+    render.
+    """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset(
+        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+    )
+
+    def __init__(
+        self,
+        green_nm: float = 560.0,
+        nir_nm: float = 860.0,
+        colormap_min: float = -1.0,
+        colormap_max: float = 1.0,
+        eps: float = 1.0e-6,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(
+            primary_nm=green_nm,
+            secondary_nm=nir_nm,
+            colormap_min=colormap_min,
+            colormap_max=colormap_max,
+            eps=eps,
+            green_nm=float(green_nm),
+            nir_nm=float(nir_nm),
+            **kwargs,
+        )
+        self.green_nm = float(green_nm)
+        self.nir_nm = float(nir_nm)
+
+    @property
+    def index_name(self) -> str:
+        """Canonical NDWI strategy name."""
+        return "ndwi"
+
+    @property
+    def primary_label(self) -> str:
+        """NDWI primary operand label."""
+        return "green"
+
+    @property
+    def secondary_label(self) -> str:
+        """NDWI secondary operand label."""
+        return "nir"
+
+
+class NBRSelector(_ColormappedNormalizedDifferenceSelector):
+    """Normalized Burn Ratio renderer.
+
+    Computes ``(CUBE(nir_nm) - CUBE(swir_nm)) / (CUBE(nir_nm) + CUBE(swir_nm))``.
+    Bands are resolved by nearest available sensor wavelength. The raw index map
+    is returned via ``index_image`` and ``rgb_image`` carries an HSV colour-mapped
+    render.
+    """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset(
+        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+    )
+
+    def __init__(
+        self,
+        nir_nm: float = 850.0,
+        swir_nm: float = 2200.0,
+        colormap_min: float = -1.0,
+        colormap_max: float = 1.0,
+        eps: float = 1.0e-6,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(
+            primary_nm=nir_nm,
+            secondary_nm=swir_nm,
+            colormap_min=colormap_min,
+            colormap_max=colormap_max,
+            eps=eps,
+            nir_nm=float(nir_nm),
+            swir_nm=float(swir_nm),
+            **kwargs,
+        )
+        self.nir_nm = float(nir_nm)
+        self.swir_nm = float(swir_nm)
+
+    @property
+    def index_name(self) -> str:
+        """Canonical NBR strategy name."""
+        return "nbr"
+
+    @property
+    def primary_label(self) -> str:
+        """NBR primary operand label."""
+        return "nir"
+
+    @property
+    def secondary_label(self) -> str:
+        """NBR secondary operand label."""
+        return "swir"
+
+
+class GNDVISelector(_ColormappedNormalizedDifferenceSelector):
+    """Green Normalized Difference Vegetation Index renderer.
+
+    Computes ``(CUBE(nir_nm) - CUBE(green_nm)) / (CUBE(nir_nm) + CUBE(green_nm))``.
+    Bands are resolved by nearest available sensor wavelength. The raw index map
+    is returned via ``index_image`` and ``rgb_image`` carries an HSV colour-mapped
+    render.
+    """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset(
+        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+    )
+
+    def __init__(
+        self,
+        nir_nm: float = 800.0,
+        green_nm: float = 550.0,
+        colormap_min: float = -1.0,
+        colormap_max: float = 1.0,
+        eps: float = 1.0e-6,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(
+            primary_nm=nir_nm,
+            secondary_nm=green_nm,
+            colormap_min=colormap_min,
+            colormap_max=colormap_max,
+            eps=eps,
+            nir_nm=float(nir_nm),
+            green_nm=float(green_nm),
+            **kwargs,
+        )
+        self.nir_nm = float(nir_nm)
+        self.green_nm = float(green_nm)
+
+    @property
+    def index_name(self) -> str:
+        """Canonical GNDVI strategy name."""
+        return "gndvi"
+
+    @property
+    def primary_label(self) -> str:
+        """GNDVI primary operand label."""
+        return "nir"
+
+    @property
+    def secondary_label(self) -> str:
+        """GNDVI secondary operand label."""
+        return "green"
+
+
+class NDRESelector(_ColormappedNormalizedDifferenceSelector):
+    """Normalized Difference Red Edge index renderer.
+
+    Computes
+    ``(CUBE(nir_nm) - CUBE(red_edge_nm)) / (CUBE(nir_nm) + CUBE(red_edge_nm))``.
+    Bands are resolved by nearest available sensor wavelength. The raw index map
+    is returned via ``index_image`` and ``rgb_image`` carries an HSV colour-mapped
+    render.
+    """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset(
+        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+    )
+
+    def __init__(
+        self,
+        nir_nm: float = 800.0,
+        red_edge_nm: float = 720.0,
+        colormap_min: float = -1.0,
+        colormap_max: float = 1.0,
+        eps: float = 1.0e-6,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(
+            primary_nm=nir_nm,
+            secondary_nm=red_edge_nm,
+            colormap_min=colormap_min,
+            colormap_max=colormap_max,
+            eps=eps,
+            nir_nm=float(nir_nm),
+            red_edge_nm=float(red_edge_nm),
+            **kwargs,
+        )
+        self.nir_nm = float(nir_nm)
+        self.red_edge_nm = float(red_edge_nm)
+
+    @property
+    def index_name(self) -> str:
+        """Canonical NDRE strategy name."""
+        return "ndre"
+
+    @property
+    def primary_label(self) -> str:
+        """NDRE primary operand label."""
+        return "nir"
+
+    @property
+    def secondary_label(self) -> str:
+        """NDRE secondary operand label."""
+        return "red_edge"
+
+
+class _VegetationIndexBase(ChannelSelectorBase, ABC):
+    """Abstract base for multi-band vegetation indices with custom formulas.
+
+    Resolves a set of named bands (each a defaulted, tunable wavelength hparam)
+    to their nearest sensor wavelengths, computes a scalar ``index_image`` from a
+    subclass-provided formula, and renders ``rgb_image`` with the same Blood_OXY
+    HSV colormap path used by :class:`NDVISelector`. Denominators in subclass
+    formulas should be clamped with ``self.eps`` to avoid divide-by-zero.
+    """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset(
+        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+    )
+
+    OUTPUT_SPECS = {
+        **ChannelSelectorBase.OUTPUT_SPECS,
+        "index_image": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 1),
+            description="Raw vegetation index image [B, H, W, 1]",
+        ),
+    }
+
+    def __init__(
+        self,
+        band_nm: dict[str, float],
+        colormap_min: float = -1.0,
+        colormap_max: float = 1.0,
+        eps: float = 1.0e-6,
+        band_tolerance_nm: float = 50.0,
+        **kwargs: Any,
+    ) -> None:
+        if eps < 0:
+            raise ValueError("eps must be >= 0")
+        if colormap_max <= colormap_min:
+            raise ValueError("colormap_max must be greater than colormap_min")
+        kwargs.setdefault("norm_mode", NormMode.PER_FRAME)
+        kwargs.setdefault("apply_gamma", False)
+        super().__init__(
+            colormap_min=float(colormap_min),
+            colormap_max=float(colormap_max),
+            eps=float(eps),
+            band_tolerance_nm=float(band_tolerance_nm),
+            **kwargs,
+        )
+        self.band_nm = {name: float(nm) for name, nm in band_nm.items()}
+        self.eps = float(eps)
+        self.band_tolerance_nm = float(band_tolerance_nm)
+        self._bands_warned: set[str] = set()
+        self.colormap = "hsv"
+        self.colormap_min = float(colormap_min)
+        self.colormap_max = float(colormap_max)
+        self._colormap_range = self.colormap_max - self.colormap_min
+
+    @property
+    @abstractmethod
+    def index_name(self) -> str:
+        """Canonical strategy / index name."""
+
+    @abstractmethod
+    def _compute_index(self, bands: dict[str, torch.Tensor]) -> torch.Tensor:
+        """Compute the scalar index map [B, H, W] from resolved band tensors."""
+
+    def _resolve_band_indices(self, wavelengths: Any) -> tuple[np.ndarray, dict[str, int]]:
+        """Resolve nearest spectral indices for every named band."""
+        wavelengths_np = np.asarray(wavelengths, dtype=np.float32)
+        if wavelengths_np.ndim == 2:
+            wavelengths_np = wavelengths_np[0]
+        if wavelengths_np.ndim != 1:
+            raise ValueError(f"Expected 1D wavelengths [C], got shape {wavelengths_np.shape}")
+        wavelengths_np = wavelengths_np.ravel()
+
+        indices = {
+            name: self._nearest_band_index(wavelengths_np, nm) for name, nm in self.band_nm.items()
+        }
+        return wavelengths_np, indices
+
+    def _compute_index_image(self, cube: torch.Tensor, wavelengths: Any) -> torch.Tensor:
+        """Compute the raw scalar index image [B, H, W, 1]."""
+        _, indices = self._resolve_band_indices(wavelengths)
+        bands = {name: cube[..., idx] for name, idx in indices.items()}
+        index = self._compute_index(bands)
+        return index.unsqueeze(-1)
+
+    def _render_rgb_from_index(self, index_image: torch.Tensor) -> torch.Tensor:
+        """Render the scalar index image using the Blood_OXY HSV colormap."""
+        normalized = ((index_image - self.colormap_min) / self._colormap_range).clamp(0.0, 1.0)
+        return render_scalar_hsv_colormap(normalized)
+
+    def _compute_raw_rgb(self, cube: torch.Tensor, wavelengths: Any) -> torch.Tensor:
+        """Render the scalar index image into RGB."""
+        index_image = self._compute_index_image(cube, wavelengths)
+        return self._render_rgb_from_index(index_image)
+
+    def forward(
+        self,
+        cube: torch.Tensor,
+        wavelengths: Any,
+        context: Context | None = None,  # noqa: ARG002
+        **_: Any,
+    ) -> dict[str, Any]:
+        """Compute the vegetation index plus a colour-mapped RGB output."""
+        wavelengths_np, indices = self._resolve_band_indices(wavelengths)
+        band_labels = list(indices.keys())
+        band_indices = [indices[name] for name in band_labels]
+        self._warn_bands_out_of_tolerance(
+            wavelengths_np,
+            band_labels,
+            [self.band_nm[name] for name in band_labels],
+            band_indices,
+        )
+        index_image = self._compute_index_image(cube, wavelengths_np)
+        rgb = self._render_rgb_from_index(index_image)
+        band_info = {
+            "strategy": self.index_name,
+            "band_labels": band_labels,
+            "band_indices": band_indices,
+            "requested_wavelengths_nm": [self.band_nm[name] for name in band_labels],
+            "resolved_wavelengths_nm": [
+                float(wavelengths_np[indices[name]]) for name in band_labels
+            ],
+            "rendering": f"{self.colormap}_colormap",
+            "colormap": self.colormap,
+            "colormap_min": self.colormap_min,
+            "colormap_max": self.colormap_max,
+        }
+        return {
+            "index_image": index_image,
+            "rgb_image": rgb,
+            "band_info": band_info,
+        }
+
+
+class EVISelector(_VegetationIndexBase):
+    """Enhanced Vegetation Index renderer.
+
+    Computes ``2.5 * (NIR - Red) / (NIR + 6 * Red - 7.5 * Blue + 1)`` over bands
+    resolved by nearest sensor wavelength. The raw index map is returned via
+    ``index_image`` and ``rgb_image`` carries an HSV colour-mapped render.
+
+    The additive ``+1`` constant is only meaningful for reflectance in [0, 1];
+    feed reflectance-calibrated cubes, not raw radiance/DN.
+    """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset(
+        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+    )
+
+    def __init__(
+        self,
+        blue_nm: float = 460.0,
+        red_nm: float = 660.0,
+        nir_nm: float = 800.0,
+        colormap_min: float = -1.0,
+        colormap_max: float = 1.0,
+        eps: float = 1.0e-6,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(
+            band_nm={"blue": blue_nm, "red": red_nm, "nir": nir_nm},
+            colormap_min=colormap_min,
+            colormap_max=colormap_max,
+            eps=eps,
+            blue_nm=float(blue_nm),
+            red_nm=float(red_nm),
+            nir_nm=float(nir_nm),
+            **kwargs,
+        )
+        self.blue_nm = float(blue_nm)
+        self.red_nm = float(red_nm)
+        self.nir_nm = float(nir_nm)
+
+    @property
+    def index_name(self) -> str:
+        """Canonical EVI strategy name."""
+        return "evi"
+
+    def _compute_index(self, bands: dict[str, torch.Tensor]) -> torch.Tensor:
+        """Compute the EVI map from resolved blue/red/nir bands."""
+        nir, red, blue = bands["nir"], bands["red"], bands["blue"]
+        numerator = nir - red
+        denominator = nir + 6.0 * red - 7.5 * blue + 1.0
+        denominator = torch.where(
+            denominator.abs() > self.eps,
+            denominator,
+            torch.full_like(denominator, self.eps),
+        )
+        return 2.5 * numerator / denominator
+
+
+class EVI2Selector(_VegetationIndexBase):
+    """Two-band Enhanced Vegetation Index renderer.
+
+    Computes ``2.5 * (NIR - Red) / (NIR + 2.4 * Red + 1)`` over bands resolved by
+    nearest sensor wavelength. The raw index map is returned via ``index_image``
+    and ``rgb_image`` carries an HSV colour-mapped render.
+
+    The additive ``+1`` constant is only meaningful for reflectance in [0, 1];
+    feed reflectance-calibrated cubes, not raw radiance/DN.
+    """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset(
+        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+    )
+
+    def __init__(
+        self,
+        red_nm: float = 660.0,
+        nir_nm: float = 800.0,
+        colormap_min: float = -1.0,
+        colormap_max: float = 1.0,
+        eps: float = 1.0e-6,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(
+            band_nm={"red": red_nm, "nir": nir_nm},
+            colormap_min=colormap_min,
+            colormap_max=colormap_max,
+            eps=eps,
+            red_nm=float(red_nm),
+            nir_nm=float(nir_nm),
+            **kwargs,
+        )
+        self.red_nm = float(red_nm)
+        self.nir_nm = float(nir_nm)
+
+    @property
+    def index_name(self) -> str:
+        """Canonical EVI2 strategy name."""
+        return "evi2"
+
+    def _compute_index(self, bands: dict[str, torch.Tensor]) -> torch.Tensor:
+        """Compute the EVI2 map from resolved red/nir bands."""
+        nir, red = bands["nir"], bands["red"]
+        numerator = nir - red
+        denominator = nir + 2.4 * red + 1.0
+        denominator = torch.where(
+            denominator.abs() > self.eps,
+            denominator,
+            torch.full_like(denominator, self.eps),
+        )
+        return 2.5 * numerator / denominator
+
+
+class SAVISelector(_VegetationIndexBase):
+    """Soil Adjusted Vegetation Index renderer.
+
+    Computes ``(1 + L) * (NIR - Red) / (NIR + Red + L)`` over bands resolved by
+    nearest sensor wavelength, where ``L`` is the soil-brightness correction. The
+    raw index map is returned via ``index_image`` and ``rgb_image`` carries an HSV
+    colour-mapped render.
+
+    The additive ``L`` constant is only meaningful for reflectance in [0, 1];
+    feed reflectance-calibrated cubes, not raw radiance/DN.
+    """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset(
+        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+    )
+
+    def __init__(
+        self,
+        red_nm: float = 660.0,
+        nir_nm: float = 800.0,
+        soil_factor: float = 0.5,
+        colormap_min: float = -1.0,
+        colormap_max: float = 1.0,
+        eps: float = 1.0e-6,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(
+            band_nm={"red": red_nm, "nir": nir_nm},
+            colormap_min=colormap_min,
+            colormap_max=colormap_max,
+            eps=eps,
+            red_nm=float(red_nm),
+            nir_nm=float(nir_nm),
+            soil_factor=float(soil_factor),
+            **kwargs,
+        )
+        self.red_nm = float(red_nm)
+        self.nir_nm = float(nir_nm)
+        self.soil_factor = float(soil_factor)
+
+    @property
+    def index_name(self) -> str:
+        """Canonical SAVI strategy name."""
+        return "savi"
+
+    def _compute_index(self, bands: dict[str, torch.Tensor]) -> torch.Tensor:
+        """Compute the SAVI map from resolved red/nir bands."""
+        nir, red = bands["nir"], bands["red"]
+        soil = self.soil_factor
+        numerator = nir - red
+        denominator = nir + red + soil
+        denominator = torch.where(
+            denominator.abs() > self.eps,
+            denominator,
+            torch.full_like(denominator, self.eps),
+        )
+        return (1.0 + soil) * numerator / denominator
+
+
+class MSAVISelector(_VegetationIndexBase):
+    """Modified Soil Adjusted Vegetation Index renderer.
+
+    Computes ``0.5 * (2*NIR + 1 - sqrt((2*NIR + 1)^2 - 8*(NIR - Red)))`` over
+    bands resolved by nearest sensor wavelength. The raw index map is returned via
+    ``index_image`` and ``rgb_image`` carries an HSV colour-mapped render.
+
+    The additive ``+1`` constants are only meaningful for reflectance in [0, 1];
+    feed reflectance-calibrated cubes, not raw radiance/DN.
+    """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset(
+        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+    )
+
+    def __init__(
+        self,
+        red_nm: float = 660.0,
+        nir_nm: float = 800.0,
+        colormap_min: float = -1.0,
+        colormap_max: float = 1.0,
+        eps: float = 1.0e-6,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(
+            band_nm={"red": red_nm, "nir": nir_nm},
+            colormap_min=colormap_min,
+            colormap_max=colormap_max,
+            eps=eps,
+            red_nm=float(red_nm),
+            nir_nm=float(nir_nm),
+            **kwargs,
+        )
+        self.red_nm = float(red_nm)
+        self.nir_nm = float(nir_nm)
+
+    @property
+    def index_name(self) -> str:
+        """Canonical MSAVI strategy name."""
+        return "msavi"
+
+    def _compute_index(self, bands: dict[str, torch.Tensor]) -> torch.Tensor:
+        """Compute the MSAVI map from resolved red/nir bands."""
+        nir, red = bands["nir"], bands["red"]
+        term = 2.0 * nir + 1.0
+        radicand = (term * term - 8.0 * (nir - red)).clamp_min(0.0)
+        return 0.5 * (term - torch.sqrt(radicand))
+
+
+class CIRedEdgeSelector(_VegetationIndexBase):
+    """Chlorophyll Index Red Edge renderer.
+
+    Computes ``NIR / RedEdge - 1`` over bands resolved by nearest sensor
+    wavelength. The raw index map is returned via ``index_image`` and
+    ``rgb_image`` carries an HSV colour-mapped render.
+    """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset(
+        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+    )
+
+    def __init__(
+        self,
+        red_edge_nm: float = 720.0,
+        nir_nm: float = 800.0,
+        colormap_min: float = -1.0,
+        colormap_max: float = 1.0,
+        eps: float = 1.0e-6,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(
+            band_nm={"red_edge": red_edge_nm, "nir": nir_nm},
+            colormap_min=colormap_min,
+            colormap_max=colormap_max,
+            eps=eps,
+            red_edge_nm=float(red_edge_nm),
+            nir_nm=float(nir_nm),
+            **kwargs,
+        )
+        self.red_edge_nm = float(red_edge_nm)
+        self.nir_nm = float(nir_nm)
+
+    @property
+    def index_name(self) -> str:
+        """Canonical CIRedEdge strategy name."""
+        return "ci_red_edge"
+
+    def _compute_index(self, bands: dict[str, torch.Tensor]) -> torch.Tensor:
+        """Compute the CIRedEdge map from resolved red-edge/nir bands."""
+        nir, red_edge = bands["nir"], bands["red_edge"]
+        denominator = torch.where(
+            red_edge.abs() > self.eps,
+            red_edge,
+            torch.full_like(red_edge, self.eps),
+        )
+        return nir / denominator - 1.0
+
+
+class MCARISelector(_VegetationIndexBase):
+    """Modified Chlorophyll Absorption in Reflectance Index renderer.
+
+    Computes ``((RE - Red) - 0.2 * (RE - Green)) * (RE / Red)`` over bands
+    resolved by nearest sensor wavelength, where ``RE`` is the red-edge band. The
+    raw index map is returned via ``index_image`` and ``rgb_image`` carries an HSV
+    colour-mapped render.
+    """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset(
+        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+    )
+
+    def __init__(
+        self,
+        green_nm: float = 550.0,
+        red_nm: float = 670.0,
+        red_edge_nm: float = 700.0,
+        colormap_min: float = -1.0,
+        colormap_max: float = 1.0,
+        eps: float = 1.0e-6,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(
+            band_nm={"green": green_nm, "red": red_nm, "red_edge": red_edge_nm},
+            colormap_min=colormap_min,
+            colormap_max=colormap_max,
+            eps=eps,
+            green_nm=float(green_nm),
+            red_nm=float(red_nm),
+            red_edge_nm=float(red_edge_nm),
+            **kwargs,
+        )
+        self.green_nm = float(green_nm)
+        self.red_nm = float(red_nm)
+        self.red_edge_nm = float(red_edge_nm)
+
+    @property
+    def index_name(self) -> str:
+        """Canonical MCARI strategy name."""
+        return "mcari"
+
+    def _compute_index(self, bands: dict[str, torch.Tensor]) -> torch.Tensor:
+        """Compute the MCARI map from resolved green/red/red-edge bands."""
+        green, red, red_edge = bands["green"], bands["red"], bands["red_edge"]
+        red_safe = torch.where(
+            red.abs() > self.eps,
+            red,
+            torch.full_like(red, self.eps),
+        )
+        return ((red_edge - red) - 0.2 * (red_edge - green)) * (red_edge / red_safe)
+
+
+class PRISelector(_VegetationIndexBase):
+    """Photochemical Reflectance Index renderer.
+
+    Computes ``(R531 - R570) / (R531 + R570)`` over bands resolved by nearest
+    sensor wavelength. The raw index map is returned via ``index_image`` and
+    ``rgb_image`` carries an HSV colour-mapped render.
+    """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset(
+        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+    )
+
+    def __init__(
+        self,
+        band1_nm: float = 531.0,
+        band2_nm: float = 570.0,
+        colormap_min: float = -1.0,
+        colormap_max: float = 1.0,
+        eps: float = 1.0e-6,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(
+            band_nm={"band1": band1_nm, "band2": band2_nm},
+            colormap_min=colormap_min,
+            colormap_max=colormap_max,
+            eps=eps,
+            band1_nm=float(band1_nm),
+            band2_nm=float(band2_nm),
+            **kwargs,
+        )
+        self.band1_nm = float(band1_nm)
+        self.band2_nm = float(band2_nm)
+
+    @property
+    def index_name(self) -> str:
+        """Canonical PRI strategy name."""
+        return "pri"
+
+    def _compute_index(self, bands: dict[str, torch.Tensor]) -> torch.Tensor:
+        """Compute the PRI map from resolved 531/570 nm bands."""
+        b1, b2 = bands["band1"], bands["band2"]
+        numerator = b1 - b2
+        denominator = b1 + b2
+        denominator = torch.where(
+            denominator.abs() > self.eps,
+            denominator,
+            torch.full_like(denominator, self.eps),
+        )
+        return numerator / denominator
 
 
 class FixedWavelengthSelector(ChannelSelectorBase):
@@ -2591,13 +3434,24 @@ __all__ = [
     "CameraEmulationFalseRGBSelector",
     "ChannelSelectorBase",
     "CIETristimulusRGBSelector",
-    "NormMode",
+    "CIRedEdgeSelector",
     "CIRSelector",
+    "EVI2Selector",
+    "EVISelector",
     "FastRGBSelector",
     "FixedWavelengthSelector",
+    "GNDVISelector",
     "HighContrastSelector",
+    "MCARISelector",
+    "MSAVISelector",
+    "NBRSelector",
+    "NDRESelector",
     "NDVISelector",
+    "NDWISelector",
+    "NormMode",
+    "PRISelector",
     "RangeAverageFalseRGBSelector",
+    "SAVISelector",
     "SoftChannelSelector",
     "SupervisedCIRSelector",
     "SupervisedFullSpectrumSelector",

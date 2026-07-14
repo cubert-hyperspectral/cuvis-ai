@@ -6,7 +6,15 @@ from cuvis_ai_schemas.enums import NodeTag
 
 from cuvis_ai_core.utils.node_registry import NodeRegistry
 
-REGISTRY_PACKAGES = ("cuvis_ai.node", "cuvis_ai.node.anomaly", "cuvis_ai.node.deciders")
+REGISTRY_PACKAGES = (
+    "cuvis_ai.node",
+    "cuvis_ai.node.anomaly",
+    "cuvis_ai.node.deciders",
+    "cuvis_ai.node.pretreatments",
+    "cuvis_ai.node.unmixing",
+    "cuvis_ai.node.clustering",
+    "cuvis_ai.node.segmentation",
+)
 
 EXPECTED_PRESENT: set[str] = {
     "ROIZoomNode",
