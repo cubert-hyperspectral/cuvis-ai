@@ -43,7 +43,15 @@
 - **Dropped the abstract `SAM3TrackerInference` entry from `configs/plugins/sam3.yaml`.** Base
   classes are not instantiable from pipelines, so the manifest now lists only concrete nodes.
 
-## 0.11.0 - 2026-06-24
+## 0.10.2 - 2026-07-13
+
+- `AnomalyDetectionMetrics.average_precision` is now epoch-pooled through the trainer's native
+  metric-object logging: the node exposes the live `BinaryAveragePrecision` via `pooled_metrics()`
+  (replacing `compute_epoch_metrics()`), and the trainer logs it once per epoch with `on_epoch=True`,
+  so the reported AP is the exact pooled value rather than the per-batch running value. Floors
+  `cuvis-ai-core` to `>=0.10.1` (the release carrying the native `pooled_metrics()` logging).
+
+## 0.10.1 - 2026-06-24
 
 - **Refreshed plugin manifest pins to the latest releases.** Bumped the `configs/plugins/` tags to
   the published standards-adoption releases: adaclip `v0.1.5`, dinomaly `v0.2.0`, deepeiou `v0.2.0`,
