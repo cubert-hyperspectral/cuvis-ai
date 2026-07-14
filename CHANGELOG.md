@@ -48,11 +48,13 @@
   is non-zero while inference still labels every pixel. Other statistical-fit nodes are unaffected.
 - **Added `scipy` as a direct dependency floor** (`>=1.17.1`, tracking the lock) for the
   Savitzky-Golay coefficient build.
-- **Added a dense patch-inference node pair.** `PatchSampler` tiles a cube plus an integer target
-  map into center-pixel patches; `ClassMapAccumulator` (a sink) scatters per-patch predictions back
-  into per-frame class maps. They are coupled by a `frame_id`/`y`/`x`/`height`/`width` provenance
-  contract, so patch-based per-pixel classification runs end to end inside a pipeline
-  (`reset()` -> `forward()*` -> `close()`, with the finished maps read from `class_maps`).
+- **Added two patch-inference nodes.** `PatchSampler` extracts labelled center-pixel patches from a
+  cube plus an integer target map (for training a classifier); `ClassMapAccumulator` (a sink)
+  scatters per-patch predictions back into per-frame class maps. They are separate nodes, not a
+  directly wired pair: `ClassMapAccumulator` consumes a `frame_id`/`y`/`x`/`height`/`width`
+  provenance contract supplied by a patch-tiler data module (not emitted by `PatchSampler`), runs as
+  `reset()` -> `forward()*` -> `close()`, and retains one map per frame until `reset()` (finished
+  maps read from `class_maps`).
 - **`TitleOverlay` gained a per-frame caption port.** An optional `caption` input (a `list[str]`,
   one entry per batch element) lets a DataModule title each frame independently; it falls back to
   the `text=` forward argument and then the constructor default. Captions render through the
@@ -61,7 +63,9 @@
   `notebooks/use_cases/metal_scrap_classification.ipynb` rebuilds the Gursch et al. 2026 SWIR
   steel-scrap classifier as a Cuvis.AI pipeline (per-band standardizer, 3D-CNN, weighted
   cross-entropy and segmentation metrics), derives the inverse-frequency class weights in the
-  statistical-training phase, runs dense per-pixel inference, and adds a mask-cleanup stage.
+  statistical-training phase, runs dense per-pixel inference, and adds a mask-cleanup stage. It runs
+  on Colab: the dataset is provisioned from Zenodo (DOI 10.5281/zenodo.17076238) and training is
+  gated on a CUDA GPU.
 
 ## 0.10.2 - 2026-07-13
 
