@@ -1,4 +1,4 @@
-"""Scalar-to-RGB colormap nodes."""
+"""Scalar-to-RGB and class-index-to-RGB colormap nodes."""
 
 from __future__ import annotations
 
@@ -10,6 +10,30 @@ from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
 
 from cuvis_ai_core.node import Node
+
+#: Tableau-20 palette (RGB 0-255) used when ``ClassMapToRGB`` gets no explicit palette.
+_TAB20: tuple[tuple[int, int, int], ...] = (
+    (31, 119, 180),
+    (174, 199, 232),
+    (255, 127, 14),
+    (255, 187, 120),
+    (44, 160, 44),
+    (152, 223, 138),
+    (214, 39, 40),
+    (255, 152, 150),
+    (148, 103, 189),
+    (197, 176, 213),
+    (140, 86, 75),
+    (196, 156, 148),
+    (227, 119, 194),
+    (247, 182, 210),
+    (127, 127, 127),
+    (199, 199, 199),
+    (188, 189, 34),
+    (219, 219, 141),
+    (23, 190, 207),
+    (158, 218, 229),
+)
 
 
 def render_scalar_hsv_colormap(normalized: Tensor) -> Tensor:
@@ -111,4 +135,75 @@ class ScalarHSVColormapNode(Node):
         return {"rgb_image": render_scalar_hsv_colormap(normalized)}
 
 
-__all__ = ["ScalarHSVColormapNode", "render_scalar_hsv_colormap"]
+class ClassMapToRGB(Node):
+    """Colourise an integer class-index map ``[B, H, W]`` into an RGB image ``[B, H, W, 3]``.
+
+    Each class id indexes a palette colour; pixels equal to ``background_value`` (and, when a
+    ``mask`` is connected, pixels where ``mask == 0``) render black. The explicit ``palette``
+    lets it colourise arbitrary integer id-maps (compartment ids, cluster ids, class indices).
+
+    Parameters
+    ----------
+    palette : list[tuple[int, int, int]] | None
+        Per-id RGB colours in 0-255, indexed by class id. When ``None``, a Tableau-20 palette is
+        cycled. The lookup wraps modulo the palette length, so ids beyond it reuse colours.
+    background_value : int
+        Class id rendered black (default ``-1``, so id ``0`` stays a valid class for clustering).
+    """
+
+    _category = NodeCategory.VISUALIZER
+    _tags = frozenset({NodeTag.MASK, NodeTag.RGB})
+
+    INPUT_SPECS = {
+        "class_map": PortSpec(
+            dtype=torch.int64,
+            shape=(-1, -1, -1),
+            description="Integer class-index map [B, H, W]; background_value pixels render black.",
+        ),
+        "mask": PortSpec(
+            dtype=torch.int32,
+            shape=(-1, -1, -1),
+            description="Optional foreground mask [B, H, W]; pixels where mask == 0 render black.",
+            optional=True,
+        ),
+    }
+    OUTPUT_SPECS = {
+        "label_rgb": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 3),
+            description="Colourised RGB image [B, H, W, 3] in [0, 1].",
+        ),
+    }
+
+    def __init__(
+        self,
+        palette: list[tuple[int, int, int]] | None = None,
+        background_value: int = -1,
+        **kwargs: Any,
+    ) -> None:
+        colors = list(palette) if palette is not None else list(_TAB20)
+        if not colors:
+            raise ValueError("palette must be a non-empty list of (r, g, b)")
+        self.background_value = int(background_value)
+        super().__init__(
+            palette=[[int(c) for c in rgb] for rgb in colors],
+            background_value=self.background_value,
+            **kwargs,
+        )
+        self._lut = torch.tensor(
+            [[c / 255.0 for c in rgb] for rgb in colors], dtype=torch.float32
+        )  # [P, 3] in [0, 1]
+
+    @torch.no_grad()
+    def forward(self, class_map: Tensor, mask: Tensor | None = None, **_: Any) -> dict[str, Tensor]:
+        """Look the palette up per pixel; background and masked-out pixels stay black."""
+        lut = self._lut.to(class_map.device)
+        idx = class_map.clamp(min=0) % lut.shape[0]
+        rgb = lut[idx]  # [B, H, W, 3]
+        valid = class_map != self.background_value
+        if mask is not None:
+            valid = valid & (mask.to(class_map.device) != 0)
+        return {"label_rgb": torch.where(valid.unsqueeze(-1), rgb, torch.zeros_like(rgb))}
+
+
+__all__ = ["ClassMapToRGB", "ScalarHSVColormapNode", "render_scalar_hsv_colormap"]

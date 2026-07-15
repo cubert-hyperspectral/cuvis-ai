@@ -8,23 +8,23 @@ Two data sources, both used at mkdocs build time:
   subclass that doesn't redefine ``_category`` still reports its parent's
   value.
 
-* **Plugin nodes** are read statically from source via ``ast``. Each
-  ``(plugin_path, dotted_class_name)`` entry in
-  ``docs/data/plugin_sources.yaml`` resolves to a ``.py`` file we parse
-  without importing it — so the docs build never pulls in torch /
-  ultralytics / SAM3 / etc.
+* **Plugin capabilities** (nodes and data modules) are read from the plugin
+  manifest YAMLs in the repo's plugins directory — the same files the
+  pipeline loader and the gRPC server consume. Each capability entry already
+  carries its category, tags, doc summary, and port specs, so the docs build
+  never installs or imports torch / ultralytics / SAM3 / etc. Manifest entries
+  that mirror built-in classes (``cuvis_ai_builtin.yaml``) are skipped in
+  favour of the live import above.
 
 Output: a single ``catalogs/nodes/index.md`` rendered as a list of
 collapsible rows. Each row's body either includes a mkdocstrings
-``:::`` block (built-ins, full docstring + signature) or the AST-extracted
-class docstring + GitHub source link (plugins). The per-category
-sub-pages that used to live alongside this one have been removed —
-this page is the entire catalog.
+``:::`` block (built-ins, full docstring + signature) or the manifest's doc
+summary plus input/output port tables and a link to the plugin repo at its
+pinned tag (plugins).
 """
 
 from __future__ import annotations
 
-import ast
 import inspect
 import logging
 import pkgutil
@@ -34,20 +34,40 @@ from pathlib import Path
 from typing import Any
 
 import mkdocs_gen_files
-import yaml
 from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.extensions.ui.node_display import TAG_STYLES
+from cuvis_ai_schemas.plugin import GitPluginSource, NodePortSpec, load_plugin_manifest
 
 log = logging.getLogger("generate_node_catalog")
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-PLUGIN_SOURCES = REPO_ROOT / "docs" / "data" / "plugin_sources.yaml"
+
+
+def _plugin_manifest_dir() -> Path:
+    """Locate the plugin manifests directory across repo layouts.
+
+    Manifests live at ``cuvis_ai/configs/plugins`` once configs are packaged
+    with the library, and at ``configs/plugins`` before that.
+    """
+    candidates = (
+        REPO_ROOT / "cuvis_ai" / "configs" / "plugins",
+        REPO_ROOT / "configs" / "plugins",
+    )
+    for candidate in candidates:
+        if candidate.is_dir():
+            return candidate
+    raise RuntimeError(f"no plugin manifests directory found; tried {candidates}")
+
+
+PLUGIN_MANIFEST_DIR = _plugin_manifest_dir()
 BUILTIN_PACKAGE = "cuvis_ai.node"
+
+_SOURCE_LABELS = {"builtin": "Built-in", "plugin": "Plugin", "data-module": "Data module"}
 
 
 @dataclass
 class NodeEntry:
-    """One node, source-agnostic, ready to render as a collapsible row."""
+    """One catalog entry (node or data module), source-agnostic."""
 
     name: str
     dotted_path: str
@@ -57,8 +77,24 @@ class NodeEntry:
     is_plugin: bool
     plugin_name: str | None = None
     repo_url: str | None = None
-    full_docstring: str = ""
+    version: str | None = None
+    kind: str = "node"
+    data_module_name: str = ""
+    extras: list[str] = field(default_factory=list)
+    input_specs: dict[str, NodePortSpec] = field(default_factory=dict)
+    output_specs: dict[str, NodePortSpec] = field(default_factory=dict)
     search_text: str = field(default="", repr=False)
+
+    @property
+    def source(self) -> str:
+        """Facet value for the Source filter chips (``data-source`` attribute)."""
+        if not self.is_plugin:
+            return "builtin"
+        return "data-module" if self.kind == "data_module" else "plugin"
+
+
+def _html_escape(text: str) -> str:
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
 def _first_doc_line(doc: str | None) -> str:
@@ -133,140 +169,83 @@ _VALID_CATEGORIES = {c.value for c in NodeCategory}
 _VALID_TAGS = {t.value for t in NodeTag}
 
 
-def _ast_enum_value(node: ast.AST, enum_name: str, valid: set[str]) -> str | None:
-    """Resolve ``EnumName.MEMBER`` to the enum's ``.value`` string."""
-    if not isinstance(node, ast.Attribute):
-        return None
-    if not (isinstance(node.value, ast.Name) and node.value.id == enum_name):
-        return None
-    member = node.attr
-    try:
-        enum_cls = NodeCategory if enum_name == "NodeCategory" else NodeTag
-        value = enum_cls[member].value
-    except KeyError:
-        log.warning("unknown %s member: %s", enum_name, member)
-        return None
-    if value not in valid:
-        return None
-    return value
+def _browse_url(repo: str) -> str | None:
+    """Turn a git remote URL into a browsable https URL (or ``None``)."""
+    url = repo
+    if url.startswith("git@"):
+        url = "https://" + url.removeprefix("git@").replace(":", "/", 1)
+    url = url.removesuffix(".git")
+    return url if url.startswith(("http://", "https://")) else None
 
 
-def _extract_tag_set(rhs: ast.AST) -> list[str]:
-    """Pull NodeTag values out of ``frozenset({...})`` / ``{...}`` / list literals."""
-    items: list[ast.AST]
-    if isinstance(rhs, ast.Call) and isinstance(rhs.func, ast.Name) and rhs.func.id == "frozenset":
-        if not rhs.args:
-            return []
-        inner = rhs.args[0]
-        if isinstance(inner, (ast.Set, ast.List, ast.Tuple)):
-            items = list(inner.elts)
-        else:
-            return []
-    elif isinstance(rhs, (ast.Set, ast.List, ast.Tuple)):
-        items = list(rhs.elts)
-    else:
-        return []
-    out: list[str] = []
-    for elt in items:
-        v = _ast_enum_value(elt, "NodeTag", _VALID_TAGS)
-        if v is not None:
-            out.append(v)
-    return sorted(set(out))
+def collect_plugin_nodes(exclude_dotted: set[str]) -> list[NodeEntry]:
+    """Read every plugin manifest and yield its capabilities as entries.
 
+    ``exclude_dotted`` holds the dotted paths already collected from the live
+    built-in import, so manifest mirrors of built-in classes
+    (``cuvis_ai_builtin.yaml``) don't produce duplicate rows.
 
-def _extract_class_metadata(class_node: ast.ClassDef) -> tuple[str, list[str], str, str]:
-    category = NodeCategory.UNSPECIFIED.value
-    tags: list[str] = []
-    full_doc = ast.get_docstring(class_node) or ""
-    summary = _first_doc_line(full_doc)
-    for stmt in class_node.body:
-        if isinstance(stmt, ast.Assign) and len(stmt.targets) == 1:
-            target = stmt.targets[0]
-            if isinstance(target, ast.Name):
-                if target.id == "_category":
-                    v = _ast_enum_value(stmt.value, "NodeCategory", _VALID_CATEGORIES)
-                    if v is not None:
-                        category = v
-                elif target.id == "_tags":
-                    tags = _extract_tag_set(stmt.value)
-        elif (
-            isinstance(stmt, ast.AnnAssign)
-            and isinstance(stmt.target, ast.Name)
-            and stmt.value is not None
-        ):
-            if stmt.target.id == "_category":
-                v = _ast_enum_value(stmt.value, "NodeCategory", _VALID_CATEGORIES)
-                if v is not None:
-                    category = v
-            elif stmt.target.id == "_tags":
-                tags = _extract_tag_set(stmt.value)
-    return category, tags, summary, full_doc
+    Manifest validation errors propagate and fail the docs build: a broken
+    manifest must be fixed, not silently dropped from the catalog. Likewise,
+    parsing more than the built-in mirror but producing zero entries raises —
+    that is exactly the "0 from plugins" regression this collector replaces.
+    """
+    manifest_paths = sorted(PLUGIN_MANIFEST_DIR.glob("*.yaml"))
+    if not manifest_paths:
+        raise RuntimeError(f"no plugin manifests found under {PLUGIN_MANIFEST_DIR}")
 
-
-def _resolve_plugin_source(plugin_path: Path, dotted_class: str) -> tuple[Path, str] | None:
-    """Map ``pkg.sub.module.ClassName`` -> ``(<plugin_path>/pkg/sub/module.py, ClassName)``."""
-    parts = dotted_class.split(".")
-    if len(parts) < 2:
-        return None
-    class_name = parts[-1]
-    module_parts = parts[:-1]
-    file_path = plugin_path.joinpath(*module_parts).with_suffix(".py")
-    if not file_path.exists():
-        return None
-    return file_path, class_name
-
-
-def collect_plugin_nodes() -> list[NodeEntry]:
     entries: list[NodeEntry] = []
-    if not PLUGIN_SOURCES.exists():
-        log.info("no plugin_sources.yaml found at %s", PLUGIN_SOURCES)
-        return entries
-    spec = yaml.safe_load(PLUGIN_SOURCES.read_text(encoding="utf-8")) or {}
-    for plugin in spec.get("plugins", []):
-        plugin_name = plugin.get("name", "<unnamed>")
-        rel_path = plugin.get("path")
-        repo_url = plugin.get("repo_url")
-        if not rel_path:
-            log.warning("plugin %s missing path; skipping", plugin_name)
-            continue
-        plugin_root = (REPO_ROOT / rel_path).resolve()
-        if not plugin_root.exists():
-            log.warning("plugin %s path does not exist: %s", plugin_name, plugin_root)
-            continue
-        for dotted in plugin.get("classes", []):
-            resolved = _resolve_plugin_source(plugin_root, dotted)
-            if resolved is None:
-                log.warning("plugin %s class %s: source file not found", plugin_name, dotted)
+    for manifest_path in manifest_paths:
+        manifest = load_plugin_manifest(manifest_path)
+        is_git = isinstance(manifest, GitPluginSource)
+        repo_url = _browse_url(manifest.repo) if is_git else None
+        version = manifest.tag if is_git else None
+        for cap in manifest.capabilities:
+            if cap.class_name in exclude_dotted:
                 continue
-            file_path, class_name = resolved
-            try:
-                tree = ast.parse(file_path.read_text(encoding="utf-8"), filename=str(file_path))
-            except SyntaxError as exc:
-                log.warning("plugin %s: cannot parse %s: %s", plugin_name, file_path, exc)
-                continue
-            class_node = next(
-                (n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == class_name),
-                None,
-            )
-            if class_node is None:
+            category = cap.category
+            if category not in _VALID_CATEGORIES:
                 log.warning(
-                    "plugin %s: class %s not found in %s", plugin_name, class_name, file_path
+                    "%s: unknown category %r on %s; using 'unspecified'",
+                    manifest_path.name,
+                    category,
+                    cap.class_name,
                 )
-                continue
-            category, tags, summary, full_doc = _extract_class_metadata(class_node)
+                category = NodeCategory.UNSPECIFIED.value
+            tags = sorted(t for t in cap.tags if t in _VALID_TAGS)
+            unknown_tags = sorted(set(cap.tags) - _VALID_TAGS)
+            if unknown_tags:
+                log.warning(
+                    "%s: dropping unknown tags %s on %s",
+                    manifest_path.name,
+                    unknown_tags,
+                    cap.class_name,
+                )
             entries.append(
                 NodeEntry(
-                    name=class_name,
-                    dotted_path=dotted,
+                    name=cap.class_name.rsplit(".", 1)[-1],
+                    dotted_path=cap.class_name,
                     category=category,
                     tags=tags,
-                    summary=summary,
-                    full_docstring=full_doc,
+                    summary=cap.doc_summary,
                     is_plugin=True,
-                    plugin_name=plugin_name,
+                    plugin_name=manifest.name,
                     repo_url=repo_url,
+                    version=version,
+                    kind=cap.kind,
+                    data_module_name=cap.data_module_name,
+                    extras=list(cap.extras),
+                    input_specs=dict(cap.input_specs),
+                    output_specs=dict(cap.output_specs),
                 )
             )
+
+    if len(manifest_paths) > 1 and not entries:
+        raise RuntimeError(
+            f"parsed {len(manifest_paths)} plugin manifests under "
+            f"{PLUGIN_MANIFEST_DIR} but collected zero plugin capabilities — "
+            "the catalog would silently list 0 plugin nodes"
+        )
     return entries
 
 
@@ -282,9 +261,18 @@ def _render_card(entry: NodeEntry) -> str:
         f'<span class="tag-chip" data-tag="{t}" title="{t}">{_short_label(t)}</span>'
         for t in entry.tags
     )
+    plugin_title = f"From plugin {entry.plugin_name}"
+    if entry.version:
+        plugin_title += f" {entry.version}"
     plugin_pill = (
-        f'<span class="plugin-pill" title="From plugin {entry.plugin_name}">{entry.plugin_name}</span>'
+        f'<span class="plugin-pill" title="{plugin_title}">{entry.plugin_name}</span>'
         if entry.is_plugin
+        else ""
+    )
+    datamodule_pill = (
+        '<span class="datamodule-pill" title="Data module provided by a plugin (not a node)">'
+        "data module</span>"
+        if entry.kind == "data_module"
         else ""
     )
     repo_link = (
@@ -292,7 +280,7 @@ def _render_card(entry: NodeEntry) -> str:
         if entry.is_plugin and entry.repo_url
         else ""
     )
-    summary_text = entry.summary.replace("<", "&lt;").replace(">", "&gt;") if entry.summary else ""
+    summary_text = _html_escape(entry.summary) if entry.summary else ""
     module_path = entry.dotted_path.rsplit(".", 1)[0]
 
     summary_html = (
@@ -304,7 +292,7 @@ def _render_card(entry: NodeEntry) -> str:
         f'<span class="row-category category-chip" data-category="{entry.category}">'
         f"{entry.category}</span>"
         f'<span class="row-tags">{chips}</span>'
-        f'<span class="row-meta">{plugin_pill}{repo_link}</span>'
+        f'<span class="row-meta">{datamodule_pill}{plugin_pill}{repo_link}</span>'
         f"</span>"
         f'<span class="row-summary">{summary_text}</span>'
     )
@@ -314,7 +302,7 @@ def _render_card(entry: NodeEntry) -> str:
         f'<details class="node-row" markdown="1" '
         f'data-category="{entry.category}" '
         f'data-tags="{" ".join(entry.tags)}" '
-        f'data-source="{"plugin" if entry.is_plugin else "builtin"}" '
+        f'data-source="{entry.source}" '
         f'data-search="{entry.search_text}">\n'
         f"<summary>{summary_html}</summary>\n\n"
         f"{body}\n"
@@ -322,23 +310,69 @@ def _render_card(entry: NodeEntry) -> str:
     )
 
 
-def _render_body(entry: NodeEntry) -> str:
-    if entry.is_plugin:
-        doc = entry.full_docstring.strip() or entry.summary
-        repo_line = (
-            f"\n[View source on GitHub]({entry.repo_url}){{ .row-source }}\n"
-            if entry.repo_url
-            else ""
+def _render_ports_table(title: str, specs: dict[str, NodePortSpec]) -> str:
+    """Render one Inputs/Outputs table as raw HTML (the ``tables`` markdown
+    extension is not enabled, and raw HTML also sidesteps escaping issues)."""
+    if not specs:
+        return ""
+    rows = []
+    for port_name, spec in specs.items():
+        marks = ""
+        if spec.optional:
+            marks += ' <span class="port-mark">optional</span>'
+        if spec.variadic:
+            marks += ' <span class="port-mark">variadic</span>'
+        dtype = spec.dtype or "any"
+        shape = str(list(spec.shape)) if spec.shape else "any"
+        rows.append(
+            "<tr>"
+            f"<td><code>{port_name}</code>{marks}</td>"
+            f"<td><code>{dtype}</code></td>"
+            f"<td><code>{shape}</code></td>"
+            f"<td>{_html_escape(spec.description)}</td>"
+            "</tr>"
         )
-        return f'<div class="row-body" markdown="1">\n\n{doc}\n{repo_line}\n</div>'
     return (
-        f'<div class="row-body" markdown="1">\n\n'
-        f"::: {entry.dotted_path}\n"
-        f"    options:\n"
-        f"      show_root_heading: true\n"
-        f"      heading_level: 4\n\n"
-        f"</div>"
+        f'<p class="ports-title">{title}</p>\n'
+        '<table class="ports-table">\n'
+        "<thead><tr><th>Port</th><th>Dtype</th><th>Shape</th><th>Description</th></tr></thead>\n"
+        "<tbody>" + "".join(rows) + "</tbody>\n</table>"
     )
+
+
+def _render_body(entry: NodeEntry) -> str:
+    if not entry.is_plugin:
+        return (
+            f'<div class="row-body" markdown="1">\n\n'
+            f"::: {entry.dotted_path}\n"
+            f"    options:\n"
+            f"      show_root_heading: true\n"
+            f"      heading_level: 4\n\n"
+            f"</div>"
+        )
+
+    parts: list[str] = []
+    if entry.summary:
+        parts.append(_html_escape(entry.summary))
+    if entry.kind == "data_module":
+        extras = ", ".join(f"<code>{e}</code>" for e in entry.extras) or "none"
+        parts.append(
+            f"<p>Data module <code>{entry.data_module_name}</code> — pip extras: {extras}.</p>"
+        )
+    else:
+        for title, specs in (("Inputs", entry.input_specs), ("Outputs", entry.output_specs)):
+            table = _render_ports_table(title, specs)
+            if table:
+                parts.append(table)
+    if entry.repo_url:
+        if entry.version:
+            parts.append(
+                f"[View plugin repo ({entry.version})]"
+                f"({entry.repo_url}/tree/{entry.version}){{ .row-source }}"
+            )
+        else:
+            parts.append(f"[View plugin repo]({entry.repo_url}){{ .row-source }}")
+    return '<div class="row-body" markdown="1">\n\n' + "\n\n".join(parts) + "\n\n</div>"
 
 
 def _build_search_text(entry: NodeEntry) -> str:
@@ -346,12 +380,19 @@ def _build_search_text(entry: NodeEntry) -> str:
     parts.extend(entry.tags)
     if entry.plugin_name:
         parts.append(entry.plugin_name)
+    if entry.kind == "data_module":
+        parts.append("data module")
+        parts.append(entry.data_module_name)
+        parts.extend(entry.extras)
     return " ".join(parts).lower().replace('"', "")
 
 
 def _render_index_page(entries: list[NodeEntry]) -> str:
     categories_present = sorted({e.category for e in entries})
     tags_present = sorted({t for e in entries for t in e.tags})
+    sources_present = [
+        s for s in ("builtin", "plugin", "data-module") if s in {e.source for e in entries}
+    ]
 
     cat_chips = "".join(
         f'<button type="button" class="filter-chip category-chip" data-category="{c}" title="{c}">'
@@ -365,6 +406,11 @@ def _render_index_page(entries: list[NodeEntry]) -> str:
         f'title="{t}">{_short_label(t)}</button>'
         for t in tags_present
     )
+    source_chips = "".join(
+        f'<button type="button" class="filter-chip source-chip" data-source="{s}" '
+        f'title="{_SOURCE_LABELS[s]}">{_SOURCE_LABELS[s]}</button>'
+        for s in sources_present
+    )
 
     rows = "\n\n".join(_render_card(e) for e in entries)
 
@@ -376,8 +422,9 @@ hide:
 # Nodes Catalog
 
 Every node available in cuvis-ai pipelines, in one place. Built-in nodes ship
-with the `cuvis_ai` package; plugin nodes come from separately-installable
-manifests — see [Plugin Development](../../reference/plugin-development/overview.md).
+with the `cuvis_ai` package; plugin nodes and data modules come from
+separately-installable plugin manifests — see
+[Plugin Development](../../reference/plugin-development/overview.md).
 
 <div class="node-filter">
 <input type="search" id="node-filter-search" placeholder="Search by name, tag, module…" autocomplete="off">
@@ -388,6 +435,10 @@ manifests — see [Plugin Development](../../reference/plugin-development/overvi
 <div class="node-filter-row">
 <span class="filter-label">Tags</span>
 <div class="filter-chips" id="node-filter-tags">{tag_chips}</div>
+</div>
+<div class="node-filter-row">
+<span class="filter-label">Source</span>
+<div class="filter-chips" id="node-filter-sources">{source_chips}</div>
 </div>
 <div class="node-filter-meta">
 <span id="node-filter-count"></span>
@@ -412,12 +463,22 @@ def _count_datasets() -> int:
 
 
 def _render_catalogs_overview(entries: list[NodeEntry]) -> str:
-    total = len(entries)
     categories = sorted({e.category for e in entries})
     n_categories = len(categories)
-    n_plugins = sum(1 for e in entries if e.is_plugin)
-    n_builtin = total - n_plugins
+    n_data_modules = sum(1 for e in entries if e.kind == "data_module")
+    n_plugin_nodes = sum(1 for e in entries if e.is_plugin and e.kind == "node")
+    n_nodes = len(entries) - n_data_modules
+    n_builtin = n_nodes - n_plugin_nodes
     n_datasets = _count_datasets()
+
+    # Continuation lines must not start with "+", "-", or "*": markdown would
+    # parse them as nested list bullets.
+    data_module_bullet = (
+        f"- **{n_data_modules} data modules** from plugins, listed in the same\n"
+        f"  catalog and filterable via the Source chips.\n"
+        if n_data_modules
+        else ""
+    )
 
     cat_grid = "".join(
         f'<a class="cat-tile" href="nodes/#category={c}" data-category="{c}">'
@@ -437,10 +498,10 @@ hide:
 The cuvis-ai catalogs are the inventory of every building block available
 for hyperspectral pipelines:
 
-- **{total} nodes** across **{n_categories} categories** — {n_builtin} built-in
-  + {n_plugins} from plugins — see the filterable list at
+- **{n_nodes} nodes** across **{n_categories} categories** — {n_builtin} built-in
+  and {n_plugin_nodes} from plugins — see the filterable list at
   [Catalogs → Nodes](nodes/index.md).
-- **{n_datasets} datasets** (cu3s recordings + annotations) — see the index
+{data_module_bullet}- **{n_datasets} datasets** (cu3s recordings + annotations) — see the index
   at [Catalogs → Datasets](datasets/index.md).
 
 ## Nodes by category
@@ -463,12 +524,12 @@ mirrored locally on first run.
 
 def main() -> None:
     builtins = collect_builtin_nodes()
-    plugins = collect_plugin_nodes()
+    plugins = collect_plugin_nodes(exclude_dotted={e.dotted_path for e in builtins})
     all_entries: list[NodeEntry] = sorted(builtins + plugins, key=lambda e: (e.category, e.name))
     for entry in all_entries:
         entry.search_text = _build_search_text(entry)
 
-    log.info("built-in nodes: %d, plugin nodes: %d", len(builtins), len(plugins))
+    log.info("built-in nodes: %d, plugin capabilities: %d", len(builtins), len(plugins))
 
     page = _render_index_page(all_entries)
     with mkdocs_gen_files.open("catalogs/nodes/index.md", "w") as fh:
@@ -479,4 +540,8 @@ def main() -> None:
         fh.write(overview)
 
 
-main()
+# mkdocs-gen-files executes this script via runpy.run_path, which sets
+# __name__ to "<run_path>"; the guard lets pytest import the module without
+# triggering a docs build.
+if __name__ in {"__main__", "<run_path>"}:
+    main()

@@ -481,4 +481,80 @@ class MaskedMeanSpectrum(Node):
         return {"mean_spectrum": mean.to(torch.float32), "valid": valid}
 
 
-__all__ = ["BBoxSpectralExtractor", "MaskedMeanSpectrum", "SpectralSignatureExtractor"]
+class SignaturesToReferences(Node):
+    """Treat each object's signature as its own Spectral Angle Mapper reference.
+
+    Reshapes per-object signatures ``[1, N, C]`` (as produced by
+    :class:`SpectralSignatureExtractor`) into reference spectra ``[N, 1, 1, C]``
+    for :class:`~cuvis_ai.node.spectral_angle_mapper.SpectralAngleMapper` -- one
+    reference per object, in object-id order, so reference ``k`` corresponds to
+    object ``k``. Use it when every detected object is known a priori to be a
+    distinct material: each object's signature becomes a reference, the mapper
+    scores every pixel against all references, and each object should recover
+    its own pixels. The reference count follows the number of objects (no fixed
+    reference count, no clustering).
+
+    Parameters
+    ----------
+    normalize : str or None, optional
+        Optional reference normalization: ``"unit_mean"``, ``"l2"``, or ``None``
+        (default; the Spectral Angle Mapper mean-normalizes internally anyway).
+    """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.CLASSIFICATION})
+
+    INPUT_SPECS = {
+        "signatures": PortSpec(
+            dtype=torch.float32,
+            shape=(1, -1, -1),
+            description="Per-object spectral signatures [1, N, C].",
+        ),
+    }
+
+    OUTPUT_SPECS = {
+        "spectral_signature": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, 1, 1, -1),
+            description="Reference spectra [N, 1, 1, C] for SpectralAngleMapper.",
+        ),
+    }
+
+    def __init__(self, normalize: str | None = None, **kwargs: Any) -> None:
+        """Validate the optional normalization mode and store it."""
+        if normalize not in (None, "unit_mean", "l2"):
+            raise ValueError("normalize must be None, 'unit_mean', or 'l2'.")
+        self.normalize = normalize
+        super().__init__(normalize=self.normalize, **kwargs)
+
+    @torch.no_grad()
+    def forward(self, signatures: torch.Tensor, **_: Any) -> dict[str, torch.Tensor]:
+        """Reshape per-object signatures into one reference spectrum per object.
+
+        Parameters
+        ----------
+        signatures : torch.Tensor
+            Per-object signatures ``[1, N, C]`` (float32).
+        **_ : Any
+            Additional unused keyword arguments (e.g. the pipeline ``context``).
+
+        Returns
+        -------
+        dict[str, torch.Tensor]
+            ``spectral_signature`` float32 ``[N, 1, 1, C]`` reference spectra.
+        """
+        sig = signatures[0].to(torch.float32)  # [N, C]
+        num_refs, channels = int(sig.shape[0]), int(sig.shape[1])
+        if self.normalize == "unit_mean":
+            sig = sig / sig.mean(dim=1, keepdim=True).clamp_min(1e-8)
+        elif self.normalize == "l2":
+            sig = sig / sig.norm(dim=1, keepdim=True).clamp_min(1e-8)
+        return {"spectral_signature": sig.view(num_refs, 1, 1, channels)}
+
+
+__all__ = [
+    "BBoxSpectralExtractor",
+    "MaskedMeanSpectrum",
+    "SignaturesToReferences",
+    "SpectralSignatureExtractor",
+]

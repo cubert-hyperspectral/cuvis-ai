@@ -49,6 +49,7 @@ dependencies = [
     "hf-xet>=1.4.3",
     "opencv-python>=4.13.0.92",
     "requests>=2.33.1",
+    "scipy>=1.17.1",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
