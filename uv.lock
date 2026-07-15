@@ -853,7 +853,7 @@ requires-dist = [
     { name = "scikit-image", specifier = ">=0.26.0" },
     { name = "scikit-learn", specifier = ">=1.8.0" },
     { name = "scipy", specifier = ">=1.17.1" },
-    { name = "setuptools", specifier = ">=81.0.0,<83" },
+    { name = "setuptools", specifier = ">=81.0.0,<84" },
     { name = "tensorboard", specifier = ">=2.20.0" },
     { name = "torch", specifier = ">=2.11.0", index = "https://download.pytorch.org/whl/cu128" },
     { name = "torchcodec", specifier = ">=0.11.1" },
