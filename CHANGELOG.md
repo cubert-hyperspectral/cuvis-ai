@@ -125,6 +125,8 @@
 - **Dropped the abstract `SAM3TrackerInference` entry from `configs/plugins/sam3.yaml`.** Base
   classes are not instantiable from pipelines, so the manifest now lists only concrete nodes.
 
+- **Added `DiceLoss` and `CrossEntropyLoss` segmentation loss nodes.** Multiclass-capable soft Dice (with an `include_background` toggle) and cross-entropy over BHWC logits `[B,H,W,K]` with integer targets `[B,H,W]`, subclassing the existing `LossNode` base (train/val/test stages) and registered in `configs/plugins/cuvis_ai_builtin.yaml`. Ports the two losses out of the cuvis-ai-unet plugin so it can drop its local copies.
+
 ## 0.11.0 - 2026-07-14
 
 - **Docs: the node catalog now lists plugin capabilities.** The Catalogs â†’ Nodes generator reads
