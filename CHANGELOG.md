@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- **`AnomalyDataNode` gained a `class_mask` output port**, a passthrough of the raw multi-class segmentation mask (channel-last `[B, H, W, 1]` int32) emitted alongside the binarized `mask`, so downstream per-class metrics can read the ground-truth classes as a pipeline port instead of reloading them from disk.
+
 - **Fixed the built-in plugin manifest's local `path` so the gRPC child-env compose can install it.** `configs/plugins/cuvis_ai_builtin.yaml` set `path: "../.."`, which resolves to the `cuvis_ai` package directory (no `pyproject.toml`), so composing a child env from a source checkout could not resolve the `cuvis-ai` project. Corrected to `../../..` (the repo root); any gRPC-from-source pipeline listing `cuvis_ai_builtin` now composes.
 
 - **Flattened the trainrun/training configs for the folded `TrainingConfig` (needs `cuvis-ai-core>=0.11.0` / `cuvis-ai-schemas>=0.8.0`).** The nested `trainer:` block is gone: its `pytorch_lightning.Trainer` fields now sit directly under `training:` in every `configs/trainrun/*.yaml` and in `configs/training/default.yaml`, and the dead `training.batch_size` / `training.num_workers` keys are dropped. Hydra overrides change from `training.trainer.<field>=…` to `training.<field>=…`. Added `tests/configs/test_trainrun_configs_valid.py`, which validates every shipped training block against the flat schema.

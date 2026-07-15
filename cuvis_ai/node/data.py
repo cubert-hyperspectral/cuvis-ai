@@ -126,6 +126,12 @@ class AnomalyDataNode(CU3SDataNode):
             description="Binary anomaly mask (0=normal, 1=anomaly) [B, H, W, 1]",
             optional=True,
         ),
+        "class_mask": PortSpec(
+            dtype=torch.int32,
+            shape=(-1, -1, -1, 1),
+            description="Multi-class segmentation mask passthrough (0=background) [B, H, W, 1]",
+            optional=True,
+        ),
     }
 
     def __init__(
@@ -155,6 +161,9 @@ class AnomalyDataNode(CU3SDataNode):
             mask_4d = mask.unsqueeze(-1)
             mapped = self._binary_mapper.forward(cube=cube, mask=mask_4d, **_)
             result["mask"] = mapped["mask"]
+            # Also expose the raw multi-class mask (pre-binarization) so downstream per-class
+            # metrics can read it as a port instead of reloading it from disk.
+            result["class_mask"] = mask_4d.to(torch.int32)
 
         return result
 

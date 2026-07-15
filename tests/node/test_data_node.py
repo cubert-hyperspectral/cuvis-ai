@@ -45,6 +45,26 @@ class TestLentilsAnomalyDataNode:
         assert result["mask"].shape == (2, 4, 4, 1)
         assert result["mask"].dtype == torch.bool
 
+    def test_class_mask_passthrough(self):
+        """class_mask preserves the raw multi-class labels; mask is the binarized version."""
+        node = LentilsAnomalyDataNode(normal_class_ids=[0])
+        cube = torch.randint(0, 65535, (1, 2, 2, 5), dtype=torch.uint16)
+        mask = torch.tensor([[[0, 2], [3, 0]]], dtype=torch.int32)
+        result = node.forward(cube=cube, mask=mask)
+        assert result["class_mask"].shape == (1, 2, 2, 1)
+        assert result["class_mask"].dtype == torch.int32
+        assert torch.equal(result["class_mask"][..., 0], mask)
+        # mask is binarized against normal_class_ids=[0]: class 0 -> 0, classes 2/3 -> 1.
+        assert result["mask"].dtype == torch.bool
+        assert torch.equal(result["mask"][..., 0].int(), torch.tensor([[[0, 1], [1, 0]]]))
+
+    def test_no_mask_omits_class_mask(self):
+        """When mask is None, result should not contain 'class_mask' key."""
+        node = LentilsAnomalyDataNode(normal_class_ids=[0])
+        cube = torch.randint(0, 65535, (1, 4, 4, 5), dtype=torch.uint16)
+        result = node.forward(cube=cube)
+        assert "class_mask" not in result
+
     def test_wavelength_extraction_2d_to_1d_numpy(self):
         """Wavelengths should be extracted from 2D tensor to 1D numpy array."""
         node = LentilsAnomalyDataNode(normal_class_ids=[0])
