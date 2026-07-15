@@ -256,6 +256,12 @@ exclude = ["tests", "build", "dist"]
 exclude_dirs = ["tests", "cuvis_ai/grpc"]
 skips = ["B101"]  # Skip assert_used check
 
+[dependency-groups]
+dev = [
+    "playwright>=1.61.0",
+    "pytest-playwright>=0.8.0",
+]
+
 [[tool.uv.index]]
 name = "pytorch-cu128"
 url = "https://download.pytorch.org/whl/cu128"

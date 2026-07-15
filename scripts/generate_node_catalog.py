@@ -413,6 +413,17 @@ def _render_index_page(entries: list[NodeEntry]) -> str:
     )
 
     rows = "\n\n".join(_render_card(e) for e in entries)
+    n = len(entries)
+
+    # One-row toolbar: search + foldable facet buttons + prerendered count. The
+    # count is server-rendered so the bar doesn't reflow before the filter JS
+    # runs; "items" (not "nodes") because the catalog also lists data modules.
+    facet_buttons = "".join(
+        f'<button type="button" class="filter-group-toggle" data-panel="node-filter-{key}" '
+        f'aria-expanded="false" aria-controls="node-filter-{key}">{label}'
+        f'<span class="filter-group-badge" aria-hidden="true"></span></button>'
+        for key, label in (("categories", "Category"), ("tags", "Tags"), ("sources", "Source"))
+    )
 
     return f"""---
 hide:
@@ -427,28 +438,27 @@ separately-installable plugin manifests — see
 [Plugin Development](../../reference/plugin-development/overview.md).
 
 <div class="node-filter">
-<input type="search" id="node-filter-search" placeholder="Search by name, tag, module…" autocomplete="off">
-<div class="node-filter-row">
-<span class="filter-label">Category</span>
-<div class="filter-chips" id="node-filter-categories">{cat_chips}</div>
+<div class="node-filter-toolbar">
+<input type="search" id="node-filter-search" aria-label="Search catalog items by name, tag, or module" placeholder="Search {n} items by name, tag, module…" autocomplete="off">
+<div class="filter-group-buttons">{facet_buttons}</div>
+<span id="node-filter-count">{n} items</span>
+<span id="node-filter-status" class="node-filter-sr-only" aria-live="polite"></span>
+<button type="button" id="node-filter-reset" class="filter-reset" hidden>Clear</button>
 </div>
-<div class="node-filter-row">
-<span class="filter-label">Tags</span>
-<div class="filter-chips" id="node-filter-tags">{tag_chips}</div>
-</div>
-<div class="node-filter-row">
-<span class="filter-label">Source</span>
-<div class="filter-chips" id="node-filter-sources">{source_chips}</div>
-</div>
-<div class="node-filter-meta">
-<span id="node-filter-count"></span>
-<button type="button" id="node-filter-reset" class="filter-reset">Clear filters</button>
-</div>
+<div class="filter-active-strip" id="node-filter-active" hidden></div>
+<div class="filter-chips filter-panel" id="node-filter-categories" hidden>{cat_chips}</div>
+<div class="filter-chips filter-panel" id="node-filter-tags" hidden>{tag_chips}</div>
+<div class="filter-chips filter-panel" id="node-filter-sources" hidden>{source_chips}</div>
 </div>
 
 <div id="node-catalog-grid" class="node-list" markdown="1">
 
 {rows}
+
+<div class="node-filter-empty" id="node-filter-empty" hidden>
+<p id="node-filter-empty-msg">No items match your search and filters.</p>
+<button type="button" class="filter-reset" id="node-filter-empty-reset">Clear search and filters</button>
+</div>
 
 </div>
 """

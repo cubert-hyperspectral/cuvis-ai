@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+- **Compacted the docs node-catalog filter into a one-row toolbar.** The `/catalogs/nodes/` filter
+  bar (previously a sticky block with three always-open chip rows) is now a single sticky row:
+  search field, foldable Category/Tags/Source buttons with active-count badges, a prerendered item
+  count, and a state-aware Clear. Active facet filters render as a removable chip strip under the
+  bar; zero matches show an empty state with a recovery action; facet panels cap at `min(40vh, 16rem)`
+  with internal scroll. Tag filtering now combines **OR within the facet** (AND across facets).
+  Hardening while touching the code: a malformed URL hash (`#q=%`) no longer crashes the filter,
+  stale hash values render as removable raw-value chips, `init()` is guarded against double-binding
+  under instant navigation, and the toolbar is screen-reader friendly (labelled controls,
+  `aria-pressed`/`aria-expanded`, debounced `aria-live` result announcements). Covered by a new
+  generator contract test and a Playwright E2E suite (`tests/docs/test_node_catalog_e2e.py`,
+  `slow`-marked; `playwright`/`pytest-playwright` added to the dev group).
+
 - **`AnomalyDataNode` gained a `class_mask` output port**, a passthrough of the raw multi-class segmentation mask (channel-last `[B, H, W, 1]` int32) emitted alongside the binarized `mask`, so downstream per-class metrics can read the ground-truth classes as a pipeline port instead of reloading them from disk.
 
 - **Fixed the built-in plugin manifest's local `path` so the gRPC child-env compose can install it.** `configs/plugins/cuvis_ai_builtin.yaml` set `path: "../.."`, which resolves to the `cuvis_ai` package directory (no `pyproject.toml`), so composing a child env from a source checkout could not resolve the `cuvis-ai` project. Corrected to `../../..` (the repo root); any gRPC-from-source pipeline listing `cuvis_ai_builtin` now composes.

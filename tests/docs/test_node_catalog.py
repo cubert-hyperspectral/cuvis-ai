@@ -134,6 +134,55 @@ def test_zero_collected_capabilities_raises(catalog, monkeypatch, tmp_path):
         catalog.collect_plugin_nodes(exclude_dotted=all_dotted)
 
 
+def test_index_page_filter_toolbar(catalog):
+    """Pin the JS-facing HTML contract of the one-row filter toolbar.
+
+    ``node_catalog_filter.js`` binds to these ids/attributes; a generator
+    refactor that drops one ships a silently dead filter bar.
+    """
+    entries = catalog.collect_plugin_nodes(exclude_dotted=set())
+    for entry in entries:
+        entry.search_text = catalog._build_search_text(entry)
+    page = catalog._render_index_page(entries)
+    n = len(entries)
+
+    # Toolbar: labelled search with prerendered scale hint + count.
+    assert 'id="node-filter-search"' in page
+    assert 'aria-label="Search catalog items by name, tag, or module"' in page
+    assert f"Search {n} items by name, tag, module" in page
+    assert f'<span id="node-filter-count">{n} items</span>' in page
+
+    # Three fold buttons wired to their panels, badges hidden from AT.
+    assert 'class="filter-group-buttons"' in page
+    for key in ("categories", "tags", "sources"):
+        assert f'data-panel="node-filter-{key}"' in page
+        assert f'aria-controls="node-filter-{key}"' in page
+        assert f'id="node-filter-{key}" hidden' in page
+    assert page.count('class="filter-group-badge" aria-hidden="true"') == 3
+    assert page.count('aria-expanded="false"') == 3
+
+    # Debounced live region, state-aware Clear, active strip, empty state.
+    assert 'id="node-filter-status" aria-live="polite"' in page.replace(
+        'class="node-filter-sr-only" ', ""
+    )
+    assert 'class="node-filter-sr-only"' in page
+    assert 'id="node-filter-reset" class="filter-reset" hidden' in page
+    assert 'id="node-filter-active" hidden' in page
+    assert 'id="node-filter-empty" hidden' in page
+    assert 'id="node-filter-empty-reset"' in page
+    # Empty state lives inside the grid, after the rows.
+    assert page.index('id="node-filter-empty"') > page.index('id="node-catalog-grid"')
+
+    # Chip markup is unchanged (the filter logic keys off these attributes).
+    assert 'data-category="' in page
+    assert 'data-tag="' in page
+    assert 'data-source="' in page
+
+    # The old three-row layout is gone.
+    assert "node-filter-row" not in page
+    assert "filter-label" not in page
+
+
 def test_plugin_card_renders_source_and_ports(catalog):
     entries = catalog.collect_plugin_nodes(exclude_dotted=set())
     sam3 = next(
