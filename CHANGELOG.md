@@ -15,7 +15,7 @@
   generator contract test and a Playwright E2E suite (`tests/docs/test_node_catalog_e2e.py`,
   `slow`-marked; `playwright`/`pytest-playwright` added to the dev group).
 
-- **`AnomalyDataNode` gained a `class_mask` output port**, a passthrough of the raw multi-class segmentation mask (channel-last `[B, H, W, 1]` int32) emitted alongside the binarized `mask`, so downstream per-class metrics can read the ground-truth classes as a pipeline port instead of reloading them from disk.
+- **`AnomalyDataNode` gained a `class_mask` input and output port** so downstream per-class metrics can read the multi-class ground truth as a pipeline port instead of reloading it from disk. The new optional `class_mask` input binds to the data module's separate `class_mask` batch key (per-pixel category id) and is re-emitted channel-last (`[B, H, W, 1]` int32); the output is no longer derived from the binary `mask`, which had collapsed every class to `{0, 1}`. The input port is a generic tensor so the module's `uint8` category ids bind without a strict-dtype rejection.
 
 - **Fixed the built-in plugin manifest's local `path` so the gRPC child-env compose can install it.** `configs/plugins/cuvis_ai_builtin.yaml` set `path: "../.."`, which resolves to the `cuvis_ai` package directory (no `pyproject.toml`), so composing a child env from a source checkout could not resolve the `cuvis-ai` project. Corrected to `../../..` (the repo root); any gRPC-from-source pipeline listing `cuvis_ai_builtin` now composes.
 

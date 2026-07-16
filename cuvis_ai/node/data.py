@@ -114,8 +114,16 @@ class AnomalyDataNode(CU3SDataNode):
         "mask": PortSpec(
             dtype=torch.int32,
             shape=(-1, -1, -1),
-            description="Multi-class segmentation mask [B, H, W]",
+            description="Binary anomaly mask [B, H, W] (0=normal, non-zero=anomaly)",
             optional=True,  # Explicit for readability
+        ),
+        "class_mask": PortSpec(
+            # Generic torch.Tensor (not a concrete dtype): the data module delivers this as
+            # uint8 category ids, and strict port binding rejects uint8 -> int32 with no upcast.
+            dtype=torch.Tensor,
+            shape=(-1, -1, -1),
+            description="Multi-class category-id mask [B, H, W] (0=background)",
+            optional=True,
         ),
     }
     OUTPUT_SPECS = {
@@ -150,6 +158,7 @@ class AnomalyDataNode(CU3SDataNode):
         self,
         cube: torch.Tensor,
         mask: torch.Tensor | None = None,
+        class_mask: torch.Tensor | None = None,
         wavelengths: torch.Tensor | None = None,
         **_: Any,
     ) -> dict[str, torch.Tensor | np.ndarray]:
@@ -161,9 +170,12 @@ class AnomalyDataNode(CU3SDataNode):
             mask_4d = mask.unsqueeze(-1)
             mapped = self._binary_mapper.forward(cube=cube, mask=mask_4d, **_)
             result["mask"] = mapped["mask"]
-            # Also expose the raw multi-class mask (pre-binarization) so downstream per-class
-            # metrics can read it as a port instead of reloading it from disk.
-            result["class_mask"] = mask_4d.to(torch.int32)
+
+        if class_mask is not None:
+            # Expose the multi-class category-id labels as a port so downstream per-class metrics
+            # can read them directly. This is a separate input from the binary `mask`: the data
+            # module carries the multi-class ids in their own `class_mask` batch key.
+            result["class_mask"] = class_mask.unsqueeze(-1).to(torch.int32)
 
         return result
 

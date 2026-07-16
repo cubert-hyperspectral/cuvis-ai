@@ -45,24 +45,32 @@ class TestLentilsAnomalyDataNode:
         assert result["mask"].shape == (2, 4, 4, 1)
         assert result["mask"].dtype == torch.bool
 
-    def test_class_mask_passthrough(self):
-        """class_mask preserves the raw multi-class labels; mask is the binarized version."""
+    def test_class_mask_carries_multi_class_ids(self):
+        """class_mask comes from the separate class_mask input and keeps its multi-class ids.
+
+        The binary `mask` and the multi-class `class_mask` are distinct inputs (as the data module
+        delivers them): the node must not collapse the class ids to the binary mask's {0, 1}.
+        """
         node = LentilsAnomalyDataNode(normal_class_ids=[0])
         cube = torch.randint(0, 65535, (1, 2, 2, 5), dtype=torch.uint16)
-        mask = torch.tensor([[[0, 2], [3, 0]]], dtype=torch.int32)
-        result = node.forward(cube=cube, mask=mask)
+        mask = torch.tensor([[[0, 1], [1, 0]]], dtype=torch.int32)
+        class_mask = torch.tensor([[[0, 2], [3, 0]]], dtype=torch.uint8)
+        result = node.forward(cube=cube, mask=mask, class_mask=class_mask)
         assert result["class_mask"].shape == (1, 2, 2, 1)
         assert result["class_mask"].dtype == torch.int32
-        assert torch.equal(result["class_mask"][..., 0], mask)
-        # mask is binarized against normal_class_ids=[0]: class 0 -> 0, classes 2/3 -> 1.
+        # Multi-class ids {0, 2, 3} survive; they are not collapsed to the binary mask's {0, 1}.
+        assert torch.equal(result["class_mask"][..., 0], class_mask.to(torch.int32))
+        assert set(result["class_mask"].unique().tolist()) == {0, 2, 3}
+        # mask is binarized against normal_class_ids=[0]: class 0 -> 0, non-zero -> 1.
         assert result["mask"].dtype == torch.bool
         assert torch.equal(result["mask"][..., 0].int(), torch.tensor([[[0, 1], [1, 0]]]))
 
-    def test_no_mask_omits_class_mask(self):
-        """When mask is None, result should not contain 'class_mask' key."""
+    def test_no_class_mask_input_omits_class_mask_output(self):
+        """When class_mask is not supplied, result should not contain 'class_mask' key."""
         node = LentilsAnomalyDataNode(normal_class_ids=[0])
         cube = torch.randint(0, 65535, (1, 4, 4, 5), dtype=torch.uint16)
-        result = node.forward(cube=cube)
+        mask = torch.zeros(1, 4, 4, dtype=torch.int32)
+        result = node.forward(cube=cube, mask=mask)
         assert "class_mask" not in result
 
     def test_wavelength_extraction_2d_to_1d_numpy(self):
