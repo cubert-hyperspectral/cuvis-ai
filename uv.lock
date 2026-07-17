@@ -464,14 +464,14 @@ wheels = [
 
 [[package]]
 name = "click"
-version = "8.3.3"
+version = "8.4.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "colorama", marker = "sys_platform == 'win32'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/bb/63/f9e1ea081ce35720d8b92acde70daaedace594dc93b693c869e0d5910718/click-8.3.3.tar.gz", hash = "sha256:398329ad4837b2ff7cbe1dd166a4c0f8900c3ca3a218de04466f38f6497f18a2", size = 328061, upload-time = "2026-04-22T15:11:27.506Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/76/d4/81420972a676e8ffea40450d8c8c92943e7218a78fe9b64359836cc9876b/click-8.4.2.tar.gz", hash = "sha256:9a6cea6e60b17ebe0a44c5cc636d94f09bd66142c1cd7d8b4cd731c4917a15f6", size = 338000, upload-time = "2026-06-24T17:45:15.148Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ae/44/c1221527f6a71a01ec6fbad7fa78f1d50dfa02217385cf0fa3eec7087d59/click-8.3.3-py3-none-any.whl", hash = "sha256:a2bf429bb3033c89fa4936ffb35d5cb471e3719e1f3c8a7c3fff0b8314305613", size = 110502, upload-time = "2026-04-22T15:11:25.044Z" },
+    { url = "https://files.pythonhosted.org/packages/fb/e2/79c688af8b210d232694e31e59da9f6ec747bae31c3f5946e4e9b98860d5/click-8.4.2-py3-none-any.whl", hash = "sha256:e6f9f66136c816745b9d65817da91d61d957fb16e02e4dcd0552553c5a197b76", size = 119243, upload-time = "2026-06-24T17:45:13.73Z" },
 ]
 
 [[package]]
@@ -811,7 +811,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "bandit", extras = ["toml"], marker = "extra == 'dev'", specifier = ">=1.7.0" },
-    { name = "cuvis-ai-core", editable = "../../cuvis-ai-core/cuvis-ai-core" },
+    { name = "cuvis-ai-core", specifier = ">=0.11.2" },
     { name = "cuvis-ai-schemas", extras = ["full"], specifier = ">=0.8.0" },
     { name = "cyclonedx-bom", marker = "extra == 'dev'", specifier = ">=4.0.0" },
     { name = "defusedxml", specifier = ">=0.7.1" },
@@ -879,7 +879,8 @@ dev = [
 
 [[package]]
 name = "cuvis-ai-core"
-source = { editable = "../../cuvis-ai-core/cuvis-ai-core" }
+version = "0.11.2"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
     { name = "click" },
@@ -911,64 +912,10 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "urllib3" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "aiohttp", specifier = ">=3.14.1" },
-    { name = "bandit", extras = ["toml"], marker = "extra == 'dev'", specifier = ">=1.7.0" },
-    { name = "click", specifier = ">=8.3.1" },
-    { name = "cuvis-ai-schemas", extras = ["proto"], specifier = ">=0.8.0" },
-    { name = "cyclonedx-bom", marker = "extra == 'dev'", specifier = ">=4.0.0" },
-    { name = "detect-secrets", marker = "extra == 'dev'", specifier = ">=1.4.0" },
-    { name = "dotenv", specifier = ">=0.9.9" },
-    { name = "filelock", specifier = ">=3.20.3" },
-    { name = "gitpython", specifier = ">=3.1.50" },
-    { name = "graphviz", specifier = ">=0.21" },
-    { name = "grpcio", specifier = ">=1.76.0" },
-    { name = "grpcio-health-checking", specifier = ">=1.76.0" },
-    { name = "huggingface-hub", marker = "extra == 'hf'", specifier = ">=0.20.0" },
-    { name = "hydra-core", specifier = ">=1.3.2" },
-    { name = "hypothesis", marker = "extra == 'test'", specifier = ">=6.0.0" },
-    { name = "idna", specifier = ">=3.18" },
-    { name = "ipdb", marker = "extra == 'dev'", specifier = ">=0.13.13" },
-    { name = "ipykernel", marker = "extra == 'dev'" },
-    { name = "ipympl", marker = "extra == 'dev'", specifier = ">=0.9.8" },
-    { name = "jupyterlab", marker = "extra == 'dev'" },
-    { name = "loguru", specifier = ">=0.7.3" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0.0" },
-    { name = "numpy", specifier = ">=2.4.1" },
-    { name = "omegaconf", specifier = ">=2.3.0" },
-    { name = "opencv-python-headless", specifier = ">=4.13.0.92" },
-    { name = "packaging", specifier = ">=25.0" },
-    { name = "pillow", specifier = ">=12.2.0" },
-    { name = "pip-audit", marker = "extra == 'dev'", specifier = ">=2.7.0" },
-    { name = "pip-licenses", marker = "extra == 'dev'", specifier = ">=4.0.0" },
-    { name = "protobuf", specifier = ">=6.33.5" },
-    { name = "psutil", marker = "extra == 'dev'" },
-    { name = "pycocotools", specifier = ">=2.0.11" },
-    { name = "pydantic", specifier = ">=2.12.5" },
-    { name = "pytest", marker = "extra == 'dev'" },
-    { name = "pytest", marker = "extra == 'test'", specifier = ">=7.0.0" },
-    { name = "pytest-asyncio", marker = "extra == 'test'", specifier = ">=0.21.0" },
-    { name = "pytest-cov", marker = "extra == 'dev'" },
-    { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=4.0.0" },
-    { name = "pytest-mock", marker = "extra == 'test'", specifier = ">=3.10.0" },
-    { name = "pytorch-lightning", specifier = ">=2.6.0" },
-    { name = "pyyaml", specifier = ">=6.0.3" },
-    { name = "ruamel-yaml", marker = "extra == 'dev'", specifier = ">=0.18" },
-    { name = "ruff", specifier = ">=0.14.13" },
-    { name = "ruff", marker = "extra == 'dev'" },
-    { name = "scikit-learn", specifier = ">=1.8.0" },
-    { name = "tomli-w", specifier = ">=1.2.0" },
-    { name = "torch", specifier = ">=2.11.0", index = "https://download.pytorch.org/whl/cu128" },
-    { name = "torchvision", specifier = ">=0.26.0", index = "https://download.pytorch.org/whl/cu128" },
-    { name = "twine", marker = "extra == 'dev'", specifier = ">=6.2.0" },
-    { name = "types-protobuf", marker = "extra == 'dev'", specifier = ">=5.29.2" },
-    { name = "types-pyyaml", marker = "extra == 'dev'", specifier = ">=6.0.0" },
-    { name = "typing-extensions", specifier = ">=4.15.0" },
-    { name = "urllib3", specifier = ">=2.7.0" },
+sdist = { url = "https://files.pythonhosted.org/packages/9b/6d/c3c8c437c962ce6600a002232c1a11476c7ba2094dad4958435d9dc9ba7b/cuvis_ai_core-0.11.2.tar.gz", hash = "sha256:2f04515845649a12f1c2680856c0bf9942cf0e3fb9e6cce6a987a7400cc50e53", size = 710108, upload-time = "2026-07-17T10:18:26.877Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/48/a0/d927329e7cc8948582d67d24c80cb85bf8dbe069163bf4dcafed41e0adba/cuvis_ai_core-0.11.2-py3-none-any.whl", hash = "sha256:4c33e3b7cc938ba8711b2e1829a54199104d4ff7598ab0f04c9f2a40028464bb", size = 230023, upload-time = "2026-07-17T10:18:25.404Z" },
 ]
-provides-extras = ["hf", "dev", "test"]
 
 [[package]]
 name = "cuvis-ai-schemas"

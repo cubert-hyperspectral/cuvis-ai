@@ -7,7 +7,7 @@
 name: ultralytics
 # path: "../../../../cuvis-ai-ultralytics/ultralytics-init"
 repo: "https://github.com/cubert-hyperspectral/cuvis-ai-ultralytics.git"
-tag: "v0.1.3"
+tag: "v0.1.4"
 package_name: "cuvis-ai-ultralytics"
 capabilities:
 - class_name: cuvis_ai_ultralytics.node.YOLOPreprocess

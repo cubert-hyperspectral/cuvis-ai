@@ -1,6 +1,8 @@
 # Changelog
 
-## [Unreleased]
+## 0.11.0 - 2026-07-17
+
+- Bumped plugin manifest pins: adaclip v0.1.5 -> v0.2.0, augment v0.3.2 -> v0.3.3, cuvis_ai_dataloader v0.2.0 -> v0.4.0, cuvis_ai_inspecscrap v0.2.1 -> v0.2.2, deepeiou v0.2.0 -> v0.2.1, dinomaly v0.2.0 -> v0.4.1, rtsam2 v0.1.0 -> v0.2.0, trackeval v0.1.3 -> v0.1.4, ultralytics v0.1.3 -> v0.1.4.
 
 - **Compacted the docs node-catalog filter into a one-row toolbar.** The `/catalogs/nodes/` filter
   bar (previously a sticky block with three always-open chip rows) is now a single sticky row:

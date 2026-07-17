@@ -4,7 +4,7 @@
 # Generic colourise/overlay/cleanup viz nodes live in the cuvis-ai node catalog, not here.
 name: cuvis_ai_inspecscrap
 repo: "https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap.git"
-tag: "v0.2.1"
+tag: "v0.2.2"
 package_name: cuvis-ai-inspecscrap
 capabilities:
   - { class_name: cuvis_ai_inspecscrap.node.data.TiffDataNode,                          category: source,    tags: [hyperspectral] }

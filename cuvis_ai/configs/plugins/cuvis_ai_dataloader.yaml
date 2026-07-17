@@ -10,7 +10,7 @@
 name: cuvis_ai_dataloader
 # path: "../../../../cuvis-ai-dataloader/cuvis-ai-dataloader"
 repo: "https://github.com/cubert-hyperspectral/cuvis-ai-dataloader.git"
-tag: "v0.2.0"
+tag: "v0.4.0"
 package_name: cuvis-ai-dataloader
 capabilities:
   - class_name: cuvis_ai_dataloader.data.datamodule_cu3s.Cu3sDataModule

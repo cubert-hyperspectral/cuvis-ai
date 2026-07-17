@@ -10,7 +10,7 @@ name: rtsam2
 # For local development against a checkout, comment the repo/tag pin and use:
 # path: "D:/code-repos/cuvis-ai-rtsam2"
 repo: "https://github.com/cubert-hyperspectral/cuvis-ai-rtsam2.git"
-tag: "v0.1.0"
+tag: "v0.2.0"
 package_name: "cuvis-ai-rtsam2"
 capabilities:
 - class_name: cuvis_ai_rtsam2.node.rtsam2_streaming_propagation.RTSAM2BboxPropagation
