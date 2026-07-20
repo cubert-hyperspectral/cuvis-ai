@@ -223,3 +223,6 @@ notebooks/**/channel_examples/
 *.report.json
 /pipeline_renders/
 .gstack/
+
+# Managed model weights cache (written when this checkout serves as the CuvisNEXT AI directory)
+model-cache/
