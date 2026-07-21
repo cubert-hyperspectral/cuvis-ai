@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Added the Dinomaly false-RGB anomaly-detection preset: `configs/pipeline/anomaly/dinomaly/dinomaly_rgb.yaml` (AnomalyDataNode → MinMaxNormalizer → FixedWavelengthSelector 650/550/450 nm → DinomalyDetector, with QuantileBinaryDecider, AnomalyDetectionMetrics, the plugin's AUROC metrics, and a ScoreHeatmapVisualizer feeding per-epoch score heatmaps into TensorBoardMonitorNode; `plugins: [dinomaly, cuvis_ai_builtin]`). Mirrors the lentils RGB training notebook graph as a packaged, parent-resolvable preset.
+- Added two flat (non-Hydra) trainrun presets consumed verbatim by the gRPC `RestoreTrainRun` path: `configs/trainrun/dinomaly_rgb_cuvisnext.yaml` (gradient: adamw lr 2e-3, checkpoint on `metrics_anomaly/iou` max) and `configs/trainrun/adaclip_supervised_cir_cuvisnext.yaml` (statistical-only, no loss nodes). Both carry a `cu3s` data block with `frames: measurements` + `recursive: true` (one sample per measurement over a dataset folder, canonical absolute sources), `num_workers: 0`, and empty `data_dir` / `splits.splits_path` fields the caller fills per run — the shape the CuvisNEXT training wizard drives.
+
 ## 0.11.1 - 2026-07-21
 
 - Bumped plugin manifest pins: adaclip v0.1.5 -> v0.2.0, augment v0.3.2 -> v0.3.3, cuvis_ai_dataloader v0.2.0 -> v0.4.0, cuvis_ai_inspecscrap v0.2.1 -> v0.2.2, deepeiou v0.2.0 -> v0.2.1, dinomaly v0.2.0 -> v0.4.1, trackeval v0.1.3 -> v0.1.4, ultralytics v0.1.3 -> v0.1.4.

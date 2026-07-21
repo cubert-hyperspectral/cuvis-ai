@@ -1,0 +1,112 @@
+metadata:
+  name: dinomaly_rgb
+  description: "Dinomaly anomaly detection on a fixed-wavelength false-RGB projection
+    (650/550/450 nm): AnomalyDataNode → MinMaxNormalizer → FixedWavelengthSelector
+    → DinomalyDetector, with quantile decider, pixel/image metrics, AUROC, and
+    per-epoch score heatmaps logged to TensorBoard."
+  created: ''
+  tags:
+  - gradient
+  - dinomaly
+  - anomaly
+  - rgb
+  author: cuvis.ai
+  cuvis_ai_version: 0.11.1
+plugins:
+- dinomaly
+- cuvis_ai_builtin
+nodes:
+- name: anomaly_data
+  class_name: cuvis_ai.node.data.AnomalyDataNode
+  hparams:
+    normal_class_ids:
+    - 0
+- name: MinMaxNormalizer
+  class_name: cuvis_ai.node.normalization.MinMaxNormalizer
+  hparams:
+    eps: 1.0e-06
+    use_running_stats: true
+    max_initialization_frames: 20
+- name: rgb_selector
+  class_name: cuvis_ai.node.channel_selector.FixedWavelengthSelector
+  hparams:
+    target_wavelengths:
+    - 650.0
+    - 550.0
+    - 450.0
+    normalize_output: true
+    norm_mode: running
+    apply_gamma: true
+    freeze_running_bounds_after_frames: 20
+    running_warmup_frames: 10
+- name: dinomaly_detector
+  class_name: cuvis_ai_dinomaly.node.dinomaly_detector.DinomalyDetector
+  hparams:
+    encoder_name: dinov2reg_vit_base_14
+    bottleneck_dropout: 0.2
+    decoder_depth: 8
+    image_size: 448
+    crop_size: 448
+    use_center_crop: false
+    input_channels: 3
+- name: dinomaly_train_loss
+  class_name: cuvis_ai_dinomaly.node.dinomaly_train_loss_bridge.DinomalyTrainLossBridge
+  hparams:
+    weight: 1.0
+- name: decider
+  class_name: cuvis_ai.node.deciders.binary_decider.QuantileBinaryDecider
+  hparams:
+    quantile: 0.995
+- name: metrics_anomaly
+  class_name: cuvis_ai.node.metrics.AnomalyDetectionMetrics
+  hparams: {}
+- name: metrics_auroc
+  class_name: cuvis_ai_dinomaly.node.auroc_metrics.AnomalyAUROCMetrics
+  hparams:
+    thresholds: 200
+- name: score_heatmap
+  class_name: cuvis_ai.node.anomaly_visualization.ScoreHeatmapVisualizer
+  hparams:
+    normalize_scores: true
+    cmap: inferno
+    up_to: 3
+- name: TensorBoardMonitorNode
+  class_name: cuvis_ai.node.monitor.TensorBoardMonitorNode
+  hparams:
+    output_dir: outputs/dinomaly_rgb/tensorboard
+    run_name: dinomaly_rgb
+    comment: ''
+    flush_secs: 120
+connections:
+- source: anomaly_data.outputs.cube
+  target: MinMaxNormalizer.inputs.data
+- source: anomaly_data.outputs.wavelengths
+  target: rgb_selector.inputs.wavelengths
+- source: anomaly_data.outputs.mask
+  target: metrics_anomaly.inputs.targets
+- source: anomaly_data.outputs.mask
+  target: metrics_auroc.inputs.targets
+- source: MinMaxNormalizer.outputs.normalized
+  target: rgb_selector.inputs.cube
+- source: rgb_selector.outputs.rgb_image
+  target: dinomaly_detector.inputs.rgb_image
+- source: dinomaly_detector.outputs.training_loss
+  target: dinomaly_train_loss.inputs.raw_loss
+- source: dinomaly_detector.outputs.scores
+  target: decider.inputs.logits
+- source: dinomaly_detector.outputs.scores
+  target: metrics_anomaly.inputs.logits
+- source: dinomaly_detector.outputs.scores
+  target: metrics_auroc.inputs.scores
+- source: dinomaly_detector.outputs.anomaly_score
+  target: metrics_auroc.inputs.anomaly_score
+- source: dinomaly_detector.outputs.scores
+  target: score_heatmap.inputs.scores
+- source: decider.outputs.decisions
+  target: metrics_anomaly.inputs.decisions
+- source: metrics_anomaly.outputs.metrics
+  target: TensorBoardMonitorNode.inputs.metrics
+- source: metrics_auroc.outputs.metrics
+  target: TensorBoardMonitorNode.inputs.metrics
+- source: score_heatmap.outputs.artifacts
+  target: TensorBoardMonitorNode.inputs.artifacts
