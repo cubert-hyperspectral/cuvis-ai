@@ -17,7 +17,7 @@ my-plugin/
 ```
 
 - `pyproject.toml` is required because plugin dependency installation reads project metadata from it.
-- Export node classes from import paths that can be listed in a manifest `provides:` section.
+- Export node classes from import paths that can be listed in a manifest `capabilities:` section.
 
 ## Minimal `pyproject.toml`
 
@@ -45,11 +45,11 @@ build-backend = "hatchling.build"
 ## Manifest for Local Development
 
 ```yaml
-plugins:
-  my_plugin:
-    path: "../my-plugin"
-    provides:
-      - class_name: my_plugin.node.custom_node.CustomNode
+# my_plugin.yaml (one file per plugin)
+name: my_plugin
+path: "../my-plugin"
+capabilities:
+  - class_name: my_plugin.node.custom_node.CustomNode
 ```
 
 Relative paths resolve from the manifest file location, not from the current shell directory.
@@ -57,15 +57,15 @@ Relative paths resolve from the manifest file location, not from the current she
 ## Manifest for a Tagged Release
 
 ```yaml
-plugins:
-  my_plugin:
-    repo: "https://github.com/your-org/cuvis-ai-my-plugin.git"
-    tag: "v0.1.0"
-    provides:
-      - class_name: my_plugin.node.custom_node.CustomNode
+# my_plugin.yaml
+name: my_plugin
+repo: "https://github.com/your-org/cuvis-ai-my-plugin.git"
+tag: "v0.1.0"
+capabilities:
+  - class_name: my_plugin.node.custom_node.CustomNode
 ```
 
-Each `provides` entry needs at least `class_name` (a fully-qualified path); it may also carry
+Each `capabilities` entry needs at least `class_name` (a fully-qualified path); it may also carry
 palette metadata (`category`, `tags`, `icon_svg`, `input_specs`, `output_specs`, `doc_summary`).
 See [Plugin System Overview](overview.md).
 
@@ -86,7 +86,7 @@ uv run restore-pipeline --pipeline-path <pipeline>.yaml --plugins-dir <dir-with-
 ## Release Notes
 
 - Tag releases with semver-style Git tags such as `v0.1.0`.
-- Keep `provides` stable across patch releases unless you are intentionally making a breaking change.
+- Keep `capabilities` stable across patch releases unless you are intentionally making a breaking change.
 - Test the tagged manifest before referencing it from this repo.
 
 See [Plugin System Overview](overview.md) for loader behavior and [Plugin Nodes](../../catalogs/nodes/index.md) for end-user loading examples.

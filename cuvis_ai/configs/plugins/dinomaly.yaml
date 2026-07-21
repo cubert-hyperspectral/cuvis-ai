@@ -52,3 +52,30 @@ capabilities:
       optional: false
       description: Weighted loss for backprop
   doc_summary: Passes through the scalar reconstruction loss from :class:`DinomalyDetector`.
+- class_name: cuvis_ai_dinomaly.node.auroc_metrics.AnomalyAUROCMetrics
+  category: metric
+  tags: [anomaly, evaluation]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#C9615A\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M10 14v40h44\"/>\n  <rect x=\"16\" y=\"38\" width=\"8\" height=\"12\"/>\n  <rect x=\"28\" y=\"28\" width=\"8\" height=\"22\"/>\n  <rect x=\"40\" y=\"18\" width=\"8\" height=\"32\"/>\n</svg>\n"
+  input_specs:
+    scores:
+      dtype: float32
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: Raw anomaly map [B, H, W, 1]
+    targets:
+      dtype: bool
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: Ground-truth pixel masks [B, H, W, 1]
+    anomaly_score:
+      dtype: float32
+      shape: [-1]
+      optional: false
+      description: Per-image anomaly score [B]
+  output_specs:
+    metrics:
+      dtype: ''
+      shape: []
+      optional: false
+      description: List of Metric objects (running AUROC)
+  doc_summary: Streaming pixel/image AUROC via torchmetrics (val/test only).
