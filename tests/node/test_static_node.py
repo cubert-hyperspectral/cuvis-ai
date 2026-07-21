@@ -670,3 +670,18 @@ def test_point_prompt_requires_nonempty_frame_id() -> None:
     node = PointPrompt(points=[(1.0, 2.0)], prompt_frame_id=0)
     with pytest.raises(ValueError, match="non-empty frame_id"):
         node.forward(frame_id=torch.zeros((0,), dtype=torch.int64))
+
+
+def test_point_prompt_rejects_dict_missing_coordinate() -> None:
+    with pytest.raises(ValueError, match="missing 'x' or 'y'"):
+        PointPrompt(points=[{"y": 1.0}], prompt_frame_id=0)
+
+
+def test_point_prompt_rejects_too_short_tuple() -> None:
+    with pytest.raises(ValueError, match=r"must be \(x, y"):
+        PointPrompt(points=[(1.0,)], prompt_frame_id=0)
+
+
+def test_point_prompt_rejects_unsupported_element_type() -> None:
+    with pytest.raises(ValueError, match="must be a dict or"):
+        PointPrompt(points=[42], prompt_frame_id=0)

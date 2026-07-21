@@ -9,7 +9,7 @@ import pytest
 import torch
 
 import cuvis_ai.node.video as video_module
-from cuvis_ai.node.video import ToImage, ToVideoNode
+from cuvis_ai.node.video import ToImage, ToVideoNode, _FrameRenderMixin
 
 
 class _RecordingFfmpegProc:
@@ -519,3 +519,105 @@ def test_to_image_requires_extension_in_pattern(tmp_path: Path) -> None:
 def test_to_image_validates_frame_rotation(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="frame_rotation"):
         ToImage(output_dir=str(tmp_path), frame_rotation=45)
+
+
+def test_to_image_applies_180_rotation(tmp_path: Path) -> None:
+    out_dir = tmp_path / "rot180"
+    node = ToImage(output_dir=str(out_dir), frame_rotation=180)
+    frame = torch.tensor([[[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]]], dtype=torch.float32)
+    node.forward(rgb_image=frame)
+
+    img = cv2.imread(str(out_dir / "frame_000000.png"))
+    # Input H=1,W=2 (left red, right green); a 180 rotation reverses the row.
+    assert img.shape == (1, 2, 3)
+    assert img[0, 0][::-1].tolist() == [0, 255, 0]  # left pixel now green
+    assert img[0, 1][::-1].tolist() == [255, 0, 0]  # right pixel now red
+
+
+def test_to_image_rejects_non_bhwc_input(tmp_path: Path) -> None:
+    node = ToImage(output_dir=str(tmp_path / "badshape"))
+    with pytest.raises(ValueError, match=r"\[B, H, W, 3\]"):
+        node.forward(rgb_image=torch.zeros((4, 4, 3), dtype=torch.float32))
+
+
+def test_to_image_converts_integer_input_and_clamps(tmp_path: Path) -> None:
+    out_dir = tmp_path / "int_input"
+    node = ToImage(output_dir=str(out_dir))
+    # Non-float, non-uint8 input takes the clamp-to-[0, 255] path (300 -> 255).
+    node.forward(rgb_image=torch.full((1, 4, 4, 3), 300, dtype=torch.int32))
+
+    img = cv2.imread(str(out_dir / "frame_000000.png"))
+    assert img.shape == (4, 4, 3)
+    assert img[0, 0].tolist() == [255, 255, 255]
+
+
+def test_to_image_title_overlay_uses_fallback_margin_on_narrow_frame(tmp_path: Path) -> None:
+    out_dir = tmp_path / "narrow_title"
+    # Width 100 <= 2 * reserved_side_margin (192) exercises the fallback-margin branch.
+    node = ToImage(output_dir=str(out_dir), overlay_title="Cubert XMR")
+    node.forward(rgb_image=torch.full((1, 90, 100, 3), 0.8, dtype=torch.float32))
+
+    assert (out_dir / "frame_000000.png").exists()
+
+
+def test_to_image_raises_when_imwrite_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(video_module.cv2, "imwrite", lambda *_a, **_k: False)
+
+    node = ToImage(output_dir=str(tmp_path / "imwrite_fail"))
+    with pytest.raises(RuntimeError, match="cv2.imwrite failed"):
+        node.forward(rgb_image=torch.zeros((1, 4, 4, 3), dtype=torch.float32))
+
+
+def test_to_video_node_cleanup_finalizes_video(
+    mock_ffmpeg_popen: list[_RecordingFfmpegProc],
+    tmp_path: Path,
+) -> None:
+    node = ToVideoNode(output_video_path=str(tmp_path / "cleanup.mp4"), frame_rate=10.0)
+    node.forward(rgb_image=torch.zeros((1, 4, 4, 3), dtype=torch.float32))
+    node.cleanup()
+
+    # cleanup() flushes the encoder via close(): the ffmpeg stdin is closed cleanly.
+    assert mock_ffmpeg_popen[0].stdin._closed is True
+    # cleanup() is close() + super().cleanup(); a second call must stay a no-op.
+    node.cleanup()
+
+
+# ---------------------------------------------------------------------------
+# _FrameRenderMixin — direct helper coverage for degenerate / defensive paths
+# ---------------------------------------------------------------------------
+def test_darken_region_noop_on_degenerate_box() -> None:
+    frame = np.full((6, 6, 3), 200, dtype=np.uint8)
+    before = frame.copy()
+    _FrameRenderMixin._darken_region(frame, x0=5, y0=5, x1=5, y1=5)  # x1 <= x0
+    assert np.array_equal(frame, before)
+
+
+def test_darken_region_noop_on_empty_region() -> None:
+    frame = np.full((6, 6, 3), 200, dtype=np.uint8)
+    before = frame.copy()
+    # x0 beyond the frame width -> the slice is empty though x1 > x0 and y1 > y0.
+    _FrameRenderMixin._darken_region(frame, x0=100, y0=0, x1=200, y1=5)
+    assert np.array_equal(frame, before)
+
+
+def test_draw_title_overlay_noop_on_zero_size_frame(tmp_path: Path) -> None:
+    node = ToImage(output_dir=str(tmp_path / "zero"), overlay_title="X")
+    frame = torch.zeros((0, 8, 3), dtype=torch.uint8)  # zero-height frame
+    node._draw_title_overlay(frame)  # returns early, no raise
+    assert frame.numel() == 0
+
+
+def test_normalize_rotation_passthrough_for_unexpected_value() -> None:
+    # Defensive fallthrough: both __init__ methods validate rotation first, so this
+    # is only reachable by calling the helper directly with an out-of-contract value.
+    assert _FrameRenderMixin._normalize_rotation(45) == 45
+
+
+def test_rotate_frame_passthrough_for_unexpected_value(tmp_path: Path) -> None:
+    node = ToImage(output_dir=str(tmp_path / "rot_passthrough"))  # frame_rotation None
+    node.frame_rotation = 45  # force an out-of-contract value past __init__ validation
+    frame = torch.arange(12, dtype=torch.float32).reshape(2, 2, 3)
+    assert torch.equal(node._rotate_frame(frame), frame)
