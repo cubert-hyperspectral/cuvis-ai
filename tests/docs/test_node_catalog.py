@@ -101,6 +101,25 @@ def test_plugin_collection_counts_have_a_floor(catalog):
     assert len({e.plugin_name for e in plugin_nodes}) >= 6, "plugin diversity collapsed"
 
 
+def test_local_path_prototypes_excluded_from_catalog(catalog):
+    """Unreleased local-path prototype manifests never reach the published catalog.
+
+    ``detr`` / ``turbovec`` / ``bytetrack`` ship ``path:`` dev pins (no installable
+    ``repo:`` + ``tag:``); they would otherwise render as uninstallable, repo-less
+    rows. Every catalogued *plugin* entry must be git-sourced (carry a ``repo_url``);
+    the only permitted local-path entries are the built-in self-mirror.
+    """
+    entries = catalog.collect_plugin_nodes(exclude_dotted=set())
+    external_plugins = [e for e in entries if e.plugin_name != "cuvis_ai_builtin"]
+
+    prototype_names = {"RTDETRDetection", "QuantizedSpectralSearch", "ByteTrack"}
+    leaked = [e.dotted_path for e in external_plugins if e.name in prototype_names]
+    assert not leaked, f"local-path prototype nodes leaked into the catalog: {leaked}"
+
+    repo_less = [e.dotted_path for e in external_plugins if not e.repo_url]
+    assert not repo_less, f"non-git plugin entries in the catalog: {repo_less}"
+
+
 def test_empty_manifest_dir_raises(catalog, monkeypatch, tmp_path):
     """An empty plugins directory must fail the docs build, not ship an empty list."""
     monkeypatch.setattr(catalog, "PLUGIN_MANIFEST_DIR", tmp_path)

@@ -4,7 +4,7 @@
 
 ## 0.11.1 - 2026-07-21
 
-- Bumped plugin manifest pins: adaclip v0.1.5 -> v0.2.0, augment v0.3.2 -> v0.3.3, cuvis_ai_dataloader v0.2.0 -> v0.4.0, cuvis_ai_inspecscrap v0.2.1 -> v0.2.2, deepeiou v0.2.0 -> v0.2.1, dinomaly v0.2.0 -> v0.4.1, rtsam2 v0.1.0 -> v0.2.0, trackeval v0.1.3 -> v0.1.4, ultralytics v0.1.3 -> v0.1.4.
+- Bumped plugin manifest pins: adaclip v0.1.5 -> v0.2.0, augment v0.3.2 -> v0.3.3, cuvis_ai_dataloader v0.2.0 -> v0.4.0, cuvis_ai_inspecscrap v0.2.1 -> v0.2.2, deepeiou v0.2.0 -> v0.2.1, dinomaly v0.2.0 -> v0.4.1, trackeval v0.1.3 -> v0.1.4, ultralytics v0.1.3 -> v0.1.4.
 
 - **Compacted the docs node-catalog filter into a one-row toolbar.** The `/catalogs/nodes/` filter
   bar (previously a sticky block with three always-open chip rows) is now a single sticky row:
@@ -48,11 +48,11 @@
 - **Added the SAM3 single-frame point-expansion use case.** Two pipeline configs
   (`configs/pipeline/sam3/sam3_point_expansion.yaml`, cu3s-sourced, and `…_video.yaml`, video-frame
   sourced) plus the `notebooks/use_cases/object_selection_point_expansion.ipynb` walkthrough.
-- **Pinned the sam3 plugin to `v0.2.0`.** `configs/plugins/sam3.yaml` uses a `repo:` + `tag: v0.2.0`
+- **Pinned the sam3 plugin to `v0.2.1`.** `configs/plugins/sam3.yaml` uses a `repo:` + `tag: v0.2.1`
   pin (restored from the temporary local `path:` checkout), the first tagged sam3 release to ship
   `SAM3PointExpansion` and the `rgb_frame` -> `rgb_image` port rename.
 - **Registered the rtsam2 plugin.** Added `configs/plugins/rtsam2.yaml` pinned to
-  `cuvis-ai-rtsam2` `v0.1.0`, exposing the `RTSAM2BboxPropagation` and `RTSAM2MaskPropagation`
+  `cuvis-ai-rtsam2` `v0.2.0`, exposing the `RTSAM2BboxPropagation` and `RTSAM2MaskPropagation`
   streaming tracker nodes (SAM2.1 / EfficientTAM camera predictors; prompt once on the first
   frame, then track frame by frame).
 - **Added the rtsam2 mask-propagation pipelines.** The

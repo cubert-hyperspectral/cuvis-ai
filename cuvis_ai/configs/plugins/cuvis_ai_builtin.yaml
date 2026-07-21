@@ -1182,7 +1182,7 @@ capabilities:
       dtype: int32
       shape: [-1, -1, -1]
       optional: true
-      description: Multi-class segmentation mask [B, H, W]
+      description: Binary anomaly mask [B, H, W] (0=normal, non-zero=anomaly)
     wavelengths:
       dtype: int32
       shape: [-1, -1]
@@ -1193,6 +1193,11 @@ capabilities:
       shape: [-1]
       optional: true
       description: Measurement/frame index per batch element [B]
+    class_mask:
+      dtype: ''
+      shape: [-1, -1, -1]
+      optional: true
+      description: Multi-class category-id mask [B, H, W] (0=background)
   output_specs:
     cube:
       dtype: float32
@@ -1214,6 +1219,11 @@ capabilities:
       shape: [-1]
       optional: true
       description: Measurement/frame index per batch element [B]
+    class_mask:
+      dtype: int32
+      shape: [-1, -1, -1, 1]
+      optional: true
+      description: Multi-class segmentation mask passthrough (0=background) [B, H, W, 1]
   doc_summary: CU3S data node with binary anomaly label mapping.
 - class_name: cuvis_ai.node.data.LentilsAnomalyDataNode
   category: source
@@ -1229,7 +1239,7 @@ capabilities:
       dtype: int32
       shape: [-1, -1, -1]
       optional: true
-      description: Multi-class segmentation mask [B, H, W]
+      description: Binary anomaly mask [B, H, W] (0=normal, non-zero=anomaly)
     wavelengths:
       dtype: int32
       shape: [-1, -1]
@@ -1240,6 +1250,11 @@ capabilities:
       shape: [-1]
       optional: true
       description: Measurement/frame index per batch element [B]
+    class_mask:
+      dtype: ''
+      shape: [-1, -1, -1]
+      optional: true
+      description: Multi-class category-id mask [B, H, W] (0=background)
   output_specs:
     cube:
       dtype: float32
@@ -1261,6 +1276,11 @@ capabilities:
       shape: [-1]
       optional: true
       description: Measurement/frame index per batch element [B]
+    class_mask:
+      dtype: int32
+      shape: [-1, -1, -1, 1]
+      optional: true
+      description: Multi-class segmentation mask passthrough (0=background) [B, H, W, 1]
   doc_summary: Deprecated alias of AnomalyDataNode (kept for saved pipelines).
 - class_name: cuvis_ai.node.dimensionality_reduction.PCA
   category: transform

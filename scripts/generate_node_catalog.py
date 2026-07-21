@@ -12,9 +12,10 @@ Two data sources, both used at mkdocs build time:
   manifest YAMLs in the repo's plugins directory — the same files the
   pipeline loader and the gRPC server consume. Each capability entry already
   carries its category, tags, doc summary, and port specs, so the docs build
-  never installs or imports torch / ultralytics / SAM3 / etc. Manifest entries
-  that mirror built-in classes (``cuvis_ai_builtin.yaml``) are skipped in
-  favour of the live import above.
+  never installs or imports torch / ultralytics / SAM3 / etc. Released (git
+  ``repo`` + ``tag``) manifests are catalogued; the ``cuvis_ai_builtin.yaml``
+  self-mirror is deduped against the live import above. Other local ``path:``
+  manifests (unreleased dev prototypes) have no installable pin and are skipped.
 
 Output: a single ``catalogs/nodes/index.md`` rendered as a list of
 collapsible rows. Each row's body either includes a mkdocstrings
@@ -61,6 +62,7 @@ def _plugin_manifest_dir() -> Path:
 
 PLUGIN_MANIFEST_DIR = _plugin_manifest_dir()
 BUILTIN_PACKAGE = "cuvis_ai.node"
+BUILTIN_MANIFEST_NAME = "cuvis_ai_builtin"
 
 _SOURCE_LABELS = {"builtin": "Built-in", "plugin": "Plugin", "data-module": "Data module"}
 
@@ -198,6 +200,13 @@ def collect_plugin_nodes(exclude_dotted: set[str]) -> list[NodeEntry]:
     for manifest_path in manifest_paths:
         manifest = load_plugin_manifest(manifest_path)
         is_git = isinstance(manifest, GitPluginSource)
+        if not is_git and manifest.name != BUILTIN_MANIFEST_NAME:
+            # A local-path manifest that isn't the built-in self-mirror is an unreleased dev
+            # prototype (no installable repo pin, e.g. detr / turbovec / bytetrack) — keep it out
+            # of the published catalog. The built-in mirror stays and is deduped against the live
+            # import below via ``exclude_dotted``.
+            log.debug("skipping local-path prototype manifest %s", manifest_path.name)
+            continue
         repo_url = _browse_url(manifest.repo) if is_git else None
         version = manifest.tag if is_git else None
         for cap in manifest.capabilities:

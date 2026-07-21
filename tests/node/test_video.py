@@ -344,6 +344,43 @@ def test_to_video_node_close_raises_on_nonzero_ffmpeg_returncode(
         node.close()
 
 
+def test_to_video_node_cleanup_surfaces_finalize_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A finalize failure at teardown is logged at ERROR and recorded, not swallowed.
+
+    ``CuvisPipeline.cleanup`` downgrades any ``cleanup()`` exception to a warning, so
+    the node must surface a failed trailer flush itself (ERROR log + ``_finalize_error``)
+    and still re-raise, rather than leave an unplayable file while the run looks clean.
+    """
+    from loguru import logger
+
+    def _popen_factory(argv: list[str], **_kwargs: object) -> _RecordingFfmpegProc:
+        return _RecordingFfmpegProc(
+            argv=list(argv),
+            returncode=1,
+            stderr_bytes=b"moov atom write failed",
+        )
+
+    monkeypatch.setattr(video_module.subprocess, "Popen", _popen_factory)
+
+    node = ToVideoNode(output_video_path=str(tmp_path / "teardown.mp4"), frame_rate=10.0)
+    node.forward(rgb_image=torch.zeros((1, 4, 4, 3), dtype=torch.float32))
+
+    errors_seen: list[str] = []
+    sink_id = logger.add(lambda m: errors_seen.append(m.record["message"]), level="ERROR")
+    try:
+        with pytest.raises(RuntimeError, match="non-zero return code 1.*moov atom"):
+            node.cleanup()
+    finally:
+        logger.remove(sink_id)
+
+    assert node._finalize_error is not None
+    assert "moov atom" in node._finalize_error
+    assert any("failed to finalize" in msg.lower() for msg in errors_seen)
+
+
 def test_to_video_node_close_is_idempotent(
     mock_ffmpeg_popen: list[_RecordingFfmpegProc],
     tmp_path: Path,

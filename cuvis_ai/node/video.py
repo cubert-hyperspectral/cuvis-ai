@@ -283,6 +283,8 @@ class ToVideoNode(_FrameRenderMixin, Node):
             )
         self._proc: subprocess.Popen[bytes] | None = None
         self._frame_size: tuple[int, int] | None = None
+        # Records a teardown-time finalize failure (see cleanup()); None until one happens.
+        self._finalize_error: str | None = None
 
         self.output_video_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -489,9 +491,27 @@ class ToVideoNode(_FrameRenderMixin, Node):
         session close, pipeline replacement, or run stop) is where the ffmpeg
         trailer gets flushed. ``close()`` is idempotent, so calling it here in
         addition to an explicit driver ``close()`` is safe.
+
+        ``CuvisPipeline.cleanup`` wraps each node's ``cleanup()`` in a bare
+        try/except that only ``logger.warning``s, so a finalize failure here
+        (ffmpeg unable to write the ``moov`` trailer, leaving an unplayable file)
+        would otherwise be indistinguishable from a benign teardown warning while
+        the run still reports success. Surface it explicitly at ERROR level and
+        record it on ``_finalize_error`` so callers/tests can detect the truncated
+        output, then re-raise so nothing is silently hidden.
         """
-        self.close()
-        super().cleanup()
+        try:
+            self.close()
+        except RuntimeError as exc:
+            self._finalize_error = str(exc)
+            logger.error(
+                "ToVideoNode failed to finalize {} at pipeline teardown: {}",
+                self.output_video_path,
+                exc,
+            )
+            raise
+        finally:
+            super().cleanup()
 
     def __del__(self) -> None:
         """Best-effort cleanup; do not rely on this for normal teardown."""

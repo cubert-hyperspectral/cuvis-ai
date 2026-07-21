@@ -124,14 +124,71 @@ def test_chip_click_filters_once_and_keeps_panel_open(catalog):
     assert _count(catalog) == total
 
 
-def test_two_tags_widen_results_or_semantics(catalog):
+def test_tags_combine_as_or_within_facet(catalog):
+    """Two tags in the same facet OR together (union), never AND (intersection).
+
+    For every pair among the first few tags the combined count stays within the OR
+    bounds ``max(a, b) <= a|b <= a + b`` — an AND-within regression (intersection,
+    ``<= min``) breaks the lower bound. At least one pair must strictly grow past
+    each single count, which a dead/duplicate second chip could never do.
+    """
     catalog.locator('[data-panel="node-filter-tags"]').click()
     chips = catalog.locator("#node-filter-tags .filter-chip")
-    chips.nth(0).click()
-    one_tag = _count(catalog)
-    chips.nth(1).click()
-    two_tags = _count(catalog)
-    assert two_tags >= one_tag, "tags must combine as OR within the facet"
+    k = min(chips.count(), 6)
+    assert k >= 2, "need at least two tag chips to exercise OR semantics"
+
+    # Independent single-tag counts (click on, read, click off).
+    singles = []
+    for i in range(k):
+        chips.nth(i).click()
+        singles.append(_count(catalog))
+        chips.nth(i).click()
+
+    grew = False
+    for i in range(k):
+        for j in range(i + 1, k):
+            chips.nth(i).click()
+            chips.nth(j).click()
+            both = _count(catalog)
+            chips.nth(i).click()
+            chips.nth(j).click()
+            assert both >= max(singles[i], singles[j]), (
+                "tags must OR (union), not AND, within a facet"
+            )
+            assert both <= singles[i] + singles[j], "union cannot exceed the sum of the parts"
+            if both > singles[i] and both > singles[j]:
+                grew = True
+    assert grew, "no tag pair widened the result set — OR-within not demonstrated"
+
+
+def test_category_and_tag_intersect_across_facets(catalog):
+    """A category and a tag AND together across facets (intersection).
+
+    The combined result is no larger than either facet alone and strictly narrower
+    than the whole catalog. An OR-across regression would widen the result past a
+    single facet, breaking the ``<= min`` bound.
+    """
+    total = _total(catalog)
+
+    catalog.locator('[data-panel="node-filter-categories"]').click()
+    cat_chips = catalog.locator("#node-filter-categories .filter-chip")
+    cat_chips.nth(0).click()
+    cat_only = _count(catalog)
+    cat_chips.nth(0).click()  # clear before measuring the tag alone
+
+    catalog.locator('[data-panel="node-filter-tags"]').click()  # accordion closes categories
+    tag_chips = catalog.locator("#node-filter-tags .filter-chip")
+    tag_chips.nth(0).click()
+    tag_only = _count(catalog)
+
+    # Re-activate the category: both facets now constrain the grid (selection persists
+    # in the active-filter strip even though opening categories closes the tags panel).
+    catalog.locator('[data-panel="node-filter-categories"]').click()
+    cat_chips.nth(0).click()
+    both = _count(catalog)
+
+    assert both <= min(cat_only, tag_only), "category and tag must AND (intersect) across facets"
+    assert both < total, "an across-facet AND must narrow the full catalog"
 
 
 def test_strip_builds_removes_and_manages_focus(catalog):

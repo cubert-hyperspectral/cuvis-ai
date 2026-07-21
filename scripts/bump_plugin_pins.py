@@ -40,8 +40,9 @@ import yaml
 _GITHUB = re.compile(r"(?:git@github\.com:|https?://github\.com/)(.+?)(?:\.git)?$")
 _SEMVER = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
 # Matches exactly one top-level (column-0) tag line; capabilities entries are indented
-# and commented lines start with '#', so neither is matched.
-_TAG_LINE = re.compile(r'^(tag:[ \t]*)(["\']?)v\d+\.\d+\.\d+\2[ \t]*$', re.MULTILINE)
+# and commented lines start with '#', so neither is matched. Group 3 captures any trailing
+# whitespace + inline comment (e.g. `tag: "v0.2.1"  # floors ...`) so the bump preserves it.
+_TAG_LINE = re.compile(r'^(tag:[ \t]*)(["\']?)v\d+\.\d+\.\d+\2([ \t]*(?:#.*)?)$', re.MULTILINE)
 
 CATALOG = Path("cuvis_ai/configs/plugins")
 CHANGELOG = Path("CHANGELOG.md")
@@ -168,7 +169,7 @@ def bump_pins() -> tuple[list[tuple[str, str, str]], list[tuple[str, set[str]]]]
         if newest <= current:
             continue
         text = manifest.read_text(encoding="utf-8")
-        new_text, count = _TAG_LINE.subn(rf"\g<1>\g<2>{latest}\g<2>", text)
+        new_text, count = _TAG_LINE.subn(rf"\g<1>\g<2>{latest}\g<2>\g<3>", text)
         if count != 1:
             print(f"WARN {name}: expected one top-level tag line, found {count}; skipped")
             continue
