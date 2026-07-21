@@ -164,6 +164,7 @@ nav:
       - Port: concepts/port.md
       - Pipeline: concepts/pipeline.md
       - Training: concepts/training.md
+      - Data Splits: concepts/data-splits.md
       - Execution Stages: concepts/execution-stages.md
   - Tutorials:
       - Overview: tutorials/index.md

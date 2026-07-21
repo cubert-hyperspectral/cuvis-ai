@@ -15,7 +15,7 @@ from cuvis_ai_schemas.training.data import DataSplitConfig, SampleRef
 
 from cuvis_ai_core.data.selectors import resolve_selectors
 
-_CONFIGS = Path(__file__).resolve().parents[1] / "configs"
+_CONFIGS = Path(__file__).resolve().parents[1] / "cuvis_ai" / "configs"
 
 # (config path, source path, expected {stage: sorted measurement ids})
 _CASES = [

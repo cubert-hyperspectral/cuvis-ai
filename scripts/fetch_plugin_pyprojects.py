@@ -1,6 +1,6 @@
 """Fetch each git-sourced plugin's ``pyproject.toml`` by tag for the registry audit.
 
-Reads ``configs/plugins/*.yaml``; for every plugin entry with ``repo`` + ``tag``,
+Reads ``cuvis_ai/configs/plugins/*.yaml``; for every plugin entry with ``repo`` + ``tag``,
 downloads its ``pyproject.toml`` from the GitHub raw URL into
 ``~/.cuvis_plugins/<name>@<tag>/`` — the location ``audit-plugin-deps
 --check plugins`` looks in. Local-``path`` and untagged entries are skipped (the
@@ -23,7 +23,7 @@ _GITHUB = re.compile(r"(?:git@github\.com:|https?://github\.com/)(.+?)(?:\.git)?
 
 def main() -> None:
     cache = Path.home() / ".cuvis_plugins"
-    catalog = Path("configs/plugins")
+    catalog = Path("cuvis_ai/configs/plugins")
     # One file = one plugin: the source lives in the top-level `name` / `repo` / `tag`
     # keys (not a nested `plugins:` mapping). Local-`path` and untagged entries are skipped.
     for manifest in sorted(catalog.glob("*.yaml")):

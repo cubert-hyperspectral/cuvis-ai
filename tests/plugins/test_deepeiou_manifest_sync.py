@@ -16,7 +16,7 @@ pytestmark = pytest.mark.unit
 # guard against a plugin's exposed surface drifting out of sync with this manifest.
 SEMVER_TAG = re.compile(r"v\d+\.\d+\.\d+")
 
-DEEPEIOU_MANIFEST_PATH = Path("configs/plugins/deepeiou.yaml")
+DEEPEIOU_MANIFEST_PATH = Path("cuvis_ai/configs/plugins/deepeiou.yaml")
 PLUGIN_NAME = "deepeiou"
 EXPECTED_REPO = "https://github.com/cubert-hyperspectral/cuvis-ai-deepeiou.git"
 EXPECTED_PROVIDES = [

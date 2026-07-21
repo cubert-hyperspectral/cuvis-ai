@@ -1,0 +1,19 @@
+metadata:
+  name: SAM3_Point_Expansion_View
+  description: SAM3 single-frame interactive point expansion driven by the host-rendered view frame.
+    The host supplies the displayed RGB/CIR/SWIR false-color image as rgb_image (no overlays) plus the
+    positive/negative points and the source frame_id; the hyperspectral cube never leaves the host.
+  tags:
+  - segmentation
+  - sam3
+  - point-prompt
+  - rgb
+  - expansion
+  author: cuvis.ai
+plugins:
+- sam3
+nodes:
+- name: sam3_point_expansion
+  class_name: cuvis_ai_sam3.node.SAM3PointExpansion
+  hparams: {}
+connections: []

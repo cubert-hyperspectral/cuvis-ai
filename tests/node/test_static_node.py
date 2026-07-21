@@ -12,6 +12,7 @@ import torch
 from cuvis_ai.node.prompts import (
     BBoxPrompt,
     MaskPrompt,
+    PointPrompt,
     TextPrompt,
     load_detection_index,
     parse_spatial_prompt_spec,
@@ -633,3 +634,54 @@ def test_bbox_prompt_emits_empty_outputs_on_unscheduled_frame(tmp_path: Path) ->
     assert out["bboxes"] == []
     assert out["prompt_boxes_xyxy"].shape == (1, 0, 4)
     assert out["prompt_object_ids"].shape == (1, 0)
+
+
+def test_point_prompt_emits_points_on_scheduled_frame() -> None:
+    node = PointPrompt(
+        points=[(120.0, 95.0, "positive"), {"x": 10.0, "y": 5.0, "type": "negative"}],
+        prompt_frame_id=11,
+    )
+
+    out = node.forward(frame_id=torch.tensor([11], dtype=torch.int64))
+
+    assert out["points"] == [
+        {"element_id": 0, "x": 120.0, "y": 95.0, "type": "positive"},
+        {"element_id": 0, "x": 10.0, "y": 5.0, "type": "negative"},
+    ]
+
+
+def test_point_prompt_emits_empty_list_on_unscheduled_frame() -> None:
+    node = PointPrompt(points=[(1.0, 2.0)], prompt_frame_id=11)
+    assert node.forward(frame_id=torch.tensor([12], dtype=torch.int64))["points"] == []
+
+
+def test_point_prompt_defaults_type_to_positive() -> None:
+    node = PointPrompt(points=[(1.0, 2.0)], prompt_frame_id=0)
+    out = node.forward(frame_id=torch.tensor([0], dtype=torch.int64))
+    assert out["points"] == [{"element_id": 0, "x": 1.0, "y": 2.0, "type": "positive"}]
+
+
+def test_point_prompt_rejects_unknown_type() -> None:
+    with pytest.raises(ValueError, match="unknown type"):
+        PointPrompt(points=[(1.0, 2.0, "bogus")], prompt_frame_id=0)
+
+
+def test_point_prompt_requires_nonempty_frame_id() -> None:
+    node = PointPrompt(points=[(1.0, 2.0)], prompt_frame_id=0)
+    with pytest.raises(ValueError, match="non-empty frame_id"):
+        node.forward(frame_id=torch.zeros((0,), dtype=torch.int64))
+
+
+def test_point_prompt_rejects_dict_missing_coordinate() -> None:
+    with pytest.raises(ValueError, match="missing 'x' or 'y'"):
+        PointPrompt(points=[{"y": 1.0}], prompt_frame_id=0)
+
+
+def test_point_prompt_rejects_too_short_tuple() -> None:
+    with pytest.raises(ValueError, match=r"must be \(x, y"):
+        PointPrompt(points=[(1.0,)], prompt_frame_id=0)
+
+
+def test_point_prompt_rejects_unsupported_element_type() -> None:
+    with pytest.raises(ValueError, match="must be a dict or"):
+        PointPrompt(points=[42], prompt_frame_id=0)

@@ -9,8 +9,8 @@
 .node-filter {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
-  padding: 0.9rem 1rem;
+  gap: 0;
+  padding: 0.5rem 0.75rem;
   border: 1px solid var(--md-default-fg-color--lightest);
   border-radius: 0.5rem;
   background: var(--md-default-bg-color);
@@ -19,10 +19,19 @@
   z-index: 5;
 }
 
+.node-filter-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
 #node-filter-search {
-  width: 100%;
-  padding: 0.5rem 0.75rem;
+  flex: 1 1 14rem;
+  min-width: 0;
+  padding: 0.4rem 0.75rem;
   font: inherit;
+  font-size: 0.85rem;
   border: 1px solid var(--md-default-fg-color--light);
   border-radius: 0.35rem;
   background: var(--md-default-bg-color);
@@ -33,22 +42,115 @@
   outline-offset: 1px;
 }
 
-.node-filter-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
-  flex-wrap: wrap;
+.filter-group-buttons { display: flex; gap: 0.5rem; }
+
+.filter-group-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 32px;
+  padding: 0.25rem 0.7rem;
+  font: inherit;
+  font-size: 0.78rem;
+  border-radius: 999px;
+  cursor: pointer;
+  border: 1px solid var(--md-default-fg-color--lighter);
+  background: var(--md-default-bg-color);
+  color: var(--md-default-fg-color);
 }
-.filter-label {
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+.filter-group-toggle::after {
+  content: '';
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid var(--md-default-fg-color--light);
+  transition: transform 0.12s ease;
+}
+.filter-group-toggle[aria-expanded="true"]::after { transform: rotate(180deg); }
+.filter-group-toggle:focus-visible,
+.filter-chip:focus-visible,
+.active-chip:focus-visible {
+  outline: 2px solid var(--md-primary-fg-color);
+  outline-offset: 1px;
+}
+
+.filter-group-badge {
+  display: inline-block;
+  min-width: 1.1rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  line-height: 1.5;
+  text-align: center;
+  background: var(--md-primary-fg-color);
+  color: var(--md-primary-bg-color);
+}
+/* Keep the badge's space when empty so the sticky toolbar doesn't reflow on
+   every selection. */
+.filter-group-badge.is-empty { visibility: hidden; }
+
+#node-filter-count {
+  margin-left: auto;
+  white-space: nowrap;
+  font-size: 0.78rem;
   color: var(--md-default-fg-color--light);
-  padding-top: 0.35rem;
-  min-width: 4.5rem;
 }
+
+/* Visually hidden, screen-reader reachable (namespaced: this stylesheet loads
+   on every docs page). */
+.node-filter-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.filter-active-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  padding-top: 0.5rem;
+}
+.filter-active-strip[hidden] { display: none; }
+.active-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 32px;
+  padding: 0.1rem 0.6rem;
+  font: inherit;
+  font-size: 0.72rem;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  background: var(--md-primary-fg-color);
+  color: var(--md-primary-bg-color);
+}
+.active-chip::after { content: '✕'; font-size: 0.65rem; opacity: 0.8; }
+.active-chip:hover { filter: brightness(1.1); }
+
 .filter-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; flex: 1; }
+.filter-panel {
+  padding-top: 0.5rem;
+  max-height: min(40vh, 16rem);
+  overflow-y: auto;
+}
+/* .filter-chips sets display:flex, which would override the hidden attribute */
+.filter-panel[hidden] { display: none; }
+
+.node-filter-empty {
+  padding: 2rem 1rem;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--md-default-fg-color--light);
+}
+.node-filter-empty p { margin: 0 0 0.5rem; }
 
 .filter-chip {
   display: inline-flex;
@@ -86,19 +188,16 @@
   color: #fff;
 }
 
-.node-filter-meta {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.78rem;
-  color: var(--md-default-fg-color--light);
-}
 .filter-reset {
   background: none;
   border: none;
-  color: var(--md-primary-fg-color);
+  /* link color, not primary: the brand primary is near-black and vanishes on
+     the slate scheme; the typeset link color adapts per scheme */
+  color: var(--md-typeset-a-color);
   cursor: pointer;
   padding: 0;
   font: inherit;
+  font-size: 0.78rem;
 }
 .filter-reset:hover { text-decoration: underline; }
 
@@ -123,7 +222,8 @@ details.node-row {
   transition: background-color 0.08s ease;
   min-width: 0;
 }
-details.node-row:last-child { border-bottom: none; }
+/* :last-of-type, not :last-child — the empty-state div is the grid's last child */
+details.node-row:last-of-type { border-bottom: none; }
 details.node-row[open] { background: var(--md-default-fg-color--lightest); }
 
 /* Hide native disclosure marker, use a custom chevron */
@@ -178,7 +278,7 @@ details.node-row > summary:hover { background: var(--md-default-fg-color--lighte
 .row-module {
   font-size: 0.72rem;
   color: var(--md-default-fg-color--light);
-  font-family: var(--md-code-font-family, monospace);
+  font-family: var(--md-code-font-family);
 }
 
 .row-category {
@@ -337,10 +437,22 @@ details.node-row.is-hidden { display: none; }
 .cat-tile-label { font-weight: 600; font-size: 0.85rem; text-transform: capitalize; }
 [data-md-color-scheme="slate"] .cat-tile { color: #f4f4f6; filter: saturate(0.85); }
 
-/* Narrow screens: tighter padding */
+/* Narrow screens: search + count on row 1, the three fold buttons share row 2.
+   The button group comes before the count in DOM order, so without `order` the
+   count would wrap below the full-width group. */
 @media (max-width: 600px) {
   .node-filter { position: static; }
-  .filter-label { min-width: 0; }
+  /* flex-wrap wraps before it shrinks: at 14rem basis the count would drop to
+     its own line, so let the search flex from 0 into the space next to it */
+  #node-filter-search { flex-basis: 0; }
+  .filter-group-buttons { order: 10; flex-basis: 100%; gap: 0.35rem; }
+  /* min-width: 0 lifts the min-content floor so three buttons + badges fit 375px */
+  .filter-group-buttons .filter-group-toggle {
+    flex: 1 1 0;
+    min-width: 0;
+    justify-content: center;
+    padding: 0.25rem 0.4rem;
+  }
   details.node-row > summary { padding: 0.5rem 0.65rem; }
   .row-body { padding-left: 2.4rem; }
 }

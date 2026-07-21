@@ -1,0 +1,38 @@
+metadata:
+  name: SAM3_Mask_Propagation_Postprocess_View
+  description: SAM3 runtime-mask propagation driven by the host-rendered view frame, with a per-frame
+    MaskRobustifier cleanup on the tracked mask. The host supplies the displayed RGB/CIR/SWIR
+    false-color image as rgb_image plus the seed object mask and the source frame_id; the cube never
+    leaves the host. Drops small spurious regions (min_area) each frame so a noisy seed does not
+    fragment into specks over the sequence. keep_largest stays off so an object split by an occluder,
+    or several tracked objects, survive intact rather than pruned to a single blob.
+  tags:
+  - tracking
+  - sam3
+  - mask-prompt
+  - rgb
+  - video
+  - propagation
+  author: cuvis.ai
+plugins:
+- cuvis_ai_builtin
+- sam3
+nodes:
+- name: sam3_tracker
+  class_name: cuvis_ai_sam3.node.SAM3MaskPropagation
+  hparams:
+    score_threshold_detection: 0.5
+    new_det_thresh: 0.95
+    det_nms_thresh: 0.1
+    overlap_suppress_thresh: 0.7
+    max_tracker_states: 5
+- name: mask_cleanup
+  class_name: cuvis_ai.node.mask_ops.MaskRobustifier
+  hparams:
+    opening_kernel: 0
+    closing_kernel: 3
+    min_area: 50
+    keep_largest: false
+connections:
+- source: sam3_tracker.outputs.mask
+  target: mask_cleanup.inputs.mask

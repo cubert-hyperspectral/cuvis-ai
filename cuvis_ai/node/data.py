@@ -98,11 +98,12 @@ class CU3SDataNode(Node):
         return result
 
 
-class LentilsAnomalyDataNode(CU3SDataNode):
-    """Lentils-specific CU3S data node with binary anomaly label mapping.
+class AnomalyDataNode(CU3SDataNode):
+    """CU3S data node with binary anomaly label mapping.
 
     Inherits shared CU3S normalization (cube + wavelengths) and additionally maps
-    multi-class masks to binary anomaly masks.
+    multi-class masks to binary anomaly masks: classes in ``normal_class_ids`` become 0,
+    everything else (or ``anomaly_class_ids`` when given) becomes 1.
     """
 
     _category = NodeCategory.SOURCE
@@ -113,8 +114,16 @@ class LentilsAnomalyDataNode(CU3SDataNode):
         "mask": PortSpec(
             dtype=torch.int32,
             shape=(-1, -1, -1),
-            description="Multi-class segmentation mask [B, H, W]",
+            description="Binary anomaly mask [B, H, W] (0=normal, non-zero=anomaly)",
             optional=True,  # Explicit for readability
+        ),
+        "class_mask": PortSpec(
+            # Generic torch.Tensor (not a concrete dtype): the data module delivers this as
+            # uint8 category ids, and strict port binding rejects uint8 -> int32 with no upcast.
+            dtype=torch.Tensor,
+            shape=(-1, -1, -1),
+            description="Multi-class category-id mask [B, H, W] (0=background)",
+            optional=True,
         ),
     }
     OUTPUT_SPECS = {
@@ -123,6 +132,12 @@ class LentilsAnomalyDataNode(CU3SDataNode):
             dtype=torch.bool,
             shape=(-1, -1, -1, 1),
             description="Binary anomaly mask (0=normal, 1=anomaly) [B, H, W, 1]",
+            optional=True,
+        ),
+        "class_mask": PortSpec(
+            dtype=torch.int32,
+            shape=(-1, -1, -1, 1),
+            description="Multi-class segmentation mask passthrough (0=background) [B, H, W, 1]",
             optional=True,
         ),
     }
@@ -143,10 +158,11 @@ class LentilsAnomalyDataNode(CU3SDataNode):
         self,
         cube: torch.Tensor,
         mask: torch.Tensor | None = None,
+        class_mask: torch.Tensor | None = None,
         wavelengths: torch.Tensor | None = None,
         **_: Any,
     ) -> dict[str, torch.Tensor | np.ndarray]:
-        """Apply CU3S normalization and optional Lentils binary mask mapping."""
+        """Apply CU3S normalization and optional binary anomaly mask mapping."""
         result = super().forward(cube=cube, mask=None, wavelengths=wavelengths, **_)
 
         if mask is not None:
@@ -155,4 +171,20 @@ class LentilsAnomalyDataNode(CU3SDataNode):
             mapped = self._binary_mapper.forward(cube=cube, mask=mask_4d, **_)
             result["mask"] = mapped["mask"]
 
+        if class_mask is not None:
+            # Expose the multi-class category-id labels as a port so downstream per-class metrics
+            # can read them directly. This is a separate input from the binary `mask`: the data
+            # module carries the multi-class ids in their own `class_mask` batch key.
+            result["class_mask"] = class_mask.unsqueeze(-1).to(torch.int32)
+
         return result
+
+
+class LentilsAnomalyDataNode(AnomalyDataNode):
+    """Deprecated alias of :class:`AnomalyDataNode` (nothing lentils-specific inside).
+
+    Kept so saved pipelines referencing the old class name keep loading.
+    """
+
+    _category = NodeCategory.SOURCE
+    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.METADATA})

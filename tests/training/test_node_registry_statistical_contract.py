@@ -36,6 +36,8 @@ REQUIRED_ARG_DEFAULTS: dict[str, object] = {
     "n_select": 3,
     "k": 3,
     "channel": 0,
+    "points": [],
+    "prompt_frame_id": 0,
     "normal_class_ids": [0],
     "min_wavelength_nm": 450.0,
     "output_json_path": "test_output.json",

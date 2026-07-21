@@ -11,21 +11,20 @@ Config inheritance, variable interpolation, and override mechanisms.
 
 ### Simple Inheritance
 
-**Base config:** `configs/training/base.yaml`
+**Base config:** `cuvis_ai/configs/training/base.yaml`
 ```yaml
 seed: 42
 
-trainer:
-  max_epochs: 5
-  accelerator: auto
-  devices: 1
+max_epochs: 5
+accelerator: auto
+devices: 1
 
 optimizer:
   name: adamw
   betas: [0.9, 0.999]
 ```
 
-**Variant:** `configs/training/high_lr.yaml`
+**Variant:** `cuvis_ai/configs/training/high_lr.yaml`
 ```yaml
 defaults:
   - base
@@ -39,10 +38,9 @@ optimizer:
 **Result:**
 ```yaml
 seed: 42                        # From base
-trainer:
-  max_epochs: 5                 # From base
-  accelerator: auto             # From base
-  devices: 1                    # From base
+max_epochs: 5                   # From base
+accelerator: auto               # From base
+devices: 1                      # From base
 optimizer:
   name: adamw                   # From base
   betas: [0.9, 0.999]          # From base
@@ -53,27 +51,25 @@ optimizer:
 ### Multi-Level Inheritance
 
 ```yaml
-# Level 1: configs/training/base_optimizer.yaml
+# Level 1: cuvis_ai/configs/training/base_optimizer.yaml
 optimizer:
   name: adamw
   betas: [0.9, 0.999]
 
-# Level 2: configs/training/base_training.yaml
+# Level 2: cuvis_ai/configs/training/base_training.yaml
 defaults:
   - base_optimizer
   - _self_
 seed: 42
-trainer:
-  max_epochs: 5
+max_epochs: 5
 
-# Level 3: configs/training/custom_training.yaml
+# Level 3: cuvis_ai/configs/training/custom_training.yaml
 defaults:
   - base_training
   - _self_
 optimizer:
   lr: 0.001
-trainer:
-  max_epochs: 100  # Override base
+max_epochs: 100  # Override base
 ```
 
 ### Override Behavior
@@ -111,8 +107,7 @@ output_dir: ./outputs/${name}
 # Resolves to: ./outputs/my_experiment
 
 training:
-  trainer:
-    default_root_dir: ${output_dir}
+  default_root_dir: ${output_dir}
 ```
 
 ### Environment Variables
@@ -174,7 +169,7 @@ training:
 python train.py training.optimizer.lr=0.001
 
 python train.py \
-    training.trainer.max_epochs=100 \
+    training.max_epochs=100 \
     training.optimizer.lr=0.001 \
     data.batch_size=16
 
@@ -201,7 +196,7 @@ def main(cfg: DictConfig):
     cfg.training.optimizer.lr = 0.0001
 
     overrides = OmegaConf.create({
-        "training": {"optimizer": {"lr": 0.0001}, "trainer": {"max_epochs": 100}}
+        "training": {"optimizer": {"lr": 0.0001}, "max_epochs": 100}
     })
     cfg = OmegaConf.merge(cfg, overrides)
 

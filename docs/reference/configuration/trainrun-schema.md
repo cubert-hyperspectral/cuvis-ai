@@ -33,7 +33,7 @@ unfreeze_nodes: []
 |---|---|
 | `name` | Experiment identifier |
 | `pipeline` | Composed pipeline config |
-| `data` | Data config |
+| `data` | Data config: module, splits, params (see [Data](#data)) |
 | `training` | Training config |
 | `output_dir` | Output root |
 
@@ -46,6 +46,34 @@ unfreeze_nodes: []
 | `freeze_nodes` | Node names frozen at startup |
 | `unfreeze_nodes` | Node names unfrozen for later phases |
 | `tags` | Metadata for run tracking |
+
+## Data
+
+`data` is a `DataConfig`: which DataModule to load, how it is split, and module params.
+
+| Field | Meaning |
+|---|---|
+| `data_module` | Registered module name (e.g. `cu3s`, `cu3s_multi`, `tiff_paired`, `npz_multi`) |
+| `splits` | A selector split (`DataSplitConfig`) or a `splits_path` to a committed `splits.json`. Omit for a module that owns its split. |
+| `batch_size` / `num_workers` | DataLoader options |
+| `params` | Module-specific arguments (e.g. `cu3s_file_path`, `annotation_json_path`; `universe_csv` for `npz_multi`) |
+
+A selector split assigns samples to stages by identity. A `universe_csv` (a `universe.csv`) supplies an
+explicit sample universe for formats that cannot enumerate from disk (npz). See
+[Data Splits](../../concepts/data-splits.md) for the full model (universe, selectors, baking).
+
+```yaml
+data:
+  data_module: npz_multi
+  batch_size: 4
+  splits:                       # inline selectors, or: splits_path: splits/dinomaly.json
+    train:
+      - { kind: file_indices, source: X.cu3s, ids: [0, 2, 3] }
+    val:
+      - { kind: file_indices, source: X.cu3s, ids: [1, 5] }
+  params:
+    universe_csv: outputs/npz_local/universe.csv
+```
 
 ## Current Patterns
 
@@ -80,4 +108,5 @@ output_dir: ./outputs/${name}
 
 - [Configuration Basics](index.md)
 - [Config Groups](config-groups.md)
+- [Data Splits](../../concepts/data-splits.md)
 - [Restore Pipeline](../../workflows/restore-pipeline.md)

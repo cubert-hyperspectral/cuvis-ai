@@ -18,7 +18,7 @@ manifests:
 ```yaml
 # my_pipeline.yaml
 plugins:
-  - trackeval          # bare name → resolves to configs/plugins/trackeval.yaml
+  - trackeval          # bare name → resolves to cuvis_ai/configs/plugins/trackeval.yaml
 nodes:
   - name: hota
     class_name: cuvis_ai_trackeval.node.HOTAMetricNode
@@ -28,7 +28,7 @@ nodes:
 ```bash
 uv run restore-pipeline \
   --pipeline-path my_pipeline.yaml \
-  --plugins-dir configs/plugins
+  --plugins-dir cuvis_ai/configs/plugins
 ```
 
 The loader resolves each bare name to a manifest in the plugins directory and materialises
@@ -36,29 +36,37 @@ only the plugins the pipeline declares — see [Loading Flow](#loading-flow).
 
 ## Manifest Shapes
 
-Each plugin manifest uses a `plugins:` mapping and one of two source styles:
+Each plugin manifest is a **single file for a single plugin**: an explicit `name:`, one source
+(`repo:` + `tag:` for a released plugin, or `path:` for a local checkout), and a `capabilities:`
+list. The `name:` is explicit and never derived from the filename.
 
 ```yaml
-plugins:
-  ultralytics:
-    repo: "https://github.com/cubert-hyperspectral/cuvis-ai-ultralytics.git"
-    tag: "v0.1.0"
-    package_name: "cuvis-ai-ultralytics"   # optional: real [project].name if it differs from the key
-    provides:
-      - class_name: cuvis_ai_ultralytics.node.YOLOPreprocess
-      - class_name: cuvis_ai_ultralytics.node.YOLO26Detection
-      - class_name: cuvis_ai_ultralytics.node.YOLOPostprocess
-
-  sam3:
-    path: "../../../../cuvis-ai-sam3/sam3-init"
-    provides:
-      - class_name: cuvis_ai_sam3.node.SAM3TextPropagation
+# cuvis_ai/configs/plugins/ultralytics.yaml
+name: ultralytics
+repo: "https://github.com/cubert-hyperspectral/cuvis-ai-ultralytics.git"
+tag: "v0.1.4"
+package_name: "cuvis-ai-ultralytics"   # optional: real [project].name if it differs from `name`
+capabilities:
+  - class_name: cuvis_ai_ultralytics.node.YOLOPreprocess
+  - class_name: cuvis_ai_ultralytics.node.YOLO26Detection
+  - class_name: cuvis_ai_ultralytics.node.YOLOPostprocess
 ```
 
-- `repo` + `tag`: clone a released plugin. Git **tags** only — branches and commit hashes are not supported, for reproducibility.
+A local checkout uses `path:` in place of `repo:` + `tag:` (one plugin per file, as always):
+
+```yaml
+# a local development manifest
+name: my_plugin
+path: "../../../cuvis-ai-my-plugin"
+capabilities:
+  - class_name: my_plugin.node.custom_node.CustomNode
+```
+
+- `name`: the explicit plugin name. Pipelines reference it as a bare name in their `plugins:` list.
+- `repo` + `tag`: clone a released plugin. Git **tags** only (branches and commit hashes are not supported, for reproducibility).
 - `path`: load a local checkout directly. Relative paths resolve from the manifest directory.
-- `package_name`: optional. The PyPI-style `[project].name` from the plugin's `pyproject.toml`; set it when the manifest key (a logical label) differs from the real package name.
-- `provides`: the plugin's **node catalog** — each entry is one node: a fully-qualified `class_name` plus optional palette metadata (`category`, `tags`, `icon_svg`, `input_specs`, `output_specs`, `doc_summary`). The server reads this catalog to populate the node palette *without importing plugin code*. See [`configs/plugins/adaclip.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/configs/plugins/adaclip.yaml) for a fully populated entry.
+- `package_name`: optional. The PyPI-style `[project].name` from the plugin's `pyproject.toml`; set it when it differs from `name`.
+- `capabilities`: the plugin's **node catalog**. Each entry is one node: a fully-qualified `class_name` plus optional palette metadata (`category`, `tags`, `icon_svg`, `input_specs`, `output_specs`, `doc_summary`). The server reads this catalog to populate the node palette *without importing plugin code*. See [`cuvis_ai/configs/plugins/adaclip.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/plugins/adaclip.yaml) for a fully populated entry.
 
 ## Loading Flow
 
@@ -91,19 +99,31 @@ plugins:
 
 ## Official Plugin Manifests
 
-- [`configs/plugins/adaclip.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/configs/plugins/adaclip.yaml): released AdaCLIP plugin manifest
-- [`configs/plugins/ultralytics.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/configs/plugins/ultralytics.yaml): released Ultralytics YOLO26 plugin manifest pinned to `v0.1.0`
-- [`configs/plugins/deepeiou.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/configs/plugins/deepeiou.yaml): released DeepEIoU plugin manifest pinned to `v0.1.0`
-- [`configs/plugins/trackeval.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/configs/plugins/trackeval.yaml): released TrackEval plugin manifest pinned to `v0.1.0`
-- [`configs/plugins/sam3.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/configs/plugins/sam3.yaml): local SAM3 plugin manifest
+All official plugins ship as git-tagged releases (bare name resolves to the matching manifest file):
+
+- [`adaclip.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/plugins/adaclip.yaml): AdaCLIP anomaly detection, pinned to `v0.2.0`
+- [`augment.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/plugins/augment.yaml): data-augmentation nodes, pinned to `v0.3.3`
+- [`cuvis_ai_dataloader.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/plugins/cuvis_ai_dataloader.yaml): cu3s / cu3 / paired-TIFF data-module plugin, pinned to `v0.4.0`
+- [`cuvis_ai_inspecscrap.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/plugins/cuvis_ai_inspecscrap.yaml): metal-scrap inspection nodes, pinned to `v0.2.2`
+- [`deepeiou.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/plugins/deepeiou.yaml): DeepEIoU tracking plugin, pinned to `v0.2.1`
+- [`dinomaly.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/plugins/dinomaly.yaml): Dinomaly anomaly detection, pinned to `v0.4.1`
+- [`rtsam2.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/plugins/rtsam2.yaml): real-time SAM 2 / EfficientTAM plugin, pinned to `v0.2.0`
+- [`sam3.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/plugins/sam3.yaml): SAM 3.1 tracking plugin, pinned to `v0.2.1`
+- [`trackeval.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/plugins/trackeval.yaml): tracking-metric plugin, pinned to `v0.1.4`
+- [`ultralytics.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/plugins/ultralytics.yaml): Ultralytics YOLO26 plugin, pinned to `v0.1.4`
 
 ## Official Plugins
 
-- **[cuvis-ai-adaclip](https://github.com/cubert-hyperspectral/cuvis-ai-adaclip)** — AdaCLIP vision-language anomaly detection
-- **[cuvis-ai-ultralytics](https://github.com/cubert-hyperspectral/cuvis-ai-ultralytics)** — Ultralytics YOLO26 nodes for detection and tracking pipelines
-- **[cuvis-ai-deepeiou](https://github.com/cubert-hyperspectral/cuvis-ai-deepeiou)** — DeepEIoU tracking and optional ReID extractors
-- **[cuvis-ai-trackeval](https://github.com/cubert-hyperspectral/cuvis-ai-trackeval)** — HOTA, CLEAR, and Identity tracking metrics
-- **[cuvis-ai-sam3](https://github.com/cubert-hyperspectral/cuvis-ai-sam3)** — SAM3 tracking workflows and prompt propagation nodes
+- **[cuvis-ai-adaclip](https://github.com/cubert-hyperspectral/cuvis-ai-adaclip)**: AdaCLIP zero-shot vision-language anomaly detection
+- **[cuvis-ai-augment](https://github.com/cubert-hyperspectral/cuvis-ai-augment)**: training-time data-augmentation nodes for hyperspectral cubes
+- **[cuvis-ai-dataloader](https://github.com/cubert-hyperspectral/cuvis-ai-dataloader)**: cu3s / cu3 (COCO-masked) and paired-TIFF DataModules (data-module plugin)
+- **[cuvis-ai-inspecscrap](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap)**: metal-scrap material classification nodes
+- **[cuvis-ai-deepeiou](https://github.com/cubert-hyperspectral/cuvis-ai-deepeiou)**: DeepEIoU tracking and optional ReID extractors
+- **[cuvis-ai-dinomaly](https://github.com/cubert-hyperspectral/cuvis-ai-dinomaly)**: DINOv2-based anomaly detection (Anomalib DinomalyModel)
+- **[cuvis-ai-rtsam2](https://github.com/cubert-hyperspectral/cuvis-ai-rtsam2)**: real-time SAM 2 / EfficientTAM streaming segmentation and propagation
+- **[cuvis-ai-sam3](https://github.com/cubert-hyperspectral/cuvis-ai-sam3)**: SAM 3.1 tracking, segmentation, and prompt propagation nodes
+- **[cuvis-ai-trackeval](https://github.com/cubert-hyperspectral/cuvis-ai-trackeval)**: HOTA, CLEAR-MOT, and Identity tracking metrics
+- **[cuvis-ai-ultralytics](https://github.com/cubert-hyperspectral/cuvis-ai-ultralytics)**: YOLO26 detection with composable preprocess / postprocess nodes
 
 ## Next steps
 

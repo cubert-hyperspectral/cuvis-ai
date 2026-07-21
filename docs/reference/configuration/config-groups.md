@@ -10,7 +10,7 @@ Hydra config groups keep current experiments modular and composable.
 ## Current Group Layout
 
 ```text
-configs/
+cuvis_ai/configs/
 ├── data/
 ├── pipeline/
 │   ├── anomaly/
@@ -38,10 +38,10 @@ output_dir: ./outputs/${name}
 
 Current pipeline families:
 
-- `configs/pipeline/anomaly/rx/`
-- `configs/pipeline/anomaly/deep_svdd/`
-- `configs/pipeline/anomaly/adaclip/`
-- `configs/pipeline/sam3/`
+- `cuvis_ai/configs/pipeline/anomaly/rx/`
+- `cuvis_ai/configs/pipeline/anomaly/deep_svdd/`
+- `cuvis_ai/configs/pipeline/anomaly/adaclip/`
+- `cuvis_ai/configs/pipeline/sam3/`
 
 Override example:
 
@@ -55,7 +55,7 @@ pipeline:
 
 ## Data Group
 
-Use `configs/data/` for the data module, split selectors, and loader settings.
+Use `cuvis_ai/configs/data/` for the data module, split selectors, and loader settings.
 
 Example:
 
@@ -77,16 +77,15 @@ data:
 
 ## Training Group
 
-Use `configs/training/` for trainer and optimizer settings.
+Use `cuvis_ai/configs/training/` for trainer and optimizer settings.
 
 Example:
 
 ```yaml
 training:
-  trainer:
-    max_epochs: 50
-    accelerator: auto
-    devices: 1
+  max_epochs: 50
+  accelerator: auto
+  devices: 1
   optimizer:
     name: adamw
     lr: 0.001
@@ -96,13 +95,13 @@ training:
 
 Use the narrow manifest required by the workflow:
 
-- `configs/plugins/adaclip.yaml`
-- `configs/plugins/bytetrack.yaml`
-- `configs/plugins/deepeiou.yaml`
-- `configs/plugins/detr.yaml`
-- `configs/plugins/sam3.yaml`
-- `configs/plugins/trackeval.yaml`
-- `configs/plugins/ultralytics.yaml`
+- `cuvis_ai/configs/plugins/adaclip.yaml`
+- `cuvis_ai/configs/plugins/bytetrack.yaml`
+- `cuvis_ai/configs/plugins/deepeiou.yaml`
+- `cuvis_ai/configs/plugins/detr.yaml`
+- `cuvis_ai/configs/plugins/sam3.yaml`
+- `cuvis_ai/configs/plugins/trackeval.yaml`
+- `cuvis_ai/configs/plugins/ultralytics.yaml`
 
 Each plugin ships its own `plugins.yaml` manifest; reference the ones you need from your config. The full list of plugin-supplied nodes lives in the [Nodes catalog](../../catalogs/nodes/index.md).
 

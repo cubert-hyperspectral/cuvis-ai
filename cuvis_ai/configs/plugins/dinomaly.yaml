@@ -1,0 +1,81 @@
+# Dinomaly plugin manifest (Anomalib-backed)
+#
+# To use Dinomaly, declare `plugins: [dinomaly]` in the pipeline yaml and point
+# the loader at the catalog directory that holds this manifest:
+#   uv run restore-pipeline --pipeline-path <pipeline>.yaml --plugins-dir cuvis_ai/configs/plugins
+
+name: dinomaly
+# Local development override (optional):
+# path: "../../../cuvis-ai-dinomaly"
+repo: "https://github.com/cubert-hyperspectral/cuvis-ai-dinomaly.git"
+tag: "v0.4.1"
+capabilities:
+- class_name: cuvis_ai_dinomaly.node.dinomaly_detector.DinomalyDetector
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#AAAAAA\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"32\" cy=\"32\" r=\"22\" stroke-dasharray=\"4 3\"/>\r\n  <path d=\"M25 26a7 7 0 0 1 14 0c0 4-3.5 4.5-7 8v3\"/>\r\n  <circle cx=\"32\" cy=\"45\" r=\"1.2\" fill=\"#AAAAAA\" stroke=\"none\"/>\r\n</svg>\r\n"
+  input_specs:
+    rgb_image:
+      dtype: float32
+      shape: [-1, -1, -1, 3]
+      optional: false
+      description: RGB image [B, H, W, 3] in float32 (0–1 or 0–255)
+  output_specs:
+    scores:
+      dtype: float32
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: Pixel-wise anomaly scores [B, H, W, 1]
+    anomaly_score:
+      dtype: float32
+      shape: [-1]
+      optional: false
+      description: Image-level anomaly score [B]
+    training_loss:
+      dtype: float32
+      shape: []
+      optional: true
+      description: Scalar Dinomaly training loss (train/val/test stages)
+  doc_summary: Pixel-level anomaly detection using Anomalib's ``DinomalyModel``.
+- class_name: cuvis_ai_dinomaly.node.dinomaly_train_loss_bridge.DinomalyTrainLossBridge
+  category: loss
+  tags: [differentiable, torch, training]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M10 14v40h44\"/>\r\n  <path d=\"M14 18c8 0 12 8 18 18s12 14 22 14\"/>\r\n  <path d=\"M48 44l6 6-6 6\" transform=\"translate(0 -6)\"/>\r\n</svg>\r\n"
+  input_specs:
+    raw_loss:
+      dtype: float32
+      shape: []
+      optional: true
+      description: Scalar training loss from DinomalyDetector
+  output_specs:
+    loss:
+      dtype: float32
+      shape: []
+      optional: false
+      description: Weighted loss for backprop
+  doc_summary: Passes through the scalar reconstruction loss from :class:`DinomalyDetector`.
+- class_name: cuvis_ai_dinomaly.node.auroc_metrics.AnomalyAUROCMetrics
+  category: metric
+  tags: [anomaly, evaluation]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#C9615A\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M10 14v40h44\"/>\n  <rect x=\"16\" y=\"38\" width=\"8\" height=\"12\"/>\n  <rect x=\"28\" y=\"28\" width=\"8\" height=\"22\"/>\n  <rect x=\"40\" y=\"18\" width=\"8\" height=\"32\"/>\n</svg>\n"
+  input_specs:
+    scores:
+      dtype: float32
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: Raw anomaly map [B, H, W, 1]
+    targets:
+      dtype: bool
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: Ground-truth pixel masks [B, H, W, 1]
+    anomaly_score:
+      dtype: float32
+      shape: [-1]
+      optional: false
+      description: Per-image anomaly score [B]
+  output_specs:
+    metrics:
+      dtype: ''
+      shape: []
+      optional: false
+      description: List of Metric objects (running AUROC)
+  doc_summary: Streaming pixel/image AUROC via torchmetrics (val/test only).

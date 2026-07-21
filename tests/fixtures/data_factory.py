@@ -9,7 +9,6 @@ import pytest
 import torch
 from cuvis_ai_schemas.training import (
     OptimizerConfig,
-    TrainerConfig,
     TrainingConfig,
 )
 from torch.utils.data import DataLoader, Dataset
@@ -441,13 +440,6 @@ def training_config_factory():
 
     def _create(max_epochs: int = 2, lr: float = 1e-2) -> TrainingConfig:
         """Create a TrainingConfig with CPU defaults for fast unit tests."""
-        trainer = TrainerConfig(
-            max_epochs=max_epochs,
-            accelerator="cpu",
-            enable_progress_bar=False,
-            enable_checkpointing=False,
-            log_every_n_steps=1,
-        )
         optimizer = OptimizerConfig(
             name="adam",
             lr=lr,
@@ -456,7 +448,11 @@ def training_config_factory():
         )
         return TrainingConfig(
             seed=123,
-            trainer=trainer,
+            max_epochs=max_epochs,
+            accelerator="cpu",
+            enable_progress_bar=False,
+            enable_checkpointing=False,
+            log_every_n_steps=1,
             optimizer=optimizer,
         )
 

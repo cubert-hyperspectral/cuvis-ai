@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 from pathlib import Path
 
 import yaml
 from hydra import compose, initialize_config_dir
 
-CONFIG_ROOT = Path(__file__).resolve().parents[1] / "configs"
+CONFIG_ROOT = Path(__file__).resolve().parents[1] / "cuvis_ai" / "configs"
 TRAINRUN_DIR = CONFIG_ROOT / "trainrun"
-REQUIRED_DIRECTIVES = ("/pipeline@", "/data@", "/training@")
 
 
 def _first_non_empty_line(text: str) -> str:
@@ -22,35 +20,38 @@ def _first_non_empty_line(text: str) -> str:
     return ""
 
 
-def _validate_defaults(defaults: Iterable, errors: list[str]) -> None:
-    """Validate defaults section contents."""
-    if not isinstance(defaults, list):
-        errors.append("defaults must be a list")
-        return
-
-    has_self = any(
-        item == "_self_" or getattr(item, "get", lambda _=None: None)("_self_") for item in defaults
+def _has_self(defaults: list) -> bool:
+    """Whether the defaults list carries ``_self_`` (list-item or single-key-dict form)."""
+    return any(
+        item == "_self_" or (isinstance(item, dict) and "_self_" in item) for item in defaults
     )
-    if not has_self:
-        errors.append("defaults must include '_self_' for override precedence")
 
-    # Check for composition directives
-    joined = "\n".join(str(item) for item in defaults)
-    for directive in REQUIRED_DIRECTIVES:
-        if directive not in joined:
-            errors.append(f"defaults missing composition entry containing '{directive}'")
+
+def _data_is_resolvable(config_dict: dict, defaults: list | None) -> bool:
+    """A trainrun resolves ``data`` via a ``/data@`` default group or an inline ``data:`` key."""
+    if "data" in config_dict:
+        return True
+    if isinstance(defaults, list):
+        return any("/data@" in str(item) for item in defaults)
+    return False
 
 
 def validate_trainrun_config(config_path: Path) -> tuple[bool, list[str]]:
-    """Validate a single trainrun config file."""
+    """Validate a single trainrun config file.
+
+    Trainruns come in two shapes: Hydra-composition (a ``defaults:`` block pulling
+    in a ``/data@`` group and optionally ``/training@``, with ``_self_`` and a
+    ``# @package _global_`` header) and fully-inlined (``data:`` / ``training:``
+    written directly, no defaults block). The header and ``_self_`` are required
+    only for the composition shape; the one invariant across both is that ``data``
+    is resolvable. The Hydra compose below is the authoritative check for either.
+    """
     errors: list[str] = []
 
     if not config_path.exists():
         return False, [f"File not found: {config_path}"]
 
     raw = config_path.read_text(encoding="utf-8")
-    if _first_non_empty_line(raw) != "# @package _global_":
-        errors.append("Missing '# @package _global_' directive at top of file")
 
     try:
         config_dict = yaml.safe_load(raw) or {}
@@ -58,12 +59,22 @@ def validate_trainrun_config(config_path: Path) -> tuple[bool, list[str]]:
         return False, [f"Invalid YAML: {exc}"]
 
     defaults = config_dict.get("defaults")
-    if defaults is None:
-        errors.append("Missing 'defaults' section")
-    else:
-        _validate_defaults(defaults, errors)
+    if defaults is not None and not isinstance(defaults, list):
+        errors.append("defaults must be a list")
+        defaults = None
 
-    # Hydra composition check
+    # Composition-style trainruns (with a defaults block) need the _global_ package header
+    # and _self_ for override precedence; fully-inlined trainruns legitimately omit both.
+    if defaults is not None:
+        if _first_non_empty_line(raw) != "# @package _global_":
+            errors.append("Missing '# @package _global_' directive at top of file")
+        if not _has_self(defaults):
+            errors.append("defaults must include '_self_' for override precedence")
+
+    if not _data_is_resolvable(config_dict, defaults):
+        errors.append("no data source: expected a '/data@' default or an inline 'data:' key")
+
+    # Hydra composition check — the authoritative validation for either shape.
     try:
         relative_name = config_path.relative_to(CONFIG_ROOT).with_suffix("").as_posix()
         with initialize_config_dir(config_dir=str(CONFIG_ROOT), version_base="1.3"):

@@ -826,15 +826,15 @@ trainer = GradientTrainer(
     datamodule=datamodule,
     loss_nodes=[iou_loss],
     metric_nodes=[metrics],
-    trainer_config={
+    training_config={
         "max_epochs": 20,
         "log_every_n_steps": 10,
         "val_check_interval": 1.0,
-    },
-    optimizer_config={
-        "name": "adamw",
-        "lr": 0.001,
-        "weight_decay": 0.01,
+        "optimizer": {
+            "name": "adamw",
+            "lr": 0.001,
+            "weight_decay": 0.01,
+        },
     },
     monitors=[monitor],
 )
@@ -957,13 +957,13 @@ trainer = GradientTrainer(
     datamodule=datamodule,
     loss_nodes=[iou_loss, distinctness_loss],  # Multiple losses
     metric_nodes=[metrics],
-    trainer_config={
+    training_config={
         "max_epochs": 20,
         "log_every_n_steps": 10,
-    },
-    optimizer_config={
-        "name": "adamw",
-        "lr": 0.001,
+        "optimizer": {
+            "name": "adamw",
+            "lr": 0.001,
+        },
     },
     monitors=[monitor],
 )
@@ -993,13 +993,12 @@ defaults:
 
 training:
   seed: 42
-  trainer:
-    max_epochs: 20
-    accelerator: auto
-    devices: 1
-    log_every_n_steps: 10        # Log metrics every 10 steps
-    val_check_interval: 1.0      # Validate every epoch
-    enable_checkpointing: true
+  max_epochs: 20
+  accelerator: auto
+  devices: 1
+  log_every_n_steps: 10          # Log metrics every 10 steps
+  val_check_interval: 1.0        # Validate every epoch
+  enable_checkpointing: true
 
   optimizer:
     name: adamw
@@ -1175,15 +1174,14 @@ callbacks:
 
 ```yaml
 training:
-  trainer:
-    enable_checkpointing: true
-    callbacks:
-      model_checkpoint:
-        dirpath: outputs/${name}/checkpoints
-        monitor: metrics_anomaly/iou
-        mode: max
-        save_top_k: 3
-        save_last: true
+  enable_checkpointing: true
+  callbacks:
+    model_checkpoint:
+      dirpath: outputs/${name}/checkpoints
+      monitor: metrics_anomaly/iou
+      mode: max
+      save_top_k: 3
+      save_last: true
 ```
 
 **Benefits:**
@@ -1198,25 +1196,22 @@ training:
 
 ```yaml
 training:
-  trainer:
-    log_every_n_steps: 10      # Log metrics every 10 steps
-    val_check_interval: 1.0    # Validate every epoch (1.0 = 100%)
+  log_every_n_steps: 10      # Log metrics every 10 steps
+  val_check_interval: 1.0    # Validate every epoch (1.0 = 100%)
 ```
 
 **For large datasets:**
 ```yaml
 training:
-  trainer:
-    log_every_n_steps: 50      # Less frequent logging
-    val_check_interval: 0.5    # Validate every half-epoch
+  log_every_n_steps: 50      # Less frequent logging
+  val_check_interval: 0.5    # Validate every half-epoch
 ```
 
 **For small datasets:**
 ```yaml
 training:
-  trainer:
-    log_every_n_steps: 1       # Log every step
-    val_check_interval: 1.0    # Validate every epoch
+  log_every_n_steps: 1       # Log every step
+  val_check_interval: 1.0    # Validate every epoch
 ```
 
 ---

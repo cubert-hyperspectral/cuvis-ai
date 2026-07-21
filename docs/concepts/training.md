@@ -230,7 +230,7 @@ flowchart TD
     B --> C["pipeline.unfreeze_nodes_by_name(['selector', 'rx_detector'])"]
     C --> D["Buffers → Parameters<br/>(requires_grad=True)"]
     D --> E["Create GradientTrainer"]
-    E --> F["grad_trainer = GradientTrainer(<br/>pipeline, datamodule,<br/>loss_nodes, metric_nodes,<br/>trainer_config, optimizer_config)"]
+    E --> F["grad_trainer = GradientTrainer(<br/>pipeline, datamodule,<br/>loss_nodes, metric_nodes,<br/>training_config)"]
     F --> G["grad_trainer.fit() called"]
     G --> H[Create CuvisLightningModule]
     H --> I[Register loss nodes via ports]
@@ -291,7 +291,6 @@ from cuvis_ai_schemas.training import (
     TrainingConfig,
     OptimizerConfig,
     SchedulerConfig,
-    TrainerConfig,
 )
 
 training_config = TrainingConfig(
@@ -308,10 +307,8 @@ training_config = TrainingConfig(
         factor=0.5,
         patience=5
     ),
-    trainer=TrainerConfig(
-        max_epochs=50,
-        accelerator="auto"
-    )
+    max_epochs=50,
+    accelerator="auto"
 )
 
 grad_trainer = GradientTrainer(
@@ -319,9 +316,7 @@ grad_trainer = GradientTrainer(
     datamodule=datamodule,
     loss_nodes=[bce_loss],
     metric_nodes=[metrics_node],
-    trainer_config=training_config.trainer,
-    optimizer_config=training_config.optimizer,
-    scheduler_config=training_config.scheduler
+    training_config=training_config
 )
 
 grad_trainer.fit()
@@ -336,25 +331,23 @@ test_results = grad_trainer.test()
 
 ```python
 training_config = TrainingConfig(
-    trainer=TrainerConfig(
-        max_epochs=50,
-        accelerator="auto",
-        callbacks=CallbacksConfig(
-            checkpoint=ModelCheckpointConfig(
-                monitor="metrics_anomaly/iou",
-                mode="max",
-                save_top_k=3
-            ),
-            early_stopping=[
-                EarlyStoppingConfig(
-                    monitor="val/bce",
-                    mode="min",
-                    patience=10,
-                    min_delta=0.001
-                )
-            ],
-            lr_monitor=LearningRateMonitorConfig(logging_interval="epoch")
-        )
+    max_epochs=50,
+    accelerator="auto",
+    callbacks=CallbacksConfig(
+        checkpoint=ModelCheckpointConfig(
+            monitor="metrics_anomaly/iou",
+            mode="max",
+            save_top_k=3
+        ),
+        early_stopping=[
+            EarlyStoppingConfig(
+                monitor="val/bce",
+                mode="min",
+                patience=10,
+                min_delta=0.001
+            )
+        ],
+        lr_monitor=LearningRateMonitorConfig(logging_interval="epoch")
     )
 )
 ```
@@ -378,7 +371,6 @@ from cuvis_ai_schemas.training import (
     TrainingConfig,
     OptimizerConfig,
     SchedulerConfig,
-    TrainerConfig,
 )
 from cuvis_ai_schemas.pipeline import PipelineMetadata
 from cuvis_ai_dataloader.data import Cu3sDataModule
@@ -446,7 +438,8 @@ training_config = TrainingConfig(
     seed=42,
     optimizer=OptimizerConfig(name="adamw", lr=0.001),
     scheduler=SchedulerConfig(name="reduce_on_plateau", monitor="metrics_anomaly/iou", mode="max"),
-    trainer=TrainerConfig(max_epochs=20, accelerator="auto")
+    max_epochs=20,
+    accelerator="auto"
 )
 
 grad_trainer = GradientTrainer(
@@ -454,9 +447,7 @@ grad_trainer = GradientTrainer(
     datamodule=datamodule,
     loss_nodes=[bce_loss],
     metric_nodes=[metrics_node],
-    trainer_config=training_config.trainer,
-    optimizer_config=training_config.optimizer,
-    scheduler_config=training_config.scheduler
+    training_config=training_config
 )
 
 grad_trainer.fit()

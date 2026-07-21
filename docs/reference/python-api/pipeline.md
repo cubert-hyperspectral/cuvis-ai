@@ -37,12 +37,12 @@ Key points:
 
 ## Shipped Pipeline Families
 
-Current checked-in pipeline configs live under `configs/pipeline/` and are grouped as:
+Current checked-in pipeline configs live under `cuvis_ai/configs/pipeline/` and are grouped as:
 
-- RX: `configs/pipeline/anomaly/rx/`
-- Deep SVDD: `configs/pipeline/anomaly/deep_svdd/`
-- AdaCLIP: `configs/pipeline/anomaly/adaclip/`
-- SAM3: `configs/pipeline/sam3/`
+- RX: `cuvis_ai/configs/pipeline/anomaly/rx/`
+- Deep SVDD: `cuvis_ai/configs/pipeline/anomaly/deep_svdd/`
+- AdaCLIP: `cuvis_ai/configs/pipeline/anomaly/adaclip/`
+- SAM3: `cuvis_ai/configs/pipeline/sam3/`
 
 ## Restoration And Remote Execution
 

@@ -184,8 +184,7 @@ grad_trainer = GradientTrainer(
     datamodule=datamodule,
     loss_nodes=[bce_loss, entropy_loss, diversity_loss],
     metric_nodes=[metrics_anomaly],
-    trainer_config=training_cfg.trainer,
-    optimizer_config=training_cfg.optimizer,
+    training_config=training_cfg,
 )
 ```
 

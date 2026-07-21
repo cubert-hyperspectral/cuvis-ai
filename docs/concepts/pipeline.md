@@ -88,7 +88,7 @@ from cuvis_ai_core.pipeline.factory import PipelineBuilder
 
 import yaml
 
-with open("configs/pipeline/my_pipeline.yaml") as f:
+with open("cuvis_ai/configs/pipeline/my_pipeline.yaml") as f:
     config = yaml.safe_load(f)
 
 builder = PipelineBuilder()
@@ -228,7 +228,7 @@ trainer = GradientTrainer(
     datamodule=datamodule,
     loss_nodes=[bce_loss],
     metric_nodes=[metrics_node],
-    trainer_config=training_config
+    training_config=training_config
 )
 
 trainer.fit()
@@ -366,7 +366,7 @@ from cuvis_ai_core.utils import restore_pipeline
 
 pipeline = restore_pipeline(
     pipeline_path="outputs/my_pipeline.yaml",
-    plugins_dirs=["configs/plugins"],   # dir holding the bare-named manifests
+    plugins_dirs=["cuvis_ai/configs/plugins"],   # dir holding the bare-named manifests
 )
 ```
 
@@ -374,7 +374,7 @@ For manual, dev-mode control you can still load a manifest into a registry insta
 
 ```python
 registry = NodeRegistry()
-registry.register_plugin("configs/plugins/adaclip.yaml")   # CLI / dev-mode path
+registry.register_plugin("cuvis_ai/configs/plugins/adaclip.yaml")   # CLI / dev-mode path
 pipeline = CuvisPipeline.load_pipeline(
     "outputs/my_pipeline.yaml", node_registry=registry
 )
@@ -429,8 +429,7 @@ grad_trainer = GradientTrainer(
     datamodule=datamodule,
     loss_nodes=[bce_loss],
     metric_nodes=[metrics_node],
-    trainer_config=training_config,
-    optimizer_config=optimizer_config
+    training_config=training_config
 )
 
 grad_trainer.fit()

@@ -23,7 +23,7 @@ from cuvis_ai_core.training import StatisticalTrainer
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_dataloader.data import Cu3sDataModule
 
-pipeline = CuvisPipeline.load_pipeline("configs/pipeline/anomaly/rx/rx_statistical.yaml")
+pipeline = CuvisPipeline.load_pipeline("cuvis_ai/configs/pipeline/anomaly/rx/rx_statistical.yaml")
 datamodule = Cu3sDataModule(cu3s_file_path="data/Lentils/Demo_000.cu3s")
 
 trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)

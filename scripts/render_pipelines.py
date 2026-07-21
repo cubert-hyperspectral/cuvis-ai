@@ -1,4 +1,4 @@
-"""Render a transparent PNG of every pipeline YAML in configs/pipeline/.
+"""Render a transparent PNG of every pipeline YAML in cuvis_ai/configs/pipeline/.
 
 Independent of the orchestrator smoke — this is a pure host-venv
 operation: load each YAML, build the pipeline via PipelineBuilder
@@ -29,7 +29,7 @@ import yaml
 from loguru import logger
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-CONFIGS_DIR = REPO_ROOT / "configs"
+CONFIGS_DIR = REPO_ROOT / "cuvis_ai" / "configs"
 PIPELINE_DIR = CONFIGS_DIR / "pipeline"
 OUTPUT_ROOT = REPO_ROOT / "pipeline_renders"
 
@@ -50,7 +50,7 @@ def _gather_yamls() -> list[Path]:
 def _register_plugins(plugin_names: list[str], yaml_path: Path) -> None:
     """Ensure the YAML's declared plugins are registered in the NodeRegistry.
 
-    Reads the host's ``configs/plugins/<name>.yaml`` manifest entries
+    Reads the host's ``cuvis_ai/configs/plugins/<name>.yaml`` manifest entries
     so the import path matches what the gRPC server would do. The
     host venv must already have each plugin's Python package
     installed (this script does not compose its own venv).

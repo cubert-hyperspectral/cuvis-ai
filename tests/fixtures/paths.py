@@ -9,7 +9,7 @@ import pytest
 @pytest.fixture
 def config_dir():
     """Path to the configs directory."""
-    return Path(__file__).parent.parent.parent / "configs"
+    return Path(__file__).parent.parent.parent / "cuvis_ai" / "configs"
 
 
 @pytest.fixture

@@ -97,8 +97,7 @@ def test_soft_selector_weights_update(synthetic_anomaly_datamodule, training_con
         pipeline=pipeline,
         datamodule=datamodule,
         loss_nodes=loss_nodes,
-        trainer_config=training_cfg.trainer,
-        optimizer_config=training_cfg.optimizer,
+        training_config=training_cfg,
     )
     grad_trainer.fit()
 
@@ -192,8 +191,7 @@ def test_pca_weights_update(synthetic_anomaly_datamodule, training_config_factor
         pipeline=pipeline,
         datamodule=datamodule,
         loss_nodes=loss_nodes,
-        trainer_config=training_cfg.trainer,
-        optimizer_config=training_cfg.optimizer,
+        training_config=training_cfg,
     )
     grad_trainer.fit()
 
@@ -293,8 +291,7 @@ def test_logit_head_weights_update(synthetic_anomaly_datamodule, training_config
         pipeline=pipeline,
         datamodule=datamodule,
         loss_nodes=loss_nodes,
-        trainer_config=training_cfg.trainer,
-        optimizer_config=training_cfg.optimizer,
+        training_config=training_cfg,
     )
     grad_trainer.fit()
 

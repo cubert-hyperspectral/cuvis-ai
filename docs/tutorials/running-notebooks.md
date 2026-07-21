@@ -54,8 +54,8 @@ local env. Two equivalent ways:
 
     ```bash
     uv run provision \
-      --pipeline-path configs/pipeline/medical/blood_perfusion/ndvi.yaml \
-      --plugins-dir configs/plugins --data-module cu3s --apply
+      --pipeline-path cuvis_ai/configs/pipeline/medical/blood_perfusion/ndvi.yaml \
+      --plugins-dir cuvis_ai/configs/plugins --data-module cu3s --apply
     ```
 
     resolves to `cuvis-ai-dataloader[cu3s,coco]` (the only plugin the pipeline's

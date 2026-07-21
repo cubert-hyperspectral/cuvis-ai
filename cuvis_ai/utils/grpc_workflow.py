@@ -11,7 +11,7 @@ import grpc
 import yaml
 from cuvis_ai_schemas.grpc.v1 import cuvis_ai_pb2, cuvis_ai_pb2_grpc
 
-CONFIG_ROOT = Path(__file__).resolve().parents[2] / "configs"
+CONFIG_ROOT = Path(__file__).resolve().parents[1] / "configs"
 
 
 def config_search_paths(extra_paths: Iterable[str | Path] | None = None) -> list[str]:
@@ -109,7 +109,7 @@ def apply_trainrun_config(
     block), then sends the remaining trainrun config to ``SetTrainRunConfig``.
 
     The embedded pipeline must declare a ``plugins:`` block (the standalone
-    ``configs/pipeline/`` yamls already do); a trainrun whose resolved pipeline
+    ``cuvis_ai/configs/pipeline/`` yamls already do); a trainrun whose resolved pipeline
     omits it is rejected at ``LoadPipeline`` with a ``suggest-plugins-fix`` hint.
 
     A trainrun whose ``pipeline`` is a path *reference* (a string) cannot be
@@ -209,9 +209,9 @@ def normalize_pipeline_bytes(config_bytes: bytes) -> bytes:
 def resolve_pipeline_ref(ref: str, *, trainrun_dir: Path | None = None) -> dict:
     """Load a trainrun's path-referenced pipeline YAML into an inline dict.
 
-    The bundled ``configs/trainrun/*.yaml`` reference their pipeline by a path
+    The bundled ``cuvis_ai/configs/trainrun/*.yaml`` reference their pipeline by a path
     relative to the trainrun file. Resolve it against ``trainrun_dir`` (default
-    the package ``configs/trainrun``) and load the pipeline YAML directly. The
+    the package ``cuvis_ai/configs/trainrun``) and load the pipeline YAML directly. The
     bundled pipeline yamls are self-contained ``PipelineConfig``s (nodes +
     ``plugins:``), so a direct file load avoids the Hydra group-path wrapping a
     server-side ``ResolveConfig(config_type="pipeline")`` would add.

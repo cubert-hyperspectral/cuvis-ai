@@ -1,0 +1,49 @@
+name: adaclip_cir_false_color_optimal_threshold
+# Pipeline reference, resolved relative to this trainrun's directory.
+pipeline: ../pipeline/anomaly/adaclip/adaclip_cir_false_color_optimal_threshold.yaml
+data:
+  data_module: cu3s
+  splits:
+    leakage_check: warn  # val/test intentionally identical (small-dataset reuse)
+    train:
+    - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [0, 2, 3]}
+    val:
+    - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [1, 5]}
+    test:
+    - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [1, 5]}
+  batch_size: 1
+  params:
+    cu3s_file_path: data/Lentils/Lentils_000.cu3s
+    annotation_json_path: data/Lentils/Lentils_000.json
+    processing_mode: Reflectance
+training:
+  seed: 42
+  optimizer:
+    name: adamw
+    lr: 0.001
+    weight_decay: 0.0
+    momentum: 0.9
+    betas:
+  scheduler:
+  callbacks:
+  max_epochs: 100
+  gradient_clip_val:
+  accumulate_grad_batches: 1
+  accelerator: auto
+  devices:
+  default_root_dir:
+  precision: 32-true
+  enable_progress_bar: true
+  enable_checkpointing: false
+  log_every_n_steps: 50
+  val_check_interval: 1.0
+  check_val_every_n_epoch: 1
+  deterministic: false
+  benchmark: false
+loss_nodes: []
+metric_nodes:
+- detection_metrics
+freeze_nodes: []
+unfreeze_nodes: []
+output_dir: outputs\adaclip_cir_false_color_optimal_threshold
+tags: {}

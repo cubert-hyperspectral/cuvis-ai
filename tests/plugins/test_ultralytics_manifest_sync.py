@@ -16,7 +16,7 @@ pytestmark = pytest.mark.unit
 # guard against a plugin's exposed surface drifting out of sync with this manifest.
 SEMVER_TAG = re.compile(r"v\d+\.\d+\.\d+")
 
-ULTRALYTICS_MANIFEST_PATH = Path("configs/plugins/ultralytics.yaml")
+ULTRALYTICS_MANIFEST_PATH = Path("cuvis_ai/configs/plugins/ultralytics.yaml")
 PLUGIN_NAME = "ultralytics"
 EXPECTED_REPO = "https://github.com/cubert-hyperspectral/cuvis-ai-ultralytics.git"
 EXPECTED_PROVIDES = [

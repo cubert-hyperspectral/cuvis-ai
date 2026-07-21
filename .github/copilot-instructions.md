@@ -25,7 +25,7 @@ from cuvis_ai_schemas.execution import Context, InputStream, Artifact
 ## Directory Structure (actual)
 
 - [cuvis_ai/](../cuvis_ai/) — only `anomaly/`, `deciders/`, `node/`, `utils/`. No local `grpc/`, `pipeline/`, `training/`, `data/`, or `proto/` — those have been extracted.
-- [configs/](../configs/) — Hydra/YAML configs. [configs/plugins/cuvis_ai_builtin.yaml](../configs/plugins/cuvis_ai_builtin.yaml) registers every node in this repo with the core plugin loader.
+- [cuvis_ai/configs/](../cuvis_ai/configs/) — Hydra/YAML configs. [cuvis_ai/configs/plugins/cuvis_ai_builtin.yaml](../cuvis_ai/configs/plugins/cuvis_ai_builtin.yaml) registers every node in this repo with the core plugin loader.
 - Runnable example scripts now live in the [cuvis-ai-cookbook](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook) repo (clone alongside this one).
 - [tests/](../tests/) — organized by domain (`anomaly`, `deciders`, `node`, `preprocessors`, `training`, `utils`, `docs`, `plugins`). Shared fixtures in [tests/fixtures/](../tests/fixtures/) auto-load via [tests/conftest.py](../tests/conftest.py).
 - [scripts/](../scripts/) — helper scripts: `generate_node_port_stubs.py`, `validate_trainrun_configs.py`, `strip_notebook_videos.py`, `docs_macros.py`, `sync_hf_readmes.py`, `rewire_internal_links.py`.
@@ -57,10 +57,10 @@ Defined in [pyproject.toml](../pyproject.toml) `[project.scripts]`:
 ## Conventions
 
 - **Logging:** Loguru (`from loguru import logger`). Never `print()` in production code.
-- **Configuration:** Hydra/OmegaConf. Store configs under [configs/](../configs/).
+- **Configuration:** Hydra/OmegaConf. Store configs under [cuvis_ai/configs/](../cuvis_ai/configs/).
 - **Lint/format:** Ruff (`uv run ruff check .`, `uv run ruff format .`). Line length 100, configured in [pyproject.toml](../pyproject.toml).
 - **Docstrings:** Google/NumPy style. Coverage enforced by `interrogate` (`fail-under = 95.0`, excludes tests/docs).
-- **Node registration:** every new node in this repo must be added to [configs/plugins/cuvis_ai_builtin.yaml](../configs/plugins/cuvis_ai_builtin.yaml) so the core plugin loader can discover it.
+- **Node registration:** every new node in this repo must be added to [cuvis_ai/configs/plugins/cuvis_ai_builtin.yaml](../cuvis_ai/configs/plugins/cuvis_ai_builtin.yaml) so the core plugin loader can discover it.
 - **Dependencies:** only open-source, permissive licenses (MIT/BSD/Apache-2.0).
 
 ## Common Commands

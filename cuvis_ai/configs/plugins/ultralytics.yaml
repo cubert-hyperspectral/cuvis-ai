@@ -1,0 +1,93 @@
+# Ultralytics YOLO26 Plugin Manifest (selective load convenience)
+#
+# To use Ultralytics, declare `plugins: [ultralytics]` in the pipeline yaml and
+# point the loader at the catalog directory that holds this manifest:
+#   uv run restore-pipeline --pipeline-path <pipeline>.yaml --plugins-dir cuvis_ai/configs/plugins
+
+name: ultralytics
+# path: "../../../../cuvis-ai-ultralytics/ultralytics-init"
+repo: "https://github.com/cubert-hyperspectral/cuvis-ai-ultralytics.git"
+tag: "v0.1.4"
+package_name: "cuvis-ai-ultralytics"
+capabilities:
+- class_name: cuvis_ai_ultralytics.node.YOLOPreprocess
+  category: transform
+  tags: [image, preprocessing, rgb, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+  input_specs:
+    rgb_image:
+      dtype: float32
+      shape: [-1, -1, -1, 3]
+      optional: false
+      description: RGB image [B, H, W, 3] in [0, 1]
+  output_specs:
+    preprocessed:
+      dtype: float32
+      shape: [-1, 3, -1, -1]
+      optional: false
+      description: Channel-first BGR [B, 3, H', W'] stride-aligned, in [0, 1]
+    model_input_hw:
+      dtype: int64
+      shape: [-1, 2]
+      optional: false
+      description: Padded model input [H', W'] per sample
+    orig_hw:
+      dtype: int64
+      shape: [-1, 2]
+      optional: false
+      description: Original image [H, W] per sample before preprocessing
+  doc_summary: Convert RGB images to stride-aligned channel-first BGR tensors for YOLO.
+- class_name: cuvis_ai_ultralytics.node.YOLO26Detection
+  category: model
+  tags: [batched, bbox, detection, image, inference, learnable, rgb, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\r\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\r\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\r\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\r\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\r\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\r\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\r\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\r\n</svg>\r\n"
+  input_specs:
+    preprocessed:
+      dtype: float32
+      shape: [-1, 3, -1, -1]
+      optional: false
+      description: Channel-first BGR [B, 3, H', W'] from YOLOPreprocess
+  output_specs:
+    raw_preds:
+      dtype: float32
+      shape: [-1, -1, -1]
+      optional: false
+      description: Raw YOLO prediction tensor
+  doc_summary: Run YOLO26 raw tensor inference on a stride-aligned CHW BGR batch.
+- class_name: cuvis_ai_ultralytics.node.YOLOPostprocess
+  category: transform
+  tags: [bbox, detection, postprocessing, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\r\n  <path d=\"M52 16v10h-10\"/>\r\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\r\n  <path d=\"M12 48v-10h10\"/>\r\n</svg>\r\n"
+  input_specs:
+    raw_preds:
+      dtype: float32
+      shape: [-1, -1, -1]
+      optional: false
+      description: Raw YOLO tensor
+    model_input_hw:
+      dtype: int64
+      shape: [-1, 2]
+      optional: false
+      description: Model H,W
+    orig_hw:
+      dtype: int64
+      shape: [-1, 2]
+      optional: false
+      description: Original H,W
+  output_specs:
+    bboxes:
+      dtype: float32
+      shape: [-1, -1, 4]
+      optional: false
+      description: Final boxes [B, N, 4]
+    category_ids:
+      dtype: int64
+      shape: [-1, -1]
+      optional: false
+      description: Class ids [B, N]
+    confidences:
+      dtype: float32
+      shape: [-1, -1]
+      optional: false
+      description: Scores [B, N]
+  doc_summary: Ultralytics NMS + box scaling postprocess for YOLO raw tensors.

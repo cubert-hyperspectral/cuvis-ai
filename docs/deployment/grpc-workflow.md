@@ -163,9 +163,9 @@ print(f"Session created: {session_id}")
 resolved, config_dict = resolve_trainrun_config(
     stub,
     session_id,
-    "deep_svdd",  # Trainrun name from configs/trainrun/
+    "deep_svdd",  # Trainrun name from cuvis_ai/configs/trainrun/
     overrides=[
-        "training.trainer.max_epochs=50",
+        "training.max_epochs=50",
         "training.optimizer.lr=0.0005",
         "data.batch_size=8",
     ],
@@ -445,7 +445,7 @@ resolve_trainrun_config(
     session_id,
     "channel_selector",
     overrides=[
-        "training.trainer.max_epochs=100",          # More epochs
+        "training.max_epochs=100",                  # More epochs
         "training.optimizer.lr=0.001",              # Higher learning rate
         "training.optimizer.weight_decay=0.01",     # More regularization
         "data.batch_size=16",                       # Larger batch size
@@ -481,11 +481,11 @@ from cuvis_ai.utils.grpc_workflow import config_search_paths
 paths = config_search_paths()
 # Returns:
 # [
-#   "/path/to/cuvis-ai/configs",
-#   "/path/to/cuvis-ai/configs/trainrun",
-#   "/path/to/cuvis-ai/configs/pipeline",
-#   "/path/to/cuvis-ai/configs/data",
-#   "/path/to/cuvis-ai/configs/training",
+#   "/path/to/cuvis-ai/cuvis_ai/configs",
+#   "/path/to/cuvis-ai/cuvis_ai/configs/trainrun",
+#   "/path/to/cuvis-ai/cuvis_ai/configs/pipeline",
+#   "/path/to/cuvis-ai/cuvis_ai/configs/data",
+#   "/path/to/cuvis-ai/cuvis_ai/configs/training",
 # ]
 ```
 
@@ -654,7 +654,7 @@ RUN pip install uv && uv sync --frozen
 
 # Copy code
 COPY cuvis_ai/ ./cuvis_ai/
-COPY configs/ ./configs/
+COPY cuvis_ai/configs/ ./configs/
 
 # Expose gRPC port
 EXPOSE 50051
@@ -828,7 +828,7 @@ stub = build_stub(
 
 2. Check config file exists:
    ```bash
-   ls configs/trainrun/channel_selector.yaml
+   ls cuvis_ai/configs/trainrun/channel_selector.yaml
    ```
 
 3. Use absolute paths:
@@ -836,7 +836,7 @@ stub = build_stub(
    resolve_trainrun_config(
        stub,
        session_id,
-       "/absolute/path/to/configs/trainrun/channel_selector.yaml",
+       "/absolute/path/to/cuvis_ai/configs/trainrun/channel_selector.yaml",
    )
    ```
 

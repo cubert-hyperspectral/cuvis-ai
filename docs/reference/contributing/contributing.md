@@ -159,8 +159,8 @@ print('Plugin loaded successfully!')
 
 # Test with full pipeline (the pipeline yaml must declare `plugins: [my_plugin]`)
 uv run restore-pipeline \
-    --pipeline-path configs/pipeline/my_test_pipeline.yaml \
-    --plugins-dir configs/plugins
+    --pipeline-path cuvis_ai/configs/pipeline/my_test_pipeline.yaml \
+    --plugins-dir cuvis_ai/configs/plugins
 ```
 
 **Verify:**
@@ -196,16 +196,16 @@ Register your plugin with cuvis-ai by adding a dedicated manifest file so users 
 
 Navigate to [github.com/cubert-hyperspectral/cuvis-ai](https://github.com/cubert-hyperspectral/cuvis-ai) and click "Fork".
 
-**4.2 Add `configs/plugins/<plugin_name>.yaml`**
+**4.2 Add `cuvis_ai/configs/plugins/<plugin_name>.yaml`**
 
-Create a new file named after your plugin (use [`configs/plugins/adaclip.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/configs/plugins/adaclip.yaml) as the template):
+Create a new file named after your plugin (use [`cuvis_ai/configs/plugins/adaclip.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/plugins/adaclip.yaml) as the template):
 
 ```yaml
 # My Plugin Manifest
 #
 # Load my_plugin: declare `plugins: [my_plugin]` in the pipeline yaml and point
 # the CLI at the catalog directory that holds this manifest:
-#   uv run restore-pipeline --pipeline-path <pipeline>.yaml --plugins-dir configs/plugins
+#   uv run restore-pipeline --pipeline-path <pipeline>.yaml --plugins-dir cuvis_ai/configs/plugins
 
 plugins:
   my_plugin:
@@ -244,7 +244,7 @@ Submit your plugin registration for review.
 
 **Checklist:**
 
-- [ ] Added `configs/plugins/<plugin_name>.yaml`
+- [ ] Added `cuvis_ai/configs/plugins/<plugin_name>.yaml`
 - [ ] Added documentation to `docs/reference/plugin-development/overview.md`
 - [ ] Included LICENSE file
 - [ ] README has installation and usage examples
@@ -258,7 +258,7 @@ The core team will review your submission (typical turnaround: 3-5 business days
 
 ### Step 7: Post-Acceptance Maintenance
 
-Keep your plugin compatible with new cuvis-ai releases. When releasing new versions, submit PRs to update the `tag:` field in `configs/plugins/<plugin_name>.yaml`. Follow [semantic versioning](https://semver.org/).
+Keep your plugin compatible with new cuvis-ai releases. When releasing new versions, submit PRs to update the `tag:` field in `cuvis_ai/configs/plugins/<plugin_name>.yaml`. Follow [semantic versioning](https://semver.org/).
 
 ---
 

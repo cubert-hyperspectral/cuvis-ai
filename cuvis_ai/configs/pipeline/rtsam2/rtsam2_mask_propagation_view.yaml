@@ -1,0 +1,25 @@
+metadata:
+  name: RTSAM2_Mask_Propagation_View
+  description: RTSAM2 runtime-mask propagation driven by the host-rendered view frame. The host
+    supplies the displayed RGB/CIR/SWIR false-color image as rgb_image (no overlays) for every
+    frame it steps through, plus the seed object mask and the source frame_id; the hyperspectral
+    cube never leaves the host. RTSAM2 seeds once per stream, applying the mask on the first
+    prompt frame and tracking afterwards; re-seeding requires a session reset (mid-stream
+    re-prompts raise).
+  tags:
+  - tracking
+  - rtsam2
+  - mask-prompt
+  - rgb
+  - video
+  - propagation
+  author: cuvis.ai
+plugins:
+- rtsam2
+nodes:
+- name: rtsam2_tracker
+  class_name: cuvis_ai_rtsam2.node.rtsam2_streaming_propagation.RTSAM2MaskPropagation
+  hparams:
+    model_type: efficienttam
+    # model_dir: checkpoints  # absolute path, or relative to the rtsam2 repo root
+connections: []

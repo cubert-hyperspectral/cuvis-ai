@@ -2,9 +2,95 @@
 
 ## [Unreleased]
 
+## 0.11.1 - 2026-07-21
+
+- Bumped plugin manifest pins: adaclip v0.1.5 -> v0.2.0, augment v0.3.2 -> v0.3.3, cuvis_ai_dataloader v0.2.0 -> v0.4.0, cuvis_ai_inspecscrap v0.2.1 -> v0.2.2, deepeiou v0.2.0 -> v0.2.1, dinomaly v0.2.0 -> v0.4.1, trackeval v0.1.3 -> v0.1.4, ultralytics v0.1.3 -> v0.1.4.
+
+- **Raised the dependency floors to `cuvis-ai-core>=0.11.2` and `cuvis-ai-schemas[full]>=0.8.0`,** the versions carrying the folded `TrainingConfig` and the current plugin / registry contracts.
+
+- **Compacted the docs node-catalog filter into a one-row toolbar.** The `/catalogs/nodes/` filter
+  bar (previously a sticky block with three always-open chip rows) is now a single sticky row:
+  search field, foldable Category/Tags/Source buttons with active-count badges, a prerendered item
+  count, and a state-aware Clear. Active facet filters render as a removable chip strip under the
+  bar; zero matches show an empty state with a recovery action; facet panels cap at `min(40vh, 16rem)`
+  with internal scroll. Tag filtering now combines **OR within the facet** (AND across facets).
+  Hardening while touching the code: a malformed URL hash (`#q=%`) no longer crashes the filter,
+  stale hash values render as removable raw-value chips, `init()` is guarded against double-binding
+  under instant navigation, and the toolbar is screen-reader friendly (labelled controls,
+  `aria-pressed`/`aria-expanded`, debounced `aria-live` result announcements). Covered by a new
+  generator contract test and a Playwright E2E suite (`tests/docs/test_node_catalog_e2e.py`,
+  `slow`-marked; `playwright`/`pytest-playwright` added to the dev group).
+
+- **Excluded unreleased local-path prototype manifests from the node catalog.** The catalog generator
+  now lists only released (git-tagged) plugins alongside the built-in nodes; local `path:` prototype
+  manifests (`detr`, `turbovec`, `bytetrack`) that carry no installable pin no longer render as
+  repo-less, uninstallable rows.
+
+- **Generalized `LentilsAnomalyDataNode` into `AnomalyDataNode`** (nothing lentils-specific remained);
+  the old class name stays as a deprecated alias so saved pipelines keep loading.
+
+- **`AnomalyDataNode` gained a `class_mask` input and output port** so downstream per-class metrics can read the multi-class ground truth as a pipeline port instead of reloading it from disk. The new optional `class_mask` input binds to the data module's separate `class_mask` batch key (per-pixel category id) and is re-emitted channel-last (`[B, H, W, 1]` int32); the output is no longer derived from the binary `mask`, which had collapsed every class to `{0, 1}`. The input port is a generic tensor so the module's `uint8` category ids bind without a strict-dtype rejection.
+
+- **Fixed the built-in plugin manifest's local `path` so the gRPC child-env compose can install it.** `configs/plugins/cuvis_ai_builtin.yaml` set `path: "../.."`, which resolves to the `cuvis_ai` package directory (no `pyproject.toml`), so composing a child env from a source checkout could not resolve the `cuvis-ai` project. Corrected to `../../..` (the repo root); any gRPC-from-source pipeline listing `cuvis_ai_builtin` now composes.
+
+- **Packaged `configs/` into the wheel so `CONFIG_ROOT` resolves on a pip install.** The
+  `cuvis_ai/configs/**/*.yaml` manifests (pipeline / plugin / training / data) now ship as package
+  data, not only in a source checkout; local model weights under `configs/pipeline` stay gitignored
+  and are never bundled.
+
+- **Flattened the trainrun/training configs for the folded `TrainingConfig` (needs `cuvis-ai-core>=0.11.2` / `cuvis-ai-schemas>=0.8.0`).** The nested `trainer:` block is gone: its `pytorch_lightning.Trainer` fields now sit directly under `training:` in every `configs/trainrun/*.yaml` and in `configs/training/default.yaml`, and the dead `training.batch_size` / `training.num_workers` keys are dropped. Hydra overrides change from `training.trainer.<field>=…` to `training.<field>=…`. Added `tests/configs/test_trainrun_configs_valid.py`, which validates every shipped training block against the flat schema.
+
+- **`ChannelSelector` skips the `StatisticalTrainer` pass in `RUNNING` / `PER_FRAME` modes.** Those
+  modes need no fit, but `ChannelSelectorBase.statistical_initialization` made core's
+  `requires_initial_fit` auto-detect force one; the override is now `False` for those modes, and only
+  when the subclass uses the base initialization (a subclass with its own init keeps the auto-detect).
+
+- **Unified the SAM3 RGB input port on `rgb_image`.** Renamed `rgb_frame` -> `rgb_image` in
+  `configs/plugins/sam3.yaml` and every `configs/pipeline/sam3/*` connection target and view-preset
+  description, matching the sam3 nodes' renamed port and the `rgb_image` name every other RGB
+  producer/consumer in the library already uses.
+- **Exposed the SAM3 tracker thresholds on every propagation preset.** The `configs/pipeline/sam3/*`
+  propagation presets now list `score_threshold_detection`, `new_det_thresh`, `det_nms_thresh`,
+  `overlap_suppress_thresh`, and `max_tracker_states` in the tracker node's `hparams`, so they render
+  as editable knobs in the host pipeline picker. Mask- and bbox-seeded propagation default
+  `new_det_thresh` to `0.95` (was `0.7`) so a seeded track is not swamped by newly detected objects;
+  text propagation keeps the detection-driven `0.7`.
+- **Added the `ToImage` sink and a `write_mode` option on `ToVideoNode`.** `ToImage` writes each
+  incoming RGB frame to its own image file; `ToVideoNode`'s `write_mode` (`full` / `partial`) selects
+  the ffmpeg `movflags`, so a streaming/session run can emit a progressively-playable file.
+- **`ToVideoNode` now finalizes its video on `cleanup()`.** The sink flushes the ffmpeg trailer when
+  the hosting pipeline is torn down (session close / pipeline replacement / run stop), so it produces a
+  playable file in a gRPC/session context that has no explicit driver `close()` call. `close()` stays
+  idempotent, so an explicit driver `close()` is still fine. A finalize failure at teardown is logged
+  at ERROR and recorded on the node rather than lost as a swallowed pipeline warning.
+- **Added `PointPrompt`, an interactive point-prompt source node.** Emits a scheduled per-frame list
+  of `{element_id, x, y, type}` dicts (`type` in `positive` / `negative` / `neutral`) on a configured
+  `prompt_frame_id`, and an empty list on every other frame. Accepts `(x, y[, type])` tuples or
+  dicts, validates the type, and defaults to `positive`. Registered in
+  `configs/plugins/cuvis_ai_builtin.yaml`. Its output dict shape matches `SAM3PointExpansion`'s
+  `points` input, so it drives point expansion in a scripted (non-interactive) pipeline.
+- **Added the SAM3 single-frame point-expansion use case.** Two pipeline configs
+  (`configs/pipeline/sam3/sam3_point_expansion.yaml`, cu3s-sourced, and `…_video.yaml`, video-frame
+  sourced) plus the `notebooks/use_cases/object_selection_point_expansion.ipynb` walkthrough.
+- **Pinned the sam3 plugin to `v0.2.1`.** `configs/plugins/sam3.yaml` uses a `repo:` + `tag: v0.2.1`
+  pin (restored from the temporary local `path:` checkout), the first tagged sam3 release to ship
+  `SAM3PointExpansion` and the `rgb_frame` -> `rgb_image` port rename.
+- **Registered the rtsam2 plugin.** Added `configs/plugins/rtsam2.yaml` pinned to
+  `cuvis-ai-rtsam2` `v0.2.0`, exposing the `RTSAM2BboxPropagation` and `RTSAM2MaskPropagation`
+  streaming tracker nodes (SAM2.1 / EfficientTAM camera predictors; prompt once on the first
+  frame, then track frame by frame).
+- **Added the rtsam2 mask-propagation pipelines.** The
+  `configs/pipeline/rtsam2/rtsam2_mask_propagation{,_view}.yaml` pair mirrors the sam3
+  mask-propagation set: a cu3s source (or the host, in the `_view` preset) feeds
+  `RTSAM2MaskPropagation`, seeded at runtime through the tracker's optional `mask` port (the
+  builtin `MaskPrompt` node is the drop-in producer), with tracked masks written by
+  `CocoTrackMaskWriter`.
+- **Dropped the abstract `SAM3TrackerInference` entry from `configs/plugins/sam3.yaml`.** Base
+  classes are not instantiable from pipelines, so the manifest now lists only concrete nodes.
+
 ## 0.11.0 - 2026-07-14
 
-- **Docs: the node catalog now lists plugin capabilities.** The Catalogs → Nodes generator reads
+- **Docs: the node catalog now lists plugin capabilities.** The Catalogs â†’ Nodes generator reads
   the plugin manifests (`configs/plugins/*.yaml`) instead of the never-created
   `docs/data/plugin_sources.yaml` that left the published catalog at "0 from plugins". Plugin nodes
   render manifest-driven I/O port tables, data modules get their own rows and pill, and the filter

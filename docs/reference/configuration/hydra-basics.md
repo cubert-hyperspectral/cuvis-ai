@@ -121,14 +121,14 @@ data:
 ```yaml
 defaults:
   - /pipeline/anomaly/rx@pipeline: rx_statistical
-  # Searches: configs/pipeline/anomaly/rx/rx_statistical.yaml
+  # Searches: cuvis_ai/configs/pipeline/anomaly/rx/rx_statistical.yaml
 ```
 
 **Relative paths** (no leading `/`):
 ```yaml
-# In configs/training/high_lr.yaml
+# In cuvis_ai/configs/training/high_lr.yaml
 defaults:
-  - base_optimizer  # Searches: configs/training/base_optimizer.yaml
+  - base_optimizer  # Searches: cuvis_ai/configs/training/base_optimizer.yaml
   - _self_
 ```
 

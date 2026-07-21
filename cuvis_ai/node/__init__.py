@@ -123,7 +123,7 @@ from cuvis_ai.node.pretreatments import (
     SpectralDerivative,
     UnitVarianceScaling,
 )
-from cuvis_ai.node.prompts import BBoxPrompt, MaskPrompt, TextPrompt
+from cuvis_ai.node.prompts import BBoxPrompt, MaskPrompt, PointPrompt, TextPrompt
 from cuvis_ai.node.segmentation import IntensityThresholdSegmenter
 from cuvis_ai.node.spectral_angle_mapper import SpectralAngleMapper
 from cuvis_ai.node.spectral_extractor import (
@@ -136,6 +136,7 @@ from cuvis_ai.node.spectrum_plot import SpectraPlot, SpectrumPlotNode
 from cuvis_ai.node.svm import OneClassSVMDetector
 from cuvis_ai.node.unmixing import NMFUnmixing, NNLSUnmixing
 from cuvis_ai.node.video import (
+    ToImage,
     ToVideoNode,
     VideoFrameDataModule,
     VideoFrameDataset,
@@ -184,6 +185,7 @@ __all__ = [
     "MaskedMeanSpectrum",
     "MaskOverlayNode",
     "MaskPrompt",
+    "PointPrompt",
     "MaskRobustifier",
     "MaskToBBoxKalman",
     "NearestLabelFill",
@@ -212,6 +214,7 @@ __all__ = [
     "SpectraPlot",
     "SpectralAngleMapper",
     "SpectrumPlotNode",
+    "ToImage",
     "SupervisedCIRSelector",
     "SupervisedFullSpectrumSelector",
     "SupervisedSelectorBase",

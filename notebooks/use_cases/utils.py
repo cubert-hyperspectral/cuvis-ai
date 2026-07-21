@@ -174,7 +174,7 @@ def resolve_default_config() -> dict[str, Any]:
     return {
         "cu3s_path": cu3s_path,
         "annotation_json_path": annotation_json_path,
-        "plugins_manifest": repo_root / "configs" / "plugins" / "dinomaly.yaml",
+        "plugins_manifest": repo_root / "cuvis_ai" / "configs" / "plugins" / "dinomaly.yaml",
         "methods": methods,
     }
 

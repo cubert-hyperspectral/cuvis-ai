@@ -1,0 +1,64 @@
+# AdaCLIP Plugin Manifest
+#
+# To use AdaCLIP, declare `plugins: [adaclip]` in the pipeline yaml and point
+# the loader at the catalog directory that holds this manifest:
+#   uv run restore-pipeline --pipeline-path <pipeline>.yaml --plugins-dir cuvis_ai/configs/plugins
+
+name: adaclip
+# AdaCLIP-based anomaly detection with advanced band selection
+repo: "https://github.com/cubert-hyperspectral/cuvis-ai-adaclip.git"
+tag: "v0.2.0"
+package_name: "cuvis-ai-adaclip"
+capabilities:
+- class_name: cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#AAAAAA\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"32\" cy=\"32\" r=\"22\" stroke-dasharray=\"4 3\"/>\r\n  <path d=\"M25 26a7 7 0 0 1 14 0c0 4-3.5 4.5-7 8v3\"/>\r\n  <circle cx=\"32\" cy=\"45\" r=\"1.2\" fill=\"#AAAAAA\" stroke=\"none\"/>\r\n</svg>\r\n"
+  input_specs:
+    rgb_image:
+      dtype: float32
+      shape: [-1, -1, -1, 3]
+      optional: false
+      description: RGB image [B, H, W, 3] in float32 (0-1 or 0-255 range)
+  output_specs:
+    scores:
+      dtype: float32
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: Pixel-level anomaly scores [B, H, W, 1]
+    anomaly_score:
+      dtype: float32
+      shape: [-1]
+      optional: false
+      description: Image-level anomaly score [B]
+  doc_summary: AdaCLIP zero-shot anomaly detector node (plugin version).
+- class_name: cuvis_ai_adaclip.node.losses.AdaCLIPFocalDiceLoss
+  category: loss
+  tags: [differentiable, torch, training]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M10 14v40h44\"/>\n  <path d=\"M14 18c8 0 12 8 18 18s12 14 22 14\"/>\n  <path d=\"M48 44l6 6-6 6\" transform=\"translate(0 -6)\"/>\n</svg>\n"
+  input_specs:
+    predictions:
+      dtype: float32
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: Aggregated anomaly scores [B, H, W, 1] for the fallback path
+    targets:
+      dtype: bool
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: Ground-truth binary masks [B, H, W, 1]
+    per_layer_scores:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: true
+      description: Per-layer softmaxed maps [B, num_layers*2, H, W]
+    image_score_2ch:
+      dtype: float32
+      shape: [-1, -1]
+      optional: true
+      description: Image-level score [B, 2] in [normal, anomaly] order
+  output_specs:
+    loss:
+      dtype: float32
+      shape: []
+      optional: false
+      description: Combined focal + dice loss
+  doc_summary: Combined Focal + Dice loss node for AdaCLIP training.
