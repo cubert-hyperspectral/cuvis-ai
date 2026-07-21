@@ -1,0 +1,63 @@
+# Flat serialized TrainRunConfig (no Hydra defaults): consumed verbatim by the
+# gRPC RestoreTrainRun path, which is how CuvisNEXT starts a training run. The
+# GUI fills the two empty data fields (data_dir + splits.splits_path) and its
+# user edits (epochs, batch size, optimizer, output_dir) via SetTrainRunConfig.
+name: dinomaly_rgb_cuvisnext
+
+# Pipeline reference, resolved relative to this trainrun's directory.
+pipeline: ../pipeline/anomaly/dinomaly/dinomaly_rgb.yaml
+
+data:
+  data_module: cu3s
+  batch_size: 1
+  # Windows spawn safety with open SDK handles is unverified; keep in-process.
+  num_workers: 0
+  splits:
+    # Absolute path to a frozen splits.json (file_indices selectors); authored
+    # and filled in by the caller. Training stages refuse to run without it.
+    splits_path: ''
+  params:
+    # Absolute path of the cu3s dataset folder; filled in by the caller.
+    data_dir: ''
+    # One sample per measurement per file, enumerated with canonical absolute
+    # sources — the contract externally authored splits.json are written against.
+    frames: measurements
+    recursive: true
+    processing_mode: Reflectance
+
+training:
+  seed: 42
+  max_epochs: 60
+  accelerator: auto
+  devices: 1
+  default_root_dir: outputs/dinomaly_rgb
+  precision: 32-true
+  enable_progress_bar: false
+  enable_checkpointing: true
+  log_every_n_steps: 10
+  check_val_every_n_epoch: 1
+  gradient_clip_val: 0.1
+  optimizer:
+    name: adamw
+    lr: 0.002
+    weight_decay: 0.0001
+    betas:
+    - 0.9
+    - 0.999
+  callbacks:
+    checkpoint:
+      dirpath: outputs/dinomaly_rgb/checkpoints
+      monitor: metrics_anomaly/iou
+      mode: max
+      save_top_k: 1
+      save_last: true
+      filename: '{epoch:02d}'
+
+loss_nodes:
+- dinomaly_train_loss
+metric_nodes:
+- metrics_anomaly
+- metrics_auroc
+unfreeze_nodes:
+- dinomaly_detector
+output_dir: outputs/dinomaly_rgb
