@@ -1,0 +1,43 @@
+# Flat serialized TrainRunConfig (no Hydra defaults): consumed verbatim by the
+# gRPC RestoreTrainRun path, which is how CuvisNEXT starts a training run.
+# Statistical-only preset: the AdaCLIP supervised CIR pipeline fits its selector
+# statistics in the statistical phase and has no loss nodes, so the caller runs
+# TRAINER_TYPE_STATISTICAL only (no gradient stream). The GUI fills the two
+# empty data fields (data_dir + splits.splits_path) via SetTrainRunConfig.
+name: adaclip_supervised_cir_cuvisnext
+
+# Pipeline reference, resolved relative to this trainrun's directory.
+pipeline: ../pipeline/anomaly/adaclip/adaclip_supervised_cir.yaml
+
+data:
+  data_module: cu3s
+  batch_size: 1
+  # Windows spawn safety with open SDK handles is unverified; keep in-process.
+  num_workers: 0
+  splits:
+    # Absolute path to a frozen splits.json (file_indices selectors); authored
+    # and filled in by the caller. Training stages refuse to run without it.
+    splits_path: ''
+  params:
+    # Absolute path of the cu3s dataset folder; filled in by the caller.
+    data_dir: ''
+    # One sample per measurement per file, enumerated with canonical absolute
+    # sources — the contract externally authored splits.json are written against.
+    frames: measurements
+    recursive: true
+    processing_mode: Reflectance
+
+training:
+  seed: 42
+  max_epochs: 1
+  accelerator: auto
+  devices: 1
+  default_root_dir: outputs/adaclip_supervised_cir
+  enable_progress_bar: false
+  enable_checkpointing: false
+
+loss_nodes: []
+metric_nodes:
+- detection_metrics
+unfreeze_nodes: []
+output_dir: outputs/adaclip_supervised_cir
