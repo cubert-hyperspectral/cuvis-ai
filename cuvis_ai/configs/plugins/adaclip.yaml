@@ -7,11 +7,13 @@
 name: adaclip
 # AdaCLIP-based anomaly detection with advanced band selection
 repo: "https://github.com/cubert-hyperspectral/cuvis-ai-adaclip.git"
-tag: "v0.2.0"
+tag: "v0.3.0"
 package_name: "cuvis-ai-adaclip"
 capabilities:
 - class_name: cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
-  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#AAAAAA\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <circle cx=\"32\" cy=\"32\" r=\"22\" stroke-dasharray=\"4 3\"/>\r\n  <path d=\"M25 26a7 7 0 0 1 14 0c0 4-3.5 4.5-7 8v3\"/>\r\n  <circle cx=\"32\" cy=\"45\" r=\"1.2\" fill=\"#AAAAAA\" stroke=\"none\"/>\r\n</svg>\r\n"
+  category: model
+  tags: [anomaly, image, inference, learnable, mask, rgb, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\n</svg>\n"
   input_specs:
     rgb_image:
       dtype: float32
@@ -29,6 +31,16 @@ capabilities:
       shape: [-1]
       optional: false
       description: Image-level anomaly score [B]
+    per_layer_scores:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: true
+      description: Per-layer softmaxed anomaly maps stacked as [B, num_layers*2, H, W]. Only populated during training when training_aggregation=False. Empty (1×1) tensor otherwise.
+    image_score_2ch:
+      dtype: float32
+      shape: [-1, -1]
+      optional: true
+      description: Image-level 2-channel score [B, 2] (softmaxed [normal, anomaly]). Only populated during training when training_aggregation=False.
   doc_summary: AdaCLIP zero-shot anomaly detector node (plugin version).
 - class_name: cuvis_ai_adaclip.node.losses.AdaCLIPFocalDiceLoss
   category: loss
@@ -39,12 +51,12 @@ capabilities:
       dtype: float32
       shape: [-1, -1, -1, 1]
       optional: false
-      description: Aggregated anomaly scores [B, H, W, 1] for the fallback path
+      description: Aggregated anomaly scores [B, H, W, 1] for fallback path
     targets:
       dtype: bool
       shape: [-1, -1, -1, 1]
       optional: false
-      description: Ground-truth binary masks [B, H, W, 1]
+      description: Ground truth binary masks [B, H, W, 1]
     per_layer_scores:
       dtype: float32
       shape: [-1, -1, -1, -1]
@@ -61,4 +73,4 @@ capabilities:
       shape: []
       optional: false
       description: Combined focal + dice loss
-  doc_summary: Combined Focal + Dice loss node for AdaCLIP training.
+  doc_summary: Combined Focal + Dice loss for AdaCLIP training.
