@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Bumped the dinomaly plugin manifest pin v0.4.1 -> v0.5.0 and regenerated its capabilities: added the `PerClassAnomalyAUROC` metric node (streaming one-vs-background per-class pixel AUROC over `class_mask`) and refreshed `DinomalyDetector`'s catalog metadata (category/tags plus the n-channel `rgb_image` spec).
+
 ## 0.11.1 - 2026-07-21
 
 - Bumped plugin manifest pins: adaclip v0.1.5 -> v0.2.0, augment v0.3.2 -> v0.3.3, cuvis_ai_dataloader v0.2.0 -> v0.4.0, cuvis_ai_inspecscrap v0.2.1 -> v0.2.2, deepeiou v0.2.0 -> v0.2.1, dinomaly v0.2.0 -> v0.4.1, trackeval v0.1.3 -> v0.1.4, ultralytics v0.1.3 -> v0.1.4.
