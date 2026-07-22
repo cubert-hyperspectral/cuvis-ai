@@ -120,7 +120,15 @@ jobs:
           # PYSEC-2026-3447: setuptools sdist MANIFEST.in glob bypass (macOS NFD/NFC), fixed in
           # 83.0.0. We are capped at setuptools<83 so sam3 co-installs, and the issue only affects
           # building sdists on macOS, not the cuvis-ai runtime, so it is ignored until the cap lifts.
-          uv run pip-audit --desc on --skip-editable --ignore-vuln PYSEC-2022-42969 --ignore-vuln CVE-2025-71176 --ignore-vuln PYSEC-2026-3447
+          #
+          # torch / torchvision resolve to +cu128 local-version wheels from the pytorch index, which
+          # pip-audit cannot map to PyPI ("could not be audited" -> the job fails). Export the locked
+          # deps with those two excluded (and the editable project dropped) and audit that requirements
+          # set, so genuine vulnerabilities in the rest of the tree still fail the job.
+          uv export --locked --extra dev --format requirements.txt --no-hashes --no-emit-project \
+            --no-emit-package torch --no-emit-package torchvision > audit-requirements.txt
+          uv run pip-audit --desc on -r audit-requirements.txt \
+            --ignore-vuln PYSEC-2022-42969 --ignore-vuln CVE-2025-71176 --ignore-vuln PYSEC-2026-3447
 
       - name: Run detect-secrets
         run: |
