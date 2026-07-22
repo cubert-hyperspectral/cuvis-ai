@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## 0.11.3 - 2026-07-22
+
+- Bumped the adaclip plugin manifest pin v0.2.0 -> v0.3.0 and regenerated its capabilities: `AdaCLIPDetector` now carries `category: model` + anomaly tags and `AdaCLIPFocalDiceLoss` its `category: loss` + tags, both node-backed as of adaclip 0.3.0 (previously the detector showed as `unspecified` in the node catalog and the loss metadata was hand-written).
+
 ## 0.11.2 - 2026-07-22
 
 - Added the Dinomaly false-RGB anomaly-detection preset: `configs/pipeline/anomaly/dinomaly/dinomaly_rgb.yaml` (AnomalyDataNode → MinMaxNormalizer → FixedWavelengthSelector 650/550/450 nm → DinomalyDetector, with QuantileBinaryDecider, AnomalyDetectionMetrics, the plugin's AUROC metrics, and a ScoreHeatmapVisualizer feeding per-epoch score heatmaps into TensorBoardMonitorNode; `plugins: [dinomaly, cuvis_ai_builtin]`). Mirrors the lentils RGB training notebook graph as a packaged, parent-resolvable preset.
