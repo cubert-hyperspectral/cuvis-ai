@@ -24,7 +24,7 @@ capabilities:
     data_module_name: cu3s_multi
     extras: [cu3s, coco]
     category: source
-    doc_summary: Multiple cu3s recordings driven by an external splits.csv.
+    doc_summary: Multiple cu3s recordings over a universe.csv (source, index; optional split).
   - class_name: cuvis_ai_dataloader.data.datamodule_tiff_paired.TiffPairedDataModule
     kind: data_module
     data_module_name: tiff_paired
