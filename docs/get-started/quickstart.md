@@ -40,7 +40,7 @@ Want to see Cuvis.AI in action first? Run inference with a pre-configured pipeli
 uv run restore-pipeline --pipeline-path cuvis_ai/configs/pipeline/anomaly/rx/rx_statistical.yaml
 
 # Run inference on sample data
-uv run restore-pipeline --pipeline-path cuvis_ai/configs/pipeline/anomaly/rx/rx_statistical.yaml --cu3s-file-path data/Lentils/Demo_000.cu3s
+uv run restore-pipeline --pipeline-path cuvis_ai/configs/pipeline/anomaly/rx/rx_statistical.yaml --plugins-dir cuvis_ai/configs/plugins --data-module cu3s --data-arg cu3s_file_path=data/Lentils/Demo_000.cu3s
 ```
 
 This loads the pipeline configuration and runs anomaly detection on the sample hyperspectral cube.
@@ -69,7 +69,7 @@ After training, restore and use your model for inference:
 
 ```bash
 # Restore trained pipeline
-uv run restore-pipeline --pipeline-path outputs/base_trainrun/trained_models/RX_Statistical.yaml --cu3s-file-path data/Lentils/Lentils_000.cu3s
+uv run restore-pipeline --pipeline-path outputs/base_trainrun/trained_models/RX_Statistical.yaml --plugins-dir cuvis_ai/configs/plugins --data-module cu3s --data-arg cu3s_file_path=data/Lentils/Lentils_000.cu3s
 ```
 
 The pipeline will load your trained weights and run inference on new data.

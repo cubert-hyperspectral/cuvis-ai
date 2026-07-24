@@ -41,7 +41,7 @@ pipeline.save_to_file("artifacts/rx_statistical_fitted.yaml")
 
 ## Common variations
 
-- **Inference only on the trained pipeline**: skip authoring a fresh YAML — run [`restore-pipeline --pipeline-path artifacts/rx_statistical_fitted.yaml --cu3s-file-path …`](restore-pipeline.md).
+- **Inference only on the trained pipeline**: skip authoring a fresh YAML — run [`restore-pipeline --pipeline-path artifacts/rx_statistical_fitted.yaml --plugins-dir cuvis_ai/configs/plugins --data-module cu3s --data-arg cu3s_file_path=…`](restore-pipeline.md).
 - **Statistical phase as part of two-phase training**: pair with [`GradientTrainer`](gradient-training.md) — the statistical phase initialises weights for the gradient phase. See [Concepts → Training](../concepts/training.md).
 - **Multi-cube training**: point the same `Cu3sDataModule` at a directory of cubes with `data_dir=...` instead of `cu3s_file_path=...`.
 

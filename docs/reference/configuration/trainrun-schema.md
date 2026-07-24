@@ -1,8 +1,3 @@
-!!! warning "Status: Needs Review"
-    This page has not been reviewed for accuracy and completeness. Content may be outdated or contain errors.
-
----
-
 # TrainRun Configuration Schema
 
 Trainruns are the top-level experiment config. They compose pipeline, data, training, and optional
