@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Bumped the cuvis-ai-dataloader plugin manifest pin v0.4.0 -> v0.5.0: both `cu3s_multi` and `npz_multi` now speak one `universe.csv` vocabulary (shared `source, index` selector keys), `cu3s` folder mode gains per-measurement enumeration for GUI-authored `splits.json`, and the manifest exposes the `npz_multi` capability. Documented the unified vocabulary across the data-splits / get-started / workflow docs.
+
 ## 0.11.3 - 2026-07-22
 
 - Bumped the adaclip plugin manifest pin v0.2.0 -> v0.3.0 and regenerated its capabilities: `AdaCLIPDetector` now carries `category: model` + anomaly tags and `AdaCLIPFocalDiceLoss` its `category: loss` + tags, both node-backed as of adaclip 0.3.0 (previously the detector showed as `unspecified` in the node catalog and the loss metadata was hand-written).
