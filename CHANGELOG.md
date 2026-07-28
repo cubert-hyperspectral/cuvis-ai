@@ -1,8 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## 0.11.4 - 2026-07-28
 
+- Added the Dinomaly CIR anomaly-detection preset: `configs/pipeline/anomaly/dinomaly/dinomaly_cir.yaml` (AnomalyDataNode → MinMaxNormalizer → FixedWavelengthSelector 860/670/560 nm NIR/R/G false-color → DinomalyDetector, with QuantileBinaryDecider, AnomalyDetectionMetrics, the plugin's AUROC metrics, and per-epoch score heatmaps into TensorBoardMonitorNode). Sibling of the 0.11.2 `dinomaly_rgb` preset for SWIR-leaning scenes where CIR separates anomalies better than visible RGB.
+- Added the matching flat trainrun preset `configs/trainrun/dinomaly_cir_cuvisnext.yaml` for the gRPC `RestoreTrainRun` path (gradient: adamw lr 2e-3, checkpoint on `metrics_anomaly/iou` max; `cu3s` data block with `frames: measurements` + `recursive: true` and empty `data_dir` / `splits.splits_path` the caller fills per run).
+- Bumped the sam3 plugin manifest pin v0.2.1 -> v0.3.0: process-level shared ViT+text backbone registry, so all SAM3 nodes in one child process share one resident backbone and annotate↔propagate pipeline switches stay warm.
 - Bumped the cuvis-ai-dataloader plugin manifest pin v0.4.0 -> v0.5.0: both `cu3s_multi` and `npz_multi` now speak one `universe.csv` vocabulary (shared `source, index` selector keys), `cu3s` folder mode gains per-measurement enumeration for GUI-authored `splits.json`, and the manifest exposes the `npz_multi` capability. Documented the unified vocabulary across the data-splits / get-started / workflow docs.
+- Added the missing `package_name` to the deepeiou, dinomaly, and trackeval plugin manifests: for git-pinned manifests the child-env composer needs the real installable name (`cuvis-ai-<x>` vs the logical `<x>`) for uv's metadata check to pass.
 
 ## 0.11.3 - 2026-07-22
 
