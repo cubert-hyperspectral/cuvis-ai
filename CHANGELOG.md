@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.5 - 2026-07-29
+
+- Bumped the sam3 plugin manifest pin v0.3.0 -> v0.3.1: streaming propagation survives a failed stream (explicit needs-seed recovery surfacing the original error once, instead of poisoning the session with "generator exhausted early"), prompt-frame image features are pinned against all three eviction paths until consolidated (fixes "Image features for frame N are not cached" mid-stream), and `SAM3PointExpansion`'s embedding cache keys on frame content in addition to `frame_id` so repeated ids across videos can no longer serve stale embeddings.
+
 ## 0.11.4 - 2026-07-28
 
 - Added the Dinomaly CIR anomaly-detection preset: `configs/pipeline/anomaly/dinomaly/dinomaly_cir.yaml` (AnomalyDataNode → MinMaxNormalizer → FixedWavelengthSelector 860/670/560 nm NIR/R/G false-color → DinomalyDetector, with QuantileBinaryDecider, AnomalyDetectionMetrics, the plugin's AUROC metrics, and per-epoch score heatmaps into TensorBoardMonitorNode). Sibling of the 0.11.2 `dinomaly_rgb` preset for SWIR-leaning scenes where CIR separates anomalies better than visible RGB.
