@@ -1593,7 +1593,7 @@ capabilities:
       dtype: int32
       shape: [-1, -1, -1]
       optional: false
-      description: Integer class-index mask [B, H, W] (cast to int64 internally; trailing [.,1] ok)
+      description: Integer class-index mask [B, H, W]; cast to int64 internally
   output_specs:
     loss:
       dtype: float32
@@ -1637,7 +1637,7 @@ capabilities:
       dtype: int32
       shape: [-1, -1, -1]
       optional: false
-      description: Integer class-index mask [B, H, W] (cast to int64 internally; trailing [.,1] ok)
+      description: Integer class-index mask [B, H, W]; cast to int64 internally
   output_specs:
     loss:
       dtype: float32

@@ -899,8 +899,10 @@ def _soft_dice_loss(
 
     ``logits_bchw`` is ``[B, K, H, W]`` and ``targets_bhw`` is an integer
     ``[B, H, W]`` label map. ``K == 1`` uses a sigmoid/binary formulation;
-    ``K > 1`` uses softmax over one-hot targets. Pixels equal to ``ignore_index``
-    are excluded from both the prediction and the target; when
+    ``K > 1`` uses softmax over one-hot targets. Dice is accumulated per class
+    over the whole batch (batch Dice), not averaged per sample. Pixels equal to
+    ``ignore_index`` are excluded from both the prediction and the target; any
+    other multiclass target outside ``[0, K)`` raises. When
     ``include_background`` is False, class 0 is dropped from the per-class mean
     (multiclass only). Returns ``1 - mean(dice)``.
     """
@@ -914,7 +916,7 @@ def _soft_dice_loss(
         safe = targets_bhw
         if ignore_index is not None:
             safe = targets_bhw.masked_fill(targets_bhw == ignore_index, 0)
-        onehot = F.one_hot(safe.clamp(0, num_classes - 1), num_classes)
+        onehot = F.one_hot(safe, num_classes)
         onehot = onehot.permute(0, 3, 1, 2).to(probs.dtype)
         cls = slice(0 if include_background else 1, num_classes)
 
@@ -940,7 +942,7 @@ _SEG_LOGITS_SPEC = PortSpec(
 _SEG_TARGETS_SPEC = PortSpec(
     dtype=torch.int32,
     shape=(-1, -1, -1),
-    description="Integer class-index mask [B, H, W] (cast to int64 internally; trailing [.,1] ok)",
+    description="Integer class-index mask [B, H, W]; cast to int64 internally",
 )
 _SEG_LOSS_OUT_SPEC = PortSpec(dtype=torch.float32, shape=(), description="Scalar loss value")
 
@@ -949,9 +951,12 @@ class DiceLoss(LossNode):
     """Soft Dice loss over dense segmentation logits.
 
     Consumes BHWC per-pixel class logits (last axis = classes; the class count
-    is inferred at runtime — ``K == 1`` is treated as sigmoid binary, ``K > 1``
+    is inferred at runtime, ``K == 1`` is treated as sigmoid binary, ``K > 1``
     as softmax multiclass over one-hot targets) plus an integer class-index
-    mask, and emits a scalar loss ``1 - mean(dice)``.
+    mask, and emits a scalar loss ``1 - mean(dice)``. Dice is accumulated per
+    class over the whole batch (nnU-Net-style batch Dice) rather than averaged
+    per sample. Multiclass targets outside ``[0, K)`` that are not
+    ``ignore_index`` raise.
 
     Parameters
     ----------
@@ -1047,6 +1052,13 @@ class CrossEntropyLoss(LossNode):
     ignore_index : int, optional
         Target value excluded from the loss (default: -100, PyTorch's default)
 
+    Raises
+    ------
+    ValueError
+        If the logits carry a single class channel (``K == 1``). Softmax over
+        one logit is constant 1, so the loss would be identically zero; use
+        ``DiceLoss`` or ``AnomalyBCEWithLogits`` for single-logit binary heads.
+
     Examples
     --------
     >>> ce = CrossEntropyLoss(class_weights=[0.1, 1.0])
@@ -1096,6 +1108,12 @@ class CrossEntropyLoss(LossNode):
         dict[str, Tensor]
             Dictionary with "loss" key containing the scalar cross-entropy
         """
+        if logits.shape[-1] == 1:
+            raise ValueError(
+                "CrossEntropyLoss needs multiclass logits [B, H, W, K>=2]; softmax over a "
+                "single logit is constant, so the loss would always be zero. Use DiceLoss or "
+                "AnomalyBCEWithLogits for single-logit binary heads."
+            )
         logits_bchw, targets_bhw = _to_bchw_targets(logits, targets)
         buf = getattr(self, "_class_weights", None)
         weights = buf.to(logits_bchw.dtype) if buf is not None else None

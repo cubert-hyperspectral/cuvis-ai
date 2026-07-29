@@ -456,6 +456,28 @@ class TestDiceLoss:
         loss = DiceLoss().forward(logits=logits, targets=targets)["loss"]
         assert loss.item() < 1e-4
 
+    def test_binary_ignore_index_excludes_pixels(self):
+        """The K == 1 sigmoid path honors ignore_index too."""
+        g = torch.Generator().manual_seed(3)
+        targets = torch.randint(0, 2, (2, 8, 8), generator=g, dtype=torch.int32)
+        logits = (targets.float() * 200.0 - 100.0).unsqueeze(-1)  # [B,H,W,1]
+        corrupted = targets.clone()
+        corrupted[:, :4] = 1 - corrupted[:, :4]
+        corrupted_marked = corrupted.clone()
+        corrupted_marked[:, :4] = 255
+        broken = DiceLoss().forward(logits=logits, targets=corrupted)["loss"]
+        ignored = DiceLoss(ignore_index=255).forward(logits=logits, targets=corrupted_marked)
+        assert broken.item() > 0.1
+        assert ignored["loss"].item() < 1e-3
+
+    def test_out_of_range_target_raises(self):
+        """A multiclass target outside [0, K) that is not ignore_index raises."""
+        logits, targets = _seg_batch(num_classes=3)
+        bad = targets.clone()
+        bad[0, 0, 0] = 3
+        with pytest.raises(RuntimeError):
+            DiceLoss().forward(logits=logits, targets=bad)
+
 
 class TestCrossEntropyLoss:
     """Tests for CrossEntropyLoss."""
@@ -517,6 +539,14 @@ class TestCrossEntropyLoss:
         a = CrossEntropyLoss().forward(logits=logits, targets=targets)["loss"]
         b = CrossEntropyLoss().forward(logits=logits, targets=targets.unsqueeze(-1))["loss"]
         assert torch.allclose(a, b)
+
+    def test_single_logit_head_raises(self):
+        """K == 1 logits are rejected instead of silently yielding zero loss."""
+        g = torch.Generator().manual_seed(2)
+        targets = torch.randint(0, 2, (2, 8, 8), generator=g, dtype=torch.int32)
+        logits = torch.randn(2, 8, 8, 1, generator=g)
+        with pytest.raises(ValueError, match="single logit"):
+            CrossEntropyLoss().forward(logits=logits, targets=targets)
 
 
 if __name__ == "__main__":
