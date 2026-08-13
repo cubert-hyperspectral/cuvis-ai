@@ -1,7 +1,15 @@
 # Built-in cuvis-ai nodes from this repository.
 # Useful when the gRPC server runs in a different venv and cannot import `cuvis_ai.*` directly.
+#
+# Sourced from git, not from a relative path: `path: "../../.."` resolved against the manifest's
+# own directory, which is the checkout root in a source tree but <site-packages> in a wheel
+# install, where there is no project to build. The composer failed outright there.
+# `package_name` is required because a git plugin otherwise defaults it to the manifest key,
+# and the installable is `cuvis-ai`.
 name: cuvis_ai_builtin
-path: "../../.."
+package_name: cuvis-ai
+repo: https://github.com/cubert-hyperspectral/cuvis-ai.git
+tag: "v0.11.5"
 capabilities:
 - class_name: cuvis_ai.node.anomaly.deep_svdd.DeepSVDDCenterTracker
   category: transform
