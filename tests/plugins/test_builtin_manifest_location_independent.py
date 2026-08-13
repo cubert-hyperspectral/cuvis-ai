@@ -25,9 +25,9 @@ def test_builtin_manifest_source_does_not_depend_on_install_location(tmp_path: P
     relocated.parent.mkdir(parents=True)
     shutil.copyfile(MANIFEST, relocated)
 
-    assert load_plugin_manifest(MANIFEST).model_dump() == load_plugin_manifest(
-        relocated
-    ).model_dump(), (
+    assert (
+        load_plugin_manifest(MANIFEST).model_dump() == load_plugin_manifest(relocated).model_dump()
+    ), (
         f"{MANIFEST.name} resolves differently depending on where it is installed, so a "
         "wheel install and a source checkout compose different child environments"
     )
