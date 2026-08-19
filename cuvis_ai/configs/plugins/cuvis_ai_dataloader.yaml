@@ -1,4 +1,4 @@
-# cuvis-ai-dataloader plugin manifest (data modules: cu3s / cu3s_multi / tiff_paired).
+# cuvis-ai-dataloader plugin manifest (data modules: cu3s / cu3s_multi / npz_multi / tiff_paired).
 # kind=data_module entries register into the DataModule registry (never the node
 # palette); `extras` names the pip extras the orchestrator composer installs for a
 # run that selects that module. Without this manifest in the catalog the gRPC
@@ -10,7 +10,7 @@
 name: cuvis_ai_dataloader
 # path: "../../../../cuvis-ai-dataloader/cuvis-ai-dataloader"
 repo: "https://github.com/cubert-hyperspectral/cuvis-ai-dataloader.git"
-tag: "v0.4.0"
+tag: "v0.5.0"
 package_name: cuvis-ai-dataloader
 capabilities:
   - class_name: cuvis_ai_dataloader.data.datamodule_cu3s.Cu3sDataModule
@@ -24,7 +24,13 @@ capabilities:
     data_module_name: cu3s_multi
     extras: [cu3s, coco]
     category: source
-    doc_summary: Multiple cu3s recordings driven by an external splits.csv.
+    doc_summary: Multiple cu3s recordings over a universe.csv (source, index; optional split).
+  - class_name: cuvis_ai_dataloader.data.datamodule_npz_multi.MultiNpzDataModule
+    kind: data_module
+    data_module_name: npz_multi
+    extras: []
+    category: source
+    doc_summary: Per-frame .npz over a universe.csv (source, index, materialized_path), split by a splits.json.
   - class_name: cuvis_ai_dataloader.data.datamodule_tiff_paired.TiffPairedDataModule
     kind: data_module
     data_module_name: tiff_paired

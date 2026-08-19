@@ -50,7 +50,9 @@ good first run:
 ```bash
 uv run restore-pipeline \
   --pipeline-path cuvis_ai/configs/pipeline/medical/blood_perfusion/ndvi.yaml \
-  --cu3s-file-path data/XMR_Demo_Blood_Perfusion/Auto_005.cu3s
+  --plugins-dir cuvis_ai/configs/plugins \
+  --data-module cu3s \
+  --data-arg cu3s_file_path=data/XMR_Demo_Blood_Perfusion/Auto_005.cu3s
 ```
 
 A few minutes later you have `output/blood_perfusion/ndvi_projection.mp4` —

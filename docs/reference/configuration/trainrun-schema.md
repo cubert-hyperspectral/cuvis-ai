@@ -1,8 +1,3 @@
-!!! warning "Status: Needs Review"
-    This page has not been reviewed for accuracy and completeness. Content may be outdated or contain errors.
-
----
-
 # TrainRun Configuration Schema
 
 Trainruns are the top-level experiment config. They compose pipeline, data, training, and optional
@@ -56,11 +51,12 @@ unfreeze_nodes: []
 | `data_module` | Registered module name (e.g. `cu3s`, `cu3s_multi`, `tiff_paired`, `npz_multi`) |
 | `splits` | A selector split (`DataSplitConfig`) or a `splits_path` to a committed `splits.json`. Omit for a module that owns its split. |
 | `batch_size` / `num_workers` | DataLoader options |
-| `params` | Module-specific arguments (e.g. `cu3s_file_path`, `annotation_json_path`; `universe_csv` for `npz_multi`) |
+| `params` | Module-specific arguments (e.g. `cu3s_file_path`, `annotation_json_path`; `universe_csv` for `cu3s_multi` and `npz_multi`) |
 
 A selector split assigns samples to stages by identity. A `universe_csv` (a `universe.csv`) supplies an
-explicit sample universe for formats that cannot enumerate from disk (npz). See
-[Data Splits](../../concepts/data-splits.md) for the full model (universe, selectors, baking).
+explicit sample universe; `cu3s_multi` and `npz_multi` both read one (only `tiff_paired` enumerates
+from disk). See [Data Splits](../../concepts/data-splits.md) for the full model (universe, selectors,
+baking).
 
 ```yaml
 data:

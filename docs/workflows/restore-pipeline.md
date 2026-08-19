@@ -127,8 +127,10 @@ uv run restore-pipeline \
 # Run inference on .cu3s file
 uv run restore-pipeline \
   --pipeline-path outputs/my_experiment/trained_models/My_Pipeline.yaml \
-  --cu3s-file-path data/test_sample.cu3s \
-  --processing-mode Reflectance
+  --plugins-dir cuvis_ai/configs/plugins \
+  --data-module cu3s \
+  --data-arg cu3s_file_path=data/test_sample.cu3s \
+  --data-arg processing_mode=Reflectance
 ```
 
 ## Configuration Overrides
@@ -610,7 +612,8 @@ With inference:
 uv run restore-pipeline \
   --pipeline-path cuvis_ai/configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml \
   --plugins-dir cuvis_ai/configs/plugins \
-  --cu3s-file-path data/Lentils/Lentils_000.cu3s
+  --data-module cu3s \
+  --data-arg cu3s_file_path=data/Lentils/Lentils_000.cu3s
 ```
 
 ### Using Plugins with Python API
