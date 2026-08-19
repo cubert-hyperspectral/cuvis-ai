@@ -3,7 +3,7 @@
 ## Unreleased
 
 - Fixed `MinMaxNormalizer`, `SigmoidNormalizer`, and `PerPixelUnitNorm` crashing on non-contiguous BHWC inputs (e.g. spatially cropped or sliced upstream tensors): the data-tensor flatten/un-flatten now uses `reshape` instead of `view`. Contiguous inputs keep the zero-copy fast path.
-- Security: raised the `gitpython` floor to >=3.1.55 (locked 3.1.59) and refreshed the `jupyterlab` (4.6.3) and `aiohttp` (3.14.3) locks, clearing the freshly published advisories that failed the CI security scan.
+- Security: raised the `gitpython` floor to >=3.1.59 and refreshed the `jupyterlab` (4.6.3), `aiohttp` (3.14.3), and `cryptography` (50.0.0) locks, clearing the freshly published advisories that failed the CI security scan.
 
 ## 0.11.5 - 2026-07-29
 
