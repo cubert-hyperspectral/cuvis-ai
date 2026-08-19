@@ -12,7 +12,12 @@ from typing import Any
 import pytest
 import torch
 
-from cuvis_ai.node.normalization import MinMaxNormalizer, SigmoidNormalizer, ZScoreNormalizer
+from cuvis_ai.node.normalization import (
+    MinMaxNormalizer,
+    PerPixelUnitNorm,
+    SigmoidNormalizer,
+    ZScoreNormalizer,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -24,6 +29,7 @@ pytestmark = pytest.mark.unit
         (MinMaxNormalizer, {"use_running_stats": False}),
         (SigmoidNormalizer, {}),
         (ZScoreNormalizer, {}),
+        (PerPixelUnitNorm, {}),
     ],
 )
 def test_normalizers_accept_non_contiguous_input(node_cls: type, kwargs: dict[str, Any]) -> None:

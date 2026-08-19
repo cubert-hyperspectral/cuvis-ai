@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Fixed `MinMaxNormalizer`, `SigmoidNormalizer`, and `PerPixelUnitNorm` crashing on non-contiguous BHWC inputs (e.g. spatially cropped or sliced upstream tensors): the data-tensor flatten/un-flatten now uses `reshape` instead of `view`. Contiguous inputs keep the zero-copy fast path.
+- Security: raised the `gitpython` floor to >=3.1.55 (locked 3.1.59) and refreshed the `jupyterlab` (4.6.3) and `aiohttp` (3.14.3) locks, clearing the freshly published advisories that failed the CI security scan.
+
 ## 0.11.5 - 2026-07-29
 
 - Bumped the sam3 plugin manifest pin v0.3.0 -> v0.3.1: streaming propagation survives a failed stream (explicit needs-seed recovery surfacing the original error once, instead of poisoning the session with "generator exhausted early"), prompt-frame image features are pinned against all three eviction paths until consolidated (fixes "Image features for frame N are not cached" mid-stream), and `SAM3PointExpansion`'s embedding cache keys on frame content in addition to `frame_id` so repeated ids across videos can no longer serve stale embeddings.
