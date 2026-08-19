@@ -279,7 +279,7 @@ class MinMaxNormalizer(_ScoreNormalizerBase):
             Normalized tensor with values in [0, 1] range
         """
         B, H, W, C = tensor.shape
-        flat = tensor.view(B, -1, C)
+        flat = tensor.reshape(B, -1, C)
 
         # Running-stats mode is strict: statistical initialization is required.
         if self.use_running_stats:
@@ -299,7 +299,7 @@ class MinMaxNormalizer(_ScoreNormalizerBase):
             ranges = torch.clamp(maxs - mins, min=self.eps)
             scaled = (flat - mins) / ranges
 
-        return scaled.view(B, H, W, C)
+        return scaled.reshape(B, H, W, C)
 
 
 class SigmoidNormalizer(_ScoreNormalizerBase):
@@ -364,12 +364,12 @@ class SigmoidNormalizer(_ScoreNormalizerBase):
             Sigmoid-normalized tensor with values in [0, 1]
         """
         B, H, W, C = tensor.shape
-        flat = tensor.view(B, -1, C)
+        flat = tensor.reshape(B, -1, C)
         medians = flat.median(dim=1, keepdim=True).values
         stds = flat.std(dim=1, unbiased=False, keepdim=True)
         stds = torch.clamp(stds, min=self.std_floor)
         normalized = torch.sigmoid((flat - medians) / stds)
-        return normalized.view(B, H, W, C)
+        return normalized.reshape(B, H, W, C)
 
 
 class ZScoreNormalizer(_ScoreNormalizerBase):
@@ -514,11 +514,11 @@ class PerPixelUnitNorm(_ScoreNormalizerBase):
             L2-normalized tensor with unit norm per pixel
         """
         B, H, W, C = tensor.shape
-        flat = tensor.view(B, -1, C)
+        flat = tensor.reshape(B, -1, C)
         mu = flat.mean(dim=2, keepdim=True)
         centered = flat - mu
         l2 = centered.norm(p=2, dim=2, keepdim=True).clamp_min(self.eps)
-        normalized = (centered / l2).view(B, H, W, C)
+        normalized = (centered / l2).reshape(B, H, W, C)
         return normalized
 
 
