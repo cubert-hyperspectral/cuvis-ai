@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Bumped the `cuvis_ai_builtin` manifest pin v0.11.5 -> v0.12.0 so composed child environments install the released cuvis-ai matching the host.
+
 ## 0.12.0 - 2026-08-20
 
 - Fixed the `cuvis_ai_builtin` plugin manifest to source this repo from a git tag pin (`repo` + `tag` + `package_name: cuvis-ai`) instead of a relative `path`: the path resolved against the manifest's own directory, which is `<site-packages>` in a wheel install, so composing a gRPC child env from a pip-installed cuvis-ai failed outright. A regression test keeps the manifest source location-independent; the pin-bump workflow tracks the tag across releases.
