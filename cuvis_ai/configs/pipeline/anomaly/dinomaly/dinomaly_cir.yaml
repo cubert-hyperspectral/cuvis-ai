@@ -1,20 +1,17 @@
 metadata:
-  name: dinomaly_cir_lentils
-  description: "Inference-only variant of dinomaly_cir, wired to match the published
-    lentils checkpoint (XMR_Demo_Industrial_Foreign_Object_Detection_Lentils,
-    dinomaly_cir_full_pipeline/dinomaly_cir.pt). Same AnomalyDataNode -> MinMaxNormalizer
-    -> 860/670/560 selector -> DinomalyDetector spine as the training preset, but with
-    that checkpoint's two-stage decider calibration and without the training-only
-    metrics, heatmap and TensorBoard nodes. Load it with the .pt: the normalizer's
-    running stats live there, not in this file."
+  name: dinomaly_cir
+  description: "Dinomaly anomaly detection on a fixed-wavelength CIR (color-infrared)
+    false-color projection (860/670/560 nm = NIR/R/G): AnomalyDataNode → MinMaxNormalizer
+    → FixedWavelengthSelector → DinomalyDetector, with quantile decider, pixel/image
+    metrics, AUROC, and per-epoch score heatmaps logged to TensorBoard."
   created: ''
   tags:
+  - gradient
   - dinomaly
   - anomaly
   - cir
-  - inference
   author: cuvis.ai
-  cuvis_ai_version: 0.11.5
+  cuvis_ai_version: 0.11.1
 plugins:
 - dinomaly
 - cuvis_ai_builtin
@@ -28,10 +25,8 @@ nodes:
   class_name: cuvis_ai.node.normalization.MinMaxNormalizer
   hparams:
     eps: 1.0e-06
-    # Bounds come from the checkpoint (0 .. 18783, raw counts). Switching this to false
-    # would normalize per frame, which is not the distribution the detector was trained
-    # on and would invalidate the decider's image_threshold below.
     use_running_stats: true
+    max_initialization_frames: 20
 - name: cir_selector
   class_name: cuvis_ai.node.channel_selector.FixedWavelengthSelector
   hparams:
@@ -43,9 +38,7 @@ nodes:
     norm_mode: running
     apply_gamma: true
     freeze_running_bounds_after_frames: 20
-    # 0, not the preset's 10: the checkpoint carries per-channel bounds, so there is
-    # nothing to warm up and a warmup would ignore them for the first frames.
-    running_warmup_frames: 0
+    running_warmup_frames: 10
 - name: dinomaly_detector
   class_name: cuvis_ai_dinomaly.node.dinomaly_detector.DinomalyDetector
   hparams:
@@ -56,24 +49,64 @@ nodes:
     crop_size: 448
     use_center_crop: false
     input_channels: 3
-- name: decider
-  class_name: cuvis_ai.node.deciders.two_stage_decider.TwoStageBinaryDecider
+- name: dinomaly_train_loss
+  class_name: cuvis_ai_dinomaly.node.dinomaly_train_loss_bridge.DinomalyTrainLossBridge
   hparams:
-    # Gate the frame on the mean of the top-0.1% per-pixel scores before thresholding
-    # pixels. Without this gate a bare quantile marks the top 0.5% of pixels on every
-    # frame, so clean product reads as permanently contaminated.
-    image_threshold: 0.14
-    top_k_fraction: 0.001
+    weight: 1.0
+- name: decider
+  class_name: cuvis_ai.node.deciders.binary_decider.QuantileBinaryDecider
+  hparams:
     quantile: 0.995
-    reduce_dims: null
+- name: metrics_anomaly
+  class_name: cuvis_ai.node.metrics.AnomalyDetectionMetrics
+  hparams: {}
+- name: metrics_auroc
+  class_name: cuvis_ai_dinomaly.node.auroc_metrics.AnomalyAUROCMetrics
+  hparams:
+    thresholds: 200
+- name: score_heatmap
+  class_name: cuvis_ai.node.anomaly_visualization.ScoreHeatmapVisualizer
+  hparams:
+    normalize_scores: true
+    cmap: inferno
+    up_to: 3
+- name: TensorBoardMonitorNode
+  class_name: cuvis_ai.node.monitor.TensorBoardMonitorNode
+  hparams:
+    output_dir: outputs/dinomaly_cir/tensorboard
+    run_name: dinomaly_cir
+    comment: ''
+    flush_secs: 120
 connections:
 - source: anomaly_data.outputs.cube
   target: MinMaxNormalizer.inputs.data
 - source: anomaly_data.outputs.wavelengths
   target: cir_selector.inputs.wavelengths
+- source: anomaly_data.outputs.mask
+  target: metrics_anomaly.inputs.targets
+- source: anomaly_data.outputs.mask
+  target: metrics_auroc.inputs.targets
 - source: MinMaxNormalizer.outputs.normalized
   target: cir_selector.inputs.cube
 - source: cir_selector.outputs.rgb_image
   target: dinomaly_detector.inputs.rgb_image
+- source: dinomaly_detector.outputs.training_loss
+  target: dinomaly_train_loss.inputs.raw_loss
 - source: dinomaly_detector.outputs.scores
   target: decider.inputs.logits
+- source: dinomaly_detector.outputs.scores
+  target: metrics_anomaly.inputs.logits
+- source: dinomaly_detector.outputs.scores
+  target: metrics_auroc.inputs.scores
+- source: dinomaly_detector.outputs.anomaly_score
+  target: metrics_auroc.inputs.anomaly_score
+- source: dinomaly_detector.outputs.scores
+  target: score_heatmap.inputs.scores
+- source: decider.outputs.decisions
+  target: metrics_anomaly.inputs.decisions
+- source: metrics_anomaly.outputs.metrics
+  target: TensorBoardMonitorNode.inputs.metrics
+- source: metrics_auroc.outputs.metrics
+  target: TensorBoardMonitorNode.inputs.metrics
+- source: score_heatmap.outputs.artifacts
+  target: TensorBoardMonitorNode.inputs.artifacts

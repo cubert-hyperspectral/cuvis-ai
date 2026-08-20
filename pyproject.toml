@@ -17,8 +17,8 @@ dependencies = [
     # plugin behind its [cu3s] extra, provisioned at runtime when a cu3s run needs it.
     # Builtin/RGB pipelines pull neither cuvis nor cuvis-il, closing the Windows wheel gap.
     # Tests mock the data layer (no plugin dep); the real cu3s reader is tested in the plugin.
-    "cuvis-ai-core>=0.11.2",
-    "cuvis-ai-schemas[full]>=0.8.0",
+    "cuvis-ai-core>=0.12.1",
+    "cuvis-ai-schemas[full]>=0.9.0",
     "pydantic>=2.13.3,<3.0.0",
     "defusedxml>=0.7.1",
     "markupsafe>=3.0.3",
@@ -153,11 +153,6 @@ cuvis_ai = ["assets/node_icons/*.svg", "configs/**/*.yaml"]
 [tool.uv.sources]
 torch = { index = "pytorch-cu128" }
 torchvision = { index = "pytorch-cu128" }
-# LOCAL ONLY - re-comment before release, like the editable overrides below.
-# Points at the child-runtime CUDA-torch fix (cuvis-ai-core PR #59) so composed child
-# envs get the host's CUDA torch instead of PyPI's CPU-only Windows wheels. Drop this
-# line once that lands in a release and the floor above covers it.
-cuvis-ai-core = { git = "https://github.com/cubert-hyperspectral/cuvis-ai-core.git", branch = "fix/child-runtime-cuda-torch" }
 # Local editable overrides for day-to-day development against working copies of the
 # core libs. Strip (re-comment) before release so CI and PyPI consumers resolve the
 # published floors; these are for local work against sibling checkouts.

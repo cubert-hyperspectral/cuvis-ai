@@ -11,9 +11,12 @@ defaults:
 
 data:
   # Override splits for this example. train/val/test are disjoint so the
-  # default leakage_check (error) passes; the base lentils val ([1]) would
+  # no_split_overlap (error) constraint passes; the base lentils val ([1]) would
   # otherwise collide with this run's test, so val is overridden explicitly.
   splits:
+    constraints:
+    - kind: no_split_overlap
+      severity: error
     train:
       - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [0, 2]}
     val:

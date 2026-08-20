@@ -4,7 +4,9 @@ pipeline: ../pipeline/anomaly/adaclip/adaclip_cir_false_color_optimal_threshold.
 data:
   data_module: cu3s
   splits:
-    leakage_check: warn  # val/test intentionally identical (small-dataset reuse)
+    constraints:
+    - kind: no_split_overlap
+      severity: warn  # val/test intentionally identical (small-dataset reuse)
     train:
     - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [0, 2, 3]}
     val:

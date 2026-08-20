@@ -17,7 +17,13 @@ from cuvis_ai_schemas.plugin import load_plugin_manifest
 
 pytestmark = pytest.mark.unit
 
-MANIFEST = Path("cuvis_ai/configs/plugins/cuvis_ai_builtin.yaml")
+MANIFEST = (
+    Path(__file__).resolve().parents[2]
+    / "cuvis_ai"
+    / "configs"
+    / "plugins"
+    / "cuvis_ai_builtin.yaml"
+)
 
 
 def test_builtin_manifest_source_does_not_depend_on_install_location(tmp_path: Path) -> None:

@@ -1,5 +1,8 @@
 data_module: cu3s
 splits:
+  constraints:
+  - kind: no_split_overlap
+    severity: error
   # Frame IDs - fill after running inspect mode
   train:
     - {kind: file_indices, source: &src "D:\\data\\2024_05_22_cap_and_car_2XM_setup\\2024_05_22__cap_and_car_50mm\\Auto_002.cu3s", ids: [696, 708, 720, 855, 858, 871, 881, 887]}
