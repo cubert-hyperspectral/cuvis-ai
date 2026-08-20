@@ -1,7 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.12.0 - 2026-08-20
 
+- Fixed the `cuvis_ai_builtin` plugin manifest to source this repo from a git tag pin (`repo` + `tag` + `package_name: cuvis-ai`) instead of a relative `path`: the path resolved against the manifest's own directory, which is `<site-packages>` in a wheel install, so composing a gRPC child env from a pip-installed cuvis-ai failed outright. A regression test keeps the manifest source location-independent; the pin-bump workflow tracks the tag across releases.
+- Raised the dependency floors to `cuvis-ai-core>=0.12.1` (composed child envs now mirror the host's CUDA torch build instead of resolving CPU-only Windows wheels) and `cuvis-ai-schemas[full]>=0.9.0`.
+- Migrated every config with an inline `splits:` block from the removed `leakage_check` field to schemas 0.9.0's typed `constraints` list, declaring `no_split_overlap` explicitly (warn for intentional small-dataset reuse, error where the old implicit default guard applied; absent constraints now mean no checks). `splits_path`-only presets are unchanged: their constraints are owned by the loaded `splits.json`.
+- Added `configs/pipeline/anomaly/dinomaly/dinomaly_cir_lentils.yaml`, an inference-only preset matching the published lentils checkpoint (two-stage decider calibration, checkpoint-owned normalizer stats); `dinomaly_cir.yaml` stays the training preset the `dinomaly_cir_cuvisnext` trainrun resolves its loss and metric nodes against.
+- Removed a stale `sample_metrics` entry from `configs/trainrun/rx_statistical.yaml` (its pipeline has no such node; restore silently dropped it). A new guard test requires trainrun node lists and checkpoint monitors to name real nodes in the referenced pipeline.
+- Bumped the augment plugin manifest pin v0.3.3 -> v0.4.0 and added its new `Crop` capability (`cuvis_ai_augment.node.crop.Crop`): a deterministic fixed-rectangle spatial crop of the cube and optional paired mask that runs identically at every execution stage, unlike the TRAIN-only stochastic crops inside `AugmentationCompose`. v0.4.0 also adds the nnU-Net-style `RandomForegroundBiasedCrop` transform inside the compose.
+- Widened the `setuptools` requirement to `>=81.0.0,<85`.
+- Bumped the `pymdown-extensions` lock to 11.0.1, clearing three published advisories in the docs stack.
 - Fixed `MinMaxNormalizer`, `SigmoidNormalizer`, and `PerPixelUnitNorm` crashing on non-contiguous BHWC inputs (e.g. spatially cropped or sliced upstream tensors): the data-tensor flatten/un-flatten now uses `reshape` instead of `view`. Contiguous inputs keep the zero-copy fast path.
 - Security: raised the `gitpython` floor to >=3.1.59 and refreshed the `jupyterlab` (4.6.3), `aiohttp` (3.14.3), and `cryptography` (50.0.0) locks, clearing the freshly published advisories that failed the CI security scan.
 

@@ -30,7 +30,7 @@ dependencies = [
     "scikit-image>=0.26.0",
     "scikit-learn>=1.8.0",
     "tensorboard>=2.20.0",
-    "setuptools>=81.0.0,<84",
+    "setuptools>=81.0.0,<85",
     # Core framework dependencies
     "torch>=2.11.0",
     "torchvision>=0.26.0",
