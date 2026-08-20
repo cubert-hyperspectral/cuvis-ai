@@ -4,8 +4,11 @@
 
 data_module: cu3s
 splits:
-  # Selectors over the cu3s measurement universe; val/test disjoint so the default
-  # leakage_check (error) passes.
+  constraints:
+  - kind: no_split_overlap
+    severity: error
+  # Selectors over the cu3s measurement universe; val/test disjoint so the declared
+  # no_split_overlap (error) constraint passes.
   train:
     - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [0, 2, 3]}
   val:

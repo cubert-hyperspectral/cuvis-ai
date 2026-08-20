@@ -12,6 +12,9 @@ defaults:
 
 data:
   splits:
+    constraints:
+    - kind: no_split_overlap
+      severity: error
     train:
     - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [0]}
     val:

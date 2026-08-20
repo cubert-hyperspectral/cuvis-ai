@@ -12,7 +12,9 @@ defaults:
 data:
   # Override splits for this example
   splits:
-    leakage_check: warn  # train/val intentionally share frame 2 (small-dataset reuse)
+    constraints:
+    - kind: no_split_overlap
+      severity: warn  # train/val intentionally share frame 2 (small-dataset reuse)
     train:
       - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [0, 2]}
     val:

@@ -1,4 +1,4 @@
-# @package _global_
+# @package _global_
 
 
 defaults:
@@ -9,7 +9,7 @@ defaults:
 
 name: rx_statistical
 
-# Pipeline reference, resolved relative to this trainrun's directory.
+# Pipeline reference, resolved relative to this trainrun's directory.
 pipeline: ../pipeline/anomaly/rx/rx_statistical.yaml
 
 training:
@@ -39,5 +39,4 @@ unfreeze_nodes: []
 freeze_nodes: []
 metric_nodes:
 - metrics_anomaly
-- sample_metrics
 loss_nodes: []
