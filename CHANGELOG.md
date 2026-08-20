@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Bumped the `cuvis_ai_builtin` manifest pin v0.12.0 -> v0.12.1 so composed child environments install the released cuvis-ai matching the host.
+
 ## 0.12.1 - 2026-08-20
 
 - Bumped the plugin manifest pins to the uv-index-sweep releases: sam3 v0.3.1 -> v0.3.2, adaclip v0.3.0 -> v0.3.1, rtsam2 v0.2.0 -> v0.2.1, dinomaly v0.5.0 -> v0.6.1 (also picking up the 0.6.0 conformance release), cuvis_ai_dataloader v0.5.0 -> v0.5.1, deepeiou v0.2.1 -> v0.2.2, augment v0.4.0 -> v0.4.1, cuvis_ai_inspecscrap v0.2.2 -> v0.2.3. These releases clarify the plugins' `[tool.uv.sources]` / `[[tool.uv.index]]` tables as local-development-only: installs as a git dependency never read them, and composed child environments get their torch build from the host (cuvis-ai-core >= 0.12.1).
