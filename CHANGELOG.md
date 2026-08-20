@@ -1,7 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.12.1 - 2026-08-20
 
+- Bumped the plugin manifest pins to the uv-index-sweep releases: sam3 v0.3.1 -> v0.3.2, adaclip v0.3.0 -> v0.3.1, rtsam2 v0.2.0 -> v0.2.1, dinomaly v0.5.0 -> v0.6.1 (also picking up the 0.6.0 conformance release), cuvis_ai_dataloader v0.5.0 -> v0.5.1, deepeiou v0.2.1 -> v0.2.2, augment v0.4.0 -> v0.4.1, cuvis_ai_inspecscrap v0.2.2 -> v0.2.3. These releases clarify the plugins' `[tool.uv.sources]` / `[[tool.uv.index]]` tables as local-development-only: installs as a git dependency never read them, and composed child environments get their torch build from the host (cuvis-ai-core >= 0.12.1).
+- Documented dependency resolution in composed child environments in the plugin development guide: what a plugin can and cannot influence (dependencies and version floors yes, resolver configuration no, `extras` on data-module capabilities as the only manifest knob), how cuvis-ai-core 0.12.1 mirrors the host's torch build into the child, and the failure modes (no host torch, unrecognized or mixed local version tags, a plugin torch floor above the host).
 - **Added `DiceLoss` and `CrossEntropyLoss` segmentation loss nodes.** Multiclass-capable soft Dice (with an `include_background` toggle) and cross-entropy over BHWC logits `[B,H,W,K]` with integer targets `[B,H,W]`, subclassing the existing `LossNode` base (train/val/test stages) and registered in `cuvis_ai/configs/plugins/cuvis_ai_builtin.yaml`. Ports the two losses out of the cuvis-ai-unet plugin so it can drop its local copies.
 - Bumped the `cuvis_ai_builtin` manifest pin v0.11.5 -> v0.12.0 so composed child environments install the released cuvis-ai matching the host.
 

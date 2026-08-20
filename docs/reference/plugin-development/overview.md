@@ -85,6 +85,7 @@ shown above.
 - In-process registration imports plugins from the active environment; install them with the `provision` CLI, `uv pip install`, or an editable `[tool.uv.sources]` checkout.
 - The orchestrated server composes an isolated venv per plugin set, cached by a content hash of its generated `pyproject.toml`, so identical plugin sets reuse the same child environment.
 - Plugin nodes are stored per `NodeRegistry` instance, so one session can register plugins without affecting another.
+- How the composed environment resolves plugin dependencies, including how it mirrors the host's torch build, is covered in [Dependency resolution in composed child environments](guide.md#dependency-resolution-in-composed-child-environments).
 
 ## Loading multiple plugins
 

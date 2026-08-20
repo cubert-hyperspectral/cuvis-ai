@@ -7,7 +7,7 @@
 name: sam3
 # SAM3-based video object tracking plugin.
 repo: "https://github.com/cubert-hyperspectral/cuvis-ai-sam3.git"
-tag: "v0.3.1"  # streaming-propagation hardening: needs-seed recovery, pinned prompt-frame features
+tag: "v0.3.2"  # torch uv-index tables clarified as local-dev-only
 package_name: "cuvis-ai-sam3"
 capabilities:
 - class_name: cuvis_ai_sam3.node.SAM3TextPropagation
