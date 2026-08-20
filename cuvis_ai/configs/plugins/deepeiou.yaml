@@ -7,7 +7,7 @@
 name: deepeiou
 # path: "../../../../cuvis-ai-deepeiou/deepeiou-init"
 repo: "https://github.com/cubert-hyperspectral/cuvis-ai-deepeiou.git"
-tag: "v0.2.1"
+tag: "v0.2.2"
 package_name: "cuvis-ai-deepeiou"
 capabilities:
 - class_name: cuvis_ai_deepeiou.node.DeepEIoUTrack

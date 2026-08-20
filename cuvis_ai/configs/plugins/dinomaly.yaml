@@ -8,7 +8,7 @@ name: dinomaly
 # Local development override (optional):
 # path: "../../../cuvis-ai-dinomaly"
 repo: "https://github.com/cubert-hyperspectral/cuvis-ai-dinomaly.git"
-tag: "v0.5.0"
+tag: "v0.6.1"
 package_name: "cuvis-ai-dinomaly"
 capabilities:
 - class_name: cuvis_ai_dinomaly.node.dinomaly_detector.DinomalyDetector

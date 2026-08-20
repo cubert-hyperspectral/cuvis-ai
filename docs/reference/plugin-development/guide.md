@@ -69,6 +69,19 @@ Each `capabilities` entry needs at least `class_name` (a fully-qualified path); 
 palette metadata (`category`, `tags`, `icon_svg`, `input_specs`, `output_specs`, `doc_summary`).
 See [Plugin System Overview](overview.md).
 
+## Dependency resolution in composed child environments
+
+When the orchestrated gRPC server runs a pipeline, it composes an isolated child
+environment from the declared plugin manifests (see
+[Cache and Isolation](overview.md#cache-and-isolation)). Dependency resolution in
+that environment follows a few rules worth knowing before you publish a plugin:
+
+- **Plugins cannot influence resolver configuration.** The composer owns the child environment's `pyproject.toml`; a plugin contributes only its package as a requirement. Its declared dependencies and version floors still constrain what resolves, but it cannot add indexes or sources. The only manifest-level knob is `extras` on `kind: data_module` capabilities, which selects the pip extras installed for a run that uses that data module.
+- **Torch mirrors the host.** As of cuvis-ai-core 0.12.1 the composed child environment mirrors the composing host's installed torch build: the exact `torch` / `torchvision` versions are pinned, and the matching PyTorch wheel index (`cpu`, `cuNNN`, `rocm`, or `xpu`) is emitted with `explicit = true`, so the child resolves the same accelerator build the host runs.
+- **Host edge cases.** A host with no torch installed leaves children resolving transitive torch from PyPI (CPU wheels on Windows). A host torch whose local version tag is unrecognized, or mixed across `torch` and `torchvision`, gets its versions pinned without an index, so the child's resolution fails with a no-candidates error; fix the host environment in that case.
+- **Floors above the host fail fast.** A plugin whose torch floor is above the host's installed torch fails composition outright. Keep torch floors as low as the plugin genuinely needs.
+- **`[tool.uv.sources]` and `[[tool.uv.index]]` do not travel.** Those tables in a plugin repo's `pyproject.toml` apply only to that repo's own development venv, where the plugin is the resolution root. Installs as a git or registry dependency, including composed child environments, never read them.
+
 ## Verification
 
 Use `uv` for local validation:
