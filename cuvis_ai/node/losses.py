@@ -875,10 +875,260 @@ class ForegroundContrastLoss(LossNode):
         return {"loss": loss}
 
 
+def _to_bchw_targets(logits: Tensor, targets: Tensor) -> tuple[Tensor, Tensor]:
+    """Convert BHWC logits to NCHW and squeeze a trailing target channel.
+
+    ``logits`` ``[B, H, W, K]`` -> ``[B, K, H, W]``; ``targets`` ``[B, H, W, 1]``
+    or ``[B, H, W]`` -> long ``[B, H, W]``.
+    """
+    logits = logits.permute(0, 3, 1, 2)
+    if targets.dim() == 4 and targets.shape[-1] == 1:
+        targets = targets[..., 0]
+    return logits, targets.long()
+
+
+def _soft_dice_loss(
+    logits_bchw: Tensor,
+    targets_bhw: Tensor,
+    *,
+    ignore_index: int | None = None,
+    include_background: bool = True,
+    eps: float = 1e-6,
+) -> Tensor:
+    """Soft Dice loss for binary (``K == 1``) or multiclass (``K > 1``) logits.
+
+    ``logits_bchw`` is ``[B, K, H, W]`` and ``targets_bhw`` is an integer
+    ``[B, H, W]`` label map. ``K == 1`` uses a sigmoid/binary formulation;
+    ``K > 1`` uses softmax over one-hot targets. Dice is accumulated per class
+    over the whole batch (batch Dice), not averaged per sample. Pixels equal to
+    ``ignore_index`` are excluded from both the prediction and the target; any
+    other multiclass target outside ``[0, K)`` raises. When
+    ``include_background`` is False, class 0 is dropped from the per-class mean
+    (multiclass only). Returns ``1 - mean(dice)``.
+    """
+    num_classes = logits_bchw.shape[1]
+    if num_classes == 1:
+        probs = torch.sigmoid(logits_bchw)
+        onehot = (targets_bhw == 1).unsqueeze(1).to(probs.dtype)
+        cls = slice(0, 1)
+    else:
+        probs = torch.softmax(logits_bchw, dim=1)
+        safe = targets_bhw
+        if ignore_index is not None:
+            safe = targets_bhw.masked_fill(targets_bhw == ignore_index, 0)
+        onehot = F.one_hot(safe, num_classes)
+        onehot = onehot.permute(0, 3, 1, 2).to(probs.dtype)
+        cls = slice(0 if include_background else 1, num_classes)
+
+    if ignore_index is not None:
+        valid = (targets_bhw != ignore_index).unsqueeze(1).to(probs.dtype)
+        probs = probs * valid
+        onehot = onehot * valid
+
+    p = probs[:, cls]
+    g = onehot[:, cls]
+    dims = (0, 2, 3)  # sum over batch and spatial dims -> one Dice per class
+    inter = (p * g).sum(dims)
+    denom = p.sum(dims) + g.sum(dims)
+    dice = (2.0 * inter + eps) / (denom + eps)
+    return 1.0 - dice.mean()
+
+
+_SEG_LOGITS_SPEC = PortSpec(
+    dtype=torch.float32,
+    shape=(-1, -1, -1, -1),
+    description="Per-pixel class logits [B, H, W, num_classes]",
+)
+_SEG_TARGETS_SPEC = PortSpec(
+    dtype=torch.int32,
+    shape=(-1, -1, -1),
+    description="Integer class-index mask [B, H, W]; cast to int64 internally",
+)
+_SEG_LOSS_OUT_SPEC = PortSpec(dtype=torch.float32, shape=(), description="Scalar loss value")
+
+
+class DiceLoss(LossNode):
+    """Soft Dice loss over dense segmentation logits.
+
+    Consumes BHWC per-pixel class logits (last axis = classes; the class count
+    is inferred at runtime, ``K == 1`` is treated as sigmoid binary, ``K > 1``
+    as softmax multiclass over one-hot targets) plus an integer class-index
+    mask, and emits a scalar loss ``1 - mean(dice)``. Dice is accumulated per
+    class over the whole batch (nnU-Net-style batch Dice) rather than averaged
+    per sample. Multiclass targets outside ``[0, K)`` that are not
+    ``ignore_index`` raise.
+
+    Parameters
+    ----------
+    weight : float, optional
+        Scalar multiplier applied to the loss, for combining several losses
+        (default: 1.0)
+    ignore_index : int or None, optional
+        Target value excluded from both prediction and target, or ``None`` to
+        use every pixel (default: None)
+    include_background : bool, optional
+        Whether class 0 contributes to the per-class Dice mean; multiclass
+        only (default: True). Disabling it is the standard choice for heavily
+        imbalanced segmentation, where the background Dice term is saturated
+        and dilutes the foreground signal.
+    eps : float, optional
+        Smoothing constant for the Dice ratio (default: 1e-6)
+
+    Examples
+    --------
+    >>> dice = DiceLoss(weight=1.0, include_background=False)
+    >>> loss = dice.forward(logits=logits_bhwk, targets=mask_bhw)["loss"]
+    """
+
+    _category = NodeCategory.LOSS
+    _tags = frozenset(
+        {NodeTag.TRAINING, NodeTag.DIFFERENTIABLE, NodeTag.TORCH, NodeTag.SEGMENTATION}
+    )
+
+    INPUT_SPECS = {"logits": _SEG_LOGITS_SPEC, "targets": _SEG_TARGETS_SPEC}
+    OUTPUT_SPECS = {"loss": _SEG_LOSS_OUT_SPEC}
+
+    def __init__(
+        self,
+        weight: float = 1.0,
+        ignore_index: int | None = None,
+        include_background: bool = True,
+        eps: float = 1e-6,
+        **kwargs,
+    ) -> None:
+        self.weight = float(weight)
+        self.ignore_index = ignore_index
+        self.include_background = bool(include_background)
+        self.eps = float(eps)
+        super().__init__(
+            weight=self.weight,
+            ignore_index=ignore_index,
+            include_background=self.include_background,
+            eps=self.eps,
+            **kwargs,
+        )
+
+    def forward(self, logits: Tensor, targets: Tensor, **_: Any) -> dict[str, Tensor]:
+        """Compute the weighted soft Dice loss from BHWC logits and a mask.
+
+        Parameters
+        ----------
+        logits : Tensor
+            Per-pixel class logits [B, H, W, K]
+        targets : Tensor
+            Integer class-index mask [B, H, W] (a trailing singleton channel
+            is squeezed)
+
+        Returns
+        -------
+        dict[str, Tensor]
+            Dictionary with "loss" key containing the scalar Dice loss
+        """
+        logits_bchw, targets_bhw = _to_bchw_targets(logits, targets)
+        loss = _soft_dice_loss(
+            logits_bchw,
+            targets_bhw,
+            ignore_index=self.ignore_index,
+            include_background=self.include_background,
+            eps=self.eps,
+        )
+        return {"loss": self.weight * loss}
+
+
+class CrossEntropyLoss(LossNode):
+    """Pixel-wise cross-entropy over dense segmentation logits (``K >= 2``).
+
+    Consumes BHWC per-pixel class logits plus an integer class-index mask and
+    emits a scalar loss. The class count is the logits' last axis; no
+    ``num_classes`` hyperparameter is needed.
+
+    Parameters
+    ----------
+    weight : float, optional
+        Scalar multiplier applied to the loss (default: 1.0)
+    class_weights : list of float or None, optional
+        Per-class rescaling passed to ``F.cross_entropy``; helps with strong
+        class imbalance such as small foreground objects (default: None)
+    ignore_index : int, optional
+        Target value excluded from the loss (default: -100, PyTorch's default)
+
+    Raises
+    ------
+    ValueError
+        If the logits carry a single class channel (``K == 1``). Softmax over
+        one logit is constant 1, so the loss would be identically zero; use
+        ``DiceLoss`` or ``AnomalyBCEWithLogits`` for single-logit binary heads.
+
+    Examples
+    --------
+    >>> ce = CrossEntropyLoss(class_weights=[0.1, 1.0])
+    >>> loss = ce.forward(logits=logits_bhwk, targets=mask_bhw)["loss"]
+    """
+
+    _category = NodeCategory.LOSS
+    _tags = frozenset(
+        {NodeTag.TRAINING, NodeTag.DIFFERENTIABLE, NodeTag.TORCH, NodeTag.SEGMENTATION}
+    )
+
+    INPUT_SPECS = {"logits": _SEG_LOGITS_SPEC, "targets": _SEG_TARGETS_SPEC}
+    OUTPUT_SPECS = {"loss": _SEG_LOSS_OUT_SPEC}
+
+    def __init__(
+        self,
+        weight: float = 1.0,
+        class_weights: list[float] | None = None,
+        ignore_index: int = -100,
+        **kwargs,
+    ) -> None:
+        self.weight = float(weight)
+        self.class_weights = class_weights
+        self.ignore_index = int(ignore_index)
+        super().__init__(
+            weight=self.weight,
+            class_weights=class_weights,
+            ignore_index=self.ignore_index,
+            **kwargs,
+        )
+        if class_weights is not None:
+            self.register_buffer("_class_weights", torch.tensor(class_weights, dtype=torch.float32))
+
+    def forward(self, logits: Tensor, targets: Tensor, **_: Any) -> dict[str, Tensor]:
+        """Compute the weighted cross-entropy from BHWC logits and a mask.
+
+        Parameters
+        ----------
+        logits : Tensor
+            Per-pixel class logits [B, H, W, K]
+        targets : Tensor
+            Integer class-index mask [B, H, W] (a trailing singleton channel
+            is squeezed)
+
+        Returns
+        -------
+        dict[str, Tensor]
+            Dictionary with "loss" key containing the scalar cross-entropy
+        """
+        if logits.shape[-1] == 1:
+            raise ValueError(
+                "CrossEntropyLoss needs multiclass logits [B, H, W, K>=2]; softmax over a "
+                "single logit is constant, so the loss would always be zero. Use DiceLoss or "
+                "AnomalyBCEWithLogits for single-logit binary heads."
+            )
+        logits_bchw, targets_bhw = _to_bchw_targets(logits, targets)
+        buf = getattr(self, "_class_weights", None)
+        weights = buf.to(logits_bchw.dtype) if buf is not None else None
+        loss = F.cross_entropy(
+            logits_bchw, targets_bhw, weight=weights, ignore_index=self.ignore_index
+        )
+        return {"loss": self.weight * loss}
+
+
 __all__ = [
     "LossNode",
     "OrthogonalityLoss",
     "AnomalyBCEWithLogits",
+    "CrossEntropyLoss",
+    "DiceLoss",
     "MSEReconstructionLoss",
     "SelectorEntropyRegularizer",
     "SelectorDiversityRegularizer",

@@ -1579,6 +1579,28 @@ capabilities:
       optional: false
       description: Scalar BCE loss value
   doc_summary: Binary cross-entropy loss for anomaly detection with logits.
+- class_name: cuvis_ai.node.losses.CrossEntropyLoss
+  category: loss
+  tags: [differentiable, segmentation, torch, training]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M10 14v40h44\"/>\n  <path d=\"M14 18c8 0 12 8 18 18s12 14 22 14\"/>\n  <path d=\"M48 44l6 6-6 6\" transform=\"translate(0 -6)\"/>\n</svg>\n"
+  input_specs:
+    logits:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Per-pixel class logits [B, H, W, num_classes]
+    targets:
+      dtype: int32
+      shape: [-1, -1, -1]
+      optional: false
+      description: Integer class-index mask [B, H, W]; cast to int64 internally
+  output_specs:
+    loss:
+      dtype: float32
+      shape: []
+      optional: false
+      description: Scalar loss value
+  doc_summary: Pixel-wise cross-entropy over dense segmentation logits (``K >= 2``).
 - class_name: cuvis_ai.node.losses.DeepSVDDSoftBoundaryLoss
   category: loss
   tags: [anomaly, differentiable, torch, training]
@@ -1601,6 +1623,28 @@ capabilities:
       optional: false
       description: Deep SVDD soft-boundary loss
   doc_summary: Soft-boundary Deep SVDD objective operating on BHWD embeddings.
+- class_name: cuvis_ai.node.losses.DiceLoss
+  category: loss
+  tags: [differentiable, segmentation, torch, training]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M10 14v40h44\"/>\n  <path d=\"M14 18c8 0 12 8 18 18s12 14 22 14\"/>\n  <path d=\"M48 44l6 6-6 6\" transform=\"translate(0 -6)\"/>\n</svg>\n"
+  input_specs:
+    logits:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Per-pixel class logits [B, H, W, num_classes]
+    targets:
+      dtype: int32
+      shape: [-1, -1, -1]
+      optional: false
+      description: Integer class-index mask [B, H, W]; cast to int64 internally
+  output_specs:
+    loss:
+      dtype: float32
+      shape: []
+      optional: false
+      description: Scalar loss value
+  doc_summary: Soft Dice loss over dense segmentation logits.
 - class_name: cuvis_ai.node.losses.DistinctnessLoss
   category: loss
   tags: [differentiable, torch, training]

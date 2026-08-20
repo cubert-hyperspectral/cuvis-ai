@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Added `DiceLoss` and `CrossEntropyLoss` segmentation loss nodes.** Multiclass-capable soft Dice (with an `include_background` toggle) and cross-entropy over BHWC logits `[B,H,W,K]` with integer targets `[B,H,W]`, subclassing the existing `LossNode` base (train/val/test stages) and registered in `cuvis_ai/configs/plugins/cuvis_ai_builtin.yaml`. Ports the two losses out of the cuvis-ai-unet plugin so it can drop its local copies.
 - Bumped the `cuvis_ai_builtin` manifest pin v0.11.5 -> v0.12.0 so composed child environments install the released cuvis-ai matching the host.
 
 ## 0.12.0 - 2026-08-20

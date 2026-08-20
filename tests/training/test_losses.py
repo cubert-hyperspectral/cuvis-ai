@@ -6,6 +6,8 @@ import torch.nn.functional as F
 
 from cuvis_ai.node.losses import (
     AnomalyBCEWithLogits,
+    CrossEntropyLoss,
+    DiceLoss,
     DistinctnessLoss,
     MSEReconstructionLoss,
     OrthogonalityLoss,
@@ -362,12 +364,189 @@ class TestLossNodeProtocol:
             AnomalyBCEWithLogits(),
             MSEReconstructionLoss(),
             DistinctnessLoss(),
+            DiceLoss(),
+            CrossEntropyLoss(),
         ]
 
         for loss_node in loss_classes:
             assert hasattr(loss_node, "forward")
             assert callable(loss_node.forward)
             assert "loss" in loss_node.OUTPUT_SPECS
+
+
+def _seg_batch(num_classes: int = 2, seed: int = 0) -> tuple[torch.Tensor, torch.Tensor]:
+    """Small BHWC logits + integer mask pair for the segmentation losses."""
+    g = torch.Generator().manual_seed(seed)
+    logits = torch.randn(2, 8, 8, num_classes, generator=g, requires_grad=True)
+    targets = torch.randint(0, num_classes, (2, 8, 8), generator=g, dtype=torch.int32)
+    return logits, targets
+
+
+class TestDiceLoss:
+    """Tests for DiceLoss."""
+
+    def test_initialization(self):
+        """Test DiceLoss initialization and hparams."""
+        node = DiceLoss(weight=2.0, ignore_index=255, include_background=False, eps=1e-5)
+        assert node.weight == 2.0
+        assert node.ignore_index == 255
+        assert node.include_background is False
+        assert node.eps == 1e-5
+        assert isinstance(node, Node)
+
+    def test_matches_manual_soft_dice(self):
+        """Vectorized node output equals a hand-computed soft Dice."""
+        logits, targets = _seg_batch(num_classes=3)
+        out = DiceLoss(weight=1.0).forward(logits=logits, targets=targets)["loss"]
+
+        probs = torch.softmax(logits.permute(0, 3, 1, 2), dim=1)
+        onehot = F.one_hot(targets.long(), 3).permute(0, 3, 1, 2).to(probs.dtype)
+        inter = (probs * onehot).sum((0, 2, 3))
+        denom = probs.sum((0, 2, 3)) + onehot.sum((0, 2, 3))
+        expected = 1.0 - ((2.0 * inter + 1e-6) / (denom + 1e-6)).mean()
+        assert torch.allclose(out, expected, atol=1e-6)
+
+    def test_perfect_prediction_near_zero(self):
+        """Extreme logits matching the targets drive the loss toward zero."""
+        _, targets = _seg_batch(num_classes=2)
+        logits = F.one_hot(targets.long(), 2).float() * 100.0  # [B,H,W,K]
+        loss = DiceLoss().forward(logits=logits, targets=targets)["loss"]
+        assert loss.item() < 1e-4
+
+    def test_weight_scaling(self):
+        """Doubling weight doubles the loss."""
+        logits, targets = _seg_batch()
+        l1 = DiceLoss(weight=1.0).forward(logits=logits, targets=targets)["loss"]
+        l2 = DiceLoss(weight=2.0).forward(logits=logits, targets=targets)["loss"]
+        assert torch.allclose(2.0 * l1, l2, atol=1e-7)
+
+    def test_gradient_flows(self):
+        """Loss backpropagates to the logits."""
+        logits, targets = _seg_batch()
+        loss = DiceLoss().forward(logits=logits, targets=targets)["loss"]
+        loss.backward()
+        assert logits.grad is not None
+        assert torch.isfinite(logits.grad).all()
+
+    def test_include_background_changes_loss(self):
+        """Dropping class 0 from the mean changes the multiclass loss."""
+        logits, targets = _seg_batch(num_classes=3)
+        with_bg = DiceLoss(include_background=True).forward(logits=logits, targets=targets)
+        without_bg = DiceLoss(include_background=False).forward(logits=logits, targets=targets)
+        assert not torch.allclose(with_bg["loss"], without_bg["loss"])
+
+    def test_ignore_index_excludes_pixels(self):
+        """Marking every mismatching pixel ignored leaves a near-perfect Dice."""
+        _, targets = _seg_batch(num_classes=2)
+        logits = F.one_hot(targets.long(), 2).float() * 100.0
+        corrupted = targets.clone()
+        corrupted[:, :4] = 1 - corrupted[:, :4]  # break the top half...
+        corrupted_marked = corrupted.clone()
+        corrupted_marked[:, :4] = 255  # ...then exclude it
+        broken = DiceLoss().forward(logits=logits, targets=corrupted)["loss"]
+        ignored = DiceLoss(ignore_index=255).forward(logits=logits, targets=corrupted_marked)
+        assert broken.item() > 0.1
+        assert ignored["loss"].item() < 1e-3
+
+    def test_binary_single_logit_head(self):
+        """K == 1 logits use the sigmoid/binary formulation."""
+        g = torch.Generator().manual_seed(1)
+        targets = torch.randint(0, 2, (2, 8, 8), generator=g, dtype=torch.int32)
+        logits = (targets.float() * 200.0 - 100.0).unsqueeze(-1)  # [B,H,W,1]
+        loss = DiceLoss().forward(logits=logits, targets=targets)["loss"]
+        assert loss.item() < 1e-4
+
+    def test_binary_ignore_index_excludes_pixels(self):
+        """The K == 1 sigmoid path honors ignore_index too."""
+        g = torch.Generator().manual_seed(3)
+        targets = torch.randint(0, 2, (2, 8, 8), generator=g, dtype=torch.int32)
+        logits = (targets.float() * 200.0 - 100.0).unsqueeze(-1)  # [B,H,W,1]
+        corrupted = targets.clone()
+        corrupted[:, :4] = 1 - corrupted[:, :4]
+        corrupted_marked = corrupted.clone()
+        corrupted_marked[:, :4] = 255
+        broken = DiceLoss().forward(logits=logits, targets=corrupted)["loss"]
+        ignored = DiceLoss(ignore_index=255).forward(logits=logits, targets=corrupted_marked)
+        assert broken.item() > 0.1
+        assert ignored["loss"].item() < 1e-3
+
+    def test_out_of_range_target_raises(self):
+        """A multiclass target outside [0, K) that is not ignore_index raises."""
+        logits, targets = _seg_batch(num_classes=3)
+        bad = targets.clone()
+        bad[0, 0, 0] = 3
+        with pytest.raises(RuntimeError):
+            DiceLoss().forward(logits=logits, targets=bad)
+
+
+class TestCrossEntropyLoss:
+    """Tests for CrossEntropyLoss."""
+
+    def test_initialization(self):
+        """Test CrossEntropyLoss initialization and hparams."""
+        node = CrossEntropyLoss(weight=0.5, class_weights=[0.1, 1.0], ignore_index=7)
+        assert node.weight == 0.5
+        assert node.class_weights == [0.1, 1.0]
+        assert node.ignore_index == 7
+        assert isinstance(node, Node)
+
+    def test_matches_functional_cross_entropy(self):
+        """Node output equals F.cross_entropy on permuted logits."""
+        logits, targets = _seg_batch(num_classes=4)
+        out = CrossEntropyLoss().forward(logits=logits, targets=targets)["loss"]
+        expected = F.cross_entropy(logits.permute(0, 3, 1, 2), targets.long())
+        assert torch.allclose(out, expected, atol=1e-6)
+
+    def test_class_weights_applied(self):
+        """Per-class weights change the loss and match F.cross_entropy."""
+        logits, targets = _seg_batch(num_classes=2)
+        cw = [0.1, 10.0]
+        out = CrossEntropyLoss(class_weights=cw).forward(logits=logits, targets=targets)["loss"]
+        expected = F.cross_entropy(
+            logits.permute(0, 3, 1, 2), targets.long(), weight=torch.tensor(cw)
+        )
+        assert torch.allclose(out, expected, atol=1e-6)
+        plain = CrossEntropyLoss().forward(logits=logits, targets=targets)["loss"]
+        assert not torch.allclose(out, plain)
+
+    def test_ignore_index_matches_functional(self):
+        """ignore_index excludes pixels exactly as F.cross_entropy does."""
+        logits, targets = _seg_batch(num_classes=3)
+        marked = targets.clone()
+        marked[:, :2] = 255
+        out = CrossEntropyLoss(ignore_index=255).forward(logits=logits, targets=marked)["loss"]
+        expected = F.cross_entropy(logits.permute(0, 3, 1, 2), marked.long(), ignore_index=255)
+        assert torch.allclose(out, expected, atol=1e-6)
+
+    def test_weight_scaling(self):
+        """Doubling weight doubles the loss."""
+        logits, targets = _seg_batch()
+        l1 = CrossEntropyLoss(weight=1.0).forward(logits=logits, targets=targets)["loss"]
+        l2 = CrossEntropyLoss(weight=2.0).forward(logits=logits, targets=targets)["loss"]
+        assert torch.allclose(2.0 * l1, l2, atol=1e-7)
+
+    def test_gradient_flows(self):
+        """Loss backpropagates to the logits."""
+        logits, targets = _seg_batch()
+        loss = CrossEntropyLoss().forward(logits=logits, targets=targets)["loss"]
+        loss.backward()
+        assert logits.grad is not None
+        assert torch.isfinite(logits.grad).all()
+
+    def test_trailing_target_channel_squeezed(self):
+        """A [B, H, W, 1] target is accepted and matches the [B, H, W] result."""
+        logits, targets = _seg_batch()
+        a = CrossEntropyLoss().forward(logits=logits, targets=targets)["loss"]
+        b = CrossEntropyLoss().forward(logits=logits, targets=targets.unsqueeze(-1))["loss"]
+        assert torch.allclose(a, b)
+
+    def test_single_logit_head_raises(self):
+        """K == 1 logits are rejected instead of silently yielding zero loss."""
+        g = torch.Generator().manual_seed(2)
+        targets = torch.randint(0, 2, (2, 8, 8), generator=g, dtype=torch.int32)
+        logits = torch.randn(2, 8, 8, 1, generator=g)
+        with pytest.raises(ValueError, match="single logit"):
+            CrossEntropyLoss().forward(logits=logits, targets=targets)
 
 
 if __name__ == "__main__":
