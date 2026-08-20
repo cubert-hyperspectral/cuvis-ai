@@ -38,3 +38,29 @@ capabilities:
       optional: true
       description: Augmented mask [B, H, W]
   doc_summary: Applies a sequence of stochastic augmentation transforms to a cube and paired mask during training only.
+- class_name: cuvis_ai_augment.node.crop.Crop
+  category: transform
+  tags: [hyperspectral, preprocessing, torch]
+  input_specs:
+    data:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Cube [B, H, W, C] in float32
+    mask:
+      dtype: int32
+      shape: [-1, -1, -1]
+      optional: true
+      description: Optional per-pixel mask [B, H, W] (cropped identically)
+  output_specs:
+    cropped:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Cropped cube [B, H', W', C]
+    mask_cropped:
+      dtype: int32
+      shape: [-1, -1, -1]
+      optional: true
+      description: Cropped mask [B, H', W'] (only when a mask is connected)
+  doc_summary: Deterministic fixed-rectangle spatial crop of a cube and optional paired mask, applied identically at every execution stage.

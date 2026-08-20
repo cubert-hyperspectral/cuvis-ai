@@ -21,6 +21,7 @@ PLUGIN_NAME = "augment"
 EXPECTED_REPO = "https://github.com/cubert-hyperspectral/cuvis-ai-augment.git"
 EXPECTED_PROVIDES = [
     "cuvis_ai_augment.node.compose.AugmentationCompose",
+    "cuvis_ai_augment.node.crop.Crop",
 ]
 
 
