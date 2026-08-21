@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Security: refreshed the `pip` lock to 26.2 (PYSEC-2026-3721, doubly-encoded index URLs allowing arbitrary file placement).
 - Bumped the rtsam2 plugin manifest pin v0.2.1 -> v0.3.0 and added its new `RTSAM2PointExpansion` capability: interactive single-frame point expansion (positive/negative clicks to one object mask), port-compatible with `SAM3PointExpansion` and re-promptable in place (every clicked frame re-seeds the predictor, so updated point sets refresh the mask deterministically; runs on CPU-only machines too). Added the matching `rtsam2_point_expansion.yaml` / `rtsam2_point_expansion_view.yaml` pipeline presets.
 - Bumped the `cuvis_ai_builtin` manifest pin v0.12.0 -> v0.12.1 so composed child environments install the released cuvis-ai matching the host.
 
