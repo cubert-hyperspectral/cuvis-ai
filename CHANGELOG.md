@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+- **Breaking: `CocoTrackMaskWriter` now defaults to standard image-keyed COCO output.**
+  The mask-tracking writer previously emitted a YouTube-VIS-shaped track dialect
+  (top-level `videos`, one annotation per track with per-frame parallel arrays, no
+  `image_id`) that pycocotools — and with it the training-side `CocoLabeler`, plus
+  `cuvis-ai-trackeval`, the occlusion nodes, and `append_tracking_metrics` — cannot read.
+  The default output is now standard COCO: per-frame `images` records plus one annotation
+  per (track, frame) carrying an RLE `segmentation`, `bbox`/`area`, `iscrowd: 1`, and
+  additive `score`/`track_id` keys, with per-frame image dimensions. All pipeline configs
+  that wire the writer inherit the new default. The legacy shape stays available as an
+  explicit opt-in via the new `dialect` parameter (`dialect: video`); files already on
+  disk keep working everywhere (`TrackingResultsReader`, the prompt nodes, and
+  cuvis-ai-dataloader >= 0.6.0 read both dialects).
+- `TrackingResultsReader`: the image-dialect (`coco_bbox`) path now also reconstructs the
+  `mask` label map and `object_ids` from per-annotation RLE `segmentation` dicts (pixel
+  value = `track_id`, annotation id when track_id is missing or negative; overlaps painted
+  in ascending annotation-id order; RLE dimensions validated against the image record), and
+  derives `bbox` from the RLE for bbox-less annotations. Pure bbox files behave exactly as
+  before.
+- Bumped the cuvis_ai_dataloader manifest pin v0.5.1 -> v0.6.0: `CocoLabeler` reads both
+  COCO label dialects (legacy track-dialect files convert in memory) and rasterizes
+  standard RLE-object segmentations, so tracked-session annotations train end to end.
 - Security: refreshed the `pip` lock to 26.2 (PYSEC-2026-3721, doubly-encoded index URLs allowing arbitrary file placement).
 - Bumped the rtsam2 plugin manifest pin v0.2.1 -> v0.3.0 and added its new `RTSAM2PointExpansion` capability: interactive single-frame point expansion (positive/negative clicks to one object mask), port-compatible with `SAM3PointExpansion` and re-promptable in place (every clicked frame re-seeds the predictor, so updated point sets refresh the mask deterministically; runs on CPU-only machines too). Added the matching `rtsam2_point_expansion.yaml` / `rtsam2_point_expansion_view.yaml` pipeline presets.
 - Bumped the `cuvis_ai_builtin` manifest pin v0.12.0 -> v0.12.1 so composed child environments install the released cuvis-ai matching the host.

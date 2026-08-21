@@ -1529,7 +1529,7 @@ capabilities:
       shape: [-1]
       optional: true
       description: Optional UTF-8 JSON bytes mapping category IDs to category names.
-  doc_summary: Write mask tracking outputs into video_coco JSON.
+  doc_summary: Write mask tracking outputs as COCO JSON in one of two dialects.
 - class_name: cuvis_ai.node.labels.BinaryAnomalyLabelMapper
   category: transform
   tags: [anomaly, mask, numpy, postprocessing]

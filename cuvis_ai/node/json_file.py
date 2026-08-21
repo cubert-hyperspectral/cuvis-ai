@@ -177,7 +177,15 @@ class _BaseCocoTrackWriter(_BaseJsonWriterNode):
 
 
 class CocoTrackMaskWriter(_BaseCocoTrackWriter):
-    """Write mask tracking outputs into video_coco JSON."""
+    """Write mask tracking outputs as COCO JSON in one of two dialects.
+
+    The default ``dialect="image"`` emits standard image-keyed COCO: per-frame ``images``
+    records plus one annotation per (track, frame) carrying an RLE ``segmentation``,
+    ``bbox``/``area``, and additive ``track_id``/``score`` keys — readable by pycocotools
+    and every image-keyed COCO consumer. ``dialect="video"`` emits the legacy
+    YouTube-VIS-shaped track dialect (top-level ``videos``, one annotation per track with
+    per-frame parallel arrays) for external video-COCO tooling.
+    """
 
     _category = NodeCategory.SINK
     _tags = frozenset({NodeTag.METADATA, NodeTag.MASK, NodeTag.TRACKING})
@@ -220,15 +228,19 @@ class CocoTrackMaskWriter(_BaseCocoTrackWriter):
     def __init__(
         self,
         output_json_path: str,
+        dialect: str = "image",
         default_category_name: str = "object",
         write_empty_frames: bool = True,
         atomic_write: bool = True,
         flush_interval: int = 0,
         **kwargs: Any,
     ) -> None:
+        if dialect not in {"image", "video"}:
+            raise ValueError("dialect must be one of {'image', 'video'}.")
         if not default_category_name:
             raise ValueError("default_category_name must be a non-empty string.")
 
+        self.dialect = dialect
         self.default_category_name = default_category_name
         self.write_empty_frames = bool(write_empty_frames)
         self._frame_hw_by_id: dict[int, tuple[int, int]] = {}
@@ -243,6 +255,7 @@ class CocoTrackMaskWriter(_BaseCocoTrackWriter):
             output_json_path=output_json_path,
             atomic_write=atomic_write,
             flush_interval=flush_interval,
+            dialect=dialect,
             default_category_name=default_category_name,
             write_empty_frames=write_empty_frames,
             **kwargs,
@@ -405,8 +418,64 @@ class CocoTrackMaskWriter(_BaseCocoTrackWriter):
         self._mark_dirty_and_maybe_flush()
         return {}
 
-    def _flush_json(self) -> None:
-        """Emit the accumulated mask tracks in video-COCO format."""
+    def _categories_payload(self) -> list[dict[str, Any]]:
+        """Category records shared by both dialects (default entry when none were seen)."""
+        categories = [
+            {"id": int(category_id), "name": name}
+            for category_id, name in sorted(self._category_id_to_name.items())
+        ]
+        if not categories:
+            categories = [{"id": 1, "name": self.default_category_name}]
+        return categories
+
+    def _image_dialect_payload(self) -> dict[str, Any]:
+        """Standard image-keyed COCO: per-frame images, one annotation per (track, frame)."""
+        frame_indices = sorted(self._frame_hw_by_id.keys())
+        images = [
+            {
+                "id": int(fid),
+                "file_name": f"frame_{int(fid):06d}",
+                "height": int(self._frame_hw_by_id[fid][0]),
+                "width": int(self._frame_hw_by_id[fid][1]),
+            }
+            for fid in frame_indices
+        ]
+
+        annotations = []
+        ann_id = 1
+        for track_id in sorted(self._track_segmentations.keys()):
+            per_frame_seg = self._track_segmentations.get(track_id, {})
+            per_frame_scores = self._track_scores.get(track_id, {})
+            per_frame_bboxes = self._track_bboxes.get(track_id, {})
+            per_frame_areas = self._track_areas.get(track_id, {})
+            for fid in frame_indices:
+                seg = per_frame_seg.get(fid)
+                if seg is None:
+                    continue
+                annotations.append(
+                    {
+                        "id": ann_id,
+                        "image_id": int(fid),
+                        "category_id": int(self._track_category_ids.get(track_id, 1)),
+                        "segmentation": seg,
+                        "bbox": per_frame_bboxes.get(fid),
+                        "area": float(per_frame_areas.get(fid, 0.0)),
+                        "iscrowd": 1,
+                        "score": float(per_frame_scores.get(fid, 0.0)),
+                        "track_id": int(track_id),
+                    }
+                )
+                ann_id += 1
+
+        return {
+            "info": {"description": "Mask tracking results", "version": "1.0"},
+            "images": images,
+            "annotations": annotations,
+            "categories": self._categories_payload(),
+        }
+
+    def _video_dialect_payload(self) -> dict[str, Any]:
+        """Legacy track dialect: one video record, per-track parallel arrays."""
         frame_indices = sorted(self._frame_hw_by_id.keys())
         first_frame = frame_indices[0] if frame_indices else 0
         frame_h, frame_w = self._frame_hw_by_id.get(first_frame, (0, 0))
@@ -449,14 +518,7 @@ class CocoTrackMaskWriter(_BaseCocoTrackWriter):
             )
             ann_id += 1
 
-        categories = [
-            {"id": int(category_id), "name": name}
-            for category_id, name in sorted(self._category_id_to_name.items())
-        ]
-        if not categories:
-            categories = [{"id": 1, "name": self.default_category_name}]
-
-        payload = {
+        return {
             "info": {"description": "Mask tracking results", "version": "1.0"},
             "videos": [
                 {
@@ -470,8 +532,15 @@ class CocoTrackMaskWriter(_BaseCocoTrackWriter):
                 }
             ],
             "annotations": annotations,
-            "categories": categories,
+            "categories": self._categories_payload(),
         }
+
+    def _flush_json(self) -> None:
+        """Emit the accumulated mask tracks in the configured COCO dialect."""
+        if self.dialect == "video":
+            payload = self._video_dialect_payload()
+        else:
+            payload = self._image_dialect_payload()
         self._write_payload(payload)
         self._finish_flush()
 
@@ -874,12 +943,16 @@ class TrackingResultsReader(Node):
 
     Supports two JSON formats:
 
-    1. **COCO bbox tracking** — ``images`` + ``annotations`` with ``bbox`` and
-       ``track_id`` fields.  Emits ``bboxes``, ``category_ids``, ``confidences``,
-       ``track_ids``.
+    1. **COCO image dialect** (``coco_bbox``) — ``images`` + ``annotations`` with
+       ``bbox`` and/or RLE-dict ``segmentation`` fields plus additive ``track_id``.
+       Emits ``bboxes``, ``category_ids``, ``confidences``, ``track_ids``; when any
+       annotation carries a ``segmentation``, also emits the ``mask`` label map
+       (pixel value = ``track_id``, annotation id when track_id is missing/negative;
+       overlaps painted in ascending annotation-id order) and ``object_ids``.
 
-    2. **Video COCO** — ``videos`` + ``annotations`` with ``segmentations``
-       list of RLE dicts.  Emits ``mask`` label map and ``object_ids``.
+    2. **Video COCO** (``video_coco``) — ``videos`` + ``annotations`` with
+       ``segmentations`` list of RLE dicts.  Emits ``mask`` label map and
+       ``object_ids``.
 
     Optional outputs are ``None`` when the format doesn't provide them.
 
@@ -999,12 +1072,23 @@ class TrackingResultsReader(Node):
 
     # -- Format-specific init --------------------------------------------------
 
+    @staticmethod
+    def _annotation_rle(ann: dict) -> dict | None:
+        """Return the annotation's RLE-dict ``segmentation`` or ``None``."""
+        seg = ann.get("segmentation")
+        if isinstance(seg, dict) and "counts" in seg:
+            return seg
+        return None
+
     def _init_coco_bbox(self, data: dict) -> None:
-        """Index COCO bbox annotations by image ID for per-frame lookup."""
+        """Index image-dialect annotations by image ID (bboxes plus optional RLE masks)."""
         self._images = {int(img["id"]): img for img in data.get("images", [])}
         self._annotations_by_img: dict[int, list[dict]] = {}
+        self._has_segmentations = False
         for ann in data.get("annotations", []):
             self._annotations_by_img.setdefault(int(ann["image_id"]), []).append(ann)
+            if self._annotation_rle(ann) is not None:
+                self._has_segmentations = True
         self._frame_ids = sorted(self._images.keys())
 
     def _init_video_coco(self, data: dict) -> None:
@@ -1107,8 +1191,18 @@ class TrackingResultsReader(Node):
         anns = self._annotations_by_img.get(frame_id, [])
 
         bboxes, cats, scores, tids = [], [], [], []
+        mask_entries: list[tuple[int, int, dict]] = []  # (ann_id, label, rle)
         for ann in anns:
-            x, y, w, h = ann["bbox"]
+            rle = self._annotation_rle(ann)
+            bbox = ann.get("bbox")
+            if bbox is None and rle is not None:
+                bbox = coco_rle_to_bbox(rle)
+            if bbox is None:
+                raise ValueError(
+                    f"Annotation {ann.get('id')} in {self.json_path} carries neither a "
+                    "bbox nor an RLE segmentation."
+                )
+            x, y, w, h = bbox
             bboxes.append([x, y, x + w, y + h])
             category_id = ann.get("category_id", 0)
             score = ann.get("score", 0.0)
@@ -1116,6 +1210,11 @@ class TrackingResultsReader(Node):
             cats.append(int(category_id) if category_id is not None else 0)
             scores.append(float(score) if score is not None else 0.0)
             tids.append(int(track_id) if track_id is not None else -1)
+            if rle is not None:
+                ann_id = int(ann.get("id", 0))
+                raw_tid = ann.get("track_id")
+                label = int(raw_tid) if raw_tid is not None and int(raw_tid) >= 0 else ann_id
+                mask_entries.append((ann_id, label, rle))
 
         n = len(bboxes)
         bboxes_t = (
@@ -1138,6 +1237,11 @@ class TrackingResultsReader(Node):
         h_px = int(img.get("height", 0))
         w_px = int(img.get("width", 0))
 
+        if self._has_segmentations and h_px > 0 and w_px > 0:
+            mask_t, oids_t = self._mask_entries_to_label_map(mask_entries, h_px, w_px)
+        else:
+            mask_t, oids_t = empty_mask, empty_oids
+
         return {
             "frame_id": torch.tensor([frame_id], dtype=torch.int64),
             "orig_hw": torch.tensor([[h_px, w_px]], dtype=torch.int64),
@@ -1145,9 +1249,45 @@ class TrackingResultsReader(Node):
             "category_ids": cats_t,
             "confidences": scores_t,
             "track_ids": tids_t,
-            "mask": empty_mask,
-            "object_ids": empty_oids,
+            "mask": mask_t,
+            "object_ids": oids_t,
         }
+
+    def _mask_entries_to_label_map(
+        self,
+        entries: list[tuple[int, int, dict]],
+        h: int,
+        w: int,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Paint image-dialect RLEs into a label map in ascending annotation-id order.
+
+        The painted value is the annotation's ``track_id`` (annotation id when track_id
+        is missing or negative), so on overlap the highest annotation id wins
+        deterministically. RLE dimensions must match the frame's image record.
+        """
+        label_map = np.zeros((h, w), dtype=np.int32)
+        labels: set[int] = set()
+        for ann_id, label, rle in sorted(entries, key=lambda entry: entry[0]):
+            if not -(2**31) <= label < 2**31:
+                raise ValueError(
+                    f"Annotation {ann_id} in {self.json_path}: label {label} does not fit int32."
+                )
+            binary = coco_rle_decode(rle)
+            if binary.shape != (h, w):
+                raise ValueError(
+                    f"Annotation {ann_id} in {self.json_path}: RLE size "
+                    f"{tuple(binary.shape)} disagrees with the image record ({h}, {w})."
+                )
+            label_map[binary > 0] = label
+            labels.add(label)
+
+        mask_t = torch.from_numpy(label_map).unsqueeze(0)
+        oids_t = (
+            torch.tensor([sorted(labels)], dtype=torch.int64)
+            if labels
+            else torch.empty((1, 0), dtype=torch.int64)
+        )
+        return mask_t, oids_t
 
     def _rles_to_label_map(
         self,
