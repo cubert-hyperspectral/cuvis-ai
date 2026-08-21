@@ -1,0 +1,23 @@
+metadata:
+  name: RTSAM2_Point_Expansion_View
+  description: RTSAM2 single-frame interactive point expansion driven by the host-rendered view
+    frame. The host supplies the displayed RGB/CIR/SWIR false-color image as rgb_image (no
+    overlays) plus the positive/negative points and the source frame_id; the hyperspectral cube
+    never leaves the host. Every clicked frame re-seeds the predictor, so updated point sets
+    refresh the mask in place (no session reset needed between clicks).
+  tags:
+  - segmentation
+  - rtsam2
+  - point-prompt
+  - rgb
+  - expansion
+  author: cuvis.ai
+plugins:
+- rtsam2
+nodes:
+- name: rtsam2_point_expansion
+  class_name: cuvis_ai_rtsam2.node.rtsam2_point_expansion.RTSAM2PointExpansion
+  hparams:
+    model_type: efficienttam
+    # model_dir: checkpoints  # absolute path, or relative to the rtsam2 repo root
+connections: []

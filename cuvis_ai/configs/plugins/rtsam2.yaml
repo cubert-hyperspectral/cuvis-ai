@@ -10,7 +10,7 @@ name: rtsam2
 # For local development against a checkout, comment the repo/tag pin and use:
 # path: "D:/code-repos/cuvis-ai-rtsam2/cuvis-ai-rtsam2"
 repo: "https://github.com/cubert-hyperspectral/cuvis-ai-rtsam2.git"
-tag: "v0.2.1"
+tag: "v0.3.0"
 package_name: "cuvis-ai-rtsam2"
 capabilities:
 - class_name: cuvis_ai_rtsam2.node.rtsam2_streaming_propagation.RTSAM2BboxPropagation
@@ -87,3 +87,40 @@ capabilities:
       optional: false
       description: ''
   doc_summary: RTSAM2 propagation with runtime label-map prompts.
+- class_name: cuvis_ai_rtsam2.node.rtsam2_point_expansion.RTSAM2PointExpansion
+  category: model
+  tags: [batched, image, inference, keypoints, learnable, mask, rgb, segmentation, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\n</svg>\n"
+  input_specs:
+    rgb_image:
+      dtype: float32
+      shape: [1, -1, -1, 3]
+      optional: false
+      description: RGB frame [1,H,W,3] in float32 with values in [0, 1].
+    points:
+      dtype: ''
+      shape: []
+      optional: true
+      description: Optional per-frame list of point prompt dicts with keys element_id, x, y, type (type in {positive, negative, neutral}). Positive=object, negative=background.
+    frame_id:
+      dtype: int64
+      shape: [1]
+      optional: true
+      description: Optional source frame index [1]; accepted for contract parity, unused.
+  output_specs:
+    mask:
+      dtype: int32
+      shape: [1, -1, -1]
+      optional: false
+      description: ''
+    object_ids:
+      dtype: int64
+      shape: [1, -1]
+      optional: false
+      description: ''
+    detection_scores:
+      dtype: float32
+      shape: [1, -1]
+      optional: false
+      description: ''
+  doc_summary: Expand positive/negative click points into one object mask on a single frame.

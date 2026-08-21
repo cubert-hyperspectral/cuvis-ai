@@ -1,0 +1,34 @@
+metadata:
+  name: RTSAM2_Point_Expansion
+  description: RTSAM2 single-frame interactive point expansion (positive/negative points to one
+    object mask) with CU3S source-domain frame mapping
+  tags:
+  - segmentation
+  - rtsam2
+  - point-prompt
+  - rgb
+  author: cuvis.ai
+plugins:
+- cuvis_ai_builtin
+- rtsam2
+nodes:
+- name: cu3s_data
+  class_name: cuvis_ai.node.data.CU3SDataNode
+  hparams: {}
+- name: true_rgb
+  class_name: cuvis_ai.node.channel_selector.CIETristimulusRGBSelector
+  hparams: {}
+- name: rtsam2_point_expansion
+  class_name: cuvis_ai_rtsam2.node.rtsam2_point_expansion.RTSAM2PointExpansion
+  hparams:
+    model_type: efficienttam
+    # model_dir: checkpoints  # absolute path, or relative to the rtsam2 repo root
+connections:
+- source: cu3s_data.outputs.cube
+  target: true_rgb.inputs.cube
+- source: cu3s_data.outputs.wavelengths
+  target: true_rgb.inputs.wavelengths
+- source: true_rgb.outputs.rgb_image
+  target: rtsam2_point_expansion.inputs.rgb_image
+- source: cu3s_data.outputs.mesu_index
+  target: rtsam2_point_expansion.inputs.frame_id
