@@ -1,0 +1,35 @@
+metadata:
+  name: RTSAM2_Point_Expansion_Postprocess_View
+  description: RTSAM2 single-frame interactive point expansion driven by the host-rendered view
+    frame, with a MaskRobustifier cleanup pass on the returned mask. Drops small spurious regions
+    (min_area) and smooths the boundary with morphological open/close, while preserving every
+    connected component so an object split by an occluder, or a region carved out by a negative
+    correction point, is kept intact (keep_largest is off) rather than pruned down to a single
+    blob. Every clicked frame re-seeds the predictor, so updated point sets refresh the mask in
+    place (no session reset needed between clicks).
+  tags:
+  - segmentation
+  - rtsam2
+  - point-prompt
+  - rgb
+  - expansion
+  author: cuvis.ai
+plugins:
+- cuvis_ai_builtin
+- rtsam2
+nodes:
+- name: rtsam2_point_expansion
+  class_name: cuvis_ai_rtsam2.node.rtsam2_point_expansion.RTSAM2PointExpansion
+  hparams:
+    model_type: efficienttam
+    # model_dir: checkpoints  # absolute path, or relative to the rtsam2 repo root
+- name: mask_cleanup
+  class_name: cuvis_ai.node.mask_ops.MaskRobustifier
+  hparams:
+    opening_kernel: 0
+    closing_kernel: 3
+    min_area: 50
+    keep_largest: false
+connections:
+- source: rtsam2_point_expansion.outputs.mask
+  target: mask_cleanup.inputs.mask
