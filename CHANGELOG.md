@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.13.1 - 2026-08-24
 
 - Added the `wafer_thickness` plugin manifest (pinned `v0.3.0`, the release that renames the
   `WaferThickness` uncertainty output from `order_disagreement` to `uncertainty`) and the four
