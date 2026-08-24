@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added the `wafer_thickness` plugin manifest (pinned `v0.3.0`, the release that renames the
+  `WaferThickness` uncertainty output from `order_disagreement` to `uncertainty`) and the four
+  wafer SiO2 thickness presets under `configs/pipeline/wafer_thickness/` (1000 nm and 500 nm
+  regimes, each as a base pipeline and a `_cuvisnext_cube` variant).
 - Bumped the `cuvis_ai_builtin` manifest pin v0.12.1 -> v0.13.0 so composed child environments install the released cuvis-ai matching the host.
 
 ## 0.13.0 - 2026-08-24
