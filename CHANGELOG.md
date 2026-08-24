@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.13.0 - 2026-08-24
 
 - **Breaking: `CocoTrackMaskWriter` now defaults to standard image-keyed COCO output.**
   The mask-tracking writer previously emitted a YouTube-VIS-shaped track dialect
