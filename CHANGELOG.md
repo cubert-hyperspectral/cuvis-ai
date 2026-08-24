@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Added `rtsam2_point_expansion_postprocess_view.yaml`: the RTSAM2 point-expansion view
+  pipeline with a `MaskRobustifier` cleanup pass (same open/close, `min_area`, and
+  keep-every-component settings as the SAM3 postprocess variant).
 - Bumped the `cuvis_ai_builtin` manifest pin v0.13.0 -> v0.13.1 so composed child environments install the released cuvis-ai matching the host.
 
 ## 0.13.1 - 2026-08-24
