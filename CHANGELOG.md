@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Bumped the `cuvis_ai_builtin` manifest pin v0.12.1 -> v0.13.0 so composed child environments install the released cuvis-ai matching the host.
+
 ## 0.13.0 - 2026-08-24
 
 - Security: bumped hydra-core 1.3.2 -> 1.3.5 (floor >=1.3.5, lock-aligned; CVE-2026-68508 fixed in 1.3.4, arbitrary code
