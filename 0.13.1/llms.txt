@@ -1,0 +1,89 @@
+# Cuvis.AI Documentation
+
+> Cuvis.AI is an open-source framework for building modular, extensible AI pipelines for real-time hyperspectral video processing, analysis, and deployment.
+
+Cuvis.AI is an open-source, extensible framework for building AI-powered
+processing pipelines for hyperspectral video data. It lets you process
+and structure spectral data, train and apply machine learning models,
+visualize and interpret results, and deploy applications in real-time
+environments. Pipelines are built from reusable modular nodes and can
+be extended with custom plugins or external integrations. Cuvis.AI
+bridges the gap between hyperspectral hardware and real-world
+applications, enabling faster development, testing, and deployment of
+new solutions.
+
+
+## Get Started
+
+- [Your First Pipeline](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/get-started/first-pipeline/index.md)
+- [Installation](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/get-started/installation/index.md)
+- [Quickstart](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/get-started/quickstart/index.md)
+
+## Concepts
+
+- [Overview](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/concepts/index.md)
+- [Data Splits](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/concepts/data-splits/index.md)
+- [Execution Stages](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/concepts/execution-stages/index.md)
+- [Node](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/concepts/node/index.md)
+- [Pipeline](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/concepts/pipeline/index.md)
+- [Port](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/concepts/port/index.md)
+- [Training](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/concepts/training/index.md)
+
+## Tutorials
+
+- [Overview](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/tutorials/gradient/index.md)
+- [AdaCLIP](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/tutorials/gradient/adaclip/index.md)
+- [Deep SVDD](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/tutorials/gradient/deep-svdd/index.md)
+- [Overview](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/tutorials/statistical/index.md)
+- [Blood Perfusion](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/tutorials/statistical/blood-perfusion/index.md)
+- [Channel Selector](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/tutorials/statistical/channel-selector/index.md)
+- [RX Anomaly](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/tutorials/statistical/rx-anomaly/index.md)
+
+## Catalogs
+
+- [Nodes](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/catalogs/nodes/index.md)
+- [Overview](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/catalogs/datasets/index.md)
+- [XMR Demo Blood Perfusion](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/catalogs/datasets/XMR_Demo_Blood_Perfusion/index.md)
+- [XMR Demo Industrial FOD (Lentils)](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/catalogs/datasets/XMR_Demo_Industrial_FOD_Lentils/index.md)
+- [XMR Demo Object Tracking](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/catalogs/datasets/XMR_Demo_Object_Tracking/index.md)
+
+## Workflows
+
+- [Overview](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/workflows/index.md)
+- [Build Pipeline (Python)](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/workflows/build-pipeline-python/index.md)
+- [Build Pipeline (YAML)](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/workflows/build-pipeline-yaml/index.md)
+- [Gradient Training](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/workflows/gradient-training/index.md)
+- [Monitoring & Visualization](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/workflows/monitoring/index.md)
+- [Profiling](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/workflows/profiling/index.md)
+- [Restore Pipeline](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/workflows/restore-pipeline/index.md)
+- [Statistical Training](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/workflows/statistical-training/index.md)
+
+## Deployment
+
+- [Configuration API](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/deployment/api/config/index.md)
+- [Pipeline API](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/deployment/api/pipeline/index.md)
+- [Session Management](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/deployment/api/session/index.md)
+- [Training & Inference](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/deployment/api/training-inference/index.md)
+- [Types & Errors](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/deployment/api/types-errors/index.md)
+
+## Reference
+
+- [Overview](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/reference/configuration/index.md)
+- [Config Groups](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/reference/configuration/config-groups/index.md)
+- [Hydra Basics](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/reference/configuration/hydra-basics/index.md)
+- [Hydra Inheritance & Overrides](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/reference/configuration/hydra-inheritance/index.md)
+- [Hydra Sweeps & Advanced](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/reference/configuration/hydra-sweeps/index.md)
+- [TrainRun Schema](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/reference/configuration/trainrun-schema/index.md)
+- [Overview](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/reference/contributing/index.md)
+- [Add a Built-in Node](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/reference/contributing/add-builtin-node/index.md)
+- [Contributing](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/reference/contributing/contributing/index.md)
+- [Docs Style](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/reference/contributing/docs-style/index.md)
+- [Docstrings](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/reference/contributing/docstrings/index.md)
+- [Git Hooks](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/reference/contributing/git-hooks/index.md)
+- [Developer Guide](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/reference/plugin-development/guide/index.md)
+- [Overview](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/reference/plugin-development/overview/index.md)
+- [Overview](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/reference/python-api/index.md)
+- [Pipeline & Graph](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/reference/python-api/pipeline/index.md)
+- [Ports](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/reference/python-api/ports/index.md)
+- [Utilities](https://cubert-hyperspectral.github.io/cuvis-ai/0.13.1/reference/python-api/utilities/index.md)
+
