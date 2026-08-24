@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Bumped the `cuvis_ai_builtin` manifest pin v0.13.0 -> v0.13.1 so composed child environments install the released cuvis-ai matching the host.
+
 ## 0.13.1 - 2026-08-24
 
 - Added the `wafer_thickness` plugin manifest (pinned `v0.3.0`, the release that renames the
