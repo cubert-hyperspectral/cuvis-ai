@@ -2,7 +2,7 @@
 
 ## 0.13.0 - 2026-08-24
 
-- Security: bumped hydra-core 1.3.2 -> 1.3.5 (floor >=1.3.4; CVE-2026-68508, arbitrary code
+- Security: bumped hydra-core 1.3.2 -> 1.3.5 (floor >=1.3.5, lock-aligned; CVE-2026-68508 fixed in 1.3.4, arbitrary code
   execution when untrusted config reaches `hydra.utils.instantiate()` — 1.3.4 adds a
   dangerous-target blacklist).
 - **Breaking: `CocoTrackMaskWriter` now defaults to standard image-keyed COCO output.**
