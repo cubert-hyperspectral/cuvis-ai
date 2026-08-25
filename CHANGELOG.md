@@ -6,6 +6,7 @@
   pipeline with a `MaskRobustifier` cleanup pass (same open/close, `min_area`, and
   keep-every-component settings as the SAM3 postprocess variant).
 - Bumped the `cuvis_ai_builtin` manifest pin v0.13.0 -> v0.13.1 so composed child environments install the released cuvis-ai matching the host.
+- Raised the `cuvis-ai-core` floor to 0.13.0 (and `cuvis-ai-schemas[full]` to 0.10.0): the release that forwards `SetProfiling` / `GetProfilingSummary` to the child runtime. Profiling had been dead for every plugin pipeline since core 0.7.0's child-env orchestrator - the parent holds no pipeline, so both RPCs always failed with FAILED_PRECONDITION and profiling summaries came back empty.
 
 ## 0.13.1 - 2026-08-24
 
