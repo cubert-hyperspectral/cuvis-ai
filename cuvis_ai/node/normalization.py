@@ -164,6 +164,10 @@ class MinMaxNormalizer(_ScoreNormalizerBase):
     use_running_stats : bool, optional
         If True, use global min/max from statistical_initialization(). If False, compute
         min/max per batch during forward pass (default: True)
+    max_initialization_frames : int or None, optional
+        Cap on the number of frames (batch elements) consumed by
+        statistical_initialization(): the final batch is sliced to the cap and the input
+        stream is not iterated further. None uses the entire training stream (default: None)
     **kwargs : dict
         Additional arguments passed to Node base class
 
@@ -212,10 +216,24 @@ class MinMaxNormalizer(_ScoreNormalizerBase):
 
     TRAINABLE_BUFFERS = ("running_min", "running_max")
 
-    def __init__(self, eps: float = 1e-6, use_running_stats: bool = True, **kwargs) -> None:
+    def __init__(
+        self,
+        eps: float = 1e-6,
+        use_running_stats: bool = True,
+        max_initialization_frames: int | None = None,
+        **kwargs,
+    ) -> None:
+        if max_initialization_frames is not None and max_initialization_frames <= 0:
+            raise ValueError("max_initialization_frames must be None or a positive integer.")
         self.eps = float(eps)
         self.use_running_stats = use_running_stats
-        super().__init__(eps=eps, use_running_stats=use_running_stats, **kwargs)
+        self.max_initialization_frames = max_initialization_frames
+        super().__init__(
+            eps=eps,
+            use_running_stats=use_running_stats,
+            max_initialization_frames=max_initialization_frames,
+            **kwargs,
+        )
 
         # Running statistics for global normalization
         self.register_buffer("running_min", torch.tensor(float("nan")))
@@ -226,6 +244,9 @@ class MinMaxNormalizer(_ScoreNormalizerBase):
 
     def statistical_initialization(self, input_stream) -> None:
         """Compute global min/max from data iterator.
+
+        Consumes at most ``max_initialization_frames`` frames when the cap is set: the
+        final batch is sliced to the cap and the stream is not iterated further.
 
         Parameters
         ----------
@@ -240,17 +261,24 @@ class MinMaxNormalizer(_ScoreNormalizerBase):
 
         all_mins = []
         all_maxs = []
+        cap = self.max_initialization_frames
+        frames_seen = 0
 
         for batch_data in input_stream:
             # Extract data from port-based dict
             x = batch_data.get("data")
             if x is not None:
+                if cap is not None:
+                    x = x[: cap - frames_seen]
+                frames_seen += x.shape[0]
                 # Flatten spatial dimensions
                 flat = x.reshape(x.shape[0], -1)
                 batch_min = flat.min()
                 batch_max = flat.max()
                 all_mins.append(batch_min)
                 all_maxs.append(batch_max)
+                if cap is not None and frames_seen >= cap:
+                    break
 
         if not all_mins:
             raise RuntimeError(
