@@ -151,6 +151,59 @@ def test_critical_statistical_nodes_reject_empty_initialization(factory):
     assert node._statistically_initialized is False
 
 
+def test_minmax_cap_limits_initialization_frames():
+    """max_initialization_frames slices the final batch and stops the stream early.
+
+    Frames past the cap carry extreme values; the running min/max must not see them.
+    """
+    node = MinMaxNormalizer(use_running_stats=True, max_initialization_frames=3)
+
+    consumed = []
+
+    def data_iterator():
+        # Batch 1: 2 frames in [0, 1). Batch 2: frame 1 all 2.5, frame 2 all 1000.0
+        # (past the cap, must be sliced off). Batch 3 must never be pulled at all.
+        consumed.append(1)
+        yield {"data": torch.rand(2, 4, 4, 1)}
+        consumed.append(2)
+        yield {"data": torch.stack([torch.full((4, 4, 1), 2.5), torch.full((4, 4, 1), 1000.0)])}
+        consumed.append(3)
+        yield {"data": torch.full((2, 4, 4, 1), -1000.0)}
+
+    node.statistical_initialization(data_iterator())
+
+    assert consumed == [1, 2]
+    assert node._statistically_initialized is True
+    assert float(node.running_max) == pytest.approx(2.5)
+    assert 0.0 <= float(node.running_min) < 1.0
+
+
+def test_minmax_cap_none_consumes_entire_stream():
+    """Default (None) keeps the whole-stream behavior."""
+    node = MinMaxNormalizer(use_running_stats=True)
+
+    def data_iterator():
+        yield {"data": torch.zeros(2, 4, 4, 1)}
+        yield {"data": torch.full((2, 4, 4, 1), 7.0)}
+
+    node.statistical_initialization(data_iterator())
+    assert float(node.running_max) == pytest.approx(7.0)
+    assert float(node.running_min) == pytest.approx(0.0)
+
+
+def test_minmax_cap_rejects_non_positive():
+    with pytest.raises(ValueError, match="max_initialization_frames"):
+        MinMaxNormalizer(use_running_stats=True, max_initialization_frames=0)
+    with pytest.raises(ValueError, match="max_initialization_frames"):
+        MinMaxNormalizer(use_running_stats=True, max_initialization_frames=-5)
+
+
+def test_minmax_cap_recorded_in_hparams():
+    """The cap is a declared hparam, so it round-trips through pipeline serialization."""
+    node = MinMaxNormalizer(use_running_stats=True, max_initialization_frames=20)
+    assert node.hparams["max_initialization_frames"] == 20
+
+
 @pytest.mark.parametrize(
     ("node_name", "factory"),
     [
