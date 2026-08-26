@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.13.2 - 2026-08-26
 
 - `MinMaxNormalizer` now implements `max_initialization_frames: int | None = None`: `statistical_initialization` consumes at most that many frames (slicing the final batch and stopping the stream early) instead of always scanning the whole training stream. The kwarg was previously swallowed into hparams as a silent no-op, so configs that already set it (the shipped `dinomaly_rgb` / `dinomaly_cir` presets with `max_initialization_frames: 20`, and the dinomaly plugin's trainrun configs and notebooks) now take effect.
 
