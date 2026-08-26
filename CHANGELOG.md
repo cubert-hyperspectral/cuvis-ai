@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Bumped the `dinomaly` manifest pin v0.6.1 -> v0.6.2: `AnomalyAUROCMetrics` now opts into the trainer's pooled epoch-end reduction (`POOLED_METRIC_NAMES` / `pooled_metrics()`), so the reported val/test AUROC is one exact pooled `compute()` per epoch instead of the batch-size-biased mean of per-batch running values.
+
 - Added `rtsam2_point_expansion_postprocess_view.yaml`: the RTSAM2 point-expansion view
   pipeline with a `MaskRobustifier` cleanup pass (same open/close, `min_area`, and
   keep-every-component settings as the SAM3 postprocess variant).
