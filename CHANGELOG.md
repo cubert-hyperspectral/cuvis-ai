@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Scoped the torch / torchvision cu128 index pin to a `cuda` dependency group (installed by default in this checkout). uv reads a git dependency's `[tool.uv.sources]`, so the unscoped pin reached every composed child environment through the `cuvis_ai_builtin` manifest and made `uv lock` fail with conflicting torch indexes on any host whose torch is not cu128 (Jetson Thor, cu130); every pipeline failed there, not only RTSAM2. Shipped to the 0.13.1 line as 0.13.1.1 for CuvisNEXT 0.4.0.
+- Bumped the `rtsam2` manifest pin v0.3.0 -> v0.3.1 (the same fix on the plugin side).
+- Plugin-development guide: corrected the claim that `[tool.uv.sources]` / `[[tool.uv.index]]` never travel; uv does read them from git and path dependencies, so a plugin must scope any torch index pin to a dependency group.
+
 ## 0.13.3 - 2026-08-27
 
 - Bumped the `cuvis_ai_dataloader` manifest pin v0.6.0 -> v0.6.1: composed child environments could resolve dataclass-wizard >= 1.0 through the open floor and then silently rasterize every RLE-object COCO `segmentation` to 0 px (lost ground truth); 0.6.1 carries the payload verbatim on every wizard version, fails loudly on unrecognized payloads, and caps `dataclass-wizard<1.0` in the `coco` extra.

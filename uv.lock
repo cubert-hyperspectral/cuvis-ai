@@ -803,6 +803,10 @@ docs = [
 ]
 
 [package.dev-dependencies]
+cuda = [
+    { name = "torch" },
+    { name = "torchvision" },
+]
 dev = [
     { name = "playwright" },
     { name = "pytest-playwright" },
@@ -861,10 +865,10 @@ requires-dist = [
     { name = "scipy", specifier = ">=1.17.1" },
     { name = "setuptools", specifier = ">=81.0.0,<85" },
     { name = "tensorboard", specifier = ">=2.20.0" },
-    { name = "torch", specifier = ">=2.11.0", index = "https://download.pytorch.org/whl/cu128" },
+    { name = "torch", specifier = ">=2.11.0" },
     { name = "torchcodec", specifier = ">=0.11.1" },
     { name = "torchmetrics", specifier = ">=1.9.0" },
-    { name = "torchvision", specifier = ">=0.26.0", index = "https://download.pytorch.org/whl/cu128" },
+    { name = "torchvision", specifier = ">=0.26.0" },
     { name = "transformers", specifier = ">=5.7.0" },
     { name = "twine", marker = "extra == 'dev'", specifier = ">=6.2.0" },
     { name = "tzdata", marker = "sys_platform == 'win32'", specifier = ">=2026.2" },
@@ -872,6 +876,10 @@ requires-dist = [
 provides-extras = ["docs", "dev"]
 
 [package.metadata.requires-dev]
+cuda = [
+    { name = "torch", index = "https://download.pytorch.org/whl/cu128", conflict = { package = "cuvis-ai", group = "cuda" } },
+    { name = "torchvision", index = "https://download.pytorch.org/whl/cu128", conflict = { package = "cuvis-ai", group = "cuda" } },
+]
 dev = [
     { name = "playwright", specifier = ">=1.61.0" },
     { name = "pytest-playwright", specifier = ">=0.8.0" },
