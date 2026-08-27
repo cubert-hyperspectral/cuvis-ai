@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.13.3 - 2026-08-27
+
+- Bumped the `cuvis_ai_dataloader` manifest pin v0.6.0 -> v0.6.1: composed child environments could resolve dataclass-wizard >= 1.0 through the open floor and then silently rasterize every RLE-object COCO `segmentation` to 0 px (lost ground truth); 0.6.1 carries the payload verbatim on every wizard version, fails loudly on unrecognized payloads, and caps `dataclass-wizard<1.0` in the `coco` extra.
+- Bumped the `cuvis_ai_builtin` manifest pin v0.13.1 -> v0.13.2 so composed child environments install the released cuvis-ai matching the host.
+
 ## 0.13.2 - 2026-08-26
 
 - `MinMaxNormalizer` now implements `max_initialization_frames: int | None = None`: `statistical_initialization` consumes at most that many frames (slicing the final batch and stopping the stream early) instead of always scanning the whole training stream. The kwarg was previously swallowed into hparams as a silent no-op, so configs that already set it (the shipped `dinomaly_rgb` / `dinomaly_cir` presets with `max_initialization_frames: 20`, and the dinomaly plugin's trainrun configs and notebooks) now take effect.
