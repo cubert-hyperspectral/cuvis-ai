@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.13.1.1 - 2026-08-27
+
+- Scoped the torch / torchvision cu128 index pin to a `cuda` dependency group (installed by default in this checkout). uv reads a git dependency's `[tool.uv.sources]`, so the unscoped pin reached every composed child environment through the `cuvis_ai_builtin` manifest and made `uv lock` fail with conflicting torch indexes on any host whose torch is not cu128 (Jetson Thor, cu130); every pipeline failed there, not only RTSAM2.
+- Bumped the `rtsam2` manifest pin v0.3.0 -> v0.3.1 (the same fix on the plugin side) and the `cuvis_ai_builtin` pin v0.13.0 -> v0.13.1.1 so composed child environments install this release.
+- Hotfix on the 0.13.1 line: keeps the `cuvis-ai-core>=0.12.1` / `cuvis-ai-schemas>=0.9.0` floors so CuvisNEXT 0.4.0's managed environment (core `<0.13`, schemas `==0.9.0`) can adopt it.
+
 ## 0.13.1 - 2026-08-24
 
 - Added the `wafer_thickness` plugin manifest (pinned `v0.3.0`, the release that renames the
