@@ -1,9 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.13.4 - 2026-08-27
 
-- Scoped the torch / torchvision cu128 index pin to a `cuda` dependency group (installed by default in this checkout). uv reads a git dependency's `[tool.uv.sources]`, so the unscoped pin reached every composed child environment through the `cuvis_ai_builtin` manifest and made `uv lock` fail with conflicting torch indexes on any host whose torch is not cu128 (Jetson Thor, cu130); every pipeline failed there, not only RTSAM2. Shipped to the 0.13.1 line as 0.13.1.1 for CuvisNEXT 0.4.0.
-- Bumped the `rtsam2` manifest pin v0.3.0 -> v0.3.1 (the same fix on the plugin side).
+- Scoped the torch / torchvision cu128 index pin to a `cuda` dependency group (installed by default in this checkout). uv reads a git dependency's `[tool.uv.sources]`, so the unscoped pin reached every composed child environment through the `cuvis_ai_builtin` manifest and made `uv lock` fail with conflicting torch indexes on any host whose torch is not cu128 (Jetson Thor, cu130); every pipeline failed there, not only RTSAM2. CuvisNEXT's managed environment picks this up once its env spec moves to cuvis-ai-schemas 0.10 / cuvis-ai-core 0.13+.
+- Bumped the `rtsam2` manifest pin v0.3.0 -> v0.3.1 (the same fix on the plugin side) and the `cuvis_ai_builtin` pin v0.13.3 -> v0.13.4 so composed child environments install this release (the first one whose pyproject carries no unscoped torch index pin).
 - Plugin-development guide: corrected the claim that `[tool.uv.sources]` / `[[tool.uv.index]]` never travel; uv does read them from git and path dependencies, so a plugin must scope any torch index pin to a dependency group.
 
 ## 0.13.3 - 2026-08-27
