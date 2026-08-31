@@ -6,7 +6,7 @@
 
 name: wafer_thickness
 repo: "https://github.com/cubert-hyperspectral/cuvis-ai-wafer-thickness.git"
-tag: "v0.3.0"
+tag: "v0.3.1"
 package_name: "cuvis-ai-wafer-thickness"
 capabilities:
 - class_name: cuvis_ai_wafer_thickness.node.wafer_segmentation.WaferSegmentation

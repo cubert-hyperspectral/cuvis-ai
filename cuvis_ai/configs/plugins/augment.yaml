@@ -8,7 +8,7 @@ name: augment
 # Local development override (optional):
 # path: "../../../cuvis-ai-augment"
 repo: "https://github.com/cubert-hyperspectral/cuvis-ai-augment.git"
-tag: "v0.4.1"
+tag: "v0.4.2"
 package_name: "cuvis-ai-augment"
 capabilities:
 - class_name: cuvis_ai_augment.node.compose.AugmentationCompose
