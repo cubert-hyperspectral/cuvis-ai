@@ -1090,6 +1090,21 @@ capabilities:
       optional: false
       description: Zoomed RGB frames [B, zoom_height, zoom_width, 3] in [0, 1].
   doc_summary: Crop a region defined by a bbox and resize it to a fixed output frame.
+- class_name: cuvis_ai.node.conversion.LogitsToClassMap
+  category: transform
+  tags: [postprocessing, segmentation, torch]
+  input_specs:
+    logits:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Per-pixel class logits [B, H, W, num_classes]
+  output_specs:
+    class_map:
+      dtype: int32
+      shape: [-1, -1, -1]
+      optional: false
+      description: Per-pixel argmax class index [B, H, W]; 0=first/background class
 - class_name: cuvis_ai.node.conversion.DecisionToMask
   category: transform
   tags: [mask, postprocessing, torch]

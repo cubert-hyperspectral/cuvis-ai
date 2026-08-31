@@ -60,7 +60,7 @@ from cuvis_ai.node.compositing import (
     ROIZoomNode,
     TitleOverlay,
 )
-from cuvis_ai.node.conversion import DecisionToMask
+from cuvis_ai.node.conversion import DecisionToMask, LogitsToClassMap
 from cuvis_ai.node.deciders import (
     BinaryDecider,
     MultiRangeSlicer,
@@ -173,6 +173,7 @@ __all__ = [
     "DetectionCocoJsonNode",
     "DetectionJsonReader",
     "DecisionToMask",
+    "LogitsToClassMap",
     "DiceLoss",
     "DisplayNormalizer",
     "DistinctnessLoss",

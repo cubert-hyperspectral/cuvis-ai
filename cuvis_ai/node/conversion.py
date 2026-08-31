@@ -257,3 +257,42 @@ class DecisionToMask(Node):
         """Apply decisions to identities and return the final segmentation mask."""
         mask = identity_mask.to(torch.int32) * decisions.squeeze(-1).to(torch.int32)
         return {"mask": mask}
+
+
+class LogitsToClassMap(Node):
+    """Per-pixel argmax of segmentation logits into an integer class map.
+
+    Converts a segmentation head's per-pixel class logits ``[B, H, W, num_classes]`` into
+    the discrete class-index map ``[B, H, W]`` (``argmax`` over the class axis) — the same
+    prediction used to score segmentation IoU (foreground ``= argmax >= 1``). Class ``0`` is
+    background. This is the ``class_map`` producer that ``ClassMapRobustifier`` and
+    ``ClassMapToRGB`` consume, and it makes a multiclass segmentation head's output directly
+    displayable (single channel) instead of the raw multi-channel logits.
+
+    Pure and deterministic; ``argmax`` is non-differentiable, so this node does not
+    participate in gradient training (place it after the loss branch, for inference/display).
+    """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.SEGMENTATION, NodeTag.POSTPROCESSING, NodeTag.TORCH})
+
+    INPUT_SPECS = {
+        "logits": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, -1),
+            description="Per-pixel class logits [B, H, W, num_classes]",
+        )
+    }
+
+    OUTPUT_SPECS = {
+        "class_map": PortSpec(
+            dtype=torch.int32,
+            shape=(-1, -1, -1),
+            description="Per-pixel argmax class index [B, H, W]; 0=first/background class",
+        )
+    }
+
+    @torch.no_grad()
+    def forward(self, logits: torch.Tensor, **_) -> dict[str, torch.Tensor]:
+        """Return the per-pixel argmax class index over the last (class) axis."""
+        return {"class_map": logits.argmax(dim=-1).to(torch.int32)}
