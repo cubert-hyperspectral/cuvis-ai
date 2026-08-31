@@ -19,7 +19,28 @@ CLI_COMMANDS_BASIC = [
     ["uv", "run", "ruff", "--version"],
     ["uv", "run", "restore-pipeline", "--help"],
     ["uv", "run", "restore-trainrun", "--help"],
+    ["uv", "run", "calibrate-thresholds", "--help"],
 ]
+
+
+def test_calibrate_thresholds_help():
+    """Test calibrate-thresholds help output contains expected flags."""
+    result = subprocess.run(
+        ["uv", "run", "calibrate-thresholds", "--help"], capture_output=True, text=True
+    )
+    assert result.returncode == 0, f"Command failed:\n{result.stderr}"
+
+    expected_flags = [
+        "--trainrun-dir",
+        "--weights-path",
+        "--split",
+        "--device",
+        "--decider-node",
+        "--scores-port",
+        "--mask-port",
+    ]
+    for flag in expected_flags:
+        assert flag in result.stdout, f"Expected flag '{flag}' not found in help output"
 
 
 @pytest.mark.parametrize("command", CLI_COMMANDS_BASIC, ids=lambda c: " ".join(c))

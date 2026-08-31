@@ -15,6 +15,7 @@ cuvis_ai.node.deciders.binary_decider : Simple threshold-based binary decisions
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from typing import Any
 
@@ -28,7 +29,12 @@ from cuvis_ai_core.deciders.base_decider import BinaryDecider as BaseDecider
 
 
 class TwoStageBinaryDecider(BaseDecider):
-    """Two-stage binary decider: image-level gate + pixel quantile mask."""
+    """Two-stage binary decider: image-level gate + pixel mask.
+
+    Stage 2 uses the calibrated absolute ``pixel_threshold`` (raw score space) when one is
+    set - e.g. from the ``calibrate-thresholds`` CLI - and otherwise falls back to the
+    per-frame ``quantile`` cutoff, which flags a fixed fraction of every gated frame.
+    """
 
     _category = NodeCategory.TRANSFORM
     _tags = frozenset({NodeTag.CLASSIFICATION, NodeTag.POSTPROCESSING, NodeTag.NUMPY})
@@ -53,19 +59,25 @@ class TwoStageBinaryDecider(BaseDecider):
         image_threshold: float = 0.5,
         top_k_fraction: float = 0.001,
         quantile: float = 0.995,
+        pixel_threshold: float | None = None,
         reduce_dims: Sequence[int] | None = None,
         **kwargs,
     ) -> None:
-        if not 0.0 <= image_threshold <= 1.0:
-            raise ValueError("image_threshold must be within [0, 1]")
+        # The gate compares raw-space top-k means (see forward), and raw anomaly scores
+        # are unbounded - a [0, 1] cap would make calibrated gates unrepresentable.
+        if not math.isfinite(image_threshold):
+            raise ValueError("image_threshold must be a finite number")
         if not 0.0 < top_k_fraction <= 1.0:
             raise ValueError("top_k_fraction must be in (0, 1]")
         if not 0.0 <= quantile <= 1.0:
             raise ValueError("quantile must be within [0, 1]")
+        if pixel_threshold is not None and not math.isfinite(pixel_threshold):
+            raise ValueError("pixel_threshold must be a finite number or None")
 
         self.image_threshold = float(image_threshold)
         self.top_k_fraction = float(top_k_fraction)
         self.quantile = float(quantile)
+        self.pixel_threshold = float(pixel_threshold) if pixel_threshold is not None else None
         self.reduce_dims = (
             tuple(int(dim) for dim in reduce_dims) if reduce_dims is not None else None
         )
@@ -73,6 +85,7 @@ class TwoStageBinaryDecider(BaseDecider):
             image_threshold=self.image_threshold,
             top_k_fraction=self.top_k_fraction,
             quantile=self.quantile,
+            pixel_threshold=self.pixel_threshold,
             reduce_dims=self.reduce_dims,
             **kwargs,
         )
@@ -152,15 +165,28 @@ class TwoStageBinaryDecider(BaseDecider):
                 )
                 continue
 
-            # Stage 2: Gate passed, apply pixel-level quantile thresholding
-            logger.debug(
-                f"TwoStageDecider: image_score={image_score:.6f} >= threshold={self.image_threshold:.6f}, "
-                f"applying quantile thresholding (q={self.quantile})"
-            )
-            # Compute quantile threshold: reduce over all dimensions to get scalar per batch item
-            # This matches QuantileBinaryDecider behavior: for [B, H, W, C] it reduces over (H, W, C)
-            # For single batch item [H, W, C], we reduce over all dims (0, 1, 2)
-            threshold = torch.quantile(scores, self.quantile)
+            # Stage 2: Gate passed, apply pixel-level thresholding. A calibrated absolute
+            # threshold takes precedence: it is compared in raw score space (the same space
+            # this node receives - no sigmoid), so the flagged region follows the anomaly's
+            # size. The per-frame quantile fallback flags a fixed fraction of every gated
+            # frame regardless of how much of it is anomalous.
+            if self.pixel_threshold is not None:
+                logger.debug(
+                    f"TwoStageDecider: image_score={image_score:.6f} >= threshold={self.image_threshold:.6f}, "
+                    f"applying absolute pixel threshold ({self.pixel_threshold})"
+                )
+                threshold = torch.tensor(
+                    self.pixel_threshold, dtype=scores.dtype, device=scores.device
+                )
+            else:
+                logger.debug(
+                    f"TwoStageDecider: image_score={image_score:.6f} >= threshold={self.image_threshold:.6f}, "
+                    f"applying quantile thresholding (q={self.quantile})"
+                )
+                # Compute quantile threshold: reduce over all dimensions to get scalar per batch
+                # item. This matches QuantileBinaryDecider behavior: for [B, H, W, C] it reduces
+                # over (H, W, C). For single batch item [H, W, C], we reduce over all dims.
+                threshold = torch.quantile(scores, self.quantile)
 
             # Apply threshold: for multi-channel scores, take max across channels first
             if scores.dim() == 3:  # [H, W, C]

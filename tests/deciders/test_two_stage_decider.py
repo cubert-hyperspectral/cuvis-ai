@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 import torch
 
-from cuvis_ai.deciders.two_stage_decider import TwoStageBinaryDecider
+from cuvis_ai.node.deciders.two_stage_decider import TwoStageBinaryDecider
 
 pytestmark = pytest.mark.unit
 
@@ -205,12 +205,16 @@ def test_two_stage_decider_batch_processing():
 
 def test_two_stage_decider_validation_errors():
     """Test that invalid parameters raise errors."""
-    # Invalid image_threshold
-    with pytest.raises(ValueError, match="image_threshold must be within"):
-        TwoStageBinaryDecider(image_threshold=1.5)
+    # image_threshold is compared in raw score space (unbounded), so values outside
+    # [0, 1] are legal; only non-finite values are rejected.
+    assert TwoStageBinaryDecider(image_threshold=1.5).image_threshold == 1.5
+    assert TwoStageBinaryDecider(image_threshold=-0.1).image_threshold == -0.1
 
-    with pytest.raises(ValueError, match="image_threshold must be within"):
-        TwoStageBinaryDecider(image_threshold=-0.1)
+    with pytest.raises(ValueError, match="image_threshold must be a finite"):
+        TwoStageBinaryDecider(image_threshold=float("nan"))
+
+    with pytest.raises(ValueError, match="image_threshold must be a finite"):
+        TwoStageBinaryDecider(image_threshold=float("inf"))
 
     # Invalid top_k_fraction
     with pytest.raises(ValueError, match="top_k_fraction must be in"):
@@ -321,3 +325,113 @@ def test_two_stage_decider_small_top_k_fraction():
     # Should still work (k should be at least 1)
     assert mask.dtype == torch.bool
     assert mask.shape == tensor.shape
+
+
+def test_two_stage_decider_pixel_threshold_exact_selection():
+    """An absolute pixel_threshold flags exactly the pixels at or above it."""
+    tensor = _make_linear_map() / 100.0  # values 0.01 .. 1.00
+    decider = TwoStageBinaryDecider(
+        image_threshold=0.5,
+        top_k_fraction=0.1,
+        pixel_threshold=0.75,
+    )
+
+    mask = decider.forward(logits=tensor)["decisions"]
+
+    # 0.75 .. 1.00 inclusive = 26 pixels; boundary uses >=
+    assert mask.sum().item() == 26
+    assert bool(mask[0, 7, 4, 0])  # value 0.75 exactly
+    assert not bool(mask[0, 7, 3, 0])  # value 0.74
+    assert mask.dtype == torch.bool
+
+
+def test_two_stage_decider_pixel_threshold_region_follows_anomaly_size():
+    """Unlike the quantile budget, the flagged region grows with the anomaly."""
+    small = torch.zeros(1, 10, 10, 1, dtype=torch.float32)
+    small[0, 0, :2, 0] = 0.9  # 2 hot pixels
+    large = torch.zeros(1, 10, 10, 1, dtype=torch.float32)
+    large[0, :5, :, 0] = 0.9  # 50 hot pixels
+
+    decider = TwoStageBinaryDecider(image_threshold=0.5, top_k_fraction=0.01, pixel_threshold=0.5)
+
+    assert decider.forward(logits=small)["decisions"].sum().item() == 2
+    assert decider.forward(logits=large)["decisions"].sum().item() == 50
+
+
+def test_two_stage_decider_pixel_threshold_gate_still_blanks():
+    """A failed image gate returns a blank mask even with pixel_threshold set."""
+    tensor = _make_low_score_map()
+    decider = TwoStageBinaryDecider(
+        image_threshold=0.5,
+        top_k_fraction=0.1,
+        pixel_threshold=0.01,  # would flag pixels, but the gate must veto first
+    )
+
+    mask = decider.forward(logits=tensor)["decisions"]
+
+    assert mask.sum().item() == 0
+    assert mask.dtype == torch.bool
+
+
+def test_two_stage_decider_pixel_threshold_none_matches_quantile_behavior():
+    """pixel_threshold=None preserves the per-frame quantile behavior exactly."""
+    tensor = _make_high_score_map()
+    with_default = TwoStageBinaryDecider(image_threshold=0.5, top_k_fraction=0.1, quantile=0.995)
+    with_explicit_none = TwoStageBinaryDecider(
+        image_threshold=0.5, top_k_fraction=0.1, quantile=0.995, pixel_threshold=None
+    )
+
+    assert torch.equal(
+        with_default.forward(logits=tensor)["decisions"],
+        with_explicit_none.forward(logits=tensor)["decisions"],
+    )
+
+
+def test_two_stage_decider_pixel_threshold_multi_channel():
+    """Multi-channel scores reduce to the per-pixel max before the absolute cutoff."""
+    tensor = torch.zeros(1, 10, 10, 3, dtype=torch.float32)
+    tensor[0, 0, 0, 1] = 0.9  # only one channel carries the hot value
+    tensor[0, 0, 1, :] = 0.4  # below the cutoff on every channel
+
+    decider = TwoStageBinaryDecider(image_threshold=0.5, top_k_fraction=0.01, pixel_threshold=0.5)
+
+    mask = decider.forward(logits=tensor)["decisions"]
+
+    assert mask.shape == (1, 10, 10, 1)
+    assert bool(mask[0, 0, 0, 0])
+    assert not bool(mask[0, 0, 1, 0])
+    assert mask.sum().item() == 1
+
+
+def test_two_stage_decider_pixel_threshold_validation():
+    """Non-finite pixel_threshold values are rejected; None is accepted."""
+    with pytest.raises(ValueError, match="pixel_threshold must be a finite"):
+        TwoStageBinaryDecider(pixel_threshold=float("nan"))
+
+    with pytest.raises(ValueError, match="pixel_threshold must be a finite"):
+        TwoStageBinaryDecider(pixel_threshold=float("inf"))
+
+    assert TwoStageBinaryDecider(pixel_threshold=None).pixel_threshold is None
+
+
+def test_two_stage_decider_pixel_threshold_serialization_roundtrip(tmp_path: Path):
+    """pixel_threshold survives the hparams round-trip and reproduces decisions."""
+    tensor = _make_high_score_map()
+    decider = TwoStageBinaryDecider(
+        image_threshold=0.5,
+        top_k_fraction=0.1,
+        quantile=0.995,
+        pixel_threshold=0.85,
+    )
+
+    original = decider.forward(logits=tensor)["decisions"]
+
+    state_path = tmp_path / "decider_state.pt"
+    torch.save(decider.state_dict(), state_path)
+
+    assert decider.hparams["pixel_threshold"] == 0.85
+    restored = TwoStageBinaryDecider(**decider.hparams)
+    restored.load_state_dict(torch.load(state_path))
+
+    assert restored.pixel_threshold == 0.85
+    assert torch.equal(original, restored.forward(logits=tensor)["decisions"])

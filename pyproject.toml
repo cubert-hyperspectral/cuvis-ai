@@ -67,6 +67,7 @@ classifiers = [
 ]
 
 [project.scripts]
+calibrate-thresholds = "scripts.calibrate_thresholds:main"
 create-stubs = "scripts.generate_node_port_stubs:main"
 dataset = "cuvis_ai_core.data.public_datasets:download_data_cli"
 restore-pipeline = "cuvis_ai_core.utils.restore:restore_pipeline_cli"
