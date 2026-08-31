@@ -1,9 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.13.8 - 2026-08-31
 
 - `TwoStageBinaryDecider` gains an optional `pixel_threshold` hparam: when set, stage 2 applies the absolute raw-score-space cutoff instead of the per-frame `quantile`, so the flagged region follows the anomaly's size instead of a fixed per-frame pixel budget. Default `None` keeps the quantile fallback, so every shipped preset is unchanged. The `image_threshold` validation is relaxed from `[0, 1]` to any finite value - the gate compares raw-space top-k means, which are unbounded.
 - Added the `calibrate-thresholds` CLI (`scripts/calibrate_thresholds.py`): runs a trained pipeline (CuvisNEXT GUI `saved/` layout or `restore-trainrun` layout) over a labeled val/test split and reports F1-optimal decider hparams plus before/after metrics and a JSON report. The sweep dispatches on the pipeline's decider class - 2-D image/pixel grid for `TwoStageBinaryDecider`, sigmoid-space threshold for `BinaryDecider`, flagged-pixel-fraction quantile for `QuantileBinaryDecider` - and collects scores from the port wired into the decider's `logits` input; `--decider-node`, `--scores-port` and `--mask-port` cover ambiguous pipelines.
+- Bumped the `cuvis_ai_builtin` manifest pin v0.13.7 -> v0.13.8 so composed child environments install this release.
 
 ## 0.13.7 - 2026-08-31
 
