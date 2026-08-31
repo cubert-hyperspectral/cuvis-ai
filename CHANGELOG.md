@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.13.7 - 2026-08-31
+
+- Added a `unet` plugin manifest to the default catalog (`cuvis_ai/configs/plugins/unet.yaml`, git-tag form pinned to cuvis-ai-unet v0.2.0). The catalog shipped manifests for `augment`, `dinomaly`, `adaclip`, `detr`, `sam3`, etc. but not `unet`, so any pipeline declaring `plugins: [unet]` (e.g. a DynUNet segmentation pipeline) failed with "required plugin 'unet' not found in catalog" even though cuvis-ai-unet is a released plugin; the manifest lets it resolve and auto-provision like the other bundled plugins. Capabilities copied from the cuvis-ai-unet repo manifest at v0.2.0: `DynUNet`, `DiceLoss`, `CrossEntropyLoss`, `OHEMCrossEntropyLoss`, `SegMetrics`, `SegmentationAnomalyScore`.
+
 ## 0.13.6 - 2026-08-31
 
 - Bumped the `dinomaly` manifest pin v0.6.2 -> v0.6.3: `DinomalyDetector` now aligns the returned anomaly map to the input pixel grid (new `align_map_to_input` hparam, default on), removing the radially outward shift caused by anomalib's `align_corners=True` patch upsample (up to ~12 px at the frame edge at 448). Score values are unchanged, only where they land; a deployed decider `image_threshold` tuned on the old maps is worth a re-check, and `align_map_to_input: false` reproduces the previous behaviour. No port or dependency changes.
