@@ -1,16 +1,15 @@
-# cuvis-ai-unet — bare plugin manifest (one yaml = one plugin).
+# Unet plugin manifest (DynUNet hyperspectral segmentation)
 #
-# Local-path source for edit-and-reload development: `path` is resolved
-# relative to THIS file. Swap to the git-tag form (repo + tag) for a frozen,
-# reproducible install once a release is cut.
-#
-# `capabilities` lists the node classes a pipeline may instantiate; the
-# manifest is validated by NodeRegistry.register_plugin (see
-# tests/test_plugin_manifest_loading.py).
+# To use it, declare `plugins: [unet]` in the pipeline yaml and point the
+# loader at the catalog directory that holds this manifest:
+#   uv run restore-pipeline --pipeline-path <pipeline>.yaml --plugins-dir cuvis_ai/configs/plugins
+
 name: unet
-package_name: cuvis-ai-unet
+# Local development override (optional):
+# path: "../../../cuvis-ai-unet"
 repo: "https://github.com/cubert-hyperspectral/cuvis-ai-unet.git"
-tag: "v0.2.0"
+tag: "v0.2.2"
+package_name: "cuvis-ai-unet"
 capabilities:
 - class_name: cuvis_ai_unet.node.dynunet.DynUNet
   category: model
@@ -149,10 +148,3 @@ capabilities:
       optional: true
       description: Boolean foreground mask [B, H, W, 1] (only when targets connected)
   doc_summary: Adapt segmentation logits to anomaly-detection score maps + a per-image score.
-
-# --- Git-tag source (use INSTEAD of `path:` for a frozen install) -----------
-# name: unet
-# repo: "https://github.com/cubert-hyperspectral/cuvis-ai-unet.git"
-# tag:  "v0.1.0"
-# package_name: "cuvis-ai-unet"
-# capabilities: as above (regenerate with `python -m scripts.emit_metadata`)
