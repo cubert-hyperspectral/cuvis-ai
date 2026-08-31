@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.13.8 - 2026-08-31
+
+- Added `LogitsToClassMap` built-in node (`cuvis_ai.node.conversion.LogitsToClassMap`): per-pixel `argmax` of segmentation logits `[B, H, W, num_classes]` into a discrete class-index map `[B, H, W]` (int32, 0 = background). It is the same prediction used to score segmentation IoU (`SegMetrics` foreground = `argmax >= 1`) and the `class_map` producer the existing `ClassMapRobustifier` / `ClassMapToRGB` consumers previously lacked, so a multiclass segmentation head's output is now directly displayable (single channel) instead of raw multi-channel logits. Added to the `cuvis_ai_builtin` manifest.
+
 ## 0.13.6 - 2026-08-31
 
 - Bumped the `dinomaly` manifest pin v0.6.2 -> v0.6.3: `DinomalyDetector` now aligns the returned anomaly map to the input pixel grid (new `align_map_to_input` hparam, default on), removing the radially outward shift caused by anomalib's `align_corners=True` patch upsample (up to ~12 px at the frame edge at 448). Score values are unchanged, only where they land; a deployed decider `image_threshold` tuned on the old maps is worth a re-check, and `align_map_to_input: false` reproduces the previous behaviour. No port or dependency changes.
