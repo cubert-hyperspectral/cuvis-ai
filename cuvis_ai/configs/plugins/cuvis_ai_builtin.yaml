@@ -9,7 +9,7 @@
 name: cuvis_ai_builtin
 package_name: cuvis-ai
 repo: https://github.com/cubert-hyperspectral/cuvis-ai.git
-tag: "v0.13.7"
+tag: "v0.13.8"
 capabilities:
 - class_name: cuvis_ai.node.anomaly.deep_svdd.DeepSVDDCenterTracker
   category: transform
