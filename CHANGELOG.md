@@ -1,8 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.13.6 - 2026-08-31
 
 - Bumped the `dinomaly` manifest pin v0.6.2 -> v0.6.3: `DinomalyDetector` now aligns the returned anomaly map to the input pixel grid (new `align_map_to_input` hparam, default on), removing the radially outward shift caused by anomalib's `align_corners=True` patch upsample (up to ~12 px at the frame edge at 448). Score values are unchanged, only where they land; a deployed decider `image_threshold` tuned on the old maps is worth a re-check, and `align_map_to_input: false` reproduces the previous behaviour. No port or dependency changes.
+- Added `ValNormalAnomalyMean` to the `dinomaly` manifest capabilities: the label-free monitoring metric (running mean of the image-level `anomaly_score` per stage/epoch, shipped by the plugin since v0.6.0) was missing from this repo's copy of the manifest, so it never appeared in the node catalog. Entry generated with `scripts/emit_metadata` (category `metric`, tags `[anomaly, evaluation]`); the regeneration also normalized the embedded `icon_svg` strings of the four existing entries from CRLF to LF, so `emit_metadata --check` passes again.
+- Bumped the `cuvis_ai_builtin` pin v0.13.5 -> v0.13.6 so composed child environments install this release.
 
 ## 0.13.5 - 2026-08-31
 
