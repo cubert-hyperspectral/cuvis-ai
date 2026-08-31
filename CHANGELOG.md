@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.13.5 - 2026-08-31
+
+- Thor/aarch64 plugin sweep. Bumped the `sam3` manifest pin v0.3.2 -> v0.3.3: decord 0.6.0 ships no aarch64 wheel and no sdist, so the sam3 child environment failed to install on Jetson Thor; v0.3.3 gates the dependency to the platforms decord ships wheels for (only upstream video-file loaders import it, the nodes and REST API use the cv2 path).
+- Bumped the `cuvis_ai_dataloader` pin v0.6.1 -> v0.6.2, `augment` v0.4.1 -> v0.4.2, `cuvis_ai_inspecscrap` v0.2.3 -> v0.2.4, and `wafer_thickness` v0.3.0 -> v0.3.1: these four still carried the unscoped torch cu128 index pin that 0.13.4 removed from cuvis-ai itself, so any composed child environment declaring them failed with conflicting torch indexes on non-cu128 hosts (Jetson Thor, cu130). All four now scope the pin to a `cuda` dependency group, which consumers never install.
+- Bumped the `cuvis_ai_builtin` pin v0.13.4 -> v0.13.5 so composed child environments install this release.
+- Remaining plugins audited for aarch64 wheel coverage of their base dependencies (wheels-only resolution for `aarch64-manylinux_2_39`): dinomaly v0.6.2, adaclip v0.3.1, deepeiou v0.2.2, trackeval v0.1.4, and ultralytics v0.1.4 are clean; decord was the only wheel gap across the catalog. The dataloader `[cu3s]` extra still requires cuvis-il, which has no aarch64 build.
+
 ## 0.13.4 - 2026-08-27
 
 - Scoped the torch / torchvision cu128 index pin to a `cuda` dependency group (installed by default in this checkout). uv reads a git dependency's `[tool.uv.sources]`, so the unscoped pin reached every composed child environment through the `cuvis_ai_builtin` manifest and made `uv lock` fail with conflicting torch indexes on any host whose torch is not cu128 (Jetson Thor, cu130); every pipeline failed there, not only RTSAM2. CuvisNEXT's managed environment picks this up once its env spec moves to cuvis-ai-schemas 0.10 / cuvis-ai-core 0.13+.
