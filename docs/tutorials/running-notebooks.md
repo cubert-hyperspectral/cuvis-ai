@@ -98,6 +98,12 @@ reference.
 | `object_tracking_active` | `cuvis-ai-dataloader[cu3s,coco]` | FFmpeg, Graphviz |
 | `object_tracking_passive` | `cuvis-ai-dataloader[cu3s,coco]` | FFmpeg, Graphviz |
 | `lentils_dinomaly` | `cuvis-ai-dinomaly` | Graphviz |
+| `channel_selector_lentils` | `cuvis-ai-dataloader[cu3s,coco]`, `cuvis-ai-adaclip`, `cuvis-ai-dinomaly` (AUROC metric node) | Graphviz (optional) |
+
+`cuvis-ai-dinomaly`, `cuvis-ai-sam3` and `cuvis-ai-adaclip` are not published on PyPI:
+install them from the release tag pinned in `cuvis_ai/configs/plugins/<name>.yaml`, for
+example `uv pip install "cuvis-ai-dinomaly @ git+https://github.com/cubert-hyperspectral/cuvis-ai-dinomaly.git@v0.6.3"`,
+or let `provision` resolve them from a pipeline YAML.
 
 FFmpeg is needed by notebooks that write an MP4 (`ToVideoNode`); Graphviz by
 those that call `pipeline.visualize(format="render_graphviz", ...)`. Both are
