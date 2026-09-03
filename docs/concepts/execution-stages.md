@@ -204,11 +204,8 @@ Stage names are coerced to the enum; a misspelled name (`Inference`, `infer`) ra
 
 Two caveats:
 
-- The override lives only in the yaml text. `Node.__init__` consumes `execution_stages`
-  before the hparams are captured, so `serialize()` never writes it back and a pipeline
-  re-saved from its nodes loses the opt-in.
-- Plugin manifests and the gRPC `NodeInfo` expose the class defaults (category and
-  lifecycle tags), not a yaml override.
+- The override lives only in the yaml text: `Node.__init__` consumes `execution_stages` before the hparams are captured, so `serialize()` never writes it back and a pipeline re-saved from its nodes loses the opt-in.
+- Plugin manifests and the gRPC `NodeInfo` expose the class defaults (category and lifecycle tags), not a yaml override.
 
 !!! note "Trained pipelines at inference"
     A pipeline trained in CuvisNEXT is loaded for prediction at `ExecutionStage.INFERENCE`,
