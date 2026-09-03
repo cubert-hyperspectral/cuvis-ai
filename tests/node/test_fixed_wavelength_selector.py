@@ -427,3 +427,106 @@ class TestRequiresInitialFit:
 
         sel = _CustomInitSelector(norm_mode=NormMode.RUNNING)
         assert sel.requires_initial_fit is True
+
+
+# ---------------------------------------------------------------------------
+# Running-normalization frame counter persists with the weights
+# ---------------------------------------------------------------------------
+
+
+class TestRunningNormPersistence:
+    """The warmup/freeze counter is a buffer: a restored node does not warm up again.
+
+    Gamma is off in every case so the outputs compare directly against the two
+    normalization primitives.
+    """
+
+    @staticmethod
+    def _node(**kwargs) -> FixedWavelengthSelector:
+        return FixedWavelengthSelector(norm_mode=NormMode.RUNNING, apply_gamma=False, **kwargs)
+
+    def test_counter_and_bounds_survive_state_dict(self) -> None:
+        node = self._node(running_warmup_frames=2)
+        wl = _wavelengths()
+        for _ in range(5):
+            node.forward(_cube(), wl)
+        assert int(node._norm_frame_count.item()) == 5
+
+        restored = self._node(running_warmup_frames=2)
+        restored.load_state_dict(node.state_dict())
+        assert int(restored._norm_frame_count.item()) == 5
+        assert torch.allclose(restored.running_min, node.running_min)
+        assert torch.allclose(restored.running_max, node.running_max)
+
+    def test_legacy_checkpoint_without_counter_loads_strict_and_is_warm(self) -> None:
+        """Checkpoints written before the counter was a buffer carry bounds only.
+
+        Strict loading must accept them, and the restored node must behave as a run
+        that passed warmup and froze its bounds: no per-frame re-warm, no drift.
+        """
+        wl = _wavelengths()
+        trained = self._node(running_warmup_frames=10, freeze_running_bounds_after_frames=20)
+        for _ in range(25):
+            trained.forward(_cube(), wl)
+        legacy = {k: v for k, v in trained.state_dict().items() if k != "_norm_frame_count"}
+
+        restored = self._node(running_warmup_frames=10, freeze_running_bounds_after_frames=20)
+        restored.load_state_dict(legacy, strict=True)
+        assert int(restored._norm_frame_count.item()) == 20
+
+        cube = _cube()
+        min_before, max_before = restored.running_min.clone(), restored.running_max.clone()
+        out = restored.forward(cube, wl)["rgb_image"]
+        expected = restored._apply_accumulated_stats(restored._compute_raw_rgb(cube, wl))
+        assert torch.allclose(out, expected)
+        assert torch.equal(restored.running_min, min_before)
+        assert torch.equal(restored.running_max, max_before)
+        assert torch.allclose(out, trained.forward(cube, wl)["rgb_image"])
+
+    def test_legacy_checkpoint_with_nan_bounds_keeps_warming_up(self) -> None:
+        wl = _wavelengths()
+        unfitted = self._node(running_warmup_frames=3)
+        legacy = {k: v for k, v in unfitted.state_dict().items() if k != "_norm_frame_count"}
+
+        restored = self._node(running_warmup_frames=3)
+        restored.load_state_dict(legacy, strict=True)
+        assert int(restored._norm_frame_count.item()) == 0
+
+        cube = _cube()
+        out = restored.forward(cube, wl)["rgb_image"]
+        expected = restored._per_frame_percentile_normalize(restored._compute_raw_rgb(cube, wl))
+        assert torch.allclose(out, expected)
+
+    def test_fresh_node_still_warms_up(self) -> None:
+        wl = _wavelengths()
+        node = self._node(running_warmup_frames=2)
+        first = _cube()
+        out = node.forward(first, wl)["rgb_image"]
+        assert torch.allclose(
+            out, node._per_frame_percentile_normalize(node._compute_raw_rgb(first, wl))
+        )
+        node.forward(_cube(), wl)
+        third = _cube()
+        out = node.forward(third, wl)["rgb_image"]
+        assert torch.allclose(out, node._apply_accumulated_stats(node._compute_raw_rgb(third, wl)))
+
+    def test_partial_run_checkpoint_resumes_accumulation_until_freeze(self) -> None:
+        """A new-format checkpoint saved before the freeze count keeps accumulating."""
+        wl = _wavelengths()
+        node = self._node(running_warmup_frames=0, freeze_running_bounds_after_frames=20)
+        for _ in range(5):
+            node.forward(_cube(), wl)
+
+        restored = self._node(running_warmup_frames=0, freeze_running_bounds_after_frames=20)
+        restored.load_state_dict(node.state_dict())
+        assert int(restored._norm_frame_count.item()) == 5
+
+        max_before = restored.running_max.clone()
+        restored.forward(_cube() * 50.0, wl)  # a much brighter frame widens the bounds
+        assert (restored.running_max > max_before).any()
+        for _ in range(14):
+            restored.forward(_cube(), wl)
+        assert int(restored._norm_frame_count.item()) == 20
+        frozen_max = restored.running_max.clone()
+        restored.forward(_cube() * 500.0, wl)
+        assert torch.equal(restored.running_max, frozen_max)

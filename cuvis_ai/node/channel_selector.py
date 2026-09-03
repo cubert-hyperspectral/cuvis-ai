@@ -99,7 +99,10 @@ class ChannelSelectorBase(Node):
     running_warmup_frames : int
         Number of initial ``running`` frames to normalize per-frame while
         collecting bounds. Set to ``0`` for fully stable live rendering from
-        the first frame. Default ``10``.
+        the first frame. Default ``10``. The frame counter is saved with the
+        node's weights, so a checkpoint restored for inference does not warm
+        up again or move its bounds; checkpoints written before the counter
+        was saved are treated as warm and frozen on load.
 
     Ports
     -----
@@ -193,10 +196,14 @@ class ChannelSelectorBase(Node):
         self.freeze_running_bounds_after_frames = freeze_running_bounds_after_frames
         self.running_warmup_frames = running_warmup_frames
 
-        # Per-channel [3] running bounds for normalization.
+        # Per-channel [3] running bounds for normalization. The frame counter is a
+        # buffer too, so warmup and freeze state survive a checkpoint reload: a restored
+        # node must not re-warm for ``running_warmup_frames`` frames and drift its bounds
+        # (same layout as PercentileNormalizer). Deliberately not in TRAINABLE_BUFFERS:
+        # these are fitted display statistics, not learnable weights.
         self.register_buffer("running_min", torch.full((3,), float("nan")))
         self.register_buffer("running_max", torch.full((3,), float("nan")))
-        self._norm_frame_count = 0
+        self.register_buffer("_norm_frame_count", torch.zeros((), dtype=torch.long))
         self._statistically_initialized = False
 
         # Only STATISTICAL mode needs the StatisticalTrainer pass; without an override,
@@ -321,10 +328,11 @@ class ChannelSelectorBase(Node):
         frame_lo = torch.quantile(flat, self._NORM_QUANTILE_LOW, dim=0)  # [3]
         frame_hi = torch.quantile(flat, self._NORM_QUANTILE_HIGH, dim=0)  # [3]
 
-        self._norm_frame_count += 1
+        self._norm_frame_count.add_(1)
+        count = int(self._norm_frame_count.item())
         should_update_bounds = (
             self.freeze_running_bounds_after_frames is None
-            or self._norm_frame_count <= self.freeze_running_bounds_after_frames
+            or count <= self.freeze_running_bounds_after_frames
         )
         if should_update_bounds:
             if torch.isnan(self.running_min).any():
@@ -334,9 +342,37 @@ class ChannelSelectorBase(Node):
                 torch.minimum(self.running_min, frame_lo, out=self.running_min)
                 torch.maximum(self.running_max, frame_hi, out=self.running_max)
 
-        if self._norm_frame_count <= self.running_warmup_frames:
+        if count <= self.running_warmup_frames:
             return self._per_frame_percentile_normalize(rgb)
         return self._apply_accumulated_stats(rgb)
+
+    def _load_from_state_dict(  # noqa: D102 (inherited torch hook)
+        self,
+        state_dict,
+        prefix,
+        local_metadata,
+        strict,
+        missing_keys,
+        unexpected_keys,
+        error_msgs,
+    ) -> None:
+        super()._load_from_state_dict(
+            state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs
+        )
+        # Checkpoints written before the counter became a buffer carry the bounds but no
+        # count. Treat a finite-bounds legacy checkpoint as warm and frozen: a real
+        # training run passes both ``running_warmup_frames`` and
+        # ``freeze_running_bounds_after_frames`` long before it saves, so the only
+        # behaviour the missing key could encode is "re-warm and drift", which is the bug
+        # this buffer exists to remove. Bounds still NaN mean an unfitted node, which
+        # keeps warming up from zero. The key is removed from ``missing_keys`` so the
+        # pipeline's strict weight loading accepts every checkpoint already on disk.
+        counter_key = prefix + "_norm_frame_count"
+        if counter_key in missing_keys:
+            missing_keys.remove(counter_key)
+            if not bool(torch.isnan(self.running_min).any()):
+                warm = max(self.running_warmup_frames, self.freeze_running_bounds_after_frames or 0)
+                self._norm_frame_count.fill_(warm)
 
     # ------------------------------------------------------------------
     # Subclass hooks

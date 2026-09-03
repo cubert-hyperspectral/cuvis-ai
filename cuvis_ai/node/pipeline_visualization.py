@@ -30,10 +30,14 @@ class CubeRGBVisualizer(Node):
 
     Selects 3 channels with highest weights for R, G, B channels and creates
     a false-color visualization with wavelength annotations.
+
+    Runs during validation and test (its artifacts go to the TensorBoard sink); a
+    pipeline yaml can opt it into inference with ``hparams: {execution_stages: [inference]}``.
     """
 
     _category = NodeCategory.VISUALIZER
-    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.RGB})
+    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.RGB, NodeTag.EVALUATION})
+    EXECUTION_STAGES = {ExecutionStage.VAL, ExecutionStage.TEST}
 
     INPUT_SPECS = {
         "cube": PortSpec(
@@ -55,9 +59,9 @@ class CubeRGBVisualizer(Node):
         )
     }
 
-    def __init__(self, name: str | None = None, up_to: int = 5) -> None:
-        super().__init__(name=name, execution_stages={ExecutionStage.INFERENCE, ExecutionStage.VAL})
+    def __init__(self, up_to: int = 5, **kwargs) -> None:
         self.up_to = up_to
+        super().__init__(up_to=up_to, **kwargs)
 
     def forward(self, cube, weights, wavelengths, context) -> dict[str, list[Artifact]]:
         """Generate false-color RGB visualizations from hyperspectral cube.
@@ -173,7 +177,8 @@ class PCAVisualization(Node):
     """
 
     _category = NodeCategory.VISUALIZER
-    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.RGB})
+    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.RGB, NodeTag.EVALUATION})
+    EXECUTION_STAGES = {ExecutionStage.VAL}
 
     INPUT_SPECS = {
         "data": PortSpec(
@@ -194,7 +199,7 @@ class PCAVisualization(Node):
     def __init__(self, up_to: int | None = None, **kwargs) -> None:
         self.up_to = up_to
 
-        super().__init__(execution_stages={ExecutionStage.VAL}, up_to=up_to, **kwargs)
+        super().__init__(up_to=up_to, **kwargs)
 
     def forward(self, data: torch.Tensor, context: Context) -> dict:
         """Create PCA projection visualizations as Artifact objects.
@@ -389,7 +394,8 @@ class PipelineComparisonVisualizer(Node):
     """
 
     _category = NodeCategory.VISUALIZER
-    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.RGB})
+    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.RGB, NodeTag.TRAINING, NodeTag.EVALUATION})
+    EXECUTION_STAGES = {ExecutionStage.TRAIN, ExecutionStage.VAL, ExecutionStage.TEST}
 
     INPUT_SPECS = {
         "hsi_cube": PortSpec(
@@ -437,7 +443,6 @@ class PipelineComparisonVisualizer(Node):
         self._batch_counter = 0
 
         super().__init__(
-            execution_stages={ExecutionStage.TRAIN, ExecutionStage.VAL, ExecutionStage.TEST},
             hsi_channels=hsi_channels,
             max_samples=max_samples,
             log_every_n_batches=log_every_n_batches,

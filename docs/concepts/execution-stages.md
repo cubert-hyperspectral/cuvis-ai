@@ -21,29 +21,34 @@ Execution stages enable **conditional node execution** based on context (trainin
 
 ## Stage System Overview
 
-Every node specifies execution stages via the `execution_stages` parameter:
+Every node declares the stages it runs in on the class body, next to `_category` and
+`_tags`:
 
 ```python
 from cuvis_ai_core.node import Node
 from cuvis_ai_schemas.enums import ExecutionStage
 
 class MyNode(Node):
-    def __init__(self, **kwargs):
-        super().__init__(
-            execution_stages={ExecutionStage.TRAIN, ExecutionStage.VAL},
-            **kwargs
-        )
+    # A set literal (or stage names such as "train") is normalized to a
+    # frozenset when the class is created; an unknown name fails at import.
+    EXECUTION_STAGES = {ExecutionStage.TRAIN, ExecutionStage.VAL}
 ```
+
+Instances read the declaration through `node.execution_stages`, which is read-only. A
+pipeline can still move one instance by passing `execution_stages=` to the constructor
+(see [Pattern 5](#pattern-5-per-instance-override-from-a-pipeline-yaml)); a subclass that
+must reassign the stages after construction opts in with `EXECUTION_STAGES_MUTABLE = True`.
 
 **Key Concepts:**
 
 | Concept | Description |
 |---------|-------------|
 | **ExecutionStage Enum** | ALWAYS, TRAIN, VAL, TEST, INFERENCE |
-| **execution_stages Parameter** | Set of stages when node should execute |
+| **`EXECUTION_STAGES`** | Class-level declaration, a `frozenset[ExecutionStage]` |
+| **`execution_stages=` argument** | Per-instance override passed to the constructor (a pipeline yaml's `hparams` reach it) |
 | **Context Object** | Runtime info (stage, epoch, batch_idx) passed to nodes |
 | **Stage Filtering** | Pipeline skips nodes not matching current stage |
-| **Default** | Nodes default to `{ExecutionStage.ALWAYS}` |
+| **Default** | `Node.EXECUTION_STAGES` is `{ExecutionStage.ALWAYS}` |
 
 ### Execution Flow
 
@@ -139,20 +144,15 @@ class InferencePostProcessor(Node):
 
 ```python
 class TrainOnlyAugmentation(Node):
-    def __init__(self, **kwargs):
-        super().__init__(execution_stages={ExecutionStage.TRAIN}, **kwargs)
+    EXECUTION_STAGES = {ExecutionStage.TRAIN}
 ```
 
 ### Pattern 2: Multiple Stages
 
 ```python
 class MetricsNode(Node):
-    def __init__(self, **kwargs):
-        # Execute during validation and test only
-        super().__init__(
-            execution_stages={ExecutionStage.VAL, ExecutionStage.TEST},
-            **kwargs
-        )
+    # Execute during validation and test only
+    EXECUTION_STAGES = {ExecutionStage.VAL, ExecutionStage.TEST}
 ```
 
 ### Pattern 3: Training-Aware (Common for Loss)
@@ -161,7 +161,7 @@ class MetricsNode(Node):
 from cuvis_ai.node.losses import LossNode
 
 class MyLoss(LossNode):
-    # Auto-configured to {TRAIN, VAL, TEST}
+    # LossNode declares EXECUTION_STAGES = {TRAIN, VAL, TEST}; subclasses inherit it
     def forward(self, predictions, targets, **_):
         return {"loss": self.compute_loss(predictions, targets)}
 ```
@@ -170,11 +170,7 @@ class MyLoss(LossNode):
 
 ```python
 class AdaptiveNormalizer(Node):
-    def __init__(self, **kwargs):
-        super().__init__(
-            execution_stages={ExecutionStage.TRAIN, ExecutionStage.INFERENCE},
-            **kwargs
-        )
+    EXECUTION_STAGES = {ExecutionStage.TRAIN, ExecutionStage.INFERENCE}
 
     def forward(self, data, context: Context, **_):
         if context.stage == ExecutionStage.TRAIN:
@@ -182,6 +178,44 @@ class AdaptiveNormalizer(Node):
         normalized = self.normalize(data)
         return {"normalized": normalized}
 ```
+
+### Pattern 5: Per-Instance Override from a Pipeline Yaml
+
+`PipelineFactory` passes a node's `hparams` to its constructor, so a yaml can move one
+node without touching its class. The `TensorBoardMonitorNode` and the artifact visualizers
+run in train/val/test by default; a CLI user who wants TensorBoard output from
+`restore-pipeline` or `Predictor` opts them back in:
+
+```yaml
+- name: score_heatmap
+  class_name: cuvis_ai.node.anomaly_visualization.ScoreHeatmapVisualizer
+  hparams:
+    up_to: 3
+    execution_stages: [inference]
+- name: TensorBoardMonitorNode
+  class_name: cuvis_ai.node.monitor.TensorBoardMonitorNode
+  hparams:
+    output_dir: outputs/tensorboard
+    execution_stages: [inference]
+```
+
+Stage names are coerced to the enum; a misspelled name (`Inference`, `infer`) raises a
+`ValueError` naming the node when the pipeline loads, instead of silently never running it.
+
+Two caveats:
+
+- The override lives only in the yaml text. `Node.__init__` consumes `execution_stages`
+  before the hparams are captured, so `serialize()` never writes it back and a pipeline
+  re-saved from its nodes loses the opt-in.
+- Plugin manifests and the gRPC `NodeInfo` expose the class defaults (category and
+  lifecycle tags), not a yaml override.
+
+!!! note "Trained pipelines at inference"
+    A pipeline trained in CuvisNEXT is loaded for prediction at `ExecutionStage.INFERENCE`,
+    which prunes its losses, metrics, visualizers and TensorBoard sink; nothing else is
+    needed to run the trained graph. Runs saved before cuvis-ai 0.13.9 carry a
+    `QuantileBinaryDecider`, which flags a fixed fraction of every frame and cannot be
+    gated from the picker; retrain them to get the two-stage decider with its optional gate.
 
 ---
 
@@ -257,6 +291,32 @@ graph TD
 
 ---
 
+## Lifecycle Tags
+
+Execution stages are invisible outside the process: they are not in the pipeline yaml, not
+in plugin manifests and not on gRPC. What the manifests and `NodeInfo` do expose is the node
+`_category` and its `_tags`, and three tags describe the lifecycle: `TRAINING`,
+`EVALUATION`, `INFERENCE`. For the declaration and the exposed metadata to tell the same
+story, `tests/test_node_lifecycle_consistency.py` enforces four rules on every builtin
+class:
+
+| Rule | Statement |
+|------|-----------|
+| R0 | Category `LOSS` or `REGULARIZER` never runs at inference. |
+| R1 | A node that never runs at inference carries `TRAINING` or `EVALUATION`. |
+| R2 | A node tagged `TRAINING` or `EVALUATION` but not `INFERENCE` never runs at inference. |
+| R3 | A node tagged `INFERENCE` runs at inference. |
+
+Category decides only for losses: `METRIC`, `SINK` and `VISUALIZER` are too coarse (video
+writers are sinks that exist for inference; `DistinctLabelCount` is a metric that runs at
+inference, so it carries `INFERENCE`). Nodes tagged `AUGMENTATION` are exempt from R2: the
+occlusion family sits inline (`cube -> occlusion -> model`), so pruning it by stage would
+leave the model's input unsatisfied; it stays `ALWAYS` until it gains a stage-aware
+pass-through. The rules read class declarations, so a yaml override is a deliberate
+per-pipeline deviation, not a violation.
+
+---
+
 ## Best Practices
 
 1. **Use Semantic Stage Selection**
@@ -264,12 +324,12 @@ graph TD
    ```python
    # GOOD: Loss computes during training phases
    class TrainingLoss(LossNode):
-       pass  # Automatically {TRAIN, VAL, TEST}
+       pass  # Inherits {TRAIN, VAL, TEST} from LossNode
 
    # BAD: Loss executing during inference
    class BadLoss(Node):
-       def __init__(self, **kwargs):
-           super().__init__(execution_stages={ExecutionStage.ALWAYS}, **kwargs)
+       _category = NodeCategory.LOSS
+       EXECUTION_STAGES = {ExecutionStage.ALWAYS}  # the consistency test rejects this
    ```
 
 2. **Default to ALWAYS for Core Nodes**
@@ -277,15 +337,11 @@ graph TD
    ```python
    # GOOD: Applies everywhere
    class FeatureExtractor(Node):
-       pass  # Defaults to ALWAYS
+       pass  # Inherits Node.EXECUTION_STAGES == {ALWAYS}
 
    # BAD: Unnecessary restriction
    class OverRestricted(Node):
-       def __init__(self, **kwargs):
-           super().__init__(
-               execution_stages={ExecutionStage.TRAIN, ExecutionStage.INFERENCE},
-               **kwargs
-           )
+       EXECUTION_STAGES = {ExecutionStage.TRAIN, ExecutionStage.INFERENCE}
    ```
 
 3. **Separate Concerns with Multiple Nodes**
@@ -293,12 +349,10 @@ graph TD
    ```python
    # GOOD: Separate nodes for different behaviors
    class TrainingPostProcessor(Node):
-       def __init__(self, **kwargs):
-           super().__init__(execution_stages={ExecutionStage.TRAIN}, **kwargs)
+       EXECUTION_STAGES = {ExecutionStage.TRAIN}
 
    class InferencePostProcessor(Node):
-       def __init__(self, **kwargs):
-           super().__init__(execution_stages={ExecutionStage.INFERENCE}, **kwargs)
+       EXECUTION_STAGES = {ExecutionStage.INFERENCE}
    ```
 
 4. **Document Stage Decisions** — Add docstrings explaining why a node is restricted to specific stages.
