@@ -28,6 +28,8 @@ from torch import Tensor
 
 from cuvis_ai_core.deciders.base_decider import BinaryDecider as BaseDecider
 
+from . import _calibration
+
 
 def _optional_finite(name: str, value: Any) -> float | None:
     """Return ``value`` as a float, pass ``None`` through, refuse anything else by name.
@@ -195,3 +197,38 @@ class TwoStageBinaryDecider(BaseDecider):
             decisions.append((pixel_scores >= threshold).unsqueeze(-1).to(torch.bool))
 
         return {"decisions": torch.stack(decisions, dim=0)}
+
+    def calibrate(
+        self, scores: Tensor, targets: Tensor, *, num_candidates: int = 256
+    ) -> dict[str, Any]:
+        """Refit ``image_threshold`` + ``pixel_threshold`` to F1-max on labelled val scores.
+
+        Runs the joint 2-D sweep (image gate x absolute pixel cutoff, raw score space, with
+        gated-out frames contributing their full ground truth as misses). Sets the F1-max
+        image gate and, at that gate, the F1-max absolute pixel threshold - moving stage 2
+        off the fixed-fraction quantile onto a cutoff that tracks anomaly size. Writes both
+        to fitted buffers (``.pt``) and ``hparams`` (yaml). ``scores`` is the decider-input
+        tensor stacked over the split (``[N, H, W, C]``); ``targets`` the ground-truth mask.
+        """
+        _, pixel, gt, frame_labels = _calibration.reduce_scores_targets(scores, targets)
+        image_scores = _calibration.topk_mean_scores(pixel, self.top_k_fraction)
+        best_image, _joint, conditional = _calibration.sweep_two_stage(
+            pixel, gt, image_scores, frame_labels, num_candidates
+        )
+        old_image, old_pixel = self.image_threshold, self.pixel_threshold
+        new_image = float(best_image["threshold"])
+        new_pixel = float(conditional["pixel_threshold"])
+        self.image_threshold = new_image
+        self.pixel_threshold = new_pixel
+        self.hparams["image_threshold"] = new_image
+        self.hparams["pixel_threshold"] = new_pixel
+        return {
+            "class": type(self).__name__,
+            "image_threshold": {"old": old_image, "new": new_image},
+            "pixel_threshold": {"old": old_pixel, "new": new_pixel},
+            "image_f1": best_image["f1"],
+            "pixel_f1": conditional["f1"],
+            "pixel_precision": conditional["precision"],
+            "pixel_recall": conditional["recall"],
+            "pixel_iou": conditional["iou"],
+        }

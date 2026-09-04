@@ -13,12 +13,15 @@ convert detector outputs into actionable binary masks for visualization or evalu
 from collections.abc import Sequence
 from typing import Any
 
+import numpy as np
 import torch
 from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
 
 from cuvis_ai_core.deciders.base_decider import BinaryDecider as BaseDecider
+
+from . import _calibration
 
 
 def resolve_reduce_dims(reduce_dims: tuple[int, ...] | None, tensor_ndim: int) -> tuple[int, ...]:
@@ -129,6 +132,30 @@ class BinaryDecider(BaseDecider):
         # Apply threshold to get binary decisions
         decisions = tensor >= self.threshold
         return {"decisions": decisions}
+
+    def calibrate(
+        self, scores: Tensor, targets: Tensor, *, num_candidates: int = 256
+    ) -> dict[str, Any]:
+        """Refit ``threshold`` to F1-max on labelled validation scores.
+
+        ``scores`` is the decider-input tensor stacked over the split (``[N, H, W, C]``);
+        ``targets`` the matching ground-truth mask. Sweeps an absolute cutoff in raw score
+        space, maps the optimum through sigmoid (the space this node thresholds), and writes
+        it to both the fitted buffer (``.pt``) and ``hparams`` (yaml). Returns a report.
+        """
+        _, pixel, gt, _ = _calibration.reduce_scores_targets(scores, targets)
+        best = _calibration.sweep_absolute(pixel, gt, num_candidates)
+        old = self.threshold
+        new = float(_calibration.sigmoid(best["raw_threshold"]))
+        self.threshold = new
+        self.hparams["threshold"] = new
+        return {
+            "class": type(self).__name__,
+            "threshold": {"old": old, "new": new},
+            "f1": best["f1"],
+            "precision": best["precision"],
+            "recall": best["recall"],
+        }
 
 
 class QuantileBinaryDecider(BaseDecider):
@@ -261,6 +288,34 @@ class QuantileBinaryDecider(BaseDecider):
 
         decisions = (tensor >= threshold).to(torch.bool)
         return {"decisions": decisions}
+
+    def calibrate(
+        self, scores: Tensor, targets: Tensor, *, num_candidates: int = 256
+    ) -> dict[str, Any]:
+        """Refit ``quantile`` to F1-max on labelled validation scores.
+
+        The node recomputes its cutoff from each frame's own scores, so there is no absolute
+        threshold to fit - the sweep finds the F1-best flagged-pixel fraction instead (per
+        frame, over the full ``[H, W, C]`` tensor, matching the runtime ``torch.quantile``).
+        Writes the result to the fitted buffer (``.pt``) and ``hparams`` (yaml).
+        """
+        full, pixel, gt, _ = _calibration.reduce_scores_targets(scores, targets)
+        flat = full.reshape(full.shape[0], -1)  # [N, H*W*C] - the runtime quantile space
+        grid = _calibration.quantile_grid_builder(self.quantile, num_candidates)(flat.shape[1])
+        per_frame = np.quantile(flat, grid, axis=1)  # [len(grid), N]
+        frame_quantiles = {float(q): per_frame[i] for i, q in enumerate(grid)}
+        best = _calibration.sweep_quantile(pixel, gt, frame_quantiles)
+        old = self.quantile
+        new = float(best["quantile"])
+        self.quantile = new
+        self.hparams["quantile"] = new
+        return {
+            "class": type(self).__name__,
+            "quantile": {"old": old, "new": new},
+            "f1": best["f1"],
+            "precision": best["precision"],
+            "recall": best["recall"],
+        }
 
     @staticmethod
     def _validate_quantile(quantile: float) -> None:
