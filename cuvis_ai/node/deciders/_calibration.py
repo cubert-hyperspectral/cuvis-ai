@@ -11,15 +11,30 @@ sweep is dispatched on the decider class:
   frame killed by the gate contributes all-zero pixels - so the grid is joint.
 
 - binary: a single sweep over an absolute elementwise cutoff. ``BinaryDecider`` thresholds
-  ``sigmoid(logits)``, so the sweep runs in raw space and the caller maps the optimum
-  through sigmoid.
+  ``sigmoid(logits)`` in float32, so the caller hands in those probabilities and the sweep
+  runs in the exact space ``forward`` compares in.
 
 - quantile: a single sweep over the per-frame adaptive ``quantile``; the decider recomputes
   its cutoff from each frame's own scores, so the sweep fixes the flagged-pixel fraction
   rather than an absolute threshold.
 
-All functions are numpy-based and free of any pipeline / node state, so both the in-training
-calibration phase and the offline ``calibrate-thresholds`` CLI call the same code.
+Numerics, so that what the sweep scores is what ``forward`` decides:
+
+- Pixel-level thresholds are compared in float32 at runtime (``TwoStageBinaryDecider`` casts
+  ``pixel_threshold`` to the score dtype, ``BinaryDecider`` compares float32 probabilities
+  against a Python float that torch casts to float32). Candidates are therefore float32 values
+  and the per-frame counts use ``searchsorted`` on float32 arrays: exact, and one pass per
+  frame instead of one pass per candidate.
+
+- The image gate compares two Python floats (``image_score`` comes from ``.item()``), so image
+  thresholds stay float64. ``frame_image_score`` is the very statistic ``forward`` computes.
+
+- F1 ties resolve to the highest candidate (the most restrictive threshold), then the
+  applied value steps down to the midpoint of the F1 plateau (``margin_below``): same
+  validation F1, a real margin against near-duplicate scores at deployment.
+
+All functions are free of pipeline / node state, so both the in-training calibration phase
+and the offline ``calibrate-thresholds`` CLI call the same code.
 """
 
 from __future__ import annotations
@@ -31,6 +46,62 @@ import numpy as np
 import torch
 
 
+class CalibrationError(ValueError):
+    """Raised when a decider cannot be calibrated on the given scores and targets.
+
+    Covers unusable data (shape mismatch, non-finite scores, a single-class split) and a
+    decider configuration whose decision rule the sweep cannot reproduce (a ``reduce_dims``
+    that keeps a real channel axis out of the quantile). A caller that runs calibration as an
+    optional phase catches this, logs it, and leaves the shipped thresholds untouched.
+    """
+
+
+def topk_count(numel: int, top_k_fraction: float) -> int:
+    """``k`` for the stage-1 image score: ``ceil(top_k_fraction * numel)``, at least 1.
+
+    The product is rounded to float32 before the ceiling, exactly as
+    ``TwoStageBinaryDecider.forward`` does, so a float64 product that lands epsilon above an
+    integer does not add a pixel.
+    """
+    return max(
+        1,
+        int(torch.ceil(torch.tensor(numel * top_k_fraction, dtype=torch.float32)).item()),
+    )
+
+
+def frame_image_score(pixel_scores: torch.Tensor, top_k_fraction: float) -> float:
+    """Stage-1 image score of one frame: mean of the top-k per-pixel scores.
+
+    This is the statistic ``TwoStageBinaryDecider.forward`` gates on, shared so calibration
+    and runtime agree bit for bit. ``pixel_scores`` is the frame's ``[H, W]`` per-pixel score
+    map (already reduced over channels).
+    """
+    flat = pixel_scores.reshape(-1)
+    k = topk_count(flat.numel(), top_k_fraction)
+    return torch.topk(flat, k).values.mean().item()
+
+
+def topk_mean_scores(pixel_scores: np.ndarray, top_k_fraction: float) -> np.ndarray:
+    """Stage-1 image score per frame for stacked ``[N, H, W]`` pixel scores (float64).
+
+    Delegates to :func:`frame_image_score` frame by frame, so the values are the ones
+    ``forward`` will compute, widened to float64 the way ``.item()`` widens them.
+    """
+    frames = torch.from_numpy(np.ascontiguousarray(pixel_scores, dtype=np.float32))
+    return np.asarray(
+        [frame_image_score(frame, top_k_fraction) for frame in frames], dtype=np.float64
+    )
+
+
+def sigmoid_float32(values: np.ndarray) -> np.ndarray:
+    """``torch.sigmoid`` in float32: the probabilities ``BinaryDecider.forward`` thresholds.
+
+    Computed with torch rather than numpy so the CLI and the decider see identical values,
+    including the saturation to exactly ``1.0`` above logits of roughly 17.
+    """
+    return torch.sigmoid(torch.from_numpy(np.ascontiguousarray(values, dtype=np.float32))).numpy()
+
+
 def reduce_scores_targets(
     scores: torch.Tensor, targets: torch.Tensor
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -38,17 +109,47 @@ def reduce_scores_targets(
 
     ``scores`` is the decider-input tensor stacked over the split, ``[N, H, W, C]`` (or
     ``[N, H, W]``); ``targets`` the ground-truth mask, bool-ish ``[N, H, W, C]`` or
-    ``[N, H, W]``. Returns ``(full_scores[N,H,W,C], pixel_scores[N,H,W],
+    ``[N, H, W]``. Returns ``(full_scores[N,H,W,C] float32, pixel_scores[N,H,W] float32,
     gt_masks[N,H,W] bool, frame_labels[N] bool)``. ``pixel_scores`` is the per-pixel max
     over channels - the same reduction the deciders apply in ``forward`` - and
     ``full_scores`` is kept for the per-frame quantile probes.
+
+    Raises:
+        CalibrationError: when the shapes disagree, a score is nan or inf (a threshold fitted
+            on it would be refused when the yaml is loaded), or the targets are single-class
+            (no anomalous pixel, or nothing but anomalous pixels), which no threshold can fit.
     """
+    if scores.dim() not in (3, 4):
+        raise CalibrationError(
+            f"scores must be [N, H, W] or [N, H, W, C], got shape {tuple(scores.shape)}"
+        )
+    if targets.dim() not in (3, 4):
+        raise CalibrationError(
+            f"targets must be [N, H, W] or [N, H, W, C], got shape {tuple(targets.shape)}"
+        )
+    if tuple(scores.shape[:3]) != tuple(targets.shape[:3]):
+        raise CalibrationError(
+            f"scores {tuple(scores.shape)} and targets {tuple(targets.shape)} disagree on "
+            "[N, H, W]; every frame needs its own ground-truth mask"
+        )
     full = scores.detach().to("cpu", torch.float32).numpy()
     if full.ndim == 3:
         full = full[..., None]
+    if not np.isfinite(full).all():
+        raise CalibrationError(
+            "scores contain nan or inf; a threshold fitted on them could not be loaded back"
+        )
     pixel = full.max(axis=-1)
     gt = targets.detach().to("cpu").numpy()
     gt = (gt.any(axis=-1) if gt.ndim == 4 else gt).astype(bool)
+    if not gt.any():
+        raise CalibrationError(
+            "targets mark no anomalous pixel; a single-class split cannot calibrate a threshold"
+        )
+    if gt.all():
+        raise CalibrationError(
+            "targets mark every pixel anomalous; a single-class split cannot calibrate a threshold"
+        )
     frame_labels = gt.any(axis=(1, 2))
     return full, pixel, gt, frame_labels
 
@@ -87,33 +188,69 @@ def binary_auroc(scores: np.ndarray, labels: np.ndarray) -> float:
     return float(u_statistic / (positives * negatives))
 
 
-def sigmoid(values: np.ndarray | float) -> Any:
-    """Numerically plain sigmoid; raw anomaly scores are small in practice."""
-    return 1.0 / (1.0 + np.exp(-np.asarray(values, dtype=np.float64)))
-
-
-def topk_mean_scores(pixel_scores: np.ndarray, top_k_fraction: float) -> np.ndarray:
-    """Stage-1 image score per frame: mean of the top-k fraction of pixel scores.
-
-    ``k`` replicates the decider bit-for-bit: the product is cast to float32 before ceiling
-    (``TwoStageBinaryDecider.forward``), so calibration and runtime agree even when the
-    float64 product lands epsilon above an integer.
-    """
-    flat = pixel_scores.reshape(pixel_scores.shape[0], -1)
-    k = max(1, int(np.ceil(np.float32(flat.shape[1] * top_k_fraction))))
-    top = np.partition(flat, flat.shape[1] - k, axis=1)[:, -k:]
-    return top.mean(axis=1)
-
-
 def pixel_candidates(pixel_scores: np.ndarray, num_candidates: int) -> np.ndarray:
-    """Absolute-threshold candidates from pooled score quantiles.
+    """Absolute-threshold candidates from pooled score quantiles, exact in float32.
 
     The tail reaches ``1/pixel_scores.size`` (a single pooled pixel) so the achievable
-    precision frontier for sparse anomalies lies inside the grid.
+    precision frontier for sparse anomalies lies inside the grid. Candidates are cast to
+    float32 - the dtype the deciders compare pixel scores in - and the pooled maximum is
+    always included, so every candidate is a threshold ``forward`` applies exactly.
     """
-    tail_lo = max(1.0 / pixel_scores.size, 1e-12)
+    flat = pixel_scores.reshape(-1)
+    tail_lo = max(1.0 / flat.size, 1e-12)
     upper_tail = 1.0 - np.logspace(np.log10(tail_lo), np.log10(0.5), num_candidates)
-    return np.unique(np.quantile(pixel_scores, np.sort(upper_tail)))
+    quantiles = np.quantile(flat, np.sort(upper_tail)).astype(np.float32)
+    return np.unique(np.append(quantiles, np.float32(flat.max())))
+
+
+def margin_below(threshold: float, samples: np.ndarray, *, float32: bool) -> float:
+    """Midpoint between ``threshold`` and the largest sample strictly below it.
+
+    An F1-max sweep returns a threshold that sits on a validation sample (or on a quantile of
+    the samples). Every threshold in ``(lower_sample, threshold]`` flags the same set, so the
+    plateau midpoint keeps the validation F1 and adds a margin against near-duplicate scores
+    at deployment. With ``float32`` the midpoint is rounded to float32 (the dtype the deciders
+    compare pixel scores in) and kept only if it still separates the two samples; otherwise,
+    and when no sample lies below, ``threshold`` itself is returned.
+    """
+    threshold = float(threshold)
+    below = samples[samples < threshold]
+    if below.size == 0:
+        return threshold
+    lower = float(below.max())
+    midpoint = (threshold + lower) / 2.0
+    if float32:
+        midpoint = float(np.float32(midpoint))
+        if not lower < midpoint <= threshold:
+            return threshold
+    return midpoint
+
+
+def _count_at_or_above(sorted_values: np.ndarray, candidates: np.ndarray) -> np.ndarray:
+    """How many of the ascending ``sorted_values`` are ``>=`` each candidate."""
+    return sorted_values.size - np.searchsorted(sorted_values, candidates, side="left")
+
+
+def frame_confusions(
+    pixel_scores: np.ndarray, gt_masks: np.ndarray, candidates: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
+    """Per-frame true/false positive counts for every candidate, ``[N, len(candidates)]`` each.
+
+    One sort per frame and class plus a ``searchsorted`` against the candidate edges gives the
+    counts for all candidates at once; the cost no longer scales with the candidate count.
+    ``pixel_scores`` and ``candidates`` must share a dtype (float32) so the comparison is exact.
+    """
+    n_frames = pixel_scores.shape[0]
+    flat_scores = pixel_scores.reshape(n_frames, -1)
+    flat_gt = gt_masks.reshape(n_frames, -1)
+    tp = np.empty((n_frames, candidates.size), dtype=np.float64)
+    fp = np.empty_like(tp)
+    for i in range(n_frames):
+        positives = np.sort(flat_scores[i][flat_gt[i]])
+        negatives = np.sort(flat_scores[i][~flat_gt[i]])
+        tp[i] = _count_at_or_above(positives, candidates)
+        fp[i] = _count_at_or_above(negatives, candidates)
+    return tp, fp
 
 
 def quantile_grid_builder(
@@ -154,29 +291,25 @@ def sweep_two_stage(
     """2-D sweep (image gate x absolute pixel threshold) for ``TwoStageBinaryDecider``.
 
     Returns ``(best_image, joint_best, conditional_best)``; gated-out frames contribute their
-    full ground truth as misses, which is what couples the two stages.
+    full ground truth as misses, which is what couples the two stages. ``best_image`` carries
+    the on-point ``threshold`` and the plateau-midpoint ``margin_threshold``; the two pixel
+    rows carry ``pixel_threshold`` / ``margin_pixel_threshold`` and ``image_threshold`` /
+    ``margin_image_threshold``. Ties resolve to the highest threshold.
     """
+    pixel_scores = np.ascontiguousarray(pixel_scores, dtype=np.float32)
     image_candidates = np.unique(image_scores)
     image_grid = [
         {"threshold": float(thr), **image_metrics_at(image_scores, frame_labels, thr)}
         for thr in image_candidates
     ]
     best_image = max(image_grid, key=lambda row: (row["f1"], row["threshold"]))
+    best_image["margin_threshold"] = margin_below(
+        best_image["threshold"], image_scores, float32=False
+    )
 
     candidates = pixel_candidates(pixel_scores, num_candidates)
-    flat_scores = pixel_scores.reshape(len(frame_labels), -1)
-    flat_gt = gt_masks.reshape(len(frame_labels), -1)
-    not_gt = ~flat_gt
-    gt_per_frame = flat_gt.sum(axis=1).astype(np.float64)
-    # Per-frame TP/FP for every pixel candidate: [n_frames, n_candidates]
-    tp = np.empty((len(frame_labels), len(candidates)), dtype=np.float64)
-    fp = np.empty_like(tp)
-    for j, thr in enumerate(candidates):
-        flagged = flat_scores >= thr
-        tp[:, j] = (flagged & flat_gt).sum(axis=1)
-        fp[:, j] = (flagged & not_gt).sum(axis=1)
-
-    total_gt = float(gt_per_frame.sum())
+    tp, fp = frame_confusions(pixel_scores, gt_masks, candidates)
+    total_gt = float(gt_masks.sum())
     joint_best: dict[str, Any] | None = None
     conditional_best: dict[str, Any] | None = None
     for image_thr in image_candidates:
@@ -190,33 +323,49 @@ def sweep_two_stage(
                 "pixel_threshold": float(pixel_thr),
                 **prf(float(gated_tp[j]), float(gated_fp[j]), float(fn[j])),
             }
-            if joint_best is None or row["f1"] > joint_best["f1"]:
+            # ``>=``: candidates ascend, so a tie goes to the more restrictive threshold.
+            if joint_best is None or row["f1"] >= joint_best["f1"]:
                 joint_best = row
             if image_thr == best_image["threshold"] and (
-                conditional_best is None or row["f1"] > conditional_best["f1"]
+                conditional_best is None or row["f1"] >= conditional_best["f1"]
             ):
                 conditional_best = row
     assert joint_best is not None and conditional_best is not None
+    for row in (joint_best, conditional_best):
+        row["margin_image_threshold"] = margin_below(
+            row["image_threshold"], image_scores, float32=False
+        )
+        row["margin_pixel_threshold"] = margin_below(
+            row["pixel_threshold"], pixel_scores, float32=True
+        )
     return best_image, joint_best, conditional_best
 
 
 def sweep_absolute(
     pixel_scores: np.ndarray, gt_masks: np.ndarray, num_candidates: int
 ) -> dict[str, Any]:
-    """Single ungated sweep over an absolute elementwise cutoff (``BinaryDecider``)."""
+    """Single ungated sweep over an absolute elementwise cutoff (``BinaryDecider``).
+
+    ``pixel_scores`` are the values ``forward`` compares (for ``BinaryDecider`` the float32
+    sigmoid probabilities). Returns the F1-max row with the on-point ``threshold`` and the
+    plateau-midpoint ``margin_threshold``; ties resolve to the highest threshold.
+    """
+    pixel_scores = np.ascontiguousarray(pixel_scores, dtype=np.float32)
+    candidates = pixel_candidates(pixel_scores, num_candidates)
+    tp, fp = frame_confusions(pixel_scores, gt_masks, candidates)
+    tp_total = tp.sum(axis=0)
+    fp_total = fp.sum(axis=0)
     total_gt = float(gt_masks.sum())
-    not_gt = ~gt_masks
     best: dict[str, Any] | None = None
-    for thr in pixel_candidates(pixel_scores, num_candidates):
-        flagged = pixel_scores >= thr
-        tp = float((flagged & gt_masks).sum())
+    for j, thr in enumerate(candidates):
         row = {
-            "raw_threshold": float(thr),
-            **prf(tp, float((flagged & not_gt).sum()), total_gt - tp),
+            "threshold": float(thr),
+            **prf(float(tp_total[j]), float(fp_total[j]), total_gt - float(tp_total[j])),
         }
-        if best is None or row["f1"] > best["f1"]:
+        if best is None or row["f1"] >= best["f1"]:
             best = row
     assert best is not None
+    best["margin_threshold"] = margin_below(best["threshold"], pixel_scores, float32=True)
     return best
 
 
@@ -225,7 +374,10 @@ def sweep_quantile(
     gt_masks: np.ndarray,
     frame_quantiles: dict[float, np.ndarray],
 ) -> dict[str, Any]:
-    """Sweep the per-frame adaptive ``quantile`` (``QuantileBinaryDecider``)."""
+    """Sweep the per-frame adaptive ``quantile`` (``QuantileBinaryDecider``).
+
+    Ties resolve to the highest quantile (the most restrictive cutoff).
+    """
     total_gt = float(gt_masks.sum())
     not_gt = ~gt_masks
     best: dict[str, Any] | None = None
@@ -237,7 +389,7 @@ def sweep_quantile(
             "quantile": float(q),
             **prf(tp, float((flagged & not_gt).sum()), total_gt - tp),
         }
-        if best is None or row["f1"] > best["f1"]:
+        if best is None or row["f1"] >= best["f1"]:
             best = row
     assert best is not None
     return best

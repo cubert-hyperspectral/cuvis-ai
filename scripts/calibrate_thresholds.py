@@ -597,29 +597,28 @@ def calibrate_thresholds(
                     "conditional_on_image_f1max": conditional_best,
                 },
                 "current_preset": current,
-                "calibrated_decider_hparams": {
-                    "image_threshold": float(best_image["threshold"]),
-                    "top_k_fraction": top_k_fraction,
-                    "pixel_threshold": float(conditional_best["pixel_threshold"]),
-                },
+                "calibrated_decider_hparams": _two_stage_hparams(
+                    best_image, conditional_best, top_k_fraction
+                ),
             }
         )
     elif mode == "binary":
         frame_max = pixel_scores.max(axis=(1, 2))
-        best = _calib.sweep_absolute(pixel_scores, gt_masks, num_candidates)
-        current = _current_preset_binary(pixel_scores, gt_masks, decider_defaults)
+        # BinaryDecider.forward compares float32 sigmoid probabilities, so the sweep runs on
+        # exactly those values (the same torch op) instead of raw scores mapped afterwards.
+        probabilities = _calib.sigmoid_float32(pixel_scores)
+        best = _calib.sweep_absolute(probabilities, gt_masks, num_candidates)
+        current = _current_preset_binary(probabilities, gt_masks, decider_defaults)
         report.update(
             {
                 "score_space": (
-                    "sigmoid probability (BinaryDecider thresholds sigmoid(logits); the "
-                    "sweep ran in raw space and the optimum was mapped through sigmoid)"
+                    "float32 sigmoid probability (the space BinaryDecider.forward compares "
+                    "in; the sweep ran on these probabilities directly)"
                 ),
                 "frame_auroc_max_score": _calib.binary_auroc(frame_max, frame_labels),
                 "pixel": {"optimum": best},
                 "current_preset": current,
-                "calibrated_decider_hparams": {
-                    "threshold": float(_calib.sigmoid(best["raw_threshold"]))
-                },
+                "calibrated_decider_hparams": _binary_hparams(best),
             }
         )
     else:  # quantile
@@ -693,12 +692,35 @@ def _current_preset_two_stage(
     }
 
 
+def _two_stage_hparams(
+    best_image: dict[str, Any], conditional_best: dict[str, Any], top_k_fraction: float
+) -> dict[str, float]:
+    """The ``TwoStageBinaryDecider`` hparams to ship: the plateau-midpoint values.
+
+    Identical to what ``TwoStageBinaryDecider.calibrate`` writes for the same scores.
+    """
+    return {
+        "image_threshold": float(best_image["margin_threshold"]),
+        "top_k_fraction": top_k_fraction,
+        "pixel_threshold": float(conditional_best["margin_pixel_threshold"]),
+    }
+
+
+def _binary_hparams(best: dict[str, Any]) -> dict[str, float]:
+    """The ``BinaryDecider`` hparams to ship (float32 sigmoid space, plateau midpoint)."""
+    return {"threshold": float(best["margin_threshold"])}
+
+
 def _current_preset_binary(
-    pixel_scores: np.ndarray, gt_masks: np.ndarray, decider_defaults: dict[str, Any]
+    probabilities: np.ndarray, gt_masks: np.ndarray, decider_defaults: dict[str, Any]
 ) -> dict[str, Any]:
-    """Metrics at the ``BinaryDecider`` sigmoid-space threshold currently shipped."""
+    """Metrics at the ``BinaryDecider`` threshold currently shipped.
+
+    ``probabilities`` are the float32 sigmoid values ``forward`` compares (see
+    ``_calibration.sigmoid_float32``), so this is the decision ``forward`` makes today.
+    """
     threshold = float(decider_defaults.get("threshold", 0.5))
-    flagged = _calib.sigmoid(pixel_scores) >= threshold
+    flagged = probabilities >= threshold
     tp = float((flagged & gt_masks).sum())
     fp = float((flagged & ~gt_masks).sum())
     fn = float(gt_masks.sum()) - tp
@@ -774,7 +796,7 @@ def _print_report(report: dict[str, Any]) -> None:
         print(  # noqa: T201
             f"frame AUROC (max pixel score, informational): {report['frame_auroc_max_score']:.4f}"
         )
-        knob = "quantile" if mode == "quantile" else "raw_threshold"
+        knob = "quantile" if mode == "quantile" else "threshold"
         print(  # noqa: T201
             f"pixel F1 optimum: {best['f1']:.4f} at {knob}={best[knob]:.6f} "
             f"(P={best['precision']:.3f} R={best['recall']:.3f} IoU={best['iou']:.3f})"
