@@ -8,7 +8,7 @@ name: unet
 # Local development override (optional):
 # path: "../../../cuvis-ai-unet"
 repo: "https://github.com/cubert-hyperspectral/cuvis-ai-unet.git"
-tag: "v0.2.2"
+tag: "v0.3.0"
 package_name: "cuvis-ai-unet"
 capabilities:
 - class_name: cuvis_ai_unet.node.dynunet.DynUNet

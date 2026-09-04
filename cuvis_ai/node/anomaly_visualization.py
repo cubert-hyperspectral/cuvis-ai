@@ -52,7 +52,7 @@ class ImageArtifactVizBase(Node):
     }
 
     # Artifact producers exist for the TensorBoard sink and, like it, run in the training
-    # stages only. A pipeline yaml can opt one into inference through `execution_stages`.
+    # stages only; inference pipelines prune them.
     EXECUTION_STAGES = {ExecutionStage.TRAIN, ExecutionStage.VAL, ExecutionStage.TEST}
 
     def __init__(
@@ -96,8 +96,8 @@ class AnomalyMask(Node):
     logging to monitoring systems.
 
     Runs during validation and test, where the TensorBoard sink consumes the artifacts;
-    inference pipelines skip it. A pipeline yaml can opt it in with
-    ``hparams: {execution_stages: [inference]}``.
+    inference pipelines skip it (``Predictor.predict(stage=ExecutionStage.TEST)`` runs it
+    over a labeled split).
 
     Parameters
     ----------
@@ -416,8 +416,8 @@ class AnomalyMask(Node):
 class ScoreHeatmapVisualizer(Node):
     """Log LAD/RX score heatmaps as TensorBoard artifacts.
 
-    Runs during validation and test (the TensorBoard sink is its consumer); a pipeline
-    yaml can opt it into inference with ``hparams: {execution_stages: [inference]}``.
+    Runs during validation and test (the TensorBoard sink is its consumer); inference
+    pipelines skip it.
     """
 
     _category = NodeCategory.VISUALIZER
@@ -523,8 +523,8 @@ class RGBAnomalyMask(Node):
     logging to monitoring systems.
 
     Runs during validation and test, where the TensorBoard sink consumes the artifacts;
-    inference pipelines skip it. A pipeline yaml can opt it in with
-    ``hparams: {execution_stages: [inference]}``.
+    inference pipelines skip it (``Predictor.predict(stage=ExecutionStage.TEST)`` runs it
+    over a labeled split).
 
     Parameters
     ----------

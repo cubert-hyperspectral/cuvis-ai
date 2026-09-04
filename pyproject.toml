@@ -17,7 +17,7 @@ dependencies = [
     # plugin behind its [cu3s] extra, provisioned at runtime when a cu3s run needs it.
     # Builtin/RGB pipelines pull neither cuvis nor cuvis-il, closing the Windows wheel gap.
     # Tests mock the data layer (no plugin dep); the real cu3s reader is tested in the plugin.
-    "cuvis-ai-core>=0.14.1",
+    "cuvis-ai-core>=0.15.0",
     "cuvis-ai-schemas[full]>=0.10.0",
     "pydantic>=2.13.3,<3.0.0",
     "defusedxml>=0.7.1",

@@ -49,10 +49,9 @@ def test_visualizers_run_in_val_and_test_only(factory):
     assert not node.should_execute(ExecutionStage.INFERENCE)
     assert not node.should_execute(ExecutionStage.TRAIN)
 
-    # A pipeline yaml can move the node with `hparams: {execution_stages: [inference]}`.
-    moved = factory(execution_stages=["inference"])
-    assert moved.should_execute(ExecutionStage.INFERENCE)
-    assert "execution_stages" not in moved.hparams
+    # Stages live on the class: the legacy yaml key is not a constructor argument.
+    with pytest.raises(TypeError, match="EXECUTION_STAGES"):
+        factory(execution_stages=["inference"])
 
 
 def test_score_heatmap_forward_bounded_by_up_to():

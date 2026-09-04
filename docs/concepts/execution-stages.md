@@ -34,10 +34,10 @@ class MyNode(Node):
     EXECUTION_STAGES = {ExecutionStage.TRAIN, ExecutionStage.VAL}
 ```
 
-Instances read the declaration through `node.execution_stages`, which is read-only. A
-pipeline can still move one instance by passing `execution_stages=` to the constructor
-(see [Pattern 5](#pattern-5-per-instance-override-from-a-pipeline-yaml)); a subclass that
-must reassign the stages after construction opts in with `EXECUTION_STAGES_MUTABLE = True`.
+Instances read the declaration through `node.execution_stages`, which is read-only: every
+instance of a class runs in the same stages, and a pipeline yaml picks stages by picking the
+class (see [Pattern 5](#pattern-5-evaluation-nodes-on-a-trained-pipeline) for running the
+evaluation nodes of a trained pipeline).
 
 **Key Concepts:**
 
@@ -45,7 +45,7 @@ must reassign the stages after construction opts in with `EXECUTION_STAGES_MUTAB
 |---------|-------------|
 | **ExecutionStage Enum** | ALWAYS, TRAIN, VAL, TEST, INFERENCE |
 | **`EXECUTION_STAGES`** | Class-level declaration, a `frozenset[ExecutionStage]` |
-| **`execution_stages=` argument** | Per-instance override passed to the constructor (a pipeline yaml's `hparams` reach it) |
+| **`node.execution_stages`** | Read-only view of the class declaration; not a constructor argument |
 | **Context Object** | Runtime info (stage, epoch, batch_idx) passed to nodes |
 | **Stage Filtering** | Pipeline skips nodes not matching current stage |
 | **Default** | `Node.EXECUTION_STAGES` is `{ExecutionStage.ALWAYS}` |
@@ -82,8 +82,7 @@ graph LR
 
 ```python
 class FeatureExtractor(Node):
-    def __init__(self, **kwargs):
-        super().__init__(execution_stages={ExecutionStage.ALWAYS}, **kwargs)
+    # Inherits Node.EXECUTION_STAGES == {ExecutionStage.ALWAYS}
 
     def forward(self, data, **_):
         # Runs during TRAIN, VAL, TEST, INFERENCE
@@ -91,7 +90,7 @@ class FeatureExtractor(Node):
         return {"features": features}
 
 # Default behavior
-node1 = MyNode()  # Equivalent to ExecutionStage.ALWAYS
+node1 = FeatureExtractor()  # runs in TRAIN, VAL, TEST and INFERENCE
 ```
 
 ---
@@ -102,8 +101,7 @@ node1 = MyNode()  # Equivalent to ExecutionStage.ALWAYS
 
 ```python
 class TrainingAugmentation(Node):
-    def __init__(self, **kwargs):
-        super().__init__(execution_stages={ExecutionStage.TRAIN}, **kwargs)
+    EXECUTION_STAGES = {ExecutionStage.TRAIN}
 ```
 
 ### 3. VAL (Validation)
@@ -112,8 +110,7 @@ class TrainingAugmentation(Node):
 
 ```python
 class ValidationMetrics(Node):
-    def __init__(self, **kwargs):
-        super().__init__(execution_stages={ExecutionStage.VAL}, **kwargs)
+    EXECUTION_STAGES = {ExecutionStage.VAL}
 ```
 
 ### 4. TEST
@@ -122,8 +119,7 @@ class ValidationMetrics(Node):
 
 ```python
 class TestEvaluator(Node):
-    def __init__(self, **kwargs):
-        super().__init__(execution_stages={ExecutionStage.TEST}, **kwargs)
+    EXECUTION_STAGES = {ExecutionStage.TEST}
 ```
 
 ### 5. INFERENCE
@@ -132,8 +128,7 @@ class TestEvaluator(Node):
 
 ```python
 class InferencePostProcessor(Node):
-    def __init__(self, **kwargs):
-        super().__init__(execution_stages={ExecutionStage.INFERENCE}, **kwargs)
+    EXECUTION_STAGES = {ExecutionStage.INFERENCE}
 ```
 
 ---
@@ -179,38 +174,30 @@ class AdaptiveNormalizer(Node):
         return {"normalized": normalized}
 ```
 
-### Pattern 5: Per-Instance Override from a Pipeline Yaml
+### Pattern 5: Evaluation Nodes on a Trained Pipeline
 
-`PipelineFactory` passes a node's `hparams` to its constructor, so a yaml can move one
-node without touching its class. The `TensorBoardMonitorNode` and the artifact visualizers
-run in train/val/test by default; a CLI user who wants TensorBoard output from
-`restore-pipeline` or `Predictor` opts them back in:
+A pipeline yaml cannot move a node between stages: `hparams` are constructor arguments and
+`execution_stages` is not one. A yaml written for an earlier release may still carry the
+inert `execution_stages: null`, which is accepted and dropped; any other value fails at load
+with a `TypeError` naming the node. The `TensorBoardMonitorNode` and the artifact
+visualizers run in train/val/test, so `restore-pipeline` and `Predictor.predict()` (the
+inference stage) write no TensorBoard output. To log a trained pipeline's artifacts and
+metrics over a labeled split, run it at the test stage:
 
-```yaml
-- name: score_heatmap
-  class_name: cuvis_ai.node.anomaly_visualization.ScoreHeatmapVisualizer
-  hparams:
-    up_to: 3
-    execution_stages: [inference]
-- name: TensorBoardMonitorNode
-  class_name: cuvis_ai.node.monitor.TensorBoardMonitorNode
-  hparams:
-    output_dir: outputs/tensorboard
-    execution_stages: [inference]
+```python
+from cuvis_ai_core.training.predictor import Predictor
+from cuvis_ai_schemas.enums import ExecutionStage
+
+Predictor(pipeline, datamodule).predict(stage=ExecutionStage.TEST)
 ```
 
-Stage names are coerced to the enum; a misspelled name (`Inference`, `infer`) raises a
-`ValueError` naming the node when the pipeline loads, instead of silently never running it.
-
-Two caveats:
-
-- The override lives only in the yaml text: `Node.__init__` consumes `execution_stages` before the hparams are captured, so `serialize()` never writes it back and a pipeline re-saved from its nodes loses the opt-in.
-- Plugin manifests and the gRPC `NodeInfo` expose the class defaults (category and lifecycle tags), not a yaml override.
+Plugin manifests and the gRPC `NodeInfo` expose the class declaration (category and
+lifecycle tags), which is also exactly what the pipeline runs.
 
 !!! note "Trained pipelines at inference"
     A pipeline trained in CuvisNEXT is loaded for prediction at `ExecutionStage.INFERENCE`,
     which prunes its losses, metrics, visualizers and TensorBoard sink; nothing else is
-    needed to run the trained graph. Runs saved before cuvis-ai 0.13.9 carry a
+    needed to run the trained graph. Runs saved before cuvis-ai 0.14.0 carry a
     `QuantileBinaryDecider`, which flags a fixed fraction of every frame and cannot be
     gated from the picker; retrain them to get the two-stage decider with its optional gate.
 
@@ -309,8 +296,8 @@ writers are sinks that exist for inference; `DistinctLabelCount` is a metric tha
 inference, so it carries `INFERENCE`). Nodes tagged `AUGMENTATION` are exempt from R2: the
 occlusion family sits inline (`cube -> occlusion -> model`), so pruning it by stage would
 leave the model's input unsatisfied; it stays `ALWAYS` until it gains a stage-aware
-pass-through. The rules read class declarations, so a yaml override is a deliberate
-per-pipeline deviation, not a violation.
+pass-through. The rules read the class declarations, which are exactly what every instance
+runs with.
 
 ---
 
@@ -370,23 +357,26 @@ per-pipeline deviation, not a violation.
 
     **Solution: Verify stage match**
     ```python
-    # Node restricted to TRAIN
-    node = MyNode(execution_stages={ExecutionStage.TRAIN})
+    # Node class restricted to TRAIN
+    class MyNode(Node):
+        EXECUTION_STAGES = {ExecutionStage.TRAIN}
 
     # But running VAL - won't execute!
     context = Context(stage=ExecutionStage.VAL)
 
-    # Fix: Add VAL to stages
-    node = MyNode(execution_stages={ExecutionStage.TRAIN, ExecutionStage.VAL})
+    # Fix: add VAL to the class declaration
+    class MyNode(Node):
+        EXECUTION_STAGES = {ExecutionStage.TRAIN, ExecutionStage.VAL}
     ```
 
     ### Unexpected Node Execution
 
-    **Solution: Check parent class constructor**
+    **Solution: Check the parent class declaration**
     ```python
-    class MyMetric(MetricNode):  # Parent sets VAL/TEST
+    class MyMetric(MetricNode):  # Parent declares EXECUTION_STAGES = {VAL, TEST}
+        # A subclass inherits the parent's stages unless it redeclares EXECUTION_STAGES
         def __init__(self, **kwargs):
-            super().__init__(**kwargs)  # Call parent to preserve stages
+            super().__init__(**kwargs)
             self.threshold = 0.5
     ```
 
@@ -444,20 +434,15 @@ per-pipeline deviation, not a violation.
         ```python
         # BAD: Expensive visualization in training
         class BadVisualizer(Node):
-            def __init__(self, **kwargs):
-                super().__init__(execution_stages={ExecutionStage.ALWAYS}, **kwargs)
+            EXECUTION_STAGES = {ExecutionStage.ALWAYS}
 
             def forward(self, data, **_):
                 expensive_viz = self.render_3d_plot(data)  # Runs every batch!
                 return {"visualization": expensive_viz}
 
-        # GOOD: Visualization only during validation
+        # GOOD: Visualization only during validation and test
         class GoodVisualizer(Node):
-            def __init__(self, **kwargs):
-                super().__init__(
-                    execution_stages={ExecutionStage.VAL, ExecutionStage.TEST},
-                    **kwargs
-                )
+            EXECUTION_STAGES = {ExecutionStage.VAL, ExecutionStage.TEST}
         ```
 
     2. **Reduce Complexity in Inference**

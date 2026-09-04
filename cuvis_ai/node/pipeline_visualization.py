@@ -31,8 +31,8 @@ class CubeRGBVisualizer(Node):
     Selects 3 channels with highest weights for R, G, B channels and creates
     a false-color visualization with wavelength annotations.
 
-    Runs during validation and test (its artifacts go to the TensorBoard sink); a
-    pipeline yaml can opt it into inference with ``hparams: {execution_stages: [inference]}``.
+    Runs during validation and test (its artifacts go to the TensorBoard sink); inference
+    pipelines skip it.
     """
 
     _category = NodeCategory.VISUALIZER

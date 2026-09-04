@@ -59,7 +59,6 @@ nodes:
   class_name: cuvis_ai.node.anomaly.deep_svdd.DeepSVDDScores
   hparams:
     name: null
-    execution_stages: null
 - name: QuantileBinaryDecider
   class_name: cuvis_ai.node.deciders.binary_decider.QuantileBinaryDecider
   hparams:
@@ -67,8 +66,6 @@ nodes:
     reduce_dims: null
 - name: metrics_anomaly
   class_name: cuvis_ai.node.metrics.AnomalyDetectionMetrics
-  hparams:
-    execution_stages: null
 - name: score_heatmap
   class_name: cuvis_ai.node.anomaly_visualization.ScoreHeatmapVisualizer
   hparams:

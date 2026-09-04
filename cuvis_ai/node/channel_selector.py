@@ -3441,17 +3441,7 @@ class TopKIndices(Node):
 
     def __init__(self, k: int, **kwargs: Any) -> None:
         self.k = int(k)
-
-        # Extract Node base parameters from kwargs to avoid duplication
-        name = kwargs.pop("name", None)
-        execution_stages = kwargs.pop("execution_stages", None)
-
-        super().__init__(
-            name=name,
-            execution_stages=execution_stages,
-            k=self.k,
-            **kwargs,
-        )
+        super().__init__(k=self.k, **kwargs)
 
     def forward(self, weights: torch.Tensor, **_: Any) -> dict[str, torch.Tensor]:
         """Return the indices of the top-k weighted channels.

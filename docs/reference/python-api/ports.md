@@ -155,7 +155,7 @@ pipeline.connect(
 
 ### Stage-Aware Connections
 
-Stage routing is controlled per node via `execution_stages`, not on `connect`.
+Stage routing is controlled per node class via `EXECUTION_STAGES`, not on `connect`.
 Connections themselves are stage-agnostic.
 
 ```python

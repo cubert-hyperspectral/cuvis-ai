@@ -1,8 +1,8 @@
 """Lifecycle tags, categories and execution stages must agree for every builtin node.
 
-The rules read the class declarations (``EXECUTION_STAGES``, ``_category``, ``_tags``), not
-instances: a pipeline yaml that overrides ``execution_stages`` is a deliberate per-pipeline
-deviation, while the class declaration is what plugin manifests and gRPC ``NodeInfo`` expose.
+The rules read the class declarations (``EXECUTION_STAGES``, ``_category``, ``_tags``): a
+node's stages are exactly its class declaration, which is also what plugin manifests and
+gRPC ``NodeInfo`` expose.
 
 - R0: category ``LOSS`` or ``REGULARIZER`` never runs at inference. Category decides here
   because a loss has no other purpose; for ``METRIC`` / ``SINK`` / ``VISUALIZER`` the

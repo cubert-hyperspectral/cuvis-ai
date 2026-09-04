@@ -36,8 +36,8 @@ class TensorBoardMonitorNode(Node):
 
     Runs during train, val and test (the class-level ``EXECUTION_STAGES``); inference
     pipelines skip it, so loading a trained pipeline for prediction writes no TensorBoard
-    directory. A pipeline yaml can opt back in with ``hparams: {execution_stages: [inference]}``
-    on this node and on the visualizer feeding it. The log directory and the
+    directory. To log a trained pipeline's artifacts over a dataset, run it at the test
+    stage (``Predictor.predict(stage=ExecutionStage.TEST)``). The log directory and the
     ``SummaryWriter`` are created on the first ``forward`` or ``log`` call, never at
     construction, so building the node touches no disk.
 

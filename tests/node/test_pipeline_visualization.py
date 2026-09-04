@@ -55,16 +55,16 @@ def test_cube_rgb_visualizer_respects_up_to() -> None:
 
 
 def test_cube_rgb_visualizer_runs_in_val_and_test_only() -> None:
-    """The TensorBoard sink is its only consumer; a yaml can still opt it into inference."""
+    """The TensorBoard sink is its only consumer; inference pipelines prune it."""
     assert CubeRGBVisualizer.EXECUTION_STAGES == {ExecutionStage.VAL, ExecutionStage.TEST}
     node = CubeRGBVisualizer(up_to=2)
     assert node.should_execute(ExecutionStage.VAL)
     assert not node.should_execute(ExecutionStage.INFERENCE)
     assert node.hparams == {"up_to": 2}
 
-    moved = CubeRGBVisualizer(up_to=2, execution_stages=["inference"])
-    assert moved.should_execute(ExecutionStage.INFERENCE)
-    assert "execution_stages" not in moved.hparams
+    # Stages live on the class: the legacy yaml key is not a constructor argument.
+    with pytest.raises(TypeError, match="CubeRGBVisualizer.*EXECUTION_STAGES"):
+        CubeRGBVisualizer(up_to=2, execution_stages=["inference"])
 
 
 # ---------------------------------------------------------------------------

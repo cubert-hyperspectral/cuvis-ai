@@ -52,14 +52,10 @@ class TestStages:
         assert node.should_execute(ExecutionStage.VAL)
         assert not node.should_execute(ExecutionStage.INFERENCE)
 
-    def test_yaml_style_override_opts_into_inference(self, tmp_path: Path):
-        # What `hparams: {execution_stages: [inference]}` delivers through PipelineFactory.
-        node = TensorBoardMonitorNode(
-            output_dir=str(tmp_path / "tb"), execution_stages=["inference"]
-        )
-        assert node.should_execute(ExecutionStage.INFERENCE)
-        assert not node.should_execute(ExecutionStage.TRAIN)
-        assert "execution_stages" not in node.hparams
+    def test_stage_override_is_not_a_constructor_argument(self, tmp_path: Path):
+        # Stages live on the class; the legacy yaml key is rejected by name.
+        with pytest.raises(TypeError, match="TensorBoardMonitorNode.*EXECUTION_STAGES"):
+            TensorBoardMonitorNode(output_dir=str(tmp_path / "tb"), execution_stages=["inference"])
 
 
 class TestLazyWriter:
