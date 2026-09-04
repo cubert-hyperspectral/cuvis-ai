@@ -2,7 +2,8 @@
 
 The use-case tutorials ship as runnable notebooks in
 [`notebooks/use_cases/`](https://github.com/cubert-hyperspectral/cuvis-ai/tree/main/notebooks/use_cases).
-Each one runs on Google Colab (the first cell bootstraps itself) or locally. This
+Each one runs on Google Colab (its first two cells bootstrap and provision it) or
+locally. This
 page is the repeatable recipe for provisioning a **local** environment to run any
 of them.
 
@@ -31,44 +32,33 @@ uv sync --extra dev
 
 ### 2. Provision the notebook's plugins / data module
 
-Open the notebook and read its first cell: the Colab bootstrap lists exactly
-what it installs (e.g. `cuvis-ai-dataloader[cu3s,coco]`). Mirror that into your
-local env. Two equivalent ways:
+Every notebook carries the same provisioning cell right after its Colab bootstrap.
+It names the packaged pipeline(s) that use the notebook's plugins plus the data
+module, and runs `provision` (shipped by `cuvis-ai-core`) against the plugin
+manifests packaged with cuvis-ai (`cuvis_ai/configs/plugins/<name>.yaml`). Git
+plugins are pinned to their manifest tag, plugins that are already importable are
+skipped, and after a fresh install the cell asks you to restart the kernel. Run it
+and step 2 is done.
 
-=== "Direct install (simplest)"
+The same step from a terminal, for the Blood Perfusion notebook (builtin nodes
+feeding a `cu3s` data module):
 
-    Install the plugin(s) the notebook imports, with the extras it uses. Blood
-    Perfusion reads `.cu3s`, so it needs the data-layer plugin's `cu3s` extra:
+```bash
+uv run provision \
+  --pipeline-path cuvis_ai/configs/pipeline/medical/blood_perfusion/ndvi.yaml \
+  --plugins-dir cuvis_ai/configs/plugins --data-module cu3s --apply
+```
 
-    ```bash
-    uv pip install "cuvis-ai-dataloader[cu3s,coco]"
-    ```
-
-=== "provision CLI (manifest-driven)"
-
-    For a pipeline-YAML-backed run, the `provision` CLI resolves a pipeline's
-    `plugins:` list plus `--data-module` into the right install specs (git
-    plugins pinned to their manifest tag) and installs them. For example, the
-    bundled Blood Perfusion NDVI pipeline (builtin nodes feeding a `cu3s` data
-    module):
-
-    ```bash
-    uv run provision \
-      --pipeline-path cuvis_ai/configs/pipeline/medical/blood_perfusion/ndvi.yaml \
-      --plugins-dir cuvis_ai/configs/plugins --data-module cu3s --apply
-    ```
-
-    resolves to `cuvis-ai-dataloader[cu3s,coco]` (the only plugin the pipeline's
-    builtin nodes plus `--data-module cu3s` require) and installs it. Drop
-    `--apply` to print the specs instead of installing; add `--include-satisfied`
-    to list plugins that are already present too. This is the same step
-    [`restore-pipeline`](../workflows/restore-pipeline.md) expects to have run
-    first.
+resolves to `cuvis-ai-dataloader[cu3s,coco]` (the only plugin the pipeline's
+builtin nodes plus `--data-module cu3s` require) and installs it. Drop `--apply`
+to print the specs instead of installing; add `--include-satisfied` to list
+plugins that are already present too. This is the same step
+[`restore-pipeline`](../workflows/restore-pipeline.md) expects to have run first.
 
 !!! warning "Re-provision after any `uv sync`"
     `uv sync` installs only what is in `pyproject.toml` and **removes** anything
-    else, so it uninstalls out-of-tree plugins. Re-run step 2 after every
-    `uv sync`.
+    else, so it uninstalls out-of-tree plugins. Re-run the provisioning cell (step 2)
+    after every `uv sync`; a plain `uv run` removes nothing.
 
 !!! note "`.cu3s` I/O also needs the Cuvis SDK"
     The `cuvis-ai-dataloader[cu3s]` extra pulls the `cuvis` Python binding, which
@@ -89,15 +79,23 @@ first pass, lower the frame-count knob (e.g. `N_FRAMES`) before the full sweep.
 
 ## What each notebook needs
 
-The notebook's first cell is the source of truth; this table is a quick
-reference.
+The notebook's provisioning cell is the source of truth; this table is a quick
+reference of what it installs.
 
 | Notebook | Provision | System deps |
 | --- | --- | --- |
 | `blood_perfusion` | `cuvis-ai-dataloader[cu3s,coco]` | FFmpeg, Graphviz |
 | `object_tracking_active` | `cuvis-ai-dataloader[cu3s,coco]` | FFmpeg, Graphviz |
-| `object_tracking_passive` | `cuvis-ai-dataloader[cu3s,coco]` | FFmpeg, Graphviz |
-| `lentils_dinomaly` | `cuvis-ai-dinomaly` | Graphviz |
+| `object_tracking_passive` | `cuvis-ai-dataloader[cu3s,coco]`, `cuvis-ai-sam3` | FFmpeg, Graphviz |
+| `object_selection_point_expansion` | `cuvis-ai-dataloader[cu3s,coco]`, `cuvis-ai-sam3` | FFmpeg |
+| `lentils_dinomaly` | `cuvis-ai-dataloader[cu3s,coco]`, `cuvis-ai-dinomaly` | Graphviz |
+| `metal_scrap_classification` | `cuvis-ai-inspecscrap[tiff]`, `cuvis-ai-dataloader[tiff]` | Graphviz |
+| `channel_selector_lentils` | `cuvis-ai-dataloader[cu3s,coco]`, `cuvis-ai-adaclip`, `cuvis-ai-dinomaly` (AUROC metric node) | Graphviz (optional) |
+
+`cuvis-ai-dinomaly`, `cuvis-ai-sam3`, `cuvis-ai-adaclip` and `cuvis-ai-inspecscrap` are not
+published on PyPI. The provisioning cell installs them from the release tag pinned in
+`cuvis_ai/configs/plugins/<name>.yaml`; do not hand-write the git spec, the pin is the
+manifest's job.
 
 FFmpeg is needed by notebooks that write an MP4 (`ToVideoNode`); Graphviz by
 those that call `pipeline.visualize(format="render_graphviz", ...)`. Both are

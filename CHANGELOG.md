@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Added the `channel_selector_lentils` use-case notebook: a `ConcreteChannelMixer` learns the 3-band custom selector through frozen AdaCLIP on the lentils dataset; baked from a full 20-epoch run with the test metrics read off the metric nodes.
+- Every `notebooks/use_cases` notebook now provisions its plugins through one standard cell (`uv run provision` against the packaged manifests, `%pip` on Colab); the Colab bootstraps install only `cuvis-ai` and manifest lookups use the packaged `cuvis_ai/configs`.
+- Rewrote `notebooks/use_cases/README.md` and `docs/tutorials/running-notebooks.md` around the provisioning cell and removed the hand-written `git+` install lines.
+- Raised the `transformers` floor to 5.16.1 and re-locked `tornado` 6.5.8 / `transformers` 5.16.1 to clear the pip-audit advisories.
+
 ## 0.13.8 - 2026-08-31
 
 - `TwoStageBinaryDecider` gains an optional `pixel_threshold` hparam: when set, stage 2 applies the absolute raw-score-space cutoff instead of the per-frame `quantile`, so the flagged region follows the anomaly's size instead of a fixed per-frame pixel budget. Default `None` keeps the quantile fallback, so every shipped preset is unchanged. The `image_threshold` validation is relaxed from `[0, 1]` to any finite value - the gate compares raw-space top-k means, which are unbounded.
