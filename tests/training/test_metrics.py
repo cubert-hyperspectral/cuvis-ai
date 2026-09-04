@@ -6,6 +6,13 @@ import pytest
 import torch
 from cuvis_ai_schemas.enums import ExecutionStage
 from cuvis_ai_schemas.execution import Context
+from torchmetrics.classification import (
+    BinaryAveragePrecision,
+    BinaryF1Score,
+    BinaryJaccardIndex,
+    BinaryPrecision,
+    BinaryRecall,
+)
 
 from cuvis_ai.node.metrics import (
     AnomalyDetectionMetrics,
@@ -358,6 +365,144 @@ class TestAnomalyDetectionMetrics:
         # The mapping exposes the LIVE accumulator (same object), which the trainer logs
         # with on_epoch=True; the pooled AP math itself is covered by the AP-accumulation tests.
         assert pooled["average_precision"] is metric_node.average_precision_metric
+
+
+class TestAnomalyDetectionMetricsPixelStride:
+    """Tests for the ``pixel_stride`` pixel subsample."""
+
+    @staticmethod
+    def _spy_update_element_counts(metric_node: AnomalyDetectionMetrics) -> list[int]:
+        """Record the element count of every tensor handed to a torchmetrics ``update()``."""
+        seen: list[int] = []
+        for attr in (
+            "precision_metric",
+            "recall_metric",
+            "f1_metric",
+            "iou_metric",
+            "average_precision_metric",
+        ):
+            metric = getattr(metric_node, attr)
+            original = metric.update
+
+            def spy(preds, target, _original=original, _seen=seen):
+                _seen.append(preds.numel())
+                _seen.append(target.numel())
+                return _original(preds, target)
+
+            metric.update = spy
+        return seen
+
+    @staticmethod
+    def _values(outputs) -> dict[str, float]:
+        """Flatten a forward()'s Metric list into a name -> value mapping."""
+        return {m.name: m.value for m in outputs["metrics"]}
+
+    @staticmethod
+    def _batch(b: int, h: int, w: int, seed: int = 0):
+        """Random decisions/logits with a half-positive target mask, so AP is defined."""
+        torch.manual_seed(seed)
+        decisions = torch.randint(0, 2, (b, h, w, 1)).bool()
+        targets = torch.zeros(b, h, w, 1, dtype=torch.bool)
+        targets[:, : h // 2] = True
+        logits = torch.randn(b, h, w, 1)
+        return decisions, targets, logits
+
+    def test_default_stride_is_one(self):
+        """The node scores every pixel unless a stride is asked for."""
+        assert AnomalyDetectionMetrics().pixel_stride == 1
+
+    @pytest.mark.parametrize("stride", [1, 2, 3, 5])
+    def test_update_only_sees_the_subsampled_elements(self, stride: int):
+        """Every torchmetrics update() gets exactly ceil(H/s)*ceil(W/s)*B elements.
+
+        H and W are odd and coprime with the strides under test, so a stride that
+        rounded the wrong way (or subsampled after flattening) misses the bound.
+        """
+        b, h, w = 2, 33, 21
+        metric_node = AnomalyDetectionMetrics(pixel_stride=stride)
+        seen = self._spy_update_element_counts(metric_node)
+        decisions, targets, logits = self._batch(b, h, w)
+        ctx = Context(stage=ExecutionStage.VAL, epoch=0, batch_idx=0)
+
+        metric_node.forward(decisions, targets, ctx, logits=logits)
+
+        expected = b * math.ceil(h / stride) * math.ceil(w / stride)
+        assert seen, "no torchmetrics update() was observed"
+        assert set(seen) == {expected}, f"stride {stride}: expected {expected}, saw {set(seen)}"
+
+    @pytest.mark.parametrize("stride", [1, 2, 3, 5])
+    def test_values_stay_in_range_for_every_stride(self, stride: int):
+        """A strided run still emits the five metrics as finite values in [0, 1]."""
+        metric_node = AnomalyDetectionMetrics(pixel_stride=stride)
+        decisions, targets, logits = self._batch(2, 33, 21)
+        ctx = Context(stage=ExecutionStage.VAL, epoch=0, batch_idx=0)
+
+        values = self._values(metric_node.forward(decisions, targets, ctx, logits=logits))
+
+        assert set(values) == {"precision", "recall", "f1_score", "iou", "average_precision"}
+        for name, value in values.items():
+            assert math.isfinite(value), f"{name} is not finite at stride {stride}"
+            assert 0.0 <= value <= 1.0, f"{name}={value} out of range at stride {stride}"
+
+    def test_stride_one_matches_the_unstrided_reference(self):
+        """Stride 1 must reproduce the pre-stride values bit for bit."""
+        b, h, w = 2, 17, 13
+        decisions, targets, logits = self._batch(b, h, w, seed=3)
+        metric_node = AnomalyDetectionMetrics(pixel_stride=1)
+        ctx = Context(stage=ExecutionStage.VAL, epoch=0, batch_idx=0)
+
+        got = self._values(metric_node.forward(decisions, targets, ctx, logits=logits))
+
+        # Reference: torchmetrics called directly on the full flattened frame.
+        preds_flat = decisions.squeeze(-1).flatten()
+        targets_flat = targets.squeeze(-1).flatten()
+        probs = torch.sigmoid(logits.squeeze(-1).flatten().float())
+        reference = {
+            "precision": BinaryPrecision()(preds_flat, targets_flat).item(),
+            "recall": BinaryRecall()(preds_flat, targets_flat).item(),
+            "f1_score": BinaryF1Score()(preds_flat, targets_flat).item(),
+            "iou": BinaryJaccardIndex()(preds_flat, targets_flat).item(),
+            "average_precision": BinaryAveragePrecision(thresholds=200)(probs, targets_flat).item(),
+        }
+        for name, expected in reference.items():
+            assert got[name] == expected, f"{name}: {got[name]} != {expected}"
+
+    @pytest.mark.parametrize("stride", [1, 2])
+    def test_bool_and_long_targets_agree(self, stride: int):
+        """Bool targets are fed as bool; promoting them to int64 changes nothing."""
+        decisions, targets, logits = self._batch(1, 16, 16, seed=1)
+        ctx = Context(stage=ExecutionStage.VAL, epoch=0, batch_idx=0)
+
+        bool_values = self._values(
+            AnomalyDetectionMetrics(pixel_stride=stride).forward(
+                decisions, targets, ctx, logits=logits
+            )
+        )
+        long_values = self._values(
+            AnomalyDetectionMetrics(pixel_stride=stride).forward(
+                decisions, targets.long(), ctx, logits=logits
+            )
+        )
+
+        assert bool_values == long_values
+
+    @pytest.mark.parametrize("bad", [0, -1, -5, 1.5, 2.0, "2", True, None])
+    def test_invalid_pixel_stride_raises(self, bad):
+        """A stride that is not an int >= 1 is refused by name at construction."""
+        with pytest.raises(ValueError, match="pixel_stride"):
+            AnomalyDetectionMetrics(pixel_stride=bad)
+
+    def test_pixel_stride_round_trips_as_an_hparam(self):
+        """pixel_stride is captured as an hparam, so a serialized node keeps it."""
+        metric_node = AnomalyDetectionMetrics(ap_thresholds=50, pixel_stride=3)
+
+        assert metric_node.hparams["pixel_stride"] == 3
+        assert metric_node.hparams["ap_thresholds"] == 50
+
+        restored = AnomalyDetectionMetrics(**metric_node.hparams)
+        assert restored.pixel_stride == 3
+        assert restored.ap_thresholds == 50
+        assert restored.hparams == metric_node.hparams
 
 
 class TestScoreStatisticsMetric:

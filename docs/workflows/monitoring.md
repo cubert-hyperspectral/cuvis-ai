@@ -163,12 +163,22 @@ Comprehensive anomaly detection performance metrics.
 
 **Execution**: VAL, TEST stages only
 
+**Pixel subsample (`pixel_stride`)**: the five metrics above are pixel metrics, so a
+full-frame validation step flattens every pixel of `decisions`, `targets` and `logits`.
+`pixel_stride: s` scores every s-th row and column instead, cutting that work (and the
+transient copies behind it) by about `s²`. Image-level metrics are untouched, and so is the
+`scores` grid a decider, overlay or heatmap reads: only the pixels the metrics score change.
+The default is `1` (every pixel); the shipped Dinomaly training presets use `2`, which leaves
+270 000 pixels at 1000x1080. Keep the subsample above 50 000 pixels: below that cutoff
+torchmetrics switches to a vectorized path that allocates an `[N, thresholds]` matrix, so an
+aggressive stride costs *more* memory than a mild one (the node logs a warning if you cross it).
+
 **Example:**
 
 ```python
 from cuvis_ai.node.metrics import AnomalyDetectionMetrics
 
-metrics = AnomalyDetectionMetrics()
+metrics = AnomalyDetectionMetrics(pixel_stride=2)
 
 # Connect
 pipeline.connect(

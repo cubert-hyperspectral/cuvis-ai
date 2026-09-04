@@ -18,6 +18,7 @@ from torchmetrics.classification import (
     BinaryRecall,
 )
 
+from cuvis_ai_core.node.metric_utils import subsample_hw, warn_below_vectorized_cutoff
 from cuvis_ai_core.node.node import Node
 
 
@@ -105,6 +106,11 @@ class AnomalyDetectionMetrics(Node):
     Uses torchmetrics for GPU-optimized, robust metric computation.
     Expects binary decisions and targets to be binary masks.
     Executes only during validation and test stages.
+
+    ``pixel_stride`` subsamples the pixel grid on H and W before the metrics see
+    it, so a full-frame validation step no longer allocates flattened copies of
+    every pixel. It changes only how many pixels the metrics score, never the
+    ``scores`` grid a decider, overlay or heatmap reads.
     """
 
     _category = NodeCategory.METRIC
@@ -142,9 +148,15 @@ class AnomalyDetectionMetrics(Node):
 
     EXECUTION_STAGES = {ExecutionStage.VAL, ExecutionStage.TEST}
 
-    def __init__(self, ap_thresholds: int = 200, **kwargs) -> None:
+    def __init__(self, ap_thresholds: int = 200, pixel_stride: int = 1, **kwargs) -> None:
+        if isinstance(pixel_stride, bool) or not isinstance(pixel_stride, int):
+            raise ValueError(f"pixel_stride must be an int >= 1, got {type(pixel_stride).__name__}")
+        if pixel_stride < 1:
+            raise ValueError(f"pixel_stride must be an int >= 1, got {pixel_stride}")
+
         self.ap_thresholds = ap_thresholds
-        super().__init__(ap_thresholds=ap_thresholds, **kwargs)
+        self.pixel_stride = pixel_stride
+        super().__init__(ap_thresholds=ap_thresholds, pixel_stride=pixel_stride, **kwargs)
 
         # Precision/Recall/F1/IoU keep O(1) running confmat state and are stateless
         # under torchmetrics __call__ (full_state_update=False) — per-batch values.
@@ -153,12 +165,18 @@ class AnomalyDetectionMetrics(Node):
         # within a (stage, epoch) and reset only at the boundary, so the value
         # emitted each batch is a *running* AP across batches seen so far in the
         # current epoch — the last batch's value is true epoch-level AP.
-        self.precision_metric = BinaryPrecision()
-        self.recall_metric = BinaryRecall()
-        self.f1_metric = BinaryF1Score()
-        self.iou_metric = BinaryJaccardIndex()
-        self.average_precision_metric = BinaryAveragePrecision(thresholds=ap_thresholds)
+        # validate_args=False skips torchmetrics' per-call input check, which sorts
+        # the whole input to prove it is binary, pure overhead for ports the
+        # pipeline already types as bool/float32.
+        self.precision_metric = BinaryPrecision(validate_args=False)
+        self.recall_metric = BinaryRecall(validate_args=False)
+        self.f1_metric = BinaryF1Score(validate_args=False)
+        self.iou_metric = BinaryJaccardIndex(validate_args=False)
+        self.average_precision_metric = BinaryAveragePrecision(
+            thresholds=ap_thresholds, validate_args=False
+        )
         self._ap_last_key: tuple[ExecutionStage, int] | None = None
+        self._stride_warn_state: dict[str, bool] = {}
 
     def forward(
         self,
@@ -168,6 +186,10 @@ class AnomalyDetectionMetrics(Node):
         logits: Tensor | None = None,
     ) -> dict[str, Any]:
         """Compute anomaly detection metrics using torchmetrics.
+
+        With ``pixel_stride`` above 1 the three pixel grids are subsampled to
+        every s-th row and column first, so the reported values are computed on
+        that subsample.
 
         Parameters
         ----------
@@ -187,9 +209,18 @@ class AnomalyDetectionMetrics(Node):
         decisions = decisions.squeeze(-1)  # [B, H, W]
         targets = targets.squeeze(-1)  # [B, H, W]
 
-        # Flatten to [N] where N = B*H*W for torchmetrics
-        preds_flat = decisions.flatten()  # [B*H*W]
-        targets_flat = targets.flatten()  # [B*H*W]
+        # Subsample the pixel grid before anything is flattened: every copy below
+        # (and the AP sigmoid) then costs ceil(H/s)*ceil(W/s) per frame instead of H*W.
+        full_elements = decisions.numel()
+        decisions = subsample_hw(decisions, self.pixel_stride)
+        targets = subsample_hw(targets, self.pixel_stride)
+        warn_below_vectorized_cutoff(
+            self.name, decisions.numel(), full_elements, self._stride_warn_state
+        )
+
+        # Flatten to [N] where N = B*ceil(H/s)*ceil(W/s) for torchmetrics
+        preds_flat = decisions.flatten()
+        targets_flat = targets.flatten()
 
         # Compute metrics using torchmetrics (they handle edge cases robustly)
         precision = self.precision_metric(preds_flat, targets_flat)
@@ -229,7 +260,7 @@ class AnomalyDetectionMetrics(Node):
         ]
 
         if logits is not None:
-            raw_scores = logits.squeeze(-1).flatten().float()
+            raw_scores = subsample_hw(logits.squeeze(-1), self.pixel_stride).flatten().float()
             probs_for_ap = torch.sigmoid(raw_scores)
 
             current_key = (context.stage, context.epoch)

@@ -29,6 +29,9 @@ data:
 
 training:
   seed: 42
+  # Drop the cached CUDA blocks around each validation pass: the validation
+  # activations then reuse freed memory instead of growing the reserved pool.
+  release_cuda_cache_on_validation: true
   max_epochs: 1
   accelerator: auto
   devices: 1

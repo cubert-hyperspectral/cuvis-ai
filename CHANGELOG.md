@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **`AnomalyDetectionMetrics` gains a `pixel_stride` hparam: the pixel metrics score every s-th row and column instead of every pixel.** `decisions`, `targets` and `logits` are subsampled on H and W before anything is flattened and before the AP sigmoid, so the transient copies a validation step allocated (measured ~20 MiB per step at 1000x1080, from the flattened copies and the duplicate sigmoid) shrink by about `sÂ²`. The default is `1`, so an existing pipeline is bit-for-bit unchanged; the `scores` grid is never touched, so the decider, the mask overlay and the score heatmap still see the full frame. The five torchmetrics objects are also constructed with `validate_args=False` (the per-call check sorted the whole input to prove it was binary, which the typed ports already guarantee), and bool targets are fed as bool instead of being promoted to int64. A `pixel_stride` that is not an int >= 1 is refused by name at construction.
+- **The Dinomaly training presets set `pixel_stride: 2` on both metric nodes.** `dinomaly_rgb.yaml` and `dinomaly_cir.yaml` stride the `AnomalyDetectionMetrics` node and the plugin's `AnomalyAUROCMetrics` node, which leaves 270 000 pixels per frame at 1000x1080. That is deliberately still above 50 000: under that count torchmetrics takes a vectorized path that allocates an `[N, thresholds]` int64 matrix (stride 5 measured 198 MiB), so a more aggressive stride would cost more memory than a mild one. The node warns once when a stride drops it below that cutoff. `dinomaly_cir_lentils.yaml` is inference-only and carries no metric nodes, so it is unchanged.
+- **The three CuvisNEXT trainruns opt into `release_cuda_cache_on_validation: true`** (`dinomaly_rgb_cuvisnext.yaml`, `dinomaly_cir_cuvisnext.yaml`, `adaclip_supervised_cir_cuvisnext.yaml`). The flag is off by default in the schema; with it on, cuvis-ai-core collects and empties the CUDA cache around each validation pass so the validation activations reuse freed blocks instead of growing the reserved pool. This is the in-app path that ran out of memory on 8 GB laptops at the first validation pass.
+- Bumped the `dinomaly` manifest pin v0.7.0 -> v0.7.1 for the matching `pixel_stride` on `AnomalyAUROCMetrics`.
+- Requires `cuvis-ai-core>=0.16.3` (the shared `subsample_hw` / `warn_below_vectorized_cutoff` helpers and the validation-memory callbacks) and `cuvis-ai-schemas[full]>=0.11.0` (`release_cuda_cache_on_validation`, plus the forwarded `limit_train_batches` / `limit_val_batches` / `num_sanity_val_steps` trainer keys).
 - Docs: the training concept page describes the threshold calibration phase that follows the fit (which deciders re-fit what, where it runs, what the trainrun reports, when it is skipped, the val-on-val caveat) and notes that calibrated thresholds live in the pipeline yaml.
 
 ## 0.15.1 - 2026-09-04
@@ -95,13 +100,13 @@
 ## 0.13.0 - 2026-08-24
 
 - Security: bumped hydra-core 1.3.2 -> 1.3.5 (floor >=1.3.5, lock-aligned; CVE-2026-68508 fixed in 1.3.4, arbitrary code
-  execution when untrusted config reaches `hydra.utils.instantiate()` — 1.3.4 adds a
+  execution when untrusted config reaches `hydra.utils.instantiate()` â€” 1.3.4 adds a
   dangerous-target blacklist).
 - **Breaking: `CocoTrackMaskWriter` now defaults to standard image-keyed COCO output.**
   The mask-tracking writer previously emitted a YouTube-VIS-shaped track dialect
   (top-level `videos`, one annotation per track with per-frame parallel arrays, no
-  `image_id`) that pycocotools — and with it the training-side `CocoLabeler`, plus
-  `cuvis-ai-trackeval`, the occlusion nodes, and `append_tracking_metrics` — cannot read.
+  `image_id`) that pycocotools â€” and with it the training-side `CocoLabeler`, plus
+  `cuvis-ai-trackeval`, the occlusion nodes, and `append_tracking_metrics` â€” cannot read.
   The default output is now standard COCO: per-frame `images` records plus one annotation
   per (track, frame) carrying an RLE `segmentation`, `bbox`/`area`, `iscrowd: 1`, and
   additive `score`/`track_id` keys, with per-frame image dimensions. All pipeline configs
@@ -148,9 +153,9 @@
 
 ## 0.11.4 - 2026-07-28
 
-- Added the Dinomaly CIR anomaly-detection preset: `configs/pipeline/anomaly/dinomaly/dinomaly_cir.yaml` (AnomalyDataNode → MinMaxNormalizer → FixedWavelengthSelector 860/670/560 nm NIR/R/G false-color → DinomalyDetector, with QuantileBinaryDecider, AnomalyDetectionMetrics, the plugin's AUROC metrics, and per-epoch score heatmaps into TensorBoardMonitorNode). Sibling of the 0.11.2 `dinomaly_rgb` preset for SWIR-leaning scenes where CIR separates anomalies better than visible RGB.
+- Added the Dinomaly CIR anomaly-detection preset: `configs/pipeline/anomaly/dinomaly/dinomaly_cir.yaml` (AnomalyDataNode â†’ MinMaxNormalizer â†’ FixedWavelengthSelector 860/670/560 nm NIR/R/G false-color â†’ DinomalyDetector, with QuantileBinaryDecider, AnomalyDetectionMetrics, the plugin's AUROC metrics, and per-epoch score heatmaps into TensorBoardMonitorNode). Sibling of the 0.11.2 `dinomaly_rgb` preset for SWIR-leaning scenes where CIR separates anomalies better than visible RGB.
 - Added the matching flat trainrun preset `configs/trainrun/dinomaly_cir_cuvisnext.yaml` for the gRPC `RestoreTrainRun` path (gradient: adamw lr 2e-3, checkpoint on `metrics_anomaly/iou` max; `cu3s` data block with `frames: measurements` + `recursive: true` and empty `data_dir` / `splits.splits_path` the caller fills per run).
-- Bumped the sam3 plugin manifest pin v0.2.1 -> v0.3.0: process-level shared ViT+text backbone registry, so all SAM3 nodes in one child process share one resident backbone and annotate↔propagate pipeline switches stay warm.
+- Bumped the sam3 plugin manifest pin v0.2.1 -> v0.3.0: process-level shared ViT+text backbone registry, so all SAM3 nodes in one child process share one resident backbone and annotateâ†”propagate pipeline switches stay warm.
 - Bumped the cuvis-ai-dataloader plugin manifest pin v0.4.0 -> v0.5.0: both `cu3s_multi` and `npz_multi` now speak one `universe.csv` vocabulary (shared `source, index` selector keys), `cu3s` folder mode gains per-measurement enumeration for GUI-authored `splits.json`, and the manifest exposes the `npz_multi` capability. Documented the unified vocabulary across the data-splits / get-started / workflow docs.
 - Added the missing `package_name` to the deepeiou, dinomaly, and trackeval plugin manifests: for git-pinned manifests the child-env composer needs the real installable name (`cuvis-ai-<x>` vs the logical `<x>`) for uv's metadata check to pass.
 
@@ -160,8 +165,8 @@
 
 ## 0.11.2 - 2026-07-22
 
-- Added the Dinomaly false-RGB anomaly-detection preset: `configs/pipeline/anomaly/dinomaly/dinomaly_rgb.yaml` (AnomalyDataNode → MinMaxNormalizer → FixedWavelengthSelector 650/550/450 nm → DinomalyDetector, with QuantileBinaryDecider, AnomalyDetectionMetrics, the plugin's AUROC metrics, and a ScoreHeatmapVisualizer feeding per-epoch score heatmaps into TensorBoardMonitorNode; `plugins: [dinomaly, cuvis_ai_builtin]`). Mirrors the lentils RGB training notebook graph as a packaged, parent-resolvable preset.
-- Added two flat (non-Hydra) trainrun presets consumed verbatim by the gRPC `RestoreTrainRun` path: `configs/trainrun/dinomaly_rgb_cuvisnext.yaml` (gradient: adamw lr 2e-3, checkpoint on `metrics_anomaly/iou` max) and `configs/trainrun/adaclip_supervised_cir_cuvisnext.yaml` (statistical-only, no loss nodes). Both carry a `cu3s` data block with `frames: measurements` + `recursive: true` (one sample per measurement over a dataset folder, canonical absolute sources), `num_workers: 0`, and empty `data_dir` / `splits.splits_path` fields the caller fills per run — the shape the CuvisNEXT training wizard drives.
+- Added the Dinomaly false-RGB anomaly-detection preset: `configs/pipeline/anomaly/dinomaly/dinomaly_rgb.yaml` (AnomalyDataNode â†’ MinMaxNormalizer â†’ FixedWavelengthSelector 650/550/450 nm â†’ DinomalyDetector, with QuantileBinaryDecider, AnomalyDetectionMetrics, the plugin's AUROC metrics, and a ScoreHeatmapVisualizer feeding per-epoch score heatmaps into TensorBoardMonitorNode; `plugins: [dinomaly, cuvis_ai_builtin]`). Mirrors the lentils RGB training notebook graph as a packaged, parent-resolvable preset.
+- Added two flat (non-Hydra) trainrun presets consumed verbatim by the gRPC `RestoreTrainRun` path: `configs/trainrun/dinomaly_rgb_cuvisnext.yaml` (gradient: adamw lr 2e-3, checkpoint on `metrics_anomaly/iou` max) and `configs/trainrun/adaclip_supervised_cir_cuvisnext.yaml` (statistical-only, no loss nodes). Both carry a `cu3s` data block with `frames: measurements` + `recursive: true` (one sample per measurement over a dataset folder, canonical absolute sources), `num_workers: 0`, and empty `data_dir` / `splits.splits_path` fields the caller fills per run â€” the shape the CuvisNEXT training wizard drives.
 - Bumped the dinomaly plugin manifest pin v0.4.1 -> v0.5.0 and regenerated its capabilities: added the `PerClassAnomalyAUROC` metric node (streaming one-vs-background per-class pixel AUROC over `class_mask`) and refreshed `DinomalyDetector`'s catalog metadata (category/tags plus the n-channel `rgb_image` spec).
 
 ## 0.11.1 - 2026-07-21
@@ -200,7 +205,7 @@
   data, not only in a source checkout; local model weights under `configs/pipeline` stay gitignored
   and are never bundled.
 
-- **Flattened the trainrun/training configs for the folded `TrainingConfig` (needs `cuvis-ai-core>=0.11.2` / `cuvis-ai-schemas>=0.8.0`).** The nested `trainer:` block is gone: its `pytorch_lightning.Trainer` fields now sit directly under `training:` in every `configs/trainrun/*.yaml` and in `configs/training/default.yaml`, and the dead `training.batch_size` / `training.num_workers` keys are dropped. Hydra overrides change from `training.trainer.<field>=…` to `training.<field>=…`. Added `tests/configs/test_trainrun_configs_valid.py`, which validates every shipped training block against the flat schema.
+- **Flattened the trainrun/training configs for the folded `TrainingConfig` (needs `cuvis-ai-core>=0.11.2` / `cuvis-ai-schemas>=0.8.0`).** The nested `trainer:` block is gone: its `pytorch_lightning.Trainer` fields now sit directly under `training:` in every `configs/trainrun/*.yaml` and in `configs/training/default.yaml`, and the dead `training.batch_size` / `training.num_workers` keys are dropped. Hydra overrides change from `training.trainer.<field>=â€¦` to `training.<field>=â€¦`. Added `tests/configs/test_trainrun_configs_valid.py`, which validates every shipped training block against the flat schema.
 
 - **`ChannelSelector` skips the `StatisticalTrainer` pass in `RUNNING` / `PER_FRAME` modes.** Those
   modes need no fit, but `ChannelSelectorBase.statistical_initialization` made core's
@@ -232,7 +237,7 @@
   `configs/plugins/cuvis_ai_builtin.yaml`. Its output dict shape matches `SAM3PointExpansion`'s
   `points` input, so it drives point expansion in a scripted (non-interactive) pipeline.
 - **Added the SAM3 single-frame point-expansion use case.** Two pipeline configs
-  (`configs/pipeline/sam3/sam3_point_expansion.yaml`, cu3s-sourced, and `…_video.yaml`, video-frame
+  (`configs/pipeline/sam3/sam3_point_expansion.yaml`, cu3s-sourced, and `â€¦_video.yaml`, video-frame
   sourced) plus the `notebooks/use_cases/object_selection_point_expansion.ipynb` walkthrough.
 - **Pinned the sam3 plugin to `v0.2.1`.** `configs/plugins/sam3.yaml` uses a `repo:` + `tag: v0.2.1`
   pin (restored from the temporary local `path:` checkout), the first tagged sam3 release to ship
@@ -252,7 +257,7 @@
 
 ## 0.11.0 - 2026-07-14
 
-- **Docs: the node catalog now lists plugin capabilities.** The Catalogs â†’ Nodes generator reads
+- **Docs: the node catalog now lists plugin capabilities.** The Catalogs Ã¢â€ â€™ Nodes generator reads
   the plugin manifests (`configs/plugins/*.yaml`) instead of the never-created
   `docs/data/plugin_sources.yaml` that left the published catalog at "0 from plugins". Plugin nodes
   render manifest-driven I/O port tables, data modules get their own rows and pill, and the filter
@@ -433,9 +438,9 @@
 - Carried the **inline node catalog** in each plugin manifest: `configs/plugins/<name>.yaml` `provides:` now lists `CatalogNodeEntry` items directly. Added the `turbovec` manifest, declared `package_name` overrides, and imported `PluginManifest` from `cuvis_ai_schemas.plugin`.
 - Regenerated all plugin manifests to the single-`CatalogPortSpec`-per-port shape and removed the per-manifest `*.metadata.json` sidecars; updated the manifest-contract tests and the port/node docs for the `variadic` flag.
 - Marked `TensorBoardMonitorNode` `artifacts` / `metrics` inputs as single `PortSpec`s with `variadic=True` (was the implicit `list[PortSpec]` fan-in form).
-- Fixed the gRPC train flow and made `SoftChannelSelector`'s statistical initialization device-safe — it now computes on the same device as `channel_logits`, so it survives a pipeline moved to GPU.
+- Fixed the gRPC train flow and made `SoftChannelSelector`'s statistical initialization device-safe â€” it now computes on the same device as `channel_logits`, so it survives a pipeline moved to GPU.
 - **Security/docs:** removed the `https://polyfill.io/v3/polyfill.min.js` include from `mkdocs.yml`. The `polyfill.io` domain is hijacked and was injecting a credential-phishing "Sign in" prompt on the docs site; MathJax 3 needs no polyfill on supported browsers. Added a `Redeploy docs (manual)` workflow (`workflow_dispatch` with a version input) so the gh-pages site can be republished without cutting a PyPI release.
-- Fixed `AnomalyDetectionMetrics` average precision: switched to histogram-based `BinaryAveragePrecision(thresholds=N)` so state is bounded by construction, and reset only on `(stage, epoch)` boundaries so the metric accumulates across batches via `update()` within a validation epoch — the per-batch emitted value is a running AP that converges to true epoch-level AP, instead of a leak-prone cumulative or a noisy per-batch AP.
+- Fixed `AnomalyDetectionMetrics` average precision: switched to histogram-based `BinaryAveragePrecision(thresholds=N)` so state is bounded by construction, and reset only on `(stage, epoch)` boundaries so the metric accumulates across batches via `update()` within a validation epoch â€” the per-batch emitted value is a running AP that converges to true epoch-level AP, instead of a leak-prone cumulative or a noisy per-batch AP.
 - Added dependency-compatibility CI: `.github/workflows/dep_compat.yml` (host-floor audit) and `registry_compat.yml` (plugin-vs-core audit); pinned dependency floors; documented plugin loading via `--plugins-dir`.
 - Added pipeline render tooling: `scripts/render_pipelines.py` emits transparent PNG renders of every pipeline YAML. Stopped tracking the generated render artifacts.
 - Made `scripts/` a PEP 420 namespace package (dropped its `__init__.py`) so it merges with `cuvis-ai-core`'s `scripts/`; unblocked the orchestrator smoke on Windows.
@@ -448,39 +453,39 @@
 
 ## 0.7.2 - 2026-05-11
 
-- **CI:** run the gh-pages `deploy-docs` job inside `cubertgmbh/cuvis_pyil:3.5.0-ubuntu24.04` with `libgl1` / `libglib2.0-0` / `ffmpeg` installed, matching the working `doc-build` job in `ci.yml`. The 0.7.1 deploy failed because the auto-generated Nodes-catalog generator imports `cuvis_ai.node`, which transitively initializes the `cuvis` package and aborts on a vanilla runner. No `cuvis_ai` code changes — this release exists solely to re-trigger the release pipeline so gh-pages actually updates.
+- **CI:** run the gh-pages `deploy-docs` job inside `cubertgmbh/cuvis_pyil:3.5.0-ubuntu24.04` with `libgl1` / `libglib2.0-0` / `ffmpeg` installed, matching the working `doc-build` job in `ci.yml`. The 0.7.1 deploy failed because the auto-generated Nodes-catalog generator imports `cuvis_ai.node`, which transitively initializes the `cuvis` package and aborts on a vanilla runner. No `cuvis_ai` code changes â€” this release exists solely to re-trigger the release pipeline so gh-pages actually updates.
 
 ## 0.7.1 - 2026-05-11
 
-- **Docs IA restructure** (ALL-5655). Nine top-level sections — Home, Get Started, Concepts, Tutorials, Catalogs, Workflows, Agentic Integration, Deployment, Reference — ordered as a learning path. Major moves: `user-guide/{installation,quickstart}` → `get-started/`; `how-to/*` → `workflows/`; `node-catalog/*` → `catalogs/nodes/*`; `config/*` → `reference/configuration/`; `api/*` → `reference/python-api/`; `plugin-system/*` → `reference/plugin-development/`; `development/*` → `reference/contributing/`; `grpc/*` + `use_cases/grpc-workflow.md` → `deployment/`. New: agentic-integration section, datasets catalog mirrored from HuggingFace, notebook tutorial gallery, `get-started/first-pipeline.md`, `workflows/{statistical,gradient}-training.md`. Removed `docs/use_cases/`, `user-guide/configuration.md` stub, duplicate `plugin-system/overview.md`. **All URLs change — no redirects.** `mkdocs build --strict` clean.
-- **Auto-generated Nodes catalog.** `mkdocs-gen-files` + `scripts/generate_node_catalog.py` build a category-grouped index page from `NodeRegistry` with per-category SVG icons (`docs/images/node-categories/`) and a client-side filter (`docs/javascripts/node_catalog_filter.js`). Replaces nine hand-maintained `docs/catalogs/nodes/*.md` pages. Added `scripts/math_directive_hook.py` MkDocs hook (RST `.. math::` → MathJax; auto-hide TOC on catalog pages).
-- **Lentils Dinomaly use-case notebook** (`notebooks/use_cases/lentils_dinomaly.ipynb`) — HF dataset integration and H.264 video export.
-- **Helper-scripts package renamed** `tools/` → `scripts/`. Updated `[project.scripts]` (`create-stubs = "scripts.generate_node_port_stubs:main"`), MkDocs macros, codecov ignore, `.gitignore`, git hooks, copilot-instructions.
+- **Docs IA restructure** (ALL-5655). Nine top-level sections â€” Home, Get Started, Concepts, Tutorials, Catalogs, Workflows, Agentic Integration, Deployment, Reference â€” ordered as a learning path. Major moves: `user-guide/{installation,quickstart}` â†’ `get-started/`; `how-to/*` â†’ `workflows/`; `node-catalog/*` â†’ `catalogs/nodes/*`; `config/*` â†’ `reference/configuration/`; `api/*` â†’ `reference/python-api/`; `plugin-system/*` â†’ `reference/plugin-development/`; `development/*` â†’ `reference/contributing/`; `grpc/*` + `use_cases/grpc-workflow.md` â†’ `deployment/`. New: agentic-integration section, datasets catalog mirrored from HuggingFace, notebook tutorial gallery, `get-started/first-pipeline.md`, `workflows/{statistical,gradient}-training.md`. Removed `docs/use_cases/`, `user-guide/configuration.md` stub, duplicate `plugin-system/overview.md`. **All URLs change â€” no redirects.** `mkdocs build --strict` clean.
+- **Auto-generated Nodes catalog.** `mkdocs-gen-files` + `scripts/generate_node_catalog.py` build a category-grouped index page from `NodeRegistry` with per-category SVG icons (`docs/images/node-categories/`) and a client-side filter (`docs/javascripts/node_catalog_filter.js`). Replaces nine hand-maintained `docs/catalogs/nodes/*.md` pages. Added `scripts/math_directive_hook.py` MkDocs hook (RST `.. math::` â†’ MathJax; auto-hide TOC on catalog pages).
+- **Lentils Dinomaly use-case notebook** (`notebooks/use_cases/lentils_dinomaly.ipynb`) â€” HF dataset integration and H.264 video export.
+- **Helper-scripts package renamed** `tools/` â†’ `scripts/`. Updated `[project.scripts]` (`create-stubs = "scripts.generate_node_port_stubs:main"`), MkDocs macros, codecov ignore, `.gitignore`, git hooks, copilot-instructions.
 - **Removed `configs/plugins/registry.yaml`.** Use per-plugin manifests (`configs/plugins/<plugin>.yaml`).
-- **Bundled ffmpeg via `imageio-ffmpeg`.** `ToVideoNode` resolves the binary from the wheel by default — no system install needed. Override with `CUVIS_AI_FFMPEG_BIN` for `h264_nvenc` / `vaapi` / `amf`. Blood-perfusion notebook MP4 export gains `+faststart`.
+- **Bundled ffmpeg via `imageio-ffmpeg`.** `ToVideoNode` resolves the binary from the wheel by default â€” no system install needed. Override with `CUVIS_AI_FFMPEG_BIN` for `h264_nvenc` / `vaapi` / `amf`. Blood-perfusion notebook MP4 export gains `+faststart`.
 - **Site rebrand to Cubert CI.** `palette: custom` lets `docs/stylesheets/extra.css` drive both Material schemes; Rajdhani headings via Google Fonts `@import`, Roboto / Roboto Mono for body and code. Mermaid theme variables updated to match. Mermaid diagrams in `docs/concepts/*.md` switched from inline `style X fill:` to `classDef` so node colors stay legible in dark mode.
 - **mkdocs plugin swap.** Dropped `mkdocs-literate-nav`; added `mkdocs-macros-plugin` (drives `scripts/docs_macros.py`) and `mkdocs-llmstxt` (emits `llms-full.txt`). `mkdocs-gen-files` re-added for the Nodes-catalog generator. API reference consolidated into the Nodes catalog. Install guide gains a Cuvis SDK section.
-- **Renamed local blood-perfusion dataset folder** `data/XMR_Blood_Perfusion/` → `data/XMR_Demo_Blood_Perfusion/` following the HuggingFace rename to `cubert-gmbh/XMR_Demo_Blood_Perfusion`. Users with the old folder can rename it in place; otherwise `uv run dataset download blood_perfusion` re-fetches ~7 GB.
+- **Renamed local blood-perfusion dataset folder** `data/XMR_Blood_Perfusion/` â†’ `data/XMR_Demo_Blood_Perfusion/` following the HuggingFace rename to `cubert-gmbh/XMR_Demo_Blood_Perfusion`. Users with the old folder can rename it in place; otherwise `uv run dataset download blood_perfusion` re-fetches ~7 GB.
 - **Fixed broken cross-doc links** surfaced by `mkdocs build --strict`.
 - **Dependency floors:** `cuvis-ai-core>=0.5.3` (Blood_Perfusion registry repoint), `cuvis-ai-schemas[full]>=0.4.1`. Locked dev deps bumped to clear pip-audit CVEs.
 
 ## 0.7.0 - 2026-05-04
 
 - Extracted the `examples/` tree (70 files) into a new sister repo, [`cuvis-ai-cookbook`](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook). Removed `docs/grpc/example-clients.md` (now redundant) and rerouted all in-doc `examples/...` links to cookbook GitHub URLs.
-- Renamed `CIETristimulusFalseRGBSelector` → `CIETristimulusRGBSelector`. The CIE 1931 tristimulus integration produces a faithful RGB rendering, not a false-color rendering — the previous name was misleading. Updated the plugin registry (`configs/plugins/cuvis_ai_builtin.yaml`), the four SAM3 pipeline configs (`configs/pipeline/sam3/sam3_*.yaml`, including `name: false_rgb` → `name: true_rgb`, edge references, and `false-rgb` metadata tags/description), and the object-tracking notebooks under `notebooks/use_cases/`. No deprecation shim — direct rename.
+- Renamed `CIETristimulusFalseRGBSelector` â†’ `CIETristimulusRGBSelector`. The CIE 1931 tristimulus integration produces a faithful RGB rendering, not a false-color rendering â€” the previous name was misleading. Updated the plugin registry (`configs/plugins/cuvis_ai_builtin.yaml`), the four SAM3 pipeline configs (`configs/pipeline/sam3/sam3_*.yaml`, including `name: false_rgb` â†’ `name: true_rgb`, edge references, and `false-rgb` metadata tags/description), and the object-tracking notebooks under `notebooks/use_cases/`. No deprecation shim â€” direct rename.
 - Added `_category` (`NodeCategory`) and `_tags` (`frozenset[NodeTag]`) ClassVars on every auto-registered `Node` subclass across `cuvis_ai/node`, `cuvis_ai/anomaly`, and `cuvis_ai/deciders` (105 classes, including private/base classes such as `_ScoreNormalizerBase` and `_BaseJsonWriterNode`). New `tests/test_node_categories.py` enforces per-class declarations (via `__dict__`), requires at least one modality or lifecycle tag per node, and rejects any single category covering >70% of the catalog.
 - Added `assets/node_icons/*.svg` to package-data and bumped `cuvis-ai-schemas[full]>=0.4.0`.
 - Added Windows FFmpeg DLL bootstrap (`cuvis_ai/__init__.py`): walks `PATH` at import time and registers every directory containing an `avcodec-*.dll` via `os.add_dll_directory`, so torchcodec can load `libtorchcodec_core*.dll` on Python 3.8+ where `PATH` is no longer consulted for DLL dependencies. No-op on non-Windows.
 - Refactored `cuvis_ai.anomaly` and `cuvis_ai.deciders` modules into `cuvis_ai.node.anomaly` and `cuvis_ai.node.deciders`; the legacy locations now emit `DeprecationWarning` and re-export. `cuvis_ai.node` namespace exposes `BinaryDecider`, `DeepSVDDProjection`, `LADGlobal`, `QuantileBinaryDecider`, `RXGlobal`, `RXPerBatch`, `TwoStageBinaryDecider`, and `ZScoreNormalizerGlobal` directly. Plugin manifest and 15 pipeline YAMLs updated to the new `class_name` paths.
 - Added `InsetComposer` (`cuvis_ai/node/compositing.py`): pastes a fixed-size inset frame into a corner of a larger base frame for picture-in-picture video output. Pairs with `ROIZoomNode` (the inset is expected at final pixel size). Configurable corner (`top-left` / `top-right` / `bottom-left` / `bottom-right`), `margin_px`, `border_px`, and `border_color`; per-frame `valid` port leaves the base untouched when the ROI is stale.
-- Changed `ToVideoNode` to drop its unused `video_path` output port — it is a SINK and now matches the canonical contract used by `NumpyFeatureWriterNode` and the JSON writers (empty `OUTPUT_SPECS`, `forward()` returns `{}`).
-- Bumped pinned plugin tags to latest published patches: adaclip `v0.1.2 → v0.1.3`, ultralytics `v0.1.0 → v0.1.1`, deepeiou `v0.1.0 → v0.1.1`, trackeval `v0.1.0 → v0.1.1`, sam3 `v0.1.3 → v0.1.5`. Picks up `_category` / `_tags` palette annotations and the `cuvis-ai-schemas>=0.4.0` floor across all upstream plugins.
+- Changed `ToVideoNode` to drop its unused `video_path` output port â€” it is a SINK and now matches the canonical contract used by `NumpyFeatureWriterNode` and the JSON writers (empty `OUTPUT_SPECS`, `forward()` returns `{}`).
+- Bumped pinned plugin tags to latest published patches: adaclip `v0.1.2 â†’ v0.1.3`, ultralytics `v0.1.0 â†’ v0.1.1`, deepeiou `v0.1.0 â†’ v0.1.1`, trackeval `v0.1.0 â†’ v0.1.1`, sam3 `v0.1.3 â†’ v0.1.5`. Picks up `_category` / `_tags` palette annotations and the `cuvis-ai-schemas>=0.4.0` floor across all upstream plugins.
 - Removed `imantics` from runtime deps (no longer used).
 - Added `notebook` to the `dev` extra so `uv sync --extra dev` is sufficient to run the use-case notebooks locally.
 - Synchronized the plugin-manifest test-tag expectations to `v0.1.1` (`tests/test_plugin_manifest.py`) to match the latest published plugin tags.
 - Removed three orphaned test files that imported helpers from the extracted `examples/object_tracking/` and `examples/export_cu3s_false_rgb_video.py` (now in `cuvis-ai-cookbook`); coverage now belongs in the cookbook repo.
-- Renamed `docs/tutorials/` → `docs/usecases/` → `docs/use_cases/` (mkdocs nav heading and 9 doc pages); rewrote `docs/use_cases/blood-perfusion.md` to mirror the notebook section-for-section (NDVI flow + custom-node SpO2 example), dropping the unused PCA+HSV and band-limited PCA sections.
-- Moved `notebooks/blood_perfusion/nd_blood_perfusion.ipynb` to `notebooks/use_cases/blood_perfusion.ipynb` and split the object-tracking walkthrough into two notebooks under `notebooks/use_cases/`: `object_tracking_passive.ipynb` (text-prompt + SAM3 mask propagation on RGB and CIR video, sharing a cached `rgb_video.mp4` + COCO `tracking_results.json`) and `object_tracking_active.ipynb` (invisible-spectral-ink active tracking via SPAM). Both follow the prepare → build → run → watch rhythm.
+- Renamed `docs/tutorials/` â†’ `docs/usecases/` â†’ `docs/use_cases/` (mkdocs nav heading and 9 doc pages); rewrote `docs/use_cases/blood-perfusion.md` to mirror the notebook section-for-section (NDVI flow + custom-node SpO2 example), dropping the unused PCA+HSV and band-limited PCA sections.
+- Moved `notebooks/blood_perfusion/nd_blood_perfusion.ipynb` to `notebooks/use_cases/blood_perfusion.ipynb` and split the object-tracking walkthrough into two notebooks under `notebooks/use_cases/`: `object_tracking_passive.ipynb` (text-prompt + SAM3 mask propagation on RGB and CIR video, sharing a cached `rgb_video.mp4` + COCO `tracking_results.json`) and `object_tracking_active.ipynb` (invisible-spectral-ink active tracking via SPAM). Both follow the prepare â†’ build â†’ run â†’ watch rhythm.
 - Added an Open-in-Colab badge and a bootstrap install cell to every use-case notebook so they run end-to-end on `colab.research.google.com` without a pre-cloned checkout. Badges link the notebook on `main` so released revisions stay reproducible.
 - Standardized "Cuvis.AI" casing across the docs (was a mix of "CUVIS.AI" / "cuvis.ai").
 - Added `docs/javascripts/os-tab-sync.js` to keep OS-tabbed install snippets (Linux / macOS / Windows) in sync across the install guide.
@@ -488,18 +493,18 @@
 - Refreshed the `README.md` status badges to flat-square style and added a link to the [`cuvis-ai-agentic-skills`](https://github.com/cubert-hyperspectral/cuvis-ai-agentic-skills) sister repo.
 - Regenerated the docstring-coverage badge (`assets/interrogate_badge.svg`) at `96.0%`.
 - Fixed `auto_register_package` registry-size floor regression after the anomaly/deciders move: pointed the auto-register walk at `cuvis_ai.node.{anomaly,deciders}` since the legacy shims re-export classes whose `__module__` now points at the new locations.
-- Bumped `cuvis-ai-core` floor `>=0.3.4` → `>=0.5.0` and `cuvis-ai-schemas[full]` `>=0.3.0` → `>=0.4.0` to pick up the gRPC `list_available_nodes` metadata populator, the new `MissingNodeMetadataWarning` runtime check, and the `NodeCategory` / `NodeTag` / `NodeInfo.{category,tags,icon_svg}` schema additions. Widened `requires-python` from `>=3.11,<3.12` to `>=3.11,<3.14`. Removed `opencv-python-headless` from the docs extra (not required by the current mkdocs config).
+- Bumped `cuvis-ai-core` floor `>=0.3.4` â†’ `>=0.5.0` and `cuvis-ai-schemas[full]` `>=0.3.0` â†’ `>=0.4.0` to pick up the gRPC `list_available_nodes` metadata populator, the new `MissingNodeMetadataWarning` runtime check, and the `NodeCategory` / `NodeTag` / `NodeInfo.{category,tags,icon_svg}` schema additions. Widened `requires-python` from `>=3.11,<3.12` to `>=3.11,<3.14`. Removed `opencv-python-headless` from the docs extra (not required by the current mkdocs config).
 - Updated the gRPC workflow helper docstring to describe the concrete session lifecycle (create / build / train / predict) instead of internal release vocabulary.
 
 ## 0.6.0 - 2026-04-27
 
 - Removed `examples/hugging_face/` example scripts (`huggingface_api_demo.py`, `huggingface_local_demo.py`, `huggingface_gradient_training.py`, `test_huggingface_local_minimal.py`) and the in-tree `cuvis_ai/node/adaclip.py` (`AdaCLIPLocalNode`). The released AdaCLIP plugin (`cuvis_ai_adaclip` via `configs/plugins/adaclip.yaml`) is unaffected.
 - Removed the `### AdaCLIP Nodes` autodoc section from `docs/api/nodes.md`; it pointed at the deleted in-tree module.
-- Renamed `PipelineComparisonVisualizer` input port `adaclip_scores` → `anomaly_scores` (and the corresponding TensorBoard heatmap artifact `adaclip_scores_heatmap_sample_*` → `anomaly_scores_heatmap_sample_*`). The port is plugin-agnostic; updated `tests/node/test_pipeline_visualization.py`, `cuvis_ai/node/losses.py` docstring example, AdaCLIP pipeline/trainrun YAMLs, `examples/adaclip/*_training.py`, `docs/tutorials/adaclip-workflow.md`, and `docs/how-to/monitoring-and-viz.md`.
+- Renamed `PipelineComparisonVisualizer` input port `adaclip_scores` â†’ `anomaly_scores` (and the corresponding TensorBoard heatmap artifact `adaclip_scores_heatmap_sample_*` â†’ `anomaly_scores_heatmap_sample_*`). The port is plugin-agnostic; updated `tests/node/test_pipeline_visualization.py`, `cuvis_ai/node/losses.py` docstring example, AdaCLIP pipeline/trainrun YAMLs, `examples/adaclip/*_training.py`, `docs/tutorials/adaclip-workflow.md`, and `docs/how-to/monitoring-and-viz.md`.
 - Registered the previously-omitted built-in nodes `ROIZoomNode`, `MaskRobustifier`, `MaskToBBoxKalman`, `MaskedMeanSpectrum`, and `SpectrumPlotNode` in `configs/plugins/cuvis_ai_builtin.yaml` so they are discoverable when the gRPC server runs in a separate venv.
 - Changed `ToVideoNode` encoder backend from OpenCV `cv2.VideoWriter` (FOURCC `mp4v`, uncontrollable bitrate, ~1.6 Mbps MPEG-4 Part 2 output) to a lazily-spawned `ffmpeg` subprocess that pipes raw `rgb24` frames over stdin. Produces H.264 (`libx264`) at a configurable target bitrate (default `12M`). Requires the `ffmpeg` binary on `PATH`.
 - Added `video_codec` (default `"libx264"`) and `bitrate` (default `"12M"`) parameters to `ToVideoNode`. Hardcoded `-pix_fmt yuv420p` plus `-vf pad=ceil(iw/2)*2:ceil(ih/2)*2` to guarantee valid output dimensions for 4:2:0 chroma subsampling.
-- Removed `ToVideoNode(codec=...)` (FourCC) parameter — renamed to `video_codec` (ffmpeg codec name) since the value namespace changed. Pipeline YAML configs do not set `codec=` explicitly, so no existing config files need updates.
+- Removed `ToVideoNode(codec=...)` (FourCC) parameter â€” renamed to `video_codec` (ffmpeg codec name) since the value namespace changed. Pipeline YAML configs do not set `codec=` explicitly, so no existing config files need updates.
 - Added robust subprocess lifecycle handling to `ToVideoNode`: `close()` sends EOF, waits for mux completion, and raises `RuntimeError` with drained stderr on non-zero ffmpeg exit. Per-frame `stdin.write` catches `BrokenPipeError` and surfaces the encoder error rather than silently truncating the video.
 - Relocated cu3s false-RGB video exporter from `examples/object_tracking/export_cu3s_false_rgb_video.py` to `examples/export_cu3s_false_rgb_video.py`; updated `tests/node/test_export_cu3s_false_rgb_video.py` and `tests/node/test_range_average_false_rgb_selector.py` imports accordingly.
 - Added `ffmpeg` to CI apt-install steps (`ci.yml`, `plugin-runtime-smoke.yml`) so future integration tests can exercise the encoder end-to-end.
@@ -560,11 +565,11 @@
 
 - Added reusable `WelfordAccumulator` utility (`cuvis_ai.utils.welford`) for streaming mean/variance/covariance
 - Added `resolve_reduce_dims()` as shared module-level utility in `binary_decider`
-- Added `TRAINABLE_BUFFERS` class attribute — 5 nodes declare trainable buffers, base class handles buffer↔parameter conversion in freeze/unfreeze automatically
+- Added `TRAINABLE_BUFFERS` class attribute â€” 5 nodes declare trainable buffers, base class handles bufferâ†”parameter conversion in freeze/unfreeze automatically
 - Added `freeze()` for `LearnableChannelMixer` matching existing `unfreeze()` override
 - Added `ConcreteChannelMixer` and `LearnableChannelMixer` exported from `cuvis_ai.node`
 - Added all 6 visualization nodes exported from `cuvis_ai.node`: `AnomalyMask`, `RGBAnomalyMask`, `ScoreHeatmapVisualizer`, `CubeRGBVisualizer`, `PCAVisualization`, `PipelineComparisonVisualizer`
-- Added insufficient-samples guard to `RXGlobal` and `ScoreToLogit` — raises early when training data has too few samples
+- Added insufficient-samples guard to `RXGlobal` and `ScoreToLogit` â€” raises early when training data has too few samples
 - Added plugin runtime smoke CI workflow (`plugin-runtime-smoke.yml`) with slow plugin tests
 - Added AdaCLIP standalone plugin manifest (`configs/plugins/adaclip.yaml`) and 6 example scripts
 - Added plugin contract, manifest sync, and runtime smoke test files
@@ -606,13 +611,13 @@
 - Changed plugin registry to use relative path for SAM3 and AdaCLIP repo tag v0.1.2
 - **Breaking**: Reorganized channel selector and mixer nodes into separate files
 - **Breaking**: Renamed 9 classes to reflect selector/mixer distinction
-- **Breaking**: Deleted old files — no deprecation stubs or re-exports
-- Removed redundant `.to(device)` calls — pipeline handles device placement
+- **Breaking**: Deleted old files â€” no deprecation stubs or re-exports
+- Removed redundant `.to(device)` calls â€” pipeline handles device placement
 - Updated 13 pipeline + 17 trainrun YAML configs with new `class_name` paths
 - Updated 11 example scripts with new import paths
 - Updated 19 documentation files with new class names and import paths
 - Fixed `pyproject.toml` uv source field (`develop` to `editable`)
-- Fixed Werkzeug CVE-2026-27199 by bumping 3.1.5 → 3.1.6
+- Fixed Werkzeug CVE-2026-27199 by bumping 3.1.5 â†’ 3.1.6
 - Fixed ToVideoNode parameter typo: output__video_path renamed to output_video_path
 - Fixed setuptools<82 pin for tensorboard pkg_resources compatibility
 - Fixed Windows uv script path errors by using python -m in hooks and tests

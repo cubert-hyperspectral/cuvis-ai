@@ -63,11 +63,13 @@ nodes:
     pixel_threshold: null   # calibrate-thresholds output; quantile fallback while null
 - name: metrics_anomaly
   class_name: cuvis_ai.node.metrics.AnomalyDetectionMetrics
-  hparams: {}
+  hparams:
+    pixel_stride: 2   # score every 2nd row/column; 1000x1080 -> 270k px per frame
 - name: metrics_auroc
   class_name: cuvis_ai_dinomaly.node.auroc_metrics.AnomalyAUROCMetrics
   hparams:
     thresholds: 200
+    pixel_stride: 2
 - name: score_heatmap
   class_name: cuvis_ai.node.anomaly_visualization.ScoreHeatmapVisualizer
   hparams:
