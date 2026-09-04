@@ -53,6 +53,12 @@ If you're new and need step-by-step learning instead, start with
 
     Replay a saved pipeline with `restore-pipeline` or `restore-trainrun`.
 
+-   :material-download: **[Model Weights](model-weights.md)**
+
+    ---
+
+    Pretrained plugin weights from the public Cubert mirrors: list, provision, run offline.
+
 -   :material-monitor-eye: **[Monitoring & Visualization](monitoring.md)**
 
     ---

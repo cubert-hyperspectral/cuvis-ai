@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.15.0 - unreleased
+
+- **Plugin model weights come from the public `cubert-gmbh` Hugging Face mirrors; no Hugging Face account or token is needed any more.** The manifest pins move to the plugin releases that resolve their weights through the cuvis-ai-core 0.16.0 registry: `sam3` v0.4.0 (SAM3 checkpoint from `cubert-gmbh/sam3`), `rtsam2` v0.4.0 (EfficientTAM from `cubert-gmbh/efficient-track-anything`, now including the 512x512 variants), `adaclip` v0.4.0 (CLIP backbone and AdaCLIP heads from `cubert-gmbh/clip` and `cubert-gmbh/adaclip`, `gdown` dropped) and `dinomaly` v0.7.0 (DINOv2 backbone from `cubert-gmbh/dinov2`). Core floor raised to `cuvis-ai-core>=0.16.0`. The cache folder names change (`models--cubert-gmbh--*`), so an existing install downloads its weights once more; `uv run download-model download <name>` provisions them ahead of an offline gRPC run.
+- **New docs page [Model Weights](docs/workflows/model-weights.md)**: which weights each plugin downloads, `download-model list` and `download` usage, provisioning for the offline child runtime, custom or private weights, and the licence of every mirrored file. `.env.example` now says `HF_TOKEN` is only needed for private or custom repos.
+
 ## 0.14.0 - 2026-09-04
 
 - **`TwoStageBinaryDecider.image_threshold` is optional and defaults to `None` (gate off).** With no gate every frame reaches stage 2; with `pixel_threshold` also unset the node produces the same decisions as `QuantileBinaryDecider` for `[B, H, W, 1]` input (tested bit for bit). A value that is not a finite number (a string, a bool) is refused by name instead of being coerced; the same check now covers `pixel_threshold`. Behaviour change only for `TwoStageBinaryDecider()` with no arguments (the old default gated at 0.5 in raw score space); every shipped preset that uses the class sets `image_threshold` explicitly. Per-frame debug logging is lazy, so a live camera path no longer pays whole-tensor `.item()` syncs when debug is off.

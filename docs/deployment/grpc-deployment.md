@@ -152,6 +152,7 @@ spec:
 ## Troubleshooting
 
 - `NOT_FOUND` errors: verify `session_id` exists and was not closed.
+- `ModelWeightsMissingError` while loading a pipeline: the child runtime runs offline and without credentials by design. Provision the weight on the server host first with `uv run download-model download <name>` (see [Model Weights](../workflows/model-weights.md)).
 - Message size exceeded: raise `grpc.max_send_message_length` / `grpc.max_receive_message_length` on both client and server.
 - Slow throughput: increase thread pool size or reduce batch sizes.
 - Port conflicts: choose an available port or free the existing listener.

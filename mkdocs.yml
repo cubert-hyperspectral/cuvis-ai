@@ -191,6 +191,7 @@ nav:
       - Build Pipeline (Python): workflows/build-pipeline-python.md
       - Build Pipeline (YAML): workflows/build-pipeline-yaml.md
       - Restore Pipeline: workflows/restore-pipeline.md
+      - Model Weights: workflows/model-weights.md
       - Statistical Training: workflows/statistical-training.md
       - Gradient Training: workflows/gradient-training.md
       - Monitoring & Visualization: workflows/monitoring.md
