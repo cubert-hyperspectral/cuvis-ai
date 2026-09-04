@@ -28,6 +28,8 @@ from torch import Tensor
 
 from cuvis_ai_core.deciders.base_decider import BinaryDecider as BaseDecider
 
+from . import _calibration
+
 
 def _optional_finite(name: str, value: Any) -> float | None:
     """Return ``value`` as a float, pass ``None`` through, refuse anything else by name.
@@ -48,13 +50,14 @@ class TwoStageBinaryDecider(BaseDecider):
     Stage 1 is the image gate: the mean of the top ``top_k_fraction`` per-pixel scores must
     reach ``image_threshold`` or the frame gets a blank mask. ``image_threshold=None`` (the
     default) turns the gate off, so every frame reaches stage 2; a training preset ships it
-    as ``null`` and the operator sets the calibrated value at deployment.
+    as ``null`` and :meth:`calibrate` (the in-training calibration phase, or the
+    ``calibrate-thresholds`` CLI) fills in the value fitted on the labelled validation split.
 
     Stage 2 uses the calibrated absolute ``pixel_threshold`` (raw score space) when one is
-    set - e.g. from the ``calibrate-thresholds`` CLI - and otherwise falls back to the
-    per-frame ``quantile`` cutoff, which flags a fixed fraction of every gated frame. With
-    both ``image_threshold`` and ``pixel_threshold`` unset this node is
-    ``QuantileBinaryDecider`` for ``[B, H, W, 1]`` input, decision for decision.
+    set and otherwise falls back to the per-frame ``quantile`` cutoff, which flags a fixed
+    fraction of every gated frame. With both ``image_threshold`` and ``pixel_threshold``
+    unset this node is ``QuantileBinaryDecider`` for ``[B, H, W, 1]`` input, decision for
+    decision.
     """
 
     _category = NodeCategory.TRANSFORM
@@ -143,18 +146,11 @@ class TwoStageBinaryDecider(BaseDecider):
             scores = tensor[b]  # [H, W, C] or [H, W]
             pixel_scores = scores.max(dim=-1)[0] if scores.dim() == 3 else scores
 
-            # Stage 1: image-level gate, skipped entirely when no threshold is set.
+            # Stage 1: image-level gate, skipped entirely when no threshold is set. The
+            # statistic is shared with calibrate(), so a calibrated gate is exact here.
             if self.image_threshold is not None:
-                flat = pixel_scores.reshape(-1)
-                k = max(
-                    1,
-                    int(
-                        torch.ceil(
-                            torch.tensor(flat.numel() * self.top_k_fraction, dtype=torch.float32)
-                        ).item()
-                    ),
-                )
-                image_score = torch.topk(flat, k).values.mean().item()
+                k = _calibration.topk_count(pixel_scores.numel(), self.top_k_fraction)
+                image_score = _calibration.frame_image_score(pixel_scores, self.top_k_fraction)
                 # Lazy args (bound as defaults so each frame logs its own values): nothing
                 # is formatted unless the debug level is enabled.
                 if image_score < self.image_threshold:
@@ -195,3 +191,56 @@ class TwoStageBinaryDecider(BaseDecider):
             decisions.append((pixel_scores >= threshold).unsqueeze(-1).to(torch.bool))
 
         return {"decisions": torch.stack(decisions, dim=0)}
+
+    def calibrate(
+        self, scores: Tensor, targets: Tensor, *, num_candidates: int = 256
+    ) -> dict[str, Any]:
+        """Refit ``image_threshold`` + ``pixel_threshold`` to F1-max on labelled val scores.
+
+        Runs the joint 2-D sweep (image gate x absolute pixel cutoff, raw score space, with
+        gated-out frames contributing their full ground truth as misses). Sets the F1-max
+        image gate and, at that gate, the F1-max absolute pixel threshold - moving stage 2
+        off the fixed-fraction quantile onto a cutoff that tracks anomaly size. Both values
+        are the midpoints of their F1 plateaus (``_calibration.margin_below``); the pixel
+        cutoff is exact in float32, the dtype ``forward`` compares in, and the gate uses the
+        very ``frame_image_score`` statistic ``forward`` computes. The values go to the live
+        attributes and to ``hparams``; ``pipeline.save_to_file`` then carries them in the
+        pipeline yaml. The ``.pt`` weights are unchanged, so load the saved yaml rather than
+        the preset plus weights. ``scores`` is the decider-input tensor stacked over the split
+        (``[N, H, W, C]``); ``targets`` the ground-truth mask. The report also carries the
+        on-point optima and the joint optimum, which may beat the conditional one.
+
+        Raises:
+            CalibrationError: shape mismatch, non-finite scores, or a single-class split.
+        """
+        _, pixel, gt, frame_labels = _calibration.reduce_scores_targets(scores, targets)
+        image_scores = _calibration.topk_mean_scores(pixel, self.top_k_fraction)
+        best_image, joint, conditional = _calibration.sweep_two_stage(
+            pixel, gt, image_scores, frame_labels, num_candidates
+        )
+        old_image, old_pixel = self.image_threshold, self.pixel_threshold
+        new_image = float(best_image["margin_threshold"])
+        new_pixel = float(conditional["margin_pixel_threshold"])
+        self.image_threshold = new_image
+        self.pixel_threshold = new_pixel
+        self.hparams["image_threshold"] = new_image
+        self.hparams["pixel_threshold"] = new_pixel
+        return {
+            "class": type(self).__name__,
+            "image_threshold": {"old": old_image, "new": new_image},
+            "pixel_threshold": {"old": old_pixel, "new": new_pixel},
+            "on_point": {
+                "image_threshold": best_image["threshold"],
+                "pixel_threshold": conditional["pixel_threshold"],
+            },
+            "image_f1": best_image["f1"],
+            "pixel_f1": conditional["f1"],
+            "pixel_precision": conditional["precision"],
+            "pixel_recall": conditional["recall"],
+            "pixel_iou": conditional["iou"],
+            "joint": {
+                "image_threshold": joint["margin_image_threshold"],
+                "pixel_threshold": joint["margin_pixel_threshold"],
+                "f1": joint["f1"],
+            },
+        }

@@ -68,6 +68,7 @@ from cuvis_ai_schemas.execution import Context
 from cuvis_ai_schemas.pipeline import PipelineConfig
 from loguru import logger
 
+from cuvis_ai.node.deciders import _calibration as _calib
 from cuvis_ai.utils.grpc_workflow import CONFIG_ROOT
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_core.training.config import TrainRunConfig
@@ -438,196 +439,6 @@ def _single_port(
     return next(iter(hits.values()))
 
 
-def _topk_mean_scores(pixel_scores: np.ndarray, top_k_fraction: float) -> np.ndarray:
-    """Stage-1 image score per frame: mean of the top-k fraction of pixel scores.
-
-    ``k`` replicates the decider bit-for-bit: the product is cast to float32 before
-    ceiling (two_stage_decider.forward), so calibration and runtime agree even when the
-    float64 product lands epsilon above an integer.
-    """
-    flat = pixel_scores.reshape(pixel_scores.shape[0], -1)
-    k = max(1, int(np.ceil(np.float32(flat.shape[1] * top_k_fraction))))
-    top = np.partition(flat, flat.shape[1] - k, axis=1)[:, -k:]
-    return top.mean(axis=1)
-
-
-def _binary_auroc(scores: np.ndarray, labels: np.ndarray) -> float:
-    """Exact rank-based AUROC (Mann-Whitney U) for a small sample count."""
-    positives = int(labels.sum())
-    negatives = int((~labels).sum())
-    if positives == 0 or negatives == 0:
-        return float("nan")
-    order = scores.argsort(kind="mergesort")
-    ranks = np.empty_like(order, dtype=np.float64)
-    ranks[order] = np.arange(1, len(scores) + 1)
-    # Midranks for ties, so equal scores contribute 0.5 each.
-    for value in np.unique(scores):
-        tied = scores == value
-        if tied.sum() > 1:
-            ranks[tied] = ranks[tied].mean()
-    u_statistic = ranks[labels].sum() - positives * (positives + 1) / 2.0
-    return float(u_statistic / (positives * negatives))
-
-
-def _prf(tp: float, fp: float, fn: float) -> dict[str, float]:
-    """Precision, recall, F1 and IoU from raw counts (0 when undefined)."""
-    precision = tp / (tp + fp) if tp + fp > 0 else 0.0
-    recall = tp / (tp + fn) if tp + fn > 0 else 0.0
-    f1 = 2 * precision * recall / (precision + recall) if precision + recall > 0 else 0.0
-    iou = tp / (tp + fp + fn) if tp + fp + fn > 0 else 0.0
-    return {"precision": precision, "recall": recall, "f1": f1, "iou": iou}
-
-
-def _image_metrics_at(image_scores: np.ndarray, labels: np.ndarray, thr: float) -> dict[str, float]:
-    """Frame-level precision/recall/F1/IoU at one image threshold (``>=``)."""
-    flagged = image_scores >= thr
-    tp = float((flagged & labels).sum())
-    return _prf(tp, float((flagged & ~labels).sum()), float((~flagged & labels).sum()))
-
-
-def _pixel_candidates(pixel_scores: np.ndarray, num_candidates: int) -> np.ndarray:
-    """Absolute-threshold candidates from pooled score quantiles.
-
-    The tail reaches ``1/pixel_scores.size`` (a single pooled pixel) so the achievable
-    precision frontier for sparse anomalies lies inside the grid.
-    """
-    tail_lo = max(1.0 / pixel_scores.size, 1e-12)
-    upper_tail = 1.0 - np.logspace(np.log10(tail_lo), np.log10(0.5), num_candidates)
-    return np.unique(np.quantile(pixel_scores, np.sort(upper_tail)))
-
-
-def _sweep_two_stage(
-    pixel_scores: np.ndarray,
-    gt_masks: np.ndarray,
-    image_scores: np.ndarray,
-    frame_labels: np.ndarray,
-    num_candidates: int,
-) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
-    """2-D sweep (image gate x absolute pixel threshold) for ``TwoStageBinaryDecider``.
-
-    Returns ``(best_image, joint_best, conditional_best)``; gated-out frames contribute
-    their full ground truth as misses, which is what couples the two stages.
-    """
-    image_candidates = np.unique(image_scores)
-    image_grid = [
-        {"threshold": float(thr), **_image_metrics_at(image_scores, frame_labels, thr)}
-        for thr in image_candidates
-    ]
-    best_image = max(image_grid, key=lambda row: (row["f1"], row["threshold"]))
-
-    pixel_candidates = _pixel_candidates(pixel_scores, num_candidates)
-    flat_scores = pixel_scores.reshape(len(frame_labels), -1)
-    flat_gt = gt_masks.reshape(len(frame_labels), -1)
-    not_gt = ~flat_gt
-    gt_per_frame = flat_gt.sum(axis=1).astype(np.float64)
-    # Per-frame TP/FP for every pixel candidate: [n_frames, n_candidates]
-    tp = np.empty((len(frame_labels), len(pixel_candidates)), dtype=np.float64)
-    fp = np.empty_like(tp)
-    for j, thr in enumerate(pixel_candidates):
-        flagged = flat_scores >= thr
-        tp[:, j] = (flagged & flat_gt).sum(axis=1)
-        fp[:, j] = (flagged & not_gt).sum(axis=1)
-
-    total_gt = float(gt_per_frame.sum())
-    joint_best: dict[str, Any] | None = None
-    conditional_best: dict[str, Any] | None = None
-    for image_thr in image_candidates:
-        gate = image_scores >= image_thr
-        gated_tp = tp[gate].sum(axis=0)
-        gated_fp = fp[gate].sum(axis=0)
-        fn = total_gt - gated_tp  # gated-out frames contribute their full GT as misses
-        for j, pixel_thr in enumerate(pixel_candidates):
-            row = {
-                "image_threshold": float(image_thr),
-                "pixel_threshold": float(pixel_thr),
-                **_prf(float(gated_tp[j]), float(gated_fp[j]), float(fn[j])),
-            }
-            if joint_best is None or row["f1"] > joint_best["f1"]:
-                joint_best = row
-            if image_thr == best_image["threshold"] and (
-                conditional_best is None or row["f1"] > conditional_best["f1"]
-            ):
-                conditional_best = row
-    assert joint_best is not None and conditional_best is not None
-    return best_image, joint_best, conditional_best
-
-
-def _sweep_absolute(
-    pixel_scores: np.ndarray, gt_masks: np.ndarray, num_candidates: int
-) -> dict[str, Any]:
-    """Single ungated sweep over an absolute elementwise cutoff (``BinaryDecider``)."""
-    total_gt = float(gt_masks.sum())
-    not_gt = ~gt_masks
-    best: dict[str, Any] | None = None
-    for thr in _pixel_candidates(pixel_scores, num_candidates):
-        flagged = pixel_scores >= thr
-        tp = float((flagged & gt_masks).sum())
-        row = {
-            "raw_threshold": float(thr),
-            **_prf(tp, float((flagged & not_gt).sum()), total_gt - tp),
-        }
-        if best is None or row["f1"] > best["f1"]:
-            best = row
-    assert best is not None
-    return best
-
-
-def _sweep_quantile(
-    pixel_scores: np.ndarray,
-    gt_masks: np.ndarray,
-    frame_quantiles: dict[float, np.ndarray],
-) -> dict[str, Any]:
-    """Sweep the per-frame adaptive ``quantile`` (``QuantileBinaryDecider``)."""
-    total_gt = float(gt_masks.sum())
-    not_gt = ~gt_masks
-    best: dict[str, Any] | None = None
-    for q in sorted(frame_quantiles):
-        thresholds = frame_quantiles[q][:, None, None]
-        flagged = pixel_scores >= thresholds
-        tp = float((flagged & gt_masks).sum())
-        row = {
-            "quantile": float(q),
-            **_prf(tp, float((flagged & not_gt).sum()), total_gt - tp),
-        }
-        if best is None or row["f1"] > best["f1"]:
-            best = row
-    assert best is not None
-    return best
-
-
-def _sigmoid(values: np.ndarray | float) -> Any:
-    """Numerically plain sigmoid; raw anomaly scores are small in practice."""
-    return 1.0 / (1.0 + np.exp(-np.asarray(values, dtype=np.float64)))
-
-
-def _quantile_grid_builder(
-    preset_quantile: float, num_candidates: int
-) -> Callable[[int], np.ndarray]:
-    """Quantile-sweep grid deferred on the per-frame pixel count.
-
-    The tail reaches one pixel per frame so the sweep can trade all the way down to a
-    single flagged pixel; the shipped preset value is always included for before/after.
-    """
-
-    def build(numel: int) -> np.ndarray:
-        """Build the quantile grid for frames of ``numel`` score values."""
-        tail_lo = max(1.0 / numel, 1e-12)
-        grid = 1.0 - np.logspace(np.log10(tail_lo), np.log10(0.5), num_candidates)
-        return np.unique(np.append(grid, preset_quantile))
-
-    return build
-
-
-def _preset_probe_builder(preset_quantile: float) -> Callable[[int], np.ndarray]:
-    """Single-probe builder: just the shipped preset quantile (before/after reference)."""
-
-    def build(_: int) -> np.ndarray:
-        """Return the preset quantile regardless of frame size."""
-        return np.asarray([preset_quantile])
-
-    return build
-
-
 def _warn_history_dependent(config: PipelineConfig) -> list[str]:
     """Warn about nodes whose score distribution depends on frame order / warm-up."""
     flagged = []
@@ -728,9 +539,9 @@ def calibrate_thresholds(
     preset_quantile = float(decider_defaults.get("quantile", 0.995))
     probe_builder: Callable[[int], np.ndarray] | None = None
     if mode == "quantile":
-        probe_builder = _quantile_grid_builder(preset_quantile, num_candidates)
+        probe_builder = _calib.quantile_grid_builder(preset_quantile, num_candidates)
     elif mode == "two_stage" and decider_defaults.get("pixel_threshold") is None:
-        probe_builder = _preset_probe_builder(preset_quantile)
+        probe_builder = _calib.preset_probe_builder(preset_quantile)
 
     pipeline = _build_pipeline(resolved_yaml, resolved_weights, device, plugins_dirs)
     candidate_dirs = _plugins_candidates(resolved_trainrun, plugins_dirs)
@@ -766,8 +577,8 @@ def calibrate_thresholds(
     }
 
     if mode == "two_stage":
-        image_scores = _topk_mean_scores(pixel_scores, top_k_fraction)
-        best_image, joint_best, conditional_best = _sweep_two_stage(
+        image_scores = _calib.topk_mean_scores(pixel_scores, top_k_fraction)
+        best_image, joint_best, conditional_best = _calib.sweep_two_stage(
             pixel_scores, gt_masks, image_scores, frame_labels, num_candidates
         )
         current = _current_preset_two_stage(
@@ -778,7 +589,7 @@ def calibrate_thresholds(
                 "top_k_fraction": top_k_fraction,
                 "score_space": "raw (no sigmoid; the space TwoStageBinaryDecider thresholds in)",
                 "image": {
-                    "auroc": _binary_auroc(image_scores, frame_labels),
+                    "auroc": _calib.binary_auroc(image_scores, frame_labels),
                     "f1_max": best_image,
                 },
                 "pixel": {
@@ -786,32 +597,33 @@ def calibrate_thresholds(
                     "conditional_on_image_f1max": conditional_best,
                 },
                 "current_preset": current,
-                "calibrated_decider_hparams": {
-                    "image_threshold": float(best_image["threshold"]),
-                    "top_k_fraction": top_k_fraction,
-                    "pixel_threshold": float(conditional_best["pixel_threshold"]),
-                },
+                "calibrated_decider_hparams": _two_stage_hparams(
+                    best_image, conditional_best, top_k_fraction
+                ),
             }
         )
     elif mode == "binary":
         frame_max = pixel_scores.max(axis=(1, 2))
-        best = _sweep_absolute(pixel_scores, gt_masks, num_candidates)
-        current = _current_preset_binary(pixel_scores, gt_masks, decider_defaults)
+        # BinaryDecider.forward compares float32 sigmoid probabilities, so the sweep runs on
+        # exactly those values (the same torch op) instead of raw scores mapped afterwards.
+        probabilities = _calib.sigmoid_float32(pixel_scores)
+        best = _calib.sweep_absolute(probabilities, gt_masks, num_candidates)
+        current = _current_preset_binary(probabilities, gt_masks, decider_defaults)
         report.update(
             {
                 "score_space": (
-                    "sigmoid probability (BinaryDecider thresholds sigmoid(logits); the "
-                    "sweep ran in raw space and the optimum was mapped through sigmoid)"
+                    "float32 sigmoid probability (the space BinaryDecider.forward compares "
+                    "in; the sweep ran on these probabilities directly)"
                 ),
-                "frame_auroc_max_score": _binary_auroc(frame_max, frame_labels),
+                "frame_auroc_max_score": _calib.binary_auroc(frame_max, frame_labels),
                 "pixel": {"optimum": best},
                 "current_preset": current,
-                "calibrated_decider_hparams": {"threshold": float(_sigmoid(best["raw_threshold"]))},
+                "calibrated_decider_hparams": _binary_hparams(best),
             }
         )
     else:  # quantile
         frame_max = pixel_scores.max(axis=(1, 2))
-        best = _sweep_quantile(pixel_scores, gt_masks, frame_quantiles)
+        best = _calib.sweep_quantile(pixel_scores, gt_masks, frame_quantiles)
         current = _current_preset_quantile(pixel_scores, gt_masks, preset_quantile, frame_quantiles)
         report.update(
             {
@@ -820,7 +632,7 @@ def calibrate_thresholds(
                     "each frame's own scores; no absolute threshold exists to calibrate - "
                     "the swept quantile fixes the flagged-pixel fraction per frame)"
                 ),
-                "frame_auroc_max_score": _binary_auroc(frame_max, frame_labels),
+                "frame_auroc_max_score": _calib.binary_auroc(frame_max, frame_labels),
                 "pixel": {"optimum": best},
                 "current_preset": current,
                 "calibrated_decider_hparams": {"quantile": float(best["quantile"])},
@@ -872,24 +684,47 @@ def _current_preset_two_stage(
         "image_threshold": image_thr,
         "stage2": stage2,
         "image": (
-            _image_metrics_at(image_scores, frame_labels, image_thr)
+            _calib.image_metrics_at(image_scores, frame_labels, image_thr)
             if image_thr is not None
             else None
         ),
-        "pixel": _prf(tp, fp, fn),
+        "pixel": _calib.prf(tp, fp, fn),
     }
 
 
+def _two_stage_hparams(
+    best_image: dict[str, Any], conditional_best: dict[str, Any], top_k_fraction: float
+) -> dict[str, float]:
+    """The ``TwoStageBinaryDecider`` hparams to ship: the plateau-midpoint values.
+
+    Identical to what ``TwoStageBinaryDecider.calibrate`` writes for the same scores.
+    """
+    return {
+        "image_threshold": float(best_image["margin_threshold"]),
+        "top_k_fraction": top_k_fraction,
+        "pixel_threshold": float(conditional_best["margin_pixel_threshold"]),
+    }
+
+
+def _binary_hparams(best: dict[str, Any]) -> dict[str, float]:
+    """The ``BinaryDecider`` hparams to ship (float32 sigmoid space, plateau midpoint)."""
+    return {"threshold": float(best["margin_threshold"])}
+
+
 def _current_preset_binary(
-    pixel_scores: np.ndarray, gt_masks: np.ndarray, decider_defaults: dict[str, Any]
+    probabilities: np.ndarray, gt_masks: np.ndarray, decider_defaults: dict[str, Any]
 ) -> dict[str, Any]:
-    """Metrics at the ``BinaryDecider`` sigmoid-space threshold currently shipped."""
+    """Metrics at the ``BinaryDecider`` threshold currently shipped.
+
+    ``probabilities`` are the float32 sigmoid values ``forward`` compares (see
+    ``_calibration.sigmoid_float32``), so this is the decision ``forward`` makes today.
+    """
     threshold = float(decider_defaults.get("threshold", 0.5))
-    flagged = _sigmoid(pixel_scores) >= threshold
+    flagged = probabilities >= threshold
     tp = float((flagged & gt_masks).sum())
     fp = float((flagged & ~gt_masks).sum())
     fn = float(gt_masks.sum()) - tp
-    return {"threshold": threshold, "pixel": _prf(tp, fp, fn)}
+    return {"threshold": threshold, "pixel": _calib.prf(tp, fp, fn)}
 
 
 def _current_preset_quantile(
@@ -904,7 +739,7 @@ def _current_preset_quantile(
     tp = float((flagged & gt_masks).sum())
     fp = float((flagged & ~gt_masks).sum())
     fn = float(gt_masks.sum()) - tp
-    return {"quantile": preset_quantile, "pixel": _prf(tp, fp, fn)}
+    return {"quantile": preset_quantile, "pixel": _calib.prf(tp, fp, fn)}
 
 
 def _print_report(report: dict[str, Any]) -> None:
@@ -961,7 +796,7 @@ def _print_report(report: dict[str, Any]) -> None:
         print(  # noqa: T201
             f"frame AUROC (max pixel score, informational): {report['frame_auroc_max_score']:.4f}"
         )
-        knob = "quantile" if mode == "quantile" else "raw_threshold"
+        knob = "quantile" if mode == "quantile" else "threshold"
         print(  # noqa: T201
             f"pixel F1 optimum: {best['f1']:.4f} at {knob}={best[knob]:.6f} "
             f"(P={best['precision']:.3f} R={best['recall']:.3f} IoU={best['iou']:.3f})"

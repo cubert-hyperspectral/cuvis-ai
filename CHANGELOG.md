@@ -1,6 +1,15 @@
 # Changelog
 
-## 0.15.0 - unreleased
+## 0.15.1 - 2026-09-04
+
+- `BinaryDecider`, `QuantileBinaryDecider` and `TwoStageBinaryDecider` gain `calibrate(scores, targets)`: re-fit the decider's own decision rule to F1-max on a labelled validation split, written to the live attribute and to `hparams`, so the saved pipeline yaml carries the value (the `.pt` is unchanged). This is the node half of the in-training calibration phase; the trainrun hook lands in cuvis-ai-core.
+- The F1-max sweep math moved from `scripts/calibrate_thresholds.py` into the shared `cuvis_ai/node/deciders/_calibration.py`; the CLI and the new methods run the same code and report the same values.
+- Calibrated thresholds are exact in float32 (the space the deciders compare in) and sit at the midpoint of the F1-max plateau instead of on a validation sample; the two-stage gate reuses the exact stage-1 statistic of `forward`.
+- `BinaryDecider` calibration sweeps float32 sigmoid probabilities directly, so saturated logits no longer map to an unreachable threshold; the CLI binary mode follows.
+- `CalibrationError` (a `ValueError`) names the bad input: mismatched shapes, non-finite scores, single-class targets, or a `QuantileBinaryDecider.reduce_dims` the sweep cannot honour.
+- The sweeps count true and false positives for all candidates in one pass per frame (sorted scores plus `searchsorted`), so calibration on a large validation split no longer scans every pixel once per candidate.
+
+## 0.15.0 - 2026-09-04
 
 - **Plugin model weights come from the public `cubert-gmbh` Hugging Face mirrors; no Hugging Face account or token is needed any more.** The manifest pins move to the plugin releases that resolve their weights through the cuvis-ai-core 0.16.0 registry: `sam3` v0.4.0 (SAM3 checkpoint from `cubert-gmbh/sam3`), `rtsam2` v0.4.0 (EfficientTAM from `cubert-gmbh/efficient-track-anything`, now including the 512x512 variants), `adaclip` v0.4.0 (CLIP backbone and AdaCLIP heads from `cubert-gmbh/clip` and `cubert-gmbh/adaclip`, `gdown` dropped) and `dinomaly` v0.7.0 (DINOv2 backbone from `cubert-gmbh/dinov2`). Core floor raised to `cuvis-ai-core>=0.16.0`. The cache folder names change (`models--cubert-gmbh--*`), so an existing install downloads its weights once more; `uv run download-model download <name>` provisions them ahead of an offline gRPC run.
 - **New docs page [Model Weights](docs/workflows/model-weights.md)**: which weights each plugin downloads, `download-model list` and `download` usage, provisioning for the offline child runtime, custom or private weights, and the licence of every mirrored file. `.env.example` now says `HF_TOKEN` is only needed for private or custom repos.
