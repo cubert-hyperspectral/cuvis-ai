@@ -846,12 +846,18 @@ def _current_preset_two_stage(
 
     Mirrors the decider's precedence: an already-calibrated absolute ``pixel_threshold``
     wins over the quantile fallback, and the fallback quantile is the per-frame value
-    over the full ``[H,W,C]`` tensor collected alongside the scores.
+    over the full ``[H,W,C]`` tensor collected alongside the scores. An unset
+    ``image_threshold`` (``null`` in the yaml, the training presets' default) means the
+    gate is off: every frame reaches stage 2 and there are no image-level metrics.
     """
-    image_thr = float(decider_defaults.get("image_threshold", 0.5))
+    raw_image_thr = decider_defaults.get("image_threshold")
+    image_thr = float(raw_image_thr) if raw_image_thr is not None else None
     quantile = float(decider_defaults.get("quantile", 0.995))
     pixel_thr = decider_defaults.get("pixel_threshold")
-    gate = image_scores >= image_thr
+    if image_thr is None:
+        gate = np.ones(len(frame_labels), dtype=bool)
+    else:
+        gate = image_scores >= image_thr
     if pixel_thr is not None:
         thresholds = np.full(len(frame_labels), float(pixel_thr))
         stage2 = {"mode": "absolute", "pixel_threshold": float(pixel_thr)}
@@ -865,7 +871,11 @@ def _current_preset_two_stage(
     return {
         "image_threshold": image_thr,
         "stage2": stage2,
-        "image": _image_metrics_at(image_scores, frame_labels, image_thr),
+        "image": (
+            _image_metrics_at(image_scores, frame_labels, image_thr)
+            if image_thr is not None
+            else None
+        ),
         "pixel": _prf(tp, fp, fn),
     }
 
@@ -936,9 +946,14 @@ def _print_report(report: dict[str, Any]) -> None:
             if stage2["mode"] == "absolute"
             else f"quantile={stage2['quantile']}"
         )
+        if current["image_threshold"] is None:
+            gate_desc, image_desc = "gate off", ""
+        else:
+            gate_desc = f"image_threshold={current['image_threshold']}"
+            image_desc = f"image F1={current['image']['f1']:.4f}, "
         print(  # noqa: T201
-            f"current preset (image_threshold={current['image_threshold']}, {stage2_desc}): "
-            f"image F1={current['image']['f1']:.4f}, pixel F1={current['pixel']['f1']:.4f}"
+            f"current preset ({gate_desc}, {stage2_desc}): "
+            f"{image_desc}pixel F1={current['pixel']['f1']:.4f}"
         )
     else:
         best = report["pixel"]["optimum"]

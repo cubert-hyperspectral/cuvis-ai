@@ -21,29 +21,34 @@ Execution stages enable **conditional node execution** based on context (trainin
 
 ## Stage System Overview
 
-Every node specifies execution stages via the `execution_stages` parameter:
+Every node declares the stages it runs in on the class body, next to `_category` and
+`_tags`:
 
 ```python
 from cuvis_ai_core.node import Node
 from cuvis_ai_schemas.enums import ExecutionStage
 
 class MyNode(Node):
-    def __init__(self, **kwargs):
-        super().__init__(
-            execution_stages={ExecutionStage.TRAIN, ExecutionStage.VAL},
-            **kwargs
-        )
+    # A set literal (or stage names such as "train") is normalized to a
+    # frozenset when the class is created; an unknown name fails at import.
+    EXECUTION_STAGES = {ExecutionStage.TRAIN, ExecutionStage.VAL}
 ```
+
+Instances read the declaration through `node.execution_stages`, which is read-only: every
+instance of a class runs in the same stages, and a pipeline yaml picks stages by picking the
+class (see [Pattern 5](#pattern-5-evaluation-nodes-on-a-trained-pipeline) for running the
+evaluation nodes of a trained pipeline).
 
 **Key Concepts:**
 
 | Concept | Description |
 |---------|-------------|
 | **ExecutionStage Enum** | ALWAYS, TRAIN, VAL, TEST, INFERENCE |
-| **execution_stages Parameter** | Set of stages when node should execute |
+| **`EXECUTION_STAGES`** | Class-level declaration, a `frozenset[ExecutionStage]` |
+| **`node.execution_stages`** | Read-only view of the class declaration; not a constructor argument |
 | **Context Object** | Runtime info (stage, epoch, batch_idx) passed to nodes |
 | **Stage Filtering** | Pipeline skips nodes not matching current stage |
-| **Default** | Nodes default to `{ExecutionStage.ALWAYS}` |
+| **Default** | `Node.EXECUTION_STAGES` is `{ExecutionStage.ALWAYS}` |
 
 ### Execution Flow
 
@@ -77,8 +82,7 @@ graph LR
 
 ```python
 class FeatureExtractor(Node):
-    def __init__(self, **kwargs):
-        super().__init__(execution_stages={ExecutionStage.ALWAYS}, **kwargs)
+    # Inherits Node.EXECUTION_STAGES == {ExecutionStage.ALWAYS}
 
     def forward(self, data, **_):
         # Runs during TRAIN, VAL, TEST, INFERENCE
@@ -86,7 +90,7 @@ class FeatureExtractor(Node):
         return {"features": features}
 
 # Default behavior
-node1 = MyNode()  # Equivalent to ExecutionStage.ALWAYS
+node1 = FeatureExtractor()  # runs in TRAIN, VAL, TEST and INFERENCE
 ```
 
 ---
@@ -97,8 +101,7 @@ node1 = MyNode()  # Equivalent to ExecutionStage.ALWAYS
 
 ```python
 class TrainingAugmentation(Node):
-    def __init__(self, **kwargs):
-        super().__init__(execution_stages={ExecutionStage.TRAIN}, **kwargs)
+    EXECUTION_STAGES = {ExecutionStage.TRAIN}
 ```
 
 ### 3. VAL (Validation)
@@ -107,8 +110,7 @@ class TrainingAugmentation(Node):
 
 ```python
 class ValidationMetrics(Node):
-    def __init__(self, **kwargs):
-        super().__init__(execution_stages={ExecutionStage.VAL}, **kwargs)
+    EXECUTION_STAGES = {ExecutionStage.VAL}
 ```
 
 ### 4. TEST
@@ -117,8 +119,7 @@ class ValidationMetrics(Node):
 
 ```python
 class TestEvaluator(Node):
-    def __init__(self, **kwargs):
-        super().__init__(execution_stages={ExecutionStage.TEST}, **kwargs)
+    EXECUTION_STAGES = {ExecutionStage.TEST}
 ```
 
 ### 5. INFERENCE
@@ -127,8 +128,7 @@ class TestEvaluator(Node):
 
 ```python
 class InferencePostProcessor(Node):
-    def __init__(self, **kwargs):
-        super().__init__(execution_stages={ExecutionStage.INFERENCE}, **kwargs)
+    EXECUTION_STAGES = {ExecutionStage.INFERENCE}
 ```
 
 ---
@@ -139,20 +139,15 @@ class InferencePostProcessor(Node):
 
 ```python
 class TrainOnlyAugmentation(Node):
-    def __init__(self, **kwargs):
-        super().__init__(execution_stages={ExecutionStage.TRAIN}, **kwargs)
+    EXECUTION_STAGES = {ExecutionStage.TRAIN}
 ```
 
 ### Pattern 2: Multiple Stages
 
 ```python
 class MetricsNode(Node):
-    def __init__(self, **kwargs):
-        # Execute during validation and test only
-        super().__init__(
-            execution_stages={ExecutionStage.VAL, ExecutionStage.TEST},
-            **kwargs
-        )
+    # Execute during validation and test only
+    EXECUTION_STAGES = {ExecutionStage.VAL, ExecutionStage.TEST}
 ```
 
 ### Pattern 3: Training-Aware (Common for Loss)
@@ -161,7 +156,7 @@ class MetricsNode(Node):
 from cuvis_ai.node.losses import LossNode
 
 class MyLoss(LossNode):
-    # Auto-configured to {TRAIN, VAL, TEST}
+    # LossNode declares EXECUTION_STAGES = {TRAIN, VAL, TEST}; subclasses inherit it
     def forward(self, predictions, targets, **_):
         return {"loss": self.compute_loss(predictions, targets)}
 ```
@@ -170,11 +165,7 @@ class MyLoss(LossNode):
 
 ```python
 class AdaptiveNormalizer(Node):
-    def __init__(self, **kwargs):
-        super().__init__(
-            execution_stages={ExecutionStage.TRAIN, ExecutionStage.INFERENCE},
-            **kwargs
-        )
+    EXECUTION_STAGES = {ExecutionStage.TRAIN, ExecutionStage.INFERENCE}
 
     def forward(self, data, context: Context, **_):
         if context.stage == ExecutionStage.TRAIN:
@@ -182,6 +173,33 @@ class AdaptiveNormalizer(Node):
         normalized = self.normalize(data)
         return {"normalized": normalized}
 ```
+
+### Pattern 5: Evaluation Nodes on a Trained Pipeline
+
+A pipeline yaml cannot move a node between stages: `hparams` are constructor arguments and
+`execution_stages` is not one. A yaml written for an earlier release may still carry the
+inert `execution_stages: null`, which is accepted and dropped; any other value fails at load
+with a `TypeError` naming the node. The `TensorBoardMonitorNode` and the artifact
+visualizers run in train/val/test, so `restore-pipeline` and `Predictor.predict()` (the
+inference stage) write no TensorBoard output. To log a trained pipeline's artifacts and
+metrics over a labeled split, run it at the test stage:
+
+```python
+from cuvis_ai_core.training.predictor import Predictor
+from cuvis_ai_schemas.enums import ExecutionStage
+
+Predictor(pipeline, datamodule).predict(stage=ExecutionStage.TEST)
+```
+
+Plugin manifests and the gRPC `NodeInfo` expose the class declaration (category and
+lifecycle tags), which is also exactly what the pipeline runs.
+
+!!! note "Trained pipelines at inference"
+    A pipeline trained in CuvisNEXT is loaded for prediction at `ExecutionStage.INFERENCE`,
+    which prunes its losses, metrics, visualizers and TensorBoard sink; nothing else is
+    needed to run the trained graph. Runs saved before cuvis-ai 0.14.0 carry a
+    `QuantileBinaryDecider`, which flags a fixed fraction of every frame and cannot be
+    gated from the picker; retrain them to get the two-stage decider with its optional gate.
 
 ---
 
@@ -257,6 +275,32 @@ graph TD
 
 ---
 
+## Lifecycle Tags
+
+Execution stages are invisible outside the process: they are not in the pipeline yaml, not
+in plugin manifests and not on gRPC. What the manifests and `NodeInfo` do expose is the node
+`_category` and its `_tags`, and three tags describe the lifecycle: `TRAINING`,
+`EVALUATION`, `INFERENCE`. For the declaration and the exposed metadata to tell the same
+story, `tests/test_node_lifecycle_consistency.py` enforces four rules on every builtin
+class:
+
+| Rule | Statement |
+|------|-----------|
+| R0 | Category `LOSS` or `REGULARIZER` never runs at inference. |
+| R1 | A node that never runs at inference carries `TRAINING` or `EVALUATION`. |
+| R2 | A node tagged `TRAINING` or `EVALUATION` but not `INFERENCE` never runs at inference. |
+| R3 | A node tagged `INFERENCE` runs at inference. |
+
+Category decides only for losses: `METRIC`, `SINK` and `VISUALIZER` are too coarse (video
+writers are sinks that exist for inference; `DistinctLabelCount` is a metric that runs at
+inference, so it carries `INFERENCE`). Nodes tagged `AUGMENTATION` are exempt from R2: the
+occlusion family sits inline (`cube -> occlusion -> model`), so pruning it by stage would
+leave the model's input unsatisfied; it stays `ALWAYS` until it gains a stage-aware
+pass-through. The rules read the class declarations, which are exactly what every instance
+runs with.
+
+---
+
 ## Best Practices
 
 1. **Use Semantic Stage Selection**
@@ -264,12 +308,12 @@ graph TD
    ```python
    # GOOD: Loss computes during training phases
    class TrainingLoss(LossNode):
-       pass  # Automatically {TRAIN, VAL, TEST}
+       pass  # Inherits {TRAIN, VAL, TEST} from LossNode
 
    # BAD: Loss executing during inference
    class BadLoss(Node):
-       def __init__(self, **kwargs):
-           super().__init__(execution_stages={ExecutionStage.ALWAYS}, **kwargs)
+       _category = NodeCategory.LOSS
+       EXECUTION_STAGES = {ExecutionStage.ALWAYS}  # the consistency test rejects this
    ```
 
 2. **Default to ALWAYS for Core Nodes**
@@ -277,15 +321,11 @@ graph TD
    ```python
    # GOOD: Applies everywhere
    class FeatureExtractor(Node):
-       pass  # Defaults to ALWAYS
+       pass  # Inherits Node.EXECUTION_STAGES == {ALWAYS}
 
    # BAD: Unnecessary restriction
    class OverRestricted(Node):
-       def __init__(self, **kwargs):
-           super().__init__(
-               execution_stages={ExecutionStage.TRAIN, ExecutionStage.INFERENCE},
-               **kwargs
-           )
+       EXECUTION_STAGES = {ExecutionStage.TRAIN, ExecutionStage.INFERENCE}
    ```
 
 3. **Separate Concerns with Multiple Nodes**
@@ -293,12 +333,10 @@ graph TD
    ```python
    # GOOD: Separate nodes for different behaviors
    class TrainingPostProcessor(Node):
-       def __init__(self, **kwargs):
-           super().__init__(execution_stages={ExecutionStage.TRAIN}, **kwargs)
+       EXECUTION_STAGES = {ExecutionStage.TRAIN}
 
    class InferencePostProcessor(Node):
-       def __init__(self, **kwargs):
-           super().__init__(execution_stages={ExecutionStage.INFERENCE}, **kwargs)
+       EXECUTION_STAGES = {ExecutionStage.INFERENCE}
    ```
 
 4. **Document Stage Decisions** — Add docstrings explaining why a node is restricted to specific stages.
@@ -319,23 +357,26 @@ graph TD
 
     **Solution: Verify stage match**
     ```python
-    # Node restricted to TRAIN
-    node = MyNode(execution_stages={ExecutionStage.TRAIN})
+    # Node class restricted to TRAIN
+    class MyNode(Node):
+        EXECUTION_STAGES = {ExecutionStage.TRAIN}
 
     # But running VAL - won't execute!
     context = Context(stage=ExecutionStage.VAL)
 
-    # Fix: Add VAL to stages
-    node = MyNode(execution_stages={ExecutionStage.TRAIN, ExecutionStage.VAL})
+    # Fix: add VAL to the class declaration
+    class MyNode(Node):
+        EXECUTION_STAGES = {ExecutionStage.TRAIN, ExecutionStage.VAL}
     ```
 
     ### Unexpected Node Execution
 
-    **Solution: Check parent class constructor**
+    **Solution: Check the parent class declaration**
     ```python
-    class MyMetric(MetricNode):  # Parent sets VAL/TEST
+    class MyMetric(MetricNode):  # Parent declares EXECUTION_STAGES = {VAL, TEST}
+        # A subclass inherits the parent's stages unless it redeclares EXECUTION_STAGES
         def __init__(self, **kwargs):
-            super().__init__(**kwargs)  # Call parent to preserve stages
+            super().__init__(**kwargs)
             self.threshold = 0.5
     ```
 
@@ -393,20 +434,15 @@ graph TD
         ```python
         # BAD: Expensive visualization in training
         class BadVisualizer(Node):
-            def __init__(self, **kwargs):
-                super().__init__(execution_stages={ExecutionStage.ALWAYS}, **kwargs)
+            EXECUTION_STAGES = {ExecutionStage.ALWAYS}
 
             def forward(self, data, **_):
                 expensive_viz = self.render_3d_plot(data)  # Runs every batch!
                 return {"visualization": expensive_viz}
 
-        # GOOD: Visualization only during validation
+        # GOOD: Visualization only during validation and test
         class GoodVisualizer(Node):
-            def __init__(self, **kwargs):
-                super().__init__(
-                    execution_stages={ExecutionStage.VAL, ExecutionStage.TEST},
-                    **kwargs
-                )
+            EXECUTION_STAGES = {ExecutionStage.VAL, ExecutionStage.TEST}
         ```
 
     2. **Reduce Complexity in Inference**

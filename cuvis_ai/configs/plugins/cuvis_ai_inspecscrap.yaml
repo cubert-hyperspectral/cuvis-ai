@@ -4,24 +4,337 @@
 # Generic colourise/overlay/cleanup viz nodes live in the cuvis-ai node catalog, not here.
 name: cuvis_ai_inspecscrap
 repo: "https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap.git"
-tag: "v0.2.4"
+tag: "v0.3.0"
 package_name: cuvis-ai-inspecscrap
 capabilities:
-  - { class_name: cuvis_ai_inspecscrap.node.data.TiffDataNode,                          category: source,    tags: [hyperspectral] }
-  - { class_name: cuvis_ai_inspecscrap.node.legend.LegendStripNode,                     category: transform, tags: [video] }
-  - { class_name: cuvis_ai_inspecscrap.node.labels.RgbLabelToClassIndex,                category: transform, tags: [mask, classification, preprocessing] }
-  - { class_name: cuvis_ai_inspecscrap.node.normalization.PerChannelStandardizer,       category: transform, tags: [hyperspectral, normalization, preprocessing] }
-  - { class_name: cuvis_ai_inspecscrap.node.patch_sampler.PatchSampler,                 category: transform, tags: [hyperspectral, preprocessing] }
-  - { class_name: cuvis_ai_inspecscrap.node.losses.WeightedCrossEntropyLoss,            category: loss,      tags: [training, classification] }
-  - { class_name: cuvis_ai_inspecscrap.node.losses.InverseFrequencyClassWeights,        category: transform, tags: [training, classification] }
-  - { class_name: cuvis_ai_inspecscrap.node.metrics.MulticlassSegmentationMetrics,      category: metric,    tags: [evaluation, classification] }
-  - { class_name: cuvis_ai_inspecscrap.node.class_map_accumulator.ClassMapAccumulator,  category: sink,      tags: [mask, classification, postprocessing] }
-  - { class_name: cuvis_ai_inspecscrap.node.montage_sink.MontageColumnSink,             category: sink,      tags: [image, rgb, postprocessing] }
-  - { class_name: cuvis_ai_inspecscrap.node.deciders.BlobMajorityVote,                  category: transform, tags: [mask, classification, postprocessing] }
-  - { class_name: cuvis_ai_inspecscrap.node.classification.mlp.SpectralMLPClassifier,   category: model,     tags: [hyperspectral, classification, learnable] }
-  - { class_name: cuvis_ai_inspecscrap.node.classification.cnn2d.SpatialSpectralCNN2D,  category: model,     tags: [hyperspectral, classification, learnable] }
-  - { class_name: cuvis_ai_inspecscrap.node.classification.cnn3d.SpectralSpatialCNN3D,  category: model,     tags: [hyperspectral, classification, learnable] }
-  - { class_name: cuvis_ai_inspecscrap.data.metal_scrap_datamodule.MetalScrapDataModule,             kind: data_module, data_module_name: metal_scrap,                 extras: [tiff] }
-  - { class_name: cuvis_ai_inspecscrap.data.metal_scrap_patch_datamodule.MetalScrapPatchDataModule,  kind: data_module, data_module_name: metal_scrap_patch,           extras: [tiff] }
-  - { class_name: cuvis_ai_inspecscrap.data.dense_patch_datamodule.DensePatchDataModule,             kind: data_module, data_module_name: metal_scrap_dense_patch,     extras: [tiff] }
-  - { class_name: cuvis_ai_inspecscrap.data.montage_column_datamodule.MontageColumnDataModule,       kind: data_module, data_module_name: metal_scrap_montage_columns }
+- class_name: cuvis_ai_inspecscrap.node.data.TiffDataNode
+  category: source
+  tags: [hyperspectral]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#E8A33D\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <ellipse cx=\"22\" cy=\"18\" rx=\"12\" ry=\"4\"/>\n  <path d=\"M10 18v26c0 2.2 5.4 4 12 4s12-1.8 12-4V18\"/>\n  <path d=\"M10 28c0 2.2 5.4 4 12 4s12-1.8 12-4\"/>\n  <path d=\"M10 38c0 2.2 5.4 4 12 4s12-1.8 12-4\"/>\n  <path d=\"M40 32h14\"/>\n  <path d=\"M48 26l6 6-6 6\"/>\n</svg>\n"
+  input_specs:
+    cube:
+      dtype: ''
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Hyperspectral cube [B, H, W, C] from the DataModule batch
+    wavelengths:
+      dtype: ''
+      shape: [-1, -1]
+      optional: false
+      description: Per-channel wavelengths [B, C] in nm from the DataModule batch
+  output_specs:
+    cube:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Hyperspectral cube [B, H, W, C] as float32
+    wavelengths:
+      dtype: int32
+      shape: [-1]
+      optional: false
+      description: Wavelengths [C] in nm as numpy int32 (channel-selector parity)
+  doc_summary: Adapt ``tiff_paired`` batch keys to the dtypes the channel selectors expect.
+- class_name: cuvis_ai_inspecscrap.node.legend.LegendStripNode
+  category: transform
+  tags: [video]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    frame:
+      dtype: float32
+      shape: [-1, -1, -1, 3]
+      optional: false
+      description: Input frame [B, H, W, 3] in [0, 1]
+    label_rgb:
+      dtype: ''
+      shape: [-1, -1, -1, 3]
+      optional: true
+      description: Optional per-frame colorized label map [B, H, W, 3]; uint8 [0, 255] or float32 [0, 1], used to compute per-class instance counts
+  output_specs:
+    frame:
+      dtype: float32
+      shape: [-1, -1, -1, 3]
+      optional: false
+      description: Frame with legend strip appended [B, H+legend_h, W, 3] in [0, 1]
+  doc_summary: Append a horizontal class-colour legend strip below the input frame.
+- class_name: cuvis_ai_inspecscrap.node.labels.RgbLabelToClassIndex
+  category: transform
+  tags: [classification, mask, preprocessing]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    label_rgb:
+      dtype: ''
+      shape: [-1, -1, -1, 3]
+      optional: false
+      description: Colorized label map [B, H, W, 3], uint8 [0,255] or float32 [0,1]
+  output_specs:
+    targets:
+      dtype: int64
+      shape: [-1, -1, -1]
+      optional: false
+      description: Per-pixel class index [B, H, W]; background/unknown = ignore_index
+  doc_summary: Map a colorized RGB label map to integer paper-class targets (fail-closed).
+- class_name: cuvis_ai_inspecscrap.node.normalization.PerChannelStandardizer
+  category: transform
+  tags: [hyperspectral, normalization, preprocessing]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    patches:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Center-pixel patches [N, P, P, C]
+  output_specs:
+    normalized:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Per-band standardized patches [N, P, P, C]
+  doc_summary: Standardize patches per spectral band with global training stats fitted in Phase 1.
+- class_name: cuvis_ai_inspecscrap.node.patch_sampler.PatchSampler
+  category: transform
+  tags: [hyperspectral, preprocessing, stochastic]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    cube:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Hyperspectral cube [B,H,W,C]
+    targets:
+      dtype: int64
+      shape: [-1, -1, -1]
+      optional: false
+      description: Per-pixel class targets [B,H,W]
+  output_specs:
+    patches:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Center-pixel patches [N,P,P,C]
+    labels:
+      dtype: int64
+      shape: [-1]
+      optional: false
+      description: Center-pixel class labels [N]
+  doc_summary: Extract labeled center-pixel patches from a cube + integer target map.
+- class_name: cuvis_ai_inspecscrap.node.losses.WeightedCrossEntropyLoss
+  category: loss
+  tags: [classification, differentiable, torch, training]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M10 14v40h44\"/>\n  <path d=\"M14 18c8 0 12 8 18 18s12 14 22 14\"/>\n  <path d=\"M48 44l6 6-6 6\" transform=\"translate(0 -6)\"/>\n</svg>\n"
+  input_specs:
+    logits:
+      dtype: float32
+      shape: [-1, -1]
+      optional: false
+      description: Class logits [N, num_classes] (leading dims flattened to N)
+    targets:
+      dtype: int64
+      shape: [-1]
+      optional: false
+      description: Integer class targets [N]; ignore_index entries are dropped
+    class_weights:
+      dtype: float32
+      shape: [-1]
+      optional: true
+      description: Optional per-class weights [num_classes]; when connected they override the constructor weights (e.g. fed by InverseFrequencyClassWeights)
+  output_specs:
+    loss:
+      dtype: float32
+      shape: []
+      optional: false
+      description: Scalar weighted CE loss
+  doc_summary: Class-weighted multi-class cross-entropy over flattened logits + integer targets.
+- class_name: cuvis_ai_inspecscrap.node.losses.InverseFrequencyClassWeights
+  category: transform
+  tags: [classification, torch, training]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    targets:
+      dtype: int64
+      shape: [-1]
+      optional: true
+      description: Integer class targets [N] from the batch (ignore_index dropped)
+  output_specs:
+    class_weights:
+      dtype: float32
+      shape: [-1]
+      optional: false
+      description: Inverse-frequency class weights [num_classes], fitted in Phase 1
+  doc_summary: Entry node that fits inverse-frequency class weights from the training-label distribution.
+- class_name: cuvis_ai_inspecscrap.node.metrics.MulticlassSegmentationMetrics
+  category: metric
+  tags: [classification, evaluation]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#C9615A\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M10 14v40h44\"/>\n  <rect x=\"16\" y=\"38\" width=\"8\" height=\"12\"/>\n  <rect x=\"28\" y=\"28\" width=\"8\" height=\"22\"/>\n  <rect x=\"40\" y=\"18\" width=\"8\" height=\"32\"/>\n</svg>\n"
+  input_specs:
+    logits:
+      dtype: float32
+      shape: [-1, -1]
+      optional: true
+      description: Class logits [N, num_classes]; argmaxed internally (optional)
+    predictions:
+      dtype: int64
+      shape: [-1]
+      optional: true
+      description: Integer class predictions [N] (optional; provide this or logits)
+    targets:
+      dtype: int64
+      shape: [-1]
+      optional: false
+      description: Integer class targets [N]; ignore_index entries are dropped
+  output_specs:
+    metrics:
+      dtype: ''
+      shape: []
+      optional: false
+      description: List of Metric objects
+  doc_summary: Pixel accuracy + macro precision/recall/F1 + per-class recall from logits or predictions.
+- class_name: cuvis_ai_inspecscrap.node.class_map_accumulator.ClassMapAccumulator
+  category: sink
+  tags: [classification, mask, postprocessing]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#E8A33D\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M6 32h12\"/>\n  <path d=\"M12 26l6 6-6 6\"/>\n  <rect x=\"22\" y=\"12\" width=\"36\" height=\"40\" rx=\"3\"/>\n  <path d=\"M28 12v18h24V12\"/>\n  <rect x=\"32\" y=\"36\" width=\"16\" height=\"14\"/>\n  <path d=\"M44 16v10\"/>\n</svg>\n"
+  input_specs:
+    logits:
+      dtype: float32
+      shape: [-1, -1]
+      optional: false
+      description: Per-patch class logits [N, num_classes]
+    frame_id:
+      dtype: int64
+      shape: [-1]
+      optional: false
+      description: Source frame id per patch [N]
+    y:
+      dtype: int64
+      shape: [-1]
+      optional: false
+      description: Pixel row per patch [N]
+    x:
+      dtype: int64
+      shape: [-1]
+      optional: false
+      description: Pixel column per patch [N]
+    height:
+      dtype: int64
+      shape: [-1]
+      optional: false
+      description: Source frame height per patch [N]
+    width:
+      dtype: int64
+      shape: [-1]
+      optional: false
+      description: Source frame width per patch [N]
+  doc_summary: Scatter chunked patch predictions back into per-frame ``[H, W]`` class maps (sink).
+- class_name: cuvis_ai_inspecscrap.node.montage_sink.MontageColumnSink
+  category: sink
+  tags: [image, postprocessing, rgb]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#E8A33D\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M6 32h12\"/>\n  <path d=\"M12 26l6 6-6 6\"/>\n  <rect x=\"22\" y=\"12\" width=\"36\" height=\"40\" rx=\"3\"/>\n  <path d=\"M28 12v18h24V12\"/>\n  <rect x=\"32\" y=\"36\" width=\"16\" height=\"14\"/>\n  <path d=\"M44 16v10\"/>\n</svg>\n"
+  input_specs:
+    frame:
+      dtype: float32
+      shape: [-1, -1, -1, 3]
+      optional: false
+      description: Captioned column panels [B, H, W, 3] in [0, 1]
+    column_index:
+      dtype: int64
+      shape: [-1]
+      optional: false
+      description: Column position per panel [B]
+    label_rgb:
+      dtype: ''
+      shape: [-1, -1, -1, 3]
+      optional: true
+      description: Optional colourised label map per panel [B, H, W, 3]; drives legend counts
+  doc_summary: Stitch captioned montage columns into one side-by-side image with a legend (sink).
+- class_name: cuvis_ai_inspecscrap.node.deciders.BlobMajorityVote
+  category: transform
+  tags: [classification, mask, postprocessing]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    predictions:
+      dtype: int64
+      shape: [-1, -1, -1]
+      optional: false
+      description: Per-pixel class predictions [B,H,W]
+    instances:
+      dtype: int64
+      shape: [-1, -1, -1]
+      optional: true
+      description: Object id per pixel [B,H,W]; ignore_instance is left unchanged (optional)
+    foreground:
+      dtype: int64
+      shape: [-1, -1, -1]
+      optional: true
+      description: Foreground mask [B,H,W] (>0) to derive instances if none given (optional)
+  output_specs:
+    predictions:
+      dtype: int64
+      shape: [-1, -1, -1]
+      optional: false
+      description: Object-voted predictions [B,H,W]
+  doc_summary: Relabel each object (instance / connected component) to its majority predicted class.
+- class_name: cuvis_ai_inspecscrap.node.classification.mlp.SpectralMLPClassifier
+  category: model
+  tags: [classification, hyperspectral, learnable, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\n</svg>\n"
+  input_specs:
+    patches:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Center-pixel patches [N, P, P, C] (P=1 for the spectral MLP)
+  output_specs:
+    logits:
+      dtype: float32
+      shape: [-1, -1]
+      optional: false
+      description: Per-patch class logits [N, num_classes]
+  doc_summary: Three-layer per-pixel spectral MLP over the patch center pixel.
+- class_name: cuvis_ai_inspecscrap.node.classification.cnn2d.SpatialSpectralCNN2D
+  category: model
+  tags: [classification, hyperspectral, learnable, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\n</svg>\n"
+  input_specs:
+    patches:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Center-pixel patches [N, P, P, C] (P=1 for the spectral MLP)
+  output_specs:
+    logits:
+      dtype: float32
+      shape: [-1, -1]
+      optional: false
+      description: Per-patch class logits [N, num_classes]
+  doc_summary: Spatial-spectral 2D-CNN over a patch (bands as input channels).
+- class_name: cuvis_ai_inspecscrap.node.classification.cnn3d.SpectralSpatialCNN3D
+  category: model
+  tags: [classification, hyperspectral, learnable, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\n</svg>\n"
+  input_specs:
+    patches:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Center-pixel patches [N, P, P, C] (P=1 for the spectral MLP)
+  output_specs:
+    logits:
+      dtype: float32
+      shape: [-1, -1]
+      optional: false
+      description: Per-patch class logits [N, num_classes]
+  doc_summary: Spectral-spatial 3D-CNN over a patch, classifying the center pixel.
+- class_name: cuvis_ai_inspecscrap.data.metal_scrap_datamodule.MetalScrapDataModule
+  kind: data_module
+  data_module_name: metal_scrap
+  extras: [tiff]
+- class_name: cuvis_ai_inspecscrap.data.metal_scrap_patch_datamodule.MetalScrapPatchDataModule
+  kind: data_module
+  data_module_name: metal_scrap_patch
+  extras: [tiff]
+- class_name: cuvis_ai_inspecscrap.data.dense_patch_datamodule.DensePatchDataModule
+  kind: data_module
+  data_module_name: metal_scrap_dense_patch
+  extras: [tiff]
+- class_name: cuvis_ai_inspecscrap.data.montage_column_datamodule.MontageColumnDataModule
+  kind: data_module
+  data_module_name: metal_scrap_montage_columns

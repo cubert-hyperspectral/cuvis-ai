@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 import torch
 
+from cuvis_ai.node.deciders.binary_decider import QuantileBinaryDecider
 from cuvis_ai.node.deciders.two_stage_decider import TwoStageBinaryDecider
 
 pytestmark = pytest.mark.unit
@@ -85,13 +86,10 @@ def test_two_stage_decider_gate_fails_returns_blank_mask():
 
 def test_two_stage_decider_gate_boundary_condition():
     """Test gate behavior at threshold boundary."""
-    # Use normalized tensor (values in [0, 1]) to match threshold constraint
-    tensor = _make_linear_map() / 100.0  # Normalize to [0.01, 1.0]
-    # Compute what image_score will be
+    tensor = _make_linear_map() / 100.0  # values 0.01 .. 1.00
+    # Compute what image_score will be. The gate compares in raw score space, so the
+    # threshold itself carries no [0, 1] constraint.
     image_score = _compute_image_score(tensor, top_k_fraction=0.001)
-
-    # Ensure image_score is within [0, 1] for threshold validation
-    assert 0.0 <= image_score <= 1.0, f"image_score {image_score} must be in [0, 1]"
 
     # Set threshold exactly at image_score
     decider = TwoStageBinaryDecider(
@@ -435,3 +433,72 @@ def test_two_stage_decider_pixel_threshold_serialization_roundtrip(tmp_path: Pat
 
     assert restored.pixel_threshold == 0.85
     assert torch.equal(original, restored.forward(logits=tensor)["decisions"])
+
+
+def test_two_stage_decider_default_gate_is_off():
+    """No image_threshold means no gate: the default constructor never blanks a frame."""
+    decider = TwoStageBinaryDecider()
+    assert decider.image_threshold is None
+    assert decider.hparams["image_threshold"] is None
+
+    mask = decider.forward(logits=_make_low_score_map())["decisions"]
+    assert mask.sum().item() > 0  # the quantile fallback flags the top 0.5 %
+
+
+def test_two_stage_decider_gate_off_matches_quantile_decider_exactly():
+    """With the gate off and no pixel_threshold, decisions equal QuantileBinaryDecider's."""
+    generator = torch.Generator().manual_seed(1234)
+    tensor = torch.rand(3, 16, 12, 1, generator=generator, dtype=torch.float32)
+    tensor[1] *= 0.05  # a frame every finite gate would blank
+
+    for quantile in (0.9, 0.995):
+        two_stage = TwoStageBinaryDecider(image_threshold=None, quantile=quantile)
+        reference = QuantileBinaryDecider(quantile=quantile)
+        assert torch.equal(
+            two_stage.forward(logits=tensor)["decisions"],
+            reference.forward(logits=tensor)["decisions"],
+        )
+
+
+def test_two_stage_decider_gate_off_pixel_threshold_applies_to_every_frame():
+    """Gate off + absolute pixel_threshold: the cutoff decides alone, no frame is blanked."""
+    tensor = torch.zeros(2, 10, 10, 1, dtype=torch.float32)
+    tensor[0, -1, :, 0] = torch.linspace(0.8, 1.0, 10)  # would pass a 0.5 gate
+    tensor[1, 0, :3, 0] = 0.03  # would fail it
+
+    decider = TwoStageBinaryDecider(image_threshold=None, top_k_fraction=0.1, pixel_threshold=0.02)
+    mask = decider.forward(logits=tensor)["decisions"]
+
+    assert mask[0].sum().item() == 10
+    assert mask[1].sum().item() == 3
+
+    gated = TwoStageBinaryDecider(image_threshold=0.5, top_k_fraction=0.1, pixel_threshold=0.02)
+    assert gated.forward(logits=tensor)["decisions"][1].sum().item() == 0
+
+
+def test_two_stage_decider_none_gate_hparams_roundtrip():
+    """image_threshold=None survives the hparams round trip and stays off."""
+    decider = TwoStageBinaryDecider(image_threshold=None, quantile=0.99, pixel_threshold=None)
+    assert decider.hparams["image_threshold"] is None
+    assert decider.hparams["pixel_threshold"] is None
+
+    restored = TwoStageBinaryDecider(**decider.hparams)
+    assert restored.image_threshold is None
+    tensor = _make_low_score_map()
+    assert torch.equal(
+        decider.forward(logits=tensor)["decisions"], restored.forward(logits=tensor)["decisions"]
+    )
+
+
+@pytest.mark.parametrize("bad", ["0.5", True, [0.5], float("nan"), float("inf")])
+def test_two_stage_decider_non_numeric_image_threshold_rejected(bad):
+    """Anything but a finite real number or None is refused, naming the hparam."""
+    with pytest.raises(ValueError, match="image_threshold must be a finite number or None"):
+        TwoStageBinaryDecider(image_threshold=bad)
+
+
+@pytest.mark.parametrize("bad", ["0.1", False, [0.1]])
+def test_two_stage_decider_non_numeric_pixel_threshold_rejected(bad):
+    """pixel_threshold gets the same by-name refusal as image_threshold."""
+    with pytest.raises(ValueError, match="pixel_threshold must be a finite number or None"):
+        TwoStageBinaryDecider(pixel_threshold=bad)

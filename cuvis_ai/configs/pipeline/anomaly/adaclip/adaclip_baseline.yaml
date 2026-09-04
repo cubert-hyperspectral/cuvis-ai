@@ -57,8 +57,6 @@ nodes:
     up_to: 5
 - name: anomaly_metrics
   class_name: cuvis_ai.node.metrics.AnomalyDetectionMetrics
-  hparams:
-    execution_stages: null
 - name: tensorboard_monitor
   class_name: cuvis_ai.node.monitor.TensorBoardMonitorNode
   hparams:

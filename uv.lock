@@ -815,7 +815,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "bandit", extras = ["toml"], marker = "extra == 'dev'", specifier = ">=1.7.0" },
-    { name = "cuvis-ai-core", specifier = ">=0.13.0" },
+    { name = "cuvis-ai-core", specifier = ">=0.15.0" },
     { name = "cuvis-ai-schemas", extras = ["full"], specifier = ">=0.10.0" },
     { name = "cyclonedx-bom", marker = "extra == 'dev'", specifier = ">=4.0.0" },
     { name = "defusedxml", specifier = ">=0.7.1" },
@@ -887,7 +887,7 @@ dev = [
 
 [[package]]
 name = "cuvis-ai-core"
-version = "0.13.0"
+version = "0.15.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -908,6 +908,7 @@ dependencies = [
     { name = "packaging" },
     { name = "pillow" },
     { name = "protobuf" },
+    { name = "psutil" },
     { name = "pycocotools" },
     { name = "pydantic" },
     { name = "pytorch-lightning" },
@@ -920,9 +921,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/73/70/e3bf231895903e974669f604d1bef8392525fb2adf2a0eec3aa53d04cb26/cuvis_ai_core-0.13.0.tar.gz", hash = "sha256:487e67023cc7f445668f1f32908d46bdb1006421914fd5c4d510acf8be706786", size = 741966, upload-time = "2026-08-25T07:28:49.738Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c6/ab/c9035e06b05681a3ee909ceb1130c1f24577ba36905b4b2aac6cb4898b40/cuvis_ai_core-0.15.0.tar.gz", hash = "sha256:e287256d20b94ae1ce3741e305ad2060ff0ed403697ee521a3d875ee4bb04685", size = 804015, upload-time = "2026-09-04T09:37:55.762Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b5/dd/9ad3caaaaaf0af38b363fb7494c23b4acd84ecac610502e555c3caa30289/cuvis_ai_core-0.13.0-py3-none-any.whl", hash = "sha256:c82058bf7ddfb254c0c58b8667bb4aa11963b56c23db92ff744aa5f1da55bf5a", size = 238399, upload-time = "2026-08-25T07:28:48.254Z" },
+    { url = "https://files.pythonhosted.org/packages/23/a6/508b95a8d7941a11a9e2e754cf2e9b8828e79d4be4396a52e90d3fd46af3/cuvis_ai_core-0.15.0-py3-none-any.whl", hash = "sha256:0b8dcd53add3a7b2376234c99b62adde4393b6a7a73f819be5e568c7eb22c1cc", size = 265889, upload-time = "2026-09-04T09:37:54.093Z" },
 ]
 
 [[package]]

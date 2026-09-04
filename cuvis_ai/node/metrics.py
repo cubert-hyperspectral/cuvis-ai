@@ -38,19 +38,10 @@ class ExplainedVarianceMetric(Node):
 
     OUTPUT_SPECS = {"metrics": PortSpec(dtype=list, shape=(), description="List of Metric objects")}
 
-    def __init__(
-        self,
-        execution_stages: set[ExecutionStage] | None = None,
-        **kwargs,
-    ) -> None:
-        name, execution_stages = Node.consume_base_kwargs(
-            kwargs, execution_stages or {ExecutionStage.VAL, ExecutionStage.TEST}
-        )
-        super().__init__(
-            name=name,
-            execution_stages=execution_stages,
-            **kwargs,
-        )
+    EXECUTION_STAGES = {ExecutionStage.VAL, ExecutionStage.TEST}
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
 
     def forward(self, explained_variance_ratio: Tensor, context: Context) -> dict[str, Any]:
         """Compute explained variance metrics.
@@ -149,22 +140,11 @@ class AnomalyDetectionMetrics(Node):
     # epoch value).
     POOLED_METRIC_NAMES: ClassVar[frozenset[str]] = frozenset({"average_precision"})
 
-    def __init__(
-        self,
-        execution_stages: set[ExecutionStage] | None = None,
-        ap_thresholds: int = 200,
-        **kwargs,
-    ) -> None:
+    EXECUTION_STAGES = {ExecutionStage.VAL, ExecutionStage.TEST}
+
+    def __init__(self, ap_thresholds: int = 200, **kwargs) -> None:
         self.ap_thresholds = ap_thresholds
-        name, execution_stages = Node.consume_base_kwargs(
-            kwargs, execution_stages or {ExecutionStage.VAL, ExecutionStage.TEST}
-        )
-        super().__init__(
-            name=name,
-            execution_stages=execution_stages,
-            ap_thresholds=ap_thresholds,
-            **kwargs,
-        )
+        super().__init__(ap_thresholds=ap_thresholds, **kwargs)
 
         # Precision/Recall/F1/IoU keep O(1) running confmat state and are stateless
         # under torchmetrics __call__ (full_state_update=False) — per-batch values.
@@ -305,19 +285,10 @@ class ScoreStatisticsMetric(Node):
 
     OUTPUT_SPECS = {"metrics": PortSpec(dtype=list, shape=(), description="List of Metric objects")}
 
-    def __init__(
-        self,
-        execution_stages: set[ExecutionStage] | None = None,
-        **kwargs,
-    ) -> None:
-        name, execution_stages = Node.consume_base_kwargs(
-            kwargs, execution_stages or {ExecutionStage.VAL, ExecutionStage.TEST}
-        )
-        super().__init__(
-            name=name,
-            execution_stages=execution_stages,
-            **kwargs,
-        )
+    EXECUTION_STAGES = {ExecutionStage.VAL, ExecutionStage.TEST}
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
 
     def forward(self, scores: Tensor, context: Context) -> dict[str, Any]:
         """Compute score statistics.
@@ -426,19 +397,10 @@ class ComponentOrthogonalityMetric(Node):
 
     OUTPUT_SPECS = {"metrics": PortSpec(dtype=list, shape=(), description="List of Metric objects")}
 
-    def __init__(
-        self,
-        execution_stages: set[ExecutionStage] | None = None,
-        **kwargs,
-    ) -> None:
-        name, execution_stages = Node.consume_base_kwargs(
-            kwargs, execution_stages or {ExecutionStage.VAL, ExecutionStage.TEST}
-        )
-        super().__init__(
-            name=name,
-            execution_stages=execution_stages,
-            **kwargs,
-        )
+    EXECUTION_STAGES = {ExecutionStage.VAL, ExecutionStage.TEST}
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
 
     def forward(self, components: Tensor, context: Context) -> dict[str, Any]:
         """Compute component orthogonality metrics.
@@ -530,22 +492,11 @@ class SelectorEntropyMetric(Node):
 
     OUTPUT_SPECS = {"metrics": PortSpec(dtype=list, shape=(), description="List of Metric objects")}
 
-    def __init__(
-        self,
-        eps: float = 1e-6,
-        execution_stages: set[ExecutionStage] | None = None,
-        **kwargs,
-    ) -> None:
+    EXECUTION_STAGES = {ExecutionStage.VAL, ExecutionStage.TEST}
+
+    def __init__(self, eps: float = 1e-6, **kwargs) -> None:
         self.eps = eps
-        name, execution_stages = Node.consume_base_kwargs(
-            kwargs, execution_stages or {ExecutionStage.VAL, ExecutionStage.TEST}
-        )
-        super().__init__(
-            name=name,
-            execution_stages=execution_stages,
-            eps=eps,
-            **kwargs,
-        )
+        super().__init__(eps=eps, **kwargs)
 
     def forward(self, weights: Tensor, context: Context) -> dict[str, Any]:
         """Compute entropy of selection weights.
@@ -603,19 +554,10 @@ class SelectorDiversityMetric(Node):
 
     OUTPUT_SPECS = {"metrics": PortSpec(dtype=list, shape=(), description="List of Metric objects")}
 
-    def __init__(
-        self,
-        execution_stages: set[ExecutionStage] | None = None,
-        **kwargs,
-    ) -> None:
-        name, execution_stages = Node.consume_base_kwargs(
-            kwargs, execution_stages or {ExecutionStage.VAL, ExecutionStage.TEST}
-        )
-        super().__init__(
-            name=name,
-            execution_stages=execution_stages,
-            **kwargs,
-        )
+    EXECUTION_STAGES = {ExecutionStage.VAL, ExecutionStage.TEST}
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
 
     def forward(self, weights: Tensor, context: Context) -> dict[str, Any]:
         """Compute diversity metrics for selection weights.
@@ -684,19 +626,10 @@ class AnomalyPixelStatisticsMetric(Node):
 
     OUTPUT_SPECS = {"metrics": PortSpec(dtype=list, shape=(), description="List of Metric objects")}
 
-    def __init__(
-        self,
-        execution_stages: set[ExecutionStage] | None = None,
-        **kwargs,
-    ) -> None:
-        name, execution_stages = Node.consume_base_kwargs(
-            kwargs, execution_stages or {ExecutionStage.VAL, ExecutionStage.TEST}
-        )
-        super().__init__(
-            name=name,
-            execution_stages=execution_stages,
-            **kwargs,
-        )
+    EXECUTION_STAGES = {ExecutionStage.VAL, ExecutionStage.TEST}
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
 
     def forward(self, decisions: Tensor, context: Context) -> dict[str, Any]:
         """Compute anomaly pixel statistics.
@@ -751,12 +684,13 @@ class DistinctLabelCount(Node):
     Reports how many separate segments a label map contains, e.g. how many compartments survived
     a per-blob majority vote or how many clusters a frame holds. Emits the per-frame count both as
     a ``count`` tensor (for pipeline reads / notebook printing) and as ``Metric`` objects for
-    training-time logging. Defaults to ``ExecutionStage.ALWAYS`` so it also runs under ``Predictor``
-    inference, not only validation / test.
+    training-time logging. Declares ``ExecutionStage.ALWAYS`` (and the ``INFERENCE`` tag) so it
+    also runs under ``Predictor`` inference, not only validation / test.
     """
 
     _category = NodeCategory.METRIC
-    _tags = frozenset({NodeTag.EVALUATION, NodeTag.MASK})
+    _tags = frozenset({NodeTag.EVALUATION, NodeTag.INFERENCE, NodeTag.MASK})
+    EXECUTION_STAGES = {ExecutionStage.ALWAYS}
 
     INPUT_SPECS = {
         "mask": PortSpec(
@@ -774,15 +708,8 @@ class DistinctLabelCount(Node):
         "metrics": PortSpec(dtype=list, shape=(), description="List of Metric objects"),
     }
 
-    def __init__(
-        self,
-        execution_stages: set[ExecutionStage] | None = None,
-        **kwargs,
-    ) -> None:
-        name, execution_stages = Node.consume_base_kwargs(
-            kwargs, execution_stages or {ExecutionStage.ALWAYS}
-        )
-        super().__init__(name=name, execution_stages=execution_stages, **kwargs)
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
 
     def forward(self, mask: Tensor, context: Context) -> dict[str, Any]:
         """Count distinct non-zero labels in each frame of *mask*.

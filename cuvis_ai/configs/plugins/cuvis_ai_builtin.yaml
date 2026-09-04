@@ -9,11 +9,11 @@
 name: cuvis_ai_builtin
 package_name: cuvis-ai
 repo: https://github.com/cubert-hyperspectral/cuvis-ai.git
-tag: "v0.13.8"
+tag: "v0.14.0"
 capabilities:
 - class_name: cuvis_ai.node.anomaly.deep_svdd.DeepSVDDCenterTracker
   category: transform
-  tags: [anomaly, stateful, torch, training]
+  tags: [anomaly, inference, stateful, torch, training]
   icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
   input_specs:
     embeddings:
@@ -207,10 +207,10 @@ capabilities:
       shape: [-1, -1, -1, 1]
       optional: false
       description: Binary anomaly mask (BHWC).
-  doc_summary: 'Two-stage binary decider: image-level gate + pixel quantile mask.'
+  doc_summary: 'Two-stage binary decider: optional image-level gate + pixel mask.'
 - class_name: cuvis_ai.node.anomaly_visualization.AnomalyMask
   category: visualizer
-  tags: [anomaly, mask]
+  tags: [anomaly, evaluation, mask]
   icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <rect x=\"8\" y=\"10\" width=\"48\" height=\"44\" rx=\"2\"/>\n  <path d=\"M14 44l10-12 8 6 12-16\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"24\" cy=\"32\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"32\" cy=\"38\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"44\" cy=\"22\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n</svg>\n"
   input_specs:
     decisions:
@@ -284,7 +284,7 @@ capabilities:
   doc_summary: Torch-only bounding-box overlay renderer for YOLO-style detections.
 - class_name: cuvis_ai.node.anomaly_visualization.ChannelSelectorFalseRGBViz
   category: visualizer
-  tags: [hyperspectral, rgb]
+  tags: [evaluation, hyperspectral, rgb, training]
   icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <rect x=\"8\" y=\"10\" width=\"48\" height=\"44\" rx=\"2\"/>\n  <path d=\"M14 44l10-12 8 6 12-16\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"24\" cy=\"32\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"32\" cy=\"38\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"44\" cy=\"22\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n</svg>\n"
   input_specs:
     rgb_output:
@@ -311,7 +311,7 @@ capabilities:
   doc_summary: Visualize false RGB output from channel selectors with optional mask overlay.
 - class_name: cuvis_ai.node.anomaly_visualization.ChannelWeightsViz
   category: visualizer
-  tags: [hyperspectral, rgb]
+  tags: [evaluation, hyperspectral, rgb, training]
   icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <rect x=\"8\" y=\"10\" width=\"48\" height=\"44\" rx=\"2\"/>\n  <path d=\"M14 44l10-12 8 6 12-16\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"24\" cy=\"32\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"32\" cy=\"38\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"44\" cy=\"22\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n</svg>\n"
   input_specs:
     weights:
@@ -333,7 +333,7 @@ capabilities:
   doc_summary: Visualize channel mixer weights as a heatmap.
 - class_name: cuvis_ai.node.anomaly_visualization.ImageArtifactVizBase
   category: visualizer
-  tags: [anomaly, image]
+  tags: [anomaly, evaluation, image, training]
   icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <rect x=\"8\" y=\"10\" width=\"48\" height=\"44\" rx=\"2\"/>\n  <path d=\"M14 44l10-12 8 6 12-16\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"24\" cy=\"32\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"32\" cy=\"38\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"44\" cy=\"22\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n</svg>\n"
   output_specs:
     artifacts:
@@ -366,7 +366,7 @@ capabilities:
   doc_summary: Alpha-blend a coloured mask overlay onto RGB frames.
 - class_name: cuvis_ai.node.anomaly_visualization.RGBAnomalyMask
   category: visualizer
-  tags: [anomaly, mask, rgb]
+  tags: [anomaly, evaluation, mask, rgb]
   icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <rect x=\"8\" y=\"10\" width=\"48\" height=\"44\" rx=\"2\"/>\n  <path d=\"M14 44l10-12 8 6 12-16\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"24\" cy=\"32\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"32\" cy=\"38\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"44\" cy=\"22\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n</svg>\n"
   input_specs:
     decisions:
@@ -398,7 +398,7 @@ capabilities:
   doc_summary: Visualize anomaly detection with GT and predicted masks on RGB images.
 - class_name: cuvis_ai.node.anomaly_visualization.ScoreHeatmapVisualizer
   category: visualizer
-  tags: [anomaly, rgb]
+  tags: [anomaly, evaluation, rgb]
   icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <rect x=\"8\" y=\"10\" width=\"48\" height=\"44\" rx=\"2\"/>\n  <path d=\"M14 44l10-12 8 6 12-16\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"24\" cy=\"32\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"32\" cy=\"38\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"44\" cy=\"22\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n</svg>\n"
   input_specs:
     scores:
@@ -544,7 +544,7 @@ capabilities:
   icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <rect x=\"8\" y=\"10\" width=\"48\" height=\"44\" rx=\"2\"/>\n  <path d=\"M14 44l10-12 8 6 12-16\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"24\" cy=\"32\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"32\" cy=\"38\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"44\" cy=\"22\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n</svg>\n"
   input_specs:
     class_map:
-      dtype: int32
+      dtype: int64
       shape: [-1, -1, -1]
       optional: false
       description: Integer class-index map [B, H, W]; background_value pixels render black.
@@ -559,11 +559,11 @@ capabilities:
       shape: [-1, -1, -1, 3]
       optional: false
       description: Colourised RGB image [B, H, W, 3] in [0, 1].
-  doc_summary: Colourise an integer class-index map into an RGB image.
+  doc_summary: Colourise an integer class-index map ``[B, H, W]`` into an RGB image ``[B, H, W, 3]``.
 - class_name: cuvis_ai.node.compositing.LabelOverlay
   category: transform
   tags: [image, rgb]
-  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <rect x=\"8\" y=\"10\" width=\"48\" height=\"44\" rx=\"2\"/>\n  <path d=\"M14 44l10-12 8 6 12-16\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"24\" cy=\"32\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"32\" cy=\"38\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"44\" cy=\"22\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n</svg>\n"
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
   input_specs:
     rgb_image:
       dtype: float32
@@ -581,28 +581,33 @@ capabilities:
       shape: [-1, -1, -1, 3]
       optional: false
       description: Blended RGB image [B, H, W, 3] in [0, 1].
-  doc_summary: Alpha-blend a colourised label map onto an RGB image.
+  doc_summary: Alpha-blend a colourised label map onto an RGB image on its foreground pixels.
 - class_name: cuvis_ai.node.compositing.TitleOverlay
   category: transform
   tags: [image, rgb]
-  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <rect x=\"8\" y=\"10\" width=\"48\" height=\"44\" rx=\"2\"/>\n  <path d=\"M14 44l10-12 8 6 12-16\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"24\" cy=\"32\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"32\" cy=\"38\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"44\" cy=\"22\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n</svg>\n"
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
   input_specs:
     frame:
       dtype: float32
       shape: [-1, -1, -1, 3]
       optional: false
       description: RGB frame [B, H, W, 3] in [0, 1].
+    caption:
+      dtype: ''
+      shape: []
+      optional: true
+      description: Optional per-frame captions (list[str], one per batch element).
   output_specs:
     frame:
       dtype: float32
       shape: [-1, -1, -1, 3]
       optional: false
       description: RGB frame with the caption drawn in, [B, H, W, 3] in [0, 1].
-  doc_summary: Burn a text caption into the top-left of each RGB frame.
+  doc_summary: Burn a text caption into the top-left of each RGB frame, over a translucent box.
 - class_name: cuvis_ai.node.compositing.LegendStrip
   category: transform
   tags: [image, rgb]
-  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <rect x=\"8\" y=\"10\" width=\"48\" height=\"44\" rx=\"2\"/>\n  <path d=\"M14 44l10-12 8 6 12-16\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"24\" cy=\"32\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"32\" cy=\"38\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"44\" cy=\"22\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n</svg>\n"
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
   input_specs:
     frame:
       dtype: float32
@@ -1179,7 +1184,7 @@ capabilities:
 - class_name: cuvis_ai.node.data.AnomalyDataNode
   category: source
   tags: [hyperspectral, metadata]
-  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#E8A33D\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <ellipse cx=\"22\" cy=\"18\" rx=\"12\" ry=\"4\"/>\r\n  <path d=\"M10 18v26c0 2.2 5.4 4 12 4s12-1.8 12-4V18\"/>\r\n  <path d=\"M10 28c0 2.2 5.4 4 12 4s12-1.8 12-4\"/>\r\n  <path d=\"M10 38c0 2.2 5.4 4 12 4s12-1.8 12-4\"/>\r\n  <path d=\"M40 32h14\"/>\r\n  <path d=\"M48 26l6 6-6 6\"/>\r\n</svg>\r\n"
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#E8A33D\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <ellipse cx=\"22\" cy=\"18\" rx=\"12\" ry=\"4\"/>\n  <path d=\"M10 18v26c0 2.2 5.4 4 12 4s12-1.8 12-4V18\"/>\n  <path d=\"M10 28c0 2.2 5.4 4 12 4s12-1.8 12-4\"/>\n  <path d=\"M10 38c0 2.2 5.4 4 12 4s12-1.8 12-4\"/>\n  <path d=\"M40 32h14\"/>\n  <path d=\"M48 26l6 6-6 6\"/>\n</svg>\n"
   input_specs:
     cube:
       dtype: ''
@@ -1289,7 +1294,7 @@ capabilities:
       shape: [-1, -1, -1, 1]
       optional: true
       description: Multi-class segmentation mask passthrough (0=background) [B, H, W, 1]
-  doc_summary: Deprecated alias of AnomalyDataNode (kept for saved pipelines).
+  doc_summary: Deprecated alias of :class:`AnomalyDataNode` (nothing lentils-specific inside).
 - class_name: cuvis_ai.node.dimensionality_reduction.PCA
   category: transform
   tags: [dim_reduction, hyperspectral, preprocessing, torch]
@@ -1913,7 +1918,7 @@ capabilities:
   doc_summary: Compute anomaly pixel statistics from binary decisions.
 - class_name: cuvis_ai.node.metrics.DistinctLabelCount
   category: metric
-  tags: [evaluation, mask]
+  tags: [evaluation, inference, mask]
   icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#C9615A\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M10 14v40h44\"/>\n  <rect x=\"16\" y=\"38\" width=\"8\" height=\"12\"/>\n  <rect x=\"28\" y=\"28\" width=\"8\" height=\"22\"/>\n  <rect x=\"40\" y=\"18\" width=\"8\" height=\"32\"/>\n</svg>\n"
   input_specs:
     mask:
@@ -2020,7 +2025,7 @@ capabilities:
   doc_summary: Track entropy of channel selection distribution.
 - class_name: cuvis_ai.node.monitor.TensorBoardMonitorNode
   category: sink
-  tags: [evaluation, metadata]
+  tags: [evaluation, metadata, training]
   icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#E8A33D\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M6 32h12\"/>\n  <path d=\"M12 26l6 6-6 6\"/>\n  <rect x=\"22\" y=\"12\" width=\"36\" height=\"40\" rx=\"3\"/>\n  <path d=\"M28 12v18h24V12\"/>\n  <rect x=\"32\" y=\"36\" width=\"16\" height=\"14\"/>\n  <path d=\"M44 16v10\"/>\n</svg>\n"
   input_specs:
     artifacts:
@@ -2315,7 +2320,7 @@ capabilities:
   doc_summary: Deprecated alias of PoissonOcclusionNode.
 - class_name: cuvis_ai.node.pipeline_visualization.CubeRGBVisualizer
   category: visualizer
-  tags: [hyperspectral, rgb]
+  tags: [evaluation, hyperspectral, rgb]
   icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <rect x=\"8\" y=\"10\" width=\"48\" height=\"44\" rx=\"2\"/>\n  <path d=\"M14 44l10-12 8 6 12-16\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"24\" cy=\"32\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"32\" cy=\"38\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"44\" cy=\"22\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n</svg>\n"
   input_specs:
     cube:
@@ -2342,7 +2347,7 @@ capabilities:
   doc_summary: Creates false-color RGB images from hyperspectral cube using channel weights.
 - class_name: cuvis_ai.node.pipeline_visualization.PCAVisualization
   category: visualizer
-  tags: [hyperspectral, rgb]
+  tags: [evaluation, hyperspectral, rgb]
   icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <rect x=\"8\" y=\"10\" width=\"48\" height=\"44\" rx=\"2\"/>\n  <path d=\"M14 44l10-12 8 6 12-16\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"24\" cy=\"32\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"32\" cy=\"38\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"44\" cy=\"22\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n</svg>\n"
   input_specs:
     data:
@@ -2359,7 +2364,7 @@ capabilities:
   doc_summary: Visualize PCA-projected data with scatter and image plots.
 - class_name: cuvis_ai.node.pipeline_visualization.PipelineComparisonVisualizer
   category: visualizer
-  tags: [hyperspectral, rgb]
+  tags: [evaluation, hyperspectral, rgb, training]
   icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <rect x=\"8\" y=\"10\" width=\"48\" height=\"44\" rx=\"2\"/>\n  <path d=\"M14 44l10-12 8 6 12-16\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"24\" cy=\"32\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"32\" cy=\"38\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"44\" cy=\"22\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n</svg>\n"
   input_specs:
     hsi_cube:
@@ -2551,7 +2556,7 @@ capabilities:
 - class_name: cuvis_ai.node.prompts.PointPrompt
   category: source
   tags: [inference, keypoints, metadata]
-  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#E8A33D\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\r\n  <ellipse cx=\"22\" cy=\"18\" rx=\"12\" ry=\"4\"/>\r\n  <path d=\"M10 18v26c0 2.2 5.4 4 12 4s12-1.8 12-4V18\"/>\r\n  <path d=\"M10 28c0 2.2 5.4 4 12 4s12-1.8 12-4\"/>\r\n  <path d=\"M10 38c0 2.2 5.4 4 12 4s12-1.8 12-4\"/>\r\n  <path d=\"M40 32h14\"/>\r\n  <path d=\"M48 26l6 6-6 6\"/>\r\n</svg>\r\n"
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#E8A33D\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <ellipse cx=\"22\" cy=\"18\" rx=\"12\" ry=\"4\"/>\n  <path d=\"M10 18v26c0 2.2 5.4 4 12 4s12-1.8 12-4V18\"/>\n  <path d=\"M10 28c0 2.2 5.4 4 12 4s12-1.8 12-4\"/>\n  <path d=\"M10 38c0 2.2 5.4 4 12 4s12-1.8 12-4\"/>\n  <path d=\"M40 32h14\"/>\n  <path d=\"M48 26l6 6-6 6\"/>\n</svg>\n"
   input_specs:
     frame_id:
       dtype: int64
@@ -2771,6 +2776,7 @@ capabilities:
 - class_name: cuvis_ai.node.video.ToImage
   category: sink
   tags: [image]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#E8A33D\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M6 32h12\"/>\n  <path d=\"M12 26l6 6-6 6\"/>\n  <rect x=\"22\" y=\"12\" width=\"36\" height=\"40\" rx=\"3\"/>\n  <path d=\"M28 12v18h24V12\"/>\n  <rect x=\"32\" y=\"36\" width=\"16\" height=\"14\"/>\n  <path d=\"M44 16v10\"/>\n</svg>\n"
   input_specs:
     rgb_image:
       dtype: float32
@@ -2823,8 +2829,8 @@ capabilities:
     wavelengths:
       dtype: int32
       shape: [-1]
-      optional: false
-      description: Wavelength array [C] in nanometers
+      optional: true
+      description: Optional wavelength array [C] in nanometers; when connected it sets the sample spacing for deriv > 0 (median band step).
   output_specs:
     cube:
       dtype: float32
@@ -3353,7 +3359,7 @@ capabilities:
       dtype: float32
       shape: [-1, -1, -1, 1]
       optional: false
-      description: Per-pixel reconstruction residual ||x - W H|| [B, H, W, 1]
+      description: Per-pixel reconstruction residual ||E.T a - x|| against the frozen endmembers E [B, H, W, 1]
     class_mask:
       dtype: int32
       shape: [-1, -1, -1]
@@ -3599,7 +3605,7 @@ capabilities:
       shape: [-1, -1, -1]
       optional: false
       description: Label map [B, H, W] with `offset` added to every label.
-  doc_summary: Add a constant offset to every label (e.g. 0-based clusters -> 1-based).
+  doc_summary: Add a constant offset to every label in an integer label map.
 - class_name: cuvis_ai.node.spectral_extractor.SignaturesToReferences
   category: transform
   tags: [classification, hyperspectral]
@@ -3654,61 +3660,63 @@ capabilities:
 - class_name: cuvis_ai.node.patch_inference.PatchSampler
   category: transform
   tags: [hyperspectral, preprocessing, stochastic]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
   input_specs:
     cube:
       dtype: float32
       shape: [-1, -1, -1, -1]
       optional: false
-      description: Hyperspectral cube [B, H, W, C].
+      description: Hyperspectral cube [B,H,W,C]
     targets:
       dtype: int64
       shape: [-1, -1, -1]
       optional: false
-      description: Per-pixel class targets [B, H, W]; ignore_index pixels are skipped.
+      description: Per-pixel class targets [B,H,W]
   output_specs:
     patches:
       dtype: float32
       shape: [-1, -1, -1, -1]
       optional: false
-      description: Center-pixel patches [N, P, P, C].
+      description: Center-pixel patches [N,P,P,C]
     labels:
       dtype: int64
       shape: [-1]
       optional: false
-      description: Center-pixel class labels [N].
+      description: Center-pixel class labels [N]
   doc_summary: Extract labeled center-pixel patches from a cube and an integer target map.
 - class_name: cuvis_ai.node.patch_inference.ClassMapAccumulator
   category: sink
-  tags: [mask, classification, postprocessing]
+  tags: [classification, mask, postprocessing]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#E8A33D\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M6 32h12\"/>\n  <path d=\"M12 26l6 6-6 6\"/>\n  <rect x=\"22\" y=\"12\" width=\"36\" height=\"40\" rx=\"3\"/>\n  <path d=\"M28 12v18h24V12\"/>\n  <rect x=\"32\" y=\"36\" width=\"16\" height=\"14\"/>\n  <path d=\"M44 16v10\"/>\n</svg>\n"
   input_specs:
     logits:
       dtype: float32
       shape: [-1, -1]
       optional: false
-      description: Per-patch class logits [N, num_classes].
+      description: Per-patch class logits [N, num_classes]
     frame_id:
       dtype: int64
       shape: [-1]
       optional: false
-      description: Source frame id per patch [N].
+      description: Source frame id per patch [N]
     y:
       dtype: int64
       shape: [-1]
       optional: false
-      description: Pixel row per patch [N].
+      description: Pixel row per patch [N]
     x:
       dtype: int64
       shape: [-1]
       optional: false
-      description: Pixel column per patch [N].
+      description: Pixel column per patch [N]
     height:
       dtype: int64
       shape: [-1]
       optional: false
-      description: Source frame height per patch [N].
+      description: Source frame height per patch [N]
     width:
       dtype: int64
       shape: [-1]
       optional: false
-      description: Source frame width per patch [N].
-  doc_summary: Scatter chunked patch predictions back into per-frame class maps.
+      description: Source frame width per patch [N]
+  doc_summary: Scatter chunked patch predictions back into per-frame ``[H, W]`` class maps (sink).

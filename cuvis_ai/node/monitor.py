@@ -34,7 +34,12 @@ class TensorBoardMonitorNode(Node):
     Accepts optional inputs for artifacts and metrics, allowing predecessors to be filtered
     by execution_stage without causing errors.
 
-    Executes during all stages (ALWAYS).
+    Runs during train, val and test (the class-level ``EXECUTION_STAGES``); inference
+    pipelines skip it, so loading a trained pipeline for prediction writes no TensorBoard
+    directory. To log a trained pipeline's artifacts over a dataset, run it at the test
+    stage (``Predictor.predict(stage=ExecutionStage.TEST)``). The log directory and the
+    ``SummaryWriter`` are created on the first ``forward`` or ``log`` call, never at
+    construction, so building the node touches no disk.
 
     Parameters
     ----------
@@ -55,7 +60,8 @@ class TensorBoardMonitorNode(Node):
     """
 
     _category = NodeCategory.SINK
-    _tags = frozenset({NodeTag.METADATA, NodeTag.EVALUATION})
+    _tags = frozenset({NodeTag.METADATA, NodeTag.TRAINING, NodeTag.EVALUATION})
+    EXECUTION_STAGES = {ExecutionStage.TRAIN, ExecutionStage.VAL, ExecutionStage.TEST}
 
     INPUT_SPECS = {
         "artifacts": PortSpec(
@@ -88,11 +94,14 @@ class TensorBoardMonitorNode(Node):
         self.run_name = run_name
         self.comment = comment
         self.flush_secs = flush_secs
-        self._writer = None
-        self._tensorboard_available = False
+        # Both stay unset until the first forward()/log(): resolving the run directory
+        # creates it, and a pipeline that merely loads this node (or never runs it because
+        # the stage prunes it) must leave no TensorBoard directory behind.
+        self._writer: SummaryWriter | None = None
+        self.log_dir: Path | None = None
+        self._SummaryWriter = SummaryWriter
 
         super().__init__(
-            execution_stages={ExecutionStage.ALWAYS},
             output_dir=str(output_dir),
             run_name=run_name,
             comment=comment,
@@ -100,22 +109,21 @@ class TensorBoardMonitorNode(Node):
             **kwargs,
         )
 
-        # Check if tensorboard is available
-
-        self._SummaryWriter = SummaryWriter
-
-        # Determine the log directory with run name
-        self.log_dir = self._resolve_log_dir()
-
-        # Initialize TensorBoard writer
-        self.log_dir.mkdir(parents=True, exist_ok=True)
-        self._writer = self._SummaryWriter(
-            log_dir=str(self.log_dir),
-            comment=self.comment,
-            flush_secs=self.flush_secs,
-        )
-        logger.info(f"TensorBoard writer initialized: {self.log_dir}")
-        logger.info(f"To view visualizations, run: uv run tensorboard --logdir={self.output_dir}")
+    def _ensure_writer(self) -> SummaryWriter:
+        """Create the log directory and ``SummaryWriter`` on first use; return the writer."""
+        if self._writer is None:
+            self.log_dir = self._resolve_log_dir()
+            self.log_dir.mkdir(parents=True, exist_ok=True)
+            self._writer = self._SummaryWriter(
+                log_dir=str(self.log_dir),
+                comment=self.comment,
+                flush_secs=self.flush_secs,
+            )
+            logger.info(f"TensorBoard writer initialized: {self.log_dir}")
+            logger.info(
+                f"To view visualizations, run: uv run tensorboard --logdir={self.output_dir}"
+            )
+        return self._writer
 
     def _resolve_log_dir(self) -> Path:
         """Resolve the log directory with auto-increment support.
@@ -195,6 +203,7 @@ class TensorBoardMonitorNode(Node):
 
         stage = context.stage.value
         step = context.global_step
+        self._ensure_writer()
 
         # Flatten artifacts if it's a list of lists (variadic port)
         if artifacts is not None:
@@ -251,7 +260,7 @@ class TensorBoardMonitorNode(Node):
         >>> # From external trainer
         >>> tensorboard_node.log("train/loss", 0.5, step=100)
         """
-        self._writer.add_scalar(name, value, step)
+        self._ensure_writer().add_scalar(name, value, step)
 
     def _log_artifact(self, artifact: Artifact, stage: str, step: int) -> None:
         """Log a single artifact to TensorBoard.
@@ -273,12 +282,13 @@ class TensorBoardMonitorNode(Node):
             # tag = f"{stage}/epoch_{artifact.epoch}/batch_{artifact.batch_idx}/{artifact.name}"
             # TensorBoard expects CHW format or HWC with dataformats parameter
             img_array = artifact.value
+            writer = self._ensure_writer()
             if img_array.shape[-1] in [1, 3, 4]:
                 # HWC format
-                self._writer.add_image(tag, img_array, step, dataformats="HWC")
+                writer.add_image(tag, img_array, step, dataformats="HWC")
             elif img_array.shape[0] in [1, 3, 4]:
                 # CHW format
-                self._writer.add_image(tag, img_array, step, dataformats="CHW")
+                writer.add_image(tag, img_array, step, dataformats="CHW")
             else:
                 logger.warning(
                     f"Image artifact {artifact.name} has unexpected shape: {img_array.shape}"
@@ -298,8 +308,7 @@ class TensorBoardMonitorNode(Node):
         """
         # Add stage prefix if not already present
         tag = f"{stage}/{metric.name}" if not metric.name.startswith(stage) else metric.name
-        # tag = f"{stage}/{metric.name}" if not metric.name.startswith(stage) else metric.name
-        self._writer.add_scalar(tag, metric.value, step)
+        self._ensure_writer().add_scalar(tag, metric.value, step)
 
     def _validate_image_artifact(self, artifact: Artifact) -> None:
         """Validate that an IMAGE artifact has correct shape.
@@ -327,12 +336,20 @@ class TensorBoardMonitorNode(Node):
                 f"IMAGE artifact {artifact.name} must have 1 or 3 channels, got shape {shape}"
             )
 
+    def cleanup(self) -> None:
+        """Flush and close the TensorBoard writer if one was created; safe to call twice."""
+        writer = self._writer
+        if writer is None:
+            return
+        self._writer = None
+        try:
+            writer.flush()
+            writer.close()
+            logger.debug("TensorBoard writer closed successfully")
+        except Exception as e:
+            logger.error(f"Failed to close TensorBoard writer: {e}")
+
     def __del__(self) -> None:
         """Clean up TensorBoard writer on deletion."""
-        if self._tensorboard_available and self._writer is not None:
-            try:
-                self._writer.flush()
-                self._writer.close()
-                logger.debug("TensorBoard writer closed successfully")
-            except Exception as e:
-                logger.error(f"Failed to close TensorBoard writer: {e}")
+        if getattr(self, "_writer", None) is not None:
+            self.cleanup()

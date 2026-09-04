@@ -93,7 +93,7 @@ Centralized logging sink that writes metrics and images to TensorBoard.
 **Key characteristics:**
 
 - **Type**: Sink node (no outputs)
-- **Execution**: All stages (TRAIN, VAL, TEST, INFERENCE)
+- **Execution**: TRAIN, VAL, TEST (pruned at inference, so loading a pipeline writes no TensorBoard directory)
 - **Auto-increment**: Creates `run_01`, `run_02`, etc. if `run_name` is None
 
 **Parameters:**
@@ -378,7 +378,7 @@ Side-by-side ground truth and prediction comparison with overlay.
 | `cube` | `float32` | `(B,H,W,C)` | Hyperspectral cube |
 | `scores` | `float32` | `(B,H,W,1)` | Scores for AP (optional) |
 
-**Execution**: VAL, TEST, INFERENCE stages
+**Execution**: VAL, TEST stages
 
 **Example:**
 
@@ -1075,9 +1075,9 @@ viz_mask = AnomalyMask(up_to=1000)
 
 **Execution stages:**
 
-- Visualization nodes run during **VAL, TEST, INFERENCE** by default
+- Visualization nodes run during **VAL, TEST** by default and are pruned at inference
 - This avoids training slowdown
-- TensorBoardMonitorNode runs during **all stages** to accept any inputs
+- TensorBoardMonitorNode runs during **TRAIN, VAL, TEST**; at inference it is pruned together with the visualizers that feed it
 
 ### 2. TensorBoard Organization
 

@@ -48,11 +48,13 @@ nodes:
     use_half_precision: false
     enable_warmup: false
     enable_gradients: false
-- name: QuantileBinaryDecider
-  class_name: cuvis_ai.node.deciders.binary_decider.QuantileBinaryDecider
+- name: decider
+  class_name: cuvis_ai.node.deciders.two_stage_decider.TwoStageBinaryDecider
   hparams:
+    image_threshold: null   # no gate while training; set the calibrated value for deployment
+    top_k_fraction: 0.001
     quantile: 0.995
-    reduce_dims: null
+    pixel_threshold: null   # calibrate-thresholds output; quantile fallback while null
 - name: ScoreHeatmapVisualizer
   class_name: cuvis_ai.node.anomaly_visualization.ScoreHeatmapVisualizer
   hparams:
@@ -65,8 +67,6 @@ nodes:
     up_to: 3
 - name: detection_metrics
   class_name: cuvis_ai.node.metrics.AnomalyDetectionMetrics
-  hparams:
-    execution_stages: null
 - name: TensorBoardMonitorNode
   class_name: cuvis_ai.node.monitor.TensorBoardMonitorNode
   hparams:
@@ -90,14 +90,14 @@ connections:
 - source: SupervisedCIRSelector.outputs.rgb_image
   target: RGBAnomalyMask.inputs.rgb_image
 - source: AdaCLIPDetector.outputs.scores
-  target: QuantileBinaryDecider.inputs.logits
+  target: decider.inputs.logits
 - source: AdaCLIPDetector.outputs.scores
   target: ScoreHeatmapVisualizer.inputs.scores
 - source: AdaCLIPDetector.outputs.scores
   target: RGBAnomalyMask.inputs.scores
-- source: QuantileBinaryDecider.outputs.decisions
+- source: decider.outputs.decisions
   target: detection_metrics.inputs.decisions
-- source: QuantileBinaryDecider.outputs.decisions
+- source: decider.outputs.decisions
   target: RGBAnomalyMask.inputs.decisions
 - source: ScoreHeatmapVisualizer.outputs.artifacts
   target: TensorBoardMonitorNode.inputs.artifacts

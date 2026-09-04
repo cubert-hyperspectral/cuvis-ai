@@ -77,7 +77,7 @@ class Node(nn.Module, ABC, Serializable):
 **Key properties:**
 
 * `requires_initial_fit`: Auto-detects if node needs statistical initialization
-* `execution_stages`: Controls when node executes (TRAIN, VAL, TEST, INFERENCE, ALWAYS)
+* `execution_stages`: Read-only view of the class-level `EXECUTION_STAGES` (TRAIN, VAL, TEST, INFERENCE, ALWAYS)
 * `frozen`: Tracks frozen vs trainable state
 
 ---

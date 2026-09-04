@@ -368,7 +368,11 @@ class DeepSVDDCenterTracker(Node):
     """Track and expose Deep SVDD center statistics with optional logging."""
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.ANOMALY, NodeTag.STATEFUL, NodeTag.TRAINING, NodeTag.TORCH})
+    # Fitted during training, but its ``center`` output feeds DeepSVDDScores at inference too,
+    # so it carries both lifecycle tags and keeps the base ALWAYS stages.
+    _tags = frozenset(
+        {NodeTag.ANOMALY, NodeTag.STATEFUL, NodeTag.TRAINING, NodeTag.INFERENCE, NodeTag.TORCH}
+    )
 
     TRAINABLE_BUFFERS = ("_tracked_center",)
 

@@ -67,8 +67,6 @@ nodes:
     threshold: 0.5
 - name: metrics_anomaly
   class_name: cuvis_ai.node.metrics.AnomalyDetectionMetrics
-  hparams:
-    execution_stages: null
 - name: TensorBoardMonitorNode
   class_name: cuvis_ai.node.monitor.TensorBoardMonitorNode
   hparams:

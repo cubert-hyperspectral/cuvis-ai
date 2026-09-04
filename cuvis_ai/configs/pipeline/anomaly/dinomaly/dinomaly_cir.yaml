@@ -2,8 +2,9 @@ metadata:
   name: dinomaly_cir
   description: "Dinomaly anomaly detection on a fixed-wavelength CIR (color-infrared)
     false-color projection (860/670/560 nm = NIR/R/G): AnomalyDataNode → MinMaxNormalizer
-    → FixedWavelengthSelector → DinomalyDetector, with quantile decider, pixel/image
-    metrics, AUROC, and per-epoch score heatmaps logged to TensorBoard."
+    → FixedWavelengthSelector → DinomalyDetector, with a two-stage decider (image gate
+    off until calibrated), pixel/image metrics, AUROC, and per-epoch score heatmaps
+    logged to TensorBoard."
   created: ''
   tags:
   - gradient
@@ -54,9 +55,12 @@ nodes:
   hparams:
     weight: 1.0
 - name: decider
-  class_name: cuvis_ai.node.deciders.binary_decider.QuantileBinaryDecider
+  class_name: cuvis_ai.node.deciders.two_stage_decider.TwoStageBinaryDecider
   hparams:
+    image_threshold: null   # no gate while training; set the calibrated value for deployment
+    top_k_fraction: 0.001
     quantile: 0.995
+    pixel_threshold: null   # calibrate-thresholds output; quantile fallback while null
 - name: metrics_anomaly
   class_name: cuvis_ai.node.metrics.AnomalyDetectionMetrics
   hparams: {}

@@ -41,7 +41,7 @@ class ImageArtifactVizBase(Node):
     """Base class for visualization nodes that produce image artifacts."""
 
     _category = NodeCategory.VISUALIZER
-    _tags = frozenset({NodeTag.IMAGE, NodeTag.ANOMALY})
+    _tags = frozenset({NodeTag.IMAGE, NodeTag.ANOMALY, NodeTag.TRAINING, NodeTag.EVALUATION})
 
     OUTPUT_SPECS = {
         "artifacts": PortSpec(
@@ -51,22 +51,20 @@ class ImageArtifactVizBase(Node):
         )
     }
 
+    # Artifact producers exist for the TensorBoard sink and, like it, run in the training
+    # stages only; inference pipelines prune them.
+    EXECUTION_STAGES = {ExecutionStage.TRAIN, ExecutionStage.VAL, ExecutionStage.TEST}
+
     def __init__(
         self,
         max_samples: int = 4,
         log_every_n_batches: int = 1,
-        execution_stages: set[ExecutionStage] | None = None,
         **kwargs,
     ) -> None:
         self.max_samples = max_samples
         self.log_every_n_batches = log_every_n_batches
         self._batch_counter = 0
-        if execution_stages is None:
-            execution_stages = {ExecutionStage.TRAIN, ExecutionStage.VAL, ExecutionStage.TEST}
-        super().__init__(
-            execution_stages=execution_stages,
-            **kwargs,
-        )
+        super().__init__(**kwargs)
 
     def _should_log(self) -> bool:
         """Increment batch counter and return True if this batch should be logged."""
@@ -97,7 +95,9 @@ class AnomalyMask(Node):
     Also displays IoU and other metrics. Returns a list of Artifact objects for
     logging to monitoring systems.
 
-    Executes during validation and inference stages.
+    Runs during validation and test, where the TensorBoard sink consumes the artifacts;
+    inference pipelines skip it (``Predictor.predict(stage=ExecutionStage.TEST)`` runs it
+    over a labeled split).
 
     Parameters
     ----------
@@ -121,7 +121,8 @@ class AnomalyMask(Node):
     """
 
     _category = NodeCategory.VISUALIZER
-    _tags = frozenset({NodeTag.MASK, NodeTag.ANOMALY})
+    _tags = frozenset({NodeTag.MASK, NodeTag.ANOMALY, NodeTag.EVALUATION})
+    EXECUTION_STAGES = {ExecutionStage.VAL, ExecutionStage.TEST}
 
     INPUT_SPECS = {
         "decisions": PortSpec(
@@ -159,13 +160,7 @@ class AnomalyMask(Node):
     def __init__(self, channel: int, up_to: int | None = None, **kwargs) -> None:
         self.channel = channel
         self.up_to = up_to
-
-        super().__init__(
-            execution_stages={ExecutionStage.VAL, ExecutionStage.TEST, ExecutionStage.INFERENCE},
-            channel=channel,
-            up_to=up_to,
-            **kwargs,
-        )
+        super().__init__(channel=channel, up_to=up_to, **kwargs)
 
     def forward(
         self,
@@ -419,10 +414,15 @@ class AnomalyMask(Node):
 
 
 class ScoreHeatmapVisualizer(Node):
-    """Log LAD/RX score heatmaps as TensorBoard artifacts."""
+    """Log LAD/RX score heatmaps as TensorBoard artifacts.
+
+    Runs during validation and test (the TensorBoard sink is its consumer); inference
+    pipelines skip it.
+    """
 
     _category = NodeCategory.VISUALIZER
-    _tags = frozenset({NodeTag.ANOMALY, NodeTag.RGB})
+    _tags = frozenset({NodeTag.ANOMALY, NodeTag.RGB, NodeTag.EVALUATION})
+    EXECUTION_STAGES = {ExecutionStage.VAL, ExecutionStage.TEST}
 
     INPUT_SPECS = {
         "scores": PortSpec(
@@ -450,13 +450,7 @@ class ScoreHeatmapVisualizer(Node):
         self.normalize_scores = normalize_scores
         self.cmap = cmap
         self.up_to = up_to
-        super().__init__(
-            execution_stages={ExecutionStage.VAL, ExecutionStage.TEST, ExecutionStage.INFERENCE},
-            normalize_scores=normalize_scores,
-            cmap=cmap,
-            up_to=up_to,
-            **kwargs,
-        )
+        super().__init__(normalize_scores=normalize_scores, cmap=cmap, up_to=up_to, **kwargs)
 
     def forward(self, scores: torch.Tensor, context: Context) -> dict[str, list[Artifact]]:
         """Generate heatmap visualizations of anomaly scores.
@@ -528,7 +522,9 @@ class RGBAnomalyMask(Node):
     Also displays IoU and other metrics. Returns a list of Artifact objects for
     logging to monitoring systems.
 
-    Executes during validation and inference stages.
+    Runs during validation and test, where the TensorBoard sink consumes the artifacts;
+    inference pipelines skip it (``Predictor.predict(stage=ExecutionStage.TEST)`` runs it
+    over a labeled split).
 
     Parameters
     ----------
@@ -549,7 +545,8 @@ class RGBAnomalyMask(Node):
     """
 
     _category = NodeCategory.VISUALIZER
-    _tags = frozenset({NodeTag.MASK, NodeTag.ANOMALY, NodeTag.RGB})
+    _tags = frozenset({NodeTag.MASK, NodeTag.ANOMALY, NodeTag.RGB, NodeTag.EVALUATION})
+    EXECUTION_STAGES = {ExecutionStage.VAL, ExecutionStage.TEST}
 
     INPUT_SPECS = {
         "decisions": PortSpec(
@@ -593,11 +590,7 @@ class RGBAnomalyMask(Node):
             Maximum number of images to visualize. If None, visualizes all (default: None)
         """
         self.up_to = up_to
-        super().__init__(
-            execution_stages={ExecutionStage.VAL, ExecutionStage.TEST, ExecutionStage.INFERENCE},
-            up_to=up_to,
-            **kwargs,
-        )
+        super().__init__(up_to=up_to, **kwargs)
 
     def _compute_metrics(self, pred: np.ndarray, gt: np.ndarray) -> dict:
         """Compute IoU, precision, recall from boolean masks."""
@@ -817,7 +810,7 @@ class ChannelSelectorFalseRGBViz(ImageArtifactVizBase):
     """
 
     _category = NodeCategory.VISUALIZER
-    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.RGB})
+    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.RGB, NodeTag.TRAINING, NodeTag.EVALUATION})
 
     INPUT_SPECS = {
         "rgb_output": PortSpec(
@@ -1533,7 +1526,7 @@ class ChannelWeightsViz(ImageArtifactVizBase):
     """
 
     _category = NodeCategory.VISUALIZER
-    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.RGB})
+    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.RGB, NodeTag.TRAINING, NodeTag.EVALUATION})
 
     INPUT_SPECS = {
         "weights": PortSpec(

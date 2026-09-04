@@ -23,21 +23,12 @@ class LossNode(Node):
 
     _category = NodeCategory.LOSS
     _tags = frozenset({NodeTag.TRAINING, NodeTag.DIFFERENTIABLE, NodeTag.TORCH})
+    # Losses never run at inference: declared on the class, so every loss node inherits
+    # it and the lifecycle consistency test can check the LOSS category against it.
+    EXECUTION_STAGES = {ExecutionStage.TRAIN, ExecutionStage.VAL, ExecutionStage.TEST}
 
     def __init__(self, **kwargs) -> None:
-        # Default to train/val/test stages, but allow override
-        assert "execution_stages" not in kwargs, (
-            "Loss nodes can only execute in train, val, and test stages."
-        )
-
-        super().__init__(
-            execution_stages={
-                ExecutionStage.TRAIN,
-                ExecutionStage.VAL,
-                ExecutionStage.TEST,
-            },
-            **kwargs,
-        )
+        super().__init__(**kwargs)
 
 
 class OrthogonalityLoss(LossNode):
