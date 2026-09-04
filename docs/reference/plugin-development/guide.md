@@ -41,6 +41,7 @@ build-backend = "hatchling.build"
 - Define `INPUT_SPECS` and `OUTPUT_SPECS`.
 - Implement `forward()`.
 - Pass serializable constructor arguments through `super().__init__(...)`.
+- Load pretrained weights through `ModelWeights.resolve()` or `ModelWeights.materialize()` from `cuvis_ai_core.data.model_weights` instead of hardcoding an upstream repo id, so the offline child runtime finds what `download-model` provisioned (see [Model Weights](../../workflows/model-weights.md)).
 
 ## Manifest for Local Development
 

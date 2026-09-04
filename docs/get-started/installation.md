@@ -143,5 +143,6 @@ uv run python -m pytest tests/ -v --tb=line -m "not slow and not gpu"
 ## Next steps
 
 * **[Quickstart](quickstart.md)**
+* **[Model Weights](../workflows/model-weights.md)** (pretrained plugin weights, no Hugging Face account needed)
 * **[Configuration](../reference/configuration/index.md)**
 * **[Use Cases](../tutorials/index.md)**
