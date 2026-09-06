@@ -401,42 +401,165 @@ class SigmoidNormalizer(_ScoreNormalizerBase):
 
 
 class ZScoreNormalizer(_ScoreNormalizerBase):
-    """Z-score (standardization) normalization along specified dimensions.
+    """Z-score (standardization) normalization, per-sample or with global running stats.
 
-    Computes: (x - mean) / (std + eps) along specified dims.
-    Per-sample normalization with no statistical initialization required.
+    Computes ``(x - mean) / (std + eps)``. Mirrors :class:`MinMaxNormalizer`'s
+    two modes:
+
+    1. **Per-sample normalization** (``use_running_stats=False``, default):
+       mean/std computed in the forward pass along ``dims`` — e.g. the default
+       ``dims=[1, 2]`` standardizes each sample per channel over H, W (per-frame
+       per-band); ``dims=[1, 2, 3]`` uses one scalar per sample.
+
+    2. **Global normalization** (``use_running_stats=True``): mean/std estimated
+       once from training data via ``statistical_initialization()`` (Welford)
+       and serialized in buffers, so training and inference apply identical
+       statistics. ``per_band=True`` keeps one mean/std per spectral channel
+       (nnU-Net-style conditioning; rescales bands individually, which alters
+       per-pixel spectral shape); ``per_band=False`` keeps a single scalar
+       mean/std (preserves relative spectral shape).
 
     Parameters
     ----------
     dims : list[int], optional
-        Dimensions to compute statistics over (default: [1,2] for H,W in BHWC format)
+        Per-sample mode only: dimensions to compute statistics over
+        (default: [1,2] for H,W in BHWC format)
     eps : float, optional
         Small constant for numerical stability (default: 1e-6)
     keepdim : bool, optional
-        Whether to keep reduced dimensions (default: True)
+        Per-sample mode only: whether to keep reduced dimensions (default: True)
+    use_running_stats : bool, optional
+        If True, use global statistics from statistical_initialization(). If
+        False, compute per-sample statistics during forward (default: False —
+        the historical behavior of this node)
+    per_band : bool, optional
+        Global mode only: per-channel statistics (requires ``num_channels``)
+        instead of a single scalar (default: False)
+    num_channels : int, optional
+        Number of spectral channels; required when ``per_band=True`` so the
+        stat buffers can be pre-allocated with a fixed, serializable shape
+    max_init_frames : int, optional
+        Global mode only: cap on the number of frames (batch samples) consumed
+        by ``statistical_initialization()``; ``None`` uses the whole training
+        stream (default: None)
+
+    Attributes
+    ----------
+    zscore_mean : Tensor
+        Global mean (scalar, or ``(num_channels,)`` when ``per_band``)
+    zscore_std : Tensor
+        Global std (scalar, or ``(num_channels,)`` when ``per_band``)
 
     Examples
     --------
-    >>> # Normalize over spatial dimensions (H, W)
+    >>> # Per-sample over spatial dimensions (H, W) — per-frame per-band
     >>> zscore = ZScoreNormalizer(dims=[1, 2])
     >>>
-    >>> # Normalize over all spatial and channel dimensions
-    >>> zscore_all = ZScoreNormalizer(dims=[1, 2, 3])
+    >>> # Global per-band statistics, fit on the first 20 training frames
+    >>> zscore_global = ZScoreNormalizer(
+    ...     use_running_stats=True, per_band=True, num_channels=61, max_init_frames=20
+    ... )
+    >>> stat_trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
+    >>> stat_trainer.fit()  # fills zscore_mean / zscore_std
+
+    See Also
+    --------
+    MinMaxNormalizer : The min-max sibling with the same two-mode contract
     """
 
     _category = NodeCategory.TRANSFORM
     _tags = frozenset({NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
 
+    TRAINABLE_BUFFERS = ("zscore_mean", "zscore_std")
+
     def __init__(
-        self, dims: list[int] | None = None, eps: float = 1e-6, keepdim: bool = True, **kwargs
+        self,
+        dims: list[int] | None = None,
+        eps: float = 1e-6,
+        keepdim: bool = True,
+        use_running_stats: bool = False,
+        per_band: bool = False,
+        num_channels: int | None = None,
+        max_init_frames: int | None = None,
+        **kwargs,
     ) -> None:
         self.dims = dims if dims is not None else [1, 2]
         self.eps = float(eps)
         self.keepdim = keepdim
-        super().__init__(dims=self.dims, eps=eps, keepdim=keepdim, **kwargs)
+        self.use_running_stats = bool(use_running_stats)
+        self.per_band = bool(per_band)
+        self.num_channels = None if num_channels is None else int(num_channels)
+        self.max_init_frames = None if max_init_frames is None else int(max_init_frames)
+        if self.use_running_stats and self.per_band and not self.num_channels:
+            raise ValueError("per_band=True requires num_channels")
+        if self.max_init_frames is not None and self.max_init_frames <= 0:
+            raise ValueError(f"max_init_frames must be positive, got {max_init_frames}")
+        super().__init__(
+            dims=self.dims,
+            eps=eps,
+            keepdim=keepdim,
+            use_running_stats=self.use_running_stats,
+            per_band=self.per_band,
+            num_channels=self.num_channels,
+            max_init_frames=self.max_init_frames,
+            **kwargs,
+        )
+
+        # Running statistics for global normalization (scalar, or per-band).
+        shape = (self.num_channels,) if (self.use_running_stats and self.per_band) else ()
+        self.register_buffer("zscore_mean", torch.zeros(shape))
+        self.register_buffer("zscore_std", torch.ones(shape))
+
+        # Only require initialization when running stats are requested.
+        self._requires_initial_fit_override = self.use_running_stats
+
+    def statistical_initialization(self, input_stream) -> None:
+        """Estimate global mean/std from the training stream (Welford).
+
+        Parameters
+        ----------
+        input_stream : InputStream
+            Iterator yielding dicts matching INPUT_SPECS (port-based format).
+            Consumes the whole stream, or the first ``max_init_frames`` frames
+            when that cap is set.
+        """
+        from cuvis_ai.utils.welford import WelfordAccumulator
+
+        self._statistically_initialized = False
+        n_features = self.num_channels if self.per_band else 1
+        acc = WelfordAccumulator(n_features)
+        frames = 0
+        for batch_data in input_stream:
+            x = batch_data.get("data")
+            if x is None:
+                continue
+            if self.max_init_frames is not None:
+                remaining = self.max_init_frames - frames
+                if remaining <= 0:
+                    break
+                x = x[:remaining]
+            frames += x.shape[0]
+            if self.per_band:
+                if x.shape[-1] != self.num_channels:
+                    raise ValueError(
+                        f"Channel mismatch: expected {self.num_channels}, got {x.shape[-1]}"
+                    )
+                flat = x.contiguous().reshape(-1, self.num_channels)
+            else:
+                flat = x.contiguous().reshape(-1, 1)
+            acc.update(flat)
+
+        if acc.count == 0:
+            raise RuntimeError(
+                "ZScoreNormalizer.statistical_initialization() did not receive any data."
+            )
+
+        self.zscore_mean.copy_(acc.mean.reshape(self.zscore_mean.shape))
+        self.zscore_std.copy_(acc.std.reshape(self.zscore_std.shape))
+        self._statistically_initialized = True
 
     def _normalize(self, tensor: Tensor) -> Tensor:
-        """Apply z-score normalization.
+        """Apply z-score normalization (global running stats, or per-sample).
 
         Parameters
         ----------
@@ -447,15 +570,28 @@ class ZScoreNormalizer(_ScoreNormalizerBase):
         -------
         Tensor
             Z-score normalized tensor
+
+        Raises
+        ------
+        RuntimeError
+            If ``use_running_stats=True`` and ``statistical_initialization()``
+            has not been called.
         """
-        # Compute mean and std along specified dimensions
+        if self.use_running_stats:
+            if not self._statistically_initialized:
+                raise RuntimeError(
+                    "ZScoreNormalizer requires statistical_initialization() before "
+                    "forward() when use_running_stats=True."
+                )
+            mean = self.zscore_mean.to(dtype=tensor.dtype)
+            std = self.zscore_std.to(dtype=tensor.dtype)
+            # Scalar broadcasts everywhere; (C,) broadcasts over the BHWC channel axis.
+            return (tensor - mean) / (std + self.eps)
+
+        # Per-sample statistics along the configured dims.
         mean = tensor.mean(dim=self.dims, keepdim=self.keepdim)
         std = tensor.std(dim=self.dims, keepdim=self.keepdim, unbiased=False)
-
-        # Apply z-score normalization
-        normalized = (tensor - mean) / (std + self.eps)
-
-        return normalized
+        return (tensor - mean) / (std + self.eps)
 
 
 class SigmoidTransform(Node):

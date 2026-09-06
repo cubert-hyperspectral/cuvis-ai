@@ -246,6 +246,8 @@
 - **Dropped the abstract `SAM3TrackerInference` entry from `configs/plugins/sam3.yaml`.** Base
   classes are not instantiable from pipelines, so the manifest now lists only concrete nodes.
 
+- **Added a global running-statistics mode to `ZScoreNormalizer`.** `use_running_stats=True` fits per-band or scalar mean/std across the training set during statistical initialization (Welford accumulation, with a `max_init_frames` cap) and applies the frozen stats at inference, alongside the existing per-sample normalization.
+
 ## 0.11.0 - 2026-07-14
 
 - **Docs: the node catalog now lists plugin capabilities.** The Catalogs â†’ Nodes generator reads
