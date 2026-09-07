@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Docs: the training concept page describes the threshold calibration phase that follows the fit (which deciders re-fit what, where it runs, what the trainrun reports, when it is skipped, the val-on-val caveat) and notes that calibrated thresholds live in the pipeline yaml.
+
 ## 0.15.1 - 2026-09-04
 
 - `BinaryDecider`, `QuantileBinaryDecider` and `TwoStageBinaryDecider` gain `calibrate(scores, targets)`: re-fit the decider's own decision rule to F1-max on a labelled validation split, written to the live attribute and to `hparams`, so the saved pipeline yaml carries the value (the `.pt` is unchanged). This is the node half of the in-training calibration phase; the trainrun hook lands in cuvis-ai-core.
