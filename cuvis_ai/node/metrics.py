@@ -11,6 +11,7 @@ from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
 from torchmetrics import Metric as TorchMetric
 from torchmetrics.classification import (
+    BinaryAUROC,
     BinaryAveragePrecision,
     BinaryF1Score,
     BinaryJaccardIndex,
@@ -296,6 +297,189 @@ class AnomalyDetectionMetrics(Node):
         if self._ap_last_key is None:
             return {}
         return {"average_precision": self.average_precision_metric}
+
+
+class AnomalyAUROCMetrics(Node):
+    """Streaming pixel-AUROC + image-AUROC for anomaly detection (validation / test).
+
+    Mirrors :class:`AnomalyDetectionMetrics`: a ``torchmetrics`` ``BinaryAUROC`` with
+    histogram ``thresholds`` (so per-epoch state is O(thresholds), not the couple-GB-per-epoch
+    CPU concat of every pixel) is accumulated via ``update()`` across batches and reset on the
+    ``(stage, epoch)`` boundary. Each forward emits the *running* AUROC as a
+    :class:`~cuvis_ai_schemas.execution.Metric`, so no bespoke Lightning callback is needed.
+
+    The per-batch ``Metric.value`` emitted by ``forward`` is a running AUROC — a
+    batch-size-sensitive approximation if mean-reduced over the epoch. The authoritative epoch
+    value comes from :meth:`pooled_metrics`: the node lists ``auroc_pixel`` / ``auroc_image`` in
+    ``POOLED_METRIC_NAMES``, so the trainer skips their per-batch float logging and instead logs
+    the live ``BinaryAUROC`` objects with ``on_epoch=True``, and Lightning does one pooled
+    ``compute()`` + ``reset()`` at epoch end — exact and batch-size-invariant. The per-batch
+    values remain on the ``metrics`` port for live monitoring (e.g. the TensorBoard node).
+
+    Scores pass through ``sigmoid`` before the binned metric so the thresholds span ``[0, 1]``;
+    AUROC is rank-invariant under a monotonic transform, so the value is unchanged.
+
+    ``pixel_stride`` trades a little pixel-AUROC resolution for the transient memory the per-step
+    update costs: the score map and the mask are subsampled on H and W before they are flattened,
+    so torchmetrics sees ``ceil(H / s) * ceil(W / s) * B`` elements instead of the full frame. It
+    defaults to 1 (no subsampling, byte-identical to before). The image-level pair is never
+    subsampled — the per-image label is read off the full-resolution mask, so a single anomalous
+    pixel the stride skips still marks the frame anomalous.
+    """
+
+    _category = NodeCategory.METRIC
+    _tags = frozenset({NodeTag.EVALUATION, NodeTag.ANOMALY})
+
+    # auroc_pixel / auroc_image accumulate across the whole epoch and must be reduced by a single
+    # pooled compute() at epoch end, not by averaging the per-batch running values (badly biased
+    # at batch_size=1). The trainer skips these names in per-batch logging and instead logs the
+    # live torchmetrics objects from pooled_metrics() with on_epoch=True, so Lightning does the
+    # pooled compute()+reset() natively. Mirrors AnomalyDetectionMetrics.average_precision.
+    POOLED_METRIC_NAMES: ClassVar[frozenset[str]] = frozenset({"auroc_pixel", "auroc_image"})
+
+    EXECUTION_STAGES = {ExecutionStage.VAL, ExecutionStage.TEST}
+
+    INPUT_SPECS = {
+        "scores": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 1),
+            description="Raw anomaly map [B, H, W, 1]",
+        ),
+        "targets": PortSpec(
+            dtype=torch.bool,
+            shape=(-1, -1, -1, 1),
+            description="Ground-truth pixel masks [B, H, W, 1]",
+        ),
+        "anomaly_score": PortSpec(
+            dtype=torch.float32,
+            shape=(-1,),
+            description="Per-image anomaly score [B]",
+        ),
+    }
+    OUTPUT_SPECS = {
+        "metrics": PortSpec(
+            dtype=list, shape=(), description="List of Metric objects (running AUROC)"
+        ),
+    }
+
+    def __init__(self, thresholds: int = 200, pixel_stride: int = 1, **kwargs: Any) -> None:
+        if isinstance(thresholds, bool) or not isinstance(thresholds, int) or thresholds < 2:
+            raise ValueError(
+                "AnomalyAUROCMetrics: thresholds must be an int >= 2 (histogram bins of the "
+                f"binned AUROC), got {thresholds!r}."
+            )
+        if isinstance(pixel_stride, bool) or not isinstance(pixel_stride, int) or pixel_stride < 1:
+            raise ValueError(
+                "AnomalyAUROCMetrics: pixel_stride must be an int >= 1 (1 = no subsampling), "
+                f"got {pixel_stride!r}."
+            )
+        self.thresholds = thresholds
+        # thresholds / pixel_stride ride into hparams so they survive a pipeline save/restore.
+        super().__init__(thresholds=thresholds, pixel_stride=pixel_stride, **kwargs)
+        self.pixel_stride = pixel_stride
+        self._stride_warn_state: dict[str, Any] = {}
+        # Histogram-based AUROC: O(thresholds) state, accumulated across batches and reset only at
+        # the (stage, epoch) boundary. forward() emits the running value per batch; the pooled
+        # epoch value is logged via pooled_metrics() (see POOLED_METRIC_NAMES). validate_args=False
+        # drops torchmetrics' per-update unique()/sort over every pixel — the ports already
+        # guarantee float scores and a bool mask.
+        self.pixel_auroc = BinaryAUROC(thresholds=thresholds, validate_args=False)
+        self.image_auroc = BinaryAUROC(thresholds=thresholds, validate_args=False)
+        self._last_key: tuple[ExecutionStage, int] | None = None
+
+    @staticmethod
+    def _binned_preds(scores: Tensor) -> Tensor:
+        """Flatten a raw anomaly map and sigmoid it onto ``[0, 1]`` for the binned metric."""
+        return torch.sigmoid(scores.flatten().float())
+
+    def reset(self) -> None:
+        """Reset both AUROC accumulators (called by the Predictor before a run, and by tests)."""
+        self.pixel_auroc.reset()
+        self.image_auroc.reset()
+        self._last_key = None
+
+    def forward(
+        self,
+        scores: Tensor,
+        targets: Tensor,
+        anomaly_score: Tensor,
+        context: Context,
+    ) -> dict[str, Any]:
+        """Accumulate this batch into the pixel/image AUROC and emit the running values.
+
+        Parameters
+        ----------
+        scores : Tensor
+            Raw anomaly map [B, H, W, 1] (not thresholded).
+        targets : Tensor
+            Ground-truth pixel masks [B, H, W, 1] (bool).
+        anomaly_score : Tensor
+            Per-image anomaly score [B].
+        context : Context
+            Execution context with stage, epoch, batch_idx.
+
+        Returns
+        -------
+        dict[str, Any]
+            ``metrics`` — running ``auroc_pixel`` / ``auroc_image`` for this batch.
+        """
+        # Reset on the (stage, epoch) boundary so each epoch accumulates fresh.
+        key = (context.stage, context.epoch)
+        if self._last_key != key:
+            self.pixel_auroc.reset()
+            self.image_auroc.reset()
+            self._last_key = key
+
+        # Image-level label first, off the FULL-resolution mask: any positive pixel makes the
+        # frame anomalous, including one that pixel_stride skips.
+        img_tgts = targets.squeeze(-1).flatten(1).any(dim=1)
+
+        # Pixel-level: subsample H/W before the flatten and the sigmoid, so both the copy and
+        # torchmetrics' per-update confusion matrix scale with the stride. Targets stay bool
+        # (no int64 promotion); the binned update handles bool directly.
+        pixel_scores = subsample_hw(scores, self.pixel_stride)
+        pixel_targets = subsample_hw(targets, self.pixel_stride)
+        warn_below_vectorized_cutoff(
+            self.name, pixel_targets.numel(), targets.numel(), self._stride_warn_state
+        )
+        self.pixel_auroc.update(
+            self._binned_preds(pixel_scores), pixel_targets.squeeze(-1).flatten().bool()
+        )
+        # Image-level: per-image score vs "any GT pixel positive" label (never subsampled).
+        self.image_auroc.update(self._binned_preds(anomaly_score), img_tgts)
+
+        return {
+            "metrics": [
+                Metric(
+                    name="auroc_pixel",
+                    value=float(self.pixel_auroc.compute()),
+                    stage=context.stage,
+                    epoch=context.epoch,
+                    batch_idx=context.batch_idx,
+                ),
+                Metric(
+                    name="auroc_image",
+                    value=float(self.image_auroc.compute()),
+                    stage=context.stage,
+                    epoch=context.epoch,
+                    batch_idx=context.batch_idx,
+                ),
+            ]
+        }
+
+    def pooled_metrics(self) -> dict[str, TorchMetric]:
+        """Live torchmetrics objects for the epoch-pooled AUROCs, keyed by metric name.
+
+        ``auroc_pixel`` / ``auroc_image`` accumulate across the epoch (reset only at the
+        ``(stage, epoch)`` boundary), so the trainer logs these objects with ``on_epoch=True``
+        and Lightning computes the single pooled AUROC and resets at epoch end — exact and
+        batch-size-invariant, unlike the per-batch running values emitted in ``forward``. Returns
+        an empty mapping until the first batch has been seen, so nothing is logged for a run that
+        never produced scores.
+        """
+        if self._last_key is None:
+            return {}
+        return {"auroc_pixel": self.pixel_auroc, "auroc_image": self.image_auroc}
 
 
 class ScoreStatisticsMetric(Node):
@@ -775,6 +959,7 @@ class DistinctLabelCount(Node):
 __all__ = [
     "ExplainedVarianceMetric",
     "AnomalyDetectionMetrics",
+    "AnomalyAUROCMetrics",
     "ScoreStatisticsMetric",
     "ComponentOrthogonalityMetric",
     "SelectorEntropyMetric",

@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+
+- **`AnomalyAUROCMetrics` moved upstream into `cuvis_ai/node/metrics.py`** (beside `AnomalyDetectionMetrics`), so any pipeline can wire a streaming pixel/image AUROC without depending on the Dinomaly plugin. It keeps the native epoch-pooling contract (`POOLED_METRIC_NAMES = {"auroc_pixel", "auroc_image"}` + `pooled_metrics()`, so the trainer logs one exact, batch-size-invariant pooled `compute()` per epoch) and the `pixel_stride` subsampling hparam. Registered in the `cuvis_ai_builtin` manifest, so it resolves via `NodeRegistry` with no plugin installed. The Dinomaly training presets (`dinomaly_rgb.yaml`, `dinomaly_cir.yaml`) and the lentils channel-selector notebook now reference `cuvis_ai.node.metrics.AnomalyAUROCMetrics`; the notebook no longer installs the Dinomaly plugin just for the metric. Already-saved pipelines that reference `cuvis_ai_dinomaly.node.auroc_metrics.AnomalyAUROCMetrics` keep loading via a re-export shim in the plugin (cuvis-ai-dinomaly).
+
 ## 0.15.2 - 2026-09-07
 
 - **`AnomalyDetectionMetrics` gains a `pixel_stride` hparam: the pixel metrics score every s-th row and column instead of every pixel.** `decisions`, `targets` and `logits` are subsampled on H and W before anything is flattened and before the AP sigmoid, so the transient copies a validation step allocated (measured ~20 MiB per step at 1000x1080, from the flattened copies and the duplicate sigmoid) shrink by about `sÂ²`. The default is `1`, so an existing pipeline is bit-for-bit unchanged; the `scores` grid is never touched, so the decider, the mask overlay and the score heatmap still see the full frame. The five torchmetrics objects are also constructed with `validate_args=False` (the per-call check sorted the whole input to prove it was binary, which the typed ports already guarantee), and bool targets are fed as bool instead of being promoted to int64. A `pixel_stride` that is not an int >= 1 is refused by name at construction.

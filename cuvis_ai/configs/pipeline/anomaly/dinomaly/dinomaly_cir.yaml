@@ -66,7 +66,7 @@ nodes:
   hparams:
     pixel_stride: 2   # score every 2nd row/column; 1000x1080 -> 270k px per frame
 - name: metrics_auroc
-  class_name: cuvis_ai_dinomaly.node.auroc_metrics.AnomalyAUROCMetrics
+  class_name: cuvis_ai.node.metrics.AnomalyAUROCMetrics
   hparams:
     thresholds: 200
     pixel_stride: 2
