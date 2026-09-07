@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.16.0 - unreleased
+## 0.16.0 - 2026-09-07
 
 - Plugin manifests carry the weights their plugins need: `emit_metadata` projected the `WEIGHTS` tuples of sam3, rtsam2, adaclip and dinomaly into a `weights:` block of `sam3.yaml`, `rtsam2.yaml`, `adaclip.yaml` and `dinomaly.yaml` (pins, sizes, licences, `used_for` labels, selector and explicit-path hparams), and `cuvis_ai/configs/plugins/weights.index.json` is the registry cuvis-ai-core builds from them (`download-model list --json`), regenerated with `uv run python -m scripts.weights_index` and kept byte-exact by `tests/plugins/test_weights_declarations.py`; the new `weights_compat` workflow installs each plugin at its pinned tag and runs `emit_metadata --check` whenever a manifest changes. Plugin pins: sam3, rtsam2 and adaclip `v0.5.0`, dinomaly `v0.8.0`. Floors `cuvis-ai-core>=0.17.1` (plugin-declared registry, `download-model status/export/import/remove/schema` with `--plugins-dir` and `--progress-json`, datasets marker contract; the built-in plugin rows left core, so upgrade the plugins together with core) and `cuvis-ai-schemas[full]>=0.12.0` (`PluginWeightEntry`).
 - The Model Weights page covers the cache contract, `status --verify`, the export/import runbook for training rooms and air-gapped sites, `remove`, the CuvisNEXT path, a troubleshooting table and the plugin-author contract (`weights.py`, `ModelWeights.register`, `emit_metadata`, the index and the release step); the plugin development guide points at it.
