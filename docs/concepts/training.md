@@ -354,6 +354,45 @@ training_config = TrainingConfig(
 
 ---
 
+## Threshold Calibration After Training
+
+*Fit the decider's thresholds to the trained model's scores.*
+
+Training moves the score distribution, so a decider threshold tuned for one set of weights misfits the next. After the fit, the trainrun runs the trained pipeline over the validation split, collects the scores feeding each decider together with the ground-truth `mask`, and calls `decider.calibrate(scores, targets)`. Each decider re-fits its own rule to the F1 optimum:
+
+- `BinaryDecider` sweeps its `threshold` in the float32 sigmoid-probability space that `forward` compares in.
+- `QuantileBinaryDecider` sweeps its per-frame `quantile`.
+- `TwoStageBinaryDecider` sweeps the image gate and the absolute pixel threshold on a 2-D grid: the gate at the frame-level F1 optimum, the pixel threshold at the pixel-level F1 optimum on the gated frames.
+
+The stored value is the midpoint of the F1 plateau rather than the score of one sample, so a new frame that lands next to a training sample is decided the same way. Calibrated values are ordinary hparams: `pipeline.save_to_file` writes them into the pipeline yaml, and the `.pt` weights are unchanged. A preset that ships `image_threshold` and `pixel_threshold` as `null` gets both filled by this phase.
+
+Where it runs (cuvis-ai-core 0.16.2 and later):
+
+- `restore-trainrun` in train mode, after the statistical or gradient fit and before the save; the log carries `Calibration: thresholds calibrated on val: ...`.
+- The gRPC `Train` service, gradient and statistical alike; the completion `TrainResponse.message` ends with `thresholds calibrated on val: gate (image_threshold 2.5, pixel_threshold 2.5)` or `thresholds not calibrated: <reason>`, which CuvisNEXT shows as the training status.
+- By hand: the `calibrate-thresholds` CLI runs the same sweep over a saved training run and prints the values to put into the yaml.
+
+The phase never costs the trained weights. It is skipped, with the reason in its outcome, when the pipeline has no decider that implements `calibrate`, when the validation split holds only normal or only anomalous frames, when no node produces a ground-truth `mask` (or two do), or when `calibrate` raises: the deciders raise `CalibrationError` for a shape mismatch, non-finite scores, single-class targets, or a `reduce_dims` the sweep cannot honour. The save then proceeds with the preset's thresholds.
+
+Two things to keep in mind:
+
+- Metrics reported on the same validation split after calibration are optimistic, because the thresholds were chosen on it. Judge the model on the test split.
+- The calibration pass is a full inference forward over the split, so sink nodes in the pipeline (video or JSON writers) fire once more.
+
+In a notebook, call the method directly on the scores you collected:
+
+```python
+# scores: [N, H, W, C] detector output over a labelled split
+# targets: [N, H, W] or [N, H, W, C] ground-truth mask
+report = decider.calibrate(scores, targets)
+print(report)
+# {'class': 'TwoStageBinaryDecider',
+#  'image_threshold': {'old': None, 'new': 2.5},
+#  'pixel_threshold': {'old': None, 'new': 2.5}, 'f1': 0.93, ...}
+```
+
+---
+
 ## Complete Two-Phase Example
 
 ```python
@@ -481,6 +520,8 @@ pipeline.save_to_file(
 )
 # Generates: outputs/trained_pipeline.yaml, outputs/trained_pipeline.pt
 ```
+
+Calibrated decider thresholds are part of the yaml's hparams, so load the yaml written after training rather than the preset it started from.
 
 ### Loading a Saved Pipeline
 
