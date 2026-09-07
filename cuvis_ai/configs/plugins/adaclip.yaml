@@ -7,7 +7,7 @@
 name: adaclip
 # AdaCLIP-based anomaly detection with advanced band selection
 repo: "https://github.com/cubert-hyperspectral/cuvis-ai-adaclip.git"
-tag: "v0.4.0"
+tag: "v0.5.0"
 package_name: "cuvis-ai-adaclip"
 capabilities:
 - class_name: cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
@@ -74,3 +74,58 @@ capabilities:
       optional: false
       description: Combined focal + dice loss
   doc_summary: Combined Focal + Dice loss for AdaCLIP training.
+weights:
+- name: adaclip_mvtec_colondb
+  display_name: AdaCLIP head (MVTec AD, ColonDB)
+  summary: Zero-shot anomaly detection, MVTec AD and ColonDB head
+  used_for: [Anomaly detection, Zero-shot]
+  repo_id: cubert-gmbh/adaclip
+  filename: pretrained_mvtec_colondb.pth
+  revision: 16153b4ba74c2fe54a99679fc2e1b1e29993dc3f
+  sha256: be51a42c052bd4cf060e54f503a1f5d0b2a3b899bc8dc2e243042f18b215427e
+  size_bytes: 42673907
+  license: 'unspecified (code: MIT)'
+  aliases: [pretrained_mvtec_colondb]
+  selected_by: weight_name
+  explicit_path_hparams: [checkpoint_path]
+  description: 'AdaCLIP prompt head trained on MVTec AD and ColonDB (the upstream weights table labels it MVTec AD & ClinicDB); weight_name: pretrained_mvtec_colondb.'
+- name: adaclip_visa_clinicdb
+  display_name: AdaCLIP head (VisA, ClinicDB)
+  summary: Zero-shot anomaly detection, VisA and ClinicDB head
+  used_for: [Anomaly detection, Zero-shot]
+  repo_id: cubert-gmbh/adaclip
+  filename: pretrained_visa_clinicdb.pth
+  revision: 16153b4ba74c2fe54a99679fc2e1b1e29993dc3f
+  sha256: 3deabbbaf1e412cfdfcb42923a500b986f4b9ee96ccbc7a735d89dbc87df44c8
+  size_bytes: 42673907
+  license: 'unspecified (code: MIT)'
+  aliases: [pretrained_visa_clinicdb]
+  selected_by: weight_name
+  explicit_path_hparams: [checkpoint_path]
+  description: 'AdaCLIP prompt head trained on VisA and ClinicDB (the upstream weights table labels it VisA & ColonDB); weight_name: pretrained_visa_clinicdb.'
+- name: adaclip_all
+  display_name: AdaCLIP head (all datasets)
+  summary: Zero-shot anomaly detection; the default AdaCLIP head
+  used_for: [Anomaly detection, Zero-shot]
+  repo_id: cubert-gmbh/adaclip
+  filename: pretrained_all.pth
+  revision: 16153b4ba74c2fe54a99679fc2e1b1e29993dc3f
+  sha256: 33e8d3db1cb4aab030866b8b70a46e10aa27ebf2c23b5463cb07f2574addd98c
+  size_bytes: 42673907
+  license: 'unspecified (code: MIT)'
+  aliases: [pretrained_all]
+  selected_by: weight_name
+  default: true
+  explicit_path_hparams: [checkpoint_path]
+  description: AdaCLIP prompt head trained on all upstream datasets (MVTec AD, VisA, ColonDB, ClinicDB and more); the head an AdaCLIPDetector loads when weight_name is not set.
+- name: clip_vit_l_14_336
+  display_name: CLIP ViT-L/14 at 336 px
+  summary: Backbone every AdaCLIP head needs
+  used_for: [Backbone, Anomaly detection]
+  repo_id: cubert-gmbh/clip
+  filename: ViT-L-14-336px.pt
+  revision: a223b3db0b7bd1b55cf8f6421629b30b46c995de
+  sha256: 3035c92b350959924f9f00213499208652fc7ea050643e8b385c2dac08641f02
+  size_bytes: 934088680
+  license: 'unspecified (code: MIT)'
+  description: OpenAI CLIP ViT-L/14 at 336 px, the frozen backbone every AdaCLIP head runs on; materialized into the OpenCLIP cache the vendored loader reads (mirror of the OpenAI release, unmodified).

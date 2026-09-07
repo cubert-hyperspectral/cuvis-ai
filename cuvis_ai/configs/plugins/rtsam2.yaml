@@ -10,7 +10,7 @@ name: rtsam2
 # For local development against a checkout, comment the repo/tag pin and use:
 # path: "D:/code-repos/cuvis-ai-rtsam2/cuvis-ai-rtsam2"
 repo: "https://github.com/cubert-hyperspectral/cuvis-ai-rtsam2.git"
-tag: "v0.4.0"
+tag: "v0.5.0"
 package_name: "cuvis-ai-rtsam2"
 capabilities:
 - class_name: cuvis_ai_rtsam2.node.rtsam2_streaming_propagation.RTSAM2BboxPropagation
@@ -124,3 +124,62 @@ capabilities:
       optional: false
       description: ''
   doc_summary: Expand positive/negative click points into one object mask on a single frame.
+weights:
+- name: efficienttam_s
+  display_name: RTSAM (EfficientTAM small)
+  summary: Point expansion, propagation; the default RTSAM variant
+  used_for: [Point expansion, Propagation]
+  repo_id: cubert-gmbh/efficient-track-anything
+  filename: efficienttam_s.pt
+  revision: 3dfd0228d7774b94c24116cf729e03c209ff448a
+  sha256: 2b572be30d9e96ee29c8d785fe157c6b079ede7d56fbc8a3671d4120e63c89cd
+  size_bytes: 136375868
+  license: Apache-2.0
+  license_file: LICENSE
+  aliases: [efficienttam]
+  selected_by: model_type
+  default: true
+  explicit_path_hparams: [model_dir]
+  description: 'EfficientTAM small checkpoint, the variant an rtsam2 pipeline gets when it sets no model_type (or model_type: efficienttam).'
+- name: efficienttam_ti
+  display_name: RTSAM (EfficientTAM tiny)
+  summary: Point expansion, propagation; smaller and faster
+  used_for: [Point expansion, Propagation]
+  repo_id: cubert-gmbh/efficient-track-anything
+  filename: efficienttam_ti.pt
+  revision: 3dfd0228d7774b94c24116cf729e03c209ff448a
+  sha256: acbb17b28cca1f860acee09c9ecb6efdb732080dc7a85a07292c31813175fa7d
+  size_bytes: 71616316
+  license: Apache-2.0
+  license_file: LICENSE
+  selected_by: model_type
+  explicit_path_hparams: [model_dir]
+  description: 'EfficientTAM tiny checkpoint (model_type: efficienttam_ti).'
+- name: efficienttam_s_512x512
+  display_name: RTSAM (EfficientTAM small, 512 px)
+  summary: Point expansion, propagation at 512 x 512 input
+  used_for: [Point expansion, Propagation]
+  repo_id: cubert-gmbh/efficient-track-anything
+  filename: efficienttam_s_512x512.pt
+  revision: 3dfd0228d7774b94c24116cf729e03c209ff448a
+  sha256: 67b5840012737ed2c94a4cb8787c5c1b27b3a946045d2e602e65ef77230b6085
+  size_bytes: 136379145
+  license: Apache-2.0
+  license_file: LICENSE
+  selected_by: model_type
+  explicit_path_hparams: [model_dir]
+  description: 'EfficientTAM small checkpoint for 512 x 512 input (model_type: efficienttam_s_512x512).'
+- name: efficienttam_ti_512x512
+  display_name: RTSAM (EfficientTAM tiny, 512 px)
+  summary: Point expansion, propagation at 512 x 512 input, smallest
+  used_for: [Point expansion, Propagation]
+  repo_id: cubert-gmbh/efficient-track-anything
+  filename: efficienttam_ti_512x512.pt
+  revision: 3dfd0228d7774b94c24116cf729e03c209ff448a
+  sha256: 7d4d652a465f0081391050932f45d8a66768ccc99c8ea393ce8a5927e83f3b9b
+  size_bytes: 71620052
+  license: Apache-2.0
+  license_file: LICENSE
+  selected_by: model_type
+  explicit_path_hparams: [model_dir]
+  description: 'EfficientTAM tiny checkpoint for 512 x 512 input (model_type: efficienttam_ti_512x512).'

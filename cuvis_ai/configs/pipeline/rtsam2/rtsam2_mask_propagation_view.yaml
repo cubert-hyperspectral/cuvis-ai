@@ -21,5 +21,5 @@ nodes:
   class_name: cuvis_ai_rtsam2.node.rtsam2_streaming_propagation.RTSAM2MaskPropagation
   hparams:
     model_type: efficienttam
-    # model_dir: checkpoints  # absolute path, or relative to the rtsam2 repo root
+    # model_dir: checkpoints  # optional local folder; default: the shared cache (download-model download efficienttam_s)
 connections: []

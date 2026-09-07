@@ -41,7 +41,7 @@ build-backend = "hatchling.build"
 - Define `INPUT_SPECS` and `OUTPUT_SPECS`.
 - Implement `forward()`.
 - Pass serializable constructor arguments through `super().__init__(...)`.
-- Load pretrained weights through `ModelWeights.resolve()` or `ModelWeights.materialize()` from `cuvis_ai_core.data.model_weights` instead of hardcoding an upstream repo id, so the offline child runtime finds what `download-model` provisioned (see [Model Weights](../../workflows/model-weights.md)).
+- Declare pretrained weights in a side-effect-free `weights.py` (`WEIGHTS`, a tuple of `cuvis_ai_schemas.plugin.PluginWeightEntry` rows pinned to a `cubert-gmbh` mirror) that the package registers with `ModelWeights.register` at import, and load them through `ModelWeights.resolve()` or `ModelWeights.materialize()` from `cuvis_ai_core.data.model_weights` instead of hardcoding an upstream repo id. cuvis-ai's `emit_metadata` projects the tuple into the plugin manifest's `weights:` block, so the offline child runtime and CuvisNEXT find what `download-model` provisioned (see [Model Weights](../../workflows/model-weights.md)).
 
 ## Manifest for Local Development
 
