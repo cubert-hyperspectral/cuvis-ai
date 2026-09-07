@@ -7,7 +7,7 @@
 name: sam3
 # SAM3-based video object tracking plugin.
 repo: "https://github.com/cubert-hyperspectral/cuvis-ai-sam3.git"
-tag: "v0.4.0"  # decord gated to platforms with wheels (aarch64 child envs compose)
+tag: "v0.5.0"  # decord gated to platforms with wheels (aarch64 child envs compose)
 package_name: "cuvis-ai-sam3"
 capabilities:
 - class_name: cuvis_ai_sam3.node.SAM3TextPropagation
@@ -237,3 +237,19 @@ capabilities:
       optional: false
       description: ''
   doc_summary: Expand positive/negative click points into one object mask on a single frame.
+weights:
+- name: sam3
+  display_name: SAM3
+  summary: Magic wand, propagation, text prompts
+  used_for: [Point expansion, Propagation, Text prompts, Segment everything]
+  repo_id: cubert-gmbh/sam3
+  filename: sam3.pt
+  revision: 6d25af14a085ff9d3e1342c35bae7c87de4811f4
+  sha256: 9999e2341ceef5e136daa386eecb55cb414446a00ac2b55eb2dfd2f7c3cf8c9e
+  size_bytes: 3450062241
+  aux_files:
+  - {path: config.json, size_bytes: 25843, sha256: 4616385e4b21f2e5e22c875b65679185cbccfa95de42542b9166f7dc3d57160f}
+  license: SAM License
+  license_file: LICENSE
+  explicit_path_hparams: [checkpoint_path]
+  description: SAM3 checkpoint for the magic-wand point expansion, text / box / mask propagation and segment-everything nodes; every sam3 node needs it unless checkpoint_path points at a local file (mirror of facebook/sam3 at 3c879f39).

@@ -1,0 +1,495 @@
+{
+  "schema_version": 1,
+  "used_for_labels": [
+    "Point expansion",
+    "Propagation",
+    "Text prompts",
+    "Segment everything",
+    "Anomaly detection",
+    "Zero-shot",
+    "Backbone",
+    "Trained pipeline"
+  ],
+  "weights_hosts": [
+    "huggingface.co",
+    "us.aws.cdn.hf.co"
+  ],
+  "models": [
+    {
+      "name": "adaclip_all",
+      "display_name": "AdaCLIP head (all datasets)",
+      "summary": "Zero-shot anomaly detection; the default AdaCLIP head",
+      "used_for": [
+        "Anomaly detection",
+        "Zero-shot"
+      ],
+      "plugin": "adaclip",
+      "family": "adaclip",
+      "kind": "weights",
+      "aux_files": [],
+      "repo_id": "cubert-gmbh/adaclip",
+      "filename": "pretrained_all.pth",
+      "revision": "16153b4ba74c2fe54a99679fc2e1b1e29993dc3f",
+      "sha256": "33e8d3db1cb4aab030866b8b70a46e10aa27ebf2c23b5463cb07f2574addd98c",
+      "size_bytes": 42673907,
+      "total_bytes": 42673907,
+      "license": "unspecified (code: MIT)",
+      "license_file": null,
+      "aliases": [
+        "pretrained_all"
+      ],
+      "selected_by": "weight_name",
+      "default": true,
+      "plugin_default": true,
+      "explicit_path_hparams": [
+        "checkpoint_path"
+      ],
+      "cache_dir_name": "models--cubert-gmbh--adaclip",
+      "description": "AdaCLIP prompt head trained on all upstream datasets (MVTec AD, VisA, ColonDB, ClinicDB and more); the head an AdaCLIPDetector loads when weight_name is not set.",
+      "source": "manifest",
+      "pin_mismatch": false
+    },
+    {
+      "name": "adaclip_mvtec_colondb",
+      "display_name": "AdaCLIP head (MVTec AD, ColonDB)",
+      "summary": "Zero-shot anomaly detection, MVTec AD and ColonDB head",
+      "used_for": [
+        "Anomaly detection",
+        "Zero-shot"
+      ],
+      "plugin": "adaclip",
+      "family": "adaclip",
+      "kind": "weights",
+      "aux_files": [],
+      "repo_id": "cubert-gmbh/adaclip",
+      "filename": "pretrained_mvtec_colondb.pth",
+      "revision": "16153b4ba74c2fe54a99679fc2e1b1e29993dc3f",
+      "sha256": "be51a42c052bd4cf060e54f503a1f5d0b2a3b899bc8dc2e243042f18b215427e",
+      "size_bytes": 42673907,
+      "total_bytes": 42673907,
+      "license": "unspecified (code: MIT)",
+      "license_file": null,
+      "aliases": [
+        "pretrained_mvtec_colondb"
+      ],
+      "selected_by": "weight_name",
+      "default": false,
+      "plugin_default": false,
+      "explicit_path_hparams": [
+        "checkpoint_path"
+      ],
+      "cache_dir_name": "models--cubert-gmbh--adaclip",
+      "description": "AdaCLIP prompt head trained on MVTec AD and ColonDB (the upstream weights table labels it MVTec AD & ClinicDB); weight_name: pretrained_mvtec_colondb.",
+      "source": "manifest",
+      "pin_mismatch": false
+    },
+    {
+      "name": "adaclip_visa_clinicdb",
+      "display_name": "AdaCLIP head (VisA, ClinicDB)",
+      "summary": "Zero-shot anomaly detection, VisA and ClinicDB head",
+      "used_for": [
+        "Anomaly detection",
+        "Zero-shot"
+      ],
+      "plugin": "adaclip",
+      "family": "adaclip",
+      "kind": "weights",
+      "aux_files": [],
+      "repo_id": "cubert-gmbh/adaclip",
+      "filename": "pretrained_visa_clinicdb.pth",
+      "revision": "16153b4ba74c2fe54a99679fc2e1b1e29993dc3f",
+      "sha256": "3deabbbaf1e412cfdfcb42923a500b986f4b9ee96ccbc7a735d89dbc87df44c8",
+      "size_bytes": 42673907,
+      "total_bytes": 42673907,
+      "license": "unspecified (code: MIT)",
+      "license_file": null,
+      "aliases": [
+        "pretrained_visa_clinicdb"
+      ],
+      "selected_by": "weight_name",
+      "default": false,
+      "plugin_default": false,
+      "explicit_path_hparams": [
+        "checkpoint_path"
+      ],
+      "cache_dir_name": "models--cubert-gmbh--adaclip",
+      "description": "AdaCLIP prompt head trained on VisA and ClinicDB (the upstream weights table labels it VisA & ColonDB); weight_name: pretrained_visa_clinicdb.",
+      "source": "manifest",
+      "pin_mismatch": false
+    },
+    {
+      "name": "clip_vit_l_14_336",
+      "display_name": "CLIP ViT-L/14 at 336 px",
+      "summary": "Backbone every AdaCLIP head needs",
+      "used_for": [
+        "Backbone",
+        "Anomaly detection"
+      ],
+      "plugin": "adaclip",
+      "family": "clip",
+      "kind": "weights",
+      "aux_files": [],
+      "repo_id": "cubert-gmbh/clip",
+      "filename": "ViT-L-14-336px.pt",
+      "revision": "a223b3db0b7bd1b55cf8f6421629b30b46c995de",
+      "sha256": "3035c92b350959924f9f00213499208652fc7ea050643e8b385c2dac08641f02",
+      "size_bytes": 934088680,
+      "total_bytes": 934088680,
+      "license": "unspecified (code: MIT)",
+      "license_file": null,
+      "aliases": [],
+      "selected_by": null,
+      "default": false,
+      "plugin_default": true,
+      "explicit_path_hparams": [],
+      "cache_dir_name": "models--cubert-gmbh--clip",
+      "description": "OpenAI CLIP ViT-L/14 at 336 px, the frozen backbone every AdaCLIP head runs on; materialized into the OpenCLIP cache the vendored loader reads (mirror of the OpenAI release, unmodified).",
+      "source": "manifest",
+      "pin_mismatch": false
+    },
+    {
+      "name": "dinomaly_bedding_all6",
+      "display_name": "Dinomaly, bedding (all six classes)",
+      "summary": "Trained anomaly detector for the bedding dataset",
+      "used_for": [
+        "Anomaly detection",
+        "Trained pipeline"
+      ],
+      "plugin": "dinomaly",
+      "family": "dinomaly-bedding-all6",
+      "kind": "trained_pipeline",
+      "aux_files": [
+        {
+          "path": "dinomaly_bedding_all6.yaml",
+          "size_bytes": 3392,
+          "sha256": "90e45074be10d0f1638a195c803e7b3658fa448c2d6a071ad4fb9148ceb35ab3"
+        }
+      ],
+      "repo_id": "cubert-gmbh/dinomaly-bedding-all6",
+      "filename": "dinomaly_bedding_all6.pt",
+      "revision": "271c06017bbe3fb7f629c30c5ca197ac01466b6f",
+      "sha256": "f023ceeb629a95138826323fa58ee360a277a1790db3169a31183d3e30145e4f",
+      "size_bytes": 593813967,
+      "total_bytes": 593817359,
+      "license": "unspecified",
+      "license_file": null,
+      "aliases": [],
+      "selected_by": null,
+      "default": false,
+      "plugin_default": false,
+      "explicit_path_hparams": [],
+      "cache_dir_name": "models--cubert-gmbh--dinomaly-bedding-all6",
+      "description": "Dinomaly pipeline trained on the X4 SWIR bedding foreign-object dataset; the .pt plus its pipeline yaml, loaded through the pipeline picker's trained-weights path (cubert-gmbh/dinomaly-bedding-all6).",
+      "source": "dict",
+      "pin_mismatch": false
+    },
+    {
+      "name": "dinomaly_lentils_cir",
+      "display_name": "Dinomaly, lentils demo (CIR input)",
+      "summary": "Trained anomaly detector for the lentils demo, CIR input",
+      "used_for": [
+        "Anomaly detection",
+        "Trained pipeline"
+      ],
+      "plugin": "dinomaly",
+      "family": "XMR_Demo_Industrial_Foreign_Object_Detection_Lentils",
+      "kind": "trained_pipeline",
+      "aux_files": [
+        {
+          "path": "dinomaly_cir_full_pipeline/dinomaly_cir.yaml",
+          "size_bytes": 2744,
+          "sha256": "e9a8ebbea078bbe1fef8445caaed5b7f4c9030899fdb82ab4143e6197e0ba280"
+        }
+      ],
+      "repo_id": "cubert-gmbh/XMR_Demo_Industrial_Foreign_Object_Detection_Lentils",
+      "filename": "dinomaly_cir_full_pipeline/dinomaly_cir.pt",
+      "revision": "2e2c592b616d4b82de97ca3a26a061874e002303",
+      "sha256": "bf39bd966ed0079f591082e18388648441a21f9ccb4819801154d070597fd601",
+      "size_bytes": 592005300,
+      "total_bytes": 592008044,
+      "license": "Apache-2.0",
+      "license_file": null,
+      "aliases": [],
+      "selected_by": null,
+      "default": false,
+      "plugin_default": false,
+      "explicit_path_hparams": [],
+      "cache_dir_name": "models--cubert-gmbh--XMR_Demo_Industrial_Foreign_Object_Detection_Lentils",
+      "description": "Dinomaly pipeline trained on the lentils foreign-object demo with a CIR channel selector in front of the encoder (cubert-gmbh/XMR_Demo_Industrial_Foreign_Object_Detection_Lentils, dinomaly_cir_full_pipeline).",
+      "source": "dict",
+      "pin_mismatch": false
+    },
+    {
+      "name": "dinomaly_lentils_custom",
+      "display_name": "Dinomaly, lentils demo (custom channel selector)",
+      "summary": "Trained anomaly detector for the lentils demo, custom bands",
+      "used_for": [
+        "Anomaly detection",
+        "Trained pipeline"
+      ],
+      "plugin": "dinomaly",
+      "family": "XMR_Demo_Industrial_Foreign_Object_Detection_Lentils",
+      "kind": "trained_pipeline",
+      "aux_files": [
+        {
+          "path": "dinomaly_custom_selector_full_pipeline/dinomaly_custom.yaml",
+          "size_bytes": 2734,
+          "sha256": "9b4a92a38d4e599e1709450314b8a883c9a24a0f7d38c83d8f6b0f8b2185080d"
+        }
+      ],
+      "repo_id": "cubert-gmbh/XMR_Demo_Industrial_Foreign_Object_Detection_Lentils",
+      "filename": "dinomaly_custom_selector_full_pipeline/dinomaly_custom.pt",
+      "revision": "2e2c592b616d4b82de97ca3a26a061874e002303",
+      "sha256": "d25f873dbaab0f7d9a80c0fad9a38f646f991f8cd0b41039949cfba95c2da2ef",
+      "size_bytes": 592011077,
+      "total_bytes": 592013811,
+      "license": "Apache-2.0",
+      "license_file": null,
+      "aliases": [],
+      "selected_by": null,
+      "default": false,
+      "plugin_default": false,
+      "explicit_path_hparams": [],
+      "cache_dir_name": "models--cubert-gmbh--XMR_Demo_Industrial_Foreign_Object_Detection_Lentils",
+      "description": "Dinomaly pipeline trained on the lentils foreign-object demo with a custom channel selector (cubert-gmbh/XMR_Demo_Industrial_Foreign_Object_Detection_Lentils, dinomaly_custom_selector_full_pipeline).",
+      "source": "dict",
+      "pin_mismatch": false
+    },
+    {
+      "name": "dinomaly_lentils_rgb",
+      "display_name": "Dinomaly, lentils demo (RGB input)",
+      "summary": "Trained anomaly detector for the lentils demo, RGB input",
+      "used_for": [
+        "Anomaly detection",
+        "Trained pipeline"
+      ],
+      "plugin": "dinomaly",
+      "family": "XMR_Demo_Industrial_Foreign_Object_Detection_Lentils",
+      "kind": "trained_pipeline",
+      "aux_files": [
+        {
+          "path": "dinomaly_rgb_full_pipeline/dinomaly_rgb.yaml",
+          "size_bytes": 2770,
+          "sha256": "35a5df5589f4c232374d03f92c407455f74fe47b182b47d956fdbc8611c038d5"
+        }
+      ],
+      "repo_id": "cubert-gmbh/XMR_Demo_Industrial_Foreign_Object_Detection_Lentils",
+      "filename": "dinomaly_rgb_full_pipeline/dinomaly_rgb.pt",
+      "revision": "2e2c592b616d4b82de97ca3a26a061874e002303",
+      "sha256": "94e9d292e86b1527710d8b007ef9380a425161feea02b04d5e94037b097f2bd3",
+      "size_bytes": 592005300,
+      "total_bytes": 592008070,
+      "license": "Apache-2.0",
+      "license_file": null,
+      "aliases": [],
+      "selected_by": null,
+      "default": false,
+      "plugin_default": false,
+      "explicit_path_hparams": [],
+      "cache_dir_name": "models--cubert-gmbh--XMR_Demo_Industrial_Foreign_Object_Detection_Lentils",
+      "description": "Dinomaly pipeline trained on the lentils foreign-object demo with a false-RGB front end (cubert-gmbh/XMR_Demo_Industrial_Foreign_Object_Detection_Lentils, dinomaly_rgb_full_pipeline).",
+      "source": "dict",
+      "pin_mismatch": false
+    },
+    {
+      "name": "dinov2_vitb14_reg4",
+      "display_name": "DINOv2 ViT-B/14 (reg4)",
+      "summary": "Backbone every Dinomaly detector needs",
+      "used_for": [
+        "Backbone",
+        "Anomaly detection"
+      ],
+      "plugin": "dinomaly",
+      "family": "dinov2",
+      "kind": "weights",
+      "aux_files": [],
+      "repo_id": "cubert-gmbh/dinov2",
+      "filename": "dinov2_vitb14_reg4_pretrain.pth",
+      "revision": "e2c8060a74112f7537484ed50097b1497d5f032c",
+      "sha256": "73182a088cf94833c94b1666d1c99e02fe87e2007bff57b564fb6206e25dba71",
+      "size_bytes": 346393545,
+      "total_bytes": 346393545,
+      "license": "Apache-2.0",
+      "license_file": "LICENSE",
+      "aliases": [],
+      "selected_by": null,
+      "default": false,
+      "plugin_default": true,
+      "explicit_path_hparams": [],
+      "cache_dir_name": "models--cubert-gmbh--dinov2",
+      "description": "DINOv2 ViT-B/14 backbone with four register tokens; every DinomalyDetector loads it through anomalib's DinoV2Loader, and training a Dinomaly pipeline starts from it (mirror of Meta's dinov2_vitb14_reg4_pretrain.pth, unmodified).",
+      "source": "manifest",
+      "pin_mismatch": false
+    },
+    {
+      "name": "efficienttam_s",
+      "display_name": "RTSAM (EfficientTAM small)",
+      "summary": "Point expansion, propagation; the default RTSAM variant",
+      "used_for": [
+        "Point expansion",
+        "Propagation"
+      ],
+      "plugin": "rtsam2",
+      "family": "efficient-track-anything",
+      "kind": "weights",
+      "aux_files": [],
+      "repo_id": "cubert-gmbh/efficient-track-anything",
+      "filename": "efficienttam_s.pt",
+      "revision": "3dfd0228d7774b94c24116cf729e03c209ff448a",
+      "sha256": "2b572be30d9e96ee29c8d785fe157c6b079ede7d56fbc8a3671d4120e63c89cd",
+      "size_bytes": 136375868,
+      "total_bytes": 136375868,
+      "license": "Apache-2.0",
+      "license_file": "LICENSE",
+      "aliases": [
+        "efficienttam"
+      ],
+      "selected_by": "model_type",
+      "default": true,
+      "plugin_default": true,
+      "explicit_path_hparams": [
+        "model_dir"
+      ],
+      "cache_dir_name": "models--cubert-gmbh--efficient-track-anything",
+      "description": "EfficientTAM small checkpoint, the variant an rtsam2 pipeline gets when it sets no model_type (or model_type: efficienttam).",
+      "source": "manifest",
+      "pin_mismatch": false
+    },
+    {
+      "name": "efficienttam_s_512x512",
+      "display_name": "RTSAM (EfficientTAM small, 512 px)",
+      "summary": "Point expansion, propagation at 512 x 512 input",
+      "used_for": [
+        "Point expansion",
+        "Propagation"
+      ],
+      "plugin": "rtsam2",
+      "family": "efficient-track-anything",
+      "kind": "weights",
+      "aux_files": [],
+      "repo_id": "cubert-gmbh/efficient-track-anything",
+      "filename": "efficienttam_s_512x512.pt",
+      "revision": "3dfd0228d7774b94c24116cf729e03c209ff448a",
+      "sha256": "67b5840012737ed2c94a4cb8787c5c1b27b3a946045d2e602e65ef77230b6085",
+      "size_bytes": 136379145,
+      "total_bytes": 136379145,
+      "license": "Apache-2.0",
+      "license_file": "LICENSE",
+      "aliases": [],
+      "selected_by": "model_type",
+      "default": false,
+      "plugin_default": false,
+      "explicit_path_hparams": [
+        "model_dir"
+      ],
+      "cache_dir_name": "models--cubert-gmbh--efficient-track-anything",
+      "description": "EfficientTAM small checkpoint for 512 x 512 input (model_type: efficienttam_s_512x512).",
+      "source": "manifest",
+      "pin_mismatch": false
+    },
+    {
+      "name": "efficienttam_ti",
+      "display_name": "RTSAM (EfficientTAM tiny)",
+      "summary": "Point expansion, propagation; smaller and faster",
+      "used_for": [
+        "Point expansion",
+        "Propagation"
+      ],
+      "plugin": "rtsam2",
+      "family": "efficient-track-anything",
+      "kind": "weights",
+      "aux_files": [],
+      "repo_id": "cubert-gmbh/efficient-track-anything",
+      "filename": "efficienttam_ti.pt",
+      "revision": "3dfd0228d7774b94c24116cf729e03c209ff448a",
+      "sha256": "acbb17b28cca1f860acee09c9ecb6efdb732080dc7a85a07292c31813175fa7d",
+      "size_bytes": 71616316,
+      "total_bytes": 71616316,
+      "license": "Apache-2.0",
+      "license_file": "LICENSE",
+      "aliases": [],
+      "selected_by": "model_type",
+      "default": false,
+      "plugin_default": false,
+      "explicit_path_hparams": [
+        "model_dir"
+      ],
+      "cache_dir_name": "models--cubert-gmbh--efficient-track-anything",
+      "description": "EfficientTAM tiny checkpoint (model_type: efficienttam_ti).",
+      "source": "manifest",
+      "pin_mismatch": false
+    },
+    {
+      "name": "efficienttam_ti_512x512",
+      "display_name": "RTSAM (EfficientTAM tiny, 512 px)",
+      "summary": "Point expansion, propagation at 512 x 512 input, smallest",
+      "used_for": [
+        "Point expansion",
+        "Propagation"
+      ],
+      "plugin": "rtsam2",
+      "family": "efficient-track-anything",
+      "kind": "weights",
+      "aux_files": [],
+      "repo_id": "cubert-gmbh/efficient-track-anything",
+      "filename": "efficienttam_ti_512x512.pt",
+      "revision": "3dfd0228d7774b94c24116cf729e03c209ff448a",
+      "sha256": "7d4d652a465f0081391050932f45d8a66768ccc99c8ea393ce8a5927e83f3b9b",
+      "size_bytes": 71620052,
+      "total_bytes": 71620052,
+      "license": "Apache-2.0",
+      "license_file": "LICENSE",
+      "aliases": [],
+      "selected_by": "model_type",
+      "default": false,
+      "plugin_default": false,
+      "explicit_path_hparams": [
+        "model_dir"
+      ],
+      "cache_dir_name": "models--cubert-gmbh--efficient-track-anything",
+      "description": "EfficientTAM tiny checkpoint for 512 x 512 input (model_type: efficienttam_ti_512x512).",
+      "source": "manifest",
+      "pin_mismatch": false
+    },
+    {
+      "name": "sam3",
+      "display_name": "SAM3",
+      "summary": "Magic wand, propagation, text prompts",
+      "used_for": [
+        "Point expansion",
+        "Propagation",
+        "Text prompts",
+        "Segment everything"
+      ],
+      "plugin": "sam3",
+      "family": "sam3",
+      "kind": "weights",
+      "aux_files": [
+        {
+          "path": "config.json",
+          "size_bytes": 25843,
+          "sha256": "4616385e4b21f2e5e22c875b65679185cbccfa95de42542b9166f7dc3d57160f"
+        }
+      ],
+      "repo_id": "cubert-gmbh/sam3",
+      "filename": "sam3.pt",
+      "revision": "6d25af14a085ff9d3e1342c35bae7c87de4811f4",
+      "sha256": "9999e2341ceef5e136daa386eecb55cb414446a00ac2b55eb2dfd2f7c3cf8c9e",
+      "size_bytes": 3450062241,
+      "total_bytes": 3450088084,
+      "license": "SAM License",
+      "license_file": "LICENSE",
+      "aliases": [],
+      "selected_by": null,
+      "default": false,
+      "plugin_default": true,
+      "explicit_path_hparams": [
+        "checkpoint_path"
+      ],
+      "cache_dir_name": "models--cubert-gmbh--sam3",
+      "description": "SAM3 checkpoint for the magic-wand point expansion, text / box / mask propagation and segment-everything nodes; every sam3 node needs it unless checkpoint_path points at a local file (mirror of facebook/sam3 at 3c879f39).",
+      "source": "manifest",
+      "pin_mismatch": false
+    }
+  ]
+}

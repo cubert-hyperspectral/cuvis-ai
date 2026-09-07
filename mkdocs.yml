@@ -103,6 +103,7 @@ plugins:
   - gen-files:
       scripts:
         - scripts/generate_node_catalog.py
+        - scripts/generate_dataset_catalog.py
   - llmstxt:
       markdown_description: |
         Cuvis.AI is an open-source, extensible framework for building AI-powered
@@ -186,6 +187,9 @@ nav:
           - XMR Demo Blood Perfusion: catalogs/datasets/XMR_Demo_Blood_Perfusion.md
           - XMR Demo Industrial FOD (Lentils): catalogs/datasets/XMR_Demo_Industrial_FOD_Lentils.md
           - XMR Demo Object Tracking: catalogs/datasets/XMR_Demo_Object_Tracking.md
+          - XMR Lentils: catalogs/datasets/XMR_Lentils.md
+          - XMR Industrial FOD (Lentils): catalogs/datasets/XMR_Industrial_FOD_Lentils.md
+          - X4 SWIR Industrial FOD (Bedding): catalogs/datasets/X4_SWIR_Industrial_FOD_Bedding.md
   - Workflows:
       - Overview: workflows/index.md
       - Build Pipeline (Python): workflows/build-pipeline-python.md

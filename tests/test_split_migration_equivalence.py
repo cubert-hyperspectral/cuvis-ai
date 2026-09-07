@@ -87,7 +87,9 @@ _CONSTRAINT_CASES = [
     ("trainrun/deep_svdd.yaml", ("data", "splits"), ConstraintSeverity.ERROR),
     ("trainrun/drcnn_adaclip_trainrun.yaml", ("data", "splits"), ConstraintSeverity.WARN),
     ("data/lentils.yaml", ("splits",), ConstraintSeverity.ERROR),
-    ("data/tracking_cap_and_car.yaml", ("splits",), ConstraintSeverity.ERROR),
+    ("data/industrial_fod_lentils.yaml", ("splits",), ConstraintSeverity.ERROR),
+    ("data/industrial_fod_lentils_normals.yaml", ("splits",), ConstraintSeverity.ERROR),
+    ("data/industrial_fod_bedding.yaml", ("splits",), ConstraintSeverity.ERROR),
 ]
 
 

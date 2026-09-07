@@ -1,0 +1,68 @@
+name: Weights Compatibility
+
+# Plugin-vs-manifest drift check for the `weights:` blocks. For each weight-bearing
+# plugin manifest, install the plugin at its pinned tag into a CPU-only environment and
+# run cuvis-ai-core's `emit_metadata --check`, which compares the plugin's live WEIGHTS
+# tuple (and node metadata) with the committed manifest and names the drifted field.
+# Not a per-PR job: it runs when a plugin manifest changes and on demand, which is the
+# release runbook step before a cuvis-ai tag.
+
+on:
+  pull_request:
+    branches: [main, staging]
+    paths: ["cuvis_ai/configs/plugins/*.yaml"]
+  workflow_dispatch:
+
+concurrency:
+  group: weights-compat-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  weights-compat:
+    name: emit_metadata --check (${{ matrix.plugin }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        plugin: [sam3, rtsam2, adaclip, dinomaly]
+    env:
+      UV_TORCH_BACKEND: cpu
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install system libraries for the plugin imports
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libgl1 libglib2.0-0
+
+      - name: Read the manifest's package, repo and tag
+        id: pin
+        run: |
+          uv run --no-project --python 3.11 --with pyyaml python - "${{ matrix.plugin }}" >> "$GITHUB_OUTPUT" <<'EOF'
+          import sys
+          import yaml
+
+          doc = yaml.safe_load(open(f"cuvis_ai/configs/plugins/{sys.argv[1]}.yaml", encoding="utf-8"))
+          print(f"package={doc['package_name']}")
+          print(f"repo={doc['repo']}")
+          print(f"tag={doc['tag']}")
+          EOF
+
+      - name: Install the plugin at its tag (CPU torch)
+        run: |
+          uv venv --python 3.11 .venv-plugin
+          uv pip install --python .venv-plugin/bin/python \
+            "${{ steps.pin.outputs.package }} @ git+${{ steps.pin.outputs.repo }}@${{ steps.pin.outputs.tag }}" \
+            ruamel.yaml
+
+      - name: Check the committed manifest against the installed plugin
+        run: |
+          .venv-plugin/bin/python -m scripts.emit_metadata --check \
+            --manifest "cuvis_ai/configs/plugins/${{ matrix.plugin }}.yaml"

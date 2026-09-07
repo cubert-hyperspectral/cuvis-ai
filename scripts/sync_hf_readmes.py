@@ -11,11 +11,13 @@ Usage::
     uv run python scripts/sync_hf_readmes.py
 
 The script fetches ``https://huggingface.co/datasets/<org>/<hf_repo>/raw/main/README.md``
-for each demo dataset, strips the HuggingFace YAML frontmatter (MkDocs
+for each dataset, strips the HuggingFace YAML frontmatter (MkDocs
 would otherwise interpret it as page metadata), rewrites relative
 image links to absolute HF ``resolve/main`` URLs so they render outside
-the HF UI, prepends a small "Mirrored from HuggingFace" attribution
-admonition, and writes the result to ``docs/catalogs/datasets/<display_slug>.md``.
+the HF UI, inserts the blank line MkDocs needs before a list that follows
+prose (``tests/docs`` enforces it for every page), prepends a small
+"Mirrored from HuggingFace" attribution admonition, and writes the result
+to ``docs/catalogs/datasets/<display_slug>.md``.
 
 The display slug can differ from the HF repo name — useful when the HF
 repo carries a long descriptive name but the docs want a shorter label
@@ -26,14 +28,16 @@ URLs and the attribution admonition still cite the real HF repo.
 Adding a new dataset
 --------------------
 
-1. Publish the dataset on HuggingFace under the ``cubert-gmbh`` org.
+1. Publish the dataset on HuggingFace under the ``cubert-gmbh`` org and add its
+   row to cuvis-ai-core's public-dataset registry (the catalog index is generated
+   from it by ``scripts/generate_dataset_catalog.py``).
 2. Append a ``(display_slug, hf_repo_name)`` pair to the ``DATASETS``
    tuple in this module. Use the same value twice when no short alias
    is needed.
 3. Run ``uv run python scripts/sync_hf_readmes.py``.
 4. Add a nav entry in ``mkdocs.yml`` under ``Catalogs → Datasets``
    pointing at ``catalogs/datasets/<display_slug>.md``.
-5. Add a card to ``docs/catalogs/datasets/index.md``.
+5. Add the card to ``CARDS`` in ``scripts/generate_dataset_catalog.py``.
 """
 
 from __future__ import annotations
@@ -45,6 +49,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 ORG = "cubert-gmbh"
+
 DATASETS: tuple[tuple[str, str], ...] = (
     ("XMR_Demo_Blood_Perfusion", "XMR_Demo_Blood_Perfusion"),
     (
@@ -52,6 +57,15 @@ DATASETS: tuple[tuple[str, str], ...] = (
         "XMR_Demo_Industrial_Foreign_Object_Detection_Lentils",
     ),
     ("XMR_Demo_Object_Tracking", "XMR_Demo_Object_Tracking"),
+    ("XMR_Lentils", "XMR_Lentils"),
+    (
+        "XMR_Industrial_FOD_Lentils",
+        "XMR_Industrial_Foreign_Object_Detection_Lentils",
+    ),
+    (
+        "X4_SWIR_Industrial_FOD_Bedding",
+        "X4_SWIR_Industrial_Foreign_Object_Detection_Bedding",
+    ),
 )
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -67,6 +81,8 @@ RELATIVE_IMG_RE = re.compile(
 RELATIVE_LINK_RE = re.compile(
     r"(?<!!)(\[[^\]]+\]\()(?!https?://|mailto:|#|/)([^)\s#]+)(\))",
 )
+LIST_ITEM_RE = re.compile(r"^[ \t]*(?:[-*+]|\d+\.)\s+")
+FENCE_LINE_RE = re.compile(r"^[ \t]*(```|~~~)")
 
 
 def _fetch(url: str) -> str:
@@ -84,6 +100,29 @@ def _absolutise_assets(text: str, hf_repo: str) -> str:
     text = RELATIVE_IMG_RE.sub(lambda m: f"{m.group(1)}{base}{m.group(2)}{m.group(3)}", text)
     text = RELATIVE_LINK_RE.sub(lambda m: f"{m.group(1)}{base}{m.group(2)}{m.group(3)}", text)
     return text
+
+
+def _blank_line_before_lists(text: str) -> str:
+    """Insert an empty line between prose and a following list block (outside code fences).
+
+    Python-Markdown only starts a list after a blank line, and ``tests/docs`` enforces the
+    rule for every page under ``docs/``; upstream READMEs do not always follow it.
+    """
+    out: list[str] = []
+    in_fence = False
+    for line in text.splitlines():
+        if FENCE_LINE_RE.match(line.lstrip()):
+            in_fence = not in_fence
+        elif (
+            not in_fence
+            and LIST_ITEM_RE.match(line)
+            and out
+            and out[-1].strip()
+            and not LIST_ITEM_RE.match(out[-1])
+        ):
+            out.append("")
+        out.append(line)
+    return "\n".join(out) + ("\n" if text.endswith("\n") else "")
 
 
 def _header(hf_repo: str) -> str:
@@ -111,6 +150,7 @@ def sync_one(display_slug: str, hf_repo: str) -> Path:
     body = _fetch(url)
     body = _strip_frontmatter(body)
     body = _absolutise_assets(body, hf_repo)
+    body = _blank_line_before_lists(body)
     if not body.strip():
         body = _empty_body_fallback(hf_repo)
     output = OUTPUT_DIR / f"{display_slug}.md"
