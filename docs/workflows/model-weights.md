@@ -233,14 +233,17 @@ ModelWeights.register(PLUGIN_NAME, WEIGHTS)
 
 - `register` is idempotent on full-entry equality and enforces one namespace over names and
   aliases across plugins; a collision raises `ModelRegistryConflict` at import.
+
 - A row a pipeline selects through a node hyperparameter sets `selected_by` (the hyperparameter
   name), `aliases` (the values that pick it) and `default: true` on the row a pipeline gets
   when the hyperparameter is unset; a row every node of the plugin needs leaves `selected_by`
   unset. `explicit_path_hparams` names the hyperparameters that bypass the cache. Every name in
   these fields must be a constructor parameter of one of the plugin's nodes: `emit_metadata`
   validates that.
+
 - Mirror the weights with `tools/mirror_weights.py` in cuvis-ai-core (`plan`, `upload`,
   `check`); `plan` and `upload` print the `PluginWeightEntry(...)` rows to paste.
+
 - Load through the registry in the node: `ModelWeights.resolve(name)` returns the cached path
   and downloads when online (a miss with downloading disallowed raises
   `ModelWeightsMissingError`); `ModelWeights.materialize(name, dest_dir, filename=None)`
