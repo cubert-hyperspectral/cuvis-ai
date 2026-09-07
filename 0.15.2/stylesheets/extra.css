@@ -1,0 +1,302 @@
+/* Cubert CI palette + Rajdhani headings via Google Fonts.
+   Roboto + Roboto Mono come in via Material's font loader (mkdocs.yml). */
+
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&display=swap');
+
+/* (b) Brand tokens --------------------------------------------------------- */
+:root {
+  --cu-cool-dark: #191932;
+  --cu-cool-dark-deeper: #0f0f24;
+  --cu-cool-light: #ebf0f5;
+  --cu-turquoise-dark: #00f0c8;   /* on dark bg */
+  --cu-turquoise-light: #00b48c;  /* on light bg */
+  --cu-lilac-dark: #c8aafa;       /* warn on dark bg */
+  --cu-lilac-light: #5a3c96;      /* warn on light bg */
+  --cu-blue-dark: #5abefa;        /* danger on dark bg */
+  --cu-blue-light: #00288c;       /* danger on light bg */
+  --cu-lime-dark: #e6fa00;        /* hover/active on dark bg */
+  --cu-lime-light: #646400;       /* hover/active on light bg */
+  --cu-neutral-light: #fafafa;
+}
+
+/* (c) Light scheme — page 6 right ----------------------------------------- */
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color:        var(--cu-cool-dark);
+  --md-primary-fg-color--light: var(--cu-cool-dark);
+  --md-primary-fg-color--dark:  var(--cu-cool-dark-deeper);
+  --md-primary-bg-color:        #ffffff;
+  --md-primary-bg-color--light: #ffffffb3;
+
+  --md-accent-fg-color:         var(--cu-turquoise-light);
+  --md-accent-fg-color--transparent: rgba(0, 180, 140, 0.12);
+  --md-accent-bg-color:         #ffffff;
+  --md-accent-bg-color--light:  #ffffffb3;
+
+  --md-default-bg-color:        var(--cu-cool-light);
+  --md-default-fg-color:        var(--cu-cool-dark);
+  --md-default-fg-color--light: rgba(25, 25, 50, 0.75);
+  --md-default-fg-color--lighter: rgba(25, 25, 50, 0.4);
+
+  --md-typeset-a-color:         var(--cu-turquoise-light);
+  --md-code-bg-color:           var(--cu-neutral-light);
+  --md-code-fg-color:           var(--cu-cool-dark);
+}
+
+/* (d) Dark scheme — page 6 left ------------------------------------------- */
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color:        var(--cu-cool-dark-deeper);
+  --md-primary-fg-color--light: var(--cu-cool-dark);
+  --md-primary-fg-color--dark:  var(--cu-cool-dark-deeper);
+  --md-primary-bg-color:        #ffffff;
+  --md-primary-bg-color--light: #ffffffb3;
+
+  --md-accent-fg-color:         var(--cu-turquoise-dark);
+  --md-accent-fg-color--transparent: rgba(0, 240, 200, 0.15);
+  --md-accent-bg-color:         #ffffff;
+  --md-accent-bg-color--light:  #ffffffb3;
+
+  --md-default-bg-color:        var(--cu-cool-dark);
+  --md-default-fg-color:        var(--cu-neutral-light);
+  --md-default-fg-color--light: rgba(250, 250, 250, 0.8);
+  --md-default-fg-color--lighter: rgba(250, 250, 250, 0.5);
+
+  --md-typeset-a-color:         var(--cu-turquoise-dark);
+  --md-code-bg-color:           var(--cu-cool-dark-deeper);
+  --md-code-fg-color:           #e6e6f5;
+}
+
+/* (e) Typography ----------------------------------------------------------- */
+body,
+.md-typeset {
+  font-family: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3,
+.md-typeset h4,
+.md-typeset h5,
+.md-header__topic,
+.md-nav__title {
+  font-family: "Rajdhani", "Roboto", system-ui, sans-serif;
+  letter-spacing: 0.01em;
+}
+
+.md-typeset code,
+.md-typeset pre,
+code,
+pre,
+kbd,
+.md-typeset .md-code__content {
+  font-family: "Roboto Mono", ui-monospace, "SFMono-Regular", monospace;
+}
+
+.md-typeset h1 {
+  font-weight: 800;
+  font-size: 2rem;
+  margin: 0 0 0.75rem;
+  text-transform: uppercase;
+}
+
+.md-typeset h2 {
+  font-weight: 700;
+  font-size: 1.5rem;
+  margin: 1.2rem 0 0.5rem;
+  text-transform: uppercase;
+}
+
+.md-typeset h3 {
+  font-weight: 600;
+  font-size: 1.15rem;
+  margin: 1rem 0 0.4rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.md-typeset h4 {
+  font-weight: 600;
+  font-size: 1rem;
+  margin: 0.8rem 0 0.4rem;
+}
+
+/* (f) H3 turquoise — page 6 hard requirement ------------------------------ */
+[data-md-color-scheme="default"] .md-typeset h3 { color: var(--cu-turquoise-light); }
+[data-md-color-scheme="slate"]   .md-typeset h3 { color: var(--cu-turquoise-dark); }
+
+/* (g) Code block — turquoise hairline border ------------------------------ */
+.md-typeset pre {
+  border-radius: 4px;
+  margin: 0.65rem 0;
+  font-size: 0.8rem;
+  line-height: 1.3;
+}
+.md-typeset pre > code {
+  background: transparent;
+  border: none;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.8rem;
+}
+.md-typeset code {
+  border-radius: 3px;
+  padding: 0.1rem 0.35rem;
+  font-size: 0.85em;
+}
+
+[data-md-color-scheme="default"] .md-typeset pre,
+[data-md-color-scheme="default"] .md-typeset .highlight pre {
+  border: 1px solid var(--cu-turquoise-light);
+}
+[data-md-color-scheme="slate"] .md-typeset pre,
+[data-md-color-scheme="slate"] .md-typeset .highlight pre {
+  border: 1px solid var(--cu-turquoise-dark);
+}
+
+/* Inline code keeps a softer border so it doesn't shout in prose */
+[data-md-color-scheme="default"] .md-typeset code {
+  border: 1px solid rgba(0, 180, 140, 0.35);
+}
+[data-md-color-scheme="slate"] .md-typeset code {
+  border: 1px solid rgba(0, 240, 200, 0.3);
+}
+
+/* (h) Admonitions — brand palette (no orange) ----------------------------- */
+.md-typeset .admonition,
+.md-typeset details {
+  border-radius: 4px;
+}
+
+[data-md-color-scheme="default"] .md-typeset .admonition.warning,
+[data-md-color-scheme="default"] .md-typeset details.warning {
+  border-color: var(--cu-lilac-light);
+}
+[data-md-color-scheme="default"] .md-typeset .admonition.warning > .admonition-title,
+[data-md-color-scheme="default"] .md-typeset details.warning > summary {
+  background-color: rgba(90, 60, 150, 0.12);
+  border-color: var(--cu-lilac-light);
+}
+[data-md-color-scheme="slate"] .md-typeset .admonition.warning,
+[data-md-color-scheme="slate"] .md-typeset details.warning {
+  border-color: var(--cu-lilac-dark);
+}
+[data-md-color-scheme="slate"] .md-typeset .admonition.warning > .admonition-title,
+[data-md-color-scheme="slate"] .md-typeset details.warning > summary {
+  background-color: rgba(200, 170, 250, 0.15);
+  border-color: var(--cu-lilac-dark);
+}
+
+[data-md-color-scheme="default"] .md-typeset .admonition.danger,
+[data-md-color-scheme="default"] .md-typeset details.danger {
+  border-color: var(--cu-blue-light);
+}
+[data-md-color-scheme="default"] .md-typeset .admonition.danger > .admonition-title,
+[data-md-color-scheme="default"] .md-typeset details.danger > summary {
+  background-color: rgba(0, 40, 140, 0.12);
+  border-color: var(--cu-blue-light);
+}
+[data-md-color-scheme="slate"] .md-typeset .admonition.danger,
+[data-md-color-scheme="slate"] .md-typeset details.danger {
+  border-color: var(--cu-blue-dark);
+}
+[data-md-color-scheme="slate"] .md-typeset .admonition.danger > .admonition-title,
+[data-md-color-scheme="slate"] .md-typeset details.danger > summary {
+  background-color: rgba(90, 190, 250, 0.15);
+  border-color: var(--cu-blue-dark);
+}
+
+/* (i) Tables --------------------------------------------------------------- */
+.md-typeset table:not([class]) {
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+[data-md-color-scheme="default"] .md-typeset table:not([class]) th {
+  background-color: rgba(0, 180, 140, 0.08);
+  font-weight: 700;
+}
+[data-md-color-scheme="slate"] .md-typeset table:not([class]) th {
+  background-color: rgba(0, 240, 200, 0.08);
+  font-weight: 700;
+}
+
+/* Layout — keep PyTorch-era wider grid */
+.md-grid { max-width: 80rem; }
+.md-main__inner { margin-top: 1rem; }
+
+/* Feature badges — page-6 orange tag style */
+.feature-badge {
+  display: inline-block;
+  padding: 0.2rem 0.7rem;
+  margin: 0.2rem;
+  border-radius: 3px;
+  font-family: "Rajdhani", "Roboto", system-ui, sans-serif;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #ffffff;
+}
+.feature-badge.complete    { background-color: var(--cu-turquoise-light); }
+.feature-badge.in-progress { background-color: var(--cu-lilac-light); }
+.feature-badge.pending     { background-color: var(--cu-cool-dark); }
+
+/* (j) Mermaid — recolor strokes/labels per scheme ------------------------- */
+.mermaid { background-color: transparent; }
+.mermaid svg { background-color: transparent; max-width: 100%; }
+
+[data-md-color-scheme="default"] .mermaid .node rect,
+[data-md-color-scheme="default"] .mermaid .node circle,
+[data-md-color-scheme="default"] .mermaid .node ellipse,
+[data-md-color-scheme="default"] .mermaid .node polygon {
+  stroke: var(--cu-turquoise-light) !important;
+}
+[data-md-color-scheme="default"] .mermaid .edgeLabel {
+  background-color: var(--cu-cool-light) !important;
+  color: var(--cu-cool-dark) !important;
+}
+[data-md-color-scheme="default"] .mermaid .label { color: var(--cu-cool-dark) !important; }
+[data-md-color-scheme="default"] .mermaid .cluster rect {
+  fill: rgba(0, 180, 140, 0.06) !important;
+  stroke: var(--cu-turquoise-light) !important;
+}
+
+[data-md-color-scheme="slate"] .mermaid .node rect,
+[data-md-color-scheme="slate"] .mermaid .node circle,
+[data-md-color-scheme="slate"] .mermaid .node ellipse,
+[data-md-color-scheme="slate"] .mermaid .node polygon {
+  stroke: var(--cu-turquoise-dark) !important;
+}
+[data-md-color-scheme="slate"] .mermaid .edgeLabel {
+  background-color: var(--cu-cool-dark-deeper) !important;
+  color: var(--cu-neutral-light) !important;
+}
+[data-md-color-scheme="slate"] .mermaid .label { color: var(--cu-neutral-light) !important; }
+[data-md-color-scheme="slate"] .mermaid .cluster rect {
+  fill: rgba(0, 240, 200, 0.06) !important;
+  stroke: var(--cu-turquoise-dark) !important;
+}
+
+/* Semantic node fills (success/error) — readable on both palettes */
+[data-md-color-scheme="default"] .mermaid g.node.success > rect,
+[data-md-color-scheme="default"] .mermaid g.node.success > polygon,
+[data-md-color-scheme="default"] .mermaid g.node.success > circle,
+[data-md-color-scheme="default"] .mermaid g.node.success > ellipse {
+  fill: #d4edda !important;
+}
+[data-md-color-scheme="default"] .mermaid g.node.error > rect,
+[data-md-color-scheme="default"] .mermaid g.node.error > polygon,
+[data-md-color-scheme="default"] .mermaid g.node.error > circle,
+[data-md-color-scheme="default"] .mermaid g.node.error > ellipse {
+  fill: #f8d7da !important;
+}
+[data-md-color-scheme="slate"] .mermaid g.node.success > rect,
+[data-md-color-scheme="slate"] .mermaid g.node.success > polygon,
+[data-md-color-scheme="slate"] .mermaid g.node.success > circle,
+[data-md-color-scheme="slate"] .mermaid g.node.success > ellipse {
+  fill: #1f4f33 !important;
+}
+[data-md-color-scheme="slate"] .mermaid g.node.error > rect,
+[data-md-color-scheme="slate"] .mermaid g.node.error > polygon,
+[data-md-color-scheme="slate"] .mermaid g.node.error > circle,
+[data-md-color-scheme="slate"] .mermaid g.node.error > ellipse {
+  fill: #5c2628 !important;
+}
