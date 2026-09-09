@@ -26,7 +26,7 @@ CONFIGS = Path(cuvis_ai.__file__).resolve().parent / "configs"
 TRAINRUNS = sorted((CONFIGS / "trainrun").glob("*_cuvisnext.yaml"))
 DINOMALY_PRESETS = [
     CONFIGS / "pipeline" / "anomaly" / "dinomaly" / name
-    for name in ("dinomaly_cir.yaml", "dinomaly_rgb.yaml")
+    for name in ("dinomaly_cir.yaml", "dinomaly_custom.yaml", "dinomaly_rgb.yaml")
 ]
 # Both metric nodes of a Dinomaly preset score pixels; 1000x1080 at stride 2 leaves
 # 270k px per frame, deliberately above the 50k count below which torchmetrics
@@ -41,11 +41,8 @@ def _pipeline_path(trainrun_yaml: Path) -> Path:
 
 
 def test_every_cuvisnext_trainrun_is_covered():
-    assert {p.name for p in TRAINRUNS} == {
-        "adaclip_supervised_cir_cuvisnext.yaml",
-        "dinomaly_cir_cuvisnext.yaml",
-        "dinomaly_rgb_cuvisnext.yaml",
-    }
+    """The wizard offers exactly one trainrun; a new ``*_cuvisnext`` file must be added here."""
+    assert {p.name for p in TRAINRUNS} == {"dinomaly_custom_cuvisnext.yaml"}
 
 
 @pytest.mark.parametrize("trainrun_yaml", TRAINRUNS, ids=lambda p: p.stem)

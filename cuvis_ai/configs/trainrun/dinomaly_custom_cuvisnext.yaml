@@ -1,11 +1,12 @@
 # Flat serialized TrainRunConfig (no Hydra defaults): consumed verbatim by the
 # gRPC RestoreTrainRun path, which is how CuvisNEXT starts a training run. The
-# GUI fills the two empty data fields (data_dir + splits.splits_path) and its
-# user edits (epochs, batch size, optimizer, output_dir) via SetTrainRunConfig.
-name: dinomaly_cir_cuvisnext
+# GUI fills the two empty data fields (data_dir + splits.splits_path); with its
+# Advanced step enabled it also edits epochs, optimizer and callbacks through
+# SetTrainRunConfig, otherwise the values below are the run.
+name: dinomaly_custom_cuvisnext
 
 # Pipeline reference, resolved relative to this trainrun's directory.
-pipeline: ../pipeline/anomaly/dinomaly/dinomaly_cir.yaml
+pipeline: ../pipeline/anomaly/dinomaly/dinomaly_custom.yaml
 
 data:
   data_module: cu3s
@@ -30,10 +31,12 @@ training:
   # Drop the cached CUDA blocks around each validation pass: the validation
   # activations then reuse freed memory instead of growing the reserved pool.
   release_cuda_cache_on_validation: true
-  max_epochs: 60
+  # 20 epochs give a solid model on a few hundred frames (about 25-30 min on an
+  # 8 GB GPU); more did not help, and early stopping below may end the run sooner.
+  max_epochs: 20
   accelerator: auto
   devices: 1
-  default_root_dir: outputs/dinomaly_cir
+  default_root_dir: outputs/dinomaly_custom
   precision: 32-true
   enable_progress_bar: false
   enable_checkpointing: true
@@ -47,14 +50,34 @@ training:
     betas:
     - 0.9
     - 0.999
+  # Halve the learning rate when the pixel AUROC stalls for 3 validation passes.
+  scheduler:
+    name: reduce_on_plateau
+    monitor: metrics_auroc/auroc_pixel
+    mode: max
+    factor: 0.5
+    patience: 3
+    threshold: 0.0001
+    threshold_mode: rel
+    cooldown: 0
+    min_lr: 1.0e-06
+    eps: 1.0e-08
+    verbose: false
   callbacks:
     checkpoint:
-      dirpath: outputs/dinomaly_cir/checkpoints
-      monitor: metrics_anomaly/iou
+      dirpath: outputs/dinomaly_custom/checkpoints
+      monitor: metrics_auroc/auroc_pixel
       mode: max
       save_top_k: 1
       save_last: true
       filename: '{epoch:02d}'
+    early_stopping:
+    # Same monitor as the checkpoint and the scheduler. Patience must exceed the
+    # scheduler's patience (3) so the halved LR gets a chance before the run stops.
+    - monitor: metrics_auroc/auroc_pixel
+      mode: max
+      patience: 5
+      min_delta: 0.0
 
 loss_nodes:
 - dinomaly_train_loss
@@ -63,4 +86,4 @@ metric_nodes:
 - metrics_auroc
 unfreeze_nodes:
 - dinomaly_detector
-output_dir: outputs/dinomaly_cir
+output_dir: outputs/dinomaly_custom
