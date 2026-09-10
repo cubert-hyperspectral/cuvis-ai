@@ -17,7 +17,7 @@ dependencies = [
     # plugin behind its [cu3s] extra, provisioned at runtime when a cu3s run needs it.
     # Builtin/RGB pipelines pull neither cuvis nor cuvis-il, closing the Windows wheel gap.
     # Tests mock the data layer (no plugin dep); the real cu3s reader is tested in the plugin.
-    "cuvis-ai-core>=0.17.1",
+    "cuvis-ai-core>=0.17.2",
     "cuvis-ai-schemas[full]>=0.12.0",
     "pydantic>=2.13.3,<3.0.0",
     "defusedxml>=0.7.1",
@@ -36,7 +36,7 @@ dependencies = [
     "torchvision>=0.26.0",
     "torchcodec>=0.11.1",
     "torchmetrics>=1.9.0",
-    "pytorch-lightning>=2.6.1",
+    "pytorch-lightning>=2.6.6",
     "tzdata>=2026.2; sys_platform == 'win32'",
     "loguru>=0.7.3",
     "packaging>=26.2",
