@@ -3,6 +3,7 @@
 ## 0.16.2 - 2026-09-10
 
 - **The cu3s data module opens only the recordings a run uses.** `configs/plugins/cuvis_ai_dataloader.yaml` moves to `v0.6.3`, which takes the assigned recordings as an explicit `files` list (what CuvisNEXT now sends) and, without one, narrows a folder by the sources the split's selectors name. Enumeration previously built a full reader for every `*.cu3s` under `data_dir` before any selector was applied: an SDK session, a processing context and a read of measurement 0 each. `configs/trainrun/dinomaly_custom_cuvisnext.yaml` documents the list next to `data_dir`; the key stays absent so the preset still runs against an older data module.
+- **Security: `pytorch-lightning>=2.6.6`** (PYSEC-2026-3967). Through 2.6.5, `_load_state` imports and executes module names taken from a checkpoint's `_instantiator` hyperparameters, which gets past `weights_only=True`, so `LightningModule.load_from_checkpoint` on a checkpoint from an untrusted source was remote code execution. Every trainrun restore path loads checkpoints that way.
 - Floor `cuvis-ai-core>=0.17.2`, which warns when a selector matches some of what it asked for but not all: a `file_indices` selector naming frames a recording does not have used to train on the subset silently.
 
 ## 0.16.1 - 2026-09-09
