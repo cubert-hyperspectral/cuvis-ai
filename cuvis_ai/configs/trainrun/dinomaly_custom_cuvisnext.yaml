@@ -18,7 +18,12 @@ data:
     # and filled in by the caller. Training stages refuse to run without it.
     splits_path: ''
   params:
-    # Absolute path of the cu3s dataset folder; filled in by the caller.
+    # Absolute path of the cu3s dataset folder; filled in by the caller. A fallback:
+    # the caller also fills `files` with the recordings its split assigns (CuvisNEXT
+    # does), and the data module reads that list instead of searching this folder, so
+    # a recording the split does not assign is never opened. Needs
+    # cuvis-ai-dataloader >= 0.6.3; without a list, a split whose selectors all name
+    # their sources still narrows the folder by itself.
     data_dir: ''
     # One sample per measurement per file, enumerated with canonical absolute
     # sources — the contract externally authored splits.json are written against.

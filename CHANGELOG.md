@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.16.2 - 2026-09-10
+
+- **The cu3s data module opens only the recordings a run uses.** `configs/plugins/cuvis_ai_dataloader.yaml` moves to `v0.6.3`, which takes the assigned recordings as an explicit `files` list (what CuvisNEXT now sends) and, without one, narrows a folder by the sources the split's selectors name. Enumeration previously built a full reader for every `*.cu3s` under `data_dir` before any selector was applied: an SDK session, a processing context and a read of measurement 0 each. `configs/trainrun/dinomaly_custom_cuvisnext.yaml` documents the list next to `data_dir`; the key stays absent so the preset still runs against an older data module.
+- Floor `cuvis-ai-core>=0.17.2`, which warns when a selector matches some of what it asked for but not all: a `file_indices` selector naming frames a recording does not have used to train on the subset silently.
+
 ## 0.16.1 - 2026-09-09
 
 - **One training preset for the CuvisNEXT Train wizard: `dinomaly_custom`.** New `configs/pipeline/anomaly/dinomaly/dinomaly_custom.yaml` is the Dinomaly training pipeline on a fixed 542/902/886 nm three-band projection (`FixedWavelengthSelector` named `custom_selector`: the bands AdaCLIP's concrete channel selector converged to on the lentils dataset), the recipe of the 2026-09-01 user training, brought onto the current preset contract: `TwoStageBinaryDecider` with `image_threshold: null` and `pixel_threshold: null`, `pixel_stride: 2` on both metric nodes. New `configs/trainrun/dinomaly_custom_cuvisnext.yaml` runs it for the gRPC `RestoreTrainRun` path: 20 epochs, AdamW 2e-3, `reduce_on_plateau` (patience 3) and early stopping (patience 5) on `metrics_auroc/auroc_pixel`, the checkpoint on the same metric with `save_last`, `release_cuda_cache_on_validation: true`. The wizard offers this trainrun and starts it with these values unless its Advanced step edits them.
