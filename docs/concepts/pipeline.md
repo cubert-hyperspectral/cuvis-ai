@@ -325,7 +325,7 @@ pipeline.save_to_file(
     metadata=PipelineMetadata(
         name="RX_Anomaly_Detector_v1",
         description="Trained on Lentils dataset",
-        tags=["anomaly-detection", "production"]
+        tags=["anomaly", "production"]
     ),
     validate_nodes=True,
     include_optimizer=False,
@@ -336,6 +336,15 @@ pipeline.save_to_file(
 ```
 
 Generates a YAML config (structure, node hparams, connections) and a `.pt` checkpoint (state_dict with trained weights/statistics, metadata). Training data, intermediate activations, and Python code are **not** saved.
+
+### Tags the shipped presets carry
+
+`metadata.tags` is free-form, but two tags have a fixed meaning for the CuvisNEXT pipeline pickers, and every preset under `cuvis_ai/configs/pipeline/` follows them (`tests/configs/test_pipeline_preset_metadata.py` enforces both):
+
+- **One category word** out of `anomaly`, `segmentation`, `tracking`, `thickness`, `medical`. The picker's category dropdown is derived from the first of these words found in a pipeline's tags (matched case-insensitively, in that order of precedence); a pipeline without one is filed under its folder name below `pipeline/`. cuvis-next mirrors the list as `kPipelineCategories`; extend both together.
+- **`cuvisnext`** marks a preset authored for the app: the pickers list `cuvisnext`-tagged presets and saved training runs by default and hide everything else until "Show all" is on.
+
+Other tags (`sam3`, `rgb`, `video`, `point-prompt`, `statistical`, ...) are descriptive and appear in the picker's tag filter; the category words and `cuvisnext` are not offered there. A training run saved by CuvisNEXT keeps its source preset's tags, so a run trained from an `anomaly` preset is an `anomaly` pipeline too.
 
 ---
 

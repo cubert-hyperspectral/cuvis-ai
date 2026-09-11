@@ -1,7 +1,8 @@
 metadata:
   name: BloodPerfusion_NDVI_Projection
   description: ''
-  tags: []
+  tags:
+  - medical
   author: ''
   cuvis_ai_version: 0.5.3
 plugins:

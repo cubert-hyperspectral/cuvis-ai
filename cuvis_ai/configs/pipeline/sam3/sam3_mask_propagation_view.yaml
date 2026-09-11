@@ -11,6 +11,7 @@ metadata:
   - rgb
   - video
   - propagation
+  - cuvisnext
   author: cuvis.ai
 plugins:
 - sam3
