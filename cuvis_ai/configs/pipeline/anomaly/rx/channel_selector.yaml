@@ -8,6 +8,7 @@ metadata:
   - statistical
   - channel_selector
   - rx
+  - anomaly
   author: cuvis.ai
 plugins:
 - cuvis_ai_builtin

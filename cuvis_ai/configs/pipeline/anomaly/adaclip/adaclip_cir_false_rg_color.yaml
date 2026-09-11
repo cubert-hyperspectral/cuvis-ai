@@ -7,6 +7,7 @@ metadata:
   - statistical
   - adaclip
   - cir_false_rg
+  - anomaly
   author: cuvis.ai
   cuvis_ai_version: 0.5.3
 plugins:
