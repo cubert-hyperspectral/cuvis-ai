@@ -56,4 +56,4 @@ See:
 
 - [Build Pipeline (YAML)](../../workflows/build-pipeline-yaml.md)
 - [Restore Pipeline](../../workflows/restore-pipeline.md)
-- [gRPC client examples](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/tree/main/examples/grpc)
+- [gRPC Workflow](../../deployment/grpc-workflow.md)

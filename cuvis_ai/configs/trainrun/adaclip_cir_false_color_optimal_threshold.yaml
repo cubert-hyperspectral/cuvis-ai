@@ -47,5 +47,5 @@ metric_nodes:
 - detection_metrics
 freeze_nodes: []
 unfreeze_nodes: []
-output_dir: outputs\adaclip_cir_false_color_optimal_threshold
+output_dir: outputs/adaclip_cir_false_color_optimal_threshold
 tags: {}

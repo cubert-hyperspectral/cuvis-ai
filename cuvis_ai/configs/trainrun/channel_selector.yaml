@@ -67,7 +67,7 @@ training:
     learning_rate_monitor:
       logging_interval: epoch
       log_momentum: false
-output_dir: outputs\channel_selector
+output_dir: outputs/channel_selector
 unfreeze_nodes:
 - SoftChannelSelector
 - RXGlobal

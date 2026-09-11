@@ -7,11 +7,12 @@ maps that contrast into an intuitive false-colour visualisation of
 blood perfusion.
 
 The pipeline runs on the `XMR_Demo_Blood_Perfusion` dataset and renders
-side-by-side frames showing tissue, perfusion overlay, and false-RGB.
+a false-colour perfusion video from the normalised-difference index.
 
 **Run the example:**
 
-- [`examples/blood_perfusion/nd_blood_perfusion.py`](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/blood_perfusion/nd_blood_perfusion.py) — cuvis-ai-cookbook
+- [`notebooks/use_cases/blood_perfusion.ipynb`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/notebooks/use_cases/blood_perfusion.ipynb) — notebook walkthrough
+- [`cuvis_ai/configs/pipeline/medical/blood_perfusion/ndvi.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/pipeline/medical/blood_perfusion/ndvi.yaml) — packaged pipeline, run with `restore-pipeline` as shown in [Your First Pipeline](../../get-started/first-pipeline.md)
 - [Dataset on HuggingFace](https://huggingface.co/datasets/cubert-gmbh/XMR_Demo_Blood_Perfusion) — also surfaced in the [datasets catalog](../../catalogs/datasets/XMR_Demo_Blood_Perfusion.md)
 
 ## What you'll learn

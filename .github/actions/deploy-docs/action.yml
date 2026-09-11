@@ -1,0 +1,103 @@
+name: Deploy versioned docs to gh-pages
+description: >
+  mike deploy + set-default (local commits only), SEO post-process of
+  gh-pages (noindex outdated versions, outdated banner, robots.txt), single
+  push. Shared by the release workflow and the manual redeploy workflow so
+  the two never drift.
+
+inputs:
+  version:
+    description: "Version to deploy as `latest` (e.g. 0.17.0)"
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Validate version input
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+      run: |
+        if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "::error::version input '$VERSION' is not a plain X.Y.Z version string"
+          exit 1
+        fi
+
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.11'
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+
+    - name: Install documentation dependencies
+      shell: bash
+      run: uv sync --locked --extra docs
+
+    - name: Install system dependencies for OpenCV / ffmpeg imports
+      shell: bash
+      run: |
+        apt-get update
+        apt-get install -y --no-install-recommends libgl1 libglib2.0-0 ffmpeg
+        rm -rf /var/lib/apt/lists/*
+
+    - name: Configure git for deployment
+      shell: bash
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+
+    - name: Fetch gh-pages
+      shell: bash
+      # mike's own remote-status check does not fetch; do it ourselves right
+      # before the transaction, since this job may have waited in the
+      # concurrency queue behind another deploy.
+      run: git fetch origin gh-pages
+
+    - name: Build and commit docs with mike (no push yet)
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+      run: |
+        uv run mike deploy --update-aliases "$VERSION" latest
+        uv run mike set-default latest
+
+    - name: Post-process gh-pages (noindex outdated versions, banner, robots.txt)
+      shell: bash
+      run: |
+        WORKTREE="$RUNNER_TEMP/gh-pages-wt"
+        # No worktree may hold gh-pages checked out while mike writes to the
+        # branch via fast-import, so this only runs after mike's commits
+        # above are done.
+        git worktree add "$WORKTREE" gh-pages
+        uv run python scripts/docs_postprocess_gh_pages.py "$WORKTREE"
+        if [ -n "$(git -C "$WORKTREE" status --porcelain)" ]; then
+          git -C "$WORKTREE" add -A
+          git -C "$WORKTREE" commit -q -m "docs: post-process gh-pages after ${{ inputs.version }} (noindex outdated versions, robots.txt)"
+        else
+          echo "gh-pages post-processing: nothing to commit"
+        fi
+
+    - name: Remove post-process worktree
+      if: always()
+      shell: bash
+      run: git worktree remove --force "$RUNNER_TEMP/gh-pages-wt" 2>/dev/null || true
+
+    - name: Verify the versioned build
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+      run: |
+        if ! git show gh-pages:"$VERSION/index.html" | grep -qF 'rel="canonical" href="https://docs.cuvis.ai/latest/"'; then
+          echo "::error::$VERSION/index.html does not canonicalize to https://docs.cuvis.ai/latest/ -- check mkdocs.yml site_url and the mike canonical_version plugin option"
+          exit 1
+        fi
+        if git show gh-pages:"$VERSION/sitemap.xml" | grep -qF 'github.io'; then
+          echo "::error::$VERSION/sitemap.xml still references github.io -- check mkdocs.yml site_url"
+          exit 1
+        fi
+
+    - name: Push gh-pages
+      shell: bash
+      run: git push origin gh-pages

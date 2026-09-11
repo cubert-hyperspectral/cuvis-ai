@@ -228,7 +228,7 @@ Edit `docs/reference/plugin-development/overview.md` under the "Community Plugin
 
 **4.4 (Optional) Add showcase example**
 
-Add a showcase script under `examples/my-plugin/` in the [cuvis-ai-cookbook](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook) repo with:
+Add a showcase notebook under `notebooks/use_cases/` or a packaged pipeline YAML under `cuvis_ai/configs/pipeline/<plugin-name>/` in this repo with:
 
 - Sample pipeline configuration using your plugin
 - Example data or instructions
@@ -248,7 +248,7 @@ Submit your plugin registration for review.
 - [ ] Added documentation to `docs/reference/plugin-development/overview.md`
 - [ ] Included LICENSE file
 - [ ] README has installation and usage examples
-- [ ] (Optional) Added showcase example to the [cuvis-ai-cookbook](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook) repo
+- [ ] (Optional) Added a showcase notebook or packaged pipeline YAML to this repo
 
 **Add label:** `plugin-contribution`
 

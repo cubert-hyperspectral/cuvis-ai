@@ -11,10 +11,10 @@ different recipe for getting CLIP to work on hyperspectral data.
 
 **Run the example:**
 
-- [`examples/adaclip/pca_adaclip_baseline.py`](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/adaclip/pca_adaclip_baseline.py) — PCA-reduced baseline (frozen AdaCLIP).
-- [`examples/adaclip/concrete_adaclip_gradient_training.py`](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/adaclip/concrete_adaclip_gradient_training.py) — Concrete channel selector + AdaCLIP gradient training.
-- [`examples/adaclip/drcnn_adaclip_gradient_training.py`](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/adaclip/drcnn_adaclip_gradient_training.py) — DRCNN-based channel reducer + AdaCLIP.
-- [`notebooks/use_cases/channel_selector_lentils.ipynb`](https://github.com/cubert-hyperspectral/cuvis-ai/tree/main/notebooks/use_cases) in cuvis-ai: the Concrete selector + frozen AdaCLIP recipe as a notebook on the full lentils dataset, ending with the learned bands and test-set metrics.
+- [`cuvis_ai/configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml) — frozen-AdaCLIP baseline on fixed bands, run with `restore-pipeline` (the PCA-reduced variant from the retired cookbook script has no packaged equivalent yet).
+- [`cuvis_ai/configs/pipeline/anomaly/adaclip/concrete_adaclip_gradient_two_stage.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/pipeline/anomaly/adaclip/concrete_adaclip_gradient_two_stage.yaml) — Concrete channel selector + AdaCLIP gradient training.
+- [`cuvis_ai/configs/trainrun/drcnn_adaclip_trainrun.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/trainrun/drcnn_adaclip_trainrun.yaml) — DRCNN-based channel reducer + AdaCLIP, run with `restore-trainrun --mode train`.
+- [`notebooks/use_cases/channel_selector_lentils.ipynb`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/notebooks/use_cases/channel_selector_lentils.ipynb) in cuvis-ai: the Concrete selector + frozen AdaCLIP recipe as a notebook on the full lentils dataset, ending with the learned bands and test-set metrics.
 - [Dataset on HuggingFace](https://huggingface.co/datasets/cubert-gmbh/XMR_Demo_Industrial_Foreign_Object_Detection_Lentils) — also surfaced in the [datasets catalog](../../catalogs/datasets/XMR_Demo_Industrial_FOD_Lentils.md)
 
 ## What you'll learn
