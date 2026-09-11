@@ -2,7 +2,8 @@ name: Redeploy docs (manual)
 
 # Docs-only republish of the GitHub Pages site, decoupled from the PyPI release
 # pipeline. Use to refresh the `latest` docs without cutting a release — e.g.
-# after a docs-only fix. Mirrors the deploy-docs job in pypi-release.yml.
+# after a docs-only fix. Shares its deploy steps with the deploy-docs job in
+# pypi-release.yml via .github/actions/deploy-docs so the two never drift.
 
 on:
   workflow_dispatch:
@@ -35,29 +36,7 @@ jobs:
       - name: Mark workspace as safe for Git versioning
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - name: Set up Python
-        uses: actions/setup-python@v6
+      - name: Deploy documentation
+        uses: ./.github/actions/deploy-docs
         with:
-          python-version: '3.11'
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-
-      - name: Install documentation dependencies
-        run: uv sync --locked --extra docs
-
-      - name: Install system dependencies for OpenCV / ffmpeg imports
-        run: |
-          apt-get update
-          apt-get install -y --no-install-recommends libgl1 libglib2.0-0 ffmpeg
-          rm -rf /var/lib/apt/lists/*
-
-      - name: Configure git for deployment
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Deploy documentation with mike
-        run: |
-          uv run mike deploy --push --update-aliases "${{ inputs.version }}" latest
-          uv run mike set-default --push latest
+          version: ${{ inputs.version }}

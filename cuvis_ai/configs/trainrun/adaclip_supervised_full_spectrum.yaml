@@ -24,7 +24,7 @@ data:
   batch_size: 1
 
 
-output_dir: outputs\adaclip_supervised_full_spectrum
+output_dir: outputs/adaclip_supervised_full_spectrum
 
 metric_nodes:
 - detection_metrics

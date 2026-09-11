@@ -2,7 +2,7 @@
 site_name: Cuvis.AI Documentation
 site_description: Cuvis.AI is an open-source framework for building modular, extensible AI pipelines for real-time hyperspectral video processing, analysis, and deployment.
 site_author: Cubert GmbH
-site_url: https://cubert-hyperspectral.github.io/cuvis-ai/
+site_url: https://docs.cuvis.ai/
 
 # Repository
 repo_name: cubert-hyperspectral/cuvis-ai
@@ -98,6 +98,8 @@ hooks:
 
 # Plugins
 plugins:
+  - mike:
+      canonical_version: latest
   - search:
       separator: '[\s\-,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
   - gen-files:
@@ -248,6 +250,7 @@ extra:
       link: https://www.cubert-hyperspectral.com/
   version:
     provider: mike
+    default: latest
   analytics:
     provider: custom
 

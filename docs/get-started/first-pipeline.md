@@ -21,7 +21,7 @@ The XMR_Demo_Blood_Perfusion dataset (~11 GB) is a 568-frame hyperspectral
 recording of a human hand:
 
 ```bash
-uv run download-data --dataset blood_perfusion
+uv run dataset download blood_perfusion
 ```
 
 This drops `.cu3s` files under `data/XMR_Demo_Blood_Perfusion/`. Other demo

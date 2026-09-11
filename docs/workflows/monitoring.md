@@ -1342,6 +1342,7 @@ viz = PipelineComparisonVisualizer(
 - **Guides**:
   - [Build Pipelines in Python](build-pipeline-python.md) - Pipeline construction basics
   - [Configuration Guide](../reference/configuration/index.md) - TrainRun configuration
-- **Examples** (in the [cuvis-ai-cookbook](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook) repo):
-  - [examples/adaclip/drcnn_adaclip_gradient_training.py](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/adaclip/drcnn_adaclip_gradient_training.py) - Full DRCNN monitoring example
-  - [examples/adaclip/concrete_adaclip_gradient_training.py](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/adaclip/concrete_adaclip_gradient_training.py) - Multi-loss monitoring example
+- **Examples**:
+  - [`cuvis_ai/configs/trainrun/drcnn_adaclip_trainrun.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/trainrun/drcnn_adaclip_trainrun.yaml) - Full DRCNN monitoring example, run with `restore-trainrun --mode train`
+  - [`cuvis_ai/configs/pipeline/anomaly/adaclip/concrete_adaclip_gradient_two_stage.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/pipeline/anomaly/adaclip/concrete_adaclip_gradient_two_stage.yaml) - Multi-loss monitoring example, run with `restore-pipeline`
+  - [`notebooks/use_cases/channel_selector_lentils.ipynb`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/notebooks/use_cases/channel_selector_lentils.ipynb) - the same recipe as a notebook

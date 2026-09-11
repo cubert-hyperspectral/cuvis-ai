@@ -169,7 +169,7 @@ pipeline.connect(selector.selected, pca.features)
 `LossAggregator` has been removed—the trainer now collects individual loss nodes directly.
 Register every loss/regularizer node with the `GradientTrainer` (or any custom trainer) and
 feed their inputs through standard port connections, as shown in
-[examples/channel_selector.py](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/channel_selector.py).
+[`notebooks/use_cases/channel_selector_lentils.ipynb`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/notebooks/use_cases/channel_selector_lentils.ipynb).
 
 ```python
 pipeline.connect(

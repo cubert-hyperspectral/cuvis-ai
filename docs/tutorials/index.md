@@ -1,9 +1,9 @@
 # Tutorials
 
-Notebook-shaped walk-throughs that teach a concept by working through
-a runnable example. Each tutorial below links to a script in the
-[cuvis-ai-cookbook](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook)
-repository — clone it alongside cuvis-ai and run the examples directly.
+Walk-throughs that teach a concept by working through a runnable example.
+Each tutorial below links to a notebook in `notebooks/use_cases/` and/or a
+packaged pipeline or trainrun YAML shipped with cuvis-ai, runnable with
+`restore-pipeline` / `restore-trainrun`.
 
 Tutorials are grouped by training style:
 
@@ -11,9 +11,11 @@ Tutorials are grouped by training style:
 - **Gradient** — pipelines that include trainable parameters fit by backpropagation. More expressive, more compute.
 
 !!! tip "Running these locally"
-    Each tutorial is a runnable notebook in `notebooks/use_cases/`. See
+    Notebook-based tutorials live in `notebooks/use_cases/`. See
     [Running the Notebooks](running-notebooks.md) for the repeatable recipe to
     provision an environment (base install, per-notebook plugins, JupyterLab).
+    Pipeline/trainrun tutorials need only the base install plus the
+    `restore-pipeline` / `restore-trainrun` CLI, as shown on each tutorial page.
 
 ## Statistical
 

@@ -12,7 +12,7 @@ anomaly heatmap.
 
 **Run the example:**
 
-- [`examples/rx_statistical.py`](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/rx_statistical.py) — cuvis-ai-cookbook
+- [`cuvis_ai/configs/pipeline/anomaly/rx/rx_statistical.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/pipeline/anomaly/rx/rx_statistical.yaml) — packaged pipeline, run with `restore-pipeline` (statistical fit happens automatically on restore; see [Statistical Training](../../workflows/statistical-training.md) for the underlying recipe)
 
 ## What you'll learn
 
