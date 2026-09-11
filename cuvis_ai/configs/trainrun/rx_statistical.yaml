@@ -34,7 +34,7 @@ training:
   deterministic: false
   benchmark: false
   callbacks:
-output_dir: outputs\rx_statistical
+output_dir: outputs/rx_statistical
 unfreeze_nodes: []
 freeze_nodes: []
 metric_nodes:

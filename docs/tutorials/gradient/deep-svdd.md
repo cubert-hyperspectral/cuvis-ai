@@ -11,7 +11,7 @@ hyperspectral dataset and rendering anomaly heatmaps for each frame.
 
 **Run the example:**
 
-- [`examples/advanced/deep_svdd_gradient_training.py`](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/advanced/deep_svdd_gradient_training.py) — cuvis-ai-cookbook
+- [`cuvis_ai/configs/trainrun/deep_svdd.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/trainrun/deep_svdd.yaml) — trainrun config, run with `restore-trainrun --mode train`
 
 ## What you'll learn
 

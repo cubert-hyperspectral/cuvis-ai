@@ -22,18 +22,15 @@ See the [Installation Guide](installation.md) for detailed setup instructions.
 Download the Lentils dataset from Hugging Face:
 
 ```bash
-# Automated download (default: lentils dataset)
-uv run download-data
-
-# Or explicitly specify dataset
-uv run download-data --dataset lentils
+# Download the lentils dataset
+uv run dataset download lentils
 ```
 
 This downloads ~1.0 GB of real hyperspectral data to `data/Lentils/`.
 
-## Quick Demo: Run Pre-Trained Pipeline
+## Quick Demo: Run a Packaged Pipeline
 
-Want to see Cuvis.AI in action first? Run inference with a pre-configured pipeline:
+Want to see Cuvis.AI in action first? Run a packaged RX pipeline config; `restore-pipeline` statistically initialises it from the sample cube on the spot, no separate training step needed:
 
 ```bash
 # View pipeline structure
@@ -47,14 +44,24 @@ This loads the pipeline configuration and runs anomaly detection on the sample h
 
 ## Train Your Own Pipeline
 
-Train an RX anomaly detector from scratch using the script in the [cuvis-ai-cookbook](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook) repo:
+Fit the RX detector statistically using `StatisticalTrainer` (see
+[Statistical Training](../workflows/statistical-training.md) for the full recipe):
 
-```bash
-# Clone the cookbook alongside this repo, then from cuvis-ai-cookbook/main:
-uv run python examples/rx_statistical.py
+```python
+from cuvis_ai_core.training import StatisticalTrainer
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_dataloader.data import Cu3sDataModule
+
+pipeline = CuvisPipeline.load_pipeline("cuvis_ai/configs/pipeline/anomaly/rx/rx_statistical.yaml")
+datamodule = Cu3sDataModule(cu3s_file_path="data/Lentils/Demo_000.cu3s")
+
+trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
+trainer.fit()
+
+pipeline.save_to_file("outputs/rx_statistical_fitted.yaml")
 ```
 
-Results are saved to `outputs/base_trainrun/`.
+Results are saved to `outputs/rx_statistical_fitted.yaml`.
 
 ## What Just Happened?
 
@@ -69,7 +76,7 @@ After training, restore and use your model for inference:
 
 ```bash
 # Restore trained pipeline
-uv run restore-pipeline --pipeline-path outputs/base_trainrun/trained_models/RX_Statistical.yaml --plugins-dir cuvis_ai/configs/plugins --data-module cu3s --data-arg cu3s_file_path=data/Lentils/Lentils_000.cu3s
+uv run restore-pipeline --pipeline-path outputs/rx_statistical_fitted.yaml --plugins-dir cuvis_ai/configs/plugins --data-module cu3s --data-arg cu3s_file_path=data/Lentils/Lentils_000.cu3s
 ```
 
 The pipeline will load your trained weights and run inference on new data.
