@@ -34,6 +34,12 @@ REPO_LINK_PATTERN = re.compile(
 )
 
 
+def _link_target(raw: str) -> str:
+    """The repo-relative path a blob/tree link points at: fragment (`#L10`)
+    and query (`?plain=1`) dropped, trailing slash removed."""
+    return raw.split("#", 1)[0].split("?", 1)[0].rstrip("/")
+
+
 @pytest.mark.unit
 @pytest.mark.parametrize("path", CHECKED_FILES, ids=lambda p: str(p.relative_to(ROOT)))
 def test_no_cookbook_references(path: Path) -> None:
@@ -57,10 +63,26 @@ def test_repo_blob_links_resolve(path: Path) -> None:
     targets and future renames)."""
     text = path.read_text(encoding="utf-8")
     for m in REPO_LINK_PATTERN.finditer(text):
-        rel_path = m.group(1).rstrip("/")
+        rel_path = _link_target(m.group(1))
         target = ROOT / rel_path
         assert target.exists(), (
             f"{path.relative_to(ROOT)} links to "
             f"github.com/cubert-hyperspectral/cuvis-ai/blob-or-tree/main/{rel_path}, "
             f"but that path does not exist in the repo"
         )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("docs/x.md#L10", "docs/x.md"),
+        ("docs/#anchor", "docs"),
+        ("x.md?plain=1", "x.md"),
+        ("docs/", "docs"),
+        ("docs/x.md", "docs/x.md"),
+    ],
+)
+def test_link_target_strips_fragment_and_query(raw: str, expected: str) -> None:
+    """Fragments and queries are not part of the path that has to exist."""
+    assert _link_target(raw) == expected
