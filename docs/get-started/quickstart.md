@@ -38,58 +38,43 @@ uv run dataset download lentils
 
 This downloads ~1.0 GB of real hyperspectral data to `data/Lentils/`.
 
-## Quick Demo: Run a Packaged Pipeline
+## Inspect the Packaged Pipeline
 
-Want to see Cuvis.AI in action first? Run a packaged RX pipeline config; `restore-pipeline` statistically initialises it from the sample cube on the spot, no separate training step needed:
+The packaged RX anomaly pipeline is a plain YAML graph: a Lentils data node, a min-max normalizer, the RX detector, a score-to-logit conversion and a binary decider, plus metric, mask and TensorBoard sinks. Print its nodes and port wiring without touching any data:
 
 ```bash
-# View pipeline structure
 uv run restore-pipeline --pipeline-path cuvis_ai/configs/pipeline/anomaly/rx/rx_statistical.yaml
-
-# Run inference on sample data
-uv run restore-pipeline --pipeline-path cuvis_ai/configs/pipeline/anomaly/rx/rx_statistical.yaml --plugins-dir cuvis_ai/configs/plugins --data-module cu3s --data-arg cu3s_file_path=data/Lentils/Lentils_000.cu3s
 ```
 
-This loads the pipeline configuration and runs anomaly detection on the sample hyperspectral cube.
+The normalizer and the RX detector are statistical nodes: they need one pass over training frames before they can score anything, so the next step fits them.
 
-## Train Your Own Pipeline
+## Train the Pipeline
 
-Fit the RX detector statistically using `StatisticalTrainer` (see
-[Statistical Training](../workflows/statistical-training.md) for the full recipe):
+The packaged trainrun `cuvis_ai/configs/trainrun/rx_statistical.yaml` pairs the pipeline with the Lentils data config (`cuvis_ai/configs/data/lentils.yaml`: train, val and test frames of `Lentils_000.cu3s`). It is statistical-only, so one pass over the train split fits the nodes, the test split is scored, and the fitted pipeline is written next to its weights:
 
-```python
-from cuvis_ai_core.training import StatisticalTrainer
-from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
-from cuvis_ai_dataloader.data import Cu3sDataModule
-
-pipeline = CuvisPipeline.load_pipeline("cuvis_ai/configs/pipeline/anomaly/rx/rx_statistical.yaml")
-datamodule = Cu3sDataModule(cu3s_file_path="data/Lentils/Lentils_000.cu3s")
-
-trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
-trainer.fit()
-
-pipeline.save_to_file("outputs/rx_statistical_fitted.yaml")
+```bash
+uv run restore-trainrun --trainrun-path cuvis_ai/configs/trainrun/rx_statistical.yaml --mode train
 ```
 
-Results are saved to `outputs/rx_statistical_fitted.yaml`.
+The run takes about half a minute and writes `outputs/rx_statistical/trained_models/RX_Statistical_restored.yaml` plus the matching `.pt`. To do the same from Python, see the recipe in [Statistical Training](../workflows/statistical-training.md).
 
 ## What Just Happened?
 
-1. **Loaded data** - The Lentils hyperspectral dataset
+1. **Loaded data** - The Lentils recording, split into train, val and test frames by the data config
 2. **Built pipeline** - RX statistical anomaly detector from `cuvis_ai/configs/pipeline/anomaly/rx/rx_statistical.yaml`
-3. **Trained model** - Statistical initialization on training data
-4. **Saved results** - Pipeline, weights, and metrics to `outputs/`
+3. **Fitted the statistical nodes** - The normalizer's bounds and the RX detector's background mean and covariance, from the train frames
+4. **Scored the test split and saved the result** - Metrics and TensorBoard artifacts under `outputs/tensorboard/`, the fitted pipeline and weights under `outputs/rx_statistical/trained_models/`
 
 ## Use Your Trained Model
 
-After training, restore and use your model for inference:
+Restore the fitted pipeline and run inference over the recording. The pipeline now lives outside the packaged `configs/` tree, so pass the plugins directory that holds the `cu3s` data module's manifest:
 
 ```bash
 # Restore trained pipeline
-uv run restore-pipeline --pipeline-path outputs/rx_statistical_fitted.yaml --plugins-dir cuvis_ai/configs/plugins --data-module cu3s --data-arg cu3s_file_path=data/Lentils/Lentils_000.cu3s
+uv run restore-pipeline --pipeline-path outputs/rx_statistical/trained_models/RX_Statistical_restored.yaml --plugins-dir cuvis_ai/configs/plugins --data-module cu3s --data-arg cu3s_file_path=data/Lentils/Lentils_000.cu3s
 ```
 
-The pipeline will load your trained weights and run inference on new data.
+The pipeline loads your fitted weights, scores every frame and prints per-node timings.
 
 ## Next Steps
 
