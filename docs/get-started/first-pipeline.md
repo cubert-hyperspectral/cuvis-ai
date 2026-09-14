@@ -44,8 +44,19 @@ uv run restore-pipeline --pipeline-path cuvis_ai/configs/pipeline/medical/blood_
 
 ## 3. Run inference
 
-Point the pipeline at any `.cu3s` file from the dataset — `Auto_005.cu3s` is a
-good first run:
+Reading `.cu3s` files goes through the `cuvis-ai-dataloader` plugin, which
+`uv sync` does not install (and removes again on a later sync). Provision it
+once for this pipeline; its `cu3s` extra also needs the system-wide C++ Cuvis
+SDK from the [Installation Guide](installation.md):
+
+```bash
+uv run provision \
+  --pipeline-path cuvis_ai/configs/pipeline/medical/blood_perfusion/ndvi.yaml \
+  --plugins-dir cuvis_ai/configs/plugins --data-module cu3s --apply
+```
+
+Then point the pipeline at any `.cu3s` file from the dataset — `Auto_005.cu3s`
+is a good first run:
 
 ```bash
 uv run restore-pipeline \

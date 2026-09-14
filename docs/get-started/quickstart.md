@@ -17,6 +17,16 @@ uv sync
 
 See the [Installation Guide](installation.md) for detailed setup instructions.
 
+## Provision the Data Plugin
+
+Reading `.cu3s` recordings goes through the `cuvis-ai-dataloader` plugin, which `uv sync` does not install. Provision it once for the pipeline you are about to run:
+
+```bash
+uv run provision --pipeline-path cuvis_ai/configs/pipeline/anomaly/rx/rx_statistical.yaml --plugins-dir cuvis_ai/configs/plugins --data-module cu3s --apply
+```
+
+This resolves to `cuvis-ai-dataloader[cu3s,coco]` and installs it into the project environment. The `cu3s` extra wraps the system-wide C++ Cuvis SDK, which is a separate install; see the [Installation Guide](installation.md) (Cuvis SDK section). Re-run the command after any later `uv sync`: syncing removes plugins that are not listed in `pyproject.toml`.
+
 ## Download Sample Data
 
 Download the Lentils dataset from Hugging Face:
