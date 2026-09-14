@@ -157,10 +157,9 @@ CustomDetector = NodeRegistry.get('CustomDetector', instance=registry)
 print('Plugin loaded successfully!')
 "
 
-# Test with full pipeline (the pipeline yaml must declare `plugins: [my_plugin]`)
-uv run restore-pipeline \
-    --pipeline-path cuvis_ai/configs/pipeline/my_test_pipeline.yaml \
-    --plugins-dir cuvis_ai/configs/plugins
+# Test with full pipeline (the pipeline yaml must declare `plugins: [my_plugin]`;
+# a pipeline under cuvis_ai/configs/ resolves against the plugins catalog next to it)
+uv run restore-pipeline --pipeline-path cuvis_ai/configs/pipeline/my_test_pipeline.yaml
 ```
 
 **Verify:**
