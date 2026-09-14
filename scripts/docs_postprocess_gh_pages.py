@@ -43,6 +43,10 @@ NOINDEX_TAG = b'<meta name="robots" content="noindex" data-cuvis-postprocess="no
 MARKED_NOINDEX_RE = re.compile(
     rb'<meta\s+name="robots"\s+content="noindex"\s+data-cuvis-postprocess="noindex"\s*/?>'
 )
+# What `_remove_noindex` strips: the tag plus the newline and indentation
+# `_inject_noindex` wrote in front of it, so a version that loses and regains
+# the alias gets its original bytes back instead of an accreting blank line.
+_REMOVE_NOINDEX_RE = re.compile(rb"\s*" + MARKED_NOINDEX_RE.pattern)
 
 CHARSET_RE = re.compile(rb'<meta\s+charset="utf-8"\s*/?>', re.IGNORECASE)
 HEAD_OPEN_RE = re.compile(rb"<head(?:\s[^>]*)?>", re.IGNORECASE)
@@ -177,7 +181,7 @@ def _inject_noindex(html: bytes) -> bytes | None:
 
 
 def _remove_noindex(html: bytes) -> bytes:
-    return MARKED_NOINDEX_RE.sub(b"", html)
+    return _REMOVE_NOINDEX_RE.sub(b"", html)
 
 
 def _inject_banner(html: bytes) -> bytes:

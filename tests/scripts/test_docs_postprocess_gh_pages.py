@@ -174,6 +174,19 @@ class TestNoindexPlacement:
         assert _all_html_bytes(gh_pages) == before
         assert not (gh_pages / "robots.txt").exists()
 
+    def test_inject_then_remove_restores_original_bytes(self) -> None:
+        # The remover strips the newline and indentation the injector wrote,
+        # so inject -> remove is a byte-exact round trip for both anchors.
+        with_charset = _material_page(title="RoundTrip")
+        without_charset = (
+            b"<!doctype html>\n<html>\n  <head>\n    <title>X</title>\n  </head>\n"
+            b"  <body></body>\n</html>\n"
+        )
+        for page in (with_charset, without_charset):
+            injected = pp._inject_noindex(page)
+            assert injected is not None and pp.NOINDEX_TAG in injected
+            assert pp._remove_noindex(injected) == page
+
 
 class TestBanner:
     def test_banner_injected_in_outdated_only(self, gh_pages: Path) -> None:
@@ -277,6 +290,48 @@ class TestVersionTransitions:
 
         assert pp.NOINDEX_TAG not in (gh_pages / "0.16.2" / "index.html").read_bytes()
         assert pp.NOINDEX_TAG in (gh_pages / "0.16.1" / "index.html").read_bytes()
+
+    def test_version_regaining_latest_restores_numbered_page_bytes(self, gh_pages: Path) -> None:
+        """A version that loses and then regains `latest` (a yanked release)
+        ends up byte-identical on its numbered pages: the noindex tag leaves
+        together with the newline and indentation the injector wrote.
+
+        Scope: numbered pages only, banner off. This is not a rollback test.
+        The alias directory is never walked (on gh-pages it is a symlink; the
+        fixture's copytree fallback on Windows keeps a stale copy), and the
+        llms/sitemap files deleted while the version was outdated are not
+        restored until the version is deployed again.
+        """
+        original = (gh_pages / "0.16.2" / "index.html").read_bytes()
+        pp.postprocess(gh_pages, alias=ALIAS, site_url=SITE_URL, banner=False)
+
+        # 0.17.0 takes latest: 0.16.2 becomes outdated and gets noindexed.
+        _write_version(gh_pages, "0.17.0", _default_pages())
+        _write_versions_json(
+            gh_pages,
+            [
+                {"version": "0.17.0", "title": "0.17.0", "aliases": ["latest"]},
+                {"version": "0.16.2", "title": "0.16.2", "aliases": []},
+                {"version": "0.16.1", "title": "0.16.1", "aliases": []},
+            ],
+        )
+        _link_or_copy_latest(gh_pages, "0.17.0")
+        pp.postprocess(gh_pages, alias=ALIAS, site_url=SITE_URL, banner=False)
+        assert pp.NOINDEX_TAG in (gh_pages / "0.16.2" / "index.html").read_bytes()
+
+        # 0.17.0 is yanked (`mike delete`): latest returns to 0.16.2.
+        shutil.rmtree(gh_pages / "0.17.0")
+        _write_versions_json(
+            gh_pages,
+            [
+                {"version": "0.16.2", "title": "0.16.2", "aliases": ["latest"]},
+                {"version": "0.16.1", "title": "0.16.1", "aliases": []},
+            ],
+        )
+        _link_or_copy_latest(gh_pages, "0.16.2")
+        pp.postprocess(gh_pages, alias=ALIAS, site_url=SITE_URL, banner=False)
+
+        assert (gh_pages / "0.16.2" / "index.html").read_bytes() == original
 
 
 class TestValidation:
