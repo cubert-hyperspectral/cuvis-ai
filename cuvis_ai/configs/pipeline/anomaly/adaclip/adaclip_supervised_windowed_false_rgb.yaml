@@ -69,7 +69,7 @@ nodes:
 - name: TensorBoardMonitorNode
   class_name: cuvis_ai.node.monitor.TensorBoardMonitorNode
   hparams:
-    output_dir: outputs\tensorboard
+    output_dir: outputs/tensorboard
     run_name: AdaCLIP_Supervised_WindowedFalseRGB
     comment: ''
     flush_secs: 120

@@ -71,7 +71,7 @@ nodes:
 - name: TensorBoardMonitorNode
   class_name: cuvis_ai.node.monitor.TensorBoardMonitorNode
   hparams:
-    output_dir: outputs\channel_selector\..\tensorboard
+    output_dir: outputs/channel_selector/../tensorboard
     run_name: Channel_Selector
     comment: ''
     flush_secs: 120

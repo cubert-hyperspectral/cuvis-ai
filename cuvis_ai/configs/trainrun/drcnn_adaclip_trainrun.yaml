@@ -46,7 +46,7 @@ training:
     verbose: false
   callbacks:
     checkpoint:
-      dirpath: outputs\drcnn_adaclip\checkpoints
+      dirpath: outputs/drcnn_adaclip/checkpoints
       filename: '{epoch:02d}'
       monitor: metrics_anomaly/iou
       mode: max

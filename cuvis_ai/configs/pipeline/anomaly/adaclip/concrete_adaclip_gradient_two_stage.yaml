@@ -99,7 +99,7 @@ nodes:
 - name: TensorBoardMonitorNode
   class_name: cuvis_ai.node.monitor.TensorBoardMonitorNode
   hparams:
-    output_dir: outputs\concrete_adaclip\tensorboard
+    output_dir: outputs/concrete_adaclip/tensorboard
     run_name: concrete_adaclip_gradient
     comment: ''
     flush_secs: 120

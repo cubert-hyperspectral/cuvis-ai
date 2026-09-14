@@ -66,7 +66,7 @@ nodes:
 - name: TensorBoardMonitorNode
   class_name: cuvis_ai.node.monitor.TensorBoardMonitorNode
   hparams:
-    output_dir: outputs\adaclip_cir_false_color_optimal_threshold\tensorboard
+    output_dir: outputs/adaclip_cir_false_color_optimal_threshold/tensorboard
     run_name: AdaCLIP_CIR_FalseColor_OptimalThreshold
     comment: ''
     flush_secs: 120
