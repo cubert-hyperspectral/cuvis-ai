@@ -11,6 +11,7 @@ metadata:
   - point-prompt
   - rgb
   - expansion
+  - cuvisnext
   author: cuvis.ai
 plugins:
 - rtsam2

@@ -9,6 +9,7 @@ metadata:
   - point-prompt
   - rgb
   - expansion
+  - cuvisnext
   author: cuvis.ai
 plugins:
 - sam3

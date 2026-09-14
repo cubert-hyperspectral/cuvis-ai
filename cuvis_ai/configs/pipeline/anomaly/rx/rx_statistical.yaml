@@ -5,6 +5,7 @@ metadata:
   tags:
   - statistical
   - rx
+  - anomaly
   author: cuvis.ai
   cuvis_ai_version: 0.5.3
 plugins:

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.16.3 - 2026-09-11
+
+- **Every shipped preset carries one category tag, the word the CuvisNEXT pipeline pickers filter on.** `metadata.tags` of all 42 presets under `configs/pipeline/` now hold exactly one of `anomaly`, `segmentation`, `tracking`, `thickness`, `medical`: 28 already did; `anomaly` joins the adaclip, rx and deep_svdd presets beside their existing tags, `medical` the blood-perfusion NDVI preset. The seven sam3/rtsam2 `*_view` presets are tagged `cuvisnext`, the tag the pickers list by default, alongside the two wafer `_cuvisnext_cube` presets. Nothing is removed: `anomaly_detection` stays on the three presets that carried it, so `filter_tag="anomaly_detection"` discovery queries keep their results. `tests/configs/test_pipeline_preset_metadata.py` pins the vocabulary (cuvis-next mirrors it), one category per preset and the `cuvisnext` set; the pipeline concepts page documents both tags. No dependency floor changes.
+
 ## 0.16.2 - 2026-09-10
 
 - **The cu3s data module opens only the recordings a run uses.** `configs/plugins/cuvis_ai_dataloader.yaml` moves to `v0.6.3`, which takes the assigned recordings as an explicit `files` list (what CuvisNEXT now sends) and, without one, narrows a folder by the sources the split's selectors name. Enumeration previously built a full reader for every `*.cu3s` under `data_dir` before any selector was applied: an SDK session, a processing context and a read of measurement 0 each. `configs/trainrun/dinomaly_custom_cuvisnext.yaml` documents the list next to `data_dir`; the key stays absent so the preset still runs against an older data module.

@@ -9,6 +9,7 @@ metadata:
   - cir_false_color
   - optimal_threshold
   - two_stage
+  - anomaly
   author: cuvis.ai
   cuvis_ai_version: 0.5.3
 plugins:
