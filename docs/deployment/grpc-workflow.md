@@ -396,7 +396,7 @@ if __name__ == "__main__":
     run_inference(
         pipeline_path="outputs/trained_models/channel_selector.yaml",
         weights_path="outputs/trained_models/channel_selector.pt",
-        cu3s_file_path="data/lentils/Demo_000.cu3s",
+        cu3s_file_path="data/Lentils/Lentils_000.cu3s",
         server_address="localhost:50051",
     )
 ```

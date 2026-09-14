@@ -37,7 +37,7 @@ Want to see Cuvis.AI in action first? Run a packaged RX pipeline config; `restor
 uv run restore-pipeline --pipeline-path cuvis_ai/configs/pipeline/anomaly/rx/rx_statistical.yaml
 
 # Run inference on sample data
-uv run restore-pipeline --pipeline-path cuvis_ai/configs/pipeline/anomaly/rx/rx_statistical.yaml --plugins-dir cuvis_ai/configs/plugins --data-module cu3s --data-arg cu3s_file_path=data/Lentils/Demo_000.cu3s
+uv run restore-pipeline --pipeline-path cuvis_ai/configs/pipeline/anomaly/rx/rx_statistical.yaml --plugins-dir cuvis_ai/configs/plugins --data-module cu3s --data-arg cu3s_file_path=data/Lentils/Lentils_000.cu3s
 ```
 
 This loads the pipeline configuration and runs anomaly detection on the sample hyperspectral cube.
@@ -53,7 +53,7 @@ from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_dataloader.data import Cu3sDataModule
 
 pipeline = CuvisPipeline.load_pipeline("cuvis_ai/configs/pipeline/anomaly/rx/rx_statistical.yaml")
-datamodule = Cu3sDataModule(cu3s_file_path="data/Lentils/Demo_000.cu3s")
+datamodule = Cu3sDataModule(cu3s_file_path="data/Lentils/Lentils_000.cu3s")
 
 trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
 trainer.fit()
