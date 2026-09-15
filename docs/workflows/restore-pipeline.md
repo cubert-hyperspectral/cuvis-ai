@@ -598,23 +598,28 @@ When a plugin is loaded:
 
 ### Using Plugins with CLI
 
-Load external plugins when restoring pipelines:
+A pipeline stored under a `configs/` tree (every packaged preset) resolves the plugins its
+`plugins:` list names against the sibling `configs/plugins/` catalog automatically:
 
 ```bash
 uv run restore-pipeline \
-  --pipeline-path cuvis_ai/configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml \
-  --plugins-dir cuvis_ai/configs/plugins
+  --pipeline-path cuvis_ai/configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml
 ```
 
-With inference:
+With inference, the `cu3s` data module's plugin comes from the same catalog:
 
 ```bash
 uv run restore-pipeline \
   --pipeline-path cuvis_ai/configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml \
-  --plugins-dir cuvis_ai/configs/plugins \
   --data-module cu3s \
   --data-arg cu3s_file_path=data/Lentils/Lentils_000.cu3s
 ```
+
+For a pipeline stored elsewhere, such as a trained pipeline under `outputs/`, pass the catalog
+explicitly with `--plugins-dir cuvis_ai/configs/plugins` (repeatable), as in
+[Quick Inference](#quick-inference-pipeline-only) above. Do not pass the packaged catalog for a
+packaged pipeline: the same manifests would be loaded twice and the resolver rejects the
+duplicate plugin names.
 
 ### Using Plugins with Python API
 

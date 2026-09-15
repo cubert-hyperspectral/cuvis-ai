@@ -132,7 +132,7 @@ dev = [
 [project.urls]
 Homepage = "https://www.cubert-hyperspectral.com/"
 Repository = "https://github.com/cubert-hyperspectral/cuvis-ai"
-Documentation = "https://cubert-hyperspectral.github.io/cuvis.ai/"
+Documentation = "https://docs.cuvis.ai/latest/"
 Changelog = "https://github.com/cubert-hyperspectral/cuvis-ai/releases"
 Issues = "https://github.com/cubert-hyperspectral/cuvis-ai/issues"
 

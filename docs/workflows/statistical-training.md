@@ -13,7 +13,7 @@ with [`restore-pipeline`](restore-pipeline.md).
 ## Prerequisites
 
 - A pipeline with at least one [statistical node](../catalogs/nodes/index.md#category=model) (RX, PCA, NormalizeFromStats, …).
-- A datamodule that produces unlabelled training data: `Cu3sDataModule` with `cu3s_file_path=...` for one cube, or `data_dir=...` for a folder of cubes.
+- A datamodule with a declared train split: `Cu3sDataModule` with `cu3s_file_path=...` for one cube (a `file_indices` selector names the training frames), or `data_dir=...` for a folder of cubes. A cu3s module refuses to fit on an undeclared whole recording, so anomalous frames cannot slip into the background statistics unnoticed.
 - The [Concepts → Training](../concepts/training.md) page if you want the model behind the trainer.
 
 ## Recipe
@@ -22,14 +22,26 @@ with [`restore-pipeline`](restore-pipeline.md).
 from cuvis_ai_core.training import StatisticalTrainer
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_dataloader.data import Cu3sDataModule
+from cuvis_ai_schemas.training import DataSplitConfig, Selector
 
 pipeline = CuvisPipeline.load_pipeline("cuvis_ai/configs/pipeline/anomaly/rx/rx_statistical.yaml")
-datamodule = Cu3sDataModule(cu3s_file_path="data/Lentils/Demo_000.cu3s")
+splits = DataSplitConfig(
+    train=[Selector(kind="file_indices", source="data/Lentils/Lentils_000.cu3s", ids=[0, 2, 3])]
+)
+datamodule = Cu3sDataModule(cu3s_file_path="data/Lentils/Lentils_000.cu3s", splits=splits)
 
 trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
 trainer.fit()
 
 pipeline.save_to_file("artifacts/rx_statistical_fitted.yaml")
+```
+
+`save_to_file` writes the YAML and the matching `.pt` weights next to it. The same fit from the
+command line is the packaged statistical-only trainrun, which carries these splits in
+`cuvis_ai/configs/data/lentils.yaml`:
+
+```bash
+uv run restore-trainrun --trainrun-path cuvis_ai/configs/trainrun/rx_statistical.yaml --mode train
 ```
 
 ## What happens under the hood

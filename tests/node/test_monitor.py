@@ -9,6 +9,7 @@ import pytest
 from cuvis_ai_schemas.enums import ArtifactType, ExecutionStage, NodeTag
 from cuvis_ai_schemas.execution import Artifact, Context, Metric
 
+import cuvis_ai.node.monitor as monitor_module
 from cuvis_ai.node.monitor import TensorBoardMonitorNode
 
 pytestmark = pytest.mark.unit
@@ -90,6 +91,37 @@ class TestLazyWriter:
         node.cleanup()
         assert node._writer is None
         node.cleanup()
+
+    def test_writer_creation_registers_an_exit_hook(self, tmp_path: Path, monkeypatch):
+        # Closing from ``__del__`` during interpreter shutdown deadlocks in TensorBoard's
+        # event writer; the exit hook closes the writer while its threads still run.
+        registered: list = []
+        monkeypatch.setattr(
+            monitor_module.atexit, "register", lambda fn, *a, **k: registered.append(fn)
+        )
+        node = TensorBoardMonitorNode(output_dir=str(tmp_path / "tb"))
+        assert registered == []
+        node.log("x", 1.0, step=0)
+        assert registered == [node.cleanup]
+        node.log("x", 2.0, step=1)
+        assert len(registered) == 1
+        node.cleanup()
+
+    def test_del_skips_cleanup_while_the_interpreter_finalizes(self, tmp_path: Path, monkeypatch):
+        node = TensorBoardMonitorNode(output_dir=str(tmp_path / "tb"))
+        node.log("x", 1.0, step=0)
+        writer = node._writer
+        closed: list = []
+        real_close = writer.close
+        monkeypatch.setattr(writer, "close", lambda: (closed.append(True), real_close()))
+
+        monkeypatch.setattr(monitor_module.sys, "is_finalizing", lambda: True)
+        node.__del__()
+        assert closed == [] and node._writer is writer
+
+        monkeypatch.setattr(monitor_module.sys, "is_finalizing", lambda: False)
+        node.__del__()
+        assert closed == [True] and node._writer is None
 
     def test_run_name_versioning_applies_on_first_use(self, tmp_path: Path):
         root = tmp_path / "tb"

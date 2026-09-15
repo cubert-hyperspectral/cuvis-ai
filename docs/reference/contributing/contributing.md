@@ -157,10 +157,9 @@ CustomDetector = NodeRegistry.get('CustomDetector', instance=registry)
 print('Plugin loaded successfully!')
 "
 
-# Test with full pipeline (the pipeline yaml must declare `plugins: [my_plugin]`)
-uv run restore-pipeline \
-    --pipeline-path cuvis_ai/configs/pipeline/my_test_pipeline.yaml \
-    --plugins-dir cuvis_ai/configs/plugins
+# Test with full pipeline (the pipeline yaml must declare `plugins: [my_plugin]`;
+# a pipeline under cuvis_ai/configs/ resolves against the plugins catalog next to it)
+uv run restore-pipeline --pipeline-path cuvis_ai/configs/pipeline/my_test_pipeline.yaml
 ```
 
 **Verify:**
@@ -228,7 +227,7 @@ Edit `docs/reference/plugin-development/overview.md` under the "Community Plugin
 
 **4.4 (Optional) Add showcase example**
 
-Add a showcase script under `examples/my-plugin/` in the [cuvis-ai-cookbook](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook) repo with:
+Add a showcase notebook under `notebooks/use_cases/` or a packaged pipeline YAML under `cuvis_ai/configs/pipeline/<plugin-name>/` in this repo with:
 
 - Sample pipeline configuration using your plugin
 - Example data or instructions
@@ -248,7 +247,7 @@ Submit your plugin registration for review.
 - [ ] Added documentation to `docs/reference/plugin-development/overview.md`
 - [ ] Included LICENSE file
 - [ ] README has installation and usage examples
-- [ ] (Optional) Added showcase example to the [cuvis-ai-cookbook](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook) repo
+- [ ] (Optional) Added a showcase notebook or packaged pipeline YAML to this repo
 
 **Add label:** `plugin-contribution`
 

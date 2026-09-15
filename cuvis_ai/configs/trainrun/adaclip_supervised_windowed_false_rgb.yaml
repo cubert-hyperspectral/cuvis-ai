@@ -24,7 +24,7 @@ data:
   batch_size: 1
 
 
-output_dir: outputs\adaclip_supervised_windowed_false_rgb
+output_dir: outputs/adaclip_supervised_windowed_false_rgb
 
 metric_nodes:
 - detection_metrics

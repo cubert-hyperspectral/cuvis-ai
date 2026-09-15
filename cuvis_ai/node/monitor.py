@@ -15,7 +15,9 @@ cuvis_ai.node.anomaly_visualization : Anomaly visualization nodes
 cuvis_ai.node.pipeline_visualization : Pipeline visualization nodes
 """
 
+import atexit
 import re
+import sys
 from pathlib import Path
 
 from cuvis_ai_schemas.enums import ArtifactType, ExecutionStage, NodeCategory, NodeTag
@@ -123,6 +125,11 @@ class TensorBoardMonitorNode(Node):
             logger.info(
                 f"To view visualizations, run: uv run tensorboard --logdir={self.output_dir}"
             )
+            # Close the writer while the interpreter still runs its threads. Closing
+            # from ``__del__`` during shutdown blocks forever in TensorBoard's
+            # event-writer ``stop()`` (its worker thread is already gone), which kept
+            # ``restore-trainrun`` alive after it had logged "Complete".
+            atexit.register(self.cleanup)
         return self._writer
 
     def _resolve_log_dir(self) -> Path:
@@ -350,6 +357,8 @@ class TensorBoardMonitorNode(Node):
             logger.error(f"Failed to close TensorBoard writer: {e}")
 
     def __del__(self) -> None:
-        """Clean up TensorBoard writer on deletion."""
+        """Clean up TensorBoard writer on deletion (the exit hook covers shutdown)."""
+        if sys.is_finalizing():
+            return
         if getattr(self, "_writer", None) is not None:
             self.cleanup()

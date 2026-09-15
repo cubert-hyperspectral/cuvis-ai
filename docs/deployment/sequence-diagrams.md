@@ -76,10 +76,6 @@ sequenceDiagram
 8. **SaveTrainRun**: Save composed trainrun config for reproducibility
 9. **CloseSession**: Clean up session resources
 
-**Example Client:**
-
-- [examples/grpc/core/complete_workflow_client.py](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/grpc/core/complete_workflow_client.py)
-
 ---
 
 ## 2. Two-Phase Training Workflow
@@ -142,12 +138,6 @@ sequenceDiagram
   - Streams progress updates for each epoch
   - Reports losses, metrics, and training context
 
-**Example Clients:**
-
-- [examples/grpc/rx/statistical_training_client.py](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/grpc/rx/statistical_training_client.py)
-- [examples/grpc/deep_svdd/gradient_training_client.py](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/grpc/deep_svdd/gradient_training_client.py)
-- [examples/grpc/deep_svdd/deepsvdd_client.py](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/grpc/deep_svdd/deepsvdd_client.py)
-
 ---
 
 ## 3. Inference Workflow
@@ -191,13 +181,11 @@ sequenceDiagram
 1. **RestoreTrainRun** (Recommended):
    - Loads pipeline config, weights, data config, and training config from saved TrainRun
    - Single call, ensures exact reproducibility
-   - Example: [examples/grpc/core/restore_trainrun_grpc.py](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/grpc/core/restore_trainrun_grpc.py)
 
 2. **Manual Loading**:
    - Step 1: `ResolveConfig` or provide raw pipeline config
    - Step 2: `LoadPipeline` builds the pipeline graph
    - Step 3: `LoadPipelineWeights` loads trained weights
-   - Example: [examples/grpc/rx/inference_with_pretrained_client.py](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/grpc/rx/inference_with_pretrained_client.py)
 
 **InputBatch Fields:**
 ```python
@@ -267,10 +255,6 @@ spec = TensorSpec(
 )
 ```
 
-**Example Client:**
-
-- [examples/grpc/rx/introspection_client.py](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/grpc/rx/introspection_client.py)
-
 ---
 
 ## 5. Pipeline Discovery & Capabilities
@@ -324,11 +308,6 @@ GetTrainingCapabilitiesResponse(
 )
 ```
 
-**Example Clients:**
-
-- [examples/grpc/core/pipeline_discovery_client.py](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/grpc/core/pipeline_discovery_client.py)
-- [examples/grpc/core/capabilities_client.py](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/grpc/core/capabilities_client.py)
-
 ---
 
 ## 6. Resume Training from Checkpoint
@@ -377,10 +356,6 @@ sequenceDiagram
 - Training resumes from the saved epoch count
 - Optimizer and scheduler states are preserved
 
-**Example Client:**
-
-- [examples/grpc/deep_svdd/resume_training_client.py](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/grpc/deep_svdd/resume_training_client.py)
-
 ---
 
 ## 7. Batch Inference Pattern
@@ -415,10 +390,6 @@ sequenceDiagram
 - InputBatch supports batched inputs: `cube.shape = (B, H, W, C)`
 - All outputs are returned in batched format
 - Server processes batch in parallel when possible
-
-**Example Client:**
-
-- [examples/grpc/core/run_inference.py](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/grpc/core/run_inference.py)
 
 ---
 
@@ -480,7 +451,6 @@ for progress in stub.Train(request):
 ### Tutorials & Guides
 
 - [gRPC Tutorial](grpc-workflow.md) - End-to-end hands-on tutorial
-- [gRPC Client Examples](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/tree/main/examples/grpc/) - All example clients
 
 ---
 
@@ -489,7 +459,6 @@ for progress in stub.Train(request):
 ✅ **All diagrams verified against:**
 
 - Protocol Buffer definitions in `cuvis_ai_core.proto`
-- Production client examples in `examples/grpc/`
 - Current `CuvisAIService` RPC surface
 
 **Last Updated:** 2026-02-04

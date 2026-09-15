@@ -42,7 +42,7 @@ nodes:
 - name: TensorBoardMonitorNode
   class_name: cuvis_ai.node.monitor.TensorBoardMonitorNode
   hparams:
-    output_dir: outputs\rx_statistical\..\tensorboard
+    output_dir: outputs/rx_statistical/../tensorboard
     run_name: RX_Statistical
     comment: ''
     flush_secs: 120

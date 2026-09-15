@@ -10,8 +10,8 @@ selector, then inspecting which wavelengths survived.
 
 **Run the example:**
 
-- [`examples/channel_selector.py`](https://github.com/cubert-hyperspectral/cuvis-ai-cookbook/blob/main/examples/channel_selector.py) — cuvis-ai-cookbook
-- [`notebooks/use_cases/channel_selector_lentils.ipynb`](https://github.com/cubert-hyperspectral/cuvis-ai/tree/main/notebooks/use_cases): gradient-trained variant in cuvis-ai, a Gumbel-Softmax selector learned through a frozen AdaCLIP detector on the lentils dataset.
+- [`cuvis_ai/configs/trainrun/channel_selector.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/trainrun/channel_selector.yaml) — trainrun config, run with `restore-trainrun --mode train`
+- [`notebooks/use_cases/channel_selector_lentils.ipynb`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/notebooks/use_cases/channel_selector_lentils.ipynb): gradient-trained variant in cuvis-ai, a Gumbel-Softmax selector learned through a frozen AdaCLIP detector on the lentils dataset.
 
 ## What you'll learn
 

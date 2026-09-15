@@ -56,7 +56,7 @@ training:
   benchmark: false
   callbacks:
     checkpoint:
-      dirpath: outputs\deepsvdd\checkpoints
+      dirpath: outputs/deepsvdd/checkpoints
       monitor: metrics_anomaly/iou
       filename: "{epoch:02d}"
       mode: max
@@ -67,7 +67,7 @@ training:
     learning_rate_monitor:
       logging_interval: epoch
       log_momentum: false
-output_dir: outputs\deepsvdd
+output_dir: outputs/deepsvdd
 unfreeze_nodes:
 - ZScoreNormalizerGlobal
 freeze_nodes: []

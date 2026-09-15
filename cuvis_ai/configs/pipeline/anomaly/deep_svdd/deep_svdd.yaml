@@ -81,7 +81,7 @@ nodes:
 - name: TensorBoardMonitorNode
   class_name: cuvis_ai.node.monitor.TensorBoardMonitorNode
   hparams:
-    output_dir: outputs\deepsvdd\..\tensorboard
+    output_dir: outputs/deepsvdd/../tensorboard
     run_name: DeepSVDD_Gradient
     comment: ''
     flush_secs: 120

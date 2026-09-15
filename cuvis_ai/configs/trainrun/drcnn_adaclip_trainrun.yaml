@@ -46,7 +46,7 @@ training:
     verbose: false
   callbacks:
     checkpoint:
-      dirpath: outputs\drcnn_adaclip\checkpoints
+      dirpath: outputs/drcnn_adaclip/checkpoints
       filename: '{epoch:02d}'
       monitor: metrics_anomaly/iou
       mode: max
@@ -87,5 +87,5 @@ metric_nodes:
 freeze_nodes: []
 unfreeze_nodes:
 - channel_mixer
-output_dir: outputs\drcnn_adaclip
+output_dir: outputs/drcnn_adaclip
 tags: {}

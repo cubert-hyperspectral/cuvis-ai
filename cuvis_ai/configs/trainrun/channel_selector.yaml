@@ -56,7 +56,7 @@ training:
       stopping_threshold:
       verbose: true
     checkpoint:
-      dirpath: outputs\channel_selector\checkpoints
+      dirpath: outputs/channel_selector/checkpoints
       monitor: metrics_anomaly/iou
       filename: '{epoch:02d}'
       mode: max
@@ -67,7 +67,7 @@ training:
     learning_rate_monitor:
       logging_interval: epoch
       log_momentum: false
-output_dir: outputs\channel_selector
+output_dir: outputs/channel_selector
 unfreeze_nodes:
 - SoftChannelSelector
 - RXGlobal

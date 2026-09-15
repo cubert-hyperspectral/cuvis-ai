@@ -21,7 +21,7 @@ The XMR_Demo_Blood_Perfusion dataset (~11 GB) is a 568-frame hyperspectral
 recording of a human hand:
 
 ```bash
-uv run download-data --dataset blood_perfusion
+uv run dataset download blood_perfusion
 ```
 
 This drops `.cu3s` files under `data/XMR_Demo_Blood_Perfusion/`. Other demo
@@ -44,13 +44,26 @@ uv run restore-pipeline --pipeline-path cuvis_ai/configs/pipeline/medical/blood_
 
 ## 3. Run inference
 
-Point the pipeline at any `.cu3s` file from the dataset — `Auto_005.cu3s` is a
-good first run:
+Reading `.cu3s` files goes through the `cuvis-ai-dataloader` plugin, which
+`uv sync` does not install (and removes again on a later sync). Provision it
+once for this pipeline; its `cu3s` extra also needs the system-wide C++ Cuvis
+SDK from the [Installation Guide](installation.md):
+
+```bash
+uv run provision \
+  --pipeline-path cuvis_ai/configs/pipeline/medical/blood_perfusion/ndvi.yaml \
+  --plugins-dir cuvis_ai/configs/plugins --data-module cu3s --apply
+```
+
+Then point the pipeline at any `.cu3s` file from the dataset — `Auto_005.cu3s`
+is a good first run. The pipeline lives inside the packaged `configs/` tree, so
+`restore-pipeline` finds the sibling `configs/plugins/` catalog with the `cu3s`
+data module's manifest on its own (`--plugins-dir` is for pipelines stored
+elsewhere):
 
 ```bash
 uv run restore-pipeline \
   --pipeline-path cuvis_ai/configs/pipeline/medical/blood_perfusion/ndvi.yaml \
-  --plugins-dir cuvis_ai/configs/plugins \
   --data-module cu3s \
   --data-arg cu3s_file_path=data/XMR_Demo_Blood_Perfusion/Auto_005.cu3s
 ```

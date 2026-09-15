@@ -234,6 +234,9 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: cubertgmbh/cuvis_pyil:3.5.0-ubuntu24.04
+    concurrency:
+      group: docs-deploy
+      cancel-in-progress: false
 
     steps:
       - name: Checkout code
@@ -244,40 +247,17 @@ jobs:
       - name: Mark workspace as safe for Git versioning
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.11'
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-
-      - name: Install documentation dependencies
-        run: uv sync --locked --extra docs
-
-      - name: Install system dependencies for OpenCV / ffmpeg imports
-        run: |
-          apt-get update
-          apt-get install -y --no-install-recommends libgl1 libglib2.0-0 ffmpeg
-          rm -rf /var/lib/apt/lists/*
-
-      - name: Configure git for deployment
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
       - name: Extract version from tag
         id: get_version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      - name: Deploy documentation with mike
-        run: |
-          VERSION=${{ steps.get_version.outputs.VERSION }}
-          uv run mike deploy --push --update-aliases $VERSION latest
-          uv run mike set-default --push latest
+      - name: Deploy documentation
+        uses: ./.github/actions/deploy-docs
+        with:
+          version: ${{ steps.get_version.outputs.VERSION }}
 
       - name: Verify deployment
         run: |
           echo "Documentation deployed to:"
-          echo "https://cubert-hyperspectral.github.io/cuvis-ai/"
+          echo "https://docs.cuvis.ai/latest/"
           echo "Version: ${{ steps.get_version.outputs.VERSION }}"
