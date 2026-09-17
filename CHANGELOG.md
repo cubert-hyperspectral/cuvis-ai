@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.16.5 - 2026-09-17
+
+- **The `cuvis_ai_dataloader` plugin manifest pins v0.6.4**, which floors the Windows cu3s
+  bindings to the 3.6.0 Cuvis SDK. The `cuvis` wrapper loads its native DLLs from the
+  machine-wide SDK (`%CUVIS%`), so the binding version must match the installed DLLs; the
+  dataloader's old `cuvis-il<3.5.4` win32 cap left 3.5.3.2 bindings loading the 3.6.0 DLLs
+  the CuvisNEXT installer ships. No other change; the composed cu3s child env now resolves
+  matched 3.6.0 bindings on Windows.
+
 ## 0.16.4 - 2026-09-15
 
 - **The public docs are runnable for anonymous readers again.** Every link into the private `cuvis-ai-cookbook` repo is replaced by the packaged pipeline/trainrun YAML or the notebook it stood for (the gRPC client-example links, which had no public equivalent, are dropped). The quickstart is one verified flow: `uv run provision` for the `cu3s` data module (a fresh `uv sync` does not install `cuvis-ai-dataloader`), `dataset download lentils`, inspect the RX pipeline, fit it with `restore-trainrun --trainrun-path configs/trainrun/rx_statistical.yaml --mode train`, then `restore-pipeline` on the fitted `outputs/rx_statistical/trained_models/RX_Statistical_restored.yaml`; every command names `Lentils_000.cu3s`, the file the dataset ships. The statistical-training recipe declares its train split (`DataSplitConfig` + a `file_indices` `Selector`), which the cu3s module requires before it fits. Commands for pipelines under the packaged `configs/` tree no longer pass `--plugins-dir cuvis_ai/configs/plugins`: `restore-pipeline` discovers that sibling catalog itself and, given the same directory twice, rejected every manifest as a duplicate plugin name, so all 13 documented commands failed. The 12 trainruns the docs point at write `outputs/<name>` instead of a literal `outputs\<name>` directory, and the 13 pipeline presets with a TensorBoard sink plus the three trainruns with a checkpoint `dirpath` get the same forward slashes. `tests/docs/test_no_private_repo_links.py` guards both the cookbook links and that every `github.com/.../cuvis-ai` blob or tree link resolves to a path in the repo.
