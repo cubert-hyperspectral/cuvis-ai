@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.17.0 - 2026-09-17
+
+- **The `cu3s` data module moves to cuvis-ai-dataloader 0.7.0, which requires the C++ Cuvis SDK 3.6.0.** The plugin manifest pins `v0.7.0`; its `cu3s` extra installs the `cuvis` 3.6.0.0 binding, which fails at import against a 3.5.x runtime (`DLL load failed while importing _cuvis_pyil`), so a machine that reads cu3s files needs SDK 3.6.0 installed before this release. That requirement is why this is a minor version: CuvisNEXT's managed environment pins `cuvis-ai<0.17` and lifts the cap with its next release, which provisions SDK 3.6.0. The installation page names the 3.6.0 requirement and checks the binding with `cuvis.version()`.
+- **What 0.7.0 brings to cu3s pipelines and training**, all off by default and documented in the dataloader README: `read_threads` reads a batch on several session handles sharing one `ProcessingContext` (about 4x on a GPU at eight threads; `batch_size` is the lever, `num_workers` stays 0); `sdk_cuda` selects the SDK's processing device (default GPU, which restores what the SDK did on its own before 3.6.0, where a process that never asks processes on the host); `cuda_cubes` hands out device-resident cubes as CUDA tensors, which `CU3SDataNode` consumes unchanged (verified with the blood-perfusion NDVI preset on the Lentils recording). The shipped trainruns keep all three at their defaults.
+
 ## 0.16.5 - 2026-09-17
 
 - **The `cuvis_ai_dataloader` plugin manifest pins v0.6.4**, which floors the Windows cu3s

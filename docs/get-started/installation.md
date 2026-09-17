@@ -53,10 +53,10 @@ Reading `.cu3s` / `.cu3` files needs the system-wide **C++ Cuvis SDK** plus the 
 
     The Cuvis SDK ships for **Windows and Linux only**. On macOS, `.cu3s` / `.cu3` reads fail at runtime; TIFF, numpy, and video input still work.
 
-Install the binding (`uv pip install "cuvis-ai-dataloader[cu3s,coco]"`), then install a C++ SDK build matching the `cuvis>=3.5.0` pin for your OS from the [Cuvis SDK installation guide](https://sdk.cuvis.ai/latest/installation/), and verify the binding finds it:
+Install the binding (`uv pip install "cuvis-ai-dataloader[cu3s,coco]"`), then install the C++ SDK **3.6.0** for your OS (the `cuvis>=3.6.0.0` binding the extra installs fails at import against a 3.5.x runtime with `DLL load failed while importing _cuvis_pyil`) from the [Cuvis SDK installation guide](https://sdk.cuvis.ai/latest/installation/), and verify the binding finds it:
 
 ```bash
-uv run python -c "import cuvis; print(cuvis.__version__)"
+uv run python -c "import cuvis; print(cuvis.version())"
 ```
 
 ## FFmpeg (required for video pipelines)
