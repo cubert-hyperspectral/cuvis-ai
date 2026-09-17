@@ -1,0 +1,21 @@
+# Deep SVDD — One-Class Anomaly Detection
+
+Deep Support Vector Data Description (Deep SVDD) learns a compact representation of "normal" data, then flags anything that lands far from the centre at inference time. It's the gradient-trained sibling of [RX anomaly detection](https://docs.cuvis.ai/latest/tutorials/statistical/rx-anomaly/index.md) — slower to train, but able to capture non-Gaussian backgrounds.
+
+This tutorial walks through training Deep SVDD end-to-end on a hyperspectral dataset and rendering anomaly heatmaps for each frame.
+
+**Run the example:**
+
+- [`cuvis_ai/configs/trainrun/deep_svdd.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/trainrun/deep_svdd.yaml) — trainrun config, run with `restore-trainrun --mode train`
+
+## What you'll learn
+
+- How the [gradient training stage](https://docs.cuvis.ai/latest/concepts/training/index.md) consumes a statistically-initialised pipeline.
+- Configuring the representation dimension, soft boundary, and unfreeze schedule.
+- Saving the trained pipeline and trainrun config so the run is reproducible via `restore-trainrun`.
+
+## When to reach for Deep SVDD
+
+- The background is non-Gaussian or multi-modal (RX would struggle).
+- You have enough "normal" data to train on and no labelled anomalies.
+- You're willing to spend training time to get a richer anomaly signal than statistical methods deliver.
