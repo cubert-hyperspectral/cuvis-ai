@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **`FixedWavelengthSelector` and `PercentileNormalizer` count frames, not batches, in `running` mode.** Both nodes took one percentile over the whole batch and advanced their counter once per forward call, so `running_warmup_frames` and `freeze_running_bounds_after_frames` meant batches at `batch_size > 1`, a boundary could only fall between batches, and a batch mixed its frames' percentiles. The shared per-frame step (`cuvis_ai/node/_running_bounds.py`) counts every frame, folds each frame's own percentiles into the bounds and scales warmup frames with their own quantiles, so four frames in one batch give the same bounds and outputs as the same frames one at a time. Batch-1 runs and their checkpoints are unchanged; a checkpoint saved at `batch_size > 1` before its bounds froze carries a count in batches and resumes with that integer read as frames (it freezes later, bounds intact), which no shipped trainrun produces.
+
 ## 0.17.0 - 2026-09-17
 
 - **The `cu3s` data module moves to cuvis-ai-dataloader 0.7.0, which requires the C++ Cuvis SDK 3.6.0.** The plugin manifest pins `v0.7.0`; its `cu3s` extra installs the `cuvis` 3.6.0.0 binding, which fails at import against a 3.5.x runtime (`DLL load failed while importing _cuvis_pyil`), so a machine that reads cu3s files needs SDK 3.6.0 installed before this release. That requirement is why this is a minor version: CuvisNEXT's managed environment pins `cuvis-ai<0.17` and lifts the cap with its next release, which provisions SDK 3.6.0. The installation page names the 3.6.0 requirement and checks the binding with `cuvis.version()`.
