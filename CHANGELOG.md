@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.17.1 - 2026-09-22
+
+- torch and torchvision resolve from the cu130 wheel index on aarch64 Linux checkouts (Jetson Thor, JetPack 7). The cu128 index serves an SBSA aarch64 wheel whose kernels stop at sm_120, so `uv sync` on a Thor installed cleanly and every CUDA kernel failed with "no kernel image is available for execution on the device". Other platforms keep cu128. Both index pins stay scoped to the `cuda` dependency group, and the torch/torchvision floors are declared once per platform fork because uv assigns one index per fork.
+- torchcodec floor raised to 0.16.0 and the lock moved to 0.16.0: 0.11 pairs with torch 2.11 only, 0.12+ accepts torch >= 2.11, so one build serves the cu128 (torch 2.11) and cu130 (torch 2.14) forks.
+- `tests/test_pyproject_torch_sources.py` guards the fork: the markers parse and partition Jetson / Linux x86_64 / Windows, the base requirements mirror them, and the lock carries one cu128 and one cu130 entry per package with an aarch64 wheel and torchcodec >= 0.12.
+- Installation page: Python 3.11 is required (the page said 3.10 minimum), a Jetson / aarch64 section states the CUDA 13 driver assumption and the `uv sync --no-default-groups` escape hatch for SBSA hosts on CUDA 12 drivers.
+- Bumped the `cuvis_ai_builtin` manifest pin v0.16.0 -> v0.17.1 so composed child environments install this release.
+
 ## 0.17.0 - 2026-09-17
 
 - **The `cu3s` data module moves to cuvis-ai-dataloader 0.7.0, which requires the C++ Cuvis SDK 3.6.0.** The plugin manifest pins `v0.7.0`; its `cu3s` extra installs the `cuvis` 3.6.0.0 binding, which fails at import against a 3.5.x runtime (`DLL load failed while importing _cuvis_pyil`), so a machine that reads cu3s files needs SDK 3.6.0 installed before this release. That requirement is why this is a minor version: CuvisNEXT's managed environment pins `cuvis-ai<0.17` and lifts the cap with its next release, which provisions SDK 3.6.0. The installation page names the 3.6.0 requirement and checks the binding with `cuvis.version()`.
