@@ -6,6 +6,7 @@
 - torchcodec floor raised to 0.16.0 and the lock moved to 0.16.0: 0.11 pairs with torch 2.11 only, 0.12+ accepts torch >= 2.11, so one build serves the cu128 (torch 2.11) and cu130 (torch 2.14) forks.
 - `tests/test_pyproject_torch_sources.py` guards the fork: the markers parse and partition Jetson / Linux x86_64 / Windows, the base requirements mirror them, and the lock carries one cu128 and one cu130 entry per package with an aarch64 wheel and torchcodec >= 0.12.
 - Installation page: Python 3.11 is required (the page said 3.10 minimum), a Jetson / aarch64 section states the CUDA 13 driver assumption and the `uv sync --no-default-groups` escape hatch for SBSA hosts on CUDA 12 drivers.
+- Lock upgrades past published advisories: anyio 4.14.2 (CVE-2026-63374, CVE-2026-64847), gitpython 3.1.62 (PYSEC-2026-3982/3983/3984; the floor follows the lock), jupyter-server 2.21.1 (CVE-2026-86049), soupsieve 2.9.2 (CVE-2026-85999, CVE-2026-86000), mkdocs-material 9.7.7 (PYSEC-2026-3864, docs extra).
 - Bumped the `cuvis_ai_builtin` manifest pin v0.16.0 -> v0.17.1 so composed child environments install this release.
 
 ## 0.17.0 - 2026-09-17
