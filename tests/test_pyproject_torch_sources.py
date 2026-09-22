@@ -6,13 +6,18 @@ wheel whose kernels stop at sm_120, so a checkout synced from it installs cleanl
 the first CUDA kernel with "no kernel image is available for execution on the device". Every
 other platform keeps cu128. Both entries stay scoped to the ``cuda`` group, so a git or path
 consumer (the ``cuvis_ai_builtin`` manifest inside a composed child environment) inherits no
-index pin. torchcodec links against torch's ABI: 0.11 pairs with torch 2.11 only while 0.12+
-accepts torch >= 2.11, so the floor must admit the newer torch the aarch64 fork resolves.
+index pin. torchcodec is forked the same way: 0.11 is the release built against torch 2.11 and its
+x86_64 wheel needs no CUDA 13 runtime, while every 0.12+ Linux wheel links libcudart / libnvrtc 13
+(libnvjpeg 13 too) and so imports only beside the cu130 torch of the aarch64 fork.
 """
 
 from __future__ import annotations
 
+import ctypes.util
+import os
+import sys
 import tomllib
+from glob import glob
 from pathlib import Path
 
 import pytest
@@ -35,6 +40,23 @@ ENVIRONMENTS = {
     "windows": {"sys_platform": "win32", "platform_machine": "AMD64"},
 }
 EXPECTED_INDEX = {"jetson": CU130, "linux-x86_64": CU128, "windows": CU128}
+PYTHON_MINORS = ("3.11", "3.12", "3.13")
+PYTHON_FULL_VERSIONS = {"3.11": "3.11.9", "3.12": "3.12.7", "3.13": "3.13.7"}
+
+
+def _lock_environment(platform: str, minor: str) -> dict[str, str]:
+    """A marker environment for one platform and one supported CPython minor."""
+    return {
+        **ENVIRONMENTS[platform],
+        "python_version": minor,
+        "python_full_version": PYTHON_FULL_VERSIONS[minor],
+    }
+
+
+def _applies(pkg: dict, environment: dict[str, str]) -> bool:
+    """Whether a lock entry is selected in ``environment`` (no markers = every environment)."""
+    markers = pkg.get("resolution-markers")
+    return markers is None or any(Marker(m).evaluate(environment) for m in markers)
 
 
 @pytest.fixture(scope="module")
@@ -88,14 +110,29 @@ def test_cuda_group_lists_exactly_the_forked_packages(pyproject: dict) -> None:
     assert "cuda" in pyproject["tool"]["uv"]["default-groups"]
 
 
-def test_torchcodec_floor_admits_the_aarch64_torch(pyproject: dict) -> None:
-    """torchcodec 0.11 pairs with torch 2.11 only; the floor must exclude it."""
-    floors = {
-        Requirement(dep).name: Requirement(dep) for dep in pyproject["project"]["dependencies"]
-    }
-    specifier = floors["torchcodec"].specifier
-    assert specifier.contains("0.16.0")
-    assert not specifier.contains("0.11.1")
+def _requirements(pyproject: dict, name: str) -> list[Requirement]:
+    return [
+        Requirement(dep)
+        for dep in pyproject["project"]["dependencies"]
+        if Requirement(dep).name == name
+    ]
+
+
+def test_torchcodec_is_forked_with_torch(pyproject: dict) -> None:
+    """0.11.x beside the cu128 torch 2.11, 0.16+ beside the cu130 torch 2.14, same markers.
+
+    Every 0.12+ torchcodec wheel on Linux links the CUDA 13 runtime, so a single 0.16 floor
+    fails at import next to a cu128 torch (CI caught it); children inherit these markers.
+    """
+    by_marker = {str(req.marker): req.specifier for req in _requirements(pyproject, "torchcodec")}
+    source_markers = {str(Marker(e["marker"])) for e in pyproject["tool"]["uv"]["sources"]["torch"]}
+    assert set(by_marker) == source_markers, sorted(by_marker)
+    for platform, environment in ENVIRONMENTS.items():
+        (specifier,) = [s for m, s in by_marker.items() if Marker(m).evaluate(environment)]
+        if platform == "jetson":
+            assert specifier.contains("0.16.0") and not specifier.contains("0.11.1"), specifier
+        else:
+            assert specifier.contains("0.11.1") and not specifier.contains("0.16.0"), specifier
 
 
 def _packages(lock: dict, name: str) -> list[dict]:
@@ -113,11 +150,19 @@ def test_lock_forks_torch_between_cu128_and_cu130(lock: dict, package: str) -> N
     assert any("manylinux_2_28_aarch64" in wheel["url"] for wheel in cu130["wheels"])
 
 
-def test_lock_torchcodec_accepts_both_torch_forks(lock: dict) -> None:
-    """One torchcodec for both forks, from the range that accepts torch >= 2.11."""
-    entries = _packages(lock, "torchcodec")
-    assert len(entries) == 1
-    assert Version(entries[0]["version"]) >= Version("0.12")
+@pytest.mark.parametrize("platform", sorted(ENVIRONMENTS))
+@pytest.mark.parametrize("minor", PYTHON_MINORS)
+def test_lock_torchcodec_follows_the_torch_fork(lock: dict, platform: str, minor: str) -> None:
+    """One PyPI torchcodec per environment: 0.11.x beside cu128, 0.12+ beside the cu130 torch."""
+    environment = _lock_environment(platform, minor)
+    selected = [pkg for pkg in _packages(lock, "torchcodec") if _applies(pkg, environment)]
+    assert len(selected) == 1, [pkg["version"] for pkg in selected]
+    assert selected[0]["source"]["registry"] == "https://pypi.org/simple"
+    version = Version(selected[0]["version"])
+    if platform == "jetson":
+        assert version >= Version("0.12"), version
+    else:
+        assert Version("0.11.1") <= version < Version("0.12"), version
 
 
 @pytest.mark.parametrize("package", FORKED)
@@ -132,25 +177,6 @@ def test_base_requirements_are_split_along_the_fork_markers(pyproject: dict, pac
     assert len({str(req.specifier) for req in requirements}) == 1, f"{package}: floors differ"
     source_markers = {entry["marker"] for entry in pyproject["tool"]["uv"]["sources"][package]}
     assert {str(req.marker) for req in requirements} == {str(Marker(m)) for m in source_markers}
-
-
-PYTHON_MINORS = ("3.11", "3.12", "3.13")
-PYTHON_FULL_VERSIONS = {"3.11": "3.11.9", "3.12": "3.12.7", "3.13": "3.13.7"}
-
-
-def _lock_environment(platform: str, minor: str) -> dict[str, str]:
-    """A marker environment for one platform and one supported CPython minor."""
-    return {
-        **ENVIRONMENTS[platform],
-        "python_version": minor,
-        "python_full_version": PYTHON_FULL_VERSIONS[minor],
-    }
-
-
-def _applies(pkg: dict, environment: dict[str, str]) -> bool:
-    """Whether a lock entry is selected in ``environment`` (no markers = every environment)."""
-    markers = pkg.get("resolution-markers")
-    return markers is None or any(Marker(m).evaluate(environment) for m in markers)
 
 
 @pytest.mark.parametrize("package", FORKED)
@@ -184,15 +210,32 @@ def test_lock_forks_ship_a_wheel_per_supported_python(lock: dict, package: str, 
     assert sum("win_amd64" in name for name in cu128) == 1, cu128
 
 
-def test_torchcodec_loads_against_the_installed_torch() -> None:
+def _ffmpeg_shared_libraries_present() -> bool:
+    """torchcodec dlopens FFmpeg at import; without the shared libraries the import says nothing."""
+    if sys.platform == "win32":
+        return any(
+            glob(os.path.join(entry, "avcodec-*.dll"))
+            for entry in os.environ.get("PATH", "").split(os.pathsep)
+            if entry
+        )
+    return ctypes.util.find_library("avcodec") is not None
+
+
+def test_torchcodec_loads_against_the_installed_torch(lock: dict) -> None:
     """torchcodec's shared library is built per torch ABI; a mismatch fails at import time."""
     import torch
     import torchcodec
     from torchcodec.decoders import VideoDecoder
 
+    if not _ffmpeg_shared_libraries_present():
+        pytest.skip("no FFmpeg shared libraries on this machine; CI installs them")
     import cuvis_ai  # noqa: F401  # Windows: registers the FFmpeg DLL directory first
 
     assert VideoDecoder is not None
-    assert Version(torchcodec.__version__.split("+")[0]) >= Version("0.12"), (
-        f"torchcodec {torchcodec.__version__} next to torch {torch.__version__}"
+    # The running interpreter is one of the lock's environments: the installed build must be the
+    # entry the fork selects for it (0.11.x beside a cu128 torch, 0.16+ beside cu130).
+    (locked,) = [pkg for pkg in _packages(lock, "torchcodec") if _applies(pkg, {})]
+    installed = Version(torchcodec.__version__.split("+")[0])
+    assert installed == Version(locked["version"]), (
+        f"torchcodec {torchcodec.__version__} next to torch {torch.__version__}, lock says {locked['version']}"
     )
