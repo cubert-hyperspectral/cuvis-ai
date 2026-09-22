@@ -2,7 +2,8 @@ name: No Local Sources
 
 # Fails CI if pyproject.toml declares a local [tool.uv.sources] path entry. A machine-specific
 # editable path must never ship in a release: it breaks a fresh `uv sync` / install of the tag.
-# Commented-out path entries are fine -- tomllib never sees them.
+# Commented-out path entries are fine -- tomllib never sees them. A source is a table or, for a
+# per-platform fork, a list of tables; both shapes are checked.
 
 on:
   pull_request:
@@ -30,11 +31,18 @@ jobs:
               print("no pyproject.toml; nothing to check")
               raise SystemExit(0)
           sources = tomllib.load(pp.open("rb")).get("tool", {}).get("uv", {}).get("sources", {})
-          local = {k: v for k, v in sources.items() if isinstance(v, dict) and "path" in v}
+          def entries(spec):
+              return spec if isinstance(spec, list) else [spec]
+          local = {
+              name: [e for e in entries(spec) if isinstance(e, dict) and "path" in e]
+              for name, spec in sources.items()
+          }
+          local = {name: hits for name, hits in local.items() if hits}
           if local:
               print("ERROR: local [tool.uv.sources] path entries must not be committed:")
-              for name, spec in local.items():
-                  print(f"  {name} = {spec}")
+              for name, hits in local.items():
+                  for spec in hits:
+                      print(f"  {name} = {spec}")
               raise SystemExit(1)
           print("OK: no local path sources in [tool.uv.sources]")
           PY

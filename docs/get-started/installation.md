@@ -6,7 +6,7 @@ Install Cuvis.AI and its dependencies.
 
 | Component | Recommended |
 | --- | --- |
-| **Python** | **3.11** (required; tested up to 3.13) |
+| **Python** | **3.11, 3.12 or 3.13** |
 | **RAM** | **32 GB** (16 GB minimum; hyperspectral cubes are memory-hungry) |
 | **GPU** | **NVIDIA + CUDA 12.8** on x86_64, **JetPack 7 / CUDA 13** on Jetson Thor (aarch64); optional but strongly recommended |
 | **OS** | **Windows or Linux** — macOS works for pure-Python use but has no Cuvis SDK build, so `.cu3s` / `.cu3` I/O is unavailable |
@@ -47,13 +47,19 @@ uv sync --all-extras
 
 ### Jetson / aarch64 (JetPack 7)
 
-On aarch64 Linux, `uv sync` resolves `torch` and `torchvision` from the cu130 wheel index (the `cuda` dependency group pins the index per platform). The cu128 index only serves SBSA wheels whose kernels stop at sm_120; on a Jetson Thor (sm_110) they install cleanly and fail at the first CUDA kernel. This assumes a CUDA 13 driver (JetPack 7, driver 580 or newer). uv installs Python 3.11 itself. Verify that the build fits the GPU:
+On aarch64 Linux, `uv sync` installs `torch` and `torchvision` from the cu130 wheel index; the lock carries no cu128 build for this platform. The cu128 index only serves SBSA wheels whose kernels stop at sm_120; on a Jetson Thor (sm_110) they install cleanly and fail at the first CUDA kernel. The cu130 wheels need a CUDA 13 driver (JetPack 7, driver 580 or newer). If no CPython 3.11 to 3.13 is installed, uv downloads a managed one. Verify that the build fits the GPU:
 
 ```bash
 uv run python -c "import torch; print(torch.__version__, torch.cuda.get_arch_list())"
 ```
 
-The list must contain `sm_110`. JetPack 6 (Orin, Python 3.10) is not covered: cuvis-ai requires Python 3.11. An SBSA host (Grace, GH200) still on a CUDA 12 driver should sync without the `cuda` group (`uv sync --no-default-groups`) and install torch from the index that matches its driver.
+The list must contain `sm_110`. JetPack 6 (Orin) is not covered: its CUDA 12 driver cannot load the cu130 wheels this lock resolves, and its system Python is 3.10. An SBSA host (Grace, GH200) still on a CUDA 12 driver is outside the lock as well: `uv sync` installs the cu130 build there whichever dependency groups are selected. As a workaround, replace torch and torchvision by hand after the sync and skip the re-sync when running, because every `uv sync` and plain `uv run` restores the locked cu130 build:
+
+```bash
+uv sync
+uv pip install --reinstall "torch==2.11.0+cu128" "torchvision==0.26.0+cu128" --index-url https://download.pytorch.org/whl/cu128
+uv run --no-sync python -c "import torch; print(torch.__version__)"
+```
 
 ## Cuvis SDK (only for cu3s/cu3 I/O)
 

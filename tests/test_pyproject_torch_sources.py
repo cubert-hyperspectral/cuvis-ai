@@ -132,3 +132,67 @@ def test_base_requirements_are_split_along_the_fork_markers(pyproject: dict, pac
     assert len({str(req.specifier) for req in requirements}) == 1, f"{package}: floors differ"
     source_markers = {entry["marker"] for entry in pyproject["tool"]["uv"]["sources"][package]}
     assert {str(req.marker) for req in requirements} == {str(Marker(m)) for m in source_markers}
+
+
+PYTHON_MINORS = ("3.11", "3.12", "3.13")
+PYTHON_FULL_VERSIONS = {"3.11": "3.11.9", "3.12": "3.12.7", "3.13": "3.13.7"}
+
+
+def _lock_environment(platform: str, minor: str) -> dict[str, str]:
+    """A marker environment for one platform and one supported CPython minor."""
+    return {
+        **ENVIRONMENTS[platform],
+        "python_version": minor,
+        "python_full_version": PYTHON_FULL_VERSIONS[minor],
+    }
+
+
+def _applies(pkg: dict, environment: dict[str, str]) -> bool:
+    """Whether a lock entry is selected in ``environment`` (no markers = every environment)."""
+    markers = pkg.get("resolution-markers")
+    return markers is None or any(Marker(m).evaluate(environment) for m in markers)
+
+
+@pytest.mark.parametrize("package", FORKED)
+@pytest.mark.parametrize("platform", sorted(ENVIRONMENTS))
+@pytest.mark.parametrize("minor", PYTHON_MINORS)
+def test_lock_resolution_markers_select_one_fork_per_environment(
+    lock: dict, package: str, platform: str, minor: str
+) -> None:
+    """Exactly one lock entry serves each platform x Python minor, from the expected index."""
+    environment = _lock_environment(platform, minor)
+    selected = [pkg for pkg in _packages(lock, package) if _applies(pkg, environment)]
+    versions = [pkg["version"] for pkg in selected]
+    assert len(selected) == 1, f"{package} on {platform} / Python {minor}: {versions}"
+    assert selected[0]["source"]["registry"] == EXPECTED_INDEX[platform], versions
+
+
+def _wheel_names(pkg: dict) -> list[str]:
+    return [wheel["url"].rsplit("/", 1)[-1] for wheel in pkg["wheels"]]
+
+
+@pytest.mark.parametrize("package", FORKED)
+@pytest.mark.parametrize("minor", PYTHON_MINORS)
+def test_lock_forks_ship_a_wheel_per_supported_python(lock: dict, package: str, minor: str) -> None:
+    """cu130: one aarch64 wheel per CPython; cu128: one x86_64 Linux and one Windows wheel each."""
+    by_registry = {pkg["source"]["registry"]: pkg for pkg in _packages(lock, package)}
+    abi = f"cp{minor.replace('.', '')}-cp{minor.replace('.', '')}-"
+    cu130 = [name for name in _wheel_names(by_registry[CU130]) if abi in name]
+    assert sum("manylinux_2_28_aarch64" in name for name in cu130) == 1, cu130
+    cu128 = [name for name in _wheel_names(by_registry[CU128]) if abi in name]
+    assert sum("manylinux_2_28_x86_64" in name for name in cu128) == 1, cu128
+    assert sum("win_amd64" in name for name in cu128) == 1, cu128
+
+
+def test_torchcodec_loads_against_the_installed_torch() -> None:
+    """torchcodec's shared library is built per torch ABI; a mismatch fails at import time."""
+    import torch
+    import torchcodec
+    from torchcodec.decoders import VideoDecoder
+
+    import cuvis_ai  # noqa: F401  # Windows: registers the FFmpeg DLL directory first
+
+    assert VideoDecoder is not None
+    assert Version(torchcodec.__version__.split("+")[0]) >= Version("0.12"), (
+        f"torchcodec {torchcodec.__version__} next to torch {torch.__version__}"
+    )
