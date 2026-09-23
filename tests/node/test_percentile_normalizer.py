@@ -217,3 +217,64 @@ class TestParityWithSelector:
             ref._statistically_initialized = True
         chained = display.forward(data=norm.forward(data=raw)["normalized"])["normalized"]
         assert torch.allclose(chained, ref._normalize_rgb(raw))
+
+
+# ---------------------------------------------------------------------------
+# Running mode counts frames, not batches; parity with the selector at batch 4
+# ---------------------------------------------------------------------------
+
+
+class TestRunningBatches:
+    """running_warmup_frames and freeze_running_bounds_after_frames mean frames at any batch."""
+
+    @staticmethod
+    def _node(**kwargs) -> PercentileNormalizer:
+        return PercentileNormalizer(n_channels=3, norm_mode="running", **kwargs)
+
+    def test_batch_forward_advances_frame_count_by_batch_size(self) -> None:
+        node = self._node(running_warmup_frames=2)
+        for _ in range(5):
+            node.forward(data=_raw(B=4))
+        assert int(node._norm_frame_count.item()) == 20
+
+        restored = self._node(running_warmup_frames=2)
+        restored.load_state_dict(node.state_dict())
+        assert int(restored._norm_frame_count.item()) == 20
+
+    def test_freeze_boundary_inside_a_batch(self) -> None:
+        """Freeze 6 fed as 4 + 4: frames 5-6 update the bounds, 7-8 do not."""
+        node = self._node(running_warmup_frames=0, freeze_running_bounds_after_frames=6)
+        first = _raw(B=4, scale=100.0)
+        second = _raw(B=4, scale=100.0)
+        second[:2] *= 1.5  # frames 5-6 still count
+        second[2:] *= 50.0  # frames 7-8 are past the freeze and must not move the max
+        node.forward(data=first)
+        node.forward(data=second)
+
+        counted = torch.cat([first, second])[:6].reshape(6, -1, 3)
+        assert torch.allclose(node.running_min, torch.quantile(counted, 0.005, dim=1).amin(dim=0))
+        assert torch.allclose(node.running_max, torch.quantile(counted, 0.995, dim=1).amax(dim=0))
+
+    def test_batch_matches_the_same_frames_one_at_a_time(self) -> None:
+        frames = _raw(B=4, scale=400.0)
+        batched = self._node(running_warmup_frames=2)
+        out_batched = batched.forward(data=frames)["normalized"]
+        sequential = self._node(running_warmup_frames=2)
+        out_seq = torch.cat(
+            [sequential.forward(data=frames[b : b + 1])["normalized"] for b in range(4)]
+        )
+        assert torch.allclose(out_batched, out_seq)
+        assert torch.allclose(batched.running_min, sequential.running_min)
+        assert torch.allclose(batched.running_max, sequential.running_max)
+
+    def test_running_parity_with_selector_at_batch_four(self) -> None:
+        """Both nodes step per frame: 6 batches of 4 span warmup (10) and the freeze (20)."""
+        norm = self._node()
+        ref = _RefSelector(norm_mode="running")
+        for i in range(6):
+            raw = _raw(B=4, C=3, scale=200.0 + 50.0 * i)
+            got = norm.forward(data=raw)["normalized"]
+            want = ref._running_normalize(raw)
+            assert torch.allclose(got, want), f"batch {i} diverged"
+        assert int(norm._norm_frame_count.item()) == 24
+        assert int(ref._norm_frame_count.item()) == 24

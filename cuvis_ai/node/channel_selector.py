@@ -62,6 +62,12 @@ from scipy.ndimage import laplace
 from sklearn.metrics import roc_auc_score
 from torch import Tensor
 
+from cuvis_ai.node._running_bounds import (
+    RunningBounds,
+    normalize_with_bounds,
+    per_frame_quantiles,
+    running_normalize,
+)
 from cuvis_ai.node.colormap import render_scalar_hsv_colormap
 from cuvis_ai.node.normalization import NormMode
 from cuvis_ai.utils.welford import WelfordAccumulator
@@ -94,7 +100,7 @@ class ChannelSelectorBase(Node):
         displays.
     freeze_running_bounds_after_frames : int | None
         When ``norm_mode='running'``, stop updating ``running_min/running_max``
-        after this many forward calls. ``None`` keeps legacy behavior (never
+        after this many frames. ``None`` keeps legacy behavior (never
         freeze). Default ``20``.
     running_warmup_frames : int
         Number of initial ``running`` frames to normalize per-frame while
@@ -289,19 +295,13 @@ class ChannelSelectorBase(Node):
         return ((rgb - rgb_min) / denom).clamp_(0.0, 1.0)
 
     def _per_frame_percentile_normalize(self, rgb: torch.Tensor) -> torch.Tensor:
-        """Per-frame percentile normalization matching the running accumulation quantiles."""
-        flat = rgb.reshape(-1, 3).float()  # quantile() requires float/double
-        lo = torch.quantile(flat, self._NORM_QUANTILE_LOW, dim=0).view(1, 1, 1, 3)
-        hi = torch.quantile(flat, self._NORM_QUANTILE_HIGH, dim=0).view(1, 1, 1, 3)
-        denom = (hi - lo).clamp_min(1e-8)
-        return ((rgb - lo) / denom).clamp_(0.0, 1.0)
+        """Per-frame percentile normalization: every frame is scaled with its own quantiles."""
+        lo, hi = per_frame_quantiles(rgb, self._NORM_QUANTILE_LOW, self._NORM_QUANTILE_HIGH)
+        return normalize_with_bounds(rgb, lo, hi, 1e-8)
 
     def _apply_accumulated_stats(self, rgb: torch.Tensor) -> torch.Tensor:
         """Normalize using accumulated per-channel bounds."""
-        lo = self.running_min.view(1, 1, 1, 3)
-        hi = self.running_max.view(1, 1, 1, 3)
-        denom = (hi - lo).clamp_min(1e-8)
-        return ((rgb - lo) / denom).clamp_(0.0, 1.0)
+        return normalize_with_bounds(rgb, self.running_min, self.running_max, 1e-8)
 
     @staticmethod
     def _srgb_gamma(linear: torch.Tensor) -> torch.Tensor:
@@ -316,35 +316,29 @@ class ChannelSelectorBase(Node):
 
     @torch.no_grad()
     def _running_normalize(self, rgb: torch.Tensor) -> torch.Tensor:
-        """Warmup + min/max accumulation hybrid normalization.
+        """Warmup + min/max accumulation hybrid normalization, one step per frame.
 
-        During warmup (``running_warmup_frames``), output uses per-frame
-        percentile normalization while accumulating bounds. After warmup,
-        output uses accumulated bounds. If
-        ``freeze_running_bounds_after_frames`` is set, accumulation stops after
-        that many forward calls.
+        Each frame of the batch advances the frame counter once and folds its own
+        percentile bounds into ``running_min`` / ``running_max``. Frames inside
+        ``running_warmup_frames`` are scaled with their own percentiles, later frames
+        with the accumulated bounds as they stood after that frame; accumulation stops
+        after ``freeze_running_bounds_after_frames`` frames. Both counts mean frames
+        whatever the batch size (see :mod:`cuvis_ai.node._running_bounds`).
         """
-        flat = rgb.reshape(-1, 3).float()  # quantile() requires float/double
-        frame_lo = torch.quantile(flat, self._NORM_QUANTILE_LOW, dim=0)  # [3]
-        frame_hi = torch.quantile(flat, self._NORM_QUANTILE_HIGH, dim=0)  # [3]
-
-        self._norm_frame_count.add_(1)
-        count = int(self._norm_frame_count.item())
-        should_update_bounds = (
-            self.freeze_running_bounds_after_frames is None
-            or count <= self.freeze_running_bounds_after_frames
+        bounds = RunningBounds(
+            self.running_min,
+            self.running_max,
+            self._norm_frame_count,
+            warmup_frames=self.running_warmup_frames,
+            freeze_after_frames=self.freeze_running_bounds_after_frames,
         )
-        if should_update_bounds:
-            if torch.isnan(self.running_min).any():
-                self.running_min.copy_(frame_lo)
-                self.running_max.copy_(frame_hi)
-            else:
-                torch.minimum(self.running_min, frame_lo, out=self.running_min)
-                torch.maximum(self.running_max, frame_hi, out=self.running_max)
-
-        if count <= self.running_warmup_frames:
-            return self._per_frame_percentile_normalize(rgb)
-        return self._apply_accumulated_stats(rgb)
+        return running_normalize(
+            rgb,
+            bounds,
+            quantile_low=self._NORM_QUANTILE_LOW,
+            quantile_high=self._NORM_QUANTILE_HIGH,
+            eps=1e-8,
+        )
 
     def _load_from_state_dict(  # noqa: D102 (inherited torch hook)
         self,
@@ -1545,7 +1539,7 @@ class FixedWavelengthSelector(ChannelSelectorBase):
 
         # The base class's running/statistical normalisation machinery assumes a
         # 3-channel output: running_min/running_max are 3-element buffers, and
-        # statistical_initialization / _running_normalize do `reshape(-1, 3)`.
+        # statistical_initialization does `reshape(-1, 3)`.
         # For n != 3 those modes either silently mix unrelated channels (e.g.
         # n=6 reshapes into (-1, 3) and pairs c0+c3, c1+c4, c2+c5 per row), or
         # raise RuntimeError on non-divisible totals (n=4). Reject them at
