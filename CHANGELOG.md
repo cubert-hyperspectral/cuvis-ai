@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.17.1 - 2026-09-22
+## 0.17.1 - 2026-09-23
 
 - torch and torchvision resolve from the cu130 wheel index on aarch64 Linux checkouts (Jetson Thor, JetPack 7). The cu128 index serves an SBSA aarch64 wheel whose kernels stop at sm_120, so `uv sync` on a Thor installed cleanly and every CUDA kernel failed with "no kernel image is available for execution on the device". Other platforms keep cu128. Both index pins stay scoped to the `cuda` dependency group, and the torch/torchvision floors are declared once per platform fork because uv assigns one index per fork.
 - torchcodec is no longer a dependency. cuvis-ai imports it nowhere; it was declared so `cuvis-ai-core`'s video reader could decode on the GPU. Its shared library is built per torch release and fails at import next to any other torch, and that import error is not the one core catches, so a plain `pip install cuvis-ai` (PyPI's torch 2.14 beside torchcodec 0.11) broke video input instead of falling back. Core now reads video with OpenCV unless a torchcodec matching the installed torch is present; the OpenCV path reopens the file per frame, so long MP4 inputs read slower without one (the installation page shows how to add it). `tests/test_pyproject_torch_sources.py` asserts it stays out of the dependencies, the extras and the lock.
