@@ -41,6 +41,11 @@ from cuvis_ai_schemas.execution import InputStream
 from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
 
+from cuvis_ai.node._running_bounds import (
+    RunningBounds,
+    normalize_with_bounds,
+    running_normalize,
+)
 from cuvis_ai_core.node import Node
 
 
@@ -566,7 +571,7 @@ class PercentileNormalizer(_ScoreNormalizerBase):
     - ``running`` (default): the first ``running_warmup_frames`` frames use per-frame
       percentile normalization while accumulating global percentile bounds (min-of-lows,
       max-of-highs); afterwards those bounds are used, frozen after
-      ``freeze_running_bounds_after_frames`` calls. Bounds update on every call including
+      ``freeze_running_bounds_after_frames`` frames. Bounds update on every frame including
       inference, which live false-RGB video relies on; the freeze guards late drift.
 
     Parameters
@@ -576,7 +581,7 @@ class PercentileNormalizer(_ScoreNormalizerBase):
     norm_mode : str | NormMode
         Normalization mode. Default ``running``.
     freeze_running_bounds_after_frames : int | None
-        Stop updating ``running`` bounds after this many calls. Default ``20``;
+        Stop updating ``running`` bounds after this many frames. Default ``20``;
         ``None`` keeps unbounded accumulation.
     running_warmup_frames : int
         Frames to normalize per-frame while accumulating bounds. Default ``10``.
@@ -667,45 +672,32 @@ class PercentileNormalizer(_ScoreNormalizerBase):
         denom = (hi - lo).clamp_min(self.eps)
         return ((data - lo) / denom).clamp_(0.0, 1.0)
 
-    def _per_frame_percentile(self, data: Tensor) -> Tensor:
-        """Per-frame percentile normalization (matches the running quantiles)."""
-        flat = data.reshape(-1, self.n_channels).float()
-        lo = torch.quantile(flat, self.quantile_low, dim=0).view(1, 1, 1, self.n_channels)
-        hi = torch.quantile(flat, self.quantile_high, dim=0).view(1, 1, 1, self.n_channels)
-        denom = (hi - lo).clamp_min(self.eps)
-        return ((data - lo) / denom).clamp_(0.0, 1.0)
-
     def _apply_bounds(self, data: Tensor) -> Tensor:
         """Normalize using the accumulated per-channel bounds."""
-        lo = self.running_min.view(1, 1, 1, self.n_channels)
-        hi = self.running_max.view(1, 1, 1, self.n_channels)
-        denom = (hi - lo).clamp_min(self.eps)
-        return ((data - lo) / denom).clamp_(0.0, 1.0)
+        return normalize_with_bounds(data, self.running_min, self.running_max, self.eps)
 
     @torch.no_grad()
     def _running_normalize(self, data: Tensor) -> Tensor:
-        """Warmup + min/max percentile accumulation hybrid normalization."""
-        flat = data.reshape(-1, self.n_channels).float()
-        frame_lo = torch.quantile(flat, self.quantile_low, dim=0)
-        frame_hi = torch.quantile(flat, self.quantile_high, dim=0)
+        """Warmup + min/max percentile accumulation hybrid normalization, one step per frame.
 
-        self._norm_frame_count.add_(1)
-        count = int(self._norm_frame_count.item())
-        should_update = (
-            self.freeze_running_bounds_after_frames is None
-            or count <= self.freeze_running_bounds_after_frames
+        Same timeline as ``ChannelSelectorBase``: each frame of the batch counts once, warmup
+        frames use their own percentiles, later frames the accumulated bounds, and the bounds
+        freeze after ``freeze_running_bounds_after_frames`` frames whatever the batch size.
+        """
+        bounds = RunningBounds(
+            self.running_min,
+            self.running_max,
+            self._norm_frame_count,
+            warmup_frames=self.running_warmup_frames,
+            freeze_after_frames=self.freeze_running_bounds_after_frames,
         )
-        if should_update:
-            if torch.isnan(self.running_min).any():
-                self.running_min.copy_(frame_lo)
-                self.running_max.copy_(frame_hi)
-            else:
-                torch.minimum(self.running_min, frame_lo, out=self.running_min)
-                torch.maximum(self.running_max, frame_hi, out=self.running_max)
-
-        if count <= self.running_warmup_frames:
-            return self._per_frame_percentile(data)
-        return self._apply_bounds(data)
+        return running_normalize(
+            data,
+            bounds,
+            quantile_low=self.quantile_low,
+            quantile_high=self.quantile_high,
+            eps=self.eps,
+        )
 
     def _normalize(self, tensor: Tensor) -> Tensor:
         """Dispatch on ``norm_mode`` (raises on channel mismatch / unfitted statistical)."""

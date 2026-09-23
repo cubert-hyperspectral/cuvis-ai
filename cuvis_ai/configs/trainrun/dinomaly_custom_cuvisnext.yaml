@@ -30,6 +30,19 @@ data:
     frames: measurements
     recursive: true
     processing_mode: Reflectance
+    # One frame read ahead of the model step, on a reader thread inside this process, so
+    # the SDK read of frame i+1 overlaps the model step on frame i. Measured on the tester
+    # dataset on an RTX 5070 Ti laptop: the training step falls from 0.24 to 0.165 s and
+    # the run above from 631 to 488 s at the same peak device memory as without it, with
+    # the identical AUROC curve. Depth 1 reads on the recording's own SDK handle; each
+    # further level opens more handles (about 350 MiB of device memory per level on that
+    # card) for 2 percent more, so leave it at 1. Needs cuvis-ai-dataloader 0.8.0 or later
+    # (the plugin manifest pins v0.8.0; an older plugin dies on the keyword) and the
+    # num_workers 0 above (the dataloader refuses otherwise). Every frame in flight is a
+    # whole cube in host memory (264 MB at 1000x1080x61 Reflectance); with cuda_cubes it
+    # would sit on the device. An Advanced batch size above 1 costs batch_size more cubes
+    # per read: batch 4 needed 9.6 GB of device memory, batch 16 paged for hours.
+    read_ahead: 1
 
 training:
   seed: 42

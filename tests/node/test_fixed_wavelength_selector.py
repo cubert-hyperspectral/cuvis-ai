@@ -530,3 +530,112 @@ class TestRunningNormPersistence:
         frozen_max = restored.running_max.clone()
         restored.forward(_cube() * 500.0, wl)
         assert torch.equal(restored.running_max, frozen_max)
+
+
+# ---------------------------------------------------------------------------
+# Running normalization counts frames, not batches
+# ---------------------------------------------------------------------------
+
+
+def _frames(n: int, C: int = 10, seed: int = 11) -> torch.Tensor:
+    """n deterministic cubes, one per frame, stacked along the batch axis."""
+    g = torch.Generator().manual_seed(seed)
+    return torch.rand(n, 4, 4, C, generator=g) * 300.0
+
+
+def _feed(node: FixedWavelengthSelector, frames: torch.Tensor, batch: int) -> list[torch.Tensor]:
+    """Forward frames in batches of the given size; one output tensor per batch."""
+    wl = _wavelengths(frames.shape[-1])
+    return [
+        node.forward(frames[start : start + batch], wl)["rgb_image"]
+        for start in range(0, frames.shape[0], batch)
+    ]
+
+
+class TestRunningNormBatches:
+    """The warmup and freeze counts mean frames whatever the batch size.
+
+    Regression: the running path took one percentile over the whole batch and advanced
+    the counter once per forward call, so running_warmup_frames and
+    freeze_running_bounds_after_frames meant batches at batch_size > 1.
+    """
+
+    @staticmethod
+    def _node(**kwargs) -> FixedWavelengthSelector:
+        return FixedWavelengthSelector(norm_mode=NormMode.RUNNING, apply_gamma=False, **kwargs)
+
+    def test_batch_forward_advances_counter_by_frame_count(self) -> None:
+        node = self._node()
+        node.forward(_frames(4), _wavelengths())
+        assert int(node._norm_frame_count.item()) == 4
+
+    def test_per_frame_percentile_normalize_uses_each_frames_own_quantiles(self) -> None:
+        node = self._node()
+        raw = torch.rand(2, 4, 4, 3, generator=torch.Generator().manual_seed(3)) * 100.0
+        raw[1] *= 10.0
+        out = node._per_frame_percentile_normalize(raw)
+        for b in range(2):
+            single = node._per_frame_percentile_normalize(raw[b : b + 1])
+            assert torch.allclose(out[b : b + 1], single)
+
+    @pytest.mark.parametrize("batch", [1, 4, 8])
+    def test_bounds_freeze_after_exactly_20_frames_for_any_batch_size(self, batch: int) -> None:
+        """24 frames, the last four much brighter: frames 21-24 never widen the bounds.
+
+        At batch 8 the boundary falls inside the third batch (frames 17-24): frames
+        17-20 update the bounds, 21-24 do not.
+        """
+        frames = _frames(24)
+        frames[20:] *= 50.0
+        node = self._node(running_warmup_frames=0, freeze_running_bounds_after_frames=20)
+        _feed(node, frames, batch)
+        assert int(node._norm_frame_count.item()) == 24
+
+        reference = self._node(running_warmup_frames=0, freeze_running_bounds_after_frames=20)
+        _feed(reference, frames[:20], 1)
+        assert torch.allclose(node.running_min, reference.running_min)
+        assert torch.allclose(node.running_max, reference.running_max)
+
+        unfrozen = self._node(running_warmup_frames=0, freeze_running_bounds_after_frames=None)
+        _feed(unfrozen, frames, 1)
+        assert (unfrozen.running_max > node.running_max).any()
+
+    def test_four_frames_in_one_batch_match_the_same_frames_one_at_a_time(self) -> None:
+        frames = _frames(4)
+        batched = self._node(running_warmup_frames=2, freeze_running_bounds_after_frames=20)
+        out_batched = _feed(batched, frames, 4)[0]
+        sequential = self._node(running_warmup_frames=2, freeze_running_bounds_after_frames=20)
+        out_seq = torch.cat(_feed(sequential, frames, 1))
+        assert torch.allclose(out_batched, out_seq)
+        assert torch.allclose(batched.running_min, sequential.running_min)
+        assert torch.allclose(batched.running_max, sequential.running_max)
+        assert int(batched._norm_frame_count.item()) == int(sequential._norm_frame_count.item())
+
+    def test_first_batch_larger_than_freeze_uses_only_the_first_freeze_frames(self) -> None:
+        """A first batch of 32 with freeze 20 leaves finite bounds built from frames 1-20."""
+        frames = _frames(32)
+        frames[20:] *= 50.0
+        node = self._node(running_warmup_frames=0, freeze_running_bounds_after_frames=20)
+        out = _feed(node, frames, 32)[0]
+        assert torch.isfinite(node.running_min).all()
+        assert torch.isfinite(node.running_max).all()
+        assert torch.isfinite(out).all()
+        assert int(node._norm_frame_count.item()) == 32
+
+        reference = self._node(running_warmup_frames=0, freeze_running_bounds_after_frames=20)
+        _feed(reference, frames[:20], 1)
+        assert torch.allclose(node.running_min, reference.running_min)
+        assert torch.allclose(node.running_max, reference.running_max)
+
+    def test_warmup_boundary_inside_a_batch(self) -> None:
+        """Warmup 10 fed as 3 x 4: frames 9-10 normalize per frame, 11-12 with the bounds."""
+        frames = _frames(12)
+        node = self._node(running_warmup_frames=10, freeze_running_bounds_after_frames=20)
+        third = _feed(node, frames, 4)[2]
+        reference = self._node(running_warmup_frames=10, freeze_running_bounds_after_frames=20)
+        sequential = torch.cat(_feed(reference, frames, 1))
+
+        raw = node._compute_raw_rgb(frames[8:12], _wavelengths())
+        assert torch.allclose(third[:2], node._per_frame_percentile_normalize(raw[:2]))
+        assert torch.allclose(third[2:], sequential[10:12])
+        assert not torch.allclose(third[2:], node._per_frame_percentile_normalize(raw[2:]))
