@@ -159,7 +159,7 @@ jobs:
     name: Publish to Production PyPI
     needs: publish-testpypi
     runs-on: ubuntu-latest
-    environment: pypi  # Manual approval required
+    environment: pypi  # the environment's required reviewer approves every publish
 
     steps:
       - name: Download build artifacts
