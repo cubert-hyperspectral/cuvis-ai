@@ -9,6 +9,8 @@
 - The `no-local-sources` CI guard also inspects list-form `[tool.uv.sources]` entries, the shape the torch fork introduces; a `path` inside a fork list failed to trip it.
 - Lock upgrades past published advisories: anyio 4.14.2 (CVE-2026-63374, CVE-2026-64847), gitpython 3.1.62 (PYSEC-2026-3982/3983/3984; the floor follows the lock), jupyter-server 2.21.1 (CVE-2026-86049), soupsieve 2.9.2 (CVE-2026-85999, CVE-2026-86000), mkdocs-material 9.7.7 (PYSEC-2026-3864, docs extra).
 - Bumped the `cuvis_ai_builtin` manifest pin v0.16.0 -> v0.17.1 so composed child environments install this release.
+- `sam3` manifest pin v0.5.0 -> v0.5.1: `SAM3PointExpansion` no longer raises on a prompt without a positive point; the plugin floors `pytorch-lightning>=2.6.6` (PYSEC-2026-3967) and `cuvis-ai-core>=0.17.3`.
+- `cuvis-ai-core>=0.17.3` floor and lock (0.17.3 differs from 0.17.2 only by the `pytorch-lightning>=2.6.6` floor this lock already meets). A composed child environment pins the host's exact core version, so a sam3 v0.5.1 child from a host on core 0.17.2 had no resolution.
 
 ## 0.17.0 - 2026-09-17
 
