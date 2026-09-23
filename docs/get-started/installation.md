@@ -6,9 +6,9 @@ Install Cuvis.AI and its dependencies.
 
 | Component | Recommended |
 | --- | --- |
-| **Python** | **3.11** (3.10 minimum, tested up to 3.13) |
+| **Python** | **3.11, 3.12 or 3.13** |
 | **RAM** | **32 GB** (16 GB minimum; hyperspectral cubes are memory-hungry) |
-| **GPU** | **NVIDIA + CUDA 12.8** (optional but strongly recommended) |
+| **GPU** | **NVIDIA + CUDA 12.8** on x86_64, **JetPack 7 / CUDA 13** on Jetson Thor (aarch64); optional but strongly recommended |
 | **OS** | **Windows or Linux** — macOS works for pure-Python use but has no Cuvis SDK build, so `.cu3s` / `.cu3` I/O is unavailable |
 
 !!! note "Why so much disk?"
@@ -45,6 +45,22 @@ cd cuvis-ai
 uv sync --all-extras
 ```
 
+### Jetson / aarch64 (JetPack 7)
+
+On aarch64 Linux, `uv sync` installs `torch` and `torchvision` from the cu130 wheel index; the lock carries no cu128 build for this platform. The cu128 index only serves SBSA wheels whose kernels stop at sm_120; on a Jetson Thor (sm_110) they install cleanly and fail at the first CUDA kernel. The cu130 wheels need a CUDA 13 driver (JetPack 7, driver 580 or newer). If no CPython 3.11 to 3.13 is installed, uv downloads a managed one. Verify that the build fits the GPU:
+
+```bash
+uv run python -c "import torch; print(torch.__version__, torch.cuda.get_arch_list())"
+```
+
+The list must contain `sm_110`. JetPack 6 (Orin) is not covered: its CUDA 12 driver cannot load the cu130 wheels this lock resolves, and its system Python is 3.10. An SBSA host (Grace, GH200) still on a CUDA 12 driver is outside the lock as well: `uv sync` installs the cu130 build there whichever dependency groups are selected. As a workaround, replace torch and torchvision by hand after the sync and skip the re-sync when running, because every `uv sync` and plain `uv run` restores the locked cu130 build:
+
+```bash
+uv sync
+uv pip install --reinstall "torch==2.11.0+cu128" "torchvision==0.26.0+cu128" --index-url https://download.pytorch.org/whl/cu128
+uv run --no-sync python -c "import torch; print(torch.__version__)"
+```
+
 ## Cuvis SDK (only for cu3s/cu3 I/O)
 
 Reading `.cu3s` / `.cu3` files needs the system-wide **C++ Cuvis SDK** plus the `cuvis` Python binding. Neither ships with cuvis-ai, and pipelines that only use numpy, TIFF, or video input don't need it. The `cuvis` binding is installed by the [`cuvis-ai-dataloader`](https://github.com/cubert-hyperspectral/cuvis-ai-dataloader) plugin's `[cu3s]` extra (which owns the `cuvis` pin); the C++ SDK is a separate system install.
@@ -59,9 +75,9 @@ Install the binding (`uv pip install "cuvis-ai-dataloader[cu3s,coco]"`), then in
 uv run python -c "import cuvis; print(cuvis.version())"
 ```
 
-## FFmpeg (required for video pipelines)
+## FFmpeg (required for video output)
 
-`uv sync` installs the Python video deps but not FFmpeg itself — both the reader ([`torchcodec`](https://github.com/pytorch/torchcodec) shared-lib link) and writer (`ToVideoNode` subprocess) need it at runtime.
+`uv sync` installs the Python video deps but not FFmpeg itself. The video writer (`ToVideoNode`) runs the `ffmpeg` binary as a subprocess and needs it on PATH. Video input reads with OpenCV out of the box and needs nothing extra.
 
 === "Linux"
 
@@ -77,19 +93,41 @@ uv run python -c "import cuvis; print(cuvis.version())"
 
 === "Windows"
 
-    Use the **shared** build so `torchcodec` can find the DLLs, then put it on PATH:
+    ```powershell
+    scoop install ffmpeg
+    $env:Path = "$env:USERPROFILE\scoop\apps\ffmpeg\current\bin;$env:Path"
+    ```
+
+Verify:
+
+```bash
+ffmpeg -version
+```
+
+### Optional: GPU video decoding with torchcodec
+
+cuvis-ai does not install [`torchcodec`](https://github.com/pytorch/torchcodec). Its shared library is built per torch release, and a torchcodec next to a torch it was not built for fails at import instead of falling back, which is what a plain `pip install` produced (PyPI's newest torch beside torchcodec 0.11). The video reader in `cuvis-ai-core` uses torchcodec when it imports and OpenCV otherwise; the OpenCV path reopens the file per frame, so long MP4 inputs read markedly slower without it.
+
+To decode on the GPU, install the torchcodec that matches the installed torch (torch 2.11 pairs with torchcodec 0.11.x, torch 2.14 with 0.16.x; see the torchcodec README for the table) together with FFmpeg's **shared** libraries:
+
+=== "Linux"
+
+    ```bash
+    sudo apt install ffmpeg
+    uv pip install "torchcodec==0.11.1"   # the release built for the locked torch 2.11
+    ```
+
+=== "Windows"
+
+    Use the shared build so torchcodec can find the DLLs (cuvis-ai registers every PATH directory holding `avcodec-*.dll` at import), then put it on PATH:
 
     ```powershell
     scoop install ffmpeg-shared
     $env:Path = "$env:USERPROFILE\scoop\apps\ffmpeg-shared\current\bin;$env:Path"
+    uv pip install "torchcodec==0.11.1"
     ```
 
-Verify both paths:
-
-```bash
-ffmpeg -version                # writer-side binary
-python -c "import torchcodec"  # reader-side shared libs
-```
+Verify: `python -c "import torchcodec"`. A `uv sync` removes the package again; run with `uv run --no-sync` or add it to your own project.
 
 ## Graphviz (required for pipeline graph rendering)
 

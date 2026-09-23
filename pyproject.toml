@@ -25,16 +25,21 @@ dependencies = [
     "matplotlib>=3.10.9",
     "opencv-python-headless>=4.13.0.92",
     "imageio-ffmpeg>=0.6.0",
-    "gitpython>=3.1.59",
+    "gitpython>=3.1.62",
     "pyyaml>=6.0.3",
     "scikit-image>=0.26.0",
     "scikit-learn>=1.8.0",
     "tensorboard>=2.20.0",
     "setuptools>=81.0.0,<85",
     # Core framework dependencies
-    "torch>=2.11.0",
-    "torchvision>=0.26.0",
-    "torchcodec>=0.11.1",
+    # torch and torchvision are declared twice with complementary markers on purpose: the
+    # `cuda` group's index pins below fork on the same markers, and uv can only assign an
+    # index to a requirement that lives inside one fork (an unsplit requirement next to two
+    # gated indexes fails with "conflicting indexes for package torch").
+    "torch>=2.11.0 ; sys_platform == 'linux' and platform_machine == 'aarch64'",
+    "torch>=2.11.0 ; sys_platform != 'linux' or platform_machine != 'aarch64'",
+    "torchvision>=0.26.0 ; sys_platform == 'linux' and platform_machine == 'aarch64'",
+    "torchvision>=0.26.0 ; sys_platform != 'linux' or platform_machine != 'aarch64'",
     "torchmetrics>=1.9.0",
     "pytorch-lightning>=2.6.6",
     "tzdata>=2026.2; sys_platform == 'win32'",
@@ -154,15 +159,26 @@ cuvis_ai = ["assets/node_icons/*.svg", "configs/**/*.yaml"]
 [tool.uv]
 default-groups = ["dev", "cuda"]
 
-# The cu128 pin is scoped to the `cuda` dependency group (installed by default here) because
-# uv also reads a git or path dependency's `[tool.uv.sources]`: an unscoped
-# `torch = { index = ... }` would reach every composed child environment (this package is
-# pulled from git through the `cuvis_ai_builtin` manifest) and collide with the host-mirrored
-# torch index there (cu130 on a Jetson Thor host, cpu on a CPU-only host). Consumers never
-# install a dependency's groups, so the scoped pin binds nothing outside this checkout.
+# torch / torchvision come from a PyTorch wheel index, forked by platform: aarch64 Linux (Jetson
+# Thor, JetPack 7, CUDA 13 driver) resolves from cu130, because the cu128 index serves an SBSA
+# (Grace / GH200) aarch64 wheel whose kernels stop at sm_120 and fail on the Thor's sm_110 at
+# the first launch; every other platform keeps cu128. PEP 508 markers have no `not`, so the
+# cu128 entry spells the complement with De Morgan. Both entries are scoped to the `cuda`
+# dependency group (installed by default here) because uv also reads a git or path dependency's
+# `[tool.uv.sources]`: an unscoped `torch = { index = ... }` would reach every composed child
+# environment (this package is pulled in through the `cuvis_ai_builtin` manifest) and collide
+# with the host-mirrored torch index there (cu130 on a Jetson Thor host, cpu on a CPU-only
+# host). Consumers never install a dependency's groups, so the scoped pins bind nothing outside
+# this checkout. tests/test_pyproject_torch_sources.py guards this block and the lock.
 [tool.uv.sources]
-torch = { index = "pytorch-cu128", group = "cuda" }
-torchvision = { index = "pytorch-cu128", group = "cuda" }
+torch = [
+    { index = "pytorch-cu128", group = "cuda", marker = "sys_platform != 'linux' or platform_machine != 'aarch64'" },
+    { index = "pytorch-cu130", group = "cuda", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
+]
+torchvision = [
+    { index = "pytorch-cu128", group = "cuda", marker = "sys_platform != 'linux' or platform_machine != 'aarch64'" },
+    { index = "pytorch-cu130", group = "cuda", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
+]
 # Local editable overrides for day-to-day development against working copies of the
 # core libs. Strip (re-comment) before release so CI and PyPI consumers resolve the
 # published floors; these are for local work against sibling checkouts.
@@ -271,7 +287,7 @@ dev = [
     "playwright>=1.61.0",
     "pytest-playwright>=0.8.0",
 ]
-# Floors live in [project].dependencies; this group only carries the cu128 index pin.
+# Floors live in [project].dependencies; this group only carries the torch index pins.
 cuda = [
     "torch",
     "torchvision",
@@ -280,4 +296,9 @@ cuda = [
 [[tool.uv.index]]
 name = "pytorch-cu128"
 url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
 explicit = true
