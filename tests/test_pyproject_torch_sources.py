@@ -6,24 +6,19 @@ wheel whose kernels stop at sm_120, so a checkout synced from it installs cleanl
 the first CUDA kernel with "no kernel image is available for execution on the device". Every
 other platform keeps cu128. Both entries stay scoped to the ``cuda`` group, so a git or path
 consumer (the ``cuvis_ai_builtin`` manifest inside a composed child environment) inherits no
-index pin. torchcodec is forked the same way: 0.11 is the release built against torch 2.11 and its
-x86_64 wheel needs no CUDA 13 runtime, while every 0.12+ Linux wheel links libcudart / libnvrtc 13
-(libnvjpeg 13 too) and so imports only beside the cu130 torch of the aarch64 fork.
+index pin. torchcodec is no dependency any more (``test_torchcodec_is_not_a_dependency``): cuvis-ai
+imports it nowhere, and a torchcodec built for another torch fails at import inside core's video
+reader, which a plain ``pip install cuvis-ai`` produced next to PyPI's torch.
 """
 
 from __future__ import annotations
 
-import ctypes.util
-import os
-import sys
 import tomllib
-from glob import glob
 from pathlib import Path
 
 import pytest
 from packaging.markers import Marker
 from packaging.requirements import Requirement
-from packaging.version import Version
 
 pytestmark = pytest.mark.unit
 
@@ -118,25 +113,24 @@ def _requirements(pyproject: dict, name: str) -> list[Requirement]:
     ]
 
 
-def test_torchcodec_is_forked_with_torch(pyproject: dict) -> None:
-    """0.11.x beside the cu128 torch 2.11, 0.16+ beside the cu130 torch 2.14, same markers.
-
-    Every 0.12+ torchcodec wheel on Linux links the CUDA 13 runtime, so a single 0.16 floor
-    fails at import next to a cu128 torch (CI caught it); children inherit these markers.
-    """
-    by_marker = {str(req.marker): req.specifier for req in _requirements(pyproject, "torchcodec")}
-    source_markers = {str(Marker(e["marker"])) for e in pyproject["tool"]["uv"]["sources"]["torch"]}
-    assert set(by_marker) == source_markers, sorted(by_marker)
-    for platform, environment in ENVIRONMENTS.items():
-        (specifier,) = [s for m, s in by_marker.items() if Marker(m).evaluate(environment)]
-        if platform == "jetson":
-            assert specifier.contains("0.16.0") and not specifier.contains("0.11.1"), specifier
-        else:
-            assert specifier.contains("0.11.1") and not specifier.contains("0.16.0"), specifier
-
-
 def _packages(lock: dict, name: str) -> list[dict]:
     return [pkg for pkg in lock["package"] if pkg["name"] == name]
+
+
+def test_torchcodec_is_not_a_dependency(pyproject: dict, lock: dict) -> None:
+    """torchcodec left with 0.17.1 and must not come back through a dependency or an extra.
+
+    cuvis-ai imports it nowhere. Its shared library is built per torch ABI, and a plain
+    ``pip install cuvis-ai`` paired PyPI's torch 2.14 with torchcodec 0.11: the import failed
+    inside core's video reader instead of falling back to OpenCV. A user who wants GPU decoding
+    installs a torchcodec that matches the installed torch.
+    """
+    assert _requirements(pyproject, "torchcodec") == []
+    extras = pyproject["project"].get("optional-dependencies", {})
+    assert not [
+        dep for group in extras.values() for dep in group if Requirement(dep).name == "torchcodec"
+    ]
+    assert _packages(lock, "torchcodec") == []
 
 
 @pytest.mark.parametrize("package", FORKED)
@@ -148,21 +142,6 @@ def test_lock_forks_torch_between_cu128_and_cu130(lock: dict, package: str) -> N
     cu130 = by_registry[CU130]
     assert cu130["version"].endswith("+cu130")
     assert any("manylinux_2_28_aarch64" in wheel["url"] for wheel in cu130["wheels"])
-
-
-@pytest.mark.parametrize("platform", sorted(ENVIRONMENTS))
-@pytest.mark.parametrize("minor", PYTHON_MINORS)
-def test_lock_torchcodec_follows_the_torch_fork(lock: dict, platform: str, minor: str) -> None:
-    """One PyPI torchcodec per environment: 0.11.x beside cu128, 0.12+ beside the cu130 torch."""
-    environment = _lock_environment(platform, minor)
-    selected = [pkg for pkg in _packages(lock, "torchcodec") if _applies(pkg, environment)]
-    assert len(selected) == 1, [pkg["version"] for pkg in selected]
-    assert selected[0]["source"]["registry"] == "https://pypi.org/simple"
-    version = Version(selected[0]["version"])
-    if platform == "jetson":
-        assert version >= Version("0.12"), version
-    else:
-        assert Version("0.11.1") <= version < Version("0.12"), version
 
 
 @pytest.mark.parametrize("package", FORKED)
@@ -208,34 +187,3 @@ def test_lock_forks_ship_a_wheel_per_supported_python(lock: dict, package: str, 
     cu128 = [name for name in _wheel_names(by_registry[CU128]) if abi in name]
     assert sum("manylinux_2_28_x86_64" in name for name in cu128) == 1, cu128
     assert sum("win_amd64" in name for name in cu128) == 1, cu128
-
-
-def _ffmpeg_shared_libraries_present() -> bool:
-    """torchcodec dlopens FFmpeg at import; without the shared libraries the import says nothing."""
-    if sys.platform == "win32":
-        return any(
-            glob(os.path.join(entry, "avcodec-*.dll"))
-            for entry in os.environ.get("PATH", "").split(os.pathsep)
-            if entry
-        )
-    return ctypes.util.find_library("avcodec") is not None
-
-
-def test_torchcodec_loads_against_the_installed_torch(lock: dict) -> None:
-    """torchcodec's shared library is built per torch ABI; a mismatch fails at import time."""
-    import torch
-    import torchcodec
-    from torchcodec.decoders import VideoDecoder
-
-    if not _ffmpeg_shared_libraries_present():
-        pytest.skip("no FFmpeg shared libraries on this machine; CI installs them")
-    import cuvis_ai  # noqa: F401  # Windows: registers the FFmpeg DLL directory first
-
-    assert VideoDecoder is not None
-    # The running interpreter is one of the lock's environments: the installed build must be the
-    # entry the fork selects for it (0.11.x beside a cu128 torch, 0.16+ beside cu130).
-    (locked,) = [pkg for pkg in _packages(lock, "torchcodec") if _applies(pkg, {})]
-    installed = Version(torchcodec.__version__.split("+")[0])
-    assert installed == Version(locked["version"]), (
-        f"torchcodec {torchcodec.__version__} next to torch {torch.__version__}, lock says {locked['version']}"
-    )

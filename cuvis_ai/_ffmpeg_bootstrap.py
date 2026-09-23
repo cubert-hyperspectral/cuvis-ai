@@ -2,11 +2,12 @@
 
 Python 3.8+ on Windows no longer searches ``PATH`` to resolve DLL
 dependencies of native extensions; modules that need a sibling DLL must
-register its directory via ``os.add_dll_directory``. ``torchcodec``'s
-``libtorchcodec_core*.dll`` links against FFmpeg's ``avcodec-*.dll``
-family, so without this registration ``import torchcodec`` raises
-``RuntimeError: Could not load libtorchcodec`` even when the FFmpeg bin
-directory is on ``PATH``.
+register its directory via ``os.add_dll_directory``. cuvis-ai installs no
+such module itself, but a ``torchcodec`` the user adds beside a matching
+torch (GPU video decoding) links ``libtorchcodec_core*.dll`` against
+FFmpeg's ``avcodec-*.dll`` family, and without this registration its
+import raises ``RuntimeError: Could not load libtorchcodec`` even when
+the FFmpeg bin directory is on ``PATH``.
 
 This module walks ``PATH`` and registers any directory containing an
 ``avcodec-*.dll``. No-op on non-Windows platforms.
