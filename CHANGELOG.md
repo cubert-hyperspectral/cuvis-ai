@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.17.2 - 2026-09-24
+
+- cuvis-ai-dataloader manifest pin v0.8.0 -> v0.8.1: a recording without a labels file beside it is label-free, every frame of it carries an all-zero mask and the `normal` tag, and the cu3s data modules log one WARNING per val/test stage that holds such a recording. The CuvisNEXT training wizard's split designer places such recordings in val and test like any other since its 2026-09-18 build; with v0.8.0 their batches carried no mask, so the wizard's run died at its first validation frame with `Node 'metrics_auroc' missing required input 'targets'` (after the threshold calibration had already seen 93 scores against 53 targets, a mismatch it survived). `tests/configs/test_trainrun_reader_flags.py` now also refuses a manifest older than 0.8.1. Stated plainly: an unlabelled anomaly in val or test scores as normal; the wizard preset's `params:` say so.
+- Bumped the `cuvis_ai_builtin` manifest pin v0.17.1 -> v0.17.2 so composed child environments install this release.
+
 ## 0.17.1 - 2026-09-23
 
 - torch and torchvision resolve from the cu130 wheel index on aarch64 Linux checkouts (Jetson Thor, JetPack 7). The cu128 index serves an SBSA aarch64 wheel whose kernels stop at sm_120, so `uv sync` on a Thor installed cleanly and every CUDA kernel failed with "no kernel image is available for execution on the device". Other platforms keep cu128. Both index pins stay scoped to the `cuda` dependency group, and the torch/torchvision floors are declared once per platform fork because uv assigns one index per fork.

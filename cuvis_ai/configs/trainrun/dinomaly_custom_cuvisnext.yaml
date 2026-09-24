@@ -29,6 +29,9 @@ data:
     # sources — the contract externally authored splits.json are written against.
     frames: measurements
     recursive: true
+    # A recording without a labels file beside it is label-free: every frame of it counts
+    # as normal in train, val and test (an all-zero mask; cuvis-ai-dataloader 0.8.1 or later,
+    # the plugin manifest pins v0.8.1).
     processing_mode: Reflectance
     # One frame read ahead of the model step, on a reader thread inside this process, so
     # the SDK read of frame i+1 overlaps the model step on frame i. Measured on the tester
