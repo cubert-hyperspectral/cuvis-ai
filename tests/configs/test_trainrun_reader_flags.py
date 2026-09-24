@@ -35,10 +35,8 @@ LEVER_FLOORS = {
 }
 LEVERS_FLOOR = min(LEVER_FLOORS.values())
 MAX_READ_AHEAD = 8  # every frame in flight is a whole cube; the dataloader refuses more
-# The dataloader release whose cu3s modules hand every frame of a recording without a labels
-# file an all-zero mask (and the normal tag). The wizard's split designer places such
-# recordings in val and test; an older plugin's batches carry no mask there, and the metric
-# nodes die at the first such frame (missing required input 'targets').
+# The dataloader release that masks every frame of a recording without a labels file (all zeros);
+# an older plugin's batch carries no mask and the metric nodes die on it (missing 'targets').
 LABEL_FREE_MASK_FLOOR = Version("0.8.1")
 
 
@@ -148,7 +146,7 @@ def test_dataloader_manifest_is_at_or_above_the_levers_floor() -> None:
 
 
 def test_dataloader_manifest_hands_label_free_frames_a_mask() -> None:
-    """A recording without a labels file yields masks, or validation dies on its first frame."""
+    """The wizard's split designer puts recordings without a labels file in val and test."""
     assert _dataloader_manifest_version() >= LABEL_FREE_MASK_FLOOR
 
 

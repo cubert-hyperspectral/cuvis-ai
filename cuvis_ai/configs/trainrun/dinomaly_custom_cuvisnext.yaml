@@ -23,15 +23,14 @@ data:
     # does), and the data module reads that list instead of searching this folder, so
     # a recording the split does not assign is never opened. Needs
     # cuvis-ai-dataloader >= 0.6.3; without a list, a split whose selectors all name
-    # their sources still narrows the folder by itself.
+    # their sources still narrows the folder by itself. A recording without a labels
+    # file beside it is label-free: every frame of it counts as normal in train, val
+    # and test alike (an all-zero mask; cuvis-ai-dataloader 0.8.1 or later).
     data_dir: ''
     # One sample per measurement per file, enumerated with canonical absolute
     # sources — the contract externally authored splits.json are written against.
     frames: measurements
     recursive: true
-    # A recording without a labels file beside it is label-free: every frame of it counts
-    # as normal in train, val and test (an all-zero mask; cuvis-ai-dataloader 0.8.1 or later,
-    # the plugin manifest pins v0.8.1).
     processing_mode: Reflectance
     # One frame read ahead of the model step, on a reader thread inside this process, so
     # the SDK read of frame i+1 overlaps the model step on frame i. Measured on the tester
@@ -40,11 +39,11 @@ data:
     # the identical AUROC curve. Depth 1 reads on the recording's own SDK handle; each
     # further level opens more handles (about 350 MiB of device memory per level on that
     # card) for 2 percent more, so leave it at 1. Needs cuvis-ai-dataloader 0.8.0 or later
-    # (the plugin manifest pins v0.8.0; an older plugin dies on the keyword) and the
-    # num_workers 0 above (the dataloader refuses otherwise). Every frame in flight is a
-    # whole cube in host memory (264 MB at 1000x1080x61 Reflectance); with cuda_cubes it
-    # would sit on the device. An Advanced batch size above 1 costs batch_size more cubes
-    # per read: batch 4 needed 9.6 GB of device memory, batch 16 paged for hours.
+    # (an older plugin dies on the keyword) and the num_workers 0 above (the dataloader
+    # refuses otherwise). Every frame in flight is a whole cube in host memory (264 MB at
+    # 1000x1080x61 Reflectance); with cuda_cubes it would sit on the device. An Advanced
+    # batch size above 1 costs batch_size more cubes per read: batch 4 needed 9.6 GB of
+    # device memory, batch 16 paged for hours.
     read_ahead: 1
 
 training:
