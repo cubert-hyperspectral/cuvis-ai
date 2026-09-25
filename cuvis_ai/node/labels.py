@@ -153,13 +153,7 @@ class BinaryAnomalyLabelMapper(Node):
             mask_normal = self._membership_mask(mask, self.normal_class_ids)
             mask_anomaly = ~mask_normal
 
-        mapped = torch.zeros_like(mask, dtype=self._target_dtype, device=mask.device)
-        mapped = torch.where(mask_anomaly, torch.ones_like(mapped), mapped)
-
-        # Convert to bool for smaller tensor size
-        mapped = mapped.bool()
-
-        return {"cube": cube, "mask": mapped}
+        return {"cube": cube, "mask": mask_anomaly}
 
 
 __all__ = ["BinaryAnomalyLabelMapper"]

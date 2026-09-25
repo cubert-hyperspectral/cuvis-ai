@@ -115,16 +115,14 @@ class _StatisticalFitNode(Node):
             )
 
     @torch.no_grad()
-    def _collect_pixels(
-        self, input_stream: InputStream, port: str = "cube", mask_port: str = "mask"
-    ) -> torch.Tensor:
+    def _collect_pixels(self, input_stream: InputStream) -> torch.Tensor:
         """Gather a stream of BHWC batches into one ``[N, C]`` matrix.
 
-        Concatenates the flattened pixels from every batch on ``port`` and,
+        Concatenates the flattened pixels from every batch on ``"cube"`` and,
         when ``max_fit_pixels`` is set and exceeded, draws a seeded random
         subsample so the returned matrix never exceeds the budget.
 
-        When a batch also carries ``mask_port`` (a ``[B, H, W]`` foreground
+        When a batch also carries ``"mask"`` (a ``[B, H, W]`` foreground
         mask), only pixels where the mask is non-zero are kept, so a node that
         declares and connects an optional ``mask`` input fits on the foreground
         alone. Subclasses without a ``mask`` port never receive one, so this is
@@ -134,11 +132,6 @@ class _StatisticalFitNode(Node):
         ----------
         input_stream : InputStream
             Iterable of port-keyed batch dicts.
-        port : str, optional
-            Input port to read the cube from (default: ``"cube"``).
-        mask_port : str, optional
-            Input port to read an optional foreground mask from (default:
-            ``"mask"``).
 
         Returns
         -------
@@ -147,11 +140,11 @@ class _StatisticalFitNode(Node):
         """
         chunks: list[torch.Tensor] = []
         for batch in input_stream:
-            x = batch.get(port)
+            x = batch.get("cube")
             if x is None:
                 continue
             flat = x.reshape(-1, x.shape[-1]).to(torch.float32)
-            mask = batch.get(mask_port)
+            mask = batch.get("mask")
             if mask is not None:
                 flat = flat[mask.reshape(-1) > 0]
             chunks.append(flat)
