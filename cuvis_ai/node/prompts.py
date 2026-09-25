@@ -135,16 +135,10 @@ def resolve_text_prompt_for_frame(
     if normalized_mode == "scheduled":
         return str(prompts_by_frame.get(current_frame_id, ""))
 
-    latest_prompt = ""
-    latest_frame_id: int | None = None
-    for scheduled_frame_id, prompt_text in prompts_by_frame.items():
-        scheduled_frame_id = int(scheduled_frame_id)
-        if scheduled_frame_id > current_frame_id:
-            continue
-        if latest_frame_id is None or scheduled_frame_id > latest_frame_id:
-            latest_frame_id = scheduled_frame_id
-            latest_prompt = str(prompt_text)
-    return latest_prompt
+    eligible = [fid for fid in prompts_by_frame if int(fid) <= current_frame_id]
+    if not eligible:
+        return ""
+    return str(prompts_by_frame[max(eligible, key=int)])
 
 
 def _image_hw(image_entry: dict[str, Any], frame_id: int) -> tuple[int, int]:
@@ -216,27 +210,12 @@ def _build_track_centric_frame_metadata(
     frame_hw_by_id = dict.fromkeys(normalized_frame_ids, (1, 1))
     annotation_hw_by_frame: dict[int, set[tuple[int, int]]] = {}
 
+    frame_count = len(normalized_frame_ids)
     next_ann_id = 1
     for track_annotation in data.get("annotations", []):
-        segmentations = _annotation_sequence(
-            track_annotation,
-            "segmentations",
-            frame_count=len(normalized_frame_ids),
-        )
-        bboxes = _annotation_sequence(
-            track_annotation,
-            "bboxes",
-            frame_count=len(normalized_frame_ids),
-        )
-        detection_scores = _annotation_sequence(
-            track_annotation,
-            "detection_scores",
-            frame_count=len(normalized_frame_ids),
-        )
-        areas = _annotation_sequence(
-            track_annotation,
-            "areas",
-            frame_count=len(normalized_frame_ids),
+        segmentations, bboxes, detection_scores, areas = (
+            _annotation_sequence(track_annotation, field_name, frame_count=frame_count)
+            for field_name in ("segmentations", "bboxes", "detection_scores", "areas")
         )
         if segmentations is None and bboxes is None:
             continue
