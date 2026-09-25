@@ -150,10 +150,7 @@ class SavitzkyGolay(Node):
         """
         B, H, W, C = cube.shape
         signal = cube.reshape(B * H * W, 1, C)
-        if self._pad_mode == "constant":
-            padded = F.pad(signal, (self._pad, self._pad), mode="constant", value=0.0)
-        else:
-            padded = F.pad(signal, (self._pad, self._pad), mode=self._pad_mode)
+        padded = F.pad(signal, (self._pad, self._pad), mode=self._pad_mode)
         kernel = self.coefs.to(dtype=signal.dtype)
         filtered = F.conv1d(padded, kernel).reshape(B, H, W, C)
         if self.deriv > 0 and wavelengths is not None:
