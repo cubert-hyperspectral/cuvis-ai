@@ -593,19 +593,11 @@ class RGBAnomalyMask(Node):
         super().__init__(up_to=up_to, **kwargs)
 
     def _compute_metrics(self, pred: np.ndarray, gt: np.ndarray) -> dict:
-        """Compute IoU, precision, recall from boolean masks."""
+        """Compute IoU from boolean masks."""
         tp = np.logical_and(pred, gt).sum()
         fp = np.logical_and(pred, ~gt).sum()
         fn = np.logical_and(~pred, gt).sum()
-        denom = tp + fp + fn + 1e-8
-        return {
-            "tp": tp,
-            "fp": fp,
-            "fn": fn,
-            "iou": tp / denom,
-            "precision": tp / (tp + fp + 1e-8),
-            "recall": tp / (tp + fn + 1e-8),
-        }
+        return {"iou": tp / (tp + fp + fn + 1e-8)}
 
     def _create_overlay(self, pred: np.ndarray, gt: np.ndarray | None) -> np.ndarray:
         """Create RGBA overlay: Green=TP, Red=FP, Yellow=FN."""
@@ -630,8 +622,6 @@ class RGBAnomalyMask(Node):
         pred: np.ndarray,
         gt: np.ndarray,
         metrics: dict,
-        batch_iou: float,
-        batch_size: int,
         per_image_ap: float | None,
     ) -> None:
         """Plot 3 subplots: RGB, GT mask, overlay with metrics."""
@@ -718,20 +708,12 @@ class RGBAnomalyMask(Node):
 
         # Validate and convert GT if available
         gt_mask_np: np.ndarray | None = None
-        batch_iou: float | None = None
         if use_gt:
             assert mask is not None
             gt_mask_np = tensor_to_numpy(mask.squeeze(-1))  # [B, H, W]
             unique_values = np.unique(gt_mask_np)
             if not np.all(np.isin(unique_values, [0, 1, True, False])):
                 raise ValueError(f"RGBAnomalyMask expects binary masks, found: {unique_values}")
-            # Compute batch IoU
-            batch_pred = pred_mask_np > 0.5
-            batch_gt = gt_mask_np > 0.5
-            tp = np.logical_and(batch_pred, batch_gt).sum()
-            fp = np.logical_and(batch_pred, ~batch_gt).sum()
-            fn = np.logical_and(~batch_pred, batch_gt).sum()
-            batch_iou = float(tp / (tp + fp + fn + 1e-8))
 
         batch_size = pred_mask_np.shape[0]
         up_to_batch = min(batch_size, self.up_to or batch_size)
@@ -758,13 +740,9 @@ class RGBAnomalyMask(Node):
             # Create figure and plot
             ncols = 3 if gt is not None else 2
             fig, axes = plt.subplots(1, ncols, figsize=(6 * ncols, 6))
-            if ncols == 1:
-                axes = [axes]
 
-            if gt is not None and metrics is not None and batch_iou is not None:
-                self._plot_with_gt(
-                    axes, rgb_img, pred, gt, metrics, batch_iou, batch_size, per_image_ap
-                )
+            if gt is not None and metrics is not None:
+                self._plot_with_gt(axes, rgb_img, pred, gt, metrics, per_image_ap)
                 log_msg = (
                     f"Created RGB anomaly mask ({i + 1}/{up_to_batch}): IoU={metrics['iou']:.3f}"
                 )
@@ -1116,14 +1094,7 @@ class TrackingOverlayNode(Node):
                 filtered_ids = filtered_ids[torch.isin(filtered_ids, present_ids_t)]
             else:
                 filtered_ids = filtered_ids[:0]
-            ids = []
-            seen: set[int] = set()
-            for raw_id in filtered_ids.tolist():
-                obj_id = int(raw_id)
-                if obj_id in seen:
-                    continue
-                seen.add(obj_id)
-                ids.append(obj_id)
+            ids = list(dict.fromkeys(int(v) for v in filtered_ids.tolist()))
         else:
             ids = [int(v) for v in present_ids_t.tolist()]
 
@@ -1245,14 +1216,7 @@ class TrackingPointerOverlayNode(Node):
                 filtered_ids = filtered_ids[torch.isin(filtered_ids, present_ids_t)]
             else:
                 filtered_ids = filtered_ids[:0]
-            ids: list[int] = []
-            seen: set[int] = set()
-            for raw_id in filtered_ids.tolist():
-                oid = int(raw_id)
-                if oid in seen:
-                    continue
-                seen.add(oid)
-                ids.append(oid)
+            ids: list[int] = list(dict.fromkeys(int(v) for v in filtered_ids.tolist()))
         else:
             ids = [int(v) for v in present_ids_t.tolist()]
 
