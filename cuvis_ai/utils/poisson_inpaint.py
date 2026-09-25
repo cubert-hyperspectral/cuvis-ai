@@ -11,7 +11,6 @@ def _cg_solve(
     *,
     max_iter: int,
     tol: float,
-    x0: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """Solve ``matrix @ x = rhs`` with batched Conjugate Gradient.
 
@@ -25,8 +24,6 @@ def _cg_solve(
         Maximum iterations.
     tol
         Absolute residual tolerance on the worst channel.
-    x0
-        Optional initial guess ``[N, C]``.
     """
     if rhs.ndim != 2:
         raise ValueError(f"rhs must be 2D [N, C], got shape {tuple(rhs.shape)}")
@@ -35,7 +32,7 @@ def _cg_solve(
     if tol <= 0:
         raise ValueError("tol must be > 0")
 
-    x = torch.zeros_like(rhs) if x0 is None else x0.clone()
+    x = torch.zeros_like(rhs)
     r = rhs - torch.sparse.mm(matrix, x)
     p = r.clone()
     rs_old = (r * r).sum(dim=0)
@@ -157,12 +154,7 @@ def poisson_inpaint(
         if torch.any(is_unknown_neighbor):
             off_rows = local_rows[is_unknown_neighbor]
             off_cols = neigh_unknown[is_unknown_neighbor]
-            off_vals = torch.full(
-                (off_rows.numel(),),
-                -1.0,
-                dtype=compute_dtype,
-                device=image.device,
-            )
+            off_vals = torch.full_like(off_rows, -1.0, dtype=compute_dtype)
             row_parts.append(off_rows)
             col_parts.append(off_cols)
             val_parts.append(off_vals)
