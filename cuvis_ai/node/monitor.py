@@ -101,7 +101,6 @@ class TensorBoardMonitorNode(Node):
         # the stage prunes it) must leave no TensorBoard directory behind.
         self._writer: SummaryWriter | None = None
         self.log_dir: Path | None = None
-        self._SummaryWriter = SummaryWriter
 
         super().__init__(
             output_dir=str(output_dir),
@@ -116,7 +115,7 @@ class TensorBoardMonitorNode(Node):
         if self._writer is None:
             self.log_dir = self._resolve_log_dir()
             self.log_dir.mkdir(parents=True, exist_ok=True)
-            self._writer = self._SummaryWriter(
+            self._writer = SummaryWriter(
                 log_dir=str(self.log_dir),
                 comment=self.comment,
                 flush_secs=self.flush_secs,
@@ -169,18 +168,12 @@ class TensorBoardMonitorNode(Node):
             Path to the next run directory (e.g., run_01, run_02, etc.)
         """
         self.output_dir.mkdir(parents=True, exist_ok=True)
-
-        # Find all existing run_XX directories
-        existing_runs = []
-        for item in self.output_dir.iterdir():
-            if item.is_dir():
-                match = re.match(r"run_(\d+)", item.name)
-                if match:
-                    existing_runs.append(int(match.group(1)))
-
-        # Get next run number
-        next_run = 1 if not existing_runs else max(existing_runs) + 1
-
+        existing_runs = [
+            int(m.group(1))
+            for item in self.output_dir.iterdir()
+            if item.is_dir() and (m := re.match(r"run_(\d+)", item.name))
+        ]
+        next_run = max(existing_runs, default=0) + 1
         return self.output_dir / f"run_{next_run:02d}"
 
     def forward(
@@ -286,7 +279,6 @@ class TensorBoardMonitorNode(Node):
             self._validate_image_artifact(artifact)
             # Log as image
             tag = f"{stage}/{artifact.name}"
-            # tag = f"{stage}/epoch_{artifact.epoch}/batch_{artifact.batch_idx}/{artifact.name}"
             # TensorBoard expects CHW format or HWC with dataformats parameter
             img_array = artifact.value
             writer = self._ensure_writer()

@@ -79,20 +79,10 @@ class OrthogonalityLoss(LossNode):
         dict[str, Tensor]
             Dictionary with "loss" key containing weighted loss
         """
-        # Compute gram matrix: W @ W.T
+        # Frobenius norm of W @ W.T - I
         gram = components @ components.T
-
-        # Target: identity matrix
-        n_components = components.shape[0]
-        eye = torch.eye(
-            n_components,
-            device=components.device,
-            dtype=components.dtype,
-        )
-
-        # Frobenius norm of difference
+        eye = torch.eye(components.shape[0], device=components.device, dtype=components.dtype)
         orth_loss = torch.sum((gram - eye) ** 2)
-
         return {"loss": self.weight * orth_loss}
 
 
@@ -179,20 +169,10 @@ class AnomalyBCEWithLogits(LossNode):
         # Squeeze channel dimension to [B, H, W] for BCEWithLogitsLoss
         if predictions.dim() == 4 and predictions.shape[-1] == 1:
             predictions = predictions.squeeze(-1)
-
         if targets.dim() == 4 and targets.shape[-1] == 1:
             targets = targets.squeeze(-1)
-
-        # Convert labels to float
-        targets = targets.float()
-
-        # Compute loss
-        loss = self.loss_fn(predictions, targets)
-
-        # Apply weight
-        weighted_loss = self.weight * loss
-
-        return {"loss": weighted_loss}
+        loss = self.loss_fn(predictions, targets.float())
+        return {"loss": self.weight * loss}
 
 
 class MSEReconstructionLoss(LossNode):
