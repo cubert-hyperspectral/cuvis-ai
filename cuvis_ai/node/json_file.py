@@ -914,16 +914,8 @@ class DetectionJsonReader(Node):
             if bboxes
             else torch.empty((1, 0, 4), dtype=torch.float32)
         )
-        cats_t = (
-            torch.tensor([cats], dtype=torch.int64)
-            if cats
-            else torch.empty((1, 0), dtype=torch.int64)
-        )
-        scores_t = (
-            torch.tensor([scores], dtype=torch.float32)
-            if scores
-            else torch.empty((1, 0), dtype=torch.float32)
-        )
+        cats_t = torch.tensor([cats], dtype=torch.int64)
+        scores_t = torch.tensor([scores], dtype=torch.float32)
 
         h = int(img.get("height", 0))
         w = int(img.get("width", 0))
@@ -1222,17 +1214,9 @@ class TrackingResultsReader(Node):
             if n
             else torch.empty((1, 0, 4), dtype=torch.float32)
         )
-        cats_t = (
-            torch.tensor([cats], dtype=torch.int64) if n else torch.empty((1, 0), dtype=torch.int64)
-        )
-        scores_t = (
-            torch.tensor([scores], dtype=torch.float32)
-            if n
-            else torch.empty((1, 0), dtype=torch.float32)
-        )
-        tids_t = (
-            torch.tensor([tids], dtype=torch.int64) if n else torch.empty((1, 0), dtype=torch.int64)
-        )
+        cats_t = torch.tensor([cats], dtype=torch.int64)
+        scores_t = torch.tensor([scores], dtype=torch.float32)
+        tids_t = torch.tensor([tids], dtype=torch.int64)
 
         h_px = int(img.get("height", 0))
         w_px = int(img.get("width", 0))
