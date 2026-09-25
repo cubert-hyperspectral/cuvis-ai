@@ -59,41 +59,19 @@ def render_scalar_hsv_colormap(normalized: Tensor) -> Tensor:
     q = 1.0 - frac
     t = frac
 
-    red = torch.zeros_like(hue)
-    green = torch.zeros_like(hue)
-    blue = torch.zeros_like(hue)
-
-    mask0 = sector == 0
-    red = torch.where(mask0, one, red)
-    green = torch.where(mask0, t, green)
-    blue = torch.where(mask0, zero, blue)
-
-    mask1 = sector == 1
-    red = torch.where(mask1, q, red)
-    green = torch.where(mask1, one, green)
-    blue = torch.where(mask1, zero, blue)
-
-    mask2 = sector == 2
-    red = torch.where(mask2, zero, red)
-    green = torch.where(mask2, one, green)
-    blue = torch.where(mask2, t, blue)
-
-    mask3 = sector == 3
-    red = torch.where(mask3, zero, red)
-    green = torch.where(mask3, q, green)
-    blue = torch.where(mask3, one, blue)
-
-    mask4 = sector == 4
-    red = torch.where(mask4, t, red)
-    green = torch.where(mask4, zero, green)
-    blue = torch.where(mask4, one, blue)
-
-    mask5 = sector == 5
-    red = torch.where(mask5, one, red)
-    green = torch.where(mask5, zero, green)
-    blue = torch.where(mask5, q, blue)
-
-    return torch.cat([red, green, blue], dim=-1).clamp_(0.0, 1.0)
+    # (r, g, b) per 60-degree hue sector, in order red, yellow, green, cyan, blue, magenta.
+    sectors = (
+        (one, t, zero),
+        (q, one, zero),
+        (zero, one, t),
+        (zero, q, one),
+        (t, zero, one),
+        (one, zero, q),
+    )
+    rgb = torch.cat([zero, zero, zero], dim=-1)
+    for k, channels in enumerate(sectors):
+        rgb = torch.where(sector == k, torch.cat(channels, dim=-1), rgb)
+    return rgb.clamp_(0.0, 1.0)
 
 
 class ScalarHSVColormapNode(Node):
