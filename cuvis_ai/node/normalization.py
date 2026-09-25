@@ -92,9 +92,6 @@ class _ScoreNormalizerBase(Node):
         )
     }
 
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-
     def forward(self, data: Tensor, **_: Any) -> dict[str, Tensor]:
         """Normalize input data (BHWC only).
 
@@ -615,7 +612,7 @@ class PercentileNormalizer(_ScoreNormalizerBase):
     ) -> None:
         if isinstance(n_channels, bool) or not isinstance(n_channels, int) or n_channels < 1:
             raise ValueError("PercentileNormalizer: n_channels must be an integer >= 1")
-        norm_mode = NormMode(str(norm_mode) if isinstance(norm_mode, NormMode) else norm_mode)
+        norm_mode = NormMode(norm_mode)
         if freeze_running_bounds_after_frames is not None and (
             isinstance(freeze_running_bounds_after_frames, bool)
             or not isinstance(freeze_running_bounds_after_frames, int)
@@ -672,10 +669,6 @@ class PercentileNormalizer(_ScoreNormalizerBase):
         denom = (hi - lo).clamp_min(self.eps)
         return ((data - lo) / denom).clamp_(0.0, 1.0)
 
-    def _apply_bounds(self, data: Tensor) -> Tensor:
-        """Normalize using the accumulated per-channel bounds."""
-        return normalize_with_bounds(data, self.running_min, self.running_max, self.eps)
-
     @torch.no_grad()
     def _running_normalize(self, data: Tensor) -> Tensor:
         """Warmup + min/max percentile accumulation hybrid normalization, one step per frame.
@@ -711,7 +704,7 @@ class PercentileNormalizer(_ScoreNormalizerBase):
                     "PercentileNormalizer: statistical mode requires "
                     "statistical_initialization() before forward()"
                 )
-            return self._apply_bounds(tensor)
+            return normalize_with_bounds(tensor, self.running_min, self.running_max, self.eps)
         if self.norm_mode == NormMode.RUNNING:
             return self._running_normalize(tensor)
         return self._per_frame_minmax(tensor)
