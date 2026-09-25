@@ -637,14 +637,10 @@ class NDVISelector(_NormalizedDifferenceIndexBase):
         """NDVI secondary operand label."""
         return "red"
 
-    def _render_hsv_colormap(self, normalized: torch.Tensor) -> torch.Tensor:
-        """Apply the Blood_OXY-style HSV colormap to normalized values in [0, 1]."""
-        return render_scalar_hsv_colormap(normalized)
-
     def _render_rgb_from_index(self, index_image: torch.Tensor) -> torch.Tensor:
         """Render NDVI using the Blood_OXY HSV colormap."""
         normalized = ((index_image - self.colormap_min) / self._colormap_range).clamp(0.0, 1.0)
-        return self._render_hsv_colormap(normalized)
+        return render_scalar_hsv_colormap(normalized)
 
     def forward(
         self,
@@ -706,21 +702,6 @@ class _ColormappedNormalizedDifferenceSelector(_NormalizedDifferenceIndexBase, A
         self.colormap_min = float(colormap_min)
         self.colormap_max = float(colormap_max)
         self._colormap_range = self.colormap_max - self.colormap_min
-
-    @property
-    @abstractmethod
-    def index_name(self) -> str:
-        """Canonical strategy / index name."""
-
-    @property
-    @abstractmethod
-    def primary_label(self) -> str:
-        """Semantic label for the first operand."""
-
-    @property
-    @abstractmethod
-    def secondary_label(self) -> str:
-        """Semantic label for the second operand."""
 
     def _render_rgb_from_index(self, index_image: torch.Tensor) -> torch.Tensor:
         """Render the scalar index image using the Blood_OXY HSV colormap."""
@@ -2792,8 +2773,6 @@ class SupervisedSelectorBase(ChannelSelectorBase):
         self.register_buffer(
             "mi_scores", torch.zeros(num_spectral_bands, dtype=torch.float32), persistent=True
         )
-        # Use standard instance attribute for initialization tracking
-        self._statistically_initialized = False
 
     @property
     def requires_initial_fit(self) -> bool:
