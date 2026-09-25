@@ -406,21 +406,12 @@ def overlay_instances(
             out[edges] = color
 
         if draw_ids:
+            # fg is non-empty here; glyphs are 7 rows tall and draw_text pads bg by txt_scale.
             ys, xs = torch.where(fg)
-            if ys.numel() > 0:
-                x_min = int(xs.min().item())
-                y_min = int(ys.min().item())
-                label = str(int(obj_id))
-                label_mask = _glyph(label, out.device)
-                if txt_scale > 1:
-                    label_mask = label_mask.repeat_interleave(txt_scale, dim=0).repeat_interleave(
-                        txt_scale, dim=1
-                    )
-                label_h = int(label_mask.shape[0])
-                pad = max(1, txt_scale)
-                text_x = max(0, x_min - 1)
-                text_y = max(0, y_min - label_h - 2 * pad)
-                draw_text(out, text_x, text_y, label, white, scale=txt_scale, bg=True)
+            label_h = 7 * txt_scale
+            text_x = max(0, int(xs.min().item()) - 1)
+            text_y = max(0, int(ys.min().item()) - label_h - 2 * txt_scale)
+            draw_text(out, text_x, text_y, str(int(obj_id)), white, scale=txt_scale, bg=True)
 
     return out
 
