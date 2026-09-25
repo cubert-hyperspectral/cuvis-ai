@@ -44,7 +44,6 @@ class MeanCenter(_StatisticalFitNode):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self.register_buffer("mean_c", torch.zeros(0, dtype=torch.float32))
-        self._welford: WelfordAccumulator | None = None
 
     def statistical_initialization(self, input_stream: InputStream) -> None:
         """Fit the per-channel mean from the training stream via Welford.
@@ -54,21 +53,21 @@ class MeanCenter(_StatisticalFitNode):
         input_stream : InputStream
             Iterable of port-keyed batch dicts matching ``INPUT_SPECS``.
         """
-        self._welford = None
+        welford: WelfordAccumulator | None = None
         for batch in input_stream:
             x = batch.get("cube")
             if x is None:
                 continue
             flat = x.reshape(-1, x.shape[-1]).to(torch.float32)
-            if self._welford is None:
-                self._welford = WelfordAccumulator(flat.shape[-1], track_covariance=False).to(
+            if welford is None:
+                welford = WelfordAccumulator(flat.shape[-1], track_covariance=False).to(
                     device=flat.device
                 )
-            self._welford.update(flat)
+            welford.update(flat)
 
-        count = 0 if self._welford is None else self._welford.count
+        count = 0 if welford is None else welford.count
         self._reject_if_insufficient(count)
-        self.mean_c = self._welford.mean
+        self.mean_c = welford.mean
         self._mark_initialized()
 
     def forward(self, cube: torch.Tensor, **_) -> dict[str, torch.Tensor]:
@@ -118,7 +117,6 @@ class UnitVarianceScaling(_StatisticalFitNode):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self.register_buffer("std_c", torch.zeros(0, dtype=torch.float32))
-        self._welford: WelfordAccumulator | None = None
 
     def statistical_initialization(self, input_stream: InputStream) -> None:
         """Fit the per-channel standard deviation from the stream via Welford.
@@ -128,21 +126,21 @@ class UnitVarianceScaling(_StatisticalFitNode):
         input_stream : InputStream
             Iterable of port-keyed batch dicts matching ``INPUT_SPECS``.
         """
-        self._welford = None
+        welford: WelfordAccumulator | None = None
         for batch in input_stream:
             x = batch.get("cube")
             if x is None:
                 continue
             flat = x.reshape(-1, x.shape[-1]).to(torch.float32)
-            if self._welford is None:
-                self._welford = WelfordAccumulator(flat.shape[-1], track_covariance=False).to(
+            if welford is None:
+                welford = WelfordAccumulator(flat.shape[-1], track_covariance=False).to(
                     device=flat.device
                 )
-            self._welford.update(flat)
+            welford.update(flat)
 
-        count = 0 if self._welford is None else self._welford.count
+        count = 0 if welford is None else welford.count
         self._reject_if_insufficient(count)
-        self.std_c = self._welford.std
+        self.std_c = welford.std
         self._mark_initialized()
 
     def forward(self, cube: torch.Tensor, **_) -> dict[str, torch.Tensor]:
