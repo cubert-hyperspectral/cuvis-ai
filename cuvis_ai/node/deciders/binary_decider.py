@@ -126,12 +126,7 @@ class BinaryDecider(BaseDecider):
             Dictionary with "decisions" key containing (B, H, W, 1) decision mask.
         """
 
-        # Apply sigmoid if needed to convert logits to probabilities
-        tensor = torch.sigmoid(logits)
-
-        # Apply threshold to get binary decisions
-        decisions = tensor >= self.threshold
-        return {"decisions": decisions}
+        return {"decisions": torch.sigmoid(logits) >= self.threshold}
 
     def calibrate(
         self, scores: Tensor, targets: Tensor, *, num_candidates: int = 256
@@ -275,26 +270,11 @@ class QuantileBinaryDecider(BaseDecider):
                 keepdim=True,
             )
         else:
-            tensor_ndim = tensor.dim()
-            dims_to_keep = tuple(i for i in range(tensor_ndim) if i not in dims)
-            new_order = (*dims_to_keep, *dims)
-            permuted = tensor.permute(new_order)
-            sizes_keep = [permuted.size(i) for i in range(len(dims_to_keep))]
-            flattened = permuted.reshape(*sizes_keep, -1)
-            threshold_flat = torch.quantile(
-                flattened,
-                self.quantile,
-                dim=len(dims_to_keep),
-                keepdim=True,
-            )
-            threshold_permuted = threshold_flat.reshape(
-                *sizes_keep,
-                *([1] * len(dims)),
-            )
-            inverse_order = [0] * tensor_ndim
-            for original_idx, permuted_idx in enumerate(new_order):
-                inverse_order[permuted_idx] = original_idx
-            threshold = threshold_permuted.permute(*inverse_order)
+            dims_to_keep = tuple(i for i in range(tensor.dim()) if i not in dims)
+            sizes_keep = [tensor.size(i) for i in dims_to_keep]
+            flattened = tensor.permute(*dims_to_keep, *dims).reshape(*sizes_keep, -1)
+            broadcast_shape = [1 if i in dims else tensor.size(i) for i in range(tensor.dim())]
+            threshold = torch.quantile(flattened, self.quantile, dim=-1).reshape(broadcast_shape)
 
         decisions = (tensor >= threshold).to(torch.bool)
         return {"decisions": decisions}
