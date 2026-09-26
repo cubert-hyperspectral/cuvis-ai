@@ -28,17 +28,13 @@ from pathlib import Path
 EMBED_DATA_URI = "data:video"
 
 
-def _output_has_embedded_video(output: dict) -> bool:
+def _output_has_video(output: dict) -> bool:
+    """Whether a cell output embeds a base64 video (``data:video`` in its HTML)."""
     data = output.get("data", {})
     html = data.get("text/html", "")
     if isinstance(html, list):
         html = "".join(html)
     return EMBED_DATA_URI in html.lower()
-
-
-def _output_has_video(output: dict) -> bool:
-    """Backward-compat alias used by the CLI."""
-    return _output_has_embedded_video(output)
 
 
 def strip_videos(notebook_path: Path) -> int:
