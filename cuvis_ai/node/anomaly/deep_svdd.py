@@ -23,12 +23,6 @@ class SpectralNet(nn.Module):
         super().__init__()
         self.fc1 = nn.Linear(in_dim, hidden, bias=True)
         self.fc2 = nn.Linear(hidden, rep_dim, bias=False)
-
-        nn.init.kaiming_uniform_(self.fc1.weight, a=math.sqrt(5))
-        if self.fc1.bias is not None:
-            fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.fc1.weight)
-            bound = 1 / math.sqrt(fan_in)
-            nn.init.uniform_(self.fc1.bias, -bound, bound)
         nn.init.xavier_uniform_(self.fc2.weight)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
