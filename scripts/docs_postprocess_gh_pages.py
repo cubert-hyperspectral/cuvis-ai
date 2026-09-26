@@ -64,18 +64,17 @@ EMPTY_OUTDATED_DIV_RE = re.compile(
 BANNER_MARKER = b"data-cuvis-postprocess-banner"
 
 
-def _banner_html() -> bytes:
-    # href="/" is deliberate: the site is served from the domain root, and a
-    # depth-relative link would break for 404.html, which is served at an
-    # arbitrary missing URL rather than its own directory.
-    return (
-        b'\n          <aside class="md-banner md-banner--warning" ' + BANNER_MARKER + b">"
-        b'\n            <div class="md-banner__inner md-grid md-typeset">'
-        b"\n              You're not viewing the latest version."
-        b' <a href="/"><strong>Click here to go to latest.</strong></a>'
-        b"\n            </div>"
-        b"\n          </aside>\n        "
-    )
+# href="/" is deliberate: the site is served from the domain root, and a
+# depth-relative link would break for 404.html, which is served at an
+# arbitrary missing URL rather than its own directory.
+BANNER_HTML = (
+    b'\n          <aside class="md-banner md-banner--warning" ' + BANNER_MARKER + b">"
+    b'\n            <div class="md-banner__inner md-grid md-typeset">'
+    b"\n              You're not viewing the latest version."
+    b' <a href="/"><strong>Click here to go to latest.</strong></a>'
+    b"\n            </div>"
+    b"\n          </aside>\n        "
+)
 
 
 # Text/sitemap files that are per-build, per-version artifacts. They cannot
@@ -86,9 +85,6 @@ REMOVE_FROM_OUTDATED = ("llms.txt", "llms-full.txt", "sitemap.xml", "sitemap.xml
 
 class PostprocessError(SystemExit):
     """Raised (as SystemExit) for any validation failure. Message goes to stderr."""
-
-    def __init__(self, message: str) -> None:
-        super().__init__(message)
 
 
 @dataclass
@@ -170,8 +166,8 @@ def _iter_html(version_dir: Path) -> list[Path]:
 
 def _inject_noindex(html: bytes) -> bytes | None:
     """Return the modified bytes, or None if already present / no insertion
-    point found (caller distinguishes 'no anchor' by checking the original
-    head tag separately)."""
+    point found (caller distinguishes the two by checking for the marked
+    tag)."""
     if MARKED_NOINDEX_RE.search(html):
         return None
     m = CHARSET_RE.search(html) or HEAD_OPEN_RE.search(html)
@@ -187,13 +183,7 @@ def _remove_noindex(html: bytes) -> bytes:
 def _inject_banner(html: bytes) -> bytes:
     if BANNER_MARKER in html:
         return html
-    return EMPTY_OUTDATED_DIV_RE.sub(
-        lambda m: m.group(1) + _banner_html() + m.group(3), html, count=1
-    )
-
-
-def _has_head_anchor(html: bytes) -> bool:
-    return bool(CHARSET_RE.search(html) or HEAD_OPEN_RE.search(html))
+    return EMPTY_OUTDATED_DIV_RE.sub(lambda m: m.group(1) + BANNER_HTML + m.group(3), html, count=1)
 
 
 def _process_outdated_version(
@@ -201,15 +191,12 @@ def _process_outdated_version(
 ) -> None:
     for page in _iter_html(version_dir):
         original = page.read_bytes()
-        current = original
-
-        if not _has_head_anchor(current) and not MARKED_NOINDEX_RE.search(current):
-            report.unsupported.append(page)
-            continue
-
-        noindexed = _inject_noindex(current)
-        if noindexed is not None:
-            current = noindexed
+        current = _inject_noindex(original)
+        if current is None:
+            if not MARKED_NOINDEX_RE.search(original):
+                report.unsupported.append(page)
+                continue
+            current = original
 
         if banner:
             current = _inject_banner(current)
