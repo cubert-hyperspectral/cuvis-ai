@@ -134,9 +134,8 @@ class MaskRobustifier(Node):
             return {"mask": (mask * binary.to(mask.dtype))}
 
         # Connected-components requires a CPU round-trip; no native torch CCL.
-        binary_np = binary.to(torch.uint8).cpu().numpy()
-        surviving = np.zeros_like(binary_np, dtype=bool)
-        for i in range(binary_np.shape[0]):
+        surviving = np.zeros(binary.shape, dtype=bool)
+        for i in range(binary.shape[0]):
             frame = binary[i]
             if not bool(frame.any()):
                 continue
@@ -398,16 +397,7 @@ class MaskToBBoxKalman(Node):
                 continue
 
             # No measurement this frame.
-            if not self._confirmed:
-                # Warm-up broken by a missed frame: drop everything and restart.
-                self._has_track = False
-                self._kf = None
-                self._missed = 0
-                self._hits = 0
-                self._confirmed = False
-                continue
-
-            if self._has_track and self._missed < self.max_predict_frames:
+            if self._confirmed and self._missed < self.max_predict_frames:
                 assert self._kf is not None
                 state = self._kf.predict()
                 self._missed += 1
@@ -416,7 +406,8 @@ class MaskToBBoxKalman(Node):
                 bboxes[i] = (x0, y0, x1, y1)
                 valids[i] = 2
             else:
-                # Drop the track after a long miss streak.
+                # Warm-up broken by a missed frame, or a confirmed track missed
+                # too long: drop everything and restart.
                 self._has_track = False
                 self._kf = None
                 self._missed = 0

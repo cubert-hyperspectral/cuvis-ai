@@ -48,27 +48,12 @@ class _FrameRenderMixin:
     @staticmethod
     def _normalize_rotation(frame_rotation: int | None) -> int | None:
         """Normalize equivalent rotation aliases to {-90, 90, 180} or None."""
-        if frame_rotation in (None, 0):
-            return None
-        if frame_rotation in (180, -180):
-            return 180
-        if frame_rotation in (90, -270):
-            return 90
-        if frame_rotation in (-90, 270):
-            return -90
-        return frame_rotation
+        return {0: None, -180: 180, -270: 90, 270: -90}.get(frame_rotation, frame_rotation)
 
     def _rotate_frame(self, frame: torch.Tensor) -> torch.Tensor:
         """Rotate one frame according to configured frame_rotation."""
-        if self.frame_rotation is None:
-            return frame
-        if self.frame_rotation == 90:
-            return torch.rot90(frame, k=1, dims=(0, 1))
-        if self.frame_rotation == -90:
-            return torch.rot90(frame, k=-1, dims=(0, 1))
-        if self.frame_rotation == 180:
-            return torch.rot90(frame, k=2, dims=(0, 1))
-        return frame
+        k = {90: 1, -90: -1, 180: 2}.get(self.frame_rotation)
+        return frame if k is None else torch.rot90(frame, k=k, dims=(0, 1))
 
     @staticmethod
     def _to_uint8_batch(rgb_image: torch.Tensor) -> torch.Tensor:
@@ -114,15 +99,9 @@ class _FrameRenderMixin:
         if max_box_width <= 0:
             max_box_width = frame_w - 2 * fallback_side_margin
 
-        chosen_scale = 0.35
-        chosen_thickness = 1
-        text_width = 0
-        text_height = 0
-        baseline = 0
         for font_scale in (0.70, 0.65, 0.60, 0.55, 0.50, 0.45, 0.40, 0.35):
             thickness = 2 if font_scale >= 0.55 else 1
             pad_x = 8 if font_scale >= 0.55 else 6
-            pad_y = 6 if font_scale >= 0.55 else 4
             (candidate_width, candidate_height), candidate_baseline = cv2.getTextSize(
                 self.overlay_title, font, font_scale, thickness
             )

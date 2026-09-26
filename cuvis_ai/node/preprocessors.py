@@ -197,29 +197,17 @@ class SpatialRotateNode(Node):
         ),
     }
 
-    _VALID_ROTATIONS = {None, 0, 90, -90, 180, -180, 270, -270}
+    # Accepted values -> canonical form (None, 90, -90 or 180) used by forward.
+    _ROTATIONS = {None: None, 0: None, 90: 90, -270: 90, -90: -90, 270: -90, 180: 180, -180: 180}
 
     def __init__(self, rotation: int | None = None, **kwargs: Any) -> None:
-        if rotation not in self._VALID_ROTATIONS:
+        if rotation not in self._ROTATIONS:
             raise ValueError(
-                f"rotation must be one of {sorted(r for r in self._VALID_ROTATIONS if r is not None)}"
+                f"rotation must be one of {sorted(r for r in self._ROTATIONS if r is not None)}"
                 f" or None, got {rotation}"
             )
-        self.rotation = self._normalize(rotation)
+        self.rotation = self._ROTATIONS[rotation]
         super().__init__(rotation=rotation, **kwargs)
-
-    @staticmethod
-    def _normalize(rotation: int | None) -> int | None:
-        """Normalize equivalent rotation values to a canonical form (None, 90, -90, or 180)."""
-        if rotation in (None, 0):
-            return None
-        if rotation in (180, -180):
-            return 180
-        if rotation in (90, -270):
-            return 90
-        if rotation in (-90, 270):
-            return -90
-        return rotation
 
     @torch.no_grad()
     def forward(

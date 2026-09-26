@@ -185,11 +185,7 @@ class BBoxSpectralExtractor(Node):
     ) -> dict[str, torch.Tensor]:
         """Extract per-bbox spectral signatures. See class docstring for batch semantics."""
         cube_0 = cube[0]  # [H, W, C]
-        img_h, img_w, num_channels = (
-            int(cube_0.shape[0]),
-            int(cube_0.shape[1]),
-            int(cube_0.shape[2]),
-        )
+        img_h, img_w, num_channels = cube_0.shape
 
         num_boxes = int(bboxes.shape[1])
 
@@ -227,11 +223,10 @@ class BBoxSpectralExtractor(Node):
 
             sig, std = self._trimmed_stats(pixels, num_channels)
 
-            is_valid = sig.norm() >= 1e-8
+            sig_norm = sig.norm()
+            is_valid = sig_norm >= 1e-8
             if is_valid and self.l2_normalize:
-                sig_norm = sig.norm()
-                if sig_norm >= 1e-8:
-                    sig = sig / sig_norm
+                sig = sig / sig_norm
 
             signatures.append(sig)
             stds.append(std)

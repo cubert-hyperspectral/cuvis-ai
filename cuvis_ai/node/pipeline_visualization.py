@@ -497,61 +497,44 @@ class PipelineComparisonVisualizer(Node):
         scores_np = anomaly_scores.detach().cpu().numpy()
 
         for b in range(num_samples):
-            # 1. HSI Input Visualization (false-color RGB)
-            hsi_img = self._create_hsi_visualization(hsi_np[b])
-            artifact = Artifact(
-                name=f"hsi_input_sample_{b}",
-                value=hsi_img,
-                el_id=b,
-                desc=f"HSI input (false-color RGB) for sample {b}",
-                type=ArtifactType.IMAGE,
-                stage=context.stage,
-                epoch=context.epoch,
-                batch_idx=context.batch_idx,
+            # (name, image [H, W, 3], description) per view, in logging order:
+            # HSI input as false-color RGB, mixer output (what the downstream model
+            # sees), ground truth mask, anomaly scores as a heatmap.
+            views = (
+                (
+                    f"hsi_input_sample_{b}",
+                    self._create_hsi_visualization(hsi_np[b]),
+                    f"HSI input (false-color RGB) for sample {b}",
+                ),
+                (
+                    f"mixer_output_adaclip_input_sample_{b}",
+                    self._normalize_image(mixer_np[b]),
+                    f"Mixer output (model input) for sample {b}",
+                ),
+                (
+                    f"ground_truth_mask_sample_{b}",
+                    self._create_mask_visualization(mask_np[b]),
+                    f"Ground truth anomaly mask for sample {b}",
+                ),
+                (
+                    f"anomaly_scores_heatmap_sample_{b}",
+                    self._create_scores_heatmap(scores_np[b]),
+                    f"Anomaly scores (heatmap) for sample {b}",
+                ),
             )
-            artifacts.append(artifact)
-
-            # 2. Mixer Output (what downstream model sees as input)
-            mixer_img = self._normalize_image(mixer_np[b])  # Already [H, W, 3]
-            artifact = Artifact(
-                name=f"mixer_output_adaclip_input_sample_{b}",
-                value=mixer_img,
-                el_id=b,
-                desc=f"Mixer output (model input) for sample {b}",
-                type=ArtifactType.IMAGE,
-                stage=context.stage,
-                epoch=context.epoch,
-                batch_idx=context.batch_idx,
-            )
-            artifacts.append(artifact)
-
-            # 3. Ground Truth Mask
-            mask_img = self._create_mask_visualization(mask_np[b])  # [H, W, 1] -> [H, W, 3]
-            artifact = Artifact(
-                name=f"ground_truth_mask_sample_{b}",
-                value=mask_img,
-                el_id=b,
-                desc=f"Ground truth anomaly mask for sample {b}",
-                type=ArtifactType.IMAGE,
-                stage=context.stage,
-                epoch=context.epoch,
-                batch_idx=context.batch_idx,
-            )
-            artifacts.append(artifact)
-
-            # 4. Anomaly Scores (as heatmap)
-            scores_img = self._create_scores_heatmap(scores_np[b])  # [H, W, 1] -> [H, W, 3]
-            artifact = Artifact(
-                name=f"anomaly_scores_heatmap_sample_{b}",
-                value=scores_img,
-                el_id=b,
-                desc=f"Anomaly scores (heatmap) for sample {b}",
-                type=ArtifactType.IMAGE,
-                stage=context.stage,
-                epoch=context.epoch,
-                batch_idx=context.batch_idx,
-            )
-            artifacts.append(artifact)
+            for name, image, desc in views:
+                artifacts.append(
+                    Artifact(
+                        name=name,
+                        value=image,
+                        el_id=b,
+                        desc=desc,
+                        type=ArtifactType.IMAGE,
+                        stage=context.stage,
+                        epoch=context.epoch,
+                        batch_idx=context.batch_idx,
+                    )
+                )
 
         return {"artifacts": artifacts}
 

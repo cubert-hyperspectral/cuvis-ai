@@ -28,24 +28,6 @@ from cuvis_ai_schemas.pipeline import PortSpec
 from cuvis_ai.utils.welford import WelfordAccumulator
 from cuvis_ai_core.node import Node
 
-
-def _flatten_bhwc(x: torch.Tensor) -> torch.Tensor:
-    """Flatten spatial dimensions of BHWC tensor to BNC format.
-
-    Parameters
-    ----------
-    x : torch.Tensor
-        Input tensor with shape (B, H, W, C)
-
-    Returns
-    -------
-    torch.Tensor
-        Flattened tensor with shape (B, H*W, C)
-    """
-    B, H, W, C = x.shape
-    return x.view(B, H * W, C)
-
-
 ## This node is not approved
 # missing approved documentation and alignment with current API
 
@@ -169,14 +151,9 @@ class RXGlobal(RXBase):
         self, num_channels: int, eps: float = 1e-6, cache_inverse: bool = True, **kwargs
     ) -> None:
         self.num_channels = int(num_channels)
-        self.eps = eps
         self.cache_inverse = cache_inverse
-        # Call Node.__init__ directly with all parameters for proper serialization
-        # We bypass RXBase.__init__ since it only accepts eps
-        # Node.__init__(self, num_channels=self.num_channels, eps=self.eps, cache_inverse=self.cache_inverse)
-
         super().__init__(
-            num_channels=self.num_channels, eps=self.eps, cache_inverse=self.cache_inverse, **kwargs
+            num_channels=self.num_channels, eps=eps, cache_inverse=self.cache_inverse, **kwargs
         )
 
         # global stats - all stored as buffers initially
@@ -223,7 +200,7 @@ class RXGlobal(RXBase):
         batch_bhwc : torch.Tensor
             Input batch in BHWC format, shape (B, H, W, C)
         """
-        X = _flatten_bhwc(batch_bhwc).reshape(-1, batch_bhwc.shape[-1])  # (M,C)
+        X = batch_bhwc.reshape(-1, batch_bhwc.shape[-1])  # (M,C)
         if X.shape[0] <= 1:
             return
         # Adapt accumulator if actual data channels differ from constructor's num_channels
@@ -345,7 +322,7 @@ class RXPerBatch(RXBase):
         """
         B, H, W, C = data.shape
         N = H * W
-        X_flat = _flatten_bhwc(data)  # (B,N,C)
+        X_flat = data.view(B, N, C)  # (B,N,C)
         mu = X_flat.mean(1, keepdim=True)  # (B,1,C)
         Xc = X_flat - mu
         cov = torch.matmul(Xc.transpose(1, 2), Xc) / max(N - 1, 1)  # (B,C,C)

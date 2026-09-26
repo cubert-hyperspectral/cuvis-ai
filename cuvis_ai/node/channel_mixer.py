@@ -372,35 +372,6 @@ class LearnableChannelMixer(Node):
                 param.requires_grad = True
         super().unfreeze()
 
-    # NOTE(debug-cleanup): Debug tensor saving is disabled for production.
-    # Keeping this stub commented so it can be fully removed later if no longer needed.
-    # def _save_debug_tensor(
-    #     self, tensor: Tensor, name: str, context: Context | None, frame_idx: int
-    # ) -> None:
-    #     \"\"\"Save tensor for debugging if debug mode is enabled.\"\"\"
-    #     if not (hasattr(self, "_debug_save_dir") and self._debug_save_dir):
-    #         return
-    #
-    #     if context is None:
-    #         return
-    #
-    #     # Create directory structure: {stage}/epoch_{epoch}/batch_{batch_idx}/frame_{frame_idx}/
-    #     # Convert ExecutionStage enum to string (e.g., ExecutionStage.TRAIN -> "train")
-    #     stage_str = context.stage.value if hasattr(context.stage, "value") else str(context.stage)
-    #     save_dir = (
-    #         Path(self._debug_save_dir)
-    #         / stage_str
-    #         / f"epoch_{context.epoch:03d}"
-    #         / f"batch_{context.batch_idx:03d}"
-    #         / f"frame_{frame_idx:03d}"
-    #     )
-    #     save_dir.mkdir(parents=True, exist_ok=True)
-    #
-    #     # Convert tensor to numpy and save
-    #     tensor_np = tensor.detach().cpu().numpy()
-    #     save_path = save_dir / f"{self.name}_{name}.npy"
-    #     np.save(save_path, tensor_np)
-
     def forward(self, data: Tensor, context: Context | None = None, **_: Any) -> dict[str, Tensor]:
         """Apply learnable channel mixing to input.
 
@@ -418,24 +389,12 @@ class LearnableChannelMixer(Node):
         """
         B, H, W, C_in = data.shape
 
-        # DEBUG: Print input info
-        if hasattr(self, "_debug") and self._debug:
-            print(
-                f"[LearnableChannelMixer] Input: shape={data.shape}, "
-                f"min={data.min().item():.4f}, max={data.max().item():.4f}, "
-                f"mean={data.mean().item():.4f}, requires_grad={data.requires_grad}"
-            )
-
         # Validate input channels
         if C_in != self.input_channels:
             raise ValueError(
                 f"Expected {self.input_channels} input channels, got {C_in}. "
                 f"Input shape: {data.shape}"
             )
-
-        # DEBUG disabled: previously saved input tensor here (_save_debug_tensor).
-        # for b in range(B):
-        #     self._save_debug_tensor(data[b], "input", context, frame_idx=b)
 
         # Convert from BHWC to BCHW for Conv2d
         data_bchw = data.permute(0, 3, 1, 2)  # [B, C_in, H, W]
@@ -474,14 +433,6 @@ class LearnableChannelMixer(Node):
 
         # Convert back from BCHW to BHWC
         mixed_bhwc = mixed.permute(0, 2, 3, 1)  # [B, H, W, C_out]
-
-        # DEBUG: Print output info
-        if hasattr(self, "_debug") and self._debug:
-            print(
-                f"[LearnableChannelMixer] Output: shape={mixed_bhwc.shape}, "
-                f"min={mixed_bhwc.min().item():.4f}, max={mixed_bhwc.max().item():.4f}, "
-                f"mean={mixed_bhwc.mean().item():.4f}, requires_grad={mixed_bhwc.requires_grad}"
-            )
 
         last_layer_weights = self.convs[-1].weight.squeeze(-1).squeeze(-1)
         return {"rgb": mixed_bhwc, "weights": last_layer_weights}
@@ -626,12 +577,7 @@ class ConcreteChannelMixer(Node):
         """Compute current temperature based on epoch (exponential schedule)."""
         if context is None or context.stage != ExecutionStage.TRAIN:
             return self.tau_end
-
-        if self.max_epochs <= 1:
-            return self.tau_end
-
-        epoch = max(0, min(context.epoch, self.max_epochs - 1))
-        return self._get_tau(epoch)
+        return self._get_tau(context.epoch)
 
     def _get_tau(self, epoch: int) -> float:
         """Get temperature for a specific epoch (exponential schedule).
