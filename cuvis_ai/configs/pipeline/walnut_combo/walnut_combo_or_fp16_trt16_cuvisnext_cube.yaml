@@ -1,0 +1,343 @@
+metadata:
+  name: walnut_combo_or_fp16_trt16_cuvisnext_cube
+  description: 'Combined walnut pipeline, FO anomaly + SEG shells on one cube. FO
+    (walnut_fo_multiscale_effad_or_gated_fp16, float16 autocast; thresholds gate 1.336,
+    gate_effad 1.9546): multi-scale t1+t2 gate OR EfficientAD gate; display = the
+    multi-scale gated map when its gate opens, else the EfficientAD gated map, zeros
+    when neither passes. SEG (walnut_seg_ens_rgb_cir_mean_v2_trt_fp16, TensorRT fp16
+    engine): RGB 640/550/470 + CIR 850/660/550 RF-DETR-Seg-L at 504 px, mean fusion;
+    mask = fused score >= 0.5, no frame gate; its selectors calibrate on the first
+    20 frames of a session. Outputs to pick in cuvis.next: display.scores (FO heatmap,
+    gated), ShellMask.decisions (shell mask), ShellHeatmap.scores (shell heatmap).
+    Weights: the family .pt (every tier of walnut_combo_or shares it); the SEG models
+    load from their checkpoint_path.'
+  created: ''
+  tags:
+  - anomaly
+  - combined
+  - efficientad
+  - hyperspectral
+  - multiscale
+  - or_gate
+  - patchcore
+  - segmentation
+  - split_v3
+  - steervit
+  - walnut
+  - walnut_combo
+  author: raj@cubert-gmbh.de
+  cuvis_ai_version: 0.12.0
+plugins:
+- cuvis_ai_builtin
+- patchcore
+- steervit
+- efficientad
+- rfdetr_seg
+nodes:
+- name: cu3s_data
+  class_name: cuvis_ai.node.data.CU3SDataNode
+  hparams: {}
+- name: cir_870_640_550
+  class_name: cuvis_ai.node.channel_selector.FixedWavelengthSelector
+  hparams:
+    target_wavelengths:
+    - 870.0
+    - 640.0
+    - 550.0
+    normalize_output: false
+- name: stretch
+  class_name: cuvis_ai_steervit.node.stretch.JointPercentileStretch
+  hparams:
+    low: 2.0
+    high: 98.0
+    per_channel: false
+    quantize_levels: 255
+    eps: 1.0e-06
+- name: steervit_t1
+  class_name: cuvis_ai_steervit.node.steervit.SteerViTExtractor
+  hparams:
+    checkpoint: steervit_dinov2_base.pth
+    hf_repo: JonaRuthardt/SteerViT
+    prompts:
+    - the anomaly in the walnuts
+    topk_frac: 0.001
+    score_activation: sigmoid
+    autocast_dtype: float16
+- name: patchcore_t1
+  class_name: cuvis_ai_patchcore.node.patchcore.PatchCoreDetector
+  hparams:
+    input_channels: 768
+    coreset_size: 7200
+    stride: 1
+    bank_stride: 1
+    pool_size: 1
+    max_bank_size: 80000
+    topk_frac: 0.001
+    chunk_size: 4096
+    autocast_dtype: float16
+    standardize: false
+    seed: 0
+    eps: 1.0e-06
+    coreset_projection: null
+    projection_eps: 0.9
+- name: tiler_t2
+  class_name: cuvis_ai_steervit.node.tiling.ImageTiler
+  hparams:
+    tiles: 2
+- name: steervit_t2
+  class_name: cuvis_ai_steervit.node.steervit.SteerViTExtractor
+  hparams:
+    checkpoint: steervit_dinov2_base.pth
+    hf_repo: JonaRuthardt/SteerViT
+    prompts:
+    - the anomaly in the walnuts
+    topk_frac: 0.001
+    score_activation: sigmoid
+    autocast_dtype: float16
+- name: stitch_t2
+  class_name: cuvis_ai_steervit.node.tiling.GridStitcher
+  hparams:
+    tiles: 2
+- name: patchcore_t2
+  class_name: cuvis_ai_patchcore.node.patchcore.PatchCoreDetector
+  hparams:
+    input_channels: 768
+    coreset_size: 7200
+    stride: 1
+    bank_stride: 1
+    pool_size: 1
+    max_bank_size: 80000
+    topk_frac: 0.001
+    chunk_size: 4096
+    autocast_dtype: float16
+    standardize: false
+    seed: 0
+    eps: 1.0e-06
+    coreset_projection: null
+    projection_eps: 0.9
+- name: norm_t1
+  class_name: cuvis_ai_patchcore.node.calibration.ScoreRangeNormalizer
+  hparams:
+    n_channels: 1
+    low: 1.0
+    high: 99.0
+    floor: true
+    fit_subsample: 4
+    max_fit_values: 4000000
+    seed: 0
+    eps: 1.0e-09
+- name: norm_t2
+  class_name: cuvis_ai_patchcore.node.calibration.ScoreRangeNormalizer
+  hparams:
+    n_channels: 1
+    low: 1.0
+    high: 99.0
+    floor: true
+    fit_subsample: 4
+    max_fit_values: 4000000
+    seed: 0
+    eps: 1.0e-09
+- name: fuse
+  class_name: cuvis_ai_patchcore.node.fusion.ScoreMapFusion
+  hparams:
+    mode: mean
+    weights: null
+- name: gate
+  class_name: cuvis_ai_patchcore.node.gate.FrameScoreGate
+  hparams:
+    threshold: 1.336
+    topk_frac: 0.001
+    mode: heatmap
+    mask_threshold: null
+    log_scores: true
+    smooth_k: 1
+- name: effad
+  class_name: cuvis_ai_efficientad.node.efficientad.EfficientAdDetector
+  hparams:
+    image_size:
+    - 512
+    - 512
+    teacher_out_channels: 384
+    model_size: small
+    padding: false
+    pad_maps: true
+    topk_frac: 0.001
+    autocast_dtype: float16
+- name: norm_effad
+  class_name: cuvis_ai_patchcore.node.calibration.ScoreRangeNormalizer
+  hparams:
+    n_channels: 1
+    low: 1.0
+    high: 99.0
+    floor: true
+    fit_subsample: 4
+    max_fit_values: 4000000
+    seed: 0
+    eps: 1.0e-09
+- name: gate_effad
+  class_name: cuvis_ai_patchcore.node.gate.FrameScoreGate
+  hparams:
+    threshold: 1.9546
+    topk_frac: 0.001
+    mode: heatmap
+    mask_threshold: null
+    log_scores: true
+    smooth_k: 1
+- name: display
+  class_name: cuvis_ai_patchcore.node.fusion.ScoreMapFusion
+  hparams:
+    mode: first
+    weights: null
+- name: SelRGB
+  class_name: cuvis_ai.node.channel_selector.FixedWavelengthSelector
+  hparams:
+    target_wavelengths:
+    - 640.0
+    - 550.0
+    - 470.0
+    normalize_output: true
+    norm_mode: per_frame
+    apply_gamma: false
+    freeze_running_bounds_after_frames: 20
+    running_warmup_frames: 10
+- name: SelCIR
+  class_name: cuvis_ai.node.channel_selector.FixedWavelengthSelector
+  hparams:
+    target_wavelengths:
+    - 850.0
+    - 660.0
+    - 550.0
+    normalize_output: true
+    norm_mode: per_frame
+    apply_gamma: false
+    freeze_running_bounds_after_frames: 20
+    running_warmup_frames: 10
+- name: SegRGB
+  class_name: cuvis_ai_rfdetr.node.rfdetr_segmenter.RFDETRSegmenter
+  hparams:
+    checkpoint_path: D:/walnuts/walnut_fo_stack/cuvis-ai/cuvis_ai/configs/pipeline/walnut_seg/weights/rgb_v2_ema.pth
+    variant: large
+    threshold: 0.05
+    resolution: 504
+    tiling: whole
+    tile_rows: 405
+    row_starts:
+    - 0
+    - 291
+    - 582
+    nms_iou: 0.5
+    jpeg_roundtrip: false
+    jpeg_quality: 95
+    class_filter: 0
+    score_reduction: max_conf
+    top_frac: 0.001
+    checkpoint_loader: constructor
+    backend: tensorrt
+    precision: fp16
+    jit_trace: false
+    gpu_input: true
+    fast_paste: true
+- name: ShellFuse
+  class_name: cuvis_ai_rfdetr.node.score_fusion.ScoreFusion
+  hparams:
+    mode: mean
+    weight: 0.5
+- name: SegCIR
+  class_name: cuvis_ai_rfdetr.node.rfdetr_segmenter.RFDETRSegmenter
+  hparams:
+    checkpoint_path: D:/walnuts/walnut_fo_stack/cuvis-ai/cuvis_ai/configs/pipeline/walnut_seg/weights/cir_v2_ema.pth
+    variant: large
+    threshold: 0.05
+    resolution: 504
+    tiling: whole
+    tile_rows: 405
+    row_starts:
+    - 0
+    - 291
+    - 582
+    nms_iou: 0.5
+    jpeg_roundtrip: false
+    jpeg_quality: 95
+    class_filter: 0
+    score_reduction: max_conf
+    top_frac: 0.001
+    checkpoint_loader: constructor
+    backend: tensorrt
+    precision: fp16
+    jit_trace: false
+    gpu_input: true
+    fast_paste: true
+- name: ShellMask
+  class_name: cuvis_ai.node.deciders.binary_decider.BinaryDecider
+  hparams:
+    threshold: 0.6224593312018546
+- name: ShellHeatmap
+  class_name: cuvis_ai_rfdetr.node.score_fusion.ScoreFusion
+  hparams:
+    mode: max
+    weight: 0.5
+connections:
+- source: cu3s_data.outputs.cube
+  target: cir_870_640_550.inputs.cube
+- source: cu3s_data.outputs.wavelengths
+  target: cir_870_640_550.inputs.wavelengths
+- source: cu3s_data.outputs.cube
+  target: patchcore_t1.inputs.reference
+- source: cu3s_data.outputs.cube
+  target: patchcore_t2.inputs.reference
+- source: cu3s_data.outputs.cube
+  target: SelRGB.inputs.cube
+- source: cu3s_data.outputs.wavelengths
+  target: SelRGB.inputs.wavelengths
+- source: cu3s_data.outputs.cube
+  target: SelCIR.inputs.cube
+- source: cu3s_data.outputs.wavelengths
+  target: SelCIR.inputs.wavelengths
+- source: cir_870_640_550.outputs.rgb_image
+  target: stretch.inputs.data
+- source: stretch.outputs.normalized
+  target: steervit_t1.inputs.rgb_image
+- source: stretch.outputs.normalized
+  target: tiler_t2.inputs.image
+- source: stretch.outputs.normalized
+  target: effad.inputs.rgb_image
+- source: steervit_t1.outputs.features
+  target: patchcore_t1.inputs.cube
+- source: patchcore_t1.outputs.scores
+  target: norm_t1.inputs.scores
+- source: tiler_t2.outputs.tiles
+  target: steervit_t2.inputs.rgb_image
+- source: steervit_t2.outputs.features
+  target: stitch_t2.inputs.tiles
+- source: stitch_t2.outputs.grid
+  target: patchcore_t2.inputs.cube
+- source: patchcore_t2.outputs.scores
+  target: norm_t2.inputs.scores
+- source: norm_t1.outputs.normalized
+  target: fuse.inputs.scores
+- source: norm_t2.outputs.normalized
+  target: fuse.inputs.scores
+- source: fuse.outputs.scores
+  target: gate.inputs.scores
+- source: gate.outputs.scores
+  target: display.inputs.scores
+- source: effad.outputs.scores
+  target: norm_effad.inputs.scores
+- source: norm_effad.outputs.normalized
+  target: gate_effad.inputs.scores
+- source: gate_effad.outputs.scores
+  target: display.inputs.scores
+- source: SelRGB.outputs.rgb_image
+  target: SegRGB.inputs.rgb_image
+- source: SelCIR.outputs.rgb_image
+  target: SegCIR.inputs.rgb_image
+- source: SegRGB.outputs.scores
+  target: ShellFuse.inputs.a
+- source: ShellFuse.outputs.scores
+  target: ShellMask.inputs.logits
+- source: ShellFuse.outputs.scores
+  target: ShellHeatmap.inputs.a
+- source: ShellFuse.outputs.scores
+  target: ShellHeatmap.inputs.b
+- source: SegCIR.outputs.scores
+  target: ShellFuse.inputs.b
