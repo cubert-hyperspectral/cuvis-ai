@@ -1,0 +1,60 @@
+plugins:
+- cuvis_ai_builtin
+- rfdetr_seg
+nodes:
+- name: DataSource
+  class_name: cuvis_ai.node.data.CU3SDataNode
+  hparams:
+    name: null
+- name: ProjPCA
+  class_name: cuvis_ai_rfdetr.node.fixed_pca_projection.FixedPCAProjection
+  hparams:
+    projection_path: D:/walnuts/walnut_fo_stack/cuvis-ai/cuvis_ai/configs/pipeline/walnut_seg/weights/pca_projection.npz
+    scale_to_unit: true
+    clamp01: true
+    input_global_minmax: true
+    n_components: 3
+    eps: 1.0e-06
+    num_channels: 61
+    whiten: false
+    init_method: svd
+- name: Seg
+  class_name: cuvis_ai_rfdetr.node.rfdetr_segmenter.RFDETRSegmenter
+  hparams:
+    checkpoint_path: D:/walnuts/walnut_fo_stack/cuvis-ai/cuvis_ai/configs/pipeline/walnut_seg/weights/pca_full_ema.pth
+    variant: large
+    threshold: 0.5
+    resolution: 504
+    tiling: whole
+    tile_rows: 405
+    row_starts:
+    - 0
+    - 291
+    - 582
+    nms_iou: 0.5
+    jpeg_roundtrip: false
+    jpeg_quality: 95
+    class_filter: 0
+    score_reduction: max_conf
+    top_frac: 0.001
+    checkpoint_loader: constructor
+- name: ShellMask
+  class_name: cuvis_ai.node.deciders.binary_decider.BinaryDecider
+  hparams:
+    threshold: 0.6224593312018546
+connections:
+- source: DataSource.outputs.cube
+  target: ProjPCA.inputs.data
+- source: ProjPCA.outputs.projected
+  target: Seg.inputs.rgb_image
+- source: Seg.outputs.scores
+  target: ShellMask.inputs.logits
+metadata:
+  name: walnut_seg_pca_full_cuvisnext_cube
+  description: 'Walnut shell segmentation (pca_full). Outputs: Seg.scores = shell
+    probability heatmap; ShellMask.decisions = boolean shell mask (scores >= 0.5;
+    BinaryDecider threshold = sigmoid(0.5)).'
+  created: '2026-09-23T15:00:11.845383'
+  tags: []
+  author: ''
+  cuvis_ai_version: 0.17.2
