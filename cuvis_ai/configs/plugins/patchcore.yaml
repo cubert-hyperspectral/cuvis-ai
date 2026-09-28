@@ -1,0 +1,14 @@
+# HSI-PatchCore plugin — LOCAL-PATH manifest for the walnut FO deploy stack.
+# `path` is relative to THIS manifest's directory and resolves to the sibling clone inside the
+# stack folder, so the whole stack stays self-contained and portable: copy the folder to Thor and
+# rebuild the env, the path still resolves. Branch: walnut-fair-deploy.
+# Switch to `repo:` + `tag:` (drop `path:`) once cuvis-ai-patchcore v0.1.0 is tagged for a
+# reproducible, machine-independent install.
+name: patchcore
+path: "D:/walnuts/walnut_fo_stack/cuvis-ai-patchcore"
+package_name: cuvis-ai-patchcore
+capabilities:
+  - class_name: cuvis_ai_patchcore.node.patchcore.PatchCoreDetector
+  - class_name: cuvis_ai_patchcore.node.fusion.ScoreMapFusion
+  - class_name: cuvis_ai_patchcore.node.calibration.ScoreRangeNormalizer
+  - class_name: cuvis_ai_patchcore.node.gate.FrameScoreGate

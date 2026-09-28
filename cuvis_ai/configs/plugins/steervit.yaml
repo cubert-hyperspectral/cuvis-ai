@@ -1,0 +1,11 @@
+# SteerViT plugin — LOCAL-PATH manifest for the walnut FO deploy stack (relative to this file).
+# Self-contained + Thor-portable; switch to repo:+tag: once cuvis-ai-steervit v0.1.0 is tagged.
+# Branch: walnut-fair-deploy.
+name: steervit
+path: "D:/walnuts/walnut_fo_stack/cuvis-ai-steervit"
+package_name: cuvis-ai-steervit
+capabilities:
+  - class_name: cuvis_ai_steervit.node.steervit.SteerViTExtractor
+  - class_name: cuvis_ai_steervit.node.stretch.JointPercentileStretch
+  - class_name: cuvis_ai_steervit.node.tiling.ImageTiler
+  - class_name: cuvis_ai_steervit.node.tiling.GridStitcher

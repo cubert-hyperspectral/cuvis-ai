@@ -1,0 +1,9 @@
+# cuvis-ai-rfdetr plugin — LOCAL-PATH manifest for the walnut FO deploy stack (relative to this file).
+# Only ScoreFusion is exposed: the 2-map mean-fusion node the OLD PatchCore+SSFT ensemble deploys
+# with. Listing only this node keeps the RF-DETR detector/segmenter (and their heavy deps) out of
+# the import path. Branch: walnut-fair-deploy.
+name: rfdetr
+path: "D:/walnuts/walnut_fo_stack/cuvis-ai-rfdetr"
+package_name: cuvis-ai-rfdetr
+capabilities:
+  - class_name: cuvis_ai_rfdetr.node.score_fusion.ScoreFusion

@@ -8,8 +8,7 @@
 # and the installable is `cuvis-ai`.
 name: cuvis_ai_builtin
 package_name: cuvis-ai
-repo: https://github.com/cubert-hyperspectral/cuvis-ai.git
-tag: "v0.17.2"
+path: "D:/walnuts/walnut_fo_stack/cuvis-ai"
 capabilities:
 - class_name: cuvis_ai.node.anomaly.deep_svdd.DeepSVDDCenterTracker
   category: transform

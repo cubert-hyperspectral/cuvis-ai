@@ -1,0 +1,9 @@
+# EfficientAD plugin — LOCAL-PATH manifest for the walnut FO deploy stack (FO chat, 25 Sep).
+# Wraps anomalib 2.1.0's EfficientAdModel; a pipeline that lists it pulls anomalib and its
+# dependencies into the composed child env. The checkout is a clone of D:\cuvis-ai-efficientad
+# (no GitHub repo yet); switch to repo:+tag: once cuvis-ai-efficientad v0.1.0 is tagged.
+name: efficientad
+path: "D:/walnuts/walnut_fo_stack/cuvis-ai-efficientad"
+package_name: cuvis-ai-efficientad
+capabilities:
+  - class_name: cuvis_ai_efficientad.node.efficientad.EfficientAdDetector
