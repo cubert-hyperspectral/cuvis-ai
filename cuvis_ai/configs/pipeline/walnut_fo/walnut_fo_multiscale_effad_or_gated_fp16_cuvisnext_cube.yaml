@@ -7,7 +7,9 @@ metadata:
     Thresholds: max clean x 1.10 per gate, set per session with calibrate_live.py --pipeline or.
     Speed variant: float16 autocast on SteerViT, PatchCore and EfficientAD (cuvis-ai-steervit,
     cuvis-ai-patchcore and cuvis-ai-efficientad >= 0.2.0); the thresholds are calibrated for this
-    variant.'
+    variant.
+    FO mask: display_mask.decisions, the decisions of gate (pixels above its mask_threshold) when set,
+    else those of gate_effad (DecisionFusion first).'
   created: ''
   tags:
   - anomaly
@@ -141,7 +143,7 @@ nodes:
     threshold: 1.336
     topk_frac: 0.001
     mode: heatmap
-    mask_threshold: null
+    mask_threshold: 1.2654
     log_scores: true
     smooth_k: 1
 - name: effad
@@ -173,7 +175,7 @@ nodes:
     threshold: 1.9546
     topk_frac: 0.001
     mode: heatmap
-    mask_threshold: null
+    mask_threshold: 2.7595
     log_scores: true
     smooth_k: 1
 - name: display
@@ -181,6 +183,10 @@ nodes:
   hparams:
     mode: first
     weights: null
+- name: display_mask
+  class_name: cuvis_ai_patchcore.node.fusion.DecisionFusion
+  hparams:
+    mode: first
 connections:
 - source: cu3s_data.outputs.cube
   target: cir_870_640_550.inputs.cube
@@ -224,3 +230,7 @@ connections:
   target: gate_effad.inputs.scores
 - source: gate_effad.outputs.scores
   target: display.inputs.scores
+- source: gate.outputs.decisions
+  target: display_mask.inputs.decisions
+- source: gate_effad.outputs.decisions
+  target: display_mask.inputs.decisions

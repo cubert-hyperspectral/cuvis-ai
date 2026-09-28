@@ -132,6 +132,7 @@ nodes:
   class_name: cuvis_ai_patchcore.node.gate.FrameScoreGate
   hparams:
     threshold: 1.3373
+    mask_threshold: 1.2642
     topk_frac: 0.001
     mode: heatmap
     log_scores: true
