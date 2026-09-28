@@ -13,6 +13,7 @@
   - `scripts/weights_index.generate(plugins_dir=)`; the finished one-off scripts `scripts/rewire_internal_links.py` and `scripts/backfill_pipeline_plugins.py`; the stale `baseline_coverage.txt`.
 - `ToImage` and `TrackingPointerOverlayNode` are listed in their modules' `__all__`, and the pre-0.8 re-export modules under `cuvis_ai.anomaly` and `cuvis_ai.deciders` say "Removed in a future release" instead of the wrong "Removed in v0.8" (their removal is a separate, staged change).
 - Tidy-ups with no behaviour change: the COCO track writer no longer builds a per-frame category map it never read, the video title overlay keeps one set of text metrics instead of a candidate and a chosen copy, the label node drops an unused dtype attribute, `ConcreteChannelMixer.forward` drops an unused shape unpack, and the NNLS unmixing node masks low-abundance pixels with `masked_fill`.
+- `docs/concepts/pipeline.md`: the `save_to_file` example no longer passes `include_optimizer` / `include_scheduler`; cuvis-ai-core removes both parameters in its next minor release (nothing ever set an optimizer or scheduler on a pipeline, so a checkpoint never carried their state).
 
 ## 0.17.3 - 2026-10-01
 
