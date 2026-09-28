@@ -70,6 +70,38 @@ Each `capabilities` entry needs at least `class_name` (a fully-qualified path); 
 palette metadata (`category`, `tags`, `icon_svg`, `input_specs`, `output_specs`, `doc_summary`).
 See [Plugin System Overview](overview.md).
 
+## Optional heavy dependencies
+
+A node plugin with an optional backend (TensorRT for `RFDETRSegmenter`, about 3 GB) keeps it behind a
+pip extra of its own `pyproject.toml` (`[project.optional-dependencies]`) and lets a second, minimal
+manifest request it with a manifest-level `extras:` (cuvis-ai-schemas 0.13.0, cuvis-ai-core 0.18.0):
+
+```yaml
+# rfdetr_seg_trt.yaml: the same package as the plain `rfdetr` manifest, one node, one extra
+name: rfdetr_seg_trt
+repo: "https://github.com/cubert-hyperspectral/cuvis-ai-rfdetr.git"
+tag: "v0.5.1"
+package_name: "cuvis-ai-rfdetr"   # a git variant needs it: the composer merges manifests by package
+extras: [tensorrt]
+capabilities:
+  - class_name: cuvis_ai_rfdetr.node.rfdetr_segmenter.RFDETRSegmenter
+```
+
+- A manifest's `extras` are installed whenever that manifest is in the pipeline's plugin set, united with the selected data module's extras (a `kind: data_module` entry's `extras` apply only to the run that selects that module). Names are PEP 508 extras normalised per PEP 685; a duplicate after normalisation is rejected by the schema.
+- Manifests that install one package (the same canonical `package_name`, the same repo and tag or the same path) merge into one requirement, `cuvis-ai-rfdetr[tensorrt]`. The same package from two different sources fails the compose naming both manifests.
+- A pipeline that needs the backend lists **both** manifests, `plugins: [rfdetr, rfdetr_seg_trt]`. Warm-child reuse in the gRPC server compares manifest names: a child composed for both serves a plain `[rfdetr]` pipeline, a child composed for the variant alone does not.
+- An extra the package does not declare fails the compose right after `uv lock` (uv itself only warns) with the extras the lock resolved; a git variant without `package_name` fails uv's metadata check (`Package metadata name ... does not match given name`).
+
+To see what a pipeline will install before any compose:
+
+```bash
+uv run provision --pipeline-path my_pipeline.yaml --plugins-dir configs/plugins
+# uv pip install 'cuvis-ai-rfdetr[tensorrt] @ git+https://github.com/cubert-hyperspectral/cuvis-ai-rfdetr.git@v0.5.1'
+```
+
+The server logs the same merged requirement when it composes (`Composing for cuvis-ai-rfdetr[tensorrt]`),
+and the composed entry's `env_desc.md` records the plugin set.
+
 ## Dependency resolution in composed child environments
 
 When the orchestrated gRPC server runs a pipeline, it composes an isolated child
@@ -77,7 +109,7 @@ environment from the declared plugin manifests (see
 [Cache and Isolation](overview.md#cache-and-isolation)). Dependency resolution in
 that environment follows a few rules worth knowing before you publish a plugin:
 
-- **Plugins cannot influence resolver configuration.** The composer owns the child environment's `pyproject.toml`; a plugin contributes only its package as a requirement. Its declared dependencies and version floors still constrain what resolves, but it cannot add indexes or sources. The only manifest-level knob is `extras` on `kind: data_module` capabilities, which selects the pip extras installed for a run that uses that data module.
+- **Plugins cannot influence resolver configuration.** The composer owns the child environment's `pyproject.toml`; a plugin contributes only its package as a requirement. Its declared dependencies and version floors still constrain what resolves, but it cannot add indexes or sources. The manifest-level knobs are two pip-extras lists: `extras` on a `kind: data_module` capability, installed for a run that selects that module, and the manifest's own `extras`, installed whenever the manifest is in a pipeline's plugin set (see [Optional heavy dependencies](#optional-heavy-dependencies)).
 - **Torch mirrors the host.** As of cuvis-ai-core 0.12.1 the composed child environment mirrors the composing host's installed torch build: the exact `torch` / `torchvision` versions are pinned, and the matching PyTorch wheel index (`cpu`, `cuNNN`, `rocm`, or `xpu`) is emitted with `explicit = true`, so the child resolves the same accelerator build the host runs.
 - **Host edge cases.** A host with no torch installed leaves children resolving transitive torch from PyPI (CPU wheels on Windows). A host torch whose local version tag is unrecognized, or mixed across `torch` and `torchvision`, gets its versions pinned without an index, so the child's resolution fails with a no-candidates error; fix the host environment in that case.
 - **Floors above the host fail fast.** A plugin whose torch floor is above the host's installed torch fails composition outright. Keep torch floors as low as the plugin genuinely needs.
