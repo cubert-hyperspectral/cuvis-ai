@@ -1,0 +1,283 @@
+[build-system]
+requires = ["setuptools>=64", "setuptools-scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cuvis-ai"
+dynamic = ["version"]
+description = "Collaborative Framework for Hyperspectral Intelligence"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+license = "Apache-2.0"
+authors = [
+    { name = "Cubert GmbH, Ulm, Germany", email = "cuvis.ai@cubert-gmbh.com" },
+]
+dependencies = [
+    # The cuvis SDK is not a dependency here: it lives only in the cuvis-ai-dataloader
+    # plugin behind its [cu3s] extra, provisioned at runtime when a cu3s run needs it.
+    # Builtin/RGB pipelines pull neither cuvis nor cuvis-il, closing the Windows wheel gap.
+    # Tests mock the data layer (no plugin dep); the real cu3s reader is tested in the plugin.
+    "cuvis-ai-core>=0.17.2",
+    "cuvis-ai-schemas[full]>=0.12.0",
+    "pydantic>=2.13.3,<3.0.0",
+    "defusedxml>=0.7.1",
+    "markupsafe>=3.0.3",
+    "matplotlib>=3.10.9",
+    "opencv-python-headless>=4.13.0.92",
+    "imageio-ffmpeg>=0.6.0",
+    "gitpython>=3.1.59",
+    "pyyaml>=6.0.3",
+    "scikit-image>=0.26.0",
+    "scikit-learn>=1.8.0",
+    "tensorboard>=2.20.0",
+    "setuptools>=81.0.0,<85",
+    # Core framework dependencies
+    "torch>=2.11.0",
+    "torchvision>=0.26.0",
+    "torchcodec>=0.11.1",
+    "torchmetrics>=1.9.0",
+    "pytorch-lightning>=2.6.6",
+    "tzdata>=2026.2; sys_platform == 'win32'",
+    "loguru>=0.7.3",
+    "packaging>=26.2",
+    "omegaconf>=2.3.0",
+    "hydra-core>=1.3.5",
+    "dotenv>=0.9.9",
+    "regex>=2026.4.4",
+    "huggingface-hub>=1.12.0",
+    "transformers>=5.16.1",
+    "hf-xet>=1.4.3",
+    "opencv-python>=4.13.0.92",
+    "requests>=2.33.1",
+    "scipy>=1.17.1",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Image Processing",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+    "Operating System :: OS Independent",
+]
+
+[project.scripts]
+calibrate-thresholds = "scripts.calibrate_thresholds:main"
+create-stubs = "scripts.generate_node_port_stubs:main"
+dataset = "cuvis_ai_core.data.public_datasets:download_data_cli"
+restore-pipeline = "cuvis_ai_core.utils.restore:restore_pipeline_cli"
+restore-trainrun = "cuvis_ai_core.utils.restore:restore_trainrun_cli"
+
+[project.optional-dependencies]
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.5.0",
+    "mkdocs-macros-plugin>=1.0.0",
+    "mkdocs-gen-files>=0.5.0",
+    "mkdocstrings[python]>=0.24.0",
+    "mkdocs-llmstxt>=0.2",
+    # "opencv-python-headless",
+    "pytest-check-links>=0.9.0",
+    "pytest-md-report>=0.3.0",
+    # --- Documentation versioning ---
+    "mike>=1.1.0",
+]
+
+dev = [
+    "ipykernel",
+    "jupyterlab",
+    "notebook",
+    "ruff",
+    "pytest",
+    "pytest-cov",
+    "ipympl>=0.9.8",
+    "ipdb>=0.13.13",
+    "psutil",
+    "interrogate>=1.5.0",
+    # --- Release automation dependencies ---
+    "twine>=6.2.0",
+    "pip>=26.1.2",
+    "pip-audit>=2.7.0",
+    "bandit[toml]>=1.7.0",
+    "detect-secrets>=1.4.0",
+    "pip-licenses>=4.0.0",
+    "cyclonedx-bom>=4.0.0",
+]
+
+# Plugin node packages, wired as local editable checkouts for day-to-day
+# development so the notebooks + cookbook examples import them in-process. These
+# plugins are not published to PyPI, so the extra and its `[tool.uv.sources]`
+# editable paths below are kept commented out: a CI checkout has no sibling
+# working copies and cannot resolve them. To work on plugins locally, uncomment
+# this `plugins` extra together with the matching sources block below, then
+# `uv sync --extra plugins` (do not commit the re-locked uv.lock). Heavy/
+# conflicting plugins may not all co-resolve in one env; sync the subset you need.
+# plugins = [
+#     "cuvis-ai-dinomaly",
+#     "cuvis-ai-ultralytics",
+#     "cuvis-ai-adaclip",
+#     "cuvis-ai-deepeiou",
+#     "cuvis-ai-trackeval",
+#     # sam3 co-installs only via a local dev branch that relaxes its setuptools cap
+#     # to <83 (it had setuptools<81, conflicting with this project's setuptools>=81).
+#     "cuvis-ai-sam3",
+# ]
+
+
+[project.urls]
+Homepage = "https://www.cubert-hyperspectral.com/"
+Repository = "https://github.com/cubert-hyperspectral/cuvis-ai"
+Documentation = "https://docs.cuvis.ai/latest/"
+Changelog = "https://github.com/cubert-hyperspectral/cuvis-ai/releases"
+Issues = "https://github.com/cubert-hyperspectral/cuvis-ai/issues"
+
+[tool.setuptools.packages.find]
+include = ["cuvis_ai*", "scripts*"]
+# configs/ lives under the package (cuvis_ai/configs) as data, not as importable
+# subpackages, so exclude it from package discovery and ship it via package-data.
+exclude = ["cuvis_ai.configs*"]
+namespaces = true
+
+[tool.setuptools.package-data]
+# Ship the ready-to-run pipeline/plugin/trainrun/training/data manifests (under
+# cuvis_ai/configs) so a pip-installed cuvis-ai exposes them at CONFIG_ROOT
+# (cuvis_ai/configs). YAML only: the gitignored model weights (*.pt) under
+# configs/pipeline are local artifacts, never bundled.
+cuvis_ai = ["assets/node_icons/*.svg", "configs/**/*.yaml"]
+
+
+[tool.uv]
+default-groups = ["dev", "cuda"]
+
+# The cu128 pin is scoped to the `cuda` dependency group (installed by default here) because
+# uv also reads a git or path dependency's `[tool.uv.sources]`: an unscoped
+# `torch = { index = ... }` would reach every composed child environment (this package is
+# pulled from git through the `cuvis_ai_builtin` manifest) and collide with the host-mirrored
+# torch index there (cu130 on a Jetson Thor host, cpu on a CPU-only host). Consumers never
+# install a dependency's groups, so the scoped pin binds nothing outside this checkout.
+[tool.uv.sources]
+torch = { index = "pytorch-cu128", group = "cuda" }
+torchvision = { index = "pytorch-cu128", group = "cuda" }
+# Local editable overrides for day-to-day development against working copies of the
+# core libs. Strip (re-comment) before release so CI and PyPI consumers resolve the
+# published floors; these are for local work against sibling checkouts.
+# cuvis-ai-core = { path = "../../cuvis-ai-core/cuvis-ai-core", editable = true }
+# Plugin checkouts: uncomment together with the `plugins` extra above to import the
+# plugins in-process locally. These are never committed in their uncommented form.
+# cuvis-ai-dinomaly = { path = "../../cuvis-ai-dinomaly/cuvis-ai-dinomaly", editable = true }
+# cuvis-ai-sam3 = { path = "../../cuvis-ai-sam3/cuvis-ai-sam3", editable = true }
+# cuvis-ai-ultralytics = { path = "../../cuvis-ai-ultralytics/cuvis-ai-ultralytics", editable = true }
+# cuvis-ai-adaclip = { path = "../../cuvis-ai-adaclip/cuvis-ai-adaclip", editable = true }
+# cuvis-ai-deepeiou = { path = "../../cuvis-ai-deepeiou/cuvis-ai-deepeiou", editable = true }
+# cuvis-ai-trackeval = { path = "../../cuvis-ai-trackeval/cuvis-ai-trackeval", editable = true }
+
+[tool.setuptools_scm]
+version_scheme = "post-release"
+local_scheme = "node-and-date"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "F",
+    "W",
+    "I",
+    "B",
+    "UP",
+    "C4",
+]
+extend-select = [
+    "ANN201",
+    "ANN202",
+    "ANN204",
+]
+ignore = [
+    "ANN401",
+    "E501"
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["cuvis_ai", "cuvis_ai_core"]
+
+[tool.ruff.lint.per-file-ignores]
+"docs/**" = [
+    "ANN201",
+    "ANN202",
+    "ANN204",
+]
+"tests/**" = [
+    "ANN201",
+    "ANN202",
+    "ANN204",
+]
+"cuvis_ai/grpc/v1/*.py" = [
+    "ANN201",
+    "ANN204",
+]
+"**/*.ipynb" = [
+    "F404",
+]
+
+[tool.interrogate]
+ignore-init-method = true
+ignore-init-module = false
+ignore-magic = false
+ignore-module = false
+ignore-nested-functions = false
+ignore-nested-classes = false
+ignore-private = false
+ignore-property-decorators = false
+ignore-semiprivate = false
+ignore-setters = false
+fail-under = 95.0
+exclude = ["setup.py", "docs", "build", "tests"]
+ignore-regex = ["^get$", "^set$", "^main$"]
+verbose = 2
+quiet = false
+whitelist-regex = []
+color = true
+omit-covered-files = false
+generate-badge = "docs/assets/"
+badge-format = "svg"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+exclude = ["tests", "build", "dist"]
+
+[tool.bandit]
+exclude_dirs = ["tests", "cuvis_ai/grpc"]
+skips = ["B101"]  # Skip assert_used check
+
+[dependency-groups]
+dev = [
+    "playwright>=1.61.0",
+    "pytest-playwright>=0.8.0",
+]
+# Floors live in [project].dependencies; this group only carries the cu128 index pin.
+cuda = [
+    "torch",
+    "torchvision",
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
