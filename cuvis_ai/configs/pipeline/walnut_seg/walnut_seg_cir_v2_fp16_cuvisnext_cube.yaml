@@ -1,0 +1,80 @@
+plugins:
+- cuvis_ai_builtin
+- rfdetr_seg
+nodes:
+- name: DataSource
+  class_name: cuvis_ai.node.data.CU3SDataNode
+  hparams:
+    name: null
+- name: Selector
+  class_name: cuvis_ai.node.channel_selector.FixedWavelengthSelector
+  hparams:
+    target_wavelengths:
+    - 850.0
+    - 660.0
+    - 550.0
+    normalize_output: true
+    norm_mode: per_frame
+    apply_gamma: false
+    freeze_running_bounds_after_frames: 20
+    running_warmup_frames: 10
+- name: Seg
+  class_name: cuvis_ai_rfdetr.node.rfdetr_segmenter.RFDETRSegmenter
+  hparams:
+    checkpoint_path: D:/walnuts/walnut_fo_stack/cuvis-ai/cuvis_ai/configs/pipeline/walnut_seg/weights/cir_v2_ema.pth
+    variant: large
+    threshold: 0.5
+    resolution: 504
+    tiling: whole
+    tile_rows: 405
+    row_starts:
+    - 0
+    - 291
+    - 582
+    nms_iou: 0.5
+    jpeg_roundtrip: false
+    jpeg_quality: 95
+    class_filter: 0
+    score_reduction: max_conf
+    top_frac: 0.001
+    checkpoint_loader: constructor
+    precision: fp16
+    jit_trace: false
+    gpu_input: true
+    fast_paste: true
+- name: ShellMask
+  class_name: cuvis_ai.node.deciders.binary_decider.BinaryDecider
+  hparams:
+    threshold: 0.6224593312018546
+- name: ShellHeatmap
+  class_name: cuvis_ai_rfdetr.node.score_fusion.ScoreFusion
+  hparams:
+    mode: max
+    weight: 0.5
+connections:
+- source: DataSource.outputs.cube
+  target: Selector.inputs.cube
+- source: DataSource.outputs.wavelengths
+  target: Selector.inputs.wavelengths
+- source: Selector.outputs.rgb_image
+  target: Seg.inputs.rgb_image
+- source: Seg.outputs.scores
+  target: ShellMask.inputs.logits
+- source: Seg.outputs.scores
+  target: ShellHeatmap.inputs.a
+- source: Seg.outputs.scores
+  target: ShellHeatmap.inputs.b
+metadata:
+  name: walnut_seg_cir_v2_fp16_cuvisnext_cube
+  description: 'Walnut shell segmentation (cir_v2 FP16: C = CIR 850/660/550 single,
+    v2 data + aug v2). Outputs (both selectable in cuvis.next): ShellHeatmap.scores
+    = shell probability heatmap (exact copy of Seg.scores: ScoreFusion max of the
+    map with itself, so the port is terminal and named ''scores''); ShellMask.decisions
+    = boolean shell mask (scores >= 0.5; BinaryDecider threshold = sigmoid(0.5)).
+    FP16 variant: RF-DETR runs fp16 (not JIT-traced, so no start-up trace) with the
+    frame handed over on the GPU (precision fp16, gpu_input). Same weights and outputs
+    as walnut_seg_cir_v2_cuvisnext_cube.'
+  created: '2026-09-24T13:39:06.712084'
+  tags: []
+  author: raj@cubert-gmbh.de
+  cuvis_ai_version: 0.17.2
