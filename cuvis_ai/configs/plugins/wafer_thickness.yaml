@@ -1,12 +1,15 @@
-# Wafer Thickness Plugin Manifest
+# plugins.yaml — cuvis-ai plugin manifest (one yaml = one plugin, bare schema).
 #
-# To use it, declare `plugins: [wafer_thickness]` in the pipeline yaml and point
-# the loader at the catalog directory that holds this manifest:
-#   uv run restore-pipeline --pipeline-path <pipeline>.yaml --plugins-dir cuvis_ai/configs/plugins
-
+# Schema below targets cuvis-ai-core >= 0.6 (`NodeRegistry.register_plugin`).
+# `path` is resolved relative to THIS file's directory; for a frozen install
+# replace `path:` with `repo:` + `tag:`.
+#
+# Per-node palette metadata (category/tags/icon/port specs/doc) is generated
+# by cuvis-ai-core's scripts/emit_metadata.py (ships in the core wheel):
+#   uv run --extra dev --with ruamel.yaml python -m scripts.emit_metadata --manifest plugins.yaml
+# CI guards it with `--check` (lint job). Do not hand-edit those fields.
 name: wafer_thickness
-repo: "https://github.com/cubert-hyperspectral/cuvis-ai-wafer-thickness.git"
-tag: "v0.3.1"
+path: "D:/walnuts/walnut_fo_stack/cuvis-ai-wafer-thickness"
 package_name: "cuvis-ai-wafer-thickness"
 capabilities:
 - class_name: cuvis_ai_wafer_thickness.node.wafer_segmentation.WaferSegmentation
