@@ -1,0 +1,151 @@
+metadata:
+  name: walnut_fo_twobank_rgb_gated_cuvisnext_cube
+  description: 'Gated variant: fuse.scores passes through FrameScoreGate (threshold
+    1.7978, top-0.001 frame score) so the heatmap only shows when the frame is anomalous.
+    Reuses the base .pt (gate is stateless). Threshold is an hparam — tune per session.
+    Two-bank fusion (report version): PatchCore raw spectra + PatchCore on SteerViT
+    features of the RGB 640/550/470 projection, ScoreRangeNormalizer-calibrated, mean-fused.
+    Bank = the report''s 50 clean fr'
+  created: ''
+  tags:
+  - anomaly
+  - hyperspectral
+  - walnut
+  - patchcore
+  - steervit
+  - fusion
+  - cuvisnext
+  author: raj@cubert-gmbh.de
+  cuvis_ai_version: 0.10.0
+plugins:
+- cuvis_ai_builtin
+- patchcore
+- steervit
+nodes:
+- name: cu3s_data
+  class_name: cuvis_ai.node.data.CU3SDataNode
+  hparams: {}
+- name: patchcore_hsi
+  class_name: cuvis_ai_patchcore.node.patchcore.PatchCoreDetector
+  hparams:
+    input_channels: 61
+    coreset_size: 8000
+    stride: 4
+    bank_stride: 4
+    pool_size: 1
+    max_bank_size: 300000
+    topk_frac: 0.001
+    chunk_size: 4096
+    autocast_dtype: null
+    standardize: true
+    seed: 0
+    eps: 1.0e-06
+- name: rgb_640_550_470
+  class_name: cuvis_ai.node.channel_selector.FixedWavelengthSelector
+  hparams:
+    target_wavelengths:
+    - 640.0
+    - 550.0
+    - 470.0
+    normalize_output: false
+- name: stretch
+  class_name: cuvis_ai_steervit.node.stretch.JointPercentileStretch
+  hparams:
+    low: 2.0
+    high: 98.0
+    per_channel: false
+    quantize_levels: 255
+    eps: 1.0e-06
+- name: steervit
+  class_name: cuvis_ai_steervit.node.steervit.SteerViTExtractor
+  hparams:
+    checkpoint: steervit_dinov2_base.pth
+    hf_repo: JonaRuthardt/SteerViT
+    prompts:
+    - the anomaly in the walnuts
+    - an anomaly in the walnuts
+    - the anomalous region in the walnuts
+    - the defect in the walnuts
+    - a defect in the walnuts
+    - the flaw in the walnuts
+    - the damaged area in the walnuts
+    - the abnormality in the walnuts
+    - a photo of the anomaly in the walnuts
+    - the irregularity in the walnuts
+    feature_prompt: the anomaly in the walnuts
+    topk_frac: 0.001
+    score_activation: sigmoid
+- name: patchcore_steervit
+  class_name: cuvis_ai_patchcore.node.patchcore.PatchCoreDetector
+  hparams:
+    input_channels: 768
+    coreset_size: 7200
+    stride: 1
+    bank_stride: 1
+    pool_size: 1
+    max_bank_size: 80000
+    topk_frac: 0.001
+    chunk_size: 4096
+    autocast_dtype: null
+    standardize: false
+    seed: 0
+    eps: 1.0e-06
+- name: norm_hsi
+  class_name: cuvis_ai_patchcore.node.calibration.ScoreRangeNormalizer
+  hparams:
+    n_channels: 1
+    low: 1.0
+    high: 99.0
+    floor: true
+    fit_subsample: 4
+    max_fit_values: 4000000
+    seed: 0
+    eps: 1.0e-09
+- name: norm_steervit
+  class_name: cuvis_ai_patchcore.node.calibration.ScoreRangeNormalizer
+  hparams:
+    n_channels: 1
+    low: 1.0
+    high: 99.0
+    floor: true
+    fit_subsample: 4
+    max_fit_values: 4000000
+    seed: 0
+    eps: 1.0e-09
+- name: fuse
+  class_name: cuvis_ai_patchcore.node.fusion.ScoreMapFusion
+  hparams:
+    mode: mean
+    weights: null
+- name: gate
+  class_name: cuvis_ai_patchcore.node.gate.FrameScoreGate
+  hparams:
+    threshold: 1.802
+    topk_frac: 0.001
+    mode: heatmap
+    log_scores: true
+connections:
+- source: cu3s_data.outputs.cube
+  target: patchcore_hsi.inputs.cube
+- source: cu3s_data.outputs.cube
+  target: rgb_640_550_470.inputs.cube
+- source: cu3s_data.outputs.wavelengths
+  target: rgb_640_550_470.inputs.wavelengths
+- source: cu3s_data.outputs.cube
+  target: patchcore_steervit.inputs.reference
+- source: patchcore_hsi.outputs.scores
+  target: norm_hsi.inputs.scores
+- source: rgb_640_550_470.outputs.rgb_image
+  target: stretch.inputs.data
+- source: stretch.outputs.normalized
+  target: steervit.inputs.rgb_image
+- source: steervit.outputs.features
+  target: patchcore_steervit.inputs.cube
+- source: patchcore_steervit.outputs.scores
+  target: norm_steervit.inputs.scores
+- source: norm_hsi.outputs.normalized
+  target: fuse.inputs.scores
+- source: norm_steervit.outputs.normalized
+  target: fuse.inputs.scores
+- source: fuse.outputs.scores
+  target: gate.inputs.scores

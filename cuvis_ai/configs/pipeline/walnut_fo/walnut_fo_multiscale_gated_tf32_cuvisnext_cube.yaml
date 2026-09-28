@@ -1,0 +1,176 @@
+metadata:
+  name: walnut_fo_multiscale_gated_tf32_cuvisnext_cube
+  description: 'Gated multi-scale feature banks: fuse.scores through FrameScoreGate (threshold
+    1.337, top-0.001 frame score, log_scores on). The gate is stateless; the weights are those of
+    the ungated walnut_fo_multiscale pipeline. Set the threshold per session with calibrate_live.py
+    --pipeline multiscale. Multi-scale SteerViT feature banks (t1 + t2 tiles) fitted from the v3
+    cache on 200 clean TRAIN frames (seed 0); normalisers on the 34 clean VAL frames; CIR
+    870/640/550, feature prompt ''the anomaly in the walnuts''. Speed variant: TF32 tensor-core
+    matmuls on SteerViT and PatchCore, float32 storage (cuvis-ai-steervit and cuvis-ai-patchcore >=
+    0.2.0); the threshold is calibrated for this variant.'
+  created: ''
+  tags:
+  - anomaly
+  - hyperspectral
+  - walnut
+  - patchcore
+  - steervit
+  - multiscale
+  - split_v3
+  author: raj@cubert-gmbh.de
+  cuvis_ai_version: 0.12.0
+plugins:
+- cuvis_ai_builtin
+- patchcore
+- steervit
+nodes:
+- name: cu3s_data
+  class_name: cuvis_ai.node.data.CU3SDataNode
+  hparams: {}
+- name: cir_870_640_550
+  class_name: cuvis_ai.node.channel_selector.FixedWavelengthSelector
+  hparams:
+    target_wavelengths:
+    - 870.0
+    - 640.0
+    - 550.0
+    normalize_output: false
+- name: stretch
+  class_name: cuvis_ai_steervit.node.stretch.JointPercentileStretch
+  hparams:
+    low: 2.0
+    high: 98.0
+    per_channel: false
+    quantize_levels: 255
+    eps: 1.0e-06
+- name: steervit_t1
+  class_name: cuvis_ai_steervit.node.steervit.SteerViTExtractor
+  hparams:
+    checkpoint: steervit_dinov2_base.pth
+    hf_repo: JonaRuthardt/SteerViT
+    prompts:
+    - the anomaly in the walnuts
+    topk_frac: 0.001
+    score_activation: sigmoid
+    tf32: true
+- name: patchcore_t1
+  class_name: cuvis_ai_patchcore.node.patchcore.PatchCoreDetector
+  hparams:
+    input_channels: 768
+    coreset_size: 7200
+    stride: 1
+    bank_stride: 1
+    pool_size: 1
+    max_bank_size: 80000
+    topk_frac: 0.001
+    chunk_size: 4096
+    autocast_dtype: null
+    standardize: false
+    seed: 0
+    eps: 1.0e-06
+    coreset_projection: null
+    projection_eps: 0.9
+    tf32: true
+- name: tiler_t2
+  class_name: cuvis_ai_steervit.node.tiling.ImageTiler
+  hparams:
+    tiles: 2
+- name: steervit_t2
+  class_name: cuvis_ai_steervit.node.steervit.SteerViTExtractor
+  hparams:
+    checkpoint: steervit_dinov2_base.pth
+    hf_repo: JonaRuthardt/SteerViT
+    prompts:
+    - the anomaly in the walnuts
+    topk_frac: 0.001
+    score_activation: sigmoid
+    tf32: true
+- name: stitch_t2
+  class_name: cuvis_ai_steervit.node.tiling.GridStitcher
+  hparams:
+    tiles: 2
+- name: patchcore_t2
+  class_name: cuvis_ai_patchcore.node.patchcore.PatchCoreDetector
+  hparams:
+    input_channels: 768
+    coreset_size: 7200
+    stride: 1
+    bank_stride: 1
+    pool_size: 1
+    max_bank_size: 80000
+    topk_frac: 0.001
+    chunk_size: 4096
+    autocast_dtype: null
+    standardize: false
+    seed: 0
+    eps: 1.0e-06
+    coreset_projection: null
+    projection_eps: 0.9
+    tf32: true
+- name: norm_t1
+  class_name: cuvis_ai_patchcore.node.calibration.ScoreRangeNormalizer
+  hparams:
+    n_channels: 1
+    low: 1.0
+    high: 99.0
+    floor: true
+    fit_subsample: 4
+    max_fit_values: 4000000
+    seed: 0
+    eps: 1.0e-09
+- name: norm_t2
+  class_name: cuvis_ai_patchcore.node.calibration.ScoreRangeNormalizer
+  hparams:
+    n_channels: 1
+    low: 1.0
+    high: 99.0
+    floor: true
+    fit_subsample: 4
+    max_fit_values: 4000000
+    seed: 0
+    eps: 1.0e-09
+- name: fuse
+  class_name: cuvis_ai_patchcore.node.fusion.ScoreMapFusion
+  hparams:
+    mode: mean
+    weights: null
+- name: gate
+  class_name: cuvis_ai_patchcore.node.gate.FrameScoreGate
+  hparams:
+    threshold: 1.337
+    topk_frac: 0.001
+    mode: heatmap
+    log_scores: true
+connections:
+- source: cu3s_data.outputs.cube
+  target: cir_870_640_550.inputs.cube
+- source: cu3s_data.outputs.wavelengths
+  target: cir_870_640_550.inputs.wavelengths
+- source: cu3s_data.outputs.cube
+  target: patchcore_t1.inputs.reference
+- source: cu3s_data.outputs.cube
+  target: patchcore_t2.inputs.reference
+- source: cir_870_640_550.outputs.rgb_image
+  target: stretch.inputs.data
+- source: stretch.outputs.normalized
+  target: steervit_t1.inputs.rgb_image
+- source: stretch.outputs.normalized
+  target: tiler_t2.inputs.image
+- source: steervit_t1.outputs.features
+  target: patchcore_t1.inputs.cube
+- source: patchcore_t1.outputs.scores
+  target: norm_t1.inputs.scores
+- source: tiler_t2.outputs.tiles
+  target: steervit_t2.inputs.rgb_image
+- source: steervit_t2.outputs.features
+  target: stitch_t2.inputs.tiles
+- source: stitch_t2.outputs.grid
+  target: patchcore_t2.inputs.cube
+- source: patchcore_t2.outputs.scores
+  target: norm_t2.inputs.scores
+- source: norm_t1.outputs.normalized
+  target: fuse.inputs.scores
+- source: norm_t2.outputs.normalized
+  target: fuse.inputs.scores
+- source: fuse.outputs.scores
+  target: gate.inputs.scores
