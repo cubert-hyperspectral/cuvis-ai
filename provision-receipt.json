@@ -1,0 +1,17 @@
+{
+    "ai_dir": "D:/walnuts/walnut_fo_stack/cuvis-ai",
+    "command": "provision",
+    "exit_code": 2,
+    "helper_version": "0.5.0",
+    "schema": 1,
+    "steps": [
+        {
+            "finished_at": "2026-09-21T10:02:36Z",
+            "id": "runtime",
+            "message": "Nothing to provision from: uv or the environment spec is missing in D:\\walnuts\\walnut_fo_stack\\cuvis-ai",
+            "started_at": "2026-09-21T10:02:36Z",
+            "state": "failed"
+        }
+    ],
+    "written_at": "2026-09-21T10:02:36Z"
+}
