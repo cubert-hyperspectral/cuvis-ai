@@ -9,7 +9,10 @@ the ensemble as deployed: a mask threshold on the fused score plus the heatmap, 
 cuvis.next's Displayed Output: the FO map (`display.scores` / `gate.scores`), `ShellMask.decisions` and
 `ShellHeatmap.scores`.
 
-Tiers (FO precision x SEG tier): `tf32_exact`, `tf32_fast`, `tf32_trt32`, `tf32_trt16`, `fp16_trt16`.
+Tiers (FO precision x SEG tier): `tf32_exact`, `tf32_fast`, `tf32_trt32`, `tf32_trt16`, `fp16_trt16`, and with the FO
+branch on TensorRT `tf32trt_trt32`, `tf32trt_trt16` (EfficientAD TF32 engine; `or` only: the gated family has no
+EfficientAD) and `fp16trt_trt16` (SteerViT + EfficientAD fp16 engines). Engines are built per machine
+(`python -m cuvis_ai_<plugin>.trt_engine build-pipeline <yaml>`, THOR_DEPLOY_NOTES section 21).
 - There is no FO float32 tier: `import rfdetr` sets PyTorch's float32 matmul precision to "high" (TF32) for the
   whole process, so next to the SEG models the FO branch runs TF32 anyway. The FO tiers are the validated `_tf32` /
   `_fp16` variants with their own calibrated thresholds.
@@ -47,10 +50,10 @@ SEG_BASE = "walnut_seg_ens_rgb_cir_mean_v2"
 AUTHOR = "raj@cubert-gmbh.de"
 
 FAMILIES = {
-    "or": {"fo": "walnut_fo_multiscale_effad_or_gated", "fo_out": "display.scores",
+    "or": {"fo": "walnut_fo_multiscale_effad_or_gated", "fo_out": "display.scores", "fo_mask": "display_mask.decisions",
            "fo_text": "multi-scale t1+t2 gate OR EfficientAD gate; display = the multi-scale gated map when its gate "
                       "opens, else the EfficientAD gated map, zeros when neither passes"},
-    "gated": {"fo": "walnut_fo_multiscale_gated", "fo_out": "gate.scores",
+    "gated": {"fo": "walnut_fo_multiscale_gated", "fo_out": "gate.scores", "fo_mask": "gate.decisions",
               "fo_text": "multi-scale t1+t2 feature banks through FrameScoreGate; the map shows only when the gate "
                          "opens, zeros otherwise"},
 }
@@ -61,7 +64,12 @@ TIERS = {
     "tf32_trt32": ("_tf32", "_trt_fp32", "TF32", "TensorRT fp32 engine (TF32 allowed)"),
     "tf32_trt16": ("_tf32", "_trt_fp16", "TF32", "TensorRT fp16 engine"),
     "fp16_trt16": ("_fp16", "_trt_fp16", "float16 autocast", "TensorRT fp16 engine"),
+    "tf32trt_trt32": ("_tf32trt", "_trt_fp32", "TF32", "TensorRT fp32 engine (TF32 allowed)"),
+    "tf32trt_trt16": ("_tf32trt", "_trt_fp16", "TF32", "TensorRT fp16 engine"),
+    "fp16trt_trt16": ("_fp16trt", "_trt_fp16", "float16 autocast", "TensorRT fp16 engine"),
 }
+# the tiers of a family: the gated family has no EfficientAD, so no tf32trt tier (it would be its tf32 tier)
+TIERS_OF = {"or": list(TIERS), "gated": [t for t in TIERS if not t.startswith("tf32trt")]}
 RENAME = {"DataSource": "cu3s_data", "Fuse": "ShellFuse"}
 PLUGIN_OF = (("cuvis_ai.", "cuvis_ai_builtin"), ("cuvis_ai_patchcore.", "patchcore"), ("cuvis_ai_steervit.", "steervit"),
              ("cuvis_ai_efficientad.", "efficientad"), ("cuvis_ai_rfdetr.", "rfdetr_seg"))
@@ -148,13 +156,16 @@ def build(family: str, tier: str, out_yaml: Path) -> None:
     thr = thresholds(fo_cfg)
     thr_txt = ", ".join(f"{k} {v}" for k, v in thr.items())
     fam = FAMILIES[family]
+    engines = [n["name"] for n in fo_cfg["nodes"] if (n.get("hparams") or {}).get("backend") == "tensorrt"]
+    if engines:
+        fo_txt = f"{fo_txt}; TensorRT engines for {', '.join(engines)}"
     desc = (
         f"Combined walnut pipeline, FO anomaly + SEG shells on one cube. FO ({fo_stem.replace('_cuvisnext_cube', '')}, "
         f"{fo_txt}; thresholds {thr_txt}): {fam['fo_text']}. SEG ({seg_stem.replace('_cuvisnext_cube', '')}, "
         f"{seg_txt}): RGB 640/550/470 + CIR 850/660/550 RF-DETR-Seg-L at 504 px, mean fusion; mask = fused score >= "
         f"0.5, no frame gate; its selectors calibrate on the first 20 frames of a session. Outputs to pick in "
-        f"cuvis.next: {fam['fo_out']} (FO heatmap, gated), ShellMask.decisions (shell mask), ShellHeatmap.scores "
-        f"(shell heatmap). Weights: the family .pt (every tier of walnut_combo_{family} shares it); the SEG models load "
+        f"cuvis.next: {fam['fo_out']} (FO heatmap, gated), {fam['fo_mask']} (FO mask), ShellMask.decisions (shell "
+        f"mask), ShellHeatmap.scores (shell heatmap). Weights: the family .pt (every tier of walnut_combo_{family} shares it); the SEG models load "
         f"from their checkpoint_path."
     )
     tags = sorted(set(fo_cfg["metadata"].get("tags") or []) | set(seg_cfg["metadata"].get("tags") or [])
@@ -200,12 +211,12 @@ def same_state(a: Path, b: Path) -> bool:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--families", default="or,gated")
-    ap.add_argument("--tiers", default=",".join(TIERS))
+    ap.add_argument("--tiers", default="all", help="comma list, or all = every tier of the family (TIERS_OF)")
     ap.add_argument("--scratch", required=True, help="where the tiers' own .pt land before the tensor comparison")
     a = ap.parse_args()
     scratch = Path(a.scratch)
     for family in a.families.split(","):
-        tiers = a.tiers.split(",")
+        tiers = TIERS_OF[family] if a.tiers == "all" else a.tiers.split(",")
         family_pt = HERE / f"{stem(family, tiers[0])}.pt"
         for i, tier in enumerate(tiers):
             name = stem(family, tier)
