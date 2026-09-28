@@ -1,0 +1,186 @@
+plugins:
+- cuvis_ai_builtin
+- rfdetr_seg
+nodes:
+- name: DataSource
+  class_name: cuvis_ai.node.data.CU3SDataNode
+  hparams:
+    name: null
+- name: SelRGB
+  class_name: cuvis_ai.node.channel_selector.FixedWavelengthSelector
+  hparams:
+    target_wavelengths:
+    - 640.0
+    - 550.0
+    - 470.0
+    normalize_output: true
+    norm_mode: per_frame
+    apply_gamma: false
+    freeze_running_bounds_after_frames: 20
+    running_warmup_frames: 10
+- name: SegRGB
+  class_name: cuvis_ai_rfdetr.node.rfdetr_segmenter.RFDETRSegmenter
+  hparams:
+    checkpoint_path: D:/walnuts/walnut_fo_stack/cuvis-ai/cuvis_ai/configs/pipeline/walnut_seg/weights/rgb_full_ema.pth
+    variant: large
+    threshold: 0.05
+    resolution: 504
+    tiling: whole
+    tile_rows: 405
+    row_starts:
+    - 0
+    - 291
+    - 582
+    nms_iou: 0.5
+    jpeg_roundtrip: false
+    jpeg_quality: 95
+    class_filter: 0
+    score_reduction: max_conf
+    top_frac: 0.001
+    checkpoint_loader: constructor
+- name: SelCIR
+  class_name: cuvis_ai.node.channel_selector.FixedWavelengthSelector
+  hparams:
+    target_wavelengths:
+    - 850.0
+    - 660.0
+    - 550.0
+    normalize_output: true
+    norm_mode: per_frame
+    apply_gamma: false
+    freeze_running_bounds_after_frames: 20
+    running_warmup_frames: 10
+- name: SegCIR
+  class_name: cuvis_ai_rfdetr.node.rfdetr_segmenter.RFDETRSegmenter
+  hparams:
+    checkpoint_path: D:/walnuts/walnut_fo_stack/cuvis-ai/cuvis_ai/configs/pipeline/walnut_seg/weights/cir_full_ema.pth
+    variant: large
+    threshold: 0.05
+    resolution: 504
+    tiling: whole
+    tile_rows: 405
+    row_starts:
+    - 0
+    - 291
+    - 582
+    nms_iou: 0.5
+    jpeg_roundtrip: false
+    jpeg_quality: 95
+    class_filter: 0
+    score_reduction: max_conf
+    top_frac: 0.001
+    checkpoint_loader: constructor
+- name: Fuse
+  class_name: cuvis_ai_rfdetr.node.score_fusion.ScoreFusion
+  hparams:
+    mode: mean
+    weight: 0.5
+- name: Gate
+  class_name: cuvis_ai_rfdetr.node.sam_shell_gate.SamShellGate
+  hparams:
+    reference:
+    - 1549.7493896484375
+    - 1579.3131103515625
+    - 1653.53515625
+    - 1708.9976806640625
+    - 1756.8062744140625
+    - 1829.4912109375
+    - 1884.2628173828125
+    - 1929.56201171875
+    - 2029.613525390625
+    - 2112.644287109375
+    - 2182.804443359375
+    - 2328.34423828125
+    - 2459.841552734375
+    - 2567.186279296875
+    - 2725.622802734375
+    - 2872.3818359375
+    - 3001.447509765625
+    - 3177.9150390625
+    - 3342.823974609375
+    - 3492.983154296875
+    - 3674.23681640625
+    - 3861.2470703125
+    - 4037.52587890625
+    - 4245.875
+    - 4472.32177734375
+    - 4684.0966796875
+    - 4909.56787109375
+    - 5148.11376953125
+    - 5383.369140625
+    - 5652.05517578125
+    - 5937.08642578125
+    - 6200.80126953125
+    - 6456.64306640625
+    - 6742.26025390625
+    - 7029.3525390625
+    - 7317.0185546875
+    - 7613.46044921875
+    - 7916.4033203125
+    - 8224.7841796875
+    - 8516.248046875
+    - 8827.521484375
+    - 9161.240234375
+    - 9475.5654296875
+    - 9785.693359375
+    - 10108.0439453125
+    - 10398.943359375
+    - 10673.7236328125
+    - 10982.5849609375
+    - 11219.9462890625
+    - 11450.125
+    - 11693.33984375
+    - 11918.5810546875
+    - 12109.310546875
+    - 12337.1513671875
+    - 12519.06640625
+    - 12684.1083984375
+    - 12865.6259765625
+    - 13016.2734375
+    - 13127.2568359375
+    - 13257.89453125
+    - 13404.501953125
+    threshold_deg: 11.0
+    eps: 1.0e-12
+- name: ShellMask
+  class_name: cuvis_ai.node.deciders.binary_decider.BinaryDecider
+  hparams:
+    threshold: 0.6224593312018546
+- name: ShellHeatmap
+  class_name: cuvis_ai.node.normalization.IdentityNormalizer
+  hparams: {}
+connections:
+- source: DataSource.outputs.cube
+  target: SelRGB.inputs.cube
+- source: DataSource.outputs.wavelengths
+  target: SelRGB.inputs.wavelengths
+- source: DataSource.outputs.cube
+  target: SelCIR.inputs.cube
+- source: DataSource.outputs.wavelengths
+  target: SelCIR.inputs.wavelengths
+- source: DataSource.outputs.cube
+  target: Gate.inputs.cube
+- source: SelRGB.outputs.rgb_image
+  target: SegRGB.inputs.rgb_image
+- source: SegRGB.outputs.scores
+  target: Fuse.inputs.a
+- source: SelCIR.outputs.rgb_image
+  target: SegCIR.inputs.rgb_image
+- source: SegCIR.outputs.scores
+  target: Fuse.inputs.b
+- source: Fuse.outputs.scores
+  target: Gate.inputs.scores
+- source: Gate.outputs.scores
+  target: ShellMask.inputs.logits
+- source: Gate.outputs.scores
+  target: ShellHeatmap.inputs.data
+metadata:
+  name: walnut_seg_ens_sam_t11_cuvisnext_cube
+  description: 'Walnut shell segmentation (ens_sam_t11). Outputs (both selectable
+    in cuvis.next): ShellHeatmap.normalized = shell probability heatmap (IdentityNormalizer
+    passthrough of Gate.scores); ShellMask.decisions = boolean shell mask (scores
+    >= 0.5; BinaryDecider threshold = sigmoid(0.5)).'
+  created: '2026-09-24T10:32:49.110401'
+  tags: []
+  author: ''
+  cuvis_ai_version: 0.17.2

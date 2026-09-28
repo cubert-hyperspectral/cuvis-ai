@@ -1,0 +1,16 @@
+{
+ "engine": "fp32_r504_NVIDIA-GeForce-RTX-4070-Laptop-GPU-sm89_trt10.15.1.29.engine",
+ "precision": "fp32",
+ "tf32": true,
+ "resolution": 504,
+ "variant": "large",
+ "checkpoint": "D:/walnuts/walnut_fo_stack/cuvis-ai/cuvis_ai/configs/pipeline/walnut_seg/weights/rgb_v2_ema.pth",
+ "checkpoint_md5": "0b5b19ac656aa456a392bb7dfc6c6e9d",
+ "tensorrt": "10.15.1.29",
+ "torch": "2.11.0+cu128",
+ "rfdetr": "1.10.1",
+ "gpu": "NVIDIA GeForce RTX 4070 Laptop GPU",
+ "gpu_tag": "NVIDIA-GeForce-RTX-4070-Laptop-GPU-sm89",
+ "build_seconds": 53.0,
+ "built_at": "2026-09-25T13:51:01+00:00"
+}

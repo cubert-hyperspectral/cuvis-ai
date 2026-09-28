@@ -1,0 +1,134 @@
+plugins:
+- cuvis_ai_builtin
+- rfdetr_seg
+nodes:
+- name: DataSource
+  class_name: cuvis_ai.node.data.CU3SDataNode
+  hparams:
+    name: null
+- name: SelRGB
+  class_name: cuvis_ai.node.channel_selector.FixedWavelengthSelector
+  hparams:
+    target_wavelengths:
+    - 640.0
+    - 550.0
+    - 470.0
+    normalize_output: true
+    norm_mode: per_frame
+    apply_gamma: false
+    freeze_running_bounds_after_frames: 20
+    running_warmup_frames: 10
+- name: SegRGB
+  class_name: cuvis_ai_rfdetr.node.rfdetr_segmenter.RFDETRSegmenter
+  hparams:
+    checkpoint_path: D:/walnuts/walnut_fo_stack/cuvis-ai/cuvis_ai/configs/pipeline/walnut_seg/weights/rgb_v2_ema.pth
+    variant: large
+    threshold: 0.05
+    resolution: 504
+    tiling: whole
+    tile_rows: 405
+    row_starts:
+    - 0
+    - 291
+    - 582
+    nms_iou: 0.5
+    jpeg_roundtrip: false
+    jpeg_quality: 95
+    class_filter: 0
+    score_reduction: max_conf
+    top_frac: 0.001
+    checkpoint_loader: constructor
+    backend: tensorrt
+    precision: fp16
+    jit_trace: false
+    gpu_input: true
+    fast_paste: true
+- name: SelCIR
+  class_name: cuvis_ai.node.channel_selector.FixedWavelengthSelector
+  hparams:
+    target_wavelengths:
+    - 850.0
+    - 660.0
+    - 550.0
+    normalize_output: true
+    norm_mode: per_frame
+    apply_gamma: false
+    freeze_running_bounds_after_frames: 20
+    running_warmup_frames: 10
+- name: SegCIR
+  class_name: cuvis_ai_rfdetr.node.rfdetr_segmenter.RFDETRSegmenter
+  hparams:
+    checkpoint_path: D:/walnuts/walnut_fo_stack/cuvis-ai/cuvis_ai/configs/pipeline/walnut_seg/weights/cir_v2_ema.pth
+    variant: large
+    threshold: 0.05
+    resolution: 504
+    tiling: whole
+    tile_rows: 405
+    row_starts:
+    - 0
+    - 291
+    - 582
+    nms_iou: 0.5
+    jpeg_roundtrip: false
+    jpeg_quality: 95
+    class_filter: 0
+    score_reduction: max_conf
+    top_frac: 0.001
+    checkpoint_loader: constructor
+    backend: tensorrt
+    precision: fp16
+    jit_trace: false
+    gpu_input: true
+    fast_paste: true
+- name: Fuse
+  class_name: cuvis_ai_rfdetr.node.score_fusion.ScoreFusion
+  hparams:
+    mode: mean
+    weight: 0.5
+- name: ShellMask
+  class_name: cuvis_ai.node.deciders.binary_decider.BinaryDecider
+  hparams:
+    threshold: 0.6224593312018546
+- name: ShellHeatmap
+  class_name: cuvis_ai_rfdetr.node.score_fusion.ScoreFusion
+  hparams:
+    mode: max
+    weight: 0.5
+connections:
+- source: DataSource.outputs.cube
+  target: SelRGB.inputs.cube
+- source: DataSource.outputs.wavelengths
+  target: SelRGB.inputs.wavelengths
+- source: DataSource.outputs.cube
+  target: SelCIR.inputs.cube
+- source: DataSource.outputs.wavelengths
+  target: SelCIR.inputs.wavelengths
+- source: SelRGB.outputs.rgb_image
+  target: SegRGB.inputs.rgb_image
+- source: SegRGB.outputs.scores
+  target: Fuse.inputs.a
+- source: SelCIR.outputs.rgb_image
+  target: SegCIR.inputs.rgb_image
+- source: SegCIR.outputs.scores
+  target: Fuse.inputs.b
+- source: Fuse.outputs.scores
+  target: ShellMask.inputs.logits
+- source: Fuse.outputs.scores
+  target: ShellHeatmap.inputs.a
+- source: Fuse.outputs.scores
+  target: ShellHeatmap.inputs.b
+metadata:
+  name: walnut_seg_ens_rgb_cir_mean_v2_trt_fp16_cuvisnext_cube
+  description: 'Walnut shell segmentation (ens_rgb_cir_mean_v2 TRT_FP16: B+C = RGB
+    v2 + CIR v2 mean ensemble). Outputs (both selectable in cuvis.next): ShellHeatmap.scores
+    = shell probability heatmap (exact copy of Fuse.scores: ScoreFusion max of the
+    map with itself, so the port is terminal and named ''scores''); ShellMask.decisions
+    = boolean shell mask (scores >= 0.5; BinaryDecider threshold = sigmoid(0.5)).
+    TRT_FP16 variant: RF-DETR''s network runs as a TensorRT fp16 engine with rfdetr''s
+    own pre- and post-processing (backend tensorrt, precision fp16, gpu_input). Needs
+    the tensorrt package (10.x) in the env and this machine''s engine: python -m cuvis_ai_rfdetr.trt_engine
+    build-pipeline <this yaml>. Same weights and outputs as walnut_seg_ens_rgb_cir_mean_v2_cuvisnext_cube.'
+  created: '2026-09-24T13:39:12.816408'
+  tags: []
+  author: raj@cubert-gmbh.de
+  cuvis_ai_version: 0.17.2
