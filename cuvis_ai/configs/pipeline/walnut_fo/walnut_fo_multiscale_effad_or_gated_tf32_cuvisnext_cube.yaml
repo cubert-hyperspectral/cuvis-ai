@@ -1,0 +1,228 @@
+metadata:
+  name: walnut_fo_multiscale_effad_or_gated_tf32_cuvisnext_cube
+  description: 'OR-gated walnut FO detector. Multi-scale t1+t2 feature banks -> fuse -> gate
+    (threshold 1.337), OR EfficientAD-512 (CIR, anomalib 2.1.0, seed 0) -> norm_effad (34 clean VAL
+    frames) -> gate_effad (threshold 1.9587); display = the multi-scale gated map when its gate
+    opens, else the EfficientAD gated map (ScoreMapFusion first; zeros when neither passes).
+    Thresholds: max clean x 1.10 per gate, set per session with calibrate_live.py --pipeline or.
+    Speed variant: TF32 tensor-core matmuls on SteerViT, PatchCore and EfficientAD, float32 storage
+    (cuvis-ai-steervit, cuvis-ai-patchcore and cuvis-ai-efficientad >= 0.2.0); the thresholds are
+    calibrated for this variant.'
+  created: ''
+  tags:
+  - anomaly
+  - efficientad
+  - hyperspectral
+  - multiscale
+  - or_gate
+  - patchcore
+  - split_v3
+  - steervit
+  - walnut
+  author: raj@cubert-gmbh.de
+  cuvis_ai_version: 0.12.0
+plugins:
+- cuvis_ai_builtin
+- patchcore
+- steervit
+- efficientad
+nodes:
+- name: cu3s_data
+  class_name: cuvis_ai.node.data.CU3SDataNode
+  hparams: {}
+- name: cir_870_640_550
+  class_name: cuvis_ai.node.channel_selector.FixedWavelengthSelector
+  hparams:
+    target_wavelengths:
+    - 870.0
+    - 640.0
+    - 550.0
+    normalize_output: false
+- name: stretch
+  class_name: cuvis_ai_steervit.node.stretch.JointPercentileStretch
+  hparams:
+    low: 2.0
+    high: 98.0
+    per_channel: false
+    quantize_levels: 255
+    eps: 1.0e-06
+- name: steervit_t1
+  class_name: cuvis_ai_steervit.node.steervit.SteerViTExtractor
+  hparams:
+    checkpoint: steervit_dinov2_base.pth
+    hf_repo: JonaRuthardt/SteerViT
+    prompts:
+    - the anomaly in the walnuts
+    topk_frac: 0.001
+    score_activation: sigmoid
+    tf32: true
+- name: patchcore_t1
+  class_name: cuvis_ai_patchcore.node.patchcore.PatchCoreDetector
+  hparams:
+    input_channels: 768
+    coreset_size: 7200
+    stride: 1
+    bank_stride: 1
+    pool_size: 1
+    max_bank_size: 80000
+    topk_frac: 0.001
+    chunk_size: 4096
+    autocast_dtype: null
+    standardize: false
+    seed: 0
+    eps: 1.0e-06
+    coreset_projection: null
+    projection_eps: 0.9
+    tf32: true
+- name: tiler_t2
+  class_name: cuvis_ai_steervit.node.tiling.ImageTiler
+  hparams:
+    tiles: 2
+- name: steervit_t2
+  class_name: cuvis_ai_steervit.node.steervit.SteerViTExtractor
+  hparams:
+    checkpoint: steervit_dinov2_base.pth
+    hf_repo: JonaRuthardt/SteerViT
+    prompts:
+    - the anomaly in the walnuts
+    topk_frac: 0.001
+    score_activation: sigmoid
+    tf32: true
+- name: stitch_t2
+  class_name: cuvis_ai_steervit.node.tiling.GridStitcher
+  hparams:
+    tiles: 2
+- name: patchcore_t2
+  class_name: cuvis_ai_patchcore.node.patchcore.PatchCoreDetector
+  hparams:
+    input_channels: 768
+    coreset_size: 7200
+    stride: 1
+    bank_stride: 1
+    pool_size: 1
+    max_bank_size: 80000
+    topk_frac: 0.001
+    chunk_size: 4096
+    autocast_dtype: null
+    standardize: false
+    seed: 0
+    eps: 1.0e-06
+    coreset_projection: null
+    projection_eps: 0.9
+    tf32: true
+- name: norm_t1
+  class_name: cuvis_ai_patchcore.node.calibration.ScoreRangeNormalizer
+  hparams:
+    n_channels: 1
+    low: 1.0
+    high: 99.0
+    floor: true
+    fit_subsample: 4
+    max_fit_values: 4000000
+    seed: 0
+    eps: 1.0e-09
+- name: norm_t2
+  class_name: cuvis_ai_patchcore.node.calibration.ScoreRangeNormalizer
+  hparams:
+    n_channels: 1
+    low: 1.0
+    high: 99.0
+    floor: true
+    fit_subsample: 4
+    max_fit_values: 4000000
+    seed: 0
+    eps: 1.0e-09
+- name: fuse
+  class_name: cuvis_ai_patchcore.node.fusion.ScoreMapFusion
+  hparams:
+    mode: mean
+    weights: null
+- name: gate
+  class_name: cuvis_ai_patchcore.node.gate.FrameScoreGate
+  hparams:
+    threshold: 1.337
+    topk_frac: 0.001
+    mode: heatmap
+    mask_threshold: null
+    log_scores: true
+    smooth_k: 1
+- name: effad
+  class_name: cuvis_ai_efficientad.node.efficientad.EfficientAdDetector
+  hparams:
+    image_size:
+    - 512
+    - 512
+    teacher_out_channels: 384
+    model_size: small
+    padding: false
+    pad_maps: true
+    topk_frac: 0.001
+    tf32: true
+- name: norm_effad
+  class_name: cuvis_ai_patchcore.node.calibration.ScoreRangeNormalizer
+  hparams:
+    n_channels: 1
+    low: 1.0
+    high: 99.0
+    floor: true
+    fit_subsample: 4
+    max_fit_values: 4000000
+    seed: 0
+    eps: 1.0e-09
+- name: gate_effad
+  class_name: cuvis_ai_patchcore.node.gate.FrameScoreGate
+  hparams:
+    threshold: 1.9587
+    topk_frac: 0.001
+    mode: heatmap
+    mask_threshold: null
+    log_scores: true
+    smooth_k: 1
+- name: display
+  class_name: cuvis_ai_patchcore.node.fusion.ScoreMapFusion
+  hparams:
+    mode: first
+    weights: null
+connections:
+- source: cu3s_data.outputs.cube
+  target: cir_870_640_550.inputs.cube
+- source: cu3s_data.outputs.wavelengths
+  target: cir_870_640_550.inputs.wavelengths
+- source: cu3s_data.outputs.cube
+  target: patchcore_t1.inputs.reference
+- source: cu3s_data.outputs.cube
+  target: patchcore_t2.inputs.reference
+- source: cir_870_640_550.outputs.rgb_image
+  target: stretch.inputs.data
+- source: stretch.outputs.normalized
+  target: steervit_t1.inputs.rgb_image
+- source: stretch.outputs.normalized
+  target: tiler_t2.inputs.image
+- source: stretch.outputs.normalized
+  target: effad.inputs.rgb_image
+- source: steervit_t1.outputs.features
+  target: patchcore_t1.inputs.cube
+- source: patchcore_t1.outputs.scores
+  target: norm_t1.inputs.scores
+- source: tiler_t2.outputs.tiles
+  target: steervit_t2.inputs.rgb_image
+- source: steervit_t2.outputs.features
+  target: stitch_t2.inputs.tiles
+- source: stitch_t2.outputs.grid
+  target: patchcore_t2.inputs.cube
+- source: patchcore_t2.outputs.scores
+  target: norm_t2.inputs.scores
+- source: norm_t1.outputs.normalized
+  target: fuse.inputs.scores
+- source: norm_t2.outputs.normalized
+  target: fuse.inputs.scores
+- source: fuse.outputs.scores
+  target: gate.inputs.scores
+- source: gate.outputs.scores
+  target: display.inputs.scores
+- source: effad.outputs.scores
+  target: norm_effad.inputs.scores
+- source: norm_effad.outputs.normalized
+  target: gate_effad.inputs.scores
+- source: gate_effad.outputs.scores
+  target: display.inputs.scores

@@ -1,0 +1,92 @@
+metadata:
+  name: walnut_fo_ens_pc_ssft
+  description: 'PatchCore + SSFT FO anomaly ensemble: each detector''s map min-max
+    normalized by its normal-frame range (fitted on the 60 bank frames), fused by
+    ScoreFusion mean. cuvis.next cube mode.'
+  created: ''
+  tags:
+  - anomaly
+  - hyperspectral
+  - walnut
+  - patchcore
+  - ssft
+  - ensemble
+  - cuvisnext
+  author: raj@cubert-gmbh.de
+  cuvis_ai_version: 0.10.0
+plugins:
+- cuvis_ai_builtin
+- ssft
+- patchcore
+- rfdetr
+nodes:
+- name: cu3s_data
+  class_name: cuvis_ai.node.data.CU3SDataNode
+  hparams: {}
+- name: patchcore
+  class_name: cuvis_ai_patchcore.node.patchcore.PatchCoreDetector
+  hparams:
+    input_channels: 61
+    coreset_size: 4000
+    stride: 6
+    bank_stride: 10
+    pool_size: 3
+    max_bank_size: 80000
+    topk_frac: 0.001
+    chunk_size: 4096
+    autocast_dtype: float16
+    seed: 0
+    eps: 1.0e-06
+- name: ssft_ad
+  class_name: cuvis_ai_ssft.node.anomaly.SSFTAnomalyDetector
+  hparams:
+    in_channels: 61
+    encoder_ckpt: outputs_ssft_ssl/trained_models/walnut_ssft_ssl_restored.pt
+    preset: lentils_fullres
+    size: S
+    downsample: 8
+    decoder: attn4
+    bottleneck_dropout: 0.2
+    hard_mine_frac: 0.5
+    stop_grad: true
+    topk_frac: 0.001
+    input_norm: per_cube_max
+    freeze_encoder: true
+    score_weights: null
+    gas: false
+    gas_weight: 1.0
+    gas_margin: 0.5
+    band_pool: mean
+    spectral_deriv: false
+    spatial_deep: false
+    autocast_dtype: float16
+- name: norm_patchcore
+  class_name: cuvis_ai.node.normalization.MinMaxNormalizer
+  hparams:
+    eps: 1.0e-06
+    use_running_stats: true
+    max_initialization_frames: null
+- name: norm_ssft
+  class_name: cuvis_ai.node.normalization.MinMaxNormalizer
+  hparams:
+    eps: 1.0e-06
+    use_running_stats: true
+    max_initialization_frames: null
+- name: fuse
+  class_name: cuvis_ai_rfdetr.node.score_fusion.ScoreFusion
+  hparams:
+    mode: mean
+    weight: 0.5
+connections:
+- source: cu3s_data.outputs.cube
+  target: patchcore.inputs.cube
+- source: cu3s_data.outputs.cube
+  target: ssft_ad.inputs.cube
+- source: patchcore.outputs.scores
+  target: norm_patchcore.inputs.data
+- source: ssft_ad.outputs.scores
+  target: norm_ssft.inputs.data
+- source: norm_patchcore.outputs.normalized
+  target: fuse.inputs.a
+- source: norm_ssft.outputs.normalized
+  target: fuse.inputs.b
