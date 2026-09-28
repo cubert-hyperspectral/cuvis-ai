@@ -1,0 +1,9 @@
+# SSFT plugin — LOCAL-PATH manifest for the walnut FO deploy stack (relative to this file).
+# Branch walnut-fair-deploy carries the deterministic-inference fix (eval-mode anomaly map,
+# commit 4d23439) — do not point this at an older tag until that fix is released.
+# Only SSFTAnomalyDetector is exposed here (the only node the deploy pipelines use).
+name: ssft
+path: "D:/walnuts/walnut_fo_stack/cuvis-ai-ssft"
+package_name: cuvis-ai-ssft
+capabilities:
+  - class_name: cuvis_ai_ssft.node.anomaly.SSFTAnomalyDetector

@@ -1,0 +1,13 @@
+# Seg-owned RF-DETR manifest, kept SEPARATE from the FO `rfdetr.yaml` (which deliberately exposes only ScoreFusion
+# to keep the heavy segmenter out of the FO import path). Seg pipelines reference `rfdetr_seg`.
+# Absolute local path (matches the other stack manifests). On Thor, re-stamp this `path:` to that checkout
+# (see THOR_DEPLOY_NOTES). Branch code runs via this editable local path.
+name: rfdetr_seg
+path: "D:/walnuts/walnut_fo_stack/cuvis-ai-rfdetr"
+package_name: cuvis-ai-rfdetr
+capabilities:
+  - class_name: cuvis_ai_rfdetr.node.rfdetr_segmenter.RFDETRSegmenter
+  - class_name: cuvis_ai_rfdetr.node.fixed_pca_projection.FixedPCAProjection
+  - class_name: cuvis_ai_rfdetr.node.score_fusion.ScoreFusion
+  - class_name: cuvis_ai_rfdetr.node.score_intersection.ScoreIntersection
+  - class_name: cuvis_ai_rfdetr.node.sam_shell_gate.SamShellGate
