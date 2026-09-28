@@ -68,6 +68,9 @@ Pipeline names: `walnut_combo_<family>_<tier>_cuvisnext_cube`, set with `Weights
 
 ## Thresholds (per-session recalibration)
 
+- **Known issue (28 Sep, THOR_DEPLOY_NOTES §0 and §19):** at the shipped thresholds the FO OR branch misses 13 of the
+  47 18-Aug FO frames, and its EfficientAD gate fires on 25 of the 34 clean 18-Aug kernel-in-shell frames. 1, 15 and
+  22 Sep are clean. Recalibrate per session on clean frames that cover the day's arrangements.
 - The combined yamls' FO gate thresholds are those of the FO variant of their precision (`tf32` 1.337 / 1.9587,
   `fp16` 1.336 / 1.9546). The combined FO branch is bit-identical to that variant, so one calibration serves both.
 - `calibrate_live.py --precision tf32|fp16` runs the variant. `--write` sets it and every combined yaml of that
