@@ -7,9 +7,9 @@ metadata:
     RGB 640/550/470 + CIR 850/660/550 RF-DETR-Seg-L at 504 px, mean fusion; mask =
     fused score >= 0.5, no frame gate; its selectors calibrate on the first 20 frames
     of a session. Outputs to pick in cuvis.next: gate.scores (FO heatmap, gated),
-    ShellMask.decisions (shell mask), ShellHeatmap.scores (shell heatmap). Weights:
-    the family .pt (every tier of walnut_combo_gated shares it); the SEG models load
-    from their checkpoint_path.'
+    gate.decisions (FO mask), ShellMask.decisions (shell mask), ShellHeatmap.scores
+    (shell heatmap). Weights: the family .pt (every tier of walnut_combo_gated shares
+    it); the SEG models load from their checkpoint_path.'
   created: ''
   tags:
   - anomaly
@@ -142,6 +142,7 @@ nodes:
   class_name: cuvis_ai_patchcore.node.gate.FrameScoreGate
   hparams:
     threshold: 1.336
+    mask_threshold: 1.2654
     topk_frac: 0.001
     mode: heatmap
     log_scores: true

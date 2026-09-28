@@ -13,13 +13,21 @@ Pipeline names: `walnut_combo_<family>_<tier>_cuvisnext_cube`, set with `Weights
 | `or` | `walnut_fo_multiscale_effad_or_gated`: multi-scale gate OR EfficientAD gate | `walnut_seg_ens_rgb_cir_mean_v2` |
 | `gated` | `walnut_fo_multiscale_gated`: the multi-scale gate alone | `walnut_seg_ens_rgb_cir_mean_v2` |
 
-| tier | FO variant (thresholds) | SEG tier | needs TensorRT |
-|---|---|---|---|
-| `tf32_exact` | `_tf32` (gate 1.337, EfficientAD 1.9587) | `_exact`: fp32 PyTorch + GPU input, bit-identical to the SEG default | no |
-| `tf32_fast` | `_tf32` | `_fast`: fp16 + JIT trace + GPU input | no |
-| `tf32_trt32` | `_tf32` | `_trt_fp32`: TensorRT fp32 engine (TF32 allowed) | yes |
-| `tf32_trt16` | `_tf32` | `_trt_fp16`: TensorRT fp16 engine | yes |
-| `fp16_trt16` | `_fp16` (gate 1.336, EfficientAD 1.9546) | `_trt_fp16` | yes |
+| tier | FO variant (thresholds on the 22-Sep frames) | SEG tier | needs TensorRT | Thor ms/frame (or / gated) |
+|---|---|---|---|---|
+| `tf32_exact` | `_tf32` (gate 1.337, EfficientAD 1.9587) | `_exact`: fp32 PyTorch + GPU input, bit-identical to the SEG default | no | 182 / 146 |
+| `tf32_fast` | `_tf32` | `_fast`: fp16 + JIT trace + GPU input | no | 149 / 114 |
+| `tf32_trt32` | `_tf32` | `_trt_fp32`: TensorRT fp32 engine (TF32 allowed) | SEG | 140 / 110 |
+| `tf32_trt16` | `_tf32` | `_trt_fp16`: TensorRT fp16 engine | SEG | 119 / 87 |
+| `fp16_trt16` | `_fp16` (gate 1.336, EfficientAD 1.9546) | `_trt_fp16` | SEG | 94 / 71 |
+| `tf32trt_trt32` (or only) | `_tf32trt`: EfficientAD TF32 engine (1.337 / 1.9596) | `_trt_fp32` | SEG + FO | 130 / – |
+| `tf32trt_trt16` (or only) | `_tf32trt` | `_trt_fp16` | SEG + FO | 105 / – |
+| `fp16trt_trt16` | `_fp16trt`: SteerViT + EfficientAD fp16 engines (1.3327 / 1.9587) | `_trt_fp16` | SEG + FO | **57 / 50** |
+
+The gated family has no `tf32trt` tier: it has no EfficientAD, so it would be its `tf32` tier. The TensorRT FO tiers
+change no decision on the reference frames and none of the OR stand-rule decisions on 287 validation frames (FO chat
+record `data/trt_2026-09-28/README.md`). Their thresholds are calibrated for them (`calibrate_live.py --precision
+tf32trt|fp16trt`). Thor ms: one pipeline per process (`time_one.py`); the first two rows are the in-process benches.
 
 - **FO is frame-gated**: its map is shown only on frames where a gate passes, and is zeros otherwise.
   - OR: the multi-scale gated map when the multi-scale gate opens, else the EfficientAD gated map.
@@ -34,6 +42,10 @@ Pipeline names: `walnut_combo_<family>_<tier>_cuvisnext_cube`, set with `Weights
 ## Outputs (pick explicitly in cuvis.next, not "Automatic")
 
 - `display.scores` (or) / `gate.scores` (gated) · heatmap: the FO anomaly map, only on anomalous frames.
+- `display_mask.decisions` (or) / `gate.decisions` (gated) · mask: the FO object mask, the pixels of the displayed FO
+  map above the gate's `mask_threshold` (max clean pixel, set with the thresholds), only on flagged frames. In the OR
+  family `display_mask` is the multi-scale mask when it has pixels, else the EfficientAD mask. The two gates' own
+  `decisions` feed it, so the dropdown (terminal ports only) does not list them there.
 - `ShellMask.decisions` · mask: the SEG shell mask.
 - `ShellHeatmap.scores` · heatmap: the SEG shell probability map.
 - The dropdown also lists `steervit_t1.scores` / `steervit_t2.scores` (SteerViT's zero-shot prompt maps, not the
@@ -59,33 +71,44 @@ Pipeline names: `walnut_combo_<family>_<tier>_cuvisnext_cube`, set with `Weights
 
 ## Requirements
 
-- The deploy checkouts: cuvis-ai-patchcore / -steervit / -efficientad v0.2.0, cuvis-ai-rfdetr v0.5.1.
+- The deploy checkouts (28 Sep late): cuvis-ai-patchcore / -steervit / -efficientad at their 0.3.0 release commits
+  (`ee79792` / `ba93dc4` / `e2dcede`: the FO masks, the FO TensorRT backends), cuvis-ai-rfdetr v0.5.1.
 - **The first load composes a new cuvis.next child env** (a new plugin set; it needs internet). Do it before the
   fair, not at the venue.
 - **`_trt` tiers:** `tensorrt` 10.15.1.29 in that env (`tensorrt-cu12` on the laptop, `tensorrt-cu13` on Thor).
-  A composed env does not have it: `walnut_seg/check_trt_env.py --include-fo --fix` installs it (with the user's go),
-  and it has to be re-checked whenever cuvis.next composes a new env.
+  A composed env does not have it: `walnut_seg/check_trt_env.py --env <hash> --fix` installs it, and it has to be
+  re-checked whenever cuvis.next composes a new env.
+- **FO TensorRT tiers:** also the FO engines of this machine in `<stack>/trt_engines/{steervit,efficientad}` (built
+  28 Sep on the laptop and Thor; each FO TensorRT node's `engine_dir` points there, because cuvis.next runs every
+  session with its own empty home, on both machines). A missing engine stops the pipeline with the build command:
+  `python -m cuvis_ai_steervit.trt_engine build-pipeline <yaml>`, then the same with `cuvis_ai_efficientad` (needs
+  onnx). The first frame after a load takes 2–5 s longer (engine deserialisation).
 
 ## Thresholds (per-session recalibration)
 
 - **Known issue (28 Sep, THOR_DEPLOY_NOTES §0 and §19):** at the shipped thresholds the FO OR branch misses 13 of the
   47 18-Aug FO frames, and its EfficientAD gate fires on 25 of the 34 clean 18-Aug kernel-in-shell frames. 1, 15 and
   22 Sep are clean. Recalibrate per session on clean frames that cover the day's arrangements.
-- The combined yamls' FO gate thresholds are those of the FO variant of their precision (`tf32` 1.337 / 1.9587,
-  `fp16` 1.336 / 1.9546). The combined FO branch is bit-identical to that variant, so one calibration serves both.
-- `calibrate_live.py --precision tf32|fp16` runs the variant. `--write` sets it and every combined yaml of that
-  precision: `gate` in both families, `gate_effad` in the `or` ones. The `.pt` files stay as they are.
-- On the laptop, from the stack root, with the session's clean cu3s (copied from Thor if recorded there):
+- The combined yamls' FO gate thresholds and mask thresholds are those of the FO variant of their precision. The
+  combined FO branch is bit-identical to that variant, so one calibration serves both.
+- `calibrate_live.py --pipeline or --precision all` runs every FO variant (float32, tf32, fp16, tf32trt, fp16trt).
+  `--write` sets each gate's `threshold` (max clean frame score x 1.10) and `mask_threshold` (max clean pixel of its
+  display map x 1.0, EfficientAD x 1.1) in every FO and combined yaml of that precision. The `.pt` files stay.
+- On the laptop, from the stack root, with 15-20 clean cu3s frames of the session (copied from Thor if recorded
+  there); about 3 min per variant:
 
   ```
-  D:\experiments\2026-09-23_walnut-fo-v3\envs\effad_overlay\Scripts\python.exe calibrate_live.py --pipeline or --precision <tf32|fp16> --clean <clean.cu3s> [--clean ...] [--anom <fo.cu3s>] [--write]
+  D:\experiments\2026-09-23_walnut-fo-v3\envs\effad_overlay\Scripts\python.exe calibrate_live.py --pipeline or --precision all --clean <clean.cu3s> [--clean ...] [--anom <fo.cu3s>] --save calib_<day>.json [--write]
   ```
 
-- On Thor, write the values the laptop printed. Nothing runs and no cu3s is read; the system `python3` has PyYAML:
+- On Thor, load the laptop's values. Nothing runs and no cu3s is read; the system `python3` has PyYAML:
 
   ```
-  cd /home/dev/walnut_fo_stack && python3 calibrate_live.py --precision <tf32|fp16> --set gate=<value> --set gate_effad=<value> [--write]
+  cd /home/dev/walnut_fo_stack && python3 calibrate_live.py --load calib_<day>.json [--write]
   ```
+
+  (`--set gate=<v> --set gate.mask=<v>` writes single values of one `--precision`.)
+- The values in the yamls now: `calib_22sep_2026-09-28.json` (THOR_DEPLOY_NOTES section 21).
 
 - Without `--write` both only print what they would set, next to the current values.
 - Why calibrate on the laptop:
@@ -162,3 +185,24 @@ the two FO reference cubes):
 - So all 10 pipelines pass the cuvis.next path bit-identically on both machines.
 - SEG standalone in the new SEG envs: `check_seg_pipelines.py` gives laptop 25 / 25 and Thor 24 / 25 (only the known
   `pca_full`). `_trt_fp16` through gRPC is bit-identical on both.
+
+## Verification (28 Sep late: FO masks, FO TensorRT tiers, plugins 0.3.0)
+
+- **Old outputs unchanged:** every output the 10 earlier pipelines had is bit-identical after the plugin update and
+  after the yaml rebuild (laptop: each step on its own; Thor: both together). The only new outputs are the masks
+  (`display_mask.decisions`, `gate.decisions`).
+- **Rebuilt yamls:** they differ from the earlier ones only by `display_mask` with its two connections (or family),
+  the mask thresholds and the description.
+- **Masks** (in-process, the two FO reference cubes): each gate's `decisions` equals its display-map pixels above
+  `mask_threshold` on flagged frames and is empty otherwise; `display_mask` is the first gate's mask with pixels.
+- **The cuvis.next path**, all 14 pipelines in the newly composed envs (TensorRT installed): bit-identical on every
+  port (or 19, gated 14) on the laptop and on Thor. After Thor's plugin clones moved to the corrected doc heads,
+  `or_fp16trt_trt16`, `gated_fp16trt_trt16` and `or_tf32trt_trt32` gave the same tables once more.
+- **Envs** cuvis.next now reuses: laptop or `d8d883937b25ded1`, gated `46730369e8347461`; Thor or
+  `532c4511225bb4b3`, gated `51e9ea530b0628f5`.
+- **Weights:** Thor keeps the earlier build's two family `.pt` (the new tiers hardlink them). Every tensor (sha256)
+  and the metadata equal the laptop's rebuilt files; only the zip record names inside differ, which torch takes
+  from the file name at save time.
+- **Laptop vs Thor masks:** not compared frame by frame. The displayed FO map differs by ≤ 0.0063 between the
+  machines (above), so a mask edge can move by a few pixels; clean frames stay empty because the gate, with its
+  10 % margin, does not open.

@@ -1,16 +1,17 @@
 metadata:
-  name: walnut_combo_or_tf32_trt16_cuvisnext_cube
+  name: walnut_combo_or_fp16trt_trt16_cuvisnext_cube
   description: 'Combined walnut pipeline, FO anomaly + SEG shells on one cube. FO
-    (walnut_fo_multiscale_effad_or_gated_tf32, TF32; thresholds gate 1.337, gate_effad
-    1.9587): multi-scale t1+t2 gate OR EfficientAD gate; display = the multi-scale
-    gated map when its gate opens, else the EfficientAD gated map, zeros when neither
-    passes. SEG (walnut_seg_ens_rgb_cir_mean_v2_trt_fp16, TensorRT fp16 engine): RGB
-    640/550/470 + CIR 850/660/550 RF-DETR-Seg-L at 504 px, mean fusion; mask = fused
-    score >= 0.5, no frame gate; its selectors calibrate on the first 20 frames of
-    a session. Outputs to pick in cuvis.next: display.scores (FO heatmap, gated),
-    display_mask.decisions (FO mask), ShellMask.decisions (shell mask), ShellHeatmap.scores
-    (shell heatmap). Weights: the family .pt (every tier of walnut_combo_or shares
-    it); the SEG models load from their checkpoint_path.'
+    (walnut_fo_multiscale_effad_or_gated_fp16trt, float16 autocast; TensorRT engines
+    for steervit_t1, steervit_t2, effad; thresholds gate 1.336, gate_effad 1.9546):
+    multi-scale t1+t2 gate OR EfficientAD gate; display = the multi-scale gated map
+    when its gate opens, else the EfficientAD gated map, zeros when neither passes.
+    SEG (walnut_seg_ens_rgb_cir_mean_v2_trt_fp16, TensorRT fp16 engine): RGB 640/550/470
+    + CIR 850/660/550 RF-DETR-Seg-L at 504 px, mean fusion; mask = fused score >=
+    0.5, no frame gate; its selectors calibrate on the first 20 frames of a session.
+    Outputs to pick in cuvis.next: display.scores (FO heatmap, gated), display_mask.decisions
+    (FO mask), ShellMask.decisions (shell mask), ShellHeatmap.scores (shell heatmap).
+    Weights: the family .pt (every tier of walnut_combo_or shares it); the SEG models
+    load from their checkpoint_path.'
   created: ''
   tags:
   - anomaly
@@ -56,13 +57,15 @@ nodes:
 - name: steervit_t1
   class_name: cuvis_ai_steervit.node.steervit.SteerViTExtractor
   hparams:
+    backend: tensorrt
+    engine_dir: D:/walnuts/walnut_fo_stack/trt_engines/steervit
     checkpoint: steervit_dinov2_base.pth
     hf_repo: JonaRuthardt/SteerViT
     prompts:
     - the anomaly in the walnuts
     topk_frac: 0.001
     score_activation: sigmoid
-    tf32: true
+    autocast_dtype: float16
 - name: patchcore_t1
   class_name: cuvis_ai_patchcore.node.patchcore.PatchCoreDetector
   hparams:
@@ -74,13 +77,12 @@ nodes:
     max_bank_size: 80000
     topk_frac: 0.001
     chunk_size: 4096
-    autocast_dtype: null
+    autocast_dtype: float16
     standardize: false
     seed: 0
     eps: 1.0e-06
     coreset_projection: null
     projection_eps: 0.9
-    tf32: true
 - name: tiler_t2
   class_name: cuvis_ai_steervit.node.tiling.ImageTiler
   hparams:
@@ -88,13 +90,15 @@ nodes:
 - name: steervit_t2
   class_name: cuvis_ai_steervit.node.steervit.SteerViTExtractor
   hparams:
+    backend: tensorrt
+    engine_dir: D:/walnuts/walnut_fo_stack/trt_engines/steervit
     checkpoint: steervit_dinov2_base.pth
     hf_repo: JonaRuthardt/SteerViT
     prompts:
     - the anomaly in the walnuts
     topk_frac: 0.001
     score_activation: sigmoid
-    tf32: true
+    autocast_dtype: float16
 - name: stitch_t2
   class_name: cuvis_ai_steervit.node.tiling.GridStitcher
   hparams:
@@ -110,13 +114,12 @@ nodes:
     max_bank_size: 80000
     topk_frac: 0.001
     chunk_size: 4096
-    autocast_dtype: null
+    autocast_dtype: float16
     standardize: false
     seed: 0
     eps: 1.0e-06
     coreset_projection: null
     projection_eps: 0.9
-    tf32: true
 - name: norm_t1
   class_name: cuvis_ai_patchcore.node.calibration.ScoreRangeNormalizer
   hparams:
@@ -147,15 +150,17 @@ nodes:
 - name: gate
   class_name: cuvis_ai_patchcore.node.gate.FrameScoreGate
   hparams:
-    threshold: 1.337
+    threshold: 1.3327
     topk_frac: 0.001
     mode: heatmap
-    mask_threshold: 1.2645
+    mask_threshold: 1.2604
     log_scores: true
     smooth_k: 1
 - name: effad
   class_name: cuvis_ai_efficientad.node.efficientad.EfficientAdDetector
   hparams:
+    backend: tensorrt
+    engine_dir: D:/walnuts/walnut_fo_stack/trt_engines/efficientad
     image_size:
     - 512
     - 512
@@ -164,7 +169,7 @@ nodes:
     padding: false
     pad_maps: true
     topk_frac: 0.001
-    tf32: true
+    autocast_dtype: float16
 - name: norm_effad
   class_name: cuvis_ai_patchcore.node.calibration.ScoreRangeNormalizer
   hparams:
@@ -182,7 +187,7 @@ nodes:
     threshold: 1.9587
     topk_frac: 0.001
     mode: heatmap
-    mask_threshold: 2.7569
+    mask_threshold: 2.7504
     log_scores: true
     smooth_k: 1
 - name: display

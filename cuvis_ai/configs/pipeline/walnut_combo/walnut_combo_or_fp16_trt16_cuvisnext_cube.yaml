@@ -8,9 +8,9 @@ metadata:
     engine): RGB 640/550/470 + CIR 850/660/550 RF-DETR-Seg-L at 504 px, mean fusion;
     mask = fused score >= 0.5, no frame gate; its selectors calibrate on the first
     20 frames of a session. Outputs to pick in cuvis.next: display.scores (FO heatmap,
-    gated), ShellMask.decisions (shell mask), ShellHeatmap.scores (shell heatmap).
-    Weights: the family .pt (every tier of walnut_combo_or shares it); the SEG models
-    load from their checkpoint_path.'
+    gated), display_mask.decisions (FO mask), ShellMask.decisions (shell mask), ShellHeatmap.scores
+    (shell heatmap). Weights: the family .pt (every tier of walnut_combo_or shares
+    it); the SEG models load from their checkpoint_path.'
   created: ''
   tags:
   - anomaly
@@ -148,7 +148,7 @@ nodes:
     threshold: 1.336
     topk_frac: 0.001
     mode: heatmap
-    mask_threshold: null
+    mask_threshold: 1.2654
     log_scores: true
     smooth_k: 1
 - name: effad
@@ -180,7 +180,7 @@ nodes:
     threshold: 1.9546
     topk_frac: 0.001
     mode: heatmap
-    mask_threshold: null
+    mask_threshold: 2.7595
     log_scores: true
     smooth_k: 1
 - name: display
@@ -188,6 +188,10 @@ nodes:
   hparams:
     mode: first
     weights: null
+- name: display_mask
+  class_name: cuvis_ai_patchcore.node.fusion.DecisionFusion
+  hparams:
+    mode: first
 - name: SelRGB
   class_name: cuvis_ai.node.channel_selector.FixedWavelengthSelector
   hparams:
@@ -321,12 +325,16 @@ connections:
   target: gate.inputs.scores
 - source: gate.outputs.scores
   target: display.inputs.scores
+- source: gate.outputs.decisions
+  target: display_mask.inputs.decisions
 - source: effad.outputs.scores
   target: norm_effad.inputs.scores
 - source: norm_effad.outputs.normalized
   target: gate_effad.inputs.scores
 - source: gate_effad.outputs.scores
   target: display.inputs.scores
+- source: gate_effad.outputs.decisions
+  target: display_mask.inputs.decisions
 - source: SelRGB.outputs.rgb_image
   target: SegRGB.inputs.rgb_image
 - source: SelCIR.outputs.rgb_image
