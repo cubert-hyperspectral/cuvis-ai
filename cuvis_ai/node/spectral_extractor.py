@@ -15,6 +15,43 @@ from cuvis_ai_schemas.pipeline import PortSpec
 from cuvis_ai_core.node import Node
 
 
+def _trimmed_stats(
+    pixels: torch.Tensor,
+    num_channels: int,
+    *,
+    min_pixels: int,
+    zero_norm_threshold: float,
+    trim_fraction: float,
+    aggregation: str = "mean",
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Trimmed centre and std over pixel rows ``[P, C]``; zeros when too few rows survive.
+
+    Rows with a non-finite value or a norm below ``zero_norm_threshold`` are dropped, and a
+    set smaller than ``min_pixels`` yields zeros. Each band is sorted and ``trim_fraction``
+    of the rows is cut from both ends before the ``aggregation`` (``"median"`` or ``"mean"``)
+    and the population std are taken.
+    """
+    zeros = torch.zeros(num_channels, dtype=pixels.dtype, device=pixels.device)
+    if pixels.numel() == 0:
+        return zeros, zeros
+    pixels = pixels[torch.isfinite(pixels).all(dim=1)]
+    if pixels.shape[0] < min_pixels:
+        return zeros, zeros
+    pixels = pixels[torch.linalg.vector_norm(pixels, dim=1) >= zero_norm_threshold]
+    if pixels.shape[0] < min_pixels:
+        return zeros, zeros
+    sorted_vals, _ = torch.sort(pixels, dim=0)
+    num_pixels = sorted_vals.shape[0]
+    trim_k = int(math.floor(num_pixels * trim_fraction))
+    if trim_k > 0 and (num_pixels - 2 * trim_k) > 0:
+        sorted_vals = sorted_vals[trim_k : num_pixels - trim_k]
+    if aggregation == "median":
+        centre = sorted_vals.median(dim=0).values
+    else:
+        centre = sorted_vals.mean(dim=0)
+    return centre, sorted_vals.std(dim=0, unbiased=False)
+
+
 class BBoxSpectralExtractor(Node):
     """Extract per-bbox spectral signatures with trimmed median/mean and std.
 
@@ -97,54 +134,6 @@ class BBoxSpectralExtractor(Node):
             **kwargs,
         )
 
-    def _trimmed_stats(
-        self, pixels: torch.Tensor, num_channels: int
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Compute trimmed median/mean and std over pixel rows.
-
-        Parameters
-        ----------
-        pixels : Tensor
-            Spectral vectors ``[P, C]`` gathered from the crop.
-        num_channels : int
-            Number of spectral channels ``C``.
-
-        Returns
-        -------
-        (signature, std) : tuple of Tensors, each ``[C]``
-        """
-        zeros = torch.zeros(num_channels, dtype=pixels.dtype, device=pixels.device)
-        if pixels.numel() == 0:
-            return zeros, zeros
-
-        # Filter non-finite rows
-        valid_rows = torch.isfinite(pixels).all(dim=1)
-        pixels = pixels[valid_rows]
-        if pixels.shape[0] < self.min_crop_pixels:
-            return zeros, zeros
-
-        # Filter near-zero-norm pixels
-        norms = torch.linalg.vector_norm(pixels, dim=1)
-        pixels = pixels[norms >= 1e-8]
-        if pixels.shape[0] < self.min_crop_pixels:
-            return zeros, zeros
-
-        # Sort per-band and trim
-        sorted_vals, _ = torch.sort(pixels, dim=0)
-        num_pixels = sorted_vals.shape[0]
-        trim_k = int(math.floor(num_pixels * self.trim_fraction))
-        if trim_k > 0 and (num_pixels - 2 * trim_k) > 0:
-            sorted_vals = sorted_vals[trim_k : num_pixels - trim_k]
-
-        # Aggregate
-        if self.aggregation == "median":
-            signature = sorted_vals.median(dim=0).values
-        else:
-            signature = sorted_vals.mean(dim=0)
-
-        std = sorted_vals.std(dim=0, unbiased=False)
-        return signature, std
-
     def _center_crop_bbox(
         self, x1: int, y1: int, x2: int, y2: int, img_h: int, img_w: int
     ) -> tuple[int, int, int, int]:
@@ -221,7 +210,14 @@ class BBoxSpectralExtractor(Node):
             # Gather pixels from crop region: [P, C]
             pixels = cube_0[cy1:cy2, cx1:cx2, :].reshape(-1, num_channels)
 
-            sig, std = self._trimmed_stats(pixels, num_channels)
+            sig, std = _trimmed_stats(
+                pixels,
+                num_channels,
+                min_pixels=self.min_crop_pixels,
+                zero_norm_threshold=1e-8,
+                trim_fraction=self.trim_fraction,
+                aggregation=self.aggregation,
+            )
 
             sig_norm = sig.norm()
             is_valid = sig_norm >= 1e-8
@@ -340,34 +336,6 @@ class SpectralSignatureExtractor(Node):
         resized = cv2.resize(mask_np, (width, height), interpolation=cv2.INTER_NEAREST)
         return torch.from_numpy(resized).to(mask_2d.device)
 
-    def _trimmed_stats(
-        self, pixels: torch.Tensor, num_channels: int
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Compute trimmed mean and std over pixel rows, filtering outliers."""
-        zeros = torch.zeros(num_channels, dtype=pixels.dtype, device=pixels.device)
-        if pixels.numel() == 0:
-            return zeros, zeros
-
-        valid_rows = torch.isfinite(pixels).all(dim=1)
-        pixels = pixels[valid_rows]
-        if pixels.shape[0] < self.min_mask_pixels:
-            return zeros, zeros
-
-        norms = torch.linalg.vector_norm(pixels, dim=1)
-        pixels = pixels[norms >= self.zero_norm_threshold]
-        if pixels.shape[0] < self.min_mask_pixels:
-            return zeros, zeros
-
-        sorted_vals, _ = torch.sort(pixels, dim=0)
-        num_pixels = sorted_vals.shape[0]
-        trim_k = int(math.floor(num_pixels * self.trim_fraction))
-        if trim_k > 0 and (num_pixels - 2 * trim_k) > 0:
-            sorted_vals = sorted_vals[trim_k : num_pixels - trim_k]
-
-        mean = sorted_vals.mean(dim=0)
-        std = sorted_vals.std(dim=0, unbiased=False)
-        return mean, std
-
     def forward(
         self,
         cube: torch.Tensor,
@@ -409,7 +377,13 @@ class SpectralSignatureExtractor(Node):
                 continue
 
             pixels = cube_0[obj_mask]
-            mean, std = self._trimmed_stats(pixels, num_channels=num_channels)
+            mean, std = _trimmed_stats(
+                pixels,
+                num_channels,
+                min_pixels=self.min_mask_pixels,
+                zero_norm_threshold=self.zero_norm_threshold,
+                trim_fraction=self.trim_fraction,
+            )
             signatures.append(mean)
             signatures_std.append(std)
 

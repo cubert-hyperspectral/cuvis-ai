@@ -37,6 +37,7 @@ from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.execution import InputStream
 from cuvis_ai_schemas.pipeline import PortSpec
 
+from cuvis_ai.utils.welford import WelfordAccumulator
 from cuvis_ai_core.node import Node
 
 
@@ -113,6 +114,28 @@ class _StatisticalFitNode(Node):
                 f"{type(self).__name__}.statistical_initialization received "
                 f"{n_samples} sample(s); need at least {self._MIN_FIT_SAMPLES}."
             )
+
+    def _fit_channel_moments(self, input_stream: InputStream) -> WelfordAccumulator:
+        """Stream every ``cube`` batch through one Welford accumulator over the channels.
+
+        Batches without a ``cube`` port are skipped and the accumulator is created on the
+        first batch's device; a stream that yields too few samples is rejected through
+        :meth:`_reject_if_insufficient` before anything is returned.
+        """
+        welford: WelfordAccumulator | None = None
+        for batch in input_stream:
+            x = batch.get("cube")
+            if x is None:
+                continue
+            flat = x.reshape(-1, x.shape[-1]).to(torch.float32)
+            if welford is None:
+                welford = WelfordAccumulator(flat.shape[-1], track_covariance=False).to(
+                    device=flat.device
+                )
+            welford.update(flat)
+        self._reject_if_insufficient(0 if welford is None else welford.count)
+        assert welford is not None
+        return welford
 
     @torch.no_grad()
     def _collect_pixels(self, input_stream: InputStream) -> torch.Tensor:

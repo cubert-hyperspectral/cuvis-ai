@@ -7,8 +7,9 @@ import math
 import torch
 import torch.nn.functional as F
 
-# Keep in sync with vis_helpers.OBJECT_PALETTE for compatibility.
-_DEFAULT_PALETTE: list[tuple[int, int, int]] = [
+# 12 perceptually-distinct colours for multi-object overlays (RGB, 0-255); vis_helpers
+# re-exports it.
+OBJECT_PALETTE: list[tuple[int, int, int]] = [
     (230, 25, 75),
     (60, 180, 75),
     (255, 225, 25),
@@ -328,7 +329,7 @@ def id_to_color(ids: torch.Tensor) -> torch.Tensor:
     if n == 0:
         return out
 
-    palette = torch.tensor(_DEFAULT_PALETTE, dtype=torch.uint8, device=ids.device)
+    palette = torch.tensor(OBJECT_PALETTE, dtype=torch.uint8, device=ids.device)
     palette_len = int(palette.shape[0])
 
     in_palette = (ids_i64 >= 0) & (ids_i64 < palette_len)
@@ -508,6 +509,7 @@ def draw_sparkline(
 
 
 __all__ = [
+    "OBJECT_PALETTE",
     "mask_edge",
     "draw_box",
     "draw_text",

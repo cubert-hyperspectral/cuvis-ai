@@ -12,7 +12,6 @@ from cuvis_ai_schemas.execution import InputStream
 from cuvis_ai_schemas.pipeline import PortSpec
 
 from cuvis_ai.node._statistical_fit import _StatisticalFitNode
-from cuvis_ai.utils.welford import WelfordAccumulator
 
 
 class MeanCenter(_StatisticalFitNode):
@@ -53,21 +52,7 @@ class MeanCenter(_StatisticalFitNode):
         input_stream : InputStream
             Iterable of port-keyed batch dicts matching ``INPUT_SPECS``.
         """
-        welford: WelfordAccumulator | None = None
-        for batch in input_stream:
-            x = batch.get("cube")
-            if x is None:
-                continue
-            flat = x.reshape(-1, x.shape[-1]).to(torch.float32)
-            if welford is None:
-                welford = WelfordAccumulator(flat.shape[-1], track_covariance=False).to(
-                    device=flat.device
-                )
-            welford.update(flat)
-
-        count = 0 if welford is None else welford.count
-        self._reject_if_insufficient(count)
-        self.mean_c = welford.mean
+        self.mean_c = self._fit_channel_moments(input_stream).mean
         self._mark_initialized()
 
     def forward(self, cube: torch.Tensor, **_) -> dict[str, torch.Tensor]:
@@ -126,21 +111,7 @@ class UnitVarianceScaling(_StatisticalFitNode):
         input_stream : InputStream
             Iterable of port-keyed batch dicts matching ``INPUT_SPECS``.
         """
-        welford: WelfordAccumulator | None = None
-        for batch in input_stream:
-            x = batch.get("cube")
-            if x is None:
-                continue
-            flat = x.reshape(-1, x.shape[-1]).to(torch.float32)
-            if welford is None:
-                welford = WelfordAccumulator(flat.shape[-1], track_covariance=False).to(
-                    device=flat.device
-                )
-            welford.update(flat)
-
-        count = 0 if welford is None else welford.count
-        self._reject_if_insufficient(count)
-        self.std_c = welford.std
+        self.std_c = self._fit_channel_moments(input_stream).std
         self._mark_initialized()
 
     def forward(self, cube: torch.Tensor, **_) -> dict[str, torch.Tensor]:
