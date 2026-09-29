@@ -103,7 +103,7 @@ print(f"Session created: {session_id}")
 message SetSessionSearchPathsRequest {
   string session_id = 1;
   repeated string search_paths = 2;  // Absolute paths
-  bool append = 3;                   // false = replace, true = append
+  optional bool append = 3;          // unset or true = append, false = replace
 }
 ```
 
@@ -142,8 +142,8 @@ stub.SetSessionSearchPaths(
 
 - **Must be called before** `ResolveConfig` for Hydra composition to work
 - Paths must be **absolute paths** (not relative)
-- Use `append=False` (default) to replace existing paths
-- Use `append=True` to add paths to existing list
+- Leave `append` unset (or pass `append=True`) to add paths to the session's default search path
+- Pass `append=False` to replace the session's search paths with the given list
 - Common pattern: call immediately after `CreateSession`
 
 **Helper Function:**
