@@ -13,3 +13,4 @@ capabilities:
   - class_name: cuvis_ai_patchcore.node.calibration.ScoreRangeNormalizer
   - class_name: cuvis_ai_patchcore.node.gate.FrameScoreGate
   - class_name: cuvis_ai_patchcore.node.fusion.DecisionFusion
+  - class_name: cuvis_ai_patchcore.node.fusion.MaskComposite
