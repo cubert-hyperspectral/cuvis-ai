@@ -265,6 +265,7 @@ class SpectrumPlotNode(Node):
         frame_id: torch.Tensor | None = None,
         **_: Any,
     ) -> dict[str, torch.Tensor]:
+        """Render the tracked spectrum against the reference into one ``rgb_image`` per batch entry."""
         tracked_np = tracked_spectrum.detach().cpu().numpy()
         reference_np = reference_spectrum.detach().cpu().numpy().reshape(-1)
 

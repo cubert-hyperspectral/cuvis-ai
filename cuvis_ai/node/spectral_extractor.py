@@ -465,6 +465,7 @@ class MaskedMeanSpectrum(Node):
         mask: torch.Tensor,
         **_: Any,
     ) -> dict[str, torch.Tensor]:
+        """Mean spectrum of the mask's foreground per batch entry; ``valid`` is 0 where it is empty."""
         fg = (mask > 0).to(cube.dtype)  # [B, H, W]
         counts = fg.sum(dim=(1, 2))  # [B]
         weights = fg.unsqueeze(-1)  # [B, H, W, 1]

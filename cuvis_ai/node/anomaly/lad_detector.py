@@ -36,9 +36,8 @@ from cuvis_ai_core.node import Node
 class LADGlobal(Node):
     """Laplacian Anomaly Detector (global), variant 'C' (Cauchy), port-based.
 
-    This is the new cuvis.ai v3 implementation of the LAD detector. It follows the
-    same mathematical definition as the legacy v2 `LADGlobal`, but exposes a
-    port-based interface compatible with `CuvisPipeline`, `StatisticalTrainer`,
+    It follows the mathematical definition of the classic LAD detector and exposes
+    a port-based interface compatible with `CuvisPipeline`, `StatisticalTrainer`,
     and `GradientTrainer`.
 
     Ports
@@ -218,8 +217,8 @@ class LADGlobal(Node):
     def reset(self) -> None:
         """Reset all statistics and model parameters to initial state.
 
-        Clears the streaming mean accumulator (_mean_run), sample count (_count),
-        global mean (M), and Laplacian matrix (L). After reset, the detector must
+        Clears the Welford accumulator, the global mean (M) and the Laplacian
+        matrix (L). After reset, the detector must
         be re-initialized via statistical_initialization() before inference.
 
         Notes

@@ -1,12 +1,13 @@
 """
 Two-Stage Binary Decision Module.
 
-This module provides a two-stage binary decision node that first applies
-an image-level anomaly gate based on top-k statistics, then applies
-pixel-level quantile thresholding only for images that pass the gate.
+This module provides a two-stage binary decision node: an optional image-level
+gate on the mean of the top-k per-pixel scores (off until ``image_threshold`` is
+set or calibrated), then a pixel-level cut with the calibrated absolute
+``pixel_threshold`` or, without one, the per-frame ``quantile``.
 
-This approach reduces false positives by filtering out images with low
-overall anomaly scores before applying pixel-level decisions.
+The gate reduces false positives by blanking frames whose overall anomaly
+score stays low before any pixel-level decision is made.
 
 See Also
 --------

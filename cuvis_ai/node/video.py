@@ -18,7 +18,7 @@ from cuvis_ai_schemas.pipeline import PortSpec
 from loguru import logger
 
 from cuvis_ai.utils.torch_draw import draw_text
-from cuvis_ai_core.data.video import (  # noqa: F401
+from cuvis_ai_core.data.video import (
     VideoFrameDataModule,
     VideoFrameDataset,
     VideoIterator,
@@ -366,7 +366,7 @@ class ToVideoNode(_FrameRenderMixin, Node):
         self,
         rgb_image: torch.Tensor,
         frame_id: torch.Tensor | None = None,
-        context: Context | None = None,  # noqa: ARG002
+        context: Context | None = None,
         **_: Any,
     ) -> dict[str, Any]:
         """Append incoming RGB frames to the configured video file.
@@ -608,7 +608,7 @@ class ToImage(_FrameRenderMixin, Node):
         self,
         rgb_image: torch.Tensor,
         frame_id: torch.Tensor | None = None,
-        context: Context | None = None,  # noqa: ARG002
+        context: Context | None = None,
         **_: Any,
     ) -> dict[str, Any]:
         """Write each incoming RGB frame to its own image file.

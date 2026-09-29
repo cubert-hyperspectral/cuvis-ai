@@ -240,10 +240,10 @@ class TensorBoardMonitorNode(Node):
     def log(self, name: str, value: float, step: int) -> None:
         """Log a scalar value to TensorBoard.
 
-        This method provides a simple interface for external trainers
-        to log metrics directly, complementing the port-based logging.
-        Used by GradientTrainer to log train/val losses to the same
-        TensorBoard directory as graph metrics and artifacts.
+        This method provides a simple interface for external callers
+        to log metrics directly, complementing the port-based logging,
+        so their scalars land in the same TensorBoard directory as the
+        graph metrics and artifacts.
 
         Parameters
         ----------

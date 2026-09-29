@@ -94,7 +94,7 @@ def _is_node_subclass(obj: Any) -> bool:
     if not inspect.isclass(obj):
         return False
     try:
-        from cuvis_ai_core.node.node import Node  # noqa: PLC0415
+        from cuvis_ai_core.node.node import Node
 
         return issubclass(obj, Node) and obj is not Node
     except Exception:

@@ -21,6 +21,7 @@ from glob import glob
 
 
 def _register_ffmpeg_dll_dirs() -> None:
+    """On Windows, add every ``PATH`` directory holding an ``avcodec-*.dll`` to the DLL search path."""
     if sys.platform != "win32":
         return
     seen: set[str] = set()
