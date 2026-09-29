@@ -80,6 +80,41 @@ from cuvis_ai_core.node import Node
 # the selector instead of relying on the selector's built-in normalization.
 
 
+def _wavelengths_tensor(wavelengths: Any, device: torch.device) -> torch.Tensor:
+    """``wavelengths`` as a 1D float32 tensor on ``device``; a leading batch axis of one is dropped."""
+    wavelengths_t = (
+        wavelengths if isinstance(wavelengths, torch.Tensor) else torch.as_tensor(wavelengths)
+    )
+    if wavelengths_t.ndim == 2:
+        wavelengths_t = wavelengths_t[0]
+    if wavelengths_t.ndim != 1:
+        raise ValueError(f"Expected 1D wavelengths [C], got shape {tuple(wavelengths_t.shape)}")
+    return wavelengths_t.to(device=device, dtype=torch.float32)
+
+
+def _wavelengths_array(wavelengths: Any) -> np.ndarray:
+    """``wavelengths`` as a 1D float32 array; a leading batch axis of one is dropped."""
+    wavelengths_np = np.asarray(wavelengths, dtype=np.float32)
+    if wavelengths_np.ndim == 2:
+        wavelengths_np = wavelengths_np[0]
+    if wavelengths_np.ndim != 1:
+        raise ValueError(f"Expected 1D wavelengths [C], got shape {wavelengths_np.shape}")
+    return wavelengths_np.ravel()
+
+
+def _safe_denominator(denominator: torch.Tensor, eps: float) -> torch.Tensor:
+    """``denominator`` with every entry of magnitude at most ``eps`` replaced by ``eps``."""
+    return torch.where(denominator.abs() > eps, denominator, torch.full_like(denominator, eps))
+
+
+def _render_hsv_index(
+    index_image: torch.Tensor, colormap_min: float, colormap_range: float
+) -> torch.Tensor:
+    """Map a scalar index image to RGB with the Blood_OXY HSV colormap over ``[min, min + range]``."""
+    normalized = ((index_image - colormap_min) / colormap_range).clamp(0.0, 1.0)
+    return render_scalar_hsv_colormap(normalized)
+
+
 class ChannelSelectorBase(Node):
     """Base class for hyperspectral band selection strategies.
 
@@ -512,12 +547,7 @@ class _NormalizedDifferenceIndexBase(ChannelSelectorBase, ABC):
         wavelengths: Any,
     ) -> tuple[np.ndarray, int, int]:
         """Resolve nearest spectral indices for the two operands."""
-        wavelengths_np = np.asarray(wavelengths, dtype=np.float32)
-        if wavelengths_np.ndim == 2:
-            wavelengths_np = wavelengths_np[0]
-        if wavelengths_np.ndim != 1:
-            raise ValueError(f"Expected 1D wavelengths [C], got shape {wavelengths_np.shape}")
-        wavelengths_np = wavelengths_np.ravel()
+        wavelengths_np = _wavelengths_array(wavelengths)
 
         primary_idx = self._nearest_band_index(wavelengths_np, self.primary_nm)
         secondary_idx = self._nearest_band_index(wavelengths_np, self.secondary_nm)
@@ -639,8 +669,7 @@ class NDVISelector(_NormalizedDifferenceIndexBase):
 
     def _render_rgb_from_index(self, index_image: torch.Tensor) -> torch.Tensor:
         """Render NDVI using the Blood_OXY HSV colormap."""
-        normalized = ((index_image - self.colormap_min) / self._colormap_range).clamp(0.0, 1.0)
-        return render_scalar_hsv_colormap(normalized)
+        return _render_hsv_index(index_image, self.colormap_min, self._colormap_range)
 
     def forward(
         self,
@@ -705,8 +734,7 @@ class _ColormappedNormalizedDifferenceSelector(_NormalizedDifferenceIndexBase, A
 
     def _render_rgb_from_index(self, index_image: torch.Tensor) -> torch.Tensor:
         """Render the scalar index image using the Blood_OXY HSV colormap."""
-        normalized = ((index_image - self.colormap_min) / self._colormap_range).clamp(0.0, 1.0)
-        return render_scalar_hsv_colormap(normalized)
+        return _render_hsv_index(index_image, self.colormap_min, self._colormap_range)
 
     def forward(
         self,
@@ -1003,12 +1031,7 @@ class _VegetationIndexBase(ChannelSelectorBase, ABC):
 
     def _resolve_band_indices(self, wavelengths: Any) -> tuple[np.ndarray, dict[str, int]]:
         """Resolve nearest spectral indices for every named band."""
-        wavelengths_np = np.asarray(wavelengths, dtype=np.float32)
-        if wavelengths_np.ndim == 2:
-            wavelengths_np = wavelengths_np[0]
-        if wavelengths_np.ndim != 1:
-            raise ValueError(f"Expected 1D wavelengths [C], got shape {wavelengths_np.shape}")
-        wavelengths_np = wavelengths_np.ravel()
+        wavelengths_np = _wavelengths_array(wavelengths)
 
         indices = {
             name: self._nearest_band_index(wavelengths_np, nm) for name, nm in self.band_nm.items()
@@ -1024,8 +1047,7 @@ class _VegetationIndexBase(ChannelSelectorBase, ABC):
 
     def _render_rgb_from_index(self, index_image: torch.Tensor) -> torch.Tensor:
         """Render the scalar index image using the Blood_OXY HSV colormap."""
-        normalized = ((index_image - self.colormap_min) / self._colormap_range).clamp(0.0, 1.0)
-        return render_scalar_hsv_colormap(normalized)
+        return _render_hsv_index(index_image, self.colormap_min, self._colormap_range)
 
     def _compute_raw_rgb(self, cube: torch.Tensor, wavelengths: Any) -> torch.Tensor:
         """Render the scalar index image into RGB."""
@@ -1121,11 +1143,7 @@ class EVISelector(_VegetationIndexBase):
         nir, red, blue = bands["nir"], bands["red"], bands["blue"]
         numerator = nir - red
         denominator = nir + 6.0 * red - 7.5 * blue + 1.0
-        denominator = torch.where(
-            denominator.abs() > self.eps,
-            denominator,
-            torch.full_like(denominator, self.eps),
-        )
+        denominator = _safe_denominator(denominator, self.eps)
         return 2.5 * numerator / denominator
 
 
@@ -1176,11 +1194,7 @@ class EVI2Selector(_VegetationIndexBase):
         nir, red = bands["nir"], bands["red"]
         numerator = nir - red
         denominator = nir + 2.4 * red + 1.0
-        denominator = torch.where(
-            denominator.abs() > self.eps,
-            denominator,
-            torch.full_like(denominator, self.eps),
-        )
+        denominator = _safe_denominator(denominator, self.eps)
         return 2.5 * numerator / denominator
 
 
@@ -1236,11 +1250,7 @@ class SAVISelector(_VegetationIndexBase):
         soil = self.soil_factor
         numerator = nir - red
         denominator = nir + red + soil
-        denominator = torch.where(
-            denominator.abs() > self.eps,
-            denominator,
-            torch.full_like(denominator, self.eps),
-        )
+        denominator = _safe_denominator(denominator, self.eps)
         return (1.0 + soil) * numerator / denominator
 
 
@@ -1336,11 +1346,7 @@ class CIRedEdgeSelector(_VegetationIndexBase):
     def _compute_index(self, bands: dict[str, torch.Tensor]) -> torch.Tensor:
         """Compute the CIRedEdge map from resolved red-edge/nir bands."""
         nir, red_edge = bands["nir"], bands["red_edge"]
-        denominator = torch.where(
-            red_edge.abs() > self.eps,
-            red_edge,
-            torch.full_like(red_edge, self.eps),
-        )
+        denominator = _safe_denominator(red_edge, self.eps)
         return nir / denominator - 1.0
 
 
@@ -1390,11 +1396,7 @@ class MCARISelector(_VegetationIndexBase):
     def _compute_index(self, bands: dict[str, torch.Tensor]) -> torch.Tensor:
         """Compute the MCARI map from resolved green/red/red-edge bands."""
         green, red, red_edge = bands["green"], bands["red"], bands["red_edge"]
-        red_safe = torch.where(
-            red.abs() > self.eps,
-            red,
-            torch.full_like(red, self.eps),
-        )
+        red_safe = _safe_denominator(red, self.eps)
         return ((red_edge - red) - 0.2 * (red_edge - green)) * (red_edge / red_safe)
 
 
@@ -1442,11 +1444,7 @@ class PRISelector(_VegetationIndexBase):
         b1, b2 = bands["band1"], bands["band2"]
         numerator = b1 - b2
         denominator = b1 + b2
-        denominator = torch.where(
-            denominator.abs() > self.eps,
-            denominator,
-            torch.full_like(denominator, self.eps),
-        )
+        denominator = _safe_denominator(denominator, self.eps)
         return numerator / denominator
 
 
@@ -1684,24 +1682,6 @@ class RangeAverageFalseRGBSelector(ChannelSelectorBase):
         self.register_buffer("_avg_mask", None, persistent=False)
         self._cached_wl_key: tuple[float, ...] | None = None
 
-    @staticmethod
-    def _prepare_wavelengths_tensor(
-        wavelengths: Any,
-        device: torch.device,
-    ) -> torch.Tensor:
-        """Convert wavelengths input to 1D float32 tensor on target device."""
-        if isinstance(wavelengths, torch.Tensor):
-            wavelengths_t = wavelengths
-        else:
-            wavelengths_t = torch.as_tensor(wavelengths)
-
-        if wavelengths_t.ndim == 2:
-            wavelengths_t = wavelengths_t[0]
-        if wavelengths_t.ndim != 1:
-            raise ValueError(f"Expected 1D wavelengths [C], got shape {tuple(wavelengths_t.shape)}")
-
-        return wavelengths_t.to(device=device, dtype=torch.float32)
-
     def _build_channel_weights(
         self, wavelengths_t: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
@@ -1720,7 +1700,7 @@ class RangeAverageFalseRGBSelector(ChannelSelectorBase):
 
     def _ensure_weights(self, wavelengths: Any, device: torch.device) -> None:
         """Lazily compute & cache channel weights when wavelengths change."""
-        wavelengths_t = self._prepare_wavelengths_tensor(wavelengths, device)
+        wavelengths_t = _wavelengths_tensor(wavelengths, device)
         wl_key = tuple(wavelengths_t.tolist())
         if self._avg_weights is None or self._cached_wl_key != wl_key:
             self._avg_weights, self._avg_mask = self._build_channel_weights(wavelengths_t)
@@ -1740,7 +1720,7 @@ class RangeAverageFalseRGBSelector(ChannelSelectorBase):
     ) -> dict[str, Any]:
         """Average spectral bands inside RGB ranges and compose normalized RGB."""
         self._ensure_weights(wavelengths, cube.device)
-        wavelengths_t = self._prepare_wavelengths_tensor(wavelengths, cube.device)
+        wavelengths_t = _wavelengths_tensor(wavelengths, cube.device)
 
         # Vectorized channel averaging:
         # cube [B,H,W,C] and weights [3,C] -> rgb [B,H,W,3]
@@ -1836,27 +1816,9 @@ class FastRGBSelector(ChannelSelectorBase):
         self.register_buffer("_channel_valid", None, persistent=False)
         self._cached_wl_key: tuple[float, ...] | None = None
 
-    @staticmethod
-    def _prepare_wavelengths_tensor(
-        wavelengths: Any,
-        device: torch.device,
-    ) -> torch.Tensor:
-        """Convert wavelengths input to 1D float32 tensor on target device."""
-        if isinstance(wavelengths, torch.Tensor):
-            wavelengths_t = wavelengths
-        else:
-            wavelengths_t = torch.as_tensor(wavelengths)
-
-        if wavelengths_t.ndim == 2:
-            wavelengths_t = wavelengths_t[0]
-        if wavelengths_t.ndim != 1:
-            raise ValueError(f"Expected 1D wavelengths [C], got shape {tuple(wavelengths_t.shape)}")
-
-        return wavelengths_t.to(device=device, dtype=torch.float32)
-
     def _ensure_channel_bounds(self, wavelengths: Any, device: torch.device) -> None:
         """Resolve and cache contiguous index bounds for each RGB range."""
-        wavelengths_t = self._prepare_wavelengths_tensor(wavelengths, device=device)
+        wavelengths_t = _wavelengths_tensor(wavelengths, device)
         wl_key = tuple(wavelengths_t.tolist())
         if self._channel_bounds is not None and self._cached_wl_key == wl_key:
             return
@@ -1918,7 +1880,7 @@ class FastRGBSelector(ChannelSelectorBase):
         **_: Any,
     ) -> dict[str, Any]:
         """Render fast_rgb output with cuvis-next parity scaling."""
-        wavelengths_t = self._prepare_wavelengths_tensor(wavelengths, device=cube.device)
+        wavelengths_t = _wavelengths_tensor(wavelengths, cube.device)
         raw_rgb = self._compute_raw_rgb(cube, wavelengths_t)
         rgb, factor = self._fast_rgb_scale(raw_rgb)
 
@@ -2950,7 +2912,52 @@ class SupervisedSelectorBase(ChannelSelectorBase):
         return {"rgb_image": rgb, "band_info": band_info}
 
 
-class SupervisedCIRSelector(SupervisedSelectorBase):
+class _SupervisedWindowSelectorBase(SupervisedSelectorBase):
+    """Supervised selection of one band per spectral window with an mRMR-style penalty."""
+
+    _category = NodeCategory.MODEL
+    _tags = frozenset(
+        {
+            NodeTag.HYPERSPECTRAL,
+            NodeTag.DIM_REDUCTION,
+            NodeTag.PREPROCESSING,
+            NodeTag.LEARNABLE,
+            NodeTag.TORCH,
+        }
+    )
+
+    def __init__(
+        self,
+        windows: Sequence[tuple[float, float]],
+        score_weights: tuple[float, float, float] = (1.0, 1.0, 1.0),
+        lambda_penalty: float = 0.5,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(
+            score_weights=score_weights,
+            lambda_penalty=lambda_penalty,
+            windows=list(windows),
+            **kwargs,
+        )
+        self.windows = list(windows)
+
+    def _select_bands(
+        self,
+        band_scores: np.ndarray,
+        wavelengths: np.ndarray,
+        corr_matrix: np.ndarray,
+    ) -> list[int]:
+        """Select one band per window using mRMR-penalized supervised scores."""
+        return _mrmr_band_selection(
+            band_scores, wavelengths, self.windows, corr_matrix, self.lambda_penalty
+        )
+
+    def _extra_band_info(self, wavelengths_np: np.ndarray) -> dict[str, Any]:
+        """Return the spectral window boundaries as metadata."""
+        return {"windows_nm": [[float(s), float(e)] for s, e in self.windows]}
+
+
+class SupervisedCIRSelector(_SupervisedWindowSelectorBase):
     """Supervised CIR/NIR band selection with window constraints.
 
     Windows are typically set to:
@@ -2984,30 +2991,14 @@ class SupervisedCIRSelector(SupervisedSelectorBase):
         **kwargs: Any,
     ) -> None:
         super().__init__(
+            windows=windows,
             score_weights=score_weights,
             lambda_penalty=lambda_penalty,
-            windows=list(windows),
             **kwargs,
         )
-        self.windows = list(windows)
-
-    def _select_bands(
-        self,
-        band_scores: np.ndarray,
-        wavelengths: np.ndarray,
-        corr_matrix: np.ndarray,
-    ) -> list[int]:
-        """Select one band per CIR window using mRMR-penalized supervised scores."""
-        return _mrmr_band_selection(
-            band_scores, wavelengths, self.windows, corr_matrix, self.lambda_penalty
-        )
-
-    def _extra_band_info(self, wavelengths_np: np.ndarray) -> dict[str, Any]:
-        """Return the CIR spectral window boundaries as metadata."""
-        return {"windows_nm": [[float(s), float(e)] for s, e in self.windows]}
 
 
-class SupervisedWindowedSelector(SupervisedSelectorBase):
+class SupervisedWindowedSelector(_SupervisedWindowSelectorBase):
     """Supervised band selection constrained to visible RGB windows.
 
     Similar to :class:`HighContrastSelector`, but uses label-driven scores.
@@ -3039,27 +3030,11 @@ class SupervisedWindowedSelector(SupervisedSelectorBase):
         **kwargs: Any,
     ) -> None:
         super().__init__(
+            windows=windows,
             score_weights=score_weights,
             lambda_penalty=lambda_penalty,
-            windows=list(windows),
             **kwargs,
         )
-        self.windows = list(windows)
-
-    def _select_bands(
-        self,
-        band_scores: np.ndarray,
-        wavelengths: np.ndarray,
-        corr_matrix: np.ndarray,
-    ) -> list[int]:
-        """Select one band per visible RGB window using mRMR-penalized supervised scores."""
-        return _mrmr_band_selection(
-            band_scores, wavelengths, self.windows, corr_matrix, self.lambda_penalty
-        )
-
-    def _extra_band_info(self, wavelengths_np: np.ndarray) -> dict[str, Any]:
-        """Return the visible RGB spectral window boundaries as metadata."""
-        return {"windows_nm": [[float(s), float(e)] for s, e in self.windows]}
 
 
 class SupervisedFullSpectrumSelector(SupervisedSelectorBase):
