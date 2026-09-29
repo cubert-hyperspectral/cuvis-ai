@@ -307,14 +307,9 @@ class AnomalyMask(Node):
                 assert gt_mask_np is not None, "gt_mask_np should not be None when use_gt is True"
                 gt = gt_mask_np[i] > 0.5  # [H, W] bool
 
-                # Compute confusion matrix
-                tp = np.logical_and(pred, gt)  # True Positives
-                fp = np.logical_and(pred, ~gt)  # False Positives
-                fn = np.logical_and(~pred, gt)  # False Negatives
-                # Compute metrics
-                tp_count = tp.sum()
-                fp_count = fp.sum()
-                fn_count = fn.sum()
+                tp_count = np.logical_and(pred, gt).sum()
+                fp_count = np.logical_and(pred, ~gt).sum()
+                fn_count = np.logical_and(~pred, gt).sum()
 
                 precision = tp_count / (tp_count + fp_count + 1e-8)
                 recall = tp_count / (tp_count + fn_count + 1e-8)
