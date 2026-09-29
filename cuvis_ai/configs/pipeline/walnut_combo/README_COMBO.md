@@ -38,10 +38,15 @@ tf32trt|fp16trt`). Thor ms: one pipeline per process (`time_one.py`); the first 
   for the whole process. Next to the SEG models the FO branch therefore runs TF32 anyway. The tiers use the FO
   `_tf32` / `_fp16` variants with their own calibrated thresholds, both validated on all 287 VAL + TEST frames.
 - `tf32_exact` and `tf32_fast` are the fallbacks without TensorRT.
-- **Gate-smoothing variants** (29 Sep): `walnut_combo_or_fp16trt_trt16_smooth3_cuvisnext_cube` and
+- **Gate-smoothing variants** (29 Sep, `smooth3/`): `walnut_combo_or_fp16trt_trt16_smooth3_cuvisnext_cube` and
   `walnut_combo_gated_fp16trt_trt16_smooth3_cuvisnext_cube`, the `fp16trt_trt16` tier with every FrameScoreGate on
-  a 3-frame median (`smooth_k: 3`, made by `make_smooth_variants.py` in the stack root). Same weights, thresholds
-  and engines; no one-frame flashes or flicker, one frame later. THOR_DEPLOY_NOTES §22.
+  a 3-frame median (`smooth_k: 3`, made by `make_variants.py --smooth 3` in the stack root). Same weights,
+  thresholds and engines; no flicker, one frame later. THOR_DEPLOY_NOTES §22.
+- **Shells + FO in one view** (29 Sep, `composite/` and `composite/smooth3/`):
+  `walnut_combo_{or,gated}_fp16trt_trt16_composite[_smooth3]_cuvisnext_cube` add `Composite.mask` (label mask,
+  1 = shell, 2 = FO) and `Composite.scores` (heatmap, shells 0.5, FO 1.0), from cuvis-ai-patchcore's
+  `MaskComposite`. The single outputs stay; the gated family lists its FO mask as `FOMask.decisions`.
+  THOR_DEPLOY_NOTES §23.
 
 ## Outputs (pick explicitly in cuvis.next, not "Automatic")
 
