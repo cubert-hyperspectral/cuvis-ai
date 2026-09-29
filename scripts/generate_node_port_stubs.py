@@ -62,23 +62,23 @@ def _module_to_stub_path(module_name: str) -> Path:
 
 
 def _is_concrete_node(cls: type[Node], module_name: str) -> bool:
-    if not inspect.isclass(cls):
-        return False
-    if not issubclass(cls, Node) or cls is Node:
-        return False
-    if inspect.isabstract(cls):
-        return False
-    return cls.__module__ == module_name
+    return (
+        inspect.isclass(cls)
+        and issubclass(cls, Node)
+        and cls is not Node
+        and not inspect.isabstract(cls)
+        and cls.__module__ == module_name
+    )
 
 
 def _gather_nodes(module_name: str) -> list[type[Node]]:
     module = importlib.import_module(module_name)
-    nodes: list[type[Node]] = []
-    for _, cls in inspect.getmembers(module, inspect.isclass):
-        if _is_concrete_node(cls, module_name):
-            nodes.append(cls)
-    nodes.sort(key=lambda c: c.__name__)
-    return nodes
+    nodes = [
+        cls
+        for _, cls in inspect.getmembers(module, inspect.isclass)
+        if _is_concrete_node(cls, module_name)
+    ]
+    return sorted(nodes, key=lambda c: c.__name__)
 
 
 @dataclass
@@ -134,11 +134,7 @@ def _format_class_block(cls: type[Node]) -> str:
 
 def _module_all(module_name: str, class_names: list[str]) -> str:
     module = importlib.import_module(module_name)
-    exported = getattr(module, "__all__", None)
-    if exported is None:
-        exported = class_names
-    # Ensure deterministic ordering
-    exported = sorted(set(exported))
+    exported = sorted(set(getattr(module, "__all__", class_names)))
     inner = ",\n".join(f'    "{name}"' for name in exported)
     return f"__all__ = [\n{inner},\n]\n\n"
 

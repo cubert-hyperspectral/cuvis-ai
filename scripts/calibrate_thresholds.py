@@ -310,6 +310,14 @@ def _build_pipeline(
     return pipeline
 
 
+def _pipeline_device(pipeline: CuvisPipeline) -> torch.device:
+    """The device of the first parameter in the pipeline's layers; CPU when there is none."""
+    return next(
+        (p.device for layer in pipeline.torch_layers for p in layer.parameters()),
+        torch.device("cpu"),
+    )
+
+
 def _collect_frames(
     pipeline: CuvisPipeline,
     datamodule: Any,
@@ -342,14 +350,7 @@ def _collect_frames(
         if callable(reset_fn):
             reset_fn()
 
-    device = torch.device("cpu")
-    for layer in pipeline.torch_layers:
-        for param in layer.parameters():
-            device = param.device
-            break
-        else:
-            continue
-        break
+    device = _pipeline_device(pipeline)
 
     scores_frames: list[np.ndarray] = []
     mask_frames: list[np.ndarray] = []

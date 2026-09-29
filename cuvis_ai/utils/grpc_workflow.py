@@ -24,19 +24,8 @@ def config_search_paths(extra_paths: Iterable[str | Path] | None = None) -> list
         CONFIG_ROOT / "training",
     ]
 
-    seen: set[Path] = set()
-    paths: list[str] = []
-
-    for path in [*seeds, *(extra_paths or [])]:
-        resolved = Path(path).resolve()
-        if not resolved.is_dir():
-            continue
-        if resolved in seen:
-            continue
-        seen.add(resolved)
-        paths.append(str(resolved))
-
-    return paths
+    candidates = (Path(path).resolve() for path in [*seeds, *(extra_paths or [])])
+    return [str(path) for path in dict.fromkeys(path for path in candidates if path.is_dir())]
 
 
 def build_stub(

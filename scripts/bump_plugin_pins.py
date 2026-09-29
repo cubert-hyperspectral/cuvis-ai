@@ -60,7 +60,7 @@ def _semver(tag: str) -> tuple[int, int, int] | None:
 
 
 def _extract_class_names(entries: object) -> set[str]:
-    """Pull node class names from a manifest ``capabilities`` / ``provides`` list."""
+    """Pull node class names from a manifest ``capabilities`` list."""
     names: set[str] = set()
     if not isinstance(entries, list):
         return names
@@ -73,18 +73,8 @@ def _extract_class_names(entries: object) -> set[str]:
 
 
 def _manifest_node_set(doc: dict) -> set[str] | None:
-    """Class-name set from a plugin manifest doc (capabilities/provides, top-level or nested)."""
-    for key in ("capabilities", "provides"):
-        if doc.get(key):
-            return _extract_class_names(doc[key])
-    plugins = doc.get("plugins")
-    if isinstance(plugins, dict):
-        names: set[str] = set()
-        for cfg in plugins.values():
-            if isinstance(cfg, dict):
-                names |= _extract_class_names(cfg.get("capabilities") or cfg.get("provides"))
-        return names or None
-    return None
+    """Class-name set from a plugin manifest doc's ``capabilities``, or ``None`` without one."""
+    return _extract_class_names(doc["capabilities"]) if doc.get("capabilities") else None
 
 
 def _github_get(url: str, accept: str) -> bytes | None:
