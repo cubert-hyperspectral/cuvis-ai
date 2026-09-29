@@ -649,8 +649,6 @@ class ConcreteChannelMixer(Node):
             - ``"rgb"``: [B, H, W, C_out] RGB-like image.
             - ``"selection_weights"``: [C_out, C_in] current weights.
         """
-        B, H, W, C_in = data.shape
-
         tau = self._current_tau(context)
         device = data.device
 

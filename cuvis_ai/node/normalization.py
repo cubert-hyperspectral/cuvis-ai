@@ -528,11 +528,6 @@ class PerPixelUnitNorm(_ScoreNormalizerBase):
         self.eps = float(eps)
         super().__init__(eps=self.eps, **kwargs)
 
-    def forward(self, data: Tensor, **_: Any) -> dict[str, Tensor]:
-        """Normalize BHWC tensors per pixel."""
-        normalized = self._normalize(data)
-        return {"normalized": normalized}
-
     def _normalize(self, tensor: Tensor) -> Tensor:
         """Apply per-pixel L2 normalization across channels.
 

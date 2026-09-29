@@ -9,8 +9,6 @@ import numpy as np
 import torch
 from PIL import Image
 
-from cuvis_ai.utils.torch_draw import overlay_instances
-
 if TYPE_CHECKING:
     import matplotlib.figure
 
@@ -56,22 +54,6 @@ def fig_to_array(fig: matplotlib.figure.Figure, dpi: int = 150) -> np.ndarray:
     plt.close(fig)
 
     return img_array
-
-
-def tensor_to_uint8(tensor: torch.Tensor) -> torch.Tensor:
-    """Convert float tensor [0, 1] to uint8 [0, 255].
-
-    Parameters
-    ----------
-    tensor : torch.Tensor
-        Input tensor with values in [0, 1]
-
-    Returns
-    -------
-    torch.Tensor
-        Tensor converted to uint8 in range [0, 255], stays on original device
-    """
-    return (tensor.clamp(0, 1) * 255).to(torch.uint8)
 
 
 def tensor_to_numpy(tensor: torch.Tensor) -> np.ndarray:
@@ -143,78 +125,9 @@ OBJECT_PALETTE: list[tuple[int, int, int]] = [
 ]
 
 
-def object_color(object_id: int) -> tuple[int, int, int]:
-    """Return a deterministic RGB colour for *object_id* (0-255 per channel)."""
-    return OBJECT_PALETTE[object_id % len(OBJECT_PALETTE)]
-
-
-def render_multi_object_overlay(
-    frame: np.ndarray,
-    masks: list[tuple[int, np.ndarray]],
-    *,
-    alpha: float = 0.4,
-    draw_contours: bool = True,
-    draw_ids: bool = True,
-    contour_thickness: int = 2,
-    font_scale: float = 0.7,
-    font_thickness: int = 2,
-) -> np.ndarray:
-    """Render coloured mask overlays with contours and ID labels onto a frame.
-
-    This is the shared rendering path used by both the SAM3 tracking script's
-    built-in overlay output and the standalone ``render_tracking_overlay.py``.
-
-    Parameters
-    ----------
-    frame : np.ndarray
-        RGB image, shape ``(H, W, 3)``, dtype ``uint8``.
-    masks : list[tuple[int, np.ndarray]]
-        List of ``(object_id, binary_mask)`` pairs.  Each ``binary_mask`` has
-        shape ``(H, W)`` and dtype ``bool`` or ``uint8`` (non-zero = foreground).
-    alpha : float
-        Overlay opacity (default 0.4).
-    draw_contours : bool
-        Draw contour outlines on mask edges (default True).
-    draw_ids : bool
-        Render object ID labels above each mask (default True).
-    contour_thickness : int
-        Pixel width of contour lines (default 2).
-    font_scale : float
-        Legacy text scale knob (default 0.7). Mapped to bitmap font scale.
-    font_thickness : int
-        Legacy text thickness knob (default 2). Mapped to bitmap font scale.
-
-    Returns
-    -------
-    np.ndarray
-        Copy of *frame* with overlays, same shape and dtype.
-    """
-    # Map legacy cv2 knobs to bitmap-font text scale so callers keep control.
-    text_scale = max(
-        1,
-        int(round(max(0.1, float(font_scale)) * 3.0 + 0.5 * max(0, int(font_thickness) - 1))),
-    )
-
-    img_t = torch.from_numpy(frame.copy())
-    masks_t = [(int(obj_id), torch.from_numpy(mask > 0)) for obj_id, mask in masks]
-    result = overlay_instances(
-        img_t,
-        masks_t,
-        alpha=alpha,
-        draw_edges=draw_contours,
-        draw_ids=draw_ids,
-        edge_thickness=int(contour_thickness),
-        text_scale=text_scale,
-    )
-    return result.numpy()
-
-
 __all__ = [
     "fig_to_array",
-    "tensor_to_uint8",
     "tensor_to_numpy",
     "create_mask_overlay",
     "OBJECT_PALETTE",
-    "object_color",
-    "render_multi_object_overlay",
 ]

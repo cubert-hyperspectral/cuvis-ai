@@ -2774,17 +2774,6 @@ class SupervisedSelectorBase(ChannelSelectorBase):
             "mi_scores", torch.zeros(num_spectral_bands, dtype=torch.float32), persistent=True
         )
 
-    @property
-    def requires_initial_fit(self) -> bool:
-        """Whether this node requires statistical initialization from training data.
-
-        Returns
-        -------
-        bool
-            Always True for supervised band selectors.
-        """
-        return True
-
     def _collect_training_data(
         self,
         input_stream: InputStream,
@@ -3302,15 +3291,13 @@ class SoftChannelSelector(Node):
         self.channel_logits.data.copy_(logits)
         self._statistically_initialized = True
 
-    def update_temperature(self, epoch: int | None = None, step: int | None = None) -> None:
+    def update_temperature(self, epoch: int | None = None) -> None:
         """Update temperature with decay schedule.
 
         Parameters
         ----------
         epoch : int, optional
             Current epoch number (used for per-epoch decay)
-        step : int, optional
-            Current training step (for more granular control)
         """
         if epoch is not None:
             # Exponential decay per epoch

@@ -176,42 +176,6 @@ class ScoreToLogit(Node):
 
         return {"logits": logits}
 
-    def get_threshold(self) -> float:
-        """Get the current anomaly threshold (bias value).
-
-        Returns
-        -------
-        float
-            Current threshold value
-        """
-        return self.bias.item()
-
-    def set_threshold(self, threshold: float) -> None:
-        """Set the anomaly threshold (bias value).
-
-        Parameters
-        ----------
-        threshold : float
-            New threshold value
-        """
-        with torch.no_grad():
-            self.bias.fill_(threshold)
-
-    def predict_anomalies(self, logits: torch.Tensor) -> torch.Tensor:
-        """Convert logits to binary anomaly predictions.
-
-        Parameters
-        ----------
-        logits : torch.Tensor
-            Logits from forward pass, shape (B, H, W, 1)
-
-        Returns
-        -------
-        torch.Tensor
-            Binary predictions (0=normal, 1=anomaly), shape (B, H, W, 1)
-        """
-        return (logits > 0).float()
-
 
 class DecisionToMask(Node):
     """Combine binary decisions and identity labels into a single int32 mask.

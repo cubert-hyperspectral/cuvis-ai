@@ -27,7 +27,7 @@ from cuvis_ai_schemas.execution import Context, InputStream, Artifact
 - [cuvis_ai/configs/](../cuvis_ai/configs/) — Hydra/YAML configs. [cuvis_ai/configs/plugins/cuvis_ai_builtin.yaml](../cuvis_ai/configs/plugins/cuvis_ai_builtin.yaml) registers every node in this repo with the core plugin loader.
 - Runnable examples are the pipeline and trainrun YAMLs under [cuvis_ai/configs/](../cuvis_ai/configs/), run with `restore-pipeline` / `restore-trainrun`.
 - [tests/](../tests/) — organized by domain (`anomaly`, `deciders`, `node`, `preprocessors`, `training`, `utils`, `docs`, `plugins`). Shared fixtures in [tests/fixtures/](../tests/fixtures/) auto-load via [tests/conftest.py](../tests/conftest.py).
-- [scripts/](../scripts/) — helper scripts: `generate_node_port_stubs.py`, `validate_trainrun_configs.py`, `strip_notebook_videos.py`, `docs_macros.py`, `sync_hf_readmes.py`, `rewire_internal_links.py`.
+- [scripts/](../scripts/) — helper scripts: `generate_node_port_stubs.py`, `validate_trainrun_configs.py`, `strip_notebook_videos.py`, `docs_macros.py`, `sync_hf_readmes.py`.
 - [docs/](../docs/) — MkDocs source.
 
 ## Development Workflow

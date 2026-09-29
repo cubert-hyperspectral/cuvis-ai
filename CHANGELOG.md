@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- Removed, breaking (the next release is 0.18.0): the public names the 0.17.3 simplification pass kept for an API decision. None of them is referenced by the plugins, the notebooks, the skills, the UI catalog or CuvisNEXT.
+  - `ScoreToLogit.get_threshold`, `set_threshold` and `predict_anomalies`.
+  - `cuvis_ai.utils.vis_helpers.tensor_to_uint8`, `object_color` and `render_multi_object_overlay` (`OBJECT_PALETTE` stays).
+  - `RXGlobal.finalize` returns `None` like `LADGlobal.finalize`; nothing chained it.
+  - The `requires_initial_fit` overrides of `ZScoreNormalizerGlobal`, `DeepSVDDCenterTracker` and the supervised band selectors: the core derives the flag from the overridden `statistical_initialization`, and a test pins it for the supervised selectors.
+  - `PerPixelUnitNorm.forward` (the base implementation is line for line the same).
+  - `SoftChannelSelector.update_temperature(step=)`, which was never read.
+  - `TrackingPointerOverlayNode(alpha=, draw_contours=, draw_ids=)`: the node draws pointers only and has no rendering knobs; a saved pipeline that still passes them fails to load (no shipped preset does).
+  - `scripts/weights_index.generate(plugins_dir=)`; the finished one-off scripts `scripts/rewire_internal_links.py` and `scripts/backfill_pipeline_plugins.py`; the stale `baseline_coverage.txt`.
+- `ToImage` and `TrackingPointerOverlayNode` are listed in their modules' `__all__`, and the pre-0.8 re-export modules under `cuvis_ai.anomaly` and `cuvis_ai.deciders` say "Removed in a future release" instead of the wrong "Removed in v0.8" (their removal is a separate, staged change).
+- Tidy-ups with no behaviour change: the COCO track writer no longer builds a per-frame category map it never read, the video title overlay keeps one set of text metrics instead of a candidate and a chosen copy, the label node drops an unused dtype attribute, `ConcreteChannelMixer.forward` drops an unused shape unpack, and the NNLS unmixing node masks low-abundance pixels with `masked_fill`.
+
 ## 0.17.3 - 2026-10-01
 
 - Bumped the `adaclip` manifest pin v0.5.0 -> v0.5.1: the plugin's eight shipped pipelines and its examples address the decider nodes by their `cuvis_ai.node.deciders` module path, so they keep working once the deprecated top-level re-export packages are removed; 0.5.1 also carries the plugin's security lock refresh.

@@ -100,23 +100,17 @@ class _FrameRenderMixin:
         if max_box_width <= 0:
             max_box_width = frame_w - 2 * fallback_side_margin
 
+        # The first (largest) scale whose box fits wins; the smallest is the fallback.
         for font_scale in (0.70, 0.65, 0.60, 0.55, 0.50, 0.45, 0.40, 0.35):
             thickness = 2 if font_scale >= 0.55 else 1
             pad_x = 8 if font_scale >= 0.55 else 6
-            (candidate_width, candidate_height), candidate_baseline = cv2.getTextSize(
+            (text_width, text_height), baseline = cv2.getTextSize(
                 self.overlay_title, font, font_scale, thickness
             )
-            candidate_box_width = int(candidate_width) + 2 * pad_x
-            chosen_scale = font_scale
-            chosen_thickness = thickness
-            text_width = int(candidate_width)
-            text_height = int(candidate_height)
-            baseline = int(candidate_baseline)
-            if candidate_box_width <= max_box_width:
+            if int(text_width) + 2 * pad_x <= max_box_width:
                 break
 
-        pad_x = 8 if chosen_scale >= 0.55 else 6
-        pad_y = 6 if chosen_scale >= 0.55 else 4
+        pad_y = 6 if font_scale >= 0.55 else 4
         box_width = int(text_width) + 2 * pad_x
         box_height = int(text_height) + int(baseline) + 2 * pad_y
 
@@ -135,9 +129,9 @@ class _FrameRenderMixin:
             self.overlay_title,
             text_origin,
             font,
-            chosen_scale,
+            font_scale,
             (255, 255, 255),
-            chosen_thickness,
+            thickness,
             line_type,
         )
 
@@ -689,6 +683,7 @@ class VideoFrameNode(Node):
 
 
 __all__ = [
+    "ToImage",
     "ToVideoNode",
     "VideoFrameDataModule",
     "VideoFrameDataset",

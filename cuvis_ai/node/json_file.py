@@ -360,7 +360,6 @@ class CocoTrackMaskWriter(_BaseCocoTrackWriter):
             for obj_id, score in zip(object_ids_list, detection_scores_list, strict=False)
             if int(obj_id) > 0
         }
-        category_by_obj_id: dict[int, int] = {}
         for obj_id, category_id in zip(object_ids_list, category_ids_list, strict=False):
             oid = int(obj_id)
             cid = int(category_id)
@@ -375,7 +374,6 @@ class CocoTrackMaskWriter(_BaseCocoTrackWriter):
                     f"{existing_category_id} vs {cid}."
                 )
             self._track_category_ids.setdefault(oid, cid)
-            category_by_obj_id[oid] = cid
             fallback_name = self.default_category_name if cid == 1 else f"category_{cid}"
             self._category_id_to_name.setdefault(cid, fallback_name)
         present_obj_ids = {
@@ -412,8 +410,6 @@ class CocoTrackMaskWriter(_BaseCocoTrackWriter):
             self._track_scores.setdefault(oid, {})[frame_idx] = float(score_by_obj_id.get(oid, 0.0))
             self._track_bboxes.setdefault(oid, {})[frame_idx] = bbox
             self._track_areas.setdefault(oid, {})[frame_idx] = area
-            if oid in category_by_obj_id:
-                self._track_category_ids.setdefault(oid, category_by_obj_id[oid])
 
         self._mark_dirty_and_maybe_flush()
         return {}

@@ -240,17 +240,6 @@ class ZScoreNormalizerGlobal(Node):
             "zscore_std", torch.ones(num_channels, dtype=torch.get_default_dtype())
         )
 
-    @property
-    def requires_initial_fit(self) -> bool:
-        """Whether this node requires statistical initialization from training data.
-
-        Returns
-        -------
-        bool
-            Always True for Z-score normalization.
-        """
-        return True
-
     def statistical_initialization(self, input_stream: InputStream) -> None:
         """Estimate per-band z-score statistics from the provided stream."""
         acc = WelfordAccumulator(self.num_channels)
@@ -417,17 +406,6 @@ class DeepSVDDCenterTracker(Node):
         self.register_buffer(
             "_tracked_center", torch.zeros(rep_dim, dtype=torch.get_default_dtype())
         )
-
-    @property
-    def requires_initial_fit(self) -> bool:
-        """Whether this node requires statistical initialization from training data.
-
-        Returns
-        -------
-        bool
-            Always True for center tracking initialization.
-        """
-        return True
 
     def statistical_initialization(self, input_stream: InputStream) -> None:
         """Initialize the Deep SVDD center from training embeddings.

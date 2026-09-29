@@ -232,3 +232,8 @@ class TestStatisticalInitialization:
         assert result["band_info"]["strategy"] == "supervised_windowed_false_rgb"
         assert "windows_nm" in result["band_info"]
         assert result["rgb_image"].shape[-1] == 3
+
+
+def test_supervised_selector_requires_initial_fit_from_its_fit_method() -> None:
+    """The core computes the flag from the overridden statistical_initialization."""
+    assert SupervisedCIRSelector(num_spectral_bands=20).requires_initial_fit is True
