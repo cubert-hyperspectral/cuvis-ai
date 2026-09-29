@@ -19,6 +19,7 @@ from cuvis_ai_schemas.enums import ArtifactType, ExecutionStage, NodeCategory, N
 from cuvis_ai_schemas.execution import Artifact, Context
 from cuvis_ai_schemas.pipeline import PortSpec
 from loguru import logger
+from matplotlib.colors import hsv_to_rgb
 from torch import Tensor
 
 from cuvis_ai.utils.vis_helpers import fig_to_array
@@ -272,9 +273,6 @@ class PCAVisualization(Node):
                 axis=-1,
             )
 
-            # Convert HSV to RGB for matplotlib
-            from matplotlib.colors import hsv_to_rgb
-
             rgb_colors = hsv_to_rgb(hsv_colors)
 
             # Create figure with 3 subplots
@@ -305,12 +303,10 @@ class PCAVisualization(Node):
 
             # Subplot 3: Image representation
             # Normalize each channel to [0, 1] for visualization
-            pc1_norm = (projection_2d[:, :, 0] - projection_2d[:, :, 0].min()) / (
-                projection_2d[:, :, 0].max() - projection_2d[:, :, 0].min() + 1e-8
-            )
-            pc2_norm = (projection_2d[:, :, 1] - projection_2d[:, :, 1].min()) / (
-                projection_2d[:, :, 1].max() - projection_2d[:, :, 1].min() + 1e-8
-            )
+            pc1_min, pc1_max = projection_2d[:, :, 0].min(), projection_2d[:, :, 0].max()
+            pc2_min, pc2_max = projection_2d[:, :, 1].min(), projection_2d[:, :, 1].max()
+            pc1_norm = (projection_2d[:, :, 0] - pc1_min) / (pc1_max - pc1_min + 1e-8)
+            pc2_norm = (projection_2d[:, :, 1] - pc2_min) / (pc2_max - pc2_min + 1e-8)
 
             # Create RGB image: PC1 in red channel, PC2 in green channel, zeros in blue
             img_rgb = np.stack([pc1_norm, pc2_norm, np.zeros_like(pc1_norm)], axis=-1)
@@ -321,10 +317,6 @@ class PCAVisualization(Node):
             axes[2].set_title("PCA Image (R=PC1, G=PC2)")
 
             # Add statistics text
-            pc1_min = projection_2d[:, :, 0].min()
-            pc1_max = projection_2d[:, :, 0].max()
-            pc2_min = projection_2d[:, :, 1].min()
-            pc2_max = projection_2d[:, :, 1].max()
             stats_text = (
                 f"Shape: [{H}, {W}]\n"
                 f"Points: {H * W}\n"
@@ -363,10 +355,9 @@ class PCAVisualization(Node):
             artifacts.append(artifact)
 
             progress_total = self.up_to if self.up_to else B
-            description = (
+            logger.info(
                 f"Created PCA projection artifact ({i + 1}/{progress_total}): {artifact.name}"
             )
-            logger.info(description)
 
             plt.close(fig)
 
@@ -557,7 +548,7 @@ class PipelineComparisonVisualizer(Node):
 
         # Select channels for false-color RGB
         # Clamp indices to valid range
-        channels = [min(ch_idx, C - 1) if ch_idx < C else C - 1 for ch_idx in self.hsi_channels[:3]]
+        channels = [min(ch_idx, C - 1) for ch_idx in self.hsi_channels[:3]]
 
         # Extract selected channels
         rgb = np.zeros((H, W, 3), dtype=np.float32)
@@ -627,7 +618,7 @@ class PipelineComparisonVisualizer(Node):
         scores_2d = scores.squeeze() if scores.ndim == 3 else scores
 
         # Normalize scores to [0, 1]
-        scores_norm = self._normalize_image(scores_2d[..., np.newaxis]).squeeze()
+        scores_norm = self._normalize_image(scores_2d)
 
         # Create heatmap: blue (low) -> red (high)
         rgb = np.zeros((H, W, 3), dtype=np.float32)
