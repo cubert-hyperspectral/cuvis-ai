@@ -356,7 +356,10 @@ class MaskToBBoxKalman(Node):
 
     @torch.no_grad()
     def forward(self, mask: torch.Tensor, **_: Any) -> dict[str, torch.Tensor]:
-        """Track one box per frame through the Kalman filter; ``bboxes`` ``[B, 4]`` and ``valid`` ``[B]``."""
+        """Track one box per frame through the Kalman filter.
+
+        Returns ``bbox`` ``[B, 4]`` (xyxy) and ``valid`` ``[B]`` (0=none, 1=measured, 2=predicted).
+        """
         device = mask.device
         b, h, w = mask.shape
         bboxes = np.zeros((b, 4), dtype=np.float32)
