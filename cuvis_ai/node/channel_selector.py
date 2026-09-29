@@ -82,9 +82,7 @@ from cuvis_ai_core.node import Node
 
 def _wavelengths_tensor(wavelengths: Any, device: torch.device) -> torch.Tensor:
     """``wavelengths`` as a 1D float32 tensor on ``device``; a leading batch axis of one is dropped."""
-    wavelengths_t = (
-        wavelengths if isinstance(wavelengths, torch.Tensor) else torch.as_tensor(wavelengths)
-    )
+    wavelengths_t = torch.as_tensor(wavelengths)
     if wavelengths_t.ndim == 2:
         wavelengths_t = wavelengths_t[0]
     if wavelengths_t.ndim != 1:
