@@ -1,6 +1,6 @@
 metadata:
-  name: walnut_combo_or_fp16trt_trt16_composite_smooth3_cuvisnext_cube
-  description: 'Variant of walnut_combo_or_fp16trt_trt16_cuvisnext_cube. Composite view: Composite.mask (label map, 85 = shell, 255 = FO, FO on top) and Composite.scores (level map, shells 0.5, FO 1.0). The single outputs stay selectable: display.scores (FO heatmap), display_mask.decisions (FO mask), ShellMask.decisions (shell mask), ShellHeatmap.scores (shell heatmap). Every FrameScoreGate decides on the median of its last 3 frame scores (smooth_k 3): a one-frame spike or dip does not flip it; about 1 frame(s) later. Otherwise identical to the base: weights (.pt hardlink), thresholds (calibrate_live.py writes both), TensorRT engines.'
+  name: walnut_combo_or_tf32trt_trt16_composite_smooth3_cuvisnext_cube
+  description: 'Variant of walnut_combo_or_tf32trt_trt16_cuvisnext_cube. Composite view: Composite.mask (label map, 85 = shell, 255 = FO, FO on top) and Composite.scores (level map, shells 0.5, FO 1.0). The single outputs stay selectable: display.scores (FO heatmap), display_mask.decisions (FO mask), ShellMask.decisions (shell mask), ShellHeatmap.scores (shell heatmap). Every FrameScoreGate decides on the median of its last 3 frame scores (smooth_k 3): a one-frame spike or dip does not flip it; about 1 frame(s) later. Otherwise identical to the base: weights (.pt hardlink), thresholds (calibrate_live.py writes both), TensorRT engines.'
   created: ''
   tags:
   - anomaly
@@ -46,15 +46,13 @@ nodes:
 - name: steervit_t1
   class_name: cuvis_ai_steervit.node.steervit.SteerViTExtractor
   hparams:
-    backend: tensorrt
-    engine_dir: D:/walnuts/walnut_fo_stack/trt_engines/steervit
     checkpoint: steervit_dinov2_base.pth
     hf_repo: JonaRuthardt/SteerViT
     prompts:
     - the anomaly in the walnuts
     topk_frac: 0.001
     score_activation: sigmoid
-    autocast_dtype: float16
+    tf32: true
 - name: patchcore_t1
   class_name: cuvis_ai_patchcore.node.patchcore.PatchCoreDetector
   hparams:
@@ -66,12 +64,13 @@ nodes:
     max_bank_size: 80000
     topk_frac: 0.001
     chunk_size: 4096
-    autocast_dtype: float16
+    autocast_dtype: null
     standardize: false
     seed: 0
     eps: 1.0e-06
     coreset_projection: null
     projection_eps: 0.9
+    tf32: true
 - name: tiler_t2
   class_name: cuvis_ai_steervit.node.tiling.ImageTiler
   hparams:
@@ -79,15 +78,13 @@ nodes:
 - name: steervit_t2
   class_name: cuvis_ai_steervit.node.steervit.SteerViTExtractor
   hparams:
-    backend: tensorrt
-    engine_dir: D:/walnuts/walnut_fo_stack/trt_engines/steervit
     checkpoint: steervit_dinov2_base.pth
     hf_repo: JonaRuthardt/SteerViT
     prompts:
     - the anomaly in the walnuts
     topk_frac: 0.001
     score_activation: sigmoid
-    autocast_dtype: float16
+    tf32: true
 - name: stitch_t2
   class_name: cuvis_ai_steervit.node.tiling.GridStitcher
   hparams:
@@ -103,12 +100,13 @@ nodes:
     max_bank_size: 80000
     topk_frac: 0.001
     chunk_size: 4096
-    autocast_dtype: float16
+    autocast_dtype: null
     standardize: false
     seed: 0
     eps: 1.0e-06
     coreset_projection: null
     projection_eps: 0.9
+    tf32: true
 - name: norm_t1
   class_name: cuvis_ai_patchcore.node.calibration.ScoreRangeNormalizer
   hparams:
@@ -139,10 +137,10 @@ nodes:
 - name: gate
   class_name: cuvis_ai_patchcore.node.gate.FrameScoreGate
   hparams:
-    threshold: 1.3327
+    threshold: 1.337
     topk_frac: 0.001
     mode: heatmap
-    mask_threshold: 1.2604
+    mask_threshold: 1.2645
     log_scores: true
     smooth_k: 3
 - name: effad
@@ -158,7 +156,7 @@ nodes:
     padding: false
     pad_maps: true
     topk_frac: 0.001
-    autocast_dtype: float16
+    tf32: true
 - name: norm_effad
   class_name: cuvis_ai_patchcore.node.calibration.ScoreRangeNormalizer
   hparams:
@@ -173,10 +171,10 @@ nodes:
 - name: gate_effad
   class_name: cuvis_ai_patchcore.node.gate.FrameScoreGate
   hparams:
-    threshold: 1.9587
+    threshold: 1.9596
     topk_frac: 0.001
     mode: heatmap
-    mask_threshold: 2.7504
+    mask_threshold: 2.7574
     log_scores: true
     smooth_k: 3
 - name: display
