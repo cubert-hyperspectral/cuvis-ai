@@ -3,7 +3,7 @@ import torch
 from cuvis_ai_schemas.enums import ExecutionStage
 from cuvis_ai_schemas.execution import Context
 
-from cuvis_ai.anomaly.deep_svdd import (
+from cuvis_ai.node.anomaly.deep_svdd import (
     DeepSVDDCenterTracker,
     DeepSVDDProjection,
     DeepSVDDScores,

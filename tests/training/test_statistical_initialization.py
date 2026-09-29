@@ -3,9 +3,9 @@
 import pytest
 import torch
 
-from cuvis_ai.anomaly.deep_svdd import DeepSVDDCenterTracker, ZScoreNormalizerGlobal
-from cuvis_ai.anomaly.lad_detector import LADGlobal
-from cuvis_ai.anomaly.rx_detector import RXGlobal
+from cuvis_ai.node.anomaly.deep_svdd import DeepSVDDCenterTracker, ZScoreNormalizerGlobal
+from cuvis_ai.node.anomaly.lad_detector import LADGlobal
+from cuvis_ai.node.anomaly.rx_detector import RXGlobal
 from cuvis_ai.node.channel_mixer import LearnableChannelMixer
 from cuvis_ai.node.channel_selector import SoftChannelSelector
 from cuvis_ai.node.conversion import ScoreToLogit
