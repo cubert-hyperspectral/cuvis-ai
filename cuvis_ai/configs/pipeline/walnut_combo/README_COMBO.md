@@ -43,8 +43,9 @@ tf32trt|fp16trt`). Thor ms: one pipeline per process (`time_one.py`); the first 
   a 3-frame median (`smooth_k: 3`, made by `make_variants.py --smooth 3` in the stack root). Same weights,
   thresholds and engines; no flicker, one frame later. THOR_DEPLOY_NOTES §22.
 - **Shells + FO in one view** (29 Sep, `composite/` and `composite/smooth3/`):
-  `walnut_combo_{or,gated}_fp16trt_trt16_composite[_smooth3]_cuvisnext_cube` add `Composite.mask` (label mask,
-  1 = shell, 2 = FO) and `Composite.scores` (heatmap, shells 0.5, FO 1.0), from cuvis-ai-patchcore's
+  `walnut_combo_{or,gated}_fp16trt_trt16_composite[_smooth3]_cuvisnext_cube`, `walnut_combo_gated_tf32_trt16_composite[_smooth3]`
+  and `walnut_combo_or_tf32trt_trt16_composite[_smooth3]` add `Composite.mask` (label mask, 85 = shell, 255 = FO)
+  and `Composite.scores` (heatmap, shells 0.5, FO 1.0), from cuvis-ai-patchcore's
   `MaskComposite`. The single outputs stay; the gated family lists its FO mask as `FOMask.decisions`.
   THOR_DEPLOY_NOTES §23.
 
