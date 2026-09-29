@@ -46,7 +46,7 @@ jobs:
       - name: Fetch each git plugin's pyproject by tag
         run: >
           uv run --no-project --python 3.11 --with pyyaml
-          python scripts/fetch_plugin_pyprojects.py
+          python scripts/fetch_plugin_pyprojects.py --out "$RUNNER_TEMP/plugin_pyprojects"
 
       - name: Audit plugin manifests against the core lock
         run: >
@@ -54,5 +54,6 @@ jobs:
           python audit_plugin_deps.py
           --check plugins
           --plugins-dir cuvis_ai/configs/plugins
+          --pyproject-cache "$RUNNER_TEMP/plugin_pyprojects"
           --against-core core
           --strict
