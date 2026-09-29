@@ -35,8 +35,6 @@ def _trimmed_stats(
     if pixels.numel() == 0:
         return zeros, zeros
     pixels = pixels[torch.isfinite(pixels).all(dim=1)]
-    if pixels.shape[0] < min_pixels:
-        return zeros, zeros
     pixels = pixels[torch.linalg.vector_norm(pixels, dim=1) >= zero_norm_threshold]
     if pixels.shape[0] < min_pixels:
         return zeros, zeros
