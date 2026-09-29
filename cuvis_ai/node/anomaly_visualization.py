@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sys
 from collections.abc import Sequence
+from typing import Any
 
 import matplotlib
 
@@ -80,6 +81,53 @@ class ImageArtifactVizBase(Node):
         else:
             img = np.zeros_like(img)
         return np.clip(img, 0.0, 1.0).astype(np.float32)
+
+
+def _label_axes(ax: Any) -> None:
+    """Label an image panel's axes as pixel width and height."""
+    ax.set_xlabel("Width")
+    ax.set_ylabel("Height")
+
+
+def _confusion_overlay(pred: np.ndarray, gt: np.ndarray | None) -> np.ndarray:
+    """RGBA overlay of a prediction: green TP, red FP, yellow FN against ``gt``; cyan alone."""
+    overlay = np.zeros((*pred.shape, 4))
+    if gt is not None:
+        overlay[np.logical_and(pred, gt)] = [0, 1, 0, 0.6]  # Green
+        overlay[np.logical_and(pred, ~gt)] = [1, 0, 0, 0.6]  # Red
+        overlay[np.logical_and(~pred, gt)] = [1, 1, 0, 0.6]  # Yellow
+    else:
+        overlay[pred] = [0, 1, 1, 0.6]  # Cyan for prediction-only
+    return overlay
+
+
+def _per_image_average_precision(
+    scores: torch.Tensor, mask: torch.Tensor, index: int
+) -> float | None:
+    """One image's average precision from sigmoid scores and its mask, ``None`` on a size mismatch."""
+    probs = torch.sigmoid(scores[index, ..., 0]).flatten()
+    target = mask[index, ..., 0].flatten().to(dtype=torch.long)
+    if probs.numel() != target.numel():
+        return None
+    return binary_average_precision(probs, target).item()
+
+
+def _overlay_object_ids(mask_t: torch.Tensor, object_ids: torch.Tensor | None) -> list[int]:
+    """Ids to draw: the requested ones present in the mask, in request order, else every id present.
+
+    Background (0) is never drawn, even when a tracker lists it.
+    """
+    present_ids_t = torch.unique(mask_t)
+    present_ids_t = present_ids_t[present_ids_t > 0]
+    if object_ids is None:
+        return [int(v) for v in present_ids_t.tolist()]
+    filtered_ids = object_ids[0].to(mask_t.device)
+    filtered_ids = filtered_ids[filtered_ids > 0]
+    if present_ids_t.numel() > 0:
+        filtered_ids = filtered_ids[torch.isin(filtered_ids, present_ids_t)]
+    else:
+        filtered_ids = filtered_ids[:0]
+    return list(dict.fromkeys(int(v) for v in filtered_ids.tolist()))
 
 
 class AnomalyMask(Node):
@@ -278,26 +326,16 @@ class AnomalyMask(Node):
                 # Subplot 1: Ground truth mask
                 axes[0].imshow(gt, cmap="gray", aspect="auto")
                 axes[0].set_title("Ground Truth Mask")
-                axes[0].set_xlabel("Width")
-                axes[0].set_ylabel("Height")
+                _label_axes(axes[0])
 
                 # Subplot 2: Cube with TP/FP/FN overlay
-                per_image_ap = None
-                if scores is not None:
-                    raw_scores = scores[i, ..., 0]
-                    probs = torch.sigmoid(raw_scores).flatten()
-                    target_tensor = mask[i, ..., 0].flatten().to(dtype=torch.long)
-                    if probs.numel() == target_tensor.numel():
-                        per_image_ap = binary_average_precision(probs, target_tensor).item()
+                per_image_ap = (
+                    _per_image_average_precision(scores, mask, i) if scores is not None else None
+                )
 
                 axes[1].imshow(cube_norm, cmap="gray", aspect="auto")
 
-                # Create color overlay
-                overlay = np.zeros((*gt.shape, 4))
-                overlay[tp] = [0, 1, 0, 0.6]  # Green: True Positives
-                overlay[fp] = [1, 0, 0, 0.6]  # Red: False Positives
-                overlay[fn] = [1, 1, 0, 0.6]  # Yellow: False Negatives
-                # TN pixels remain transparent (no overlay)
+                overlay = _confusion_overlay(pred, gt)
 
                 overlay_title = f"Overlay (Channel {self.channel}) - IoU: {iou:.3f}"
                 if per_image_ap is not None:
@@ -306,8 +344,7 @@ class AnomalyMask(Node):
 
                 axes[1].imshow(overlay, aspect="auto")
                 axes[1].set_title(overlay_title)
-                axes[1].set_xlabel("Width")
-                axes[1].set_ylabel("Height")
+                _label_axes(axes[1])
 
                 # Subplot 3: Predicted mask with metrics in title
                 axes[2].imshow(pred, cmap="gray", aspect="auto")
@@ -320,8 +357,7 @@ class AnomalyMask(Node):
                     metrics_title += f" | AP: {per_image_ap:.4f}"
                 metrics_title += f"\nBatch IoU: {batch_iou:.4f} (all {batch_size} imgs) | Ch: {self.channel}/{cube_img.shape[2]}"
                 axes[2].set_title(metrics_title, fontsize=9)
-                axes[2].set_xlabel("Width")
-                axes[2].set_ylabel("Height")
+                _label_axes(axes[2])
 
                 log_msg = f"Created anomaly mask artifact ({i + 1}/{up_to_batch}): IoU: {iou:.3f}"
             else:
@@ -332,22 +368,18 @@ class AnomalyMask(Node):
                 # Subplot 1: Cube with predicted overlay
                 axes[0].imshow(cube_norm, cmap="gray", aspect="auto")
 
-                # Create prediction overlay (cyan for predicted anomalies)
-                overlay = np.zeros((*pred.shape, 4))
-                overlay[pred] = [0, 1, 1, 0.6]  # Cyan: Predicted anomalies
+                overlay = _confusion_overlay(pred, None)
 
                 axes[0].imshow(overlay, aspect="auto")
                 axes[0].set_title(
                     f"Prediction Overlay (Channel {self.channel})\nCyan=Predicted Anomalies"
                 )
-                axes[0].set_xlabel("Width")
-                axes[0].set_ylabel("Height")
+                _label_axes(axes[0])
 
                 # Subplot 2: Predicted mask
                 axes[1].imshow(pred, cmap="gray", aspect="auto")
                 axes[1].set_title("Predicted Mask")
-                axes[1].set_xlabel("Width")
-                axes[1].set_ylabel("Height")
+                _label_axes(axes[1])
 
                 # Add statistics as text
                 pred_pixels = pred.sum()
@@ -602,22 +634,6 @@ class RGBAnomalyMask(Node):
         fn = np.logical_and(~pred, gt).sum()
         return {"iou": tp / (tp + fp + fn + 1e-8)}
 
-    def _create_overlay(self, pred: np.ndarray, gt: np.ndarray | None) -> np.ndarray:
-        """Create RGBA overlay: Green=TP, Red=FP, Yellow=FN."""
-        overlay = np.zeros((*pred.shape, 4))
-        if gt is not None:
-            tp, fp, fn = (
-                np.logical_and(pred, gt),
-                np.logical_and(pred, ~gt),
-                np.logical_and(~pred, gt),
-            )
-            overlay[tp] = [0, 1, 0, 0.6]  # Green
-            overlay[fp] = [1, 0, 0, 0.6]  # Red
-            overlay[fn] = [1, 1, 0, 0.6]  # Yellow
-        else:
-            overlay[pred] = [0, 1, 1, 0.6]  # Cyan for prediction-only
-        return overlay
-
     def _plot_with_gt(
         self,
         axes,
@@ -630,15 +646,13 @@ class RGBAnomalyMask(Node):
         """Plot 3 subplots: RGB, GT mask, overlay with metrics."""
         axes[0].imshow(rgb, aspect="auto")
         axes[0].set_title("RGB Input")
-        axes[0].set_xlabel("Width")
-        axes[0].set_ylabel("Height")
+        _label_axes(axes[0])
 
         axes[1].imshow(gt, cmap="gray", aspect="auto")
         axes[1].set_title("Ground Truth Mask")
-        axes[1].set_xlabel("Width")
-        axes[1].set_ylabel("Height")
+        _label_axes(axes[1])
 
-        overlay = self._create_overlay(pred, gt)
+        overlay = _confusion_overlay(pred, gt)
         axes[2].imshow(rgb, aspect="auto")
         axes[2].imshow(overlay, aspect="auto")
 
@@ -647,22 +661,19 @@ class RGBAnomalyMask(Node):
             title += f" | AP: {per_image_ap:.3f}"
         title += "\nGreen=TP, Red=FP, Yellow=FN"
         axes[2].set_title(title, fontsize=9)
-        axes[2].set_xlabel("Width")
-        axes[2].set_ylabel("Height")
+        _label_axes(axes[2])
 
     def _plot_no_gt(self, axes, rgb: np.ndarray, pred: np.ndarray) -> None:
         """Plot 2 subplots: RGB, RGB with overlay; add stats box."""
         axes[0].imshow(rgb, aspect="auto")
         axes[0].set_title("RGB Input")
-        axes[0].set_xlabel("Width")
-        axes[0].set_ylabel("Height")
+        _label_axes(axes[0])
 
-        overlay = self._create_overlay(pred, None)
+        overlay = _confusion_overlay(pred, None)
         axes[1].imshow(rgb, aspect="auto")
         axes[1].imshow(overlay, aspect="auto")
         axes[1].set_title("Prediction Overlay (RGB)\nCyan=Predicted Anomalies")
-        axes[1].set_xlabel("Width")
-        axes[1].set_ylabel("Height")
+        _label_axes(axes[1])
 
     def forward(
         self,
@@ -734,11 +745,7 @@ class RGBAnomalyMask(Node):
             if gt is not None:
                 metrics = self._compute_metrics(pred, gt)
                 if scores is not None and mask is not None:
-                    raw_scores = scores[i, ..., 0]
-                    probs = torch.sigmoid(raw_scores).flatten()
-                    target_tensor = mask[i, ..., 0].flatten().to(dtype=torch.long)
-                    if probs.numel() == target_tensor.numel():
-                        per_image_ap = binary_average_precision(probs, target_tensor).item()
+                    per_image_ap = _per_image_average_precision(scores, mask, i)
 
             # Create figure and plot
             ncols = 3 if gt is not None else 2
@@ -1086,20 +1093,7 @@ class TrackingOverlayNode(Node):
         # Align mask/object-id tensors to the image device. Some upstream nodes can
         # emit CPU tensors even when the visualization path runs on CUDA.
         mask_t = mask[0].to(frame_u8.device)  # [H, W] int32
-        present_ids_t = torch.unique(mask_t)
-        present_ids_t = present_ids_t[present_ids_t > 0]
-
-        if object_ids is not None:
-            # Some trackers include background label 0 in object_ids; never render it.
-            filtered_ids = object_ids[0].to(mask_t.device)
-            filtered_ids = filtered_ids[filtered_ids > 0]
-            if present_ids_t.numel() > 0:
-                filtered_ids = filtered_ids[torch.isin(filtered_ids, present_ids_t)]
-            else:
-                filtered_ids = filtered_ids[:0]
-            ids = list(dict.fromkeys(int(v) for v in filtered_ids.tolist()))
-        else:
-            ids = [int(v) for v in present_ids_t.tolist()]
+        ids = _overlay_object_ids(mask_t, object_ids)
 
         per_obj_masks: list[tuple[int, torch.Tensor]] = [(oid, mask_t == oid) for oid in ids]
 
@@ -1183,19 +1177,7 @@ class TrackingPointerOverlayNode(Node):
                 f"Mask shape {tuple(mask_t.shape)} does not match image shape {tuple(frame_u8.shape[:2])}."
             )
 
-        present_ids_t = torch.unique(mask_t)
-        present_ids_t = present_ids_t[present_ids_t > 0]
-
-        if object_ids is not None:
-            filtered_ids = object_ids[0].to(mask_t.device)
-            filtered_ids = filtered_ids[filtered_ids > 0]
-            if present_ids_t.numel() > 0:
-                filtered_ids = filtered_ids[torch.isin(filtered_ids, present_ids_t)]
-            else:
-                filtered_ids = filtered_ids[:0]
-            ids: list[int] = list(dict.fromkeys(int(v) for v in filtered_ids.tolist()))
-        else:
-            ids = [int(v) for v in present_ids_t.tolist()]
+        ids = _overlay_object_ids(mask_t, object_ids)
 
         rendered = frame_u8.clone()
 

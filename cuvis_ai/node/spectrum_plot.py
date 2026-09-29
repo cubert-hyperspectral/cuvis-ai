@@ -20,6 +20,37 @@ from cuvis_ai.utils.vis_helpers import fig_to_array
 from cuvis_ai_core.node import Node
 
 
+def _new_figure(width_px: int, height_px: int, dpi: int, bg_color: str) -> tuple[Any, Any]:
+    """A figure and axes of the given pixel size with the background colour applied."""
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(figsize=(width_px / dpi, height_px / dpi), dpi=dpi)
+    fig.patch.set_facecolor(bg_color)
+    ax.set_facecolor(bg_color)
+    return fig, ax
+
+
+def _style_axes(ax: Any, fg_color: str, tick_labelsize: int) -> None:
+    """Colour the spines and ticks and draw the faint grid."""
+    for spine in ax.spines.values():
+        spine.set_color(fg_color)
+    ax.tick_params(colors=fg_color, labelsize=tick_labelsize)
+    ax.grid(True, color=fg_color, alpha=0.15, linewidth=0.6)
+
+
+def _render_to_frame(fig: Any, dpi: int, width_px: int, height_px: int) -> np.ndarray:
+    """Render the figure (closing it) at exactly ``height_px`` x ``width_px``.
+
+    The resize keeps the frame size deterministic regardless of ``bbox_inches="tight"``
+    cropping, so a video assembled from the frames has one dimension throughout.
+    """
+    fig.tight_layout()
+    arr = fig_to_array(fig, dpi=dpi)  # closes the figure
+    if arr.shape[:2] != (height_px, width_px):
+        arr = cv2.resize(arr, (width_px, height_px), interpolation=cv2.INTER_AREA)
+    return arr
+
+
 class SpectrumPlotNode(Node):
     """Render a per-frame line plot of tracked vs reference spectrum.
 
@@ -185,13 +216,7 @@ class SpectrumPlotNode(Node):
         frame_id: int | None,
     ) -> np.ndarray:
         """Render one figure and return the resulting [H, W, 3] uint8 array."""
-        import matplotlib.pyplot as plt
-
-        fig_w_in = self.plot_width / self.dpi
-        fig_h_in = self.plot_height / self.dpi
-        fig, ax = plt.subplots(figsize=(fig_w_in, fig_h_in), dpi=self.dpi)
-        fig.patch.set_facecolor(self.bg_color)
-        ax.set_facecolor(self.bg_color)
+        fig, ax = _new_figure(self.plot_width, self.plot_height, self.dpi, self.bg_color)
 
         ax.plot(
             self._ref_wavelengths,
@@ -230,10 +255,7 @@ class SpectrumPlotNode(Node):
             span = max(y_max - y_min, 1e-6)
             ax.set_ylim(y_min - 0.05 * span, y_max + 0.10 * span)
 
-        for spine in ax.spines.values():
-            spine.set_color(self.fg_color)
-        ax.tick_params(colors=self.fg_color, labelsize=10)
-        ax.grid(True, color=self.fg_color, alpha=0.15, linewidth=0.6)
+        _style_axes(ax, self.fg_color, 10)
         if self.tracked_label or self.reference_label:
             legend = ax.legend(
                 loc="upper left",
@@ -247,14 +269,7 @@ class SpectrumPlotNode(Node):
         if frame_id is not None:
             ax.set_title(f"frame {int(frame_id)}", color=self.fg_color, fontsize=11, loc="right")
 
-        fig.tight_layout()
-        arr = fig_to_array(fig, dpi=self.dpi)  # closes the figure
-
-        # Resize to exactly the requested output size so the video frame dims
-        # are deterministic regardless of bbox_inches='tight' cropping.
-        if arr.shape[:2] != (self.plot_height, self.plot_width):
-            arr = cv2.resize(arr, (self.plot_width, self.plot_height), interpolation=cv2.INTER_AREA)
-        return arr
+        return _render_to_frame(fig, self.dpi, self.plot_width, self.plot_height)
 
     @torch.no_grad()
     def forward(
@@ -408,13 +423,7 @@ class SpectraPlot(Node):
 
     def _render(self, spectra: np.ndarray, wl: np.ndarray, valid: np.ndarray) -> np.ndarray:
         """Render the [N, C] spectra as N coloured lines; return an [H, W, 3] uint8 array."""
-        import matplotlib.pyplot as plt
-
-        fig, ax = plt.subplots(
-            figsize=(self.plot_width / self.dpi, self.plot_height / self.dpi), dpi=self.dpi
-        )
-        fig.patch.set_facecolor(self.bg_color)
-        ax.set_facecolor(self.bg_color)
+        fig, ax = _new_figure(self.plot_width, self.plot_height, self.dpi, self.bg_color)
         for k in range(spectra.shape[0]):
             if not bool(valid[k]):
                 continue
@@ -426,15 +435,8 @@ class SpectraPlot(Node):
             ax.set_title(self.title, color=self.fg_color, fontsize=12)
         if wl.size:
             ax.set_xlim(float(wl.min()), float(wl.max()))
-        for spine in ax.spines.values():
-            spine.set_color(self.fg_color)
-        ax.tick_params(colors=self.fg_color, labelsize=9)
-        ax.grid(True, color=self.fg_color, alpha=0.15, linewidth=0.6)
-        fig.tight_layout()
-        arr = fig_to_array(fig, dpi=self.dpi)  # closes the figure
-        if arr.shape[:2] != (self.plot_height, self.plot_width):
-            arr = cv2.resize(arr, (self.plot_width, self.plot_height), interpolation=cv2.INTER_AREA)
-        return arr
+        _style_axes(ax, self.fg_color, 9)
+        return _render_to_frame(fig, self.dpi, self.plot_width, self.plot_height)
 
     @torch.no_grad()
     def forward(
