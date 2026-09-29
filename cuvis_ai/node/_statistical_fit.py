@@ -21,7 +21,7 @@ it is never offered as a usable pipeline node.
 Two accumulation patterns are supported:
 
 - ``_collect_pixels`` gathers the stream into one subsampled ``[N, C]`` matrix (used by the sklearn-fit nodes: KMeans, GMM, NMF, one-class SVM).
-- streaming-moment nodes (mean-center, unit-variance) override ``statistical_initialization`` to use ``WelfordAccumulator`` and only reuse the guard / empty-stream rejection / ``_initialized`` buffer here.
+- ``_fit_channel_moments`` streams the cubes through one ``WelfordAccumulator`` (used by the streaming-moment nodes: mean-center, unit-variance), which override ``statistical_initialization`` to read the fitted mean or std from it.
 
 The fitted ``_initialized`` flag is a **persistent buffer**, so a node reloaded
 from a checkpoint keeps its initialized state (a plain attribute would reset to
@@ -46,9 +46,9 @@ class _StatisticalFitNode(Node):
 
     Subclasses either implement ``_fit(pixels)`` (and let the default
     ``statistical_initialization`` collect the pixel matrix), or override
-    ``statistical_initialization`` entirely (streaming-moment nodes) while
-    reusing ``_require_initialized`` / ``_reject_if_insufficient`` /
-    ``_mark_initialized`` from this base.
+    ``statistical_initialization`` to read their moments from
+    ``_fit_channel_moments`` (streaming-moment nodes); both reuse
+    ``_require_initialized`` / ``_reject_if_insufficient`` / ``_mark_initialized``.
     """
 
     _category = NodeCategory.MODEL
