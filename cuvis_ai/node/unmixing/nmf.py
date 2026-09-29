@@ -146,7 +146,7 @@ class NMFUnmixing(_StatisticalFitNode):
         if cube.ndim != 4:
             raise ValueError(f"Expected cube with shape [B, H, W, C], got {tuple(cube.shape)}")
 
-        batch, height, width, channels = cube.shape
+        _batch, height, width, channels = cube.shape
         endmembers = self.endmembers_buf.to(dtype=cube.dtype, device=cube.device)  # [K, C]
         components = endmembers.shape[0]
         if endmembers.shape[1] != channels:

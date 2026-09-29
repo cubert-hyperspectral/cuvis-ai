@@ -28,7 +28,7 @@ from pathlib import Path
 EMBED_DATA_URI = "data:video"
 
 
-def _output_has_video(output: dict) -> bool:
+def _output_has_embedded_video(output: dict) -> bool:
     """Whether a cell output embeds a base64 video (``data:video`` in its HTML)."""
     data = output.get("data", {})
     html = data.get("text/html", "")
@@ -50,7 +50,7 @@ def strip_videos(notebook_path: Path) -> int:
         if cell.get("cell_type") != "code":
             continue
         outputs = cell.get("outputs", [])
-        kept = [out for out in outputs if not _output_has_video(out)]
+        kept = [out for out in outputs if not _output_has_embedded_video(out)]
         diff = len(outputs) - len(kept)
         if diff:
             cell["outputs"] = kept
@@ -86,7 +86,7 @@ def main(argv: list[str] | None = None) -> int:
             for cell in notebook.get("cells", []):
                 if cell.get("cell_type") != "code":
                     continue
-                if any(_output_has_video(out) for out in cell.get("outputs", [])):
+                if any(_output_has_embedded_video(out) for out in cell.get("outputs", [])):
                     print(f"video output present in {path}", file=sys.stderr)
                     any_violations = True
                     break

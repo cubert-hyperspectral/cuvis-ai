@@ -63,7 +63,7 @@ class NormMode(StrEnum):
     STATISTICAL = "statistical"
 
 
-class _ScoreNormalizerBase(Node):
+class _NormalizerBase(Node):
     """Base class for BHWC normalization nodes.
 
     Notes
@@ -129,7 +129,7 @@ class _ScoreNormalizerBase(Node):
         raise NotImplementedError
 
 
-class IdentityNormalizer(_ScoreNormalizerBase):
+class IdentityNormalizer(_NormalizerBase):
     """No-op normalizer; preserves incoming scores."""
 
     _category = NodeCategory.TRANSFORM
@@ -154,7 +154,7 @@ class IdentityNormalizer(_ScoreNormalizerBase):
         return tensor
 
 
-class MinMaxNormalizer(_ScoreNormalizerBase):
+class MinMaxNormalizer(_NormalizerBase):
     """Min-max normalization per sample and channel (keeps gradients).
 
     Scales data to [0, 1] range using (x - min) / (max - min) transformation.
@@ -337,7 +337,7 @@ class MinMaxNormalizer(_ScoreNormalizerBase):
         return scaled.reshape(B, H, W, C)
 
 
-class SigmoidNormalizer(_ScoreNormalizerBase):
+class SigmoidNormalizer(_NormalizerBase):
     """Median-centered sigmoid squashing per sample and channel.
 
     Applies sigmoid transformation centered at the median with standard deviation scaling:
@@ -407,7 +407,7 @@ class SigmoidNormalizer(_ScoreNormalizerBase):
         return normalized.reshape(B, H, W, C)
 
 
-class ZScoreNormalizer(_ScoreNormalizerBase):
+class ZScoreNormalizer(_NormalizerBase):
     """Z-score (standardization) normalization along specified dimensions.
 
     Computes: (x - mean) / (std + eps) along specified dims.
@@ -520,7 +520,7 @@ class SigmoidTransform(Node):
         return {"transformed": torch.sigmoid(data)}
 
 
-class PerPixelUnitNorm(_ScoreNormalizerBase):
+class PerPixelUnitNorm(_NormalizerBase):
     """Per-pixel mean-centering and L2 normalization across channels."""
 
     _category = NodeCategory.TRANSFORM
@@ -552,7 +552,7 @@ class PerPixelUnitNorm(_ScoreNormalizerBase):
         return normalized
 
 
-class PercentileNormalizer(_ScoreNormalizerBase):
+class PercentileNormalizer(_NormalizerBase):
     """Per-channel normalization to ``[0, 1]`` for BHWC data of any channel count.
 
     Extracted from ``ChannelSelectorBase`` so band selection and display
@@ -731,7 +731,7 @@ class PercentileNormalizer(_ScoreNormalizerBase):
             raise RuntimeError("PercentileNormalizer.statistical_initialization received no data")
 
 
-class DisplayNormalizer(_ScoreNormalizerBase):
+class DisplayNormalizer(_NormalizerBase):
     """Apply sRGB gamma companding (IEC 61966-2-1) to a ``[0, 1]`` BHWC tensor.
 
     The stateless display-encoding companion to :class:`PercentileNormalizer`:
