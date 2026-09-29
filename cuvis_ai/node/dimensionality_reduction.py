@@ -182,8 +182,6 @@ class TrainablePCA(PCA):
         self.register_buffer("_explained_variance", torch.empty(n_components))
         self.register_buffer("_components", torch.empty(n_components, num_channels))
 
-        self._statistically_initialized = False
-
     def statistical_initialization(self, input_stream: InputStream) -> None:
         """Initialize PCA components from data using covariance eigen decomposition."""
         acc = None

@@ -131,3 +131,57 @@ class TestLazyWriter:
         node.log("x", 1.0, step=0)
         assert _run_dirs(root) == ["exp", "exp_v2"]
         node.cleanup()
+
+
+def _named_artifact(name: str) -> Artifact:
+    return Artifact(
+        name=name,
+        value=np.zeros((8, 8, 3), dtype=np.uint8),
+        el_id=0,
+        desc=name,
+        type=ArtifactType.IMAGE,
+        stage=ExecutionStage.VAL,
+    )
+
+
+def test_forward_logs_variadic_lists_item_by_item_in_order(tmp_path: Path, monkeypatch):
+    """A list of lists on either port (variadic fan-in) reaches the writer flattened, in order."""
+    node = TensorBoardMonitorNode(output_dir=str(tmp_path))
+    logged: list[tuple[str, str, str, int]] = []
+    monkeypatch.setattr(
+        node,
+        "_log_artifact",
+        lambda a, stage, step: logged.append(("artifact", a.name, stage, step)),
+    )
+    monkeypatch.setattr(
+        node, "_log_metric", lambda m, stage, step: logged.append(("metric", m.name, stage, step))
+    )
+    stage = ExecutionStage.VAL.value
+
+    node.forward(
+        artifacts=[[_named_artifact("a0"), _named_artifact("a1")], [_named_artifact("a2")]],
+        metrics=[
+            [Metric(name="m0", value=0.0, stage=ExecutionStage.VAL)],
+            [
+                Metric(name="m1", value=1.0, stage=ExecutionStage.VAL),
+                Metric(name="m2", value=2.0, stage=ExecutionStage.VAL),
+            ],
+        ],
+        context=_context(7),
+    )
+    assert logged == [
+        ("artifact", "a0", stage, 7),
+        ("artifact", "a1", stage, 7),
+        ("artifact", "a2", stage, 7),
+        ("metric", "m0", stage, 7),
+        ("metric", "m1", stage, 7),
+        ("metric", "m2", stage, 7),
+    ]
+
+    logged.clear()
+    node.forward(artifacts=[_named_artifact("b0")], metrics=None, context=_context(8))
+    assert logged == [("artifact", "b0", stage, 8)]
+
+    logged.clear()
+    node.forward(artifacts=None, metrics=[], context=_context(9))
+    assert logged == []

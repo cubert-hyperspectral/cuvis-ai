@@ -30,3 +30,10 @@ def test_shape_preserved_batched():
     out = LabelOffset(offset=2).forward(class_map=class_map)["class_map"]
     assert out.shape == (3, 4, 5)
     assert torch.equal(out, torch.full((3, 4, 5), 2, dtype=torch.int32))
+
+
+def test_int64_input_is_cast_to_int32():
+    class_map = torch.tensor([[[0, 5]]], dtype=torch.int64)
+    out = LabelOffset(offset=3).forward(class_map=class_map)["class_map"]
+    assert out.dtype == torch.int32
+    assert out.tolist() == [[[3, 8]]]

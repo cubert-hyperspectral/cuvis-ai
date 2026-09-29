@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import torch
 
-from cuvis_ai.node.spectral_extractor import BBoxSpectralExtractor, MaskedMeanSpectrum
+from cuvis_ai.node.spectral_extractor import (
+    BBoxSpectralExtractor,
+    MaskedMeanSpectrum,
+    SpectralSignatureExtractor,
+)
 
 
 def test_spectral_signature_extractor_reexported_from_node_package() -> None:
@@ -290,3 +294,52 @@ def test_masked_mean_spectrum_empty_mask_returns_zero_and_invalid() -> None:
 
     assert torch.equal(out["mean_spectrum"], torch.zeros((2, 4), dtype=torch.float32))
     assert out["valid"].tolist() == [0, 0]
+
+
+def _two_region_cube() -> tuple[torch.Tensor, torch.Tensor]:
+    """A [1, 4, 4, 3] cube whose top half is (1, 2, 3) and bottom half (4, 5, 6); mask ids 1 and 2."""
+    cube = torch.zeros(1, 4, 4, 3)
+    cube[0, :2] = torch.tensor([1.0, 2.0, 3.0])
+    cube[0, 2:] = torch.tensor([4.0, 5.0, 6.0])
+    mask = torch.zeros(1, 4, 4, dtype=torch.int32)
+    mask[0, :2] = 1
+    mask[0, 2:] = 2
+    return cube, mask
+
+
+def test_signature_extractor_infers_the_object_ids_from_the_mask() -> None:
+    cube, mask = _two_region_cube()
+    out = SpectralSignatureExtractor(min_mask_pixels=1).forward(cube=cube, mask=mask)
+    assert out["signatures"].shape == (1, 2, 3) and out["signatures_std"].shape == (1, 2, 3)
+    torch.testing.assert_close(
+        out["signatures"][0], torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+    )
+    torch.testing.assert_close(out["signatures_std"][0], torch.zeros(2, 3))
+    assert out["signatures"].dtype == torch.float32
+
+
+def test_signature_extractor_follows_explicit_object_ids_and_zero_fills_a_missing_one() -> None:
+    cube, mask = _two_region_cube()
+    out = SpectralSignatureExtractor(min_mask_pixels=1).forward(
+        cube=cube, mask=mask, object_ids=torch.tensor([[2, 7]], dtype=torch.int64)
+    )
+    torch.testing.assert_close(
+        out["signatures"][0], torch.tensor([[4.0, 5.0, 6.0], [0.0, 0.0, 0.0]])
+    )
+
+
+def test_signature_extractor_resizes_a_smaller_mask_to_the_cube() -> None:
+    cube, _ = _two_region_cube()
+    mask = torch.tensor([[[1, 1], [2, 2]]], dtype=torch.int32)
+    out = SpectralSignatureExtractor(min_mask_pixels=1).forward(cube=cube, mask=mask)
+    torch.testing.assert_close(
+        out["signatures"][0], torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+    )
+
+
+def test_signature_extractor_empty_mask_gives_empty_outputs() -> None:
+    cube, _ = _two_region_cube()
+    out = SpectralSignatureExtractor().forward(
+        cube=cube, mask=torch.zeros(1, 4, 4, dtype=torch.int32)
+    )
+    assert out["signatures"].shape == (1, 0, 3) and out["signatures_std"].shape == (1, 0, 3)

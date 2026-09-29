@@ -729,4 +729,4 @@ class LabelOffset(Node):
     @torch.no_grad()
     def forward(self, class_map: torch.Tensor, **_: Any) -> dict[str, torch.Tensor]:
         """Return the label map with `offset` added to every element."""
-        return {"class_map": (class_map.to(torch.int32) + self.offset).to(torch.int32)}
+        return {"class_map": class_map.to(torch.int32) + self.offset}

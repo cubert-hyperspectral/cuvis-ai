@@ -7,7 +7,7 @@ from cuvis_ai.node.anomaly.deep_svdd import DeepSVDDCenterTracker, ZScoreNormali
 from cuvis_ai.node.anomaly.lad_detector import LADGlobal
 from cuvis_ai.node.anomaly.rx_detector import RXGlobal
 from cuvis_ai.node.channel_mixer import LearnableChannelMixer
-from cuvis_ai.node.channel_selector import SoftChannelSelector
+from cuvis_ai.node.channel_selector import FastRGBSelector, SoftChannelSelector
 from cuvis_ai.node.conversion import ScoreToLogit
 from cuvis_ai.node.dimensionality_reduction import TrainablePCA
 from cuvis_ai.node.normalization import MinMaxNormalizer
@@ -232,3 +232,22 @@ def test_constructable_requires_initial_fit_nodes_reject_empty_stream(node_name,
         node.statistical_initialization(iter(()))
 
     assert node._statistically_initialized is False
+
+
+@pytest.mark.parametrize(
+    ("node_name", "factory"),
+    [
+        ("RXGlobal", lambda: RXGlobal(num_channels=5)),
+        ("LADGlobal", lambda: LADGlobal(num_channels=5)),
+        ("TrainablePCA", lambda: TrainablePCA(num_channels=5, n_components=3)),
+        (
+            "LearnableChannelMixer",
+            lambda: LearnableChannelMixer(input_channels=5, output_channels=3),
+        ),
+        ("FastRGBSelector", lambda: FastRGBSelector()),
+        ("SoftChannelSelector", lambda: SoftChannelSelector(n_select=3, input_channels=5)),
+    ],
+)
+def test_constructed_statistical_nodes_start_uninitialized(node_name, factory):
+    """The core base sets the flag in its constructor; the nodes rely on that."""
+    assert factory()._statistically_initialized is False, node_name

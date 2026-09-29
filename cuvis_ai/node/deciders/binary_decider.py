@@ -232,7 +232,8 @@ class QuantileBinaryDecider(BaseDecider):
         reduce_dims: Sequence[int] | None = None,
         **kwargs,
     ) -> None:
-        self._validate_quantile(quantile)
+        if not 0.0 <= quantile <= 1.0:
+            raise ValueError(f"Quantile must be within [0.0, 1.0]; received quantile={quantile}")
         self.quantile = float(quantile)
         self.reduce_dims = (
             tuple(int(dim) for dim in reduce_dims) if reduce_dims is not None else None
@@ -326,20 +327,3 @@ class QuantileBinaryDecider(BaseDecider):
             "precision": best["precision"],
             "recall": best["recall"],
         }
-
-    @staticmethod
-    def _validate_quantile(quantile: float) -> None:
-        """Validate that quantile is in the valid range [0, 1].
-
-        Parameters
-        ----------
-        quantile : float
-            Quantile value to validate
-
-        Raises
-        ------
-        ValueError
-            If quantile is outside the valid range [0, 1]
-        """
-        if not 0.0 <= quantile <= 1.0:
-            raise ValueError(f"Quantile must be within [0.0, 1.0]; received quantile={quantile}")

@@ -681,12 +681,8 @@ class BBoxPrompt(Node):
             raise ValueError("BBoxPrompt requires a non-empty frame_id input.")
 
         current_frame_id = int(frame_id.reshape(-1)[0].item())
-        frame_hw = _resolve_frame_hw(
-            current_frame_id,
-            self._frame_hw_by_id,
-            self._default_hw,
-            self.json_path,
-        )
+        # Raises for a frame the schedule has no size for; the loaders reject non-positive sizes.
+        _resolve_frame_hw(current_frame_id, self._frame_hw_by_id, self._default_hw, self.json_path)
         prompts = self._prompts_by_frame.get(current_frame_id, [])
         prompts_out = [dict(prompt) for prompt in prompts]
 
@@ -705,11 +701,6 @@ class BBoxPrompt(Node):
         else:
             boxes_xyxy = torch.zeros((1, 0, 4), dtype=torch.float32)
             object_ids = torch.zeros((1, 0), dtype=torch.int64)
-
-        if frame_hw[0] <= 0 or frame_hw[1] <= 0:
-            raise ValueError(
-                f"Resolved invalid frame size for frame {current_frame_id}: {frame_hw}."
-            )
 
         return {
             "bboxes": prompts_out,

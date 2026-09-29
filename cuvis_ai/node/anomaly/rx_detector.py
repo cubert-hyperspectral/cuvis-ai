@@ -164,7 +164,6 @@ class RXGlobal(RXBase):
             "cov_inv", torch.zeros(self.num_channels, self.num_channels, dtype=torch.float32)
         )  # (C,C)
         self._welford = WelfordAccumulator(self.num_channels, track_covariance=True)
-        self._statistically_initialized = False
 
     def statistical_initialization(self, input_stream: InputStream) -> None:
         """Initialize mu and Sigma from data iterator.
@@ -209,7 +208,7 @@ class RXGlobal(RXBase):
             return
         # Adapt accumulator if actual data channels differ from constructor's num_channels
         # (e.g., upstream SoftChannelSelector preserves all channels instead of reducing)
-        if X.shape[1] != self._welford._n_features:
+        if X.shape[1] != self._welford.n_features:
             self._welford = WelfordAccumulator(X.shape[1], track_covariance=True).to(
                 device=X.device
             )

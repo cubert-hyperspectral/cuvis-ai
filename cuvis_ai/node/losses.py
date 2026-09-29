@@ -472,14 +472,8 @@ class SelectorDiversityRegularizer(LossNode):
         dict[str, Tensor]
             Dictionary with "loss" key containing weighted loss
         """
-        # Compute variance of weights (high variance = diverse selection)
-        mean_weight = weights.mean()
-        variance = ((weights - mean_weight) ** 2).mean()
-
-        # Return negative variance (minimizing loss = maximizing variance = maximizing diversity)
-        diversity_loss = -variance
-
-        return {"loss": self.weight * diversity_loss}
+        # Negative population variance: minimizing the loss spreads the selection weights.
+        return {"loss": -self.weight * weights.var(correction=0)}
 
 
 class DeepSVDDSoftBoundaryLoss(LossNode):

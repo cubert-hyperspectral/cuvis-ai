@@ -75,3 +75,11 @@ def test_bbox_prompt_rejects_unusable_boxes(tmp_path: Path, bbox, message):
     json_path = _write_json(tmp_path, [_ann(1, 70, bbox, track_id=1)])
     with pytest.raises(ValueError, match=message):
         BBoxPrompt(json_path=str(json_path), prompt_specs=["9:1@70"])
+
+
+def test_bbox_prompt_rejects_an_image_without_a_positive_size_at_load(tmp_path: Path):
+    payload = {"images": [{"id": 70, "height": 0, "width": 5}], "annotations": [], "categories": []}
+    path = tmp_path / "detections.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="positive height/width"):
+        BBoxPrompt(json_path=str(path), prompt_specs=[])

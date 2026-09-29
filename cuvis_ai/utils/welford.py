@@ -117,6 +117,11 @@ class WelfordAccumulator(nn.Module):
         return int(self._n.item())
 
     @property
+    def n_features(self) -> int:
+        """Number of features (channels) per sample."""
+        return self._n_features
+
+    @property
     def mean(self) -> Tensor:
         """Per-feature mean, shape ``(C,)``, float32."""
         if self.count == 0:

@@ -124,7 +124,6 @@ class LADGlobal(Node):
         self.register_buffer(
             "L", torch.zeros(self.num_channels, self.num_channels, dtype=torch.float64)
         )  # (C, C)
-        self._statistically_initialized = False
 
     # ------------------------------------------------------------------
     # Statistical initialization API

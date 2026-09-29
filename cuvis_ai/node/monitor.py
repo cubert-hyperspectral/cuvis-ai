@@ -29,6 +29,13 @@ from torch.utils.tensorboard import SummaryWriter
 from cuvis_ai_core.node import Node
 
 
+def _flatten_variadic(items: list | None) -> list | None:
+    """A variadic port's list of lists as one flat list; a flat list or ``None`` passes through."""
+    if isinstance(items, list) and items and isinstance(items[0], list):
+        return [item for sublist in items for item in sublist]
+    return items
+
+
 class TensorBoardMonitorNode(Node):
     """TensorBoard monitoring node for logging artifacts and metrics.
 
@@ -205,31 +212,13 @@ class TensorBoardMonitorNode(Node):
         step = context.global_step
         self._ensure_writer()
 
-        # Flatten artifacts if it's a list of lists (variadic port)
-        if artifacts is not None:
-            if (
-                isinstance(artifacts, list)
-                and len(artifacts) > 0
-                and isinstance(artifacts[0], list)
-            ):
-                artifacts = [item for sublist in artifacts for item in sublist]
-
-        # Log artifacts
+        artifacts = _flatten_variadic(artifacts)
         if artifacts is not None:
             for artifact in artifacts:
                 self._log_artifact(artifact, stage, step)
             logger.debug(f"Logged {len(artifacts)} artifacts to TensorBoard at step {step}")
 
-        # Flatten metrics if variadic input provided
-        if (
-            metrics is not None
-            and isinstance(metrics, list)
-            and metrics
-            and isinstance(metrics[0], list)
-        ):
-            metrics = [item for sublist in metrics for item in sublist]
-
-        # Log metrics
+        metrics = _flatten_variadic(metrics)
         if metrics is not None:
             for metric in metrics:
                 self._log_metric(metric, stage, step)

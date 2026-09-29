@@ -455,14 +455,9 @@ class ZScoreNormalizer(_NormalizerBase):
         Tensor
             Z-score normalized tensor
         """
-        # Compute mean and std along specified dimensions
         mean = tensor.mean(dim=self.dims, keepdim=self.keepdim)
         std = tensor.std(dim=self.dims, keepdim=self.keepdim, unbiased=False)
-
-        # Apply z-score normalization
-        normalized = (tensor - mean) / (std + self.eps)
-
-        return normalized
+        return (tensor - mean) / (std + self.eps)
 
 
 class SigmoidTransform(Node):
