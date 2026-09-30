@@ -48,6 +48,14 @@ tf32trt|fp16trt`). Thor ms: one pipeline per process (`time_one.py`); the first 
   and `Composite.scores` (heatmap, shells 0.5, FO 1.0), from cuvis-ai-patchcore's
   `MaskComposite`. The single outputs stay; the gated family lists its FO mask as `FOMask.decisions`.
   THOR_DEPLOY_NOTES §23.
+- **Shell suppression** (30 Sep, `shellsup/` and `composite/shellsup/`, made by `make_variants.py --shellsup` /
+  `--composite --shellsup`): `walnut_combo_{or,gated}_fp16trt_trt16[_composite]_shellsup_cuvisnext_cube`.
+  - cuvis-ai-patchcore's `ScoreMapSuppression` (weight 1.0, erode_px 4) zeroes the FO map on the SEG shell mask
+    before every gate, against FO false positives on shells smeared by motion.
+  - The price: FO does not see what SEG calls a shell.
+  - The same ports as the base (plus the composite's); the shell mask stays selectable as `ShellMask.decisions`.
+  - The base's thresholds, which are conservative.
+  - Not yet run through cuvis.next. THOR_DEPLOY_NOTES §26.
 
 ## Outputs (pick explicitly in cuvis.next, not "Automatic")
 

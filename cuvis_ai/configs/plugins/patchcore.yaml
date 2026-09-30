@@ -16,3 +16,4 @@ capabilities:
   - class_name: cuvis_ai_patchcore.node.fusion.MaskComposite
   - class_name: cuvis_ai_patchcore.node.spatial.GridSubsample
   - class_name: cuvis_ai_patchcore.node.spatial.ScoreUpsample
+  - class_name: cuvis_ai_patchcore.node.fusion.ScoreMapSuppression
