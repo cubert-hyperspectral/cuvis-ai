@@ -1,0 +1,39 @@
+metadata:
+  name: walnut_diag_passthrough_cuvisnext_cube
+  description: 'Control pipeline for the live-view jitter test: the cube to a CIR
+    false-colour image (870/640/550 nm, per-frame normalisation), no model. Display
+    CIR.rgb_image. If the view steps back and forth with this running too, the cause
+    is the app''s live-inference path, not the detectors. patchcore / steervit are
+    listed only so cuvis.next reuses the FO pipelines'' child env.'
+  created: '2026-09-30T08:58:05.331402'
+  tags:
+  - walnut
+  - diagnostic
+  - passthrough
+  author: ''
+  cuvis_ai_version: 0.17.4
+plugins:
+- cuvis_ai_builtin
+- patchcore
+- steervit
+nodes:
+- name: DataSource
+  class_name: cuvis_ai.node.data.CU3SDataNode
+  hparams: {}
+- name: CIR
+  class_name: cuvis_ai.node.channel_selector.FixedWavelengthSelector
+  hparams:
+    target_wavelengths:
+    - 870.0
+    - 640.0
+    - 550.0
+    normalize_output: true
+    norm_mode: per_frame
+    apply_gamma: false
+    freeze_running_bounds_after_frames: 20
+    running_warmup_frames: 10
+connections:
+- source: DataSource.outputs.cube
+  target: CIR.inputs.cube
+- source: DataSource.outputs.wavelengths
+  target: CIR.inputs.wavelengths
