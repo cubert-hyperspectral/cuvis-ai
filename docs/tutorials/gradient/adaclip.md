@@ -11,7 +11,7 @@ different recipe for getting CLIP to work on hyperspectral data.
 
 **Run the example:**
 
-- [`cuvis_ai/configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml) — frozen-AdaCLIP baseline on fixed bands, run with `restore-pipeline` (the PCA-reduced variant from the retired cookbook script has no packaged equivalent yet).
+- [`cuvis_ai/configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/pipeline/anomaly/adaclip/adaclip_baseline.yaml) — frozen-AdaCLIP baseline on fixed bands, run with `restore-pipeline` (a PCA-reduced variant has no packaged equivalent yet).
 - [`cuvis_ai/configs/pipeline/anomaly/adaclip/concrete_adaclip_gradient_two_stage.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/pipeline/anomaly/adaclip/concrete_adaclip_gradient_two_stage.yaml) — Concrete channel selector + AdaCLIP gradient training.
 - [`cuvis_ai/configs/trainrun/drcnn_adaclip_trainrun.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/trainrun/drcnn_adaclip_trainrun.yaml) — DRCNN-based channel reducer + AdaCLIP, run with `restore-trainrun --mode train`.
 - [`notebooks/use_cases/channel_selector_lentils.ipynb`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/notebooks/use_cases/channel_selector_lentils.ipynb) in cuvis-ai: the Concrete selector + frozen AdaCLIP recipe as a notebook on the full lentils dataset, ending with the learned bands and test-set metrics.

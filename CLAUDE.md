@@ -3,14 +3,13 @@
 The **node/operator library** of the Cuvis.AI ecosystem, built on `cuvis-ai-core`. Ships the
 concrete processing nodes (channel selectors/mixers, false-RGB, normalization, anomaly
 detectors, spectral angle mapper, conversion/decision nodes, mask/compositing ops, video and
-JSON writers, visualization helpers) plus ready-to-run pipeline and plugin configs. End-to-end
-examples — Jupyter notebooks pairing data, explanation, code, and results — live in `cuvis-ai-cookbook`.
+JSON writers, visualization helpers) plus ready-to-run pipeline and plugin configs.
 
 ## Part of the Cuvis.AI ecosystem
 
 `cuvis-ai-schemas` (contracts) → `cuvis-ai-core` (framework) → **`cuvis-ai`** (this repo:
-nodes + CLIs) → plugins. `cuvis-ai-cookbook` = example notebooks (datasets on Hugging Face:
-<https://huggingface.co/cubert-gmbh>); `cuvis-ai-agentic-skills` = private/internal Claude Code
+nodes + CLIs) → plugins. Datasets live on Hugging Face
+(<https://huggingface.co/cubert-gmbh>); `cuvis-ai-agentic-skills` = private/internal Claude Code
 plugin (local checkout only, not published or referenced from public docs);
 `dev-docs` = internal ticket docs.
 
