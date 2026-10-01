@@ -1123,16 +1123,7 @@ class TrackingPointerOverlayNode(Node):
     The node is composable by design: it renders only the pointer markers on top
     of an incoming RGB frame and does not perform any mask tinting itself.
     Colours are derived from object IDs using the same palette as
-    :class:`TrackingOverlayNode`.
-
-    Parameters
-    ----------
-    alpha : float
-        Reserved for API compatibility with :class:`TrackingOverlayNode` (unused).
-    draw_contours : bool
-        Reserved for API compatibility with :class:`TrackingOverlayNode` (unused).
-    draw_ids : bool
-        Reserved for API compatibility with :class:`TrackingOverlayNode` (unused).
+    :class:`TrackingOverlayNode`. The node has no rendering knobs.
     """
 
     _category = NodeCategory.VISUALIZER
@@ -1171,23 +1162,6 @@ class TrackingPointerOverlayNode(Node):
             description="RGB frame with pointer overlays [1, H, W, 3] in [0, 1].",
         ),
     }
-
-    def __init__(
-        self,
-        alpha: float = 0.4,
-        draw_contours: bool = True,
-        draw_ids: bool = True,
-        **kwargs,
-    ) -> None:
-        self.alpha = float(alpha)
-        self.draw_contours = bool(draw_contours)
-        self.draw_ids = bool(draw_ids)
-        super().__init__(
-            alpha=alpha,
-            draw_contours=draw_contours,
-            draw_ids=draw_ids,
-            **kwargs,
-        )
 
     @torch.no_grad()
     def forward(
@@ -1665,4 +1639,5 @@ __all__ = [
     "ChannelSelectorFalseRGBViz",
     "MaskOverlayNode",
     "TrackingOverlayNode",
+    "TrackingPointerOverlayNode",
 ]

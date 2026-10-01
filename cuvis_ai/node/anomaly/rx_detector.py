@@ -218,17 +218,12 @@ class RXGlobal(RXBase):
         self._statistically_initialized = False
 
     @torch.no_grad()
-    def finalize(self) -> "RXGlobal":
+    def finalize(self) -> None:
         """Compute final mean and covariance from accumulated streaming statistics.
 
         This method converts the running accumulators (_mean, _M2) into the final
         mean (mu) and covariance (cov) matrices. The covariance is regularized with
         eps * I for numerical stability, and optionally caches the pseudo-inverse.
-
-        Returns
-        -------
-        RXGlobal
-            Returns self for method chaining
 
         Raises
         ------
@@ -252,7 +247,6 @@ class RXGlobal(RXBase):
         else:
             self.cov_inv = torch.empty(0, 0)
         self._statistically_initialized = True
-        return self
 
     def reset(self) -> None:
         """Reset all statistics and accumulators to empty state.

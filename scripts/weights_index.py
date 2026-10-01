@@ -29,15 +29,15 @@ PLUGINS_DIR = REPO_ROOT / "cuvis_ai" / "configs" / "plugins"
 INDEX_PATH = PLUGINS_DIR / "weights.index.json"
 
 
-def generate(plugins_dir: Path = PLUGINS_DIR) -> str:
-    """Return the index text for ``plugins_dir``: core's built-in rows plus every manifest block.
+def generate() -> str:
+    """Return the index text: core's built-in rows plus every manifest block of the catalog.
 
     The registry is reset first so a plugin that happens to be importable in this
     environment does not turn its rows into ``source: plugin`` entries; the committed
     file describes what an environment without the plugins sees.
     """
     ModelWeights.reset()
-    ModelWeights.load_manifests([plugins_dir])
+    ModelWeights.load_manifests([PLUGINS_DIR])
     return index_json(ModelWeights.list_payload())
 
 

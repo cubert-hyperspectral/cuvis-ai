@@ -113,8 +113,6 @@ class BinaryAnomalyLabelMapper(Node):
                 # Add gaps to normal_class_ids as requested
                 self.normal_class_ids = tuple(sorted(set(self.normal_class_ids) | gaps))
 
-        self._target_dtype = torch.long
-
         super().__init__(
             normal_class_ids=self.normal_class_ids,
             anomaly_class_ids=self.anomaly_class_ids,

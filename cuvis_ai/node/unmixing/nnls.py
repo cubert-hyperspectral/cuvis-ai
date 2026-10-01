@@ -144,11 +144,7 @@ class NNLSUnmixing(Node):
 
         totals = x.sum(dim=1)  # [P]
         class_idx = x.argmax(dim=1) + 1  # [P], 1-based
-        class_idx = torch.where(
-            totals < self.min_total,
-            torch.zeros_like(class_idx),
-            class_idx,
-        )
+        class_idx = class_idx.masked_fill(totals < self.min_total, 0)
         class_mask = class_idx.reshape(batch, height, width).to(torch.int32)
 
         return {

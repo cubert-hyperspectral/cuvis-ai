@@ -1,4 +1,4 @@
-"""Deprecated: use cuvis_ai.node.anomaly.lad_detector instead. Removed in v0.8."""
+"""Deprecated: use cuvis_ai.node.anomaly.lad_detector instead. Removed in a future release."""
 
 import warnings
 

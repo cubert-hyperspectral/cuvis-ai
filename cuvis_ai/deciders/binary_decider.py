@@ -1,4 +1,4 @@
-"""Deprecated: use cuvis_ai.node.deciders.binary_decider instead. Removed in v0.8."""
+"""Deprecated: use cuvis_ai.node.deciders.binary_decider instead. Removed in a future release."""
 
 import warnings
 
