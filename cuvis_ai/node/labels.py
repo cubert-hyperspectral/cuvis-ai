@@ -10,7 +10,7 @@ on configurable normal and anomaly class ID lists.
 
 See Also
 --------
-cuvis_ai.deciders : Binary decision nodes for threshold-based classification
+cuvis_ai.node.deciders : Binary decision nodes for threshold-based classification
 """
 
 from __future__ import annotations
@@ -30,8 +30,7 @@ from cuvis_ai_core.node.node import Node
 class BinaryAnomalyLabelMapper(Node):
     """Convert multi-class segmentation masks to binary anomaly targets.
 
-    Masks are remapped to torch.long tensors with 0 representing normal pixels and
-    1 indicating anomalies.
+    The output is a boolean mask: False for normal pixels, True for anomalies.
 
     Parameters
     ----------

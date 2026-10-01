@@ -3,7 +3,7 @@
 import pytest
 import torch
 
-from cuvis_ai.deciders.binary_decider import BinaryDecider
+from cuvis_ai.node.deciders.binary_decider import BinaryDecider
 
 pytestmark = pytest.mark.unit
 

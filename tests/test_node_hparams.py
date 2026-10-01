@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from cuvis_ai.anomaly.rx_detector import RXPerBatch
+from cuvis_ai.node.anomaly.rx_detector import RXPerBatch
 
 pytestmark = pytest.mark.unit
 

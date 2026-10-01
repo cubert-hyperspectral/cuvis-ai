@@ -16,8 +16,8 @@ pytestmark = pytest.mark.unit
 EMPTY_INIT_ERRORS = (RuntimeError, ValueError, StopIteration)
 REGISTRY_PACKAGES = (
     "cuvis_ai.node",
-    "cuvis_ai.anomaly",
-    "cuvis_ai.deciders",
+    "cuvis_ai.node.anomaly",
+    "cuvis_ai.node.deciders",
     "cuvis_ai.node.pretreatments",
     "cuvis_ai.node.unmixing",
     "cuvis_ai.node.clustering",

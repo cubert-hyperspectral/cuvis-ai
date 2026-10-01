@@ -4,7 +4,7 @@ import pytest
 import torch
 from cuvis_ai_schemas.enums import ExecutionStage
 
-from cuvis_ai.anomaly.rx_detector import RXGlobal
+from cuvis_ai.node.anomaly.rx_detector import RXGlobal
 from cuvis_ai.node.data import LentilsAnomalyDataNode
 from cuvis_ai.node.normalization import MinMaxNormalizer
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline

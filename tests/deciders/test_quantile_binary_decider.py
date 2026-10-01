@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 import torch
 
-from cuvis_ai.deciders.binary_decider import QuantileBinaryDecider
+from cuvis_ai.node.deciders.binary_decider import QuantileBinaryDecider
 
 pytestmark = pytest.mark.unit
 

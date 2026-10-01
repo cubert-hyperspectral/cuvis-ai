@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from cuvis_ai.anomaly.deep_svdd import (
+from cuvis_ai.node.anomaly.deep_svdd import (
     DeepSVDDCenterTracker,
     DeepSVDDProjection,
     ZScoreNormalizerGlobal,

@@ -3,7 +3,7 @@ import pytest
 import torch
 import torch.nn as nn
 
-from cuvis_ai.anomaly.lad_detector import LADGlobal
+from cuvis_ai.node.anomaly.lad_detector import LADGlobal
 
 pytestmark = pytest.mark.unit
 
