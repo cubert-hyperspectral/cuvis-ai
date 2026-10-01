@@ -1,6 +1,6 @@
 metadata:
-  name: walnut_combo_gated_fp16trt_trt16_composite_smooth3_cuvisnext_cube
-  description: 'Variant of walnut_combo_gated_fp16trt_trt16_cuvisnext_cube. Composite view: Composite.mask (label map, 85 = shell, 255 = FO, FO on top) and Composite.scores (level map, shells 0.5, FO 1.0). The single outputs stay selectable: gate.scores (FO heatmap), FOMask.decisions (FO mask), ShellMask.decisions (shell mask), ShellHeatmap.scores (shell heatmap). Every FrameScoreGate decides on the median of its last 3 frame scores (smooth_k 3): a one-frame spike or dip does not flip it; about 1 frame(s) later. Otherwise identical to the base: weights (.pt hardlink), thresholds (calibrate_live.py writes both), TensorRT engines.'
+  name: walnut_combo_gated_fp16trt_trt16_composite_classes_test_cuvisnext_cube
+  description: 'Variant of walnut_combo_gated_fp16trt_trt16_cuvisnext_cube. Composite view: Composite.mask (label map, 85 = shell, 255 = FO, FO on top) and Composite.scores (level map, shells 0.5, FO 1.0). The single outputs stay selectable: gate.scores (FO heatmap), FOMask.decisions (FO mask), ShellMask.decisions (shell mask), ShellHeatmap.scores (shell heatmap). Otherwise identical to the base: weights (.pt hardlink), thresholds (calibrate_live.py writes both), TensorRT engines.'
   created: ''
   tags:
   - anomaly
@@ -141,7 +141,6 @@ nodes:
     topk_frac: 0.001
     mode: heatmap
     log_scores: true
-    smooth_k: 3
 - name: SelRGB
   class_name: cuvis_ai.node.channel_selector.FixedWavelengthSelector
   hparams:
@@ -243,6 +242,16 @@ nodes:
   hparams:
     labels: [85, 255]
     levels: [0.5, 1.0]
+- name: Classes
+  class_name: cuvis_ai_patchcore.node.fusion.MaskComposite
+  hparams:
+    labels: [1, 2]
+    levels: [0.5, 1.0]
+- name: ClassesBR
+  class_name: cuvis_ai_patchcore.node.fusion.MaskComposite
+  hparams:
+    labels: [127, 252]
+    levels: [0.5, 1.0]
 connections:
 - source: cu3s_data.outputs.cube
   target: cir_870_640_550.inputs.cube
@@ -306,3 +315,11 @@ connections:
   target: Composite.inputs.decisions
 - source: gate.outputs.decisions
   target: Composite.inputs.decisions
+- source: ShellDecider.outputs.decisions
+  target: Classes.inputs.decisions
+- source: gate.outputs.decisions
+  target: Classes.inputs.decisions
+- source: ShellDecider.outputs.decisions
+  target: ClassesBR.inputs.decisions
+- source: gate.outputs.decisions
+  target: ClassesBR.inputs.decisions
