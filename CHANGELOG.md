@@ -27,6 +27,7 @@
 - `cuvis-ai-schemas[full]` is capped below 0.13 for the 0.17 line: the composer pins only core and torch to the host, so a child environment composed on a core 0.17.x host would otherwise pick up a schemas release that drops the `ClearPluginCache` messages those cores dereference at import.
 - `mypy` is part of the `dev` extra, so CI's Type Checking job runs it (the step failed to spawn before and `continue-on-error` kept the job green).
 - The last mentions of the retired cookbook repository are gone from the maintainer notes, the deepeiou manifest comment, the adaclip tutorial and the pyproject comments; `tests/docs/test_no_private_repo_links.py` keeps only its blob-link check.
+- Lock upgrades past the advisories published 2026-10-01: tornado 6.5.10 (GHSA-3hv7-mjh2-fv65, GHSA-c2m8-h5v5-343r, GHSA-chx6-46f5-w4vp) and urllib3 2.8.0 (CVE-2026-97687, CVE-2026-97688, CVE-2026-97689); both are transitive, no floor changes.
 - Bumped the `cuvis_ai_builtin` manifest pin v0.17.2 -> v0.17.3 so composed child environments install this release (a lightweight tag: core resolves an annotated tag to the tag object, which current uv rejects).
 
 ## 0.17.2 - 2026-09-24
