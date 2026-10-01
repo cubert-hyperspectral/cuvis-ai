@@ -646,6 +646,13 @@ def calibrate_thresholds(
     return report
 
 
+def _pixel_prf(flagged: np.ndarray, gt_masks: np.ndarray) -> dict[str, float]:
+    """Pixel-level precision, recall, F1 and IoU of a flagged mask against the ground truth."""
+    tp = float((flagged & gt_masks).sum())
+    fp = float((flagged & ~gt_masks).sum())
+    return _calib.prf(tp, fp, float(gt_masks.sum()) - tp)
+
+
 def _current_preset_two_stage(
     pixel_scores: np.ndarray,
     gt_masks: np.ndarray,
@@ -677,9 +684,6 @@ def _current_preset_two_stage(
         thresholds = frame_quantiles[quantile]
         stage2 = {"mode": "quantile", "quantile": quantile}
     flagged = (pixel_scores >= thresholds[:, None, None]) & gate[:, None, None]
-    tp = float((flagged & gt_masks).sum())
-    fp = float((flagged & ~gt_masks).sum())
-    fn = float(gt_masks.sum()) - tp
     return {
         "image_threshold": image_thr,
         "stage2": stage2,
@@ -688,7 +692,7 @@ def _current_preset_two_stage(
             if image_thr is not None
             else None
         ),
-        "pixel": _calib.prf(tp, fp, fn),
+        "pixel": _pixel_prf(flagged, gt_masks),
     }
 
 
@@ -721,10 +725,7 @@ def _current_preset_binary(
     """
     threshold = float(decider_defaults.get("threshold", 0.5))
     flagged = probabilities >= threshold
-    tp = float((flagged & gt_masks).sum())
-    fp = float((flagged & ~gt_masks).sum())
-    fn = float(gt_masks.sum()) - tp
-    return {"threshold": threshold, "pixel": _calib.prf(tp, fp, fn)}
+    return {"threshold": threshold, "pixel": _pixel_prf(flagged, gt_masks)}
 
 
 def _current_preset_quantile(
@@ -736,10 +737,7 @@ def _current_preset_quantile(
     """Metrics at the ``QuantileBinaryDecider`` quantile currently shipped."""
     thresholds = frame_quantiles[preset_quantile][:, None, None]
     flagged = pixel_scores >= thresholds
-    tp = float((flagged & gt_masks).sum())
-    fp = float((flagged & ~gt_masks).sum())
-    fn = float(gt_masks.sum()) - tp
-    return {"quantile": preset_quantile, "pixel": _calib.prf(tp, fp, fn)}
+    return {"quantile": preset_quantile, "pixel": _pixel_prf(flagged, gt_masks)}
 
 
 def _print_report(report: dict[str, Any]) -> None:

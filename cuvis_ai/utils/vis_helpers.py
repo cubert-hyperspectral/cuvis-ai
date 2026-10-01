@@ -9,6 +9,8 @@ import numpy as np
 import torch
 from PIL import Image
 
+from cuvis_ai.utils.torch_draw import OBJECT_PALETTE
+
 if TYPE_CHECKING:
     import matplotlib.figure
 
@@ -106,23 +108,6 @@ def create_mask_overlay(
     fg = (mask > 0).unsqueeze(-1).to(dtype=rgb.dtype)  # [..., 1] for channel broadcast
     tint = torch.tensor(color, dtype=rgb.dtype, device=rgb.device)
     return ((1.0 - alpha * fg) * rgb + alpha * fg * tint).clamp(0.0, 1.0)
-
-
-# 12 perceptually-distinct colours for multi-object overlays (RGB, 0-255).
-OBJECT_PALETTE: list[tuple[int, int, int]] = [
-    (230, 25, 75),  # red
-    (60, 180, 75),  # green
-    (255, 225, 25),  # yellow
-    (0, 130, 200),  # blue
-    (245, 130, 48),  # orange
-    (145, 30, 180),  # purple
-    (70, 240, 240),  # cyan
-    (240, 50, 230),  # magenta
-    (210, 245, 60),  # lime
-    (250, 190, 212),  # pink
-    (0, 128, 128),  # teal
-    (220, 190, 255),  # lavender
-]
 
 
 __all__ = [

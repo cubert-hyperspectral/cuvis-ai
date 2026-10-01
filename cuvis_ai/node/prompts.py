@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -302,6 +302,21 @@ def _select_annotation_for_prompt(
     return sorted_annotations[rank]
 
 
+def _selected_prompt_annotations(
+    annotations_by_frame: dict[int, list[dict[str, Any]]],
+    prompt_specs: Sequence[str] | None,
+) -> Iterator[tuple[str, SpatialPromptSpec, dict[str, Any]]]:
+    """Yield ``(raw_spec, spec, annotation)`` per prompt spec in order, resolving lazily."""
+    for order, raw_spec in enumerate(prompt_specs or []):
+        spec = parse_spatial_prompt_spec(raw_spec, order=order)
+        annotation = _select_annotation_for_prompt(
+            annotations_by_frame=annotations_by_frame,
+            detection_id=spec.detection_id,
+            frame_id=spec.frame_id,
+        )
+        yield raw_spec, spec, annotation
+
+
 def _decode_segmentation(
     segmentation: Any,
     image_hw: tuple[int, int],
@@ -428,13 +443,9 @@ def load_mask_prompt_schedule(
     annotations_by_frame, frame_hw_by_id, default_hw = load_detection_index(json_path)
 
     masks_by_frame: dict[int, np.ndarray] = {}
-    for order, raw_spec in enumerate(prompt_specs or []):
-        spec = parse_spatial_prompt_spec(raw_spec, order=order)
-        annotation = _select_annotation_for_prompt(
-            annotations_by_frame=annotations_by_frame,
-            detection_id=spec.detection_id,
-            frame_id=spec.frame_id,
-        )
+    for raw_spec, spec, annotation in _selected_prompt_annotations(
+        annotations_by_frame, prompt_specs
+    ):
         if "segmentation" not in annotation:
             raise ValueError(
                 f"Annotation selected by '{raw_spec}' does not contain a 'segmentation' field."
@@ -498,13 +509,9 @@ def load_bbox_prompt_schedule(
     annotations_by_frame, frame_hw_by_id, default_hw = load_detection_index(json_path)
 
     prompts_by_frame: dict[int, dict[int, dict[str, float | int]]] = {}
-    for order, raw_spec in enumerate(prompt_specs or []):
-        spec = parse_spatial_prompt_spec(raw_spec, order=order)
-        annotation = _select_annotation_for_prompt(
-            annotations_by_frame=annotations_by_frame,
-            detection_id=spec.detection_id,
-            frame_id=spec.frame_id,
-        )
+    for raw_spec, spec, annotation in _selected_prompt_annotations(
+        annotations_by_frame, prompt_specs
+    ):
         frame_hw = _resolve_prompt_frame_hw(
             spec.frame_id,
             frame_hw_by_id,

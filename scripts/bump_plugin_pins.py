@@ -87,38 +87,38 @@ def _manifest_node_set(doc: dict) -> set[str] | None:
     return None
 
 
-def _latest_release_tag(owner_repo: str) -> str | None:
-    """Return the latest published release tag for ``owner/repo``, or ``None``."""
-    headers = {"Accept": "application/vnd.github+json", "User-Agent": "cuvis-ai-pin-bot"}
+def _github_get(url: str, accept: str) -> bytes | None:
+    """GET ``url`` from the GitHub API with ``accept``; ``None`` on 404, other HTTP errors raise."""
+    headers = {"Accept": accept, "User-Agent": "cuvis-ai-pin-bot"}
     token = _token()
     if token:
         headers["Authorization"] = f"Bearer {token}"
-    url = f"https://api.github.com/repos/{owner_repo}/releases/latest"
-    request = urllib.request.Request(url, headers=headers)  # noqa: S310 - fixed github host
+    request = urllib.request.Request(url, headers=headers)
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310
-            return json.load(response).get("tag_name")
-    except urllib.error.HTTPError as exc:
-        if exc.code == 404:
-            return None  # no published release yet
-        raise
-
-
-def _fetch_text(owner_repo: str, path: str, ref: str) -> str | None:
-    """Return a repo file's raw text at ``ref`` via the contents API, or ``None`` if absent."""
-    headers = {"Accept": "application/vnd.github.raw", "User-Agent": "cuvis-ai-pin-bot"}
-    token = _token()
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-    url = f"https://api.github.com/repos/{owner_repo}/contents/{path}?ref={ref}"
-    request = urllib.request.Request(url, headers=headers)  # noqa: S310 - fixed github host
-    try:
-        with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310
-            return response.read().decode("utf-8")
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return response.read()
     except urllib.error.HTTPError as exc:
         if exc.code == 404:
             return None
         raise
+
+
+def _latest_release_tag(owner_repo: str) -> str | None:
+    """Return the latest published release tag for ``owner/repo``, or ``None``."""
+    body = _github_get(
+        f"https://api.github.com/repos/{owner_repo}/releases/latest",
+        "application/vnd.github+json",
+    )
+    return None if body is None else json.loads(body).get("tag_name")
+
+
+def _fetch_text(owner_repo: str, path: str, ref: str) -> str | None:
+    """Return a repo file's raw text at ``ref`` via the contents API, or ``None`` if absent."""
+    body = _github_get(
+        f"https://api.github.com/repos/{owner_repo}/contents/{path}?ref={ref}",
+        "application/vnd.github.raw",
+    )
+    return None if body is None else body.decode("utf-8")
 
 
 def _released_node_set(owner_repo: str, name: str, tag: str) -> set[str] | None:

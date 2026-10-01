@@ -21,7 +21,7 @@ it is never offered as a usable pipeline node.
 Two accumulation patterns are supported:
 
 - ``_collect_pixels`` gathers the stream into one subsampled ``[N, C]`` matrix (used by the sklearn-fit nodes: KMeans, GMM, NMF, one-class SVM).
-- streaming-moment nodes (mean-center, unit-variance) override ``statistical_initialization`` to use ``WelfordAccumulator`` and only reuse the guard / empty-stream rejection / ``_initialized`` buffer here.
+- ``_fit_channel_moments`` streams the cubes through one ``WelfordAccumulator`` (used by the streaming-moment nodes: mean-center, unit-variance), which override ``statistical_initialization`` to read the fitted mean or std from it.
 
 The fitted ``_initialized`` flag is a **persistent buffer**, so a node reloaded
 from a checkpoint keeps its initialized state (a plain attribute would reset to
@@ -37,6 +37,7 @@ from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.execution import InputStream
 from cuvis_ai_schemas.pipeline import PortSpec
 
+from cuvis_ai.utils.welford import WelfordAccumulator
 from cuvis_ai_core.node import Node
 
 
@@ -45,9 +46,9 @@ class _StatisticalFitNode(Node):
 
     Subclasses either implement ``_fit(pixels)`` (and let the default
     ``statistical_initialization`` collect the pixel matrix), or override
-    ``statistical_initialization`` entirely (streaming-moment nodes) while
-    reusing ``_require_initialized`` / ``_reject_if_insufficient`` /
-    ``_mark_initialized`` from this base.
+    ``statistical_initialization`` to read their moments from
+    ``_fit_channel_moments`` (streaming-moment nodes); both reuse
+    ``_require_initialized`` / ``_reject_if_insufficient`` / ``_mark_initialized``.
     """
 
     _category = NodeCategory.MODEL
@@ -113,6 +114,28 @@ class _StatisticalFitNode(Node):
                 f"{type(self).__name__}.statistical_initialization received "
                 f"{n_samples} sample(s); need at least {self._MIN_FIT_SAMPLES}."
             )
+
+    def _fit_channel_moments(self, input_stream: InputStream) -> WelfordAccumulator:
+        """Stream every ``cube`` batch through one Welford accumulator over the channels.
+
+        Batches without a ``cube`` port are skipped and the accumulator is created on the
+        first batch's device; a stream that yields too few samples is rejected through
+        :meth:`_reject_if_insufficient` before anything is returned.
+        """
+        welford: WelfordAccumulator | None = None
+        for batch in input_stream:
+            x = batch.get("cube")
+            if x is None:
+                continue
+            flat = x.reshape(-1, x.shape[-1]).to(torch.float32)
+            if welford is None:
+                welford = WelfordAccumulator(flat.shape[-1], track_covariance=False).to(
+                    device=flat.device
+                )
+            welford.update(flat)
+        self._reject_if_insufficient(0 if welford is None else welford.count)
+        assert welford is not None
+        return welford
 
     @torch.no_grad()
     def _collect_pixels(self, input_stream: InputStream) -> torch.Tensor:
