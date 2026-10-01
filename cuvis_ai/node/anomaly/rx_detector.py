@@ -200,6 +200,11 @@ class RXGlobal(RXBase):
         batch_bhwc : torch.Tensor
             Input batch in BHWC format, shape (B, H, W, C)
         """
+        if batch_bhwc.ndim != 4:
+            raise ValueError(
+                "RXGlobal.update expects a BHWC batch (B, H, W, C), "
+                f"got shape {tuple(batch_bhwc.shape)}"
+            )
         X = batch_bhwc.reshape(-1, batch_bhwc.shape[-1])  # (M,C)
         if X.shape[0] <= 1:
             return
