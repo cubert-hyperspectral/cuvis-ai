@@ -21,6 +21,7 @@ from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
 
+from cuvis_ai.utils.rotation import normalize_rotation, quarter_turns
 from cuvis_ai_core.node import Node
 
 
@@ -197,16 +198,8 @@ class SpatialRotateNode(Node):
         ),
     }
 
-    # Accepted values -> canonical form (None, 90, -90 or 180) used by forward.
-    _ROTATIONS = {None: None, 0: None, 90: 90, -270: 90, -90: -90, 270: -90, 180: 180, -180: 180}
-
     def __init__(self, rotation: int | None = None, **kwargs: Any) -> None:
-        if rotation not in self._ROTATIONS:
-            raise ValueError(
-                f"rotation must be one of {sorted(r for r in self._ROTATIONS if r is not None)}"
-                f" or None, got {rotation}"
-            )
-        self.rotation = self._ROTATIONS[rotation]
+        self.rotation = normalize_rotation(rotation)
         super().__init__(rotation=rotation, **kwargs)
 
     @torch.no_grad()
@@ -218,7 +211,7 @@ class SpatialRotateNode(Node):
         **_: Any,
     ) -> dict[str, Tensor]:
         """Apply the configured rotation to the cube, mask, and rgb_image tensors."""
-        k = {None: 0, 90: 1, -90: -1, 180: 2}[self.rotation]
+        k = quarter_turns(self.rotation)
 
         result: dict[str, Tensor] = {}
         result["cube"] = torch.rot90(cube, k=k, dims=(1, 2)).contiguous() if k else cube

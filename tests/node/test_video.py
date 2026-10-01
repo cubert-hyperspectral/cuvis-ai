@@ -648,22 +648,11 @@ def test_draw_title_overlay_noop_on_zero_size_frame(tmp_path: Path) -> None:
     assert frame.numel() == 0
 
 
-def test_normalize_rotation_passthrough_for_unexpected_value() -> None:
-    # Defensive fallthrough: both __init__ methods validate rotation first, so this
-    # is only reachable by calling the helper directly with an out-of-contract value.
-    assert _FrameRenderMixin._normalize_rotation(45) == 45
-
-
-def test_rotate_frame_passthrough_for_unexpected_value(tmp_path: Path) -> None:
-    node = ToImage(output_dir=str(tmp_path / "rot_passthrough"))  # frame_rotation None
-    node.frame_rotation = 45  # force an out-of-contract value past __init__ validation
-    frame = torch.arange(12, dtype=torch.float32).reshape(2, 2, 3)
-    assert torch.equal(node._rotate_frame(frame), frame)
-
-
 # -- every accepted rotation value, pinned at both writers ---------------------
 
-_FRAME_ROTATION_MESSAGE = "frame_rotation must be one of: None, 0, 90, -90, 180, -180, 270, -270"
+_FRAME_ROTATION_MESSAGE = (
+    "frame_rotation must be one of None, 0, 90, -90, 180, -180, 270, -270, got "
+)
 
 # (constructor value, frame_rotation after construction, quarter turns applied by _rotate_frame)
 _ROTATION_CASES = [

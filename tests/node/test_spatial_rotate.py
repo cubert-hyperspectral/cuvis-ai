@@ -256,8 +256,6 @@ def test_every_accepted_rotation_value(create_test_cube, value, canonical, turns
 
 @pytest.mark.parametrize("value", [45, 360, -45, "90", 90.5])
 def test_other_rotation_values_are_rejected_with_the_full_list(value):
-    message = "rotation must be one of [-270, -180, -90, 0, 90, 180, 270] or None, got " + str(
-        value
-    )
-    with pytest.raises(ValueError, match=re.escape(message)):
+    message = f"rotation must be one of None, 0, 90, -90, 180, -180, 270, -270, got {value!r}"
+    with pytest.raises(ValueError, match="^" + re.escape(message) + "$"):
         SpatialRotateNode(rotation=value)
