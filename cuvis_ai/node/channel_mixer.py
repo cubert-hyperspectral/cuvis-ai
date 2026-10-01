@@ -257,9 +257,6 @@ class LearnableChannelMixer(Node):
         # Initialize weights based on method
         self._initialize_weights()
 
-        # Track initialization state
-        self._statistically_initialized = False
-
     def _initialize_weights(self) -> None:
         """Initialize convolution weights based on init_method."""
         for conv in self.convs:

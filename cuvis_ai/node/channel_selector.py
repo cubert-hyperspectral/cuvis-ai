@@ -243,7 +243,6 @@ class ChannelSelectorBase(Node):
         self.register_buffer("running_min", torch.full((3,), float("nan")))
         self.register_buffer("running_max", torch.full((3,), float("nan")))
         self.register_buffer("_norm_frame_count", torch.zeros((), dtype=torch.long))
-        self._statistically_initialized = False
 
         # Only STATISTICAL mode needs the StatisticalTrainer pass; without an override,
         # RUNNING/PER_FRAME would inherit True from the auto-detect because this base
@@ -3209,8 +3208,6 @@ class SoftChannelSelector(Node):
 
         # Store as buffer initially
         self.register_buffer("channel_logits", logits)
-
-        self._statistically_initialized = False
 
     def statistical_initialization(self, input_stream: InputStream) -> None:
         """Initialize channel selection weights from data.

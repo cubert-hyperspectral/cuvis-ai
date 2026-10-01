@@ -316,16 +316,6 @@ class SpectralSignatureExtractor(Node):
         )
 
     @staticmethod
-    def _parse_mask(mask: torch.Tensor) -> torch.Tensor:
-        """Drop the leading batch axis of a ``[1, H, W]`` mask."""
-        return mask[0]
-
-    @staticmethod
-    def _parse_object_ids(object_ids: torch.Tensor | None) -> torch.Tensor | None:
-        """Drop the leading batch axis of a ``[1, N]`` object-ID tensor."""
-        return None if object_ids is None else object_ids[0]
-
-    @staticmethod
     def _resize_mask_if_needed(mask_2d: torch.Tensor, height: int, width: int) -> torch.Tensor:
         """Resize mask to (height, width) using nearest-neighbor if sizes differ."""
         if tuple(mask_2d.shape) == (height, width):
@@ -345,20 +335,15 @@ class SpectralSignatureExtractor(Node):
     ) -> dict[str, torch.Tensor]:
         """Extract per-object signatures. See class docstring for batch semantics."""
         cube_0 = cube[0]
-        height, width, num_channels = (
-            int(cube_0.shape[0]),
-            int(cube_0.shape[1]),
-            int(cube_0.shape[2]),
-        )
+        height, width, num_channels = cube_0.shape
 
-        mask_2d = self._parse_mask(mask).to(device=cube_0.device)
+        mask_2d = mask[0].to(device=cube_0.device)
         mask_2d = self._resize_mask_if_needed(mask_2d, height=height, width=width)
 
-        parsed_ids = self._parse_object_ids(object_ids)
-        if parsed_ids is None:
+        if object_ids is None:
             resolved_ids = torch.unique(mask_2d[mask_2d != 0], sorted=True).to(torch.int64)
         else:
-            resolved_ids = parsed_ids.to(device=cube_0.device, dtype=torch.int64)
+            resolved_ids = object_ids[0].to(device=cube_0.device, dtype=torch.int64)
 
         if resolved_ids.numel() == 0:
             empty = torch.empty((1, 0, num_channels), dtype=cube_0.dtype, device=cube_0.device)

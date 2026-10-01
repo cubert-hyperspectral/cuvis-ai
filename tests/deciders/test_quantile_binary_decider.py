@@ -77,3 +77,9 @@ def test_quantile_binary_decider_serialization_roundtrip(tmp_path: Path):
     assert torch.equal(original, recreated)
     assert restored.quantile == decider.quantile
     assert restored.reduce_dims == decider.reduce_dims
+
+
+@pytest.mark.parametrize("quantile", [-0.1, 1.1])
+def test_quantile_binary_decider_rejects_an_out_of_range_quantile(quantile: float) -> None:
+    with pytest.raises(ValueError, match=r"Quantile must be within \[0.0, 1.0\]"):
+        QuantileBinaryDecider(quantile=quantile)

@@ -262,3 +262,8 @@ class TestModuleBehaviour:
         sd = parent.state_dict()
         assert "mu" in sd
         assert all("welford" not in k for k in sd)
+
+
+def test_n_features_is_the_constructor_width() -> None:
+    assert WelfordAccumulator(7).n_features == 7
+    assert WelfordAccumulator(3, track_covariance=True).n_features == 3

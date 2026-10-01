@@ -115,7 +115,7 @@ class _FrameRenderMixin:
         box_height = int(text_height) + int(baseline) + 2 * pad_y
 
         x0 = max(0, (frame_w - box_width) // 2)
-        y0 = max(0, margin_y)
+        y0 = margin_y
         x1 = min(frame_w, x0 + box_width)
         y1 = min(frame_h, y0 + box_height)
         self._darken_region(frame_np, x0=x0, y0=y0, x1=x1, y1=y1)
@@ -398,7 +398,7 @@ class ToVideoNode(_FrameRenderMixin, Node):
                 self._proc.stdin.write(frame_bytes)
             except (BrokenPipeError, OSError) as exc:
                 stderr_text = self._collect_stderr_after_exit()
-                returncode = self._proc.poll() if self._proc is not None else None
+                returncode = self._proc.poll()
                 raise RuntimeError(
                     f"ffmpeg exited during frame write (returncode={returncode}): {stderr_text}"
                 ) from exc
