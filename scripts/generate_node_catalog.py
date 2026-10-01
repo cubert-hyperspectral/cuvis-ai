@@ -81,13 +81,7 @@ class NodeEntry:
 
 
 def _first_doc_line(doc: str | None) -> str:
-    if not doc:
-        return ""
-    for line in doc.strip().splitlines():
-        line = line.strip()
-        if line:
-            return line
-    return ""
+    return next((line.strip() for line in (doc or "").splitlines() if line.strip()), "")
 
 
 def _is_node_subclass(obj: Any) -> bool:
