@@ -92,6 +92,9 @@ class _ScoreNormalizerBase(Node):
         )
     }
 
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
     def forward(self, data: Tensor, **_: Any) -> dict[str, Tensor]:
         """Normalize input data (BHWC only).
 

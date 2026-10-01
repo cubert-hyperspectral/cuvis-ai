@@ -321,6 +321,15 @@ class BlobDetector(Node):
         """
         cube0 = cube[0]
         fg = self._foreground(cube0, wavelengths)
+        if not bool(fg.any()):
+            height, width = cube0.shape[0], cube0.shape[1]
+            return {
+                "mask": torch.zeros((1, height, width), dtype=torch.int32, device=cube.device),
+                "bboxes": torch.zeros((1, 0, 4), dtype=torch.float32, device=cube.device),
+                "centroids": torch.zeros((1, 0, 2), dtype=torch.float32, device=cube.device),
+                "count": torch.zeros((1,), dtype=torch.int32, device=cube.device),
+            }
+
         labels = label_connected_components(fg, connectivity=self.connectivity).to(torch.int64)
         mask, bboxes, centroids, count = self._finalize(labels)
         return {
