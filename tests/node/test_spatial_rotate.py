@@ -5,6 +5,8 @@ Uses non-square dimensions (H=6, W=10) throughout to catch H/W swap bugs.
 
 from __future__ import annotations
 
+import re
+
 import pytest
 import torch
 
@@ -221,3 +223,39 @@ def test_end_to_end_rotated_overlay(create_test_cube):
 
     bg_mask = ~fg_mask
     assert torch.allclose(rgb_image[0][bg_mask], result[0][bg_mask]), "Background was modified"
+
+
+# -- every accepted rotation value, pinned -----------------------------------
+
+# (constructor value, rotation after construction, quarter turns applied by forward)
+_ROTATION_CASES = [
+    (None, None, 0),
+    (0, None, 0),
+    (90, 90, 1),
+    (-270, 90, 1),
+    (-90, -90, -1),
+    (270, -90, -1),
+    (180, 180, 2),
+    (-180, 180, 2),
+]
+
+
+@pytest.mark.parametrize(("value", "canonical", "turns"), _ROTATION_CASES)
+def test_every_accepted_rotation_value(create_test_cube, value, canonical, turns):
+    cube, _ = create_test_cube(batch_size=B, height=H, width=W, num_channels=C, mode="random")
+    mask = torch.arange(B * H * W, dtype=torch.int32).reshape(B, H, W)
+    rgb = torch.rand(B, H, W, 3)
+    node = SpatialRotateNode(rotation=value)
+    assert node.rotation == canonical
+    assert node.hparams["rotation"] == value
+    out = node.forward(cube=cube, mask=mask, rgb_image=rgb)
+    for key, tensor in (("cube", cube), ("mask", mask), ("rgb_image", rgb)):
+        expected = tensor if turns == 0 else torch.rot90(tensor, k=turns, dims=(1, 2))
+        assert torch.equal(out[key], expected), key
+
+
+@pytest.mark.parametrize("value", [45, 360, -45, "90", 90.5])
+def test_other_rotation_values_are_rejected_with_the_full_list(value):
+    message = f"rotation must be one of None, 0, 90, -90, 180, -180, 270, -270, got {value!r}"
+    with pytest.raises(ValueError, match="^" + re.escape(message) + "$"):
+        SpatialRotateNode(rotation=value)

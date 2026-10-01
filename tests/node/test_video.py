@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import re
 from pathlib import Path
 
 import cv2
@@ -647,14 +648,56 @@ def test_draw_title_overlay_noop_on_zero_size_frame(tmp_path: Path) -> None:
     assert frame.numel() == 0
 
 
-def test_normalize_rotation_passthrough_for_unexpected_value() -> None:
-    # Defensive fallthrough: both __init__ methods validate rotation first, so this
-    # is only reachable by calling the helper directly with an out-of-contract value.
-    assert _FrameRenderMixin._normalize_rotation(45) == 45
+# -- every accepted rotation value, pinned at both writers ---------------------
+
+_FRAME_ROTATION_MESSAGE = (
+    "frame_rotation must be one of None, 0, 90, -90, 180, -180, 270, -270, got "
+)
+
+# (constructor value, frame_rotation after construction, quarter turns applied by _rotate_frame)
+_ROTATION_CASES = [
+    (None, None, 0),
+    (0, None, 0),
+    (90, 90, 1),
+    (-270, 90, 1),
+    (-90, -90, -1),
+    (270, -90, -1),
+    (180, 180, 2),
+    (-180, 180, 2),
+]
 
 
-def test_rotate_frame_passthrough_for_unexpected_value(tmp_path: Path) -> None:
-    node = ToImage(output_dir=str(tmp_path / "rot_passthrough"))  # frame_rotation None
-    node.frame_rotation = 45  # force an out-of-contract value past __init__ validation
-    frame = torch.arange(12, dtype=torch.float32).reshape(2, 2, 3)
-    assert torch.equal(node._rotate_frame(frame), frame)
+@pytest.mark.parametrize(("value", "canonical", "turns"), _ROTATION_CASES)
+def test_to_video_node_accepts_every_rotation_value(
+    value: int | None, canonical: int | None, turns: int, tmp_path: Path
+) -> None:
+    node = ToVideoNode(output_video_path=str(tmp_path / "r.mp4"), frame_rotation=value)
+    assert node.frame_rotation == canonical
+    assert node.hparams["frame_rotation"] == value
+    frame = torch.arange(24, dtype=torch.float32).reshape(2, 4, 3)
+    expected = frame if turns == 0 else torch.rot90(frame, k=turns, dims=(0, 1))
+    assert torch.equal(node._rotate_frame(frame), expected)
+
+
+@pytest.mark.parametrize(("value", "canonical", "turns"), _ROTATION_CASES)
+def test_to_image_accepts_every_rotation_value(
+    value: int | None, canonical: int | None, turns: int, tmp_path: Path
+) -> None:
+    node = ToImage(output_dir=str(tmp_path / "r"), frame_rotation=value)
+    assert node.frame_rotation == canonical
+    assert node.hparams["frame_rotation"] == value
+    frame = torch.arange(24, dtype=torch.float32).reshape(2, 4, 3)
+    expected = frame if turns == 0 else torch.rot90(frame, k=turns, dims=(0, 1))
+    assert torch.equal(node._rotate_frame(frame), expected)
+
+
+@pytest.mark.parametrize("value", [45, 360, -45, "90", 90.5])
+def test_to_video_node_rejects_other_rotation_values(value: object, tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match=re.escape(_FRAME_ROTATION_MESSAGE)):
+        ToVideoNode(output_video_path=str(tmp_path / "r.mp4"), frame_rotation=value)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("value", [45, 360, -45, "90", 90.5])
+def test_to_image_rejects_other_rotation_values(value: object, tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match=re.escape(_FRAME_ROTATION_MESSAGE)):
+        ToImage(output_dir=str(tmp_path / "r"), frame_rotation=value)  # type: ignore[arg-type]

@@ -17,6 +17,7 @@ from cuvis_ai_schemas.execution import Context
 from cuvis_ai_schemas.pipeline import PortSpec
 from loguru import logger
 
+from cuvis_ai.utils.rotation import normalize_rotation, quarter_turns
 from cuvis_ai.utils.torch_draw import draw_text
 from cuvis_ai_core.data.video import (
     VideoFrameDataModule,
@@ -45,16 +46,10 @@ class _FrameRenderMixin:
     frames identically before their differing write backends take over.
     """
 
-    @staticmethod
-    def _normalize_rotation(frame_rotation: int | None) -> int | None:
-        """Normalize equivalent rotation aliases to {-90, 90, 180} or None."""
-        aliases: dict[int | None, int | None] = {0: None, -180: 180, -270: 90, 270: -90}
-        return aliases.get(frame_rotation, frame_rotation)
-
     def _rotate_frame(self, frame: torch.Tensor) -> torch.Tensor:
         """Rotate one frame according to configured frame_rotation."""
-        k = {90: 1, -90: -1, 180: 2}.get(self.frame_rotation)
-        return frame if k is None else torch.rot90(frame, k=k, dims=(0, 1))
+        k = quarter_turns(self.frame_rotation)
+        return frame if k == 0 else torch.rot90(frame, k=k, dims=(0, 1))
 
     @staticmethod
     def _to_uint8_batch(rgb_image: torch.Tensor) -> torch.Tensor:
@@ -230,15 +225,10 @@ class ToVideoNode(_FrameRenderMixin, Node):
             raise ValueError(
                 f"write_mode must be one of {sorted(self._WRITE_MODE_MOVFLAGS)}, got {write_mode!r}"
             )
-        valid_rotations = {None, 0, 90, -90, 180, -180, 270, -270}
-        if frame_rotation not in valid_rotations:
-            raise ValueError(
-                "frame_rotation must be one of: None, 0, 90, -90, 180, -180, 270, -270"
-            )
 
         self.output_video_path = Path(output_video_path)
         self.frame_rate = float(frame_rate)
-        self.frame_rotation = self._normalize_rotation(frame_rotation)
+        self.frame_rotation = normalize_rotation(frame_rotation, name="frame_rotation")
         self.video_codec = video_codec.strip()
         self.bitrate = bitrate.strip()
         self.write_mode = write_mode
@@ -569,15 +559,10 @@ class ToImage(_FrameRenderMixin, Node):
             raise ValueError(
                 "filename_pattern must include an image extension (e.g. '.png', '.jpg')"
             )
-        valid_rotations = {None, 0, 90, -90, 180, -180, 270, -270}
-        if frame_rotation not in valid_rotations:
-            raise ValueError(
-                "frame_rotation must be one of: None, 0, 90, -90, 180, -180, 270, -270"
-            )
 
         self.output_dir = Path(output_dir)
         self.filename_pattern = filename_pattern
-        self.frame_rotation = self._normalize_rotation(frame_rotation)
+        self.frame_rotation = normalize_rotation(frame_rotation, name="frame_rotation")
         self.overlay_title = (
             None
             if overlay_title is None or not str(overlay_title).strip()
