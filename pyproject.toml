@@ -18,7 +18,7 @@ dependencies = [
     # Builtin/RGB pipelines pull neither cuvis nor cuvis-il, closing the Windows wheel gap.
     # Tests mock the data layer (no plugin dep); the real cu3s reader is tested in the plugin.
     "cuvis-ai-core>=0.17.3",
-    "cuvis-ai-schemas[full]>=0.12.0",
+    "cuvis-ai-schemas[full]>=0.12.0,<0.13",
     "pydantic>=2.13.3,<3.0.0",
     "defusedxml>=0.7.1",
     "markupsafe>=3.0.3",
@@ -98,6 +98,7 @@ dev = [
     "jupyterlab",
     "notebook",
     "ruff",
+    "mypy>=2.3.1",
     "pytest",
     "pytest-cov",
     "ipympl>=0.9.8",
@@ -115,7 +116,7 @@ dev = [
 ]
 
 # Plugin node packages, wired as local editable checkouts for day-to-day
-# development so the notebooks + cookbook examples import them in-process. These
+# development so notebooks and local scripts import them in-process. These
 # plugins are not published to PyPI, so the extra and its `[tool.uv.sources]`
 # editable paths below are kept commented out: a CI checkout has no sibling
 # working copies and cannot resolve them. To work on plugins locally, uncomment

@@ -48,7 +48,8 @@ class _FrameRenderMixin:
     @staticmethod
     def _normalize_rotation(frame_rotation: int | None) -> int | None:
         """Normalize equivalent rotation aliases to {-90, 90, 180} or None."""
-        return {0: None, -180: 180, -270: 90, 270: -90}.get(frame_rotation, frame_rotation)
+        aliases: dict[int | None, int | None] = {0: None, -180: 180, -270: 90, 270: -90}
+        return aliases.get(frame_rotation, frame_rotation)
 
     def _rotate_frame(self, frame: torch.Tensor) -> torch.Tensor:
         """Rotate one frame according to configured frame_rotation."""
