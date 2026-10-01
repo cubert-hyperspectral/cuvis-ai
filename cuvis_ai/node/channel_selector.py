@@ -1716,7 +1716,6 @@ class RangeAverageFalseRGBSelector(ChannelSelectorBase):
         **_: Any,
     ) -> dict[str, Any]:
         """Average spectral bands inside RGB ranges and compose normalized RGB."""
-        self._ensure_weights(wavelengths, cube.device)
         wavelengths_t = _wavelengths_tensor(wavelengths, cube.device)
 
         # Vectorized channel averaging:
@@ -2050,9 +2049,6 @@ class CIRSelector(ChannelSelectorBase):
     def _resolve_band_indices(self, wavelengths: Any) -> tuple[int, int, int]:
         """Resolve nearest spectral indices for CIR channel mapping."""
         wavelengths_np = np.asarray(wavelengths, dtype=np.float32).ravel()
-        if wavelengths_np.ndim != 1:
-            raise ValueError(f"Expected 1D wavelengths [C], got shape {wavelengths_np.shape}")
-
         # CIR mapping: NIR -> R, Red -> G, Green -> B
         nir_idx = self._nearest_band_index(wavelengths_np, self.nir_nm)
         red_idx = self._nearest_band_index(wavelengths_np, self.red_nm)
@@ -2223,23 +2219,16 @@ class CIETristimulusRGBSelector(ChannelSelectorBase):
         np.ndarray
             CMF weights, shape (3, C) — rows are x_bar, y_bar, z_bar.
         """
-        x_interp = np.interp(
-            wavelengths_nm, self._CMF_WAVELENGTHS, self._X_BAR, left=0.0, right=0.0
-        )
-        y_interp = np.interp(
-            wavelengths_nm, self._CMF_WAVELENGTHS, self._Y_BAR, left=0.0, right=0.0
-        )
-        z_interp = np.interp(
-            wavelengths_nm, self._CMF_WAVELENGTHS, self._Z_BAR, left=0.0, right=0.0
-        )
-        return np.stack([x_interp, y_interp, z_interp], axis=0)  # (3, C)
+        return np.stack(
+            [
+                np.interp(wavelengths_nm, self._CMF_WAVELENGTHS, bar, left=0.0, right=0.0)
+                for bar in (self._X_BAR, self._Y_BAR, self._Z_BAR)
+            ],
+            axis=0,
+        )  # (3, C)
 
-    def _ensure_cmf_weights(self, wavelengths: Any, device: torch.device) -> np.ndarray | None:
-        """Lazily compute & cache CMF integration weights when wavelengths change.
-
-        Returns the raw CMFs array (for n_visible count) if weights were
-        recomputed, or None if the cache was valid.
-        """
+    def _ensure_cmf_weights(self, wavelengths: Any, device: torch.device) -> None:
+        """Lazily compute & cache CMF integration weights when wavelengths change."""
         wavelengths_np = np.asarray(wavelengths, dtype=np.float64).ravel()
         wl_key = tuple(wavelengths_np.tolist())
         if self._cmf_weights is None or self._cached_wl_key != wl_key:
@@ -2249,8 +2238,6 @@ class CIETristimulusRGBSelector(ChannelSelectorBase):
             self._cmf_weights = torch.from_numpy(iw).to(device=device)
             self._cached_wl_key = wl_key
             self._cached_n_visible = int((cmfs.sum(axis=0) > 1e-6).sum())
-            return cmfs
-        return None
 
     def _compute_raw_rgb(self, cube: torch.Tensor, wavelengths: Any) -> torch.Tensor:
         """Convert spectral cube to linear sRGB via CIE XYZ tristimulus integration."""
@@ -2281,9 +2268,6 @@ class CIETristimulusRGBSelector(ChannelSelectorBase):
             Dictionary with "rgb_image" [B, H, W, 3] and "band_info".
         """
         wavelengths_np = np.asarray(wavelengths, dtype=np.float64).ravel()
-        if wavelengths_np.ndim == 0:
-            raise ValueError("wavelengths must be a 1-D array")
-
         # Compute unnormalized linear sRGB, then normalize + gamma via base class.
         rgb = self._normalize_rgb(self._compute_raw_rgb(cube, wavelengths))
 
