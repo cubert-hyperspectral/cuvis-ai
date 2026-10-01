@@ -68,10 +68,11 @@ def render_scalar_hsv_colormap(normalized: Tensor) -> Tensor:
         (t, zero, one),
         (one, zero, q),
     )
-    rgb = torch.cat([zero, zero, zero], dim=-1)
+    rgb = [zero, zero, zero]
     for k, channels in enumerate(sectors):
-        rgb = torch.where(sector == k, torch.cat(channels, dim=-1), rgb)
-    return rgb.clamp_(0.0, 1.0)
+        mask = sector == k
+        rgb = [torch.where(mask, value, acc) for value, acc in zip(channels, rgb, strict=True)]
+    return torch.cat(rgb, dim=-1).clamp_(0.0, 1.0)
 
 
 class ScalarHSVColormapNode(Node):
