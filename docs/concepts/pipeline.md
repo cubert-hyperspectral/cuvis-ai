@@ -327,9 +327,7 @@ pipeline.save_to_file(
         description="Trained on Lentils dataset",
         tags=["anomaly", "production"]
     ),
-    validate_nodes=True,
-    include_optimizer=False,
-    include_scheduler=False
+    validate_nodes=True
 )
 
 # Generates: outputs/my_pipeline.yaml, outputs/my_pipeline.pt
