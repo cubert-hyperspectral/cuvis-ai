@@ -2,6 +2,7 @@
 
 ## 0.17.3 - 2026-09-28
 
+- Bumped the `adaclip` manifest pin v0.5.0 -> v0.5.1: the plugin's eight shipped pipelines and its examples address the decider nodes by their `cuvis_ai.node.deciders` module path, so they keep working once the deprecated top-level re-export packages are removed; 0.5.1 also carries the plugin's security lock refresh.
 - Simplification pass over `cuvis_ai/` and `scripts/` (33 files, -772/+237 lines): no public name, signature, port, YAML manifest or docs page changed; every chunk ran the full test suite before it was committed. Per area:
   - json_file: `DetectionJsonReader.forward` and `TrackingResultsReader._emit_coco_bbox` build their category, score and track-id tensors without a separate empty-list branch.
   - losses: `OrthogonalityLoss.forward` and `AnomalyBCEWithLogits.forward` drop single-use temporaries and comments that restated the class docstrings.
