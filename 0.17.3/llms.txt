@@ -1,0 +1,93 @@
+# Cuvis.AI Documentation
+
+> Cuvis.AI is an open-source framework for building modular, extensible AI pipelines for real-time hyperspectral video processing, analysis, and deployment.
+
+Cuvis.AI is an open-source, extensible framework for building AI-powered
+processing pipelines for hyperspectral video data. It lets you process
+and structure spectral data, train and apply machine learning models,
+visualize and interpret results, and deploy applications in real-time
+environments. Pipelines are built from reusable modular nodes and can
+be extended with custom plugins or external integrations. Cuvis.AI
+bridges the gap between hyperspectral hardware and real-world
+applications, enabling faster development, testing, and deployment of
+new solutions.
+
+
+## Get Started
+
+- [Your First Pipeline](https://docs.cuvis.ai/latest/get-started/first-pipeline/index.md)
+- [Installation](https://docs.cuvis.ai/latest/get-started/installation/index.md)
+- [Quickstart](https://docs.cuvis.ai/latest/get-started/quickstart/index.md)
+
+## Concepts
+
+- [Overview](https://docs.cuvis.ai/latest/concepts/index.md)
+- [Data Splits](https://docs.cuvis.ai/latest/concepts/data-splits/index.md)
+- [Execution Stages](https://docs.cuvis.ai/latest/concepts/execution-stages/index.md)
+- [Node](https://docs.cuvis.ai/latest/concepts/node/index.md)
+- [Pipeline](https://docs.cuvis.ai/latest/concepts/pipeline/index.md)
+- [Port](https://docs.cuvis.ai/latest/concepts/port/index.md)
+- [Training](https://docs.cuvis.ai/latest/concepts/training/index.md)
+
+## Tutorials
+
+- [Overview](https://docs.cuvis.ai/latest/tutorials/gradient/index.md)
+- [AdaCLIP](https://docs.cuvis.ai/latest/tutorials/gradient/adaclip/index.md)
+- [Deep SVDD](https://docs.cuvis.ai/latest/tutorials/gradient/deep-svdd/index.md)
+- [Overview](https://docs.cuvis.ai/latest/tutorials/statistical/index.md)
+- [Blood Perfusion](https://docs.cuvis.ai/latest/tutorials/statistical/blood-perfusion/index.md)
+- [Channel Selector](https://docs.cuvis.ai/latest/tutorials/statistical/channel-selector/index.md)
+- [RX Anomaly](https://docs.cuvis.ai/latest/tutorials/statistical/rx-anomaly/index.md)
+
+## Catalogs
+
+- [Nodes](https://docs.cuvis.ai/latest/catalogs/nodes/index.md)
+- [Overview](https://docs.cuvis.ai/latest/catalogs/datasets/index.md)
+- [X4 SWIR Industrial FOD (Bedding)](https://docs.cuvis.ai/latest/catalogs/datasets/X4_SWIR_Industrial_FOD_Bedding/index.md)
+- [XMR Demo Blood Perfusion](https://docs.cuvis.ai/latest/catalogs/datasets/XMR_Demo_Blood_Perfusion/index.md)
+- [XMR Demo Industrial FOD (Lentils)](https://docs.cuvis.ai/latest/catalogs/datasets/XMR_Demo_Industrial_FOD_Lentils/index.md)
+- [XMR Demo Object Tracking](https://docs.cuvis.ai/latest/catalogs/datasets/XMR_Demo_Object_Tracking/index.md)
+- [XMR Industrial FOD (Lentils)](https://docs.cuvis.ai/latest/catalogs/datasets/XMR_Industrial_FOD_Lentils/index.md)
+- [XMR Lentils](https://docs.cuvis.ai/latest/catalogs/datasets/XMR_Lentils/index.md)
+
+## Workflows
+
+- [Overview](https://docs.cuvis.ai/latest/workflows/index.md)
+- [Build Pipeline (Python)](https://docs.cuvis.ai/latest/workflows/build-pipeline-python/index.md)
+- [Build Pipeline (YAML)](https://docs.cuvis.ai/latest/workflows/build-pipeline-yaml/index.md)
+- [Gradient Training](https://docs.cuvis.ai/latest/workflows/gradient-training/index.md)
+- [Model Weights](https://docs.cuvis.ai/latest/workflows/model-weights/index.md)
+- [Monitoring & Visualization](https://docs.cuvis.ai/latest/workflows/monitoring/index.md)
+- [Profiling](https://docs.cuvis.ai/latest/workflows/profiling/index.md)
+- [Restore Pipeline](https://docs.cuvis.ai/latest/workflows/restore-pipeline/index.md)
+- [Statistical Training](https://docs.cuvis.ai/latest/workflows/statistical-training/index.md)
+
+## Deployment
+
+- [Configuration API](https://docs.cuvis.ai/latest/deployment/api/config/index.md)
+- [Pipeline API](https://docs.cuvis.ai/latest/deployment/api/pipeline/index.md)
+- [Session Management](https://docs.cuvis.ai/latest/deployment/api/session/index.md)
+- [Training & Inference](https://docs.cuvis.ai/latest/deployment/api/training-inference/index.md)
+- [Types & Errors](https://docs.cuvis.ai/latest/deployment/api/types-errors/index.md)
+
+## Reference
+
+- [Overview](https://docs.cuvis.ai/latest/reference/configuration/index.md)
+- [Config Groups](https://docs.cuvis.ai/latest/reference/configuration/config-groups/index.md)
+- [Hydra Basics](https://docs.cuvis.ai/latest/reference/configuration/hydra-basics/index.md)
+- [Hydra Inheritance & Overrides](https://docs.cuvis.ai/latest/reference/configuration/hydra-inheritance/index.md)
+- [Hydra Sweeps & Advanced](https://docs.cuvis.ai/latest/reference/configuration/hydra-sweeps/index.md)
+- [TrainRun Schema](https://docs.cuvis.ai/latest/reference/configuration/trainrun-schema/index.md)
+- [Overview](https://docs.cuvis.ai/latest/reference/contributing/index.md)
+- [Add a Built-in Node](https://docs.cuvis.ai/latest/reference/contributing/add-builtin-node/index.md)
+- [Contributing](https://docs.cuvis.ai/latest/reference/contributing/contributing/index.md)
+- [Docs Style](https://docs.cuvis.ai/latest/reference/contributing/docs-style/index.md)
+- [Docstrings](https://docs.cuvis.ai/latest/reference/contributing/docstrings/index.md)
+- [Git Hooks](https://docs.cuvis.ai/latest/reference/contributing/git-hooks/index.md)
+- [Developer Guide](https://docs.cuvis.ai/latest/reference/plugin-development/guide/index.md)
+- [Overview](https://docs.cuvis.ai/latest/reference/plugin-development/overview/index.md)
+- [Overview](https://docs.cuvis.ai/latest/reference/python-api/index.md)
+- [Pipeline & Graph](https://docs.cuvis.ai/latest/reference/python-api/pipeline/index.md)
+- [Ports](https://docs.cuvis.ai/latest/reference/python-api/ports/index.md)
+- [Utilities](https://docs.cuvis.ai/latest/reference/python-api/utilities/index.md)
+
