@@ -59,43 +59,30 @@ class ExplainedVarianceMetric(Node):
         dict[str, Any]
             Dictionary with "metrics" key containing list of Metric objects
         """
-        metrics = []
+        named_values = []
 
         # Per-component variance
         for i, ratio in enumerate(explained_variance_ratio):
-            metrics.append(
-                Metric(
-                    name=f"explained_variance_pc{i + 1}",
-                    value=ratio.item(),
-                    stage=context.stage,
-                    epoch=context.epoch,
-                    batch_idx=context.batch_idx,
-                )
-            )
+            named_values.append((f"explained_variance_pc{i + 1}", ratio.item()))
 
         # Total variance explained
-        metrics.append(
-            Metric(
-                name="total_explained_variance",
-                value=explained_variance_ratio.sum().item(),
-                stage=context.stage,
-                epoch=context.epoch,
-                batch_idx=context.batch_idx,
-            )
-        )
+        named_values.append(("total_explained_variance", explained_variance_ratio.sum().item()))
 
         # Cumulative variance
         cumulative = torch.cumsum(explained_variance_ratio, dim=0)
         for i, cum_var in enumerate(cumulative):
-            metrics.append(
-                Metric(
-                    name=f"cumulative_variance_pc{i + 1}",
-                    value=cum_var.item(),
-                    stage=context.stage,
-                    epoch=context.epoch,
-                    batch_idx=context.batch_idx,
-                )
+            named_values.append((f"cumulative_variance_pc{i + 1}", cum_var.item()))
+
+        metrics = [
+            Metric(
+                name=name,
+                value=value,
+                stage=context.stage,
+                epoch=context.epoch,
+                batch_idx=context.batch_idx,
             )
+            for name, value in named_values
+        ]
 
         return {"metrics": metrics}
 
@@ -223,41 +210,12 @@ class AnomalyDetectionMetrics(Node):
         targets_flat = targets.flatten()
 
         # Compute metrics using torchmetrics (they handle edge cases robustly)
-        precision = self.precision_metric(preds_flat, targets_flat)
-        recall = self.recall_metric(preds_flat, targets_flat)
-        f1 = self.f1_metric(preds_flat, targets_flat)
-        iou = self.iou_metric(preds_flat, targets_flat)
-
-        metrics = [
-            Metric(
-                name="precision",
-                value=precision.item(),
-                stage=context.stage,
-                epoch=context.epoch,
-                batch_idx=context.batch_idx,
-            ),
-            Metric(
-                name="recall",
-                value=recall.item(),
-                stage=context.stage,
-                epoch=context.epoch,
-                batch_idx=context.batch_idx,
-            ),
-            Metric(
-                name="f1_score",
-                value=f1.item(),
-                stage=context.stage,
-                epoch=context.epoch,
-                batch_idx=context.batch_idx,
-            ),
-            Metric(
-                name="iou",
-                value=iou.item(),
-                stage=context.stage,
-                epoch=context.epoch,
-                batch_idx=context.batch_idx,
-            ),
-        ]
+        values = {
+            "precision": self.precision_metric(preds_flat, targets_flat).item(),
+            "recall": self.recall_metric(preds_flat, targets_flat).item(),
+            "f1_score": self.f1_metric(preds_flat, targets_flat).item(),
+            "iou": self.iou_metric(preds_flat, targets_flat).item(),
+        }
 
         if logits is not None:
             raw_scores = subsample_hw(logits.squeeze(-1), self.pixel_stride).flatten().float()
@@ -269,17 +227,18 @@ class AnomalyDetectionMetrics(Node):
                 self._ap_last_key = current_key
 
             self.average_precision_metric.update(probs_for_ap, targets_flat)
-            average_precision = self.average_precision_metric.compute()
+            values["average_precision"] = self.average_precision_metric.compute().item()
 
-            metrics.append(
-                Metric(
-                    name="average_precision",
-                    value=average_precision.item(),
-                    stage=context.stage,
-                    epoch=context.epoch,
-                    batch_idx=context.batch_idx,
-                )
+        metrics = [
+            Metric(
+                name=name,
+                value=value,
+                stage=context.stage,
+                epoch=context.epoch,
+                batch_idx=context.batch_idx,
             )
+            for name, value in values.items()
+        ]
 
         return {"metrics": metrics}
 
@@ -339,70 +298,26 @@ class ScoreStatisticsMetric(Node):
         # Flatten scores
         scores_flat = scores.reshape(-1)
 
+        values = {
+            "scores/mean": scores_flat.mean().item(),
+            "scores/std": scores_flat.std().item(),
+            "scores/min": scores_flat.min().item(),
+            "scores/max": scores_flat.max().item(),
+            "scores/median": scores_flat.median().item(),
+            "scores/q25": torch.quantile(scores_flat, 0.25).item(),
+            "scores/q75": torch.quantile(scores_flat, 0.75).item(),
+            "scores/q95": torch.quantile(scores_flat, 0.95).item(),
+            "scores/q99": torch.quantile(scores_flat, 0.99).item(),
+        }
         metrics = [
             Metric(
-                name="scores/mean",
-                value=scores_flat.mean().item(),
+                name=name,
+                value=value,
                 stage=context.stage,
                 epoch=context.epoch,
                 batch_idx=context.batch_idx,
-            ),
-            Metric(
-                name="scores/std",
-                value=scores_flat.std().item(),
-                stage=context.stage,
-                epoch=context.epoch,
-                batch_idx=context.batch_idx,
-            ),
-            Metric(
-                name="scores/min",
-                value=scores_flat.min().item(),
-                stage=context.stage,
-                epoch=context.epoch,
-                batch_idx=context.batch_idx,
-            ),
-            Metric(
-                name="scores/max",
-                value=scores_flat.max().item(),
-                stage=context.stage,
-                epoch=context.epoch,
-                batch_idx=context.batch_idx,
-            ),
-            Metric(
-                name="scores/median",
-                value=scores_flat.median().item(),
-                stage=context.stage,
-                epoch=context.epoch,
-                batch_idx=context.batch_idx,
-            ),
-            Metric(
-                name="scores/q25",
-                value=torch.quantile(scores_flat, 0.25).item(),
-                stage=context.stage,
-                epoch=context.epoch,
-                batch_idx=context.batch_idx,
-            ),
-            Metric(
-                name="scores/q75",
-                value=torch.quantile(scores_flat, 0.75).item(),
-                stage=context.stage,
-                epoch=context.epoch,
-                batch_idx=context.batch_idx,
-            ),
-            Metric(
-                name="scores/q95",
-                value=torch.quantile(scores_flat, 0.95).item(),
-                stage=context.stage,
-                epoch=context.epoch,
-                batch_idx=context.batch_idx,
-            ),
-            Metric(
-                name="scores/q99",
-                value=torch.quantile(scores_flat, 0.99).item(),
-                stage=context.stage,
-                epoch=context.epoch,
-                batch_idx=context.batch_idx,
-            ),
+            )
+            for name, value in values.items()
         ]
 
         return {"metrics": metrics}
@@ -466,35 +381,21 @@ class ComponentOrthogonalityMetric(Node):
         diagonal_mean = diagonal.mean().item()
         diagonal_std = diagonal.std().item()
 
+        values = {
+            "orthogonality_error": orth_error,
+            "avg_off_diagonal": avg_off_diagonal,
+            "diagonal_mean": diagonal_mean,
+            "diagonal_std": diagonal_std,
+        }
         metrics = [
             Metric(
-                name="orthogonality_error",
-                value=orth_error,
+                name=name,
+                value=value,
                 stage=context.stage,
                 epoch=context.epoch,
                 batch_idx=context.batch_idx,
-            ),
-            Metric(
-                name="avg_off_diagonal",
-                value=avg_off_diagonal,
-                stage=context.stage,
-                epoch=context.epoch,
-                batch_idx=context.batch_idx,
-            ),
-            Metric(
-                name="diagonal_mean",
-                value=diagonal_mean,
-                stage=context.stage,
-                epoch=context.epoch,
-                batch_idx=context.batch_idx,
-            ),
-            Metric(
-                name="diagonal_std",
-                value=diagonal_std,
-                stage=context.stage,
-                epoch=context.epoch,
-                batch_idx=context.batch_idx,
-            ),
+            )
+            for name, value in values.items()
         ]
 
         return {"metrics": metrics}
@@ -682,28 +583,20 @@ class AnomalyPixelStatisticsMetric(Node):
         anomalous_pixels = int(decisions.sum().item())
         anomaly_percentage = (anomalous_pixels / total_pixels) * 100 if total_pixels > 0 else 0.0
 
+        values = {
+            "anomaly/total_pixels": float(total_pixels),
+            "anomaly/anomalous_pixels": float(anomalous_pixels),
+            "anomaly/anomaly_percentage": anomaly_percentage,
+        }
         metrics = [
             Metric(
-                name="anomaly/total_pixels",
-                value=float(total_pixels),
+                name=name,
+                value=value,
                 stage=context.stage,
                 epoch=context.epoch,
                 batch_idx=context.batch_idx,
-            ),
-            Metric(
-                name="anomaly/anomalous_pixels",
-                value=float(anomalous_pixels),
-                stage=context.stage,
-                epoch=context.epoch,
-                batch_idx=context.batch_idx,
-            ),
-            Metric(
-                name="anomaly/anomaly_percentage",
-                value=anomaly_percentage,
-                stage=context.stage,
-                epoch=context.epoch,
-                batch_idx=context.batch_idx,
-            ),
+            )
+            for name, value in values.items()
         ]
 
         return {"metrics": metrics}

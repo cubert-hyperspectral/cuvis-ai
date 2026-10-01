@@ -73,9 +73,6 @@ class ScoreToLogit(Node):
         init_bias: float = 0.0,
         **kwargs,
     ) -> None:
-        self.init_scale = init_scale
-        self.init_bias = init_bias
-
         super().__init__(
             init_scale=init_scale,
             init_bias=init_bias,

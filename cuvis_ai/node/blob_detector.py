@@ -280,10 +280,8 @@ class BlobDetector(Node):
             }
             cands = [(s, a) for (s, a) in cands if s in keep]
 
-        new_id = 0
-        for seed, _area in cands:
+        for new_id, (seed, _area) in enumerate(cands, start=1):
             comp = labels == seed
-            new_id += 1
             out[comp] = new_id
             ys = rows[comp].to(torch.float32)
             xs = cols[comp].to(torch.float32)
@@ -292,13 +290,9 @@ class BlobDetector(Node):
             )
             centers.append([float(xs.mean()), float(ys.mean())])
 
-        if new_id == 0:
-            boxes_t = torch.zeros((1, 0, 4), dtype=torch.float32, device=device)
-            centers_t = torch.zeros((1, 0, 2), dtype=torch.float32, device=device)
-        else:
-            boxes_t = torch.tensor(boxes, dtype=torch.float32, device=device).unsqueeze(0)
-            centers_t = torch.tensor(centers, dtype=torch.float32, device=device).unsqueeze(0)
-        return out[None], boxes_t, centers_t, new_id
+        boxes_t = torch.tensor(boxes, dtype=torch.float32, device=device).reshape(1, -1, 4)
+        centers_t = torch.tensor(centers, dtype=torch.float32, device=device).reshape(1, -1, 2)
+        return out[None], boxes_t, centers_t, len(cands)
 
     @torch.no_grad()
     def forward(

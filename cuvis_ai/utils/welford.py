@@ -51,16 +51,8 @@ class WelfordAccumulator(nn.Module):
         self.register_buffer(
             "_mean", torch.zeros(n_features, dtype=torch.float64), persistent=False
         )
-        if track_covariance:
-            self.register_buffer(
-                "_M2",
-                torch.zeros(n_features, n_features, dtype=torch.float64),
-                persistent=False,
-            )
-        else:
-            self.register_buffer(
-                "_M2", torch.zeros(n_features, dtype=torch.float64), persistent=False
-            )
+        m2_shape = (n_features, n_features) if track_covariance else (n_features,)
+        self.register_buffer("_M2", torch.zeros(m2_shape, dtype=torch.float64), persistent=False)
 
     # ------------------------------------------------------------------
     # Mutation

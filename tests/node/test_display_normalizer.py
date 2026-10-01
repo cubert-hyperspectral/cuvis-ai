@@ -38,6 +38,17 @@ def test_any_channel_count() -> None:
     assert out.shape == (1, 4, 4, 6)
 
 
+def test_hparams_stay_empty_without_own_parameters() -> None:
+    """The node declares no constructor parameters, so its hparams snapshot is empty.
+
+    Core snapshots ``inspect.signature(cls.__init__)``; without the base class's
+    ``*args, **kwargs`` forwarder the snapshot would be ``Node.__init__`` and the
+    saved hparams would gain ``name: None``.
+    """
+    assert DisplayNormalizer().hparams == {}
+    assert DisplayNormalizer(name="disp").hparams == {}
+
+
 def test_stateless_no_buffers_or_params() -> None:
     node = DisplayNormalizer()
     assert list(node.buffers()) == []

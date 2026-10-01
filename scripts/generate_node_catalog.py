@@ -26,6 +26,7 @@ pinned tag (plugins).
 
 from __future__ import annotations
 
+import html
 import inspect
 import logging
 import pkgutil
@@ -44,23 +45,7 @@ log = logging.getLogger("generate_node_catalog")
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
-def _plugin_manifest_dir() -> Path:
-    """Locate the plugin manifests directory across repo layouts.
-
-    Manifests live at ``cuvis_ai/configs/plugins`` once configs are packaged
-    with the library, and at ``configs/plugins`` before that.
-    """
-    candidates = (
-        REPO_ROOT / "cuvis_ai" / "configs" / "plugins",
-        REPO_ROOT / "configs" / "plugins",
-    )
-    for candidate in candidates:
-        if candidate.is_dir():
-            return candidate
-    raise RuntimeError(f"no plugin manifests directory found; tried {candidates}")
-
-
-PLUGIN_MANIFEST_DIR = _plugin_manifest_dir()
+PLUGIN_MANIFEST_DIR = REPO_ROOT / "cuvis_ai" / "configs" / "plugins"
 BUILTIN_PACKAGE = "cuvis_ai.node"
 BUILTIN_MANIFEST_NAME = "cuvis_ai_builtin"
 
@@ -93,10 +78,6 @@ class NodeEntry:
         if not self.is_plugin:
             return "builtin"
         return "data-module" if self.kind == "data_module" else "plugin"
-
-
-def _html_escape(text: str) -> str:
-    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
 def _first_doc_line(doc: str | None) -> str:
@@ -289,7 +270,7 @@ def _render_card(entry: NodeEntry) -> str:
         if entry.is_plugin and entry.repo_url
         else ""
     )
-    summary_text = _html_escape(entry.summary) if entry.summary else ""
+    summary_text = html.escape(entry.summary, quote=False) if entry.summary else ""
     module_path = entry.dotted_path.rsplit(".", 1)[0]
 
     summary_html = (
@@ -338,7 +319,7 @@ def _render_ports_table(title: str, specs: dict[str, NodePortSpec]) -> str:
             f"<td><code>{port_name}</code>{marks}</td>"
             f"<td><code>{dtype}</code></td>"
             f"<td><code>{shape}</code></td>"
-            f"<td>{_html_escape(spec.description)}</td>"
+            f"<td>{html.escape(spec.description, quote=False)}</td>"
             "</tr>"
         )
     return (
@@ -362,7 +343,7 @@ def _render_body(entry: NodeEntry) -> str:
 
     parts: list[str] = []
     if entry.summary:
-        parts.append(_html_escape(entry.summary))
+        parts.append(html.escape(entry.summary, quote=False))
     if entry.kind == "data_module":
         extras = ", ".join(f"<code>{e}</code>" for e in entry.extras) or "none"
         parts.append(

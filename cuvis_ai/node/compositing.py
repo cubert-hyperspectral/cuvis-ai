@@ -366,12 +366,7 @@ class ImageConcatenator(Node):
         if cur == target:
             return img
         pad_total = target - cur
-        if self.align == "start":
-            before = 0
-        elif self.align == "center":
-            before = pad_total // 2
-        else:  # "end"
-            before = pad_total
+        before = {"start": 0, "center": pad_total // 2, "end": pad_total}[self.align]
 
         shape = list(img.shape)
         shape[cross] = target

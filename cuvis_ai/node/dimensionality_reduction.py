@@ -167,7 +167,6 @@ class TrainablePCA(PCA):
         **kwargs,
     ) -> None:
         self.whiten = whiten
-        self.init_method = init_method
 
         super().__init__(
             num_channels=num_channels,
@@ -224,12 +223,7 @@ class TrainablePCA(PCA):
         batch_size, height, width, channels = data.shape
         flat = data.reshape(-1, channels)
 
-        components = (
-            self._components.to(data.device)
-            if isinstance(self._components, Tensor)
-            else self._components
-        )
-        projected = self._project(flat, self._mean, components)
+        projected = self._project(flat, self._mean, self._components)
 
         if self.whiten:
             explained_variance = self._explained_variance.to(

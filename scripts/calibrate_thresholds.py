@@ -801,10 +801,8 @@ def _print_report(report: dict[str, Any]) -> None:
             f"pixel F1 optimum: {best['f1']:.4f} at {knob}={best[knob]:.6f} "
             f"(P={best['precision']:.3f} R={best['recall']:.3f} IoU={best['iou']:.3f})"
         )
-        current_knob = "quantile" if mode == "quantile" else "threshold"
         print(  # noqa: T201
-            f"current preset ({current_knob}={current[current_knob]}): "
-            f"pixel F1={current['pixel']['f1']:.4f}"
+            f"current preset ({knob}={current[knob]}): pixel F1={current['pixel']['f1']:.4f}"
         )
     print("\ndecider hparams to paste into the pipeline yaml:")  # noqa: T201
     for key, value in report["calibrated_decider_hparams"].items():
