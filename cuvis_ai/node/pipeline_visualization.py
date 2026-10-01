@@ -63,7 +63,9 @@ class CubeRGBVisualizer(Node):
         self.up_to = up_to
         super().__init__(up_to=up_to, **kwargs)
 
-    def forward(self, cube, weights, wavelengths, context) -> dict[str, list[Artifact]]:
+    def forward(
+        self, cube: Tensor, weights: Tensor, wavelengths: np.ndarray, context: Context
+    ) -> dict[str, list[Artifact]]:
         """Generate false-color RGB visualizations from hyperspectral cube.
 
         Selects the 3 channels with highest weights and creates RGB images
@@ -76,7 +78,7 @@ class CubeRGBVisualizer(Node):
             Hyperspectral cube [B, H, W, C].
         weights : Tensor
             Channel selection weights [C] indicating importance of each channel.
-        wavelengths : Tensor
+        wavelengths : ndarray
             Wavelengths for each channel [C] in nanometers.
         context : Context
             Execution context with stage, epoch, batch_idx information.

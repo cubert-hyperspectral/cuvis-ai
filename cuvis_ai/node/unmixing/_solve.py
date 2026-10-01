@@ -48,7 +48,7 @@ def nnls_batch(
         Non-negative coefficients ``x`` of shape ``[P, K]`` solving the problem
         for every row of ``b``.
     """
-    channels, components = a.shape
+    _, components = a.shape
     pixels = b.shape[0]
     dtype = a.dtype
     device = a.device
