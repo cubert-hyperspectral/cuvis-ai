@@ -1,4 +1,4 @@
-"""Convenience exports for node base classes and marker mixins."""
+"""Convenience exports of the built-in node classes and their bases."""
 
 from cuvis_ai.node.anomaly import (
     DeepSVDDProjection,

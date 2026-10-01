@@ -212,7 +212,6 @@ class MSEReconstructionLoss(LossNode):
     def __init__(self, weight: float = 1.0, reduction: str = "mean", **kwargs) -> None:
         self.weight = weight
         self.reduction = reduction
-        # Extract Node base parameters from kwargs to avoid duplication
         super().__init__(
             weight=weight,
             reduction=reduction,

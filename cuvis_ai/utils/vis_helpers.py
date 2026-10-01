@@ -38,8 +38,8 @@ def fig_to_array(fig: matplotlib.figure.Figure, dpi: int = 150) -> np.ndarray:
     >>> fig, ax = plt.subplots()
     >>> ax.plot([1, 2, 3], [1, 4, 9])
     >>> img_array = fig_to_array(fig, dpi=150)
-    >>> img_array.shape
-    (height, width, 3)
+    >>> img_array.shape[-1]
+    3
     """
     buf = BytesIO()
     fig.savefig(buf, format="png", dpi=dpi, bbox_inches="tight")

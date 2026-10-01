@@ -182,6 +182,9 @@ class AnomalyMask(Node):
             Original cube [B, H, W, C] for visualization
         context : Context
             Execution context with stage, epoch, batch_idx
+        scores : torch.Tensor | None
+            Anomaly logits [B, H, W, 1]; with a ground-truth mask, the
+            per-image average precision joins the overlay title
 
         Returns
         -------
@@ -1458,9 +1461,9 @@ class ChannelWeightsViz(ImageArtifactVizBase):
     log_every_n_batches : int, optional
         Log every N-th batch (default: 1).
     cell_height : int, optional
-        Pixel height per matrix row (default: 40).
+        Pixel height per matrix row (default: 60).
     cell_width : int, optional
-        Pixel width per matrix column (default: 6).
+        Pixel width per matrix column (default: 12).
     """
 
     _category = NodeCategory.VISUALIZER
@@ -1514,7 +1517,8 @@ class ChannelWeightsViz(ImageArtifactVizBase):
         context : Context
             Execution context with stage, epoch, batch_idx.
         wavelengths : ndarray, optional
-            Wavelengths ``[C]`` in nm (reserved for future use).
+            Wavelengths ``[C]`` in nm; when one is given per column they label
+            the x-axis.
 
         Returns
         -------

@@ -134,7 +134,6 @@ class RXGlobal(RXBase):
     RXPerBatch : Per-batch RX variant without training
     MinMaxNormalizer : Recommended preprocessing before RX
     ScoreToLogit : Convert scores to logits for classification
-    docs/usecases/rx-statistical.md : Complete RX pipeline tutorial
 
     Notes
     -----
@@ -221,7 +220,7 @@ class RXGlobal(RXBase):
     def finalize(self) -> None:
         """Compute final mean and covariance from accumulated streaming statistics.
 
-        This method converts the running accumulators (_mean, _M2) into the final
+        This method converts the Welford accumulator's running mean and M2 into the final
         mean (mu) and covariance (cov) matrices. The covariance is regularized with
         eps * I for numerical stability, and optionally caches the pseudo-inverse.
 
@@ -251,7 +250,7 @@ class RXGlobal(RXBase):
     def reset(self) -> None:
         """Reset all statistics and accumulators to empty state.
 
-        Clears mu, cov, cov_inv, and all streaming accumulators (_mean, _M2, _n).
+        Clears mu, cov, cov_inv and the Welford accumulator.
         After reset, the detector must be re-initialized via statistical_initialization()
         before it can be used for inference.
 

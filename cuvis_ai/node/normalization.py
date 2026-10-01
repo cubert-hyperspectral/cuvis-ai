@@ -12,6 +12,8 @@ Normalization strategies:
 - **PerPixelUnitNorm**: L2 normalization per pixel across channels
 - **IdentityNormalizer**: No-op passthrough for testing or baseline comparisons
 - **SigmoidTransform**: General-purpose sigmoid for logits→probabilities
+- **PercentileNormalizer**: Per-channel scaling to [0, 1] with a ``NormMode`` for any channel count
+- **DisplayNormalizer**: sRGB gamma companding of a [0, 1] tensor for the false-RGB display path
 
 **Why Normalize?**
 

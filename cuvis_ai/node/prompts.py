@@ -142,6 +142,7 @@ def resolve_text_prompt_for_frame(
 
 
 def _image_hw(image_entry: dict[str, Any], frame_id: int) -> tuple[int, int]:
+    """``(height, width)`` of a COCO image entry; raises when either is missing or non-positive."""
     height = int(image_entry.get("height", 0))
     width = int(image_entry.get("width", 0))
     if height <= 0 or width <= 0:
@@ -150,6 +151,7 @@ def _image_hw(image_entry: dict[str, Any], frame_id: int) -> tuple[int, int]:
 
 
 def _segmentation_hw(segmentation: Any) -> tuple[int, int] | None:
+    """``(height, width)`` from an RLE segmentation's ``size``, or ``None`` when it has none."""
     if isinstance(segmentation, dict):
         size = segmentation.get("size")
         if isinstance(size, list | tuple) and len(size) == 2:
@@ -163,6 +165,7 @@ def _segmentation_hw(segmentation: Any) -> tuple[int, int] | None:
 def _compute_default_hw(
     frame_hw_by_id: dict[int, tuple[int, int]],
 ) -> tuple[int, int] | None:
+    """The one frame size larger than 1x1 shared by every frame, or ``None`` when sizes differ."""
     usable_hws = sorted({hw for hw in frame_hw_by_id.values() if hw[0] > 1 and hw[1] > 1})
     return usable_hws[0] if len(usable_hws) == 1 else None
 
@@ -173,6 +176,7 @@ def _annotation_sequence(
     *,
     frame_count: int,
 ) -> list[Any] | None:
+    """A track-centric annotation's per-frame list for ``field_name``, checked against ``frame_count``."""
     values = annotation.get(field_name)
     if values is None:
         return None
@@ -193,6 +197,7 @@ def _build_track_centric_frame_metadata(
     dict[int, tuple[int, int]],
     tuple[int, int] | None,
 ]:
+    """Per-frame annotations, frame sizes and the default size from a SAM3 ``videos`` document."""
     videos = data.get("videos", [])
     if not videos:
         raise ValueError("Detection JSON must contain COCO 'images' entries or SAM3 'videos'.")
@@ -268,6 +273,7 @@ def _select_annotation_for_prompt(
     detection_id: int,
     frame_id: int,
 ) -> dict[str, Any]:
+    """The annotation on ``frame_id`` with track id ``detection_id``, else the one ranked that high by score."""
     frame_annotations = list(annotations_by_frame.get(int(frame_id), []))
     if not frame_annotations:
         raise ValueError(f"Frame {frame_id} has no annotations in the detection JSON.")
@@ -302,6 +308,7 @@ def _decode_segmentation(
     *,
     frame_id: int,
 ) -> np.ndarray:
+    """Decode a COCO RLE or polygon segmentation into a binary ``[H, W]`` mask."""
     height, width = image_hw
     if isinstance(segmentation, dict):
         mask = coco_rle_decode(segmentation)
@@ -341,6 +348,7 @@ def _build_frame_metadata(
     dict[int, tuple[int, int]],
     tuple[int, int] | None,
 ]:
+    """Per-frame annotations, frame sizes and the default size from COCO ``images`` or SAM3 ``videos``."""
     if data.get("videos"):
         return _build_track_centric_frame_metadata(data)
 
@@ -397,6 +405,7 @@ def _resolve_prompt_frame_hw(
     *,
     raw_spec: str,
 ) -> tuple[int, int]:
+    """The size of the frame a prompt spec names, ``default_hw`` when its own size is a placeholder."""
     frame_hw = frame_hw_by_id.get(frame_id)
     if frame_hw is None:
         raise ValueError(
@@ -459,6 +468,7 @@ def _annotation_bbox_xyxy(
     *,
     raw_spec: str,
 ) -> tuple[float, float, float, float]:
+    """The annotation's COCO ``[x, y, w, h]`` bbox as ``(x0, y0, x1, y1)`` clamped to the frame."""
     if "bbox" not in annotation:
         raise ValueError(f"Annotation selected by '{raw_spec}' does not contain a 'bbox' field.")
 
@@ -530,6 +540,7 @@ def _resolve_frame_hw(
     *,
     fallback_on_placeholder: bool = False,
 ) -> tuple[int, int]:
+    """The size of ``frame_id``, or ``default_hw`` when the frame is missing (or a placeholder, on request)."""
     if frame_id in frame_hw_by_id:
         frame_hw = frame_hw_by_id[frame_id]
         if (

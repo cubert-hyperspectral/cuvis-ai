@@ -121,6 +121,7 @@ class MaskRobustifier(Node):
 
     @torch.no_grad()
     def forward(self, mask: torch.Tensor, **_: Any) -> dict[str, torch.Tensor]:
+        """Open, close and filter the mask; returns ``{"mask": ...}`` with the surviving pixels."""
         # Pure-torch morphology on the device the mask arrives on (GPU-friendly).
         binary = mask > 0  # [B, H, W] bool
         if self.opening_kernel >= 2:
@@ -317,6 +318,7 @@ class MaskToBBoxKalman(Node):
     def _apply_padding(
         self, bbox: tuple[int, int, int, int], h: int, w: int
     ) -> tuple[int, int, int, int]:
+        """Grow ``bbox`` by ``padding_fraction`` of its size, clamped to the frame."""
         x0, y0, x1, y1 = bbox
         bw = x1 - x0
         bh = y1 - y0
@@ -332,6 +334,7 @@ class MaskToBBoxKalman(Node):
     def _enforce_min_size(
         self, cx: float, cy: float, bw: float, bh: float, h: int, w: int
     ) -> tuple[float, float, float, float]:
+        """Raise the box to ``min_size_px``, cap it at the frame and keep its centre inside."""
         bw = max(bw, float(self.min_size_px))
         bh = max(bh, float(self.min_size_px))
         bw = min(bw, float(w))
@@ -343,6 +346,7 @@ class MaskToBBoxKalman(Node):
     def _clamp_xyxy(
         self, cx: float, cy: float, bw: float, bh: float, h: int, w: int
     ) -> tuple[float, float, float, float]:
+        """Centre/size box to ``(x0, y0, x1, y1)`` inside the frame after the minimum-size rule."""
         cx, cy, bw, bh = self._enforce_min_size(cx, cy, bw, bh, h, w)
         x0 = max(0.0, cx - bw / 2.0)
         y0 = max(0.0, cy - bh / 2.0)
@@ -352,6 +356,10 @@ class MaskToBBoxKalman(Node):
 
     @torch.no_grad()
     def forward(self, mask: torch.Tensor, **_: Any) -> dict[str, torch.Tensor]:
+        """Track one box per frame through the Kalman filter.
+
+        Returns ``bbox`` ``[B, 4]`` (xyxy) and ``valid`` ``[B]`` (0=none, 1=measured, 2=predicted).
+        """
         device = mask.device
         b, h, w = mask.shape
         bboxes = np.zeros((b, 4), dtype=np.float32)

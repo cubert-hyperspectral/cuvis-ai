@@ -1,9 +1,9 @@
 """
 Preprocessing Nodes.
 
-This module provides nodes for preprocessing hyperspectral data, including
-wavelength-based band selection and filtering. These nodes help reduce
-dimensionality and focus analysis on specific spectral regions of interest.
+This module provides nodes that prepare hyperspectral data before analysis:
+wavelength-based band selection, spatial rotation, bounding-box crops,
+per-channel normalization and saturated-pixel detection.
 
 See Also
 --------
