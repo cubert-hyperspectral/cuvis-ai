@@ -1,0 +1,322 @@
+metadata:
+  name: walnut_final_refit_1oct_shellaware_flickerfilter_cuvisnext_cube
+  description: 'FLICKER FILTER: the FO mask (FOMask.decisions, the FO label of Composite.mask) shows a pixel only if the frame before showed FO within 40 px (MaskPersistence FOFlickerFilter after gate.decisions), so a false blob that lives for one frame never shows and an FO shows from its second frame on. gate.scores (heatmap), gate.passed and gate.frame_score are unchanged. Calibrate like the source. Copy of walnut_final_refit_1oct_shellaware_cuvisnext_cube: SHELL-AWARE: the FO map x 0.8 on the SEG shells (shrunk 4 px) before the gate, so an FO on a shell needs 1.25 x the thresholds; unchanged off the shells. Calibrate from a log of this pipeline. Copy of walnut_final_refit_1oct_cuvisnext_cube: REFIT_1OCT TIER (FO banks replaced): multi-scale banks refitted on the 200 split-v3 TRAIN frames + 567 clean frames of the 1-Oct stand session (production lights, 5 + 8 fps), seed 0, coreset 7200 / 80000; normalisers on the 34 VAL frames. Mask margin 1.15 (calibrate_from_log.py --mask-margin 1.15). Recalibrate every morning. Variant of walnut_combo_gated_fp16trt_trt16_cuvisnext_cube. Composite view: Composite.mask (label map, 85 = shell, 255 = FO, FO on top) and Composite.scores (level map, shells 0.5, FO 1.0). The single outputs stay selectable: gate.scores (FO heatmap), FOMask.decisions (FO mask), ShellMask.decisions (shell mask), ShellHeatmap.scores (shell heatmap). Otherwise identical to the base: weights (.pt hardlink), thresholds (calibrate_live.py writes both), TensorRT engines.'
+  created: ''
+  tags:
+  - anomaly
+  - combined
+  - hyperspectral
+  - multiscale
+  - patchcore
+  - segmentation
+  - split_v3
+  - steervit
+  - walnut
+  - walnut_combo
+  author: raj@cubert-gmbh.de
+  cuvis_ai_version: 0.12.0
+plugins:
+- cuvis_ai_builtin
+- patchcore
+- steervit
+- rfdetr_seg
+nodes:
+- name: cu3s_data
+  class_name: cuvis_ai.node.data.CU3SDataNode
+  hparams: {}
+- name: cir_870_640_550
+  class_name: cuvis_ai.node.channel_selector.FixedWavelengthSelector
+  hparams:
+    target_wavelengths:
+    - 870.0
+    - 640.0
+    - 550.0
+    normalize_output: false
+- name: stretch
+  class_name: cuvis_ai_steervit.node.stretch.JointPercentileStretch
+  hparams:
+    low: 2.0
+    high: 98.0
+    per_channel: false
+    quantize_levels: 255
+    eps: 1.0e-06
+- name: steervit_t1
+  class_name: cuvis_ai_steervit.node.steervit.SteerViTExtractor
+  hparams:
+    backend: tensorrt
+    engine_dir: D:/walnuts/walnut_fo_stack/trt_engines/steervit
+    checkpoint: steervit_dinov2_base.pth
+    hf_repo: JonaRuthardt/SteerViT
+    prompts:
+    - the anomaly in the walnuts
+    topk_frac: 0.001
+    score_activation: sigmoid
+    autocast_dtype: float16
+- name: patchcore_t1
+  class_name: cuvis_ai_patchcore.node.patchcore.PatchCoreDetector
+  hparams:
+    input_channels: 768
+    coreset_size: 7200
+    stride: 1
+    bank_stride: 1
+    pool_size: 1
+    max_bank_size: 80000
+    topk_frac: 0.001
+    chunk_size: 4096
+    autocast_dtype: float16
+    standardize: false
+    seed: 0
+    eps: 1.0e-06
+    coreset_projection: null
+    projection_eps: 0.9
+- name: tiler_t2
+  class_name: cuvis_ai_steervit.node.tiling.ImageTiler
+  hparams:
+    tiles: 2
+- name: steervit_t2
+  class_name: cuvis_ai_steervit.node.steervit.SteerViTExtractor
+  hparams:
+    backend: tensorrt
+    engine_dir: D:/walnuts/walnut_fo_stack/trt_engines/steervit
+    checkpoint: steervit_dinov2_base.pth
+    hf_repo: JonaRuthardt/SteerViT
+    prompts:
+    - the anomaly in the walnuts
+    topk_frac: 0.001
+    score_activation: sigmoid
+    autocast_dtype: float16
+- name: stitch_t2
+  class_name: cuvis_ai_steervit.node.tiling.GridStitcher
+  hparams:
+    tiles: 2
+- name: patchcore_t2
+  class_name: cuvis_ai_patchcore.node.patchcore.PatchCoreDetector
+  hparams:
+    input_channels: 768
+    coreset_size: 7200
+    stride: 1
+    bank_stride: 1
+    pool_size: 1
+    max_bank_size: 80000
+    topk_frac: 0.001
+    chunk_size: 4096
+    autocast_dtype: float16
+    standardize: false
+    seed: 0
+    eps: 1.0e-06
+    coreset_projection: null
+    projection_eps: 0.9
+- name: norm_t1
+  class_name: cuvis_ai_patchcore.node.calibration.ScoreRangeNormalizer
+  hparams:
+    n_channels: 1
+    low: 1.0
+    high: 99.0
+    floor: true
+    fit_subsample: 4
+    max_fit_values: 4000000
+    seed: 0
+    eps: 1.0e-09
+- name: norm_t2
+  class_name: cuvis_ai_patchcore.node.calibration.ScoreRangeNormalizer
+  hparams:
+    n_channels: 1
+    low: 1.0
+    high: 99.0
+    floor: true
+    fit_subsample: 4
+    max_fit_values: 4000000
+    seed: 0
+    eps: 1.0e-09
+- name: fuse
+  class_name: cuvis_ai_patchcore.node.fusion.ScoreMapFusion
+  hparams:
+    mode: mean
+    weights: null
+- name: gate
+  class_name: cuvis_ai_patchcore.node.gate.FrameScoreGate
+  hparams:
+    threshold: 1.1512
+    mask_threshold: 1.2732
+    topk_frac: 0.001
+    mode: heatmap
+    log_scores: true
+- name: SelRGB
+  class_name: cuvis_ai.node.channel_selector.FixedWavelengthSelector
+  hparams:
+    target_wavelengths:
+    - 640.0
+    - 550.0
+    - 470.0
+    normalize_output: true
+    norm_mode: per_frame
+    apply_gamma: false
+    freeze_running_bounds_after_frames: 20
+    running_warmup_frames: 10
+- name: SelCIR
+  class_name: cuvis_ai.node.channel_selector.FixedWavelengthSelector
+  hparams:
+    target_wavelengths:
+    - 850.0
+    - 660.0
+    - 550.0
+    normalize_output: true
+    norm_mode: per_frame
+    apply_gamma: false
+    freeze_running_bounds_after_frames: 20
+    running_warmup_frames: 10
+- name: SegRGB
+  class_name: cuvis_ai_rfdetr.node.rfdetr_segmenter.RFDETRSegmenter
+  hparams:
+    checkpoint_path: D:/walnuts/walnut_fo_stack/cuvis-ai/cuvis_ai/configs/pipeline/walnut_seg/weights/rgb_v2_ema.pth
+    variant: large
+    threshold: 0.05
+    resolution: 504
+    tiling: whole
+    tile_rows: 405
+    row_starts:
+    - 0
+    - 291
+    - 582
+    nms_iou: 0.5
+    jpeg_roundtrip: false
+    jpeg_quality: 95
+    class_filter: 0
+    score_reduction: max_conf
+    top_frac: 0.001
+    checkpoint_loader: constructor
+    backend: tensorrt
+    precision: fp16
+    jit_trace: false
+    gpu_input: true
+    fast_paste: true
+- name: ShellFuse
+  class_name: cuvis_ai_rfdetr.node.score_fusion.ScoreFusion
+  hparams:
+    mode: mean
+    weight: 0.5
+- name: SegCIR
+  class_name: cuvis_ai_rfdetr.node.rfdetr_segmenter.RFDETRSegmenter
+  hparams:
+    checkpoint_path: D:/walnuts/walnut_fo_stack/cuvis-ai/cuvis_ai/configs/pipeline/walnut_seg/weights/cir_v2_ema.pth
+    variant: large
+    threshold: 0.05
+    resolution: 504
+    tiling: whole
+    tile_rows: 405
+    row_starts:
+    - 0
+    - 291
+    - 582
+    nms_iou: 0.5
+    jpeg_roundtrip: false
+    jpeg_quality: 95
+    class_filter: 0
+    score_reduction: max_conf
+    top_frac: 0.001
+    checkpoint_loader: constructor
+    backend: tensorrt
+    precision: fp16
+    jit_trace: false
+    gpu_input: true
+    fast_paste: true
+- name: ShellDecider
+  class_name: cuvis_ai.node.deciders.binary_decider.BinaryDecider
+  hparams:
+    threshold: 0.6224593312018546
+- name: ShellHeatmap
+  class_name: cuvis_ai_rfdetr.node.score_fusion.ScoreFusion
+  hparams:
+    mode: max
+    weight: 0.5
+- name: ShellMask
+  class_name: cuvis_ai_patchcore.node.fusion.DecisionFusion
+  hparams:
+    mode: any
+- name: FOMask
+  class_name: cuvis_ai_patchcore.node.fusion.DecisionFusion
+  hparams:
+    mode: any
+- name: Composite
+  class_name: cuvis_ai_patchcore.node.fusion.MaskComposite
+  hparams:
+    labels: [85, 255]
+    levels: [0.5, 1.0]
+- name: gate_shellsup
+  class_name: cuvis_ai_patchcore.node.fusion.ScoreMapSuppression
+  hparams:
+    weight: 0.2
+    erode_px: 4
+- name: FOFlickerFilter
+  class_name: cuvis_ai_patchcore.node.temporal.MaskPersistence
+  hparams:
+    radius_px: 40
+connections:
+- source: cu3s_data.outputs.cube
+  target: cir_870_640_550.inputs.cube
+- source: cu3s_data.outputs.wavelengths
+  target: cir_870_640_550.inputs.wavelengths
+- source: cu3s_data.outputs.cube
+  target: patchcore_t1.inputs.reference
+- source: cu3s_data.outputs.cube
+  target: patchcore_t2.inputs.reference
+- source: cu3s_data.outputs.cube
+  target: SelRGB.inputs.cube
+- source: cu3s_data.outputs.wavelengths
+  target: SelRGB.inputs.wavelengths
+- source: cu3s_data.outputs.cube
+  target: SelCIR.inputs.cube
+- source: cu3s_data.outputs.wavelengths
+  target: SelCIR.inputs.wavelengths
+- source: cir_870_640_550.outputs.rgb_image
+  target: stretch.inputs.data
+- source: stretch.outputs.normalized
+  target: steervit_t1.inputs.rgb_image
+- source: stretch.outputs.normalized
+  target: tiler_t2.inputs.image
+- source: steervit_t1.outputs.features
+  target: patchcore_t1.inputs.cube
+- source: patchcore_t1.outputs.scores
+  target: norm_t1.inputs.scores
+- source: tiler_t2.outputs.tiles
+  target: steervit_t2.inputs.rgb_image
+- source: steervit_t2.outputs.features
+  target: stitch_t2.inputs.tiles
+- source: stitch_t2.outputs.grid
+  target: patchcore_t2.inputs.cube
+- source: patchcore_t2.outputs.scores
+  target: norm_t2.inputs.scores
+- source: norm_t1.outputs.normalized
+  target: fuse.inputs.scores
+- source: norm_t2.outputs.normalized
+  target: fuse.inputs.scores
+- source: fuse.outputs.scores
+  target: gate_shellsup.inputs.scores
+- source: SelRGB.outputs.rgb_image
+  target: SegRGB.inputs.rgb_image
+- source: SelCIR.outputs.rgb_image
+  target: SegCIR.inputs.rgb_image
+- source: SegRGB.outputs.scores
+  target: ShellFuse.inputs.a
+- source: ShellFuse.outputs.scores
+  target: ShellDecider.inputs.logits
+- source: ShellFuse.outputs.scores
+  target: ShellHeatmap.inputs.a
+- source: ShellFuse.outputs.scores
+  target: ShellHeatmap.inputs.b
+- source: SegCIR.outputs.scores
+  target: ShellFuse.inputs.b
+- source: ShellDecider.outputs.decisions
+  target: ShellMask.inputs.decisions
+- source: FOFlickerFilter.outputs.decisions
+  target: FOMask.inputs.decisions
+- source: ShellDecider.outputs.decisions
+  target: Composite.inputs.decisions
+- source: FOFlickerFilter.outputs.decisions
+  target: Composite.inputs.decisions
+- source: gate_shellsup.outputs.scores
+  target: gate.inputs.scores
+- source: ShellDecider.outputs.decisions
+  target: gate_shellsup.inputs.mask
+- source: gate.outputs.decisions
+  target: FOFlickerFilter.inputs.decisions
