@@ -2,8 +2,8 @@
 
 Reads ``cuvis_ai/configs/plugins/*.yaml``; for every plugin entry with ``repo`` + ``tag``,
 downloads its ``pyproject.toml`` from the GitHub raw URL into
-``~/.cuvis_plugins/<name>@<tag>/`` — the location ``audit-plugin-deps
---check plugins`` looks in. Local-``path`` and untagged entries are skipped (the
+``<out>/<name>@<tag>/`` (``--out``, default ``.plugin_pyprojects/``), the directory
+``audit-plugin-deps --check plugins --pyproject-cache <out>`` reads. Local-``path`` and untagged entries are skipped (the
 audit host-checks those separately, in their own repo). Fetch failures are
 warnings, not errors: the audit reports an uncached plugin as a note.
 
@@ -12,6 +12,7 @@ Used by ``.github/workflows/registry_compat.yml``. Run from the repo root.
 
 from __future__ import annotations
 
+import argparse
 import re
 import urllib.request
 from pathlib import Path
@@ -21,8 +22,16 @@ import yaml
 _GITHUB = re.compile(r"(?:git@github\.com:|https?://github\.com/)(.+?)(?:\.git)?$")
 
 
-def main() -> None:
-    cache = Path.home() / ".cuvis_plugins"
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="Fetch each pinned plugin's pyproject.toml.")
+    parser.add_argument(
+        "--out",
+        type=Path,
+        default=Path(".plugin_pyprojects"),
+        help="Directory that receives <name>@<tag>/pyproject.toml; pass the same "
+        "directory to audit-plugin-deps --pyproject-cache.",
+    )
+    cache: Path = parser.parse_args(argv).out
     catalog = Path("cuvis_ai/configs/plugins")
     # One file = one plugin: the source lives in the top-level `name` / `repo` / `tag`
     # keys (not a nested `plugins:` mapping). Local-`path` and untagged entries are skipped.

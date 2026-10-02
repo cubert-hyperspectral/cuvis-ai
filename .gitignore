@@ -226,3 +226,5 @@ notebooks/**/channel_examples/
 
 # Managed model weights cache (written when this checkout serves as the CuvisNEXT AI directory)
 model-cache/
+# pyprojects fetched for the registry audit (scripts/fetch_plugin_pyprojects.py)
+.plugin_pyprojects/
