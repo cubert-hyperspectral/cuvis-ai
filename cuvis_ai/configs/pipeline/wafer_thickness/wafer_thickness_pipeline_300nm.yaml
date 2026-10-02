@@ -28,8 +28,9 @@ nodes:
 - name: WaferThickness
   class_name: cuvis_ai_wafer_thickness.node.wafer_thickness.WaferThickness
   hparams:
-    # nominal 300 nm regime: a single interference order (k=1) inside 430-910 nm; k=2 lies
-    # below the band, so there is no cross-check and `uncertainty` is 0 by construction
+    # nominal 300 nm regime: one interference order (k=1) inside 430-910 nm. k=2 falls at
+    # 405-456 nm over this window (439 nm at 300 nm), at the blue edge of the band; the preset
+    # reads k=1 only, so `uncertainty` is 0 by construction
     orders:
     - [1, 800, 905]
     refractive_model: sellmeier
