@@ -74,7 +74,7 @@ See [Plugin System Overview](overview.md).
 
 A node plugin with an optional backend (TensorRT for `RFDETRSegmenter`, about 3 GB) keeps it behind a
 pip extra of its own `pyproject.toml` (`[project.optional-dependencies]`) and lets a second, minimal
-manifest request it with a manifest-level `extras:` (cuvis-ai-schemas 0.13.0, cuvis-ai-core 0.18.0):
+manifest request it with a manifest-level `extras:` (cuvis-ai-schemas 0.13.0, cuvis-ai-core 0.18.1):
 
 ```yaml
 # rfdetr_seg_trt.yaml: the same package as the plain `rfdetr` manifest, one node, one extra
