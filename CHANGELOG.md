@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Bumped the `wafer_thickness` manifest pin v0.3.1 -> v0.3.2: the torch backend smooths the spectrum ends like the numpy reference again (the reference 300 nm wafer read 308.10 nm instead of 292.94 nm), the 500 and 1000 nm results are bit-identical, and the lightweight tag provisions on cuvis-ai-core 0.17.x too.
+- Added the wafer-thickness 300 nm presets `wafer_thickness_pipeline_300nm.yaml` and `wafer_thickness_pipeline_300nm_cuvisnext_cube.yaml`: one order `[[1, 800, 905]]` covering about 276 to 312 nm, so `uncertainty` is always 0.
+- Renamed the wafer-thickness 1000 nm presets to `wafer_thickness_pipeline_1000nm.yaml` and `wafer_thickness_pipeline_1000nm_cuvisnext_cube.yaml` (display names `WaferThicknessMapping1000nm` and `WaferThicknessMapping1000nmCuvisNextCube`, writer output `outputs/wafer_thickness_1000nm`), so the 300, 500 and 1000 nm presets read alike in the CuvisNEXT picker; breaking for anything that loads the old paths or names.
+
 ## 0.18.0 - 2026-10-02
 
 - Removed, breaking (the next release is 0.18.0): the public names the 0.17.3 simplification pass kept for an API decision. None of them is referenced by the plugins, the notebooks, the skills, the UI catalog or CuvisNEXT.

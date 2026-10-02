@@ -1,12 +1,14 @@
 metadata:
-  name: WaferThicknessMapping
-  description: Per-pixel SiO2 film thickness map from a cu3s reflectance capture
-    (spectral-contrast wafer segmentation -> interference-order thickness).
+  name: WaferThicknessMapping300nmCuvisNextCube
+  description: CuvisNEXT cube-mode variant (300 nm regime) - upload via the CuvisNEXT
+    pipeline builder; CuvisNEXT injects the hyperspectral cube into CU3SDataNode at
+    runtime. Thickness pixel map is emitted on WaferThickness.outputs.thickness.
   created: ''
   tags:
   - wafer
   - thin-film
   - thickness
+  - cuvisnext
   author: cuvis.ai
 plugins:
 - wafer_thickness
@@ -28,11 +30,11 @@ nodes:
 - name: WaferThickness
   class_name: cuvis_ai_wafer_thickness.node.wafer_thickness.WaferThickness
   hparams:
-    # nominal 1000 nm regime; for 500 nm use [[3, 460, 520], [2, 650, 775]]
+    # nominal 300 nm regime: one interference order (k=1) inside 430-910 nm. k=2 falls at
+    # 405-456 nm over this window (439 nm at 300 nm), at the blue edge of the band; the preset
+    # reads k=1 only, so `uncertainty` is 0 by construction
     orders:
-    - [6, 460, 515]
-    - [5, 550, 620]
-    - [4, 690, 785]
+    - [1, 800, 905]
     refractive_model: sellmeier
     n_constant: 1.46
     theta_air_deg: 5.0
@@ -43,7 +45,7 @@ nodes:
 - name: ThicknessWriter
   class_name: cuvis_ai.node.numpy_file.NumpyFeatureWriterNode
   hparams:
-    output_dir: outputs/wafer_thickness
+    output_dir: outputs/wafer_thickness_300nm
     prefix: thickness_nm
 connections:
 - source: CU3SDataNode.outputs.cube
