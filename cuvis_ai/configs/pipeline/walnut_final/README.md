@@ -25,6 +25,18 @@ python3 calibrate_from_log.py --precision fp16trt --last 60 --mask-margin 1.15 \
 
 Add `--write` to write the values, then load the pipeline again.
 
+**Shell-aware versions** (2 Oct; `make_shellaware.py`, weight 0.2, 4 px):
+- `walnut_final_original_shellaware_cuvisnext_cube` and `walnut_final_refit_1oct_shellaware_cuvisnext_cube`.
+- On the shells the shell model finds, the FO map is scaled by 0.8 before the alarm and the mask. A spot on a shell
+  needs 1.25 x the thresholds to show; off the shells nothing changes.
+- On your labelled afternoon frames:
+  - false blobs on shells fall from 0.10 to 0.01 per FO frame (original) and from 0.07 to 0.02 (refit);
+  - no FO is lost.
+- A weak FO lying on a shell, such as a thin stem, can be hidden.
+- Calibrate them like the others, from a run of THAT pipeline: the original's command with
+  `--yaml .../walnut_final_original_shellaware_cuvisnext_cube.yaml`, the refit's with `--mask-margin 1.15 --yaml
+  .../walnut_final_refit_1oct_shellaware_cuvisnext_cube.yaml`.
+
 These are copies: the default calibration (`calibrate_from_log.py --precision fp16trt` without `--yaml`) writes
 `walnut_fo/` and `walnut_combo/`, not this folder. Calibrating this folder does not change those either.
 Background: `TASKS.md` and `THOR_DEPLOY_NOTES.md` §30-31.
