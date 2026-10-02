@@ -226,38 +226,9 @@ jobs:
             compliance/licenses.md
           draft: false
           prerelease: false
+          # A maintenance release must not take "Latest" from the newer release line.
+          make_latest: false
           token: ${{ secrets.GITHUB_TOKEN }}
 
-  deploy-docs:
-    name: Deploy Documentation to gh-pages
-    needs: create-github-release
-    runs-on: ubuntu-latest
-    container:
-      image: cubertgmbh/cuvis_pyil:3.5.0-ubuntu24.04
-    concurrency:
-      group: docs-deploy
-      cancel-in-progress: false
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0  # Full history for mike
-
-      - name: Mark workspace as safe for Git versioning
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
-      - name: Extract version from tag
-        id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
-      - name: Deploy documentation
-        uses: ./.github/actions/deploy-docs
-        with:
-          version: ${{ steps.get_version.outputs.VERSION }}
-
-      - name: Verify deployment
-        run: |
-          echo "Documentation deployed to:"
-          echo "https://docs.cuvis.ai/latest/"
-          echo "Version: ${{ steps.get_version.outputs.VERSION }}"
+  # No docs deploy on a maintenance line: deploy-docs moves the `latest` alias to the tagged
+  # version, which would point docs.cuvis.ai/latest back at an older release.
