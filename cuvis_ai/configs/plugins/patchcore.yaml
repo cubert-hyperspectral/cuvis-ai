@@ -22,3 +22,4 @@ capabilities:
   - class_name: cuvis_ai_patchcore.node.spatial.ScoreMapSmoothing
   - class_name: cuvis_ai_patchcore.node.objectness.SpectralObjectMask
   - class_name: cuvis_ai_patchcore.node.morphology.MaskBlobGate
+  - class_name: cuvis_ai_patchcore.node.objectness.MaskBlobFilter

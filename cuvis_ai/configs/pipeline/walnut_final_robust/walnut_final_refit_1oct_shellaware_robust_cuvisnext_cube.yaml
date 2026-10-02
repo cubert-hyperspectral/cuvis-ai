@@ -1,6 +1,6 @@
 metadata:
   name: walnut_final_refit_1oct_shellaware_robust_cuvisnext_cube
-  description: 'ROBUST FO MASK: after the gate, blobs below 100 px go (FOSpeckFilter), a blob stays only if it holds >= 16 px that are not the empty belt (FOObjects: spectral angle to the frame median > 6 deg; FOObjectGate), and a pixel shows only if the frame before showed FO within 40 px (FOFlickerFilter). gate (alarm, heatmap, log) is unchanged: calibrate like the source. Copy of walnut_final_refit_1oct_shellaware_cuvisnext_cube: SHELL-AWARE: the FO map x 0.8 on the SEG shells (shrunk 4 px) before the gate, so an FO on a shell needs 1.25 x the thresholds; unchanged off the shells. Calibrate from a log of this pipeline. Copy of walnut_final_refit_1oct_cuvisnext_cube: REFIT_1OCT TIER (FO banks replaced): multi-scale banks refitted on the 200 split-v3 TRAIN frames + 567 clean frames of the 1-Oct stand session (production lights, 5 + 8 fps), seed 0, coreset 7200 / 80000; normalisers on the 34 VAL frames. Mask margin 1.15 (calibrate_from_log.py --mask-margin 1.15). Recalibrate every morning. Variant of walnut_combo_gated_fp16trt_trt16_cuvisnext_cube. Composite view: Composite.mask (label map, 85 = shell, 255 = FO, FO on top) and Composite.scores (level map, shells 0.5, FO 1.0). The single outputs stay selectable: gate.scores (FO heatmap), FOMask.decisions (FO mask), ShellMask.decisions (shell mask), ShellHeatmap.scores (shell heatmap). Otherwise identical to the base: weights (.pt hardlink), thresholds (calibrate_live.py writes both), TensorRT engines.'
+  description: 'ROBUST FO MASK: after the gate a blob stays only if it has >= 100 px and holds >= 16 px that are not the empty belt (spectral angle to the frame median > 6 deg; FOBlobFilter), and a pixel shows only if the frame before showed FO within 40 px (FOFlickerFilter). gate (alarm, heatmap, log) is unchanged: calibrate like the source. Copy of walnut_final_refit_1oct_shellaware_cuvisnext_cube: SHELL-AWARE: the FO map x 0.8 on the SEG shells (shrunk 4 px) before the gate, so an FO on a shell needs 1.25 x the thresholds; unchanged off the shells. Calibrate from a log of this pipeline. Copy of walnut_final_refit_1oct_cuvisnext_cube: REFIT_1OCT TIER (FO banks replaced): multi-scale banks refitted on the 200 split-v3 TRAIN frames + 567 clean frames of the 1-Oct stand session (production lights, 5 + 8 fps), seed 0, coreset 7200 / 80000; normalisers on the 34 VAL frames. Mask margin 1.15 (calibrate_from_log.py --mask-margin 1.15). Recalibrate every morning. Variant of walnut_combo_gated_fp16trt_trt16_cuvisnext_cube. Composite view: Composite.mask (label map, 85 = shell, 255 = FO, FO on top) and Composite.scores (level map, shells 0.5, FO 1.0). The single outputs stay selectable: gate.scores (FO heatmap), FOMask.decisions (FO mask), ShellMask.decisions (shell mask), ShellHeatmap.scores (shell heatmap). Otherwise identical to the base: weights (.pt hardlink), thresholds (calibrate_live.py writes both), TensorRT engines.'
   created: ''
   tags:
   - anomaly
@@ -247,19 +247,14 @@ nodes:
   hparams:
     weight: 0.2
     erode_px: 4
-- name: FOSpeckFilter
-  class_name: cuvis_ai_patchcore.node.morphology.MaskMinArea
+- name: FOBlobFilter
+  class_name: cuvis_ai_patchcore.node.objectness.MaskBlobFilter
   hparams:
     min_area: 100
-- name: FOObjects
-  class_name: cuvis_ai_patchcore.node.objectness.SpectralObjectMask
-  hparams:
+    min_object_px: 16
     min_angle_deg: 6.0
-    stride: 4
-- name: FOObjectGate
-  class_name: cuvis_ai_patchcore.node.morphology.MaskBlobGate
-  hparams:
-    min_px: 16
+    cell: 4
+    median_stride: 8
 - name: FOFlickerFilter
   class_name: cuvis_ai_patchcore.node.temporal.MaskPersistence
   hparams:
@@ -332,12 +327,8 @@ connections:
 - source: ShellDecider.outputs.decisions
   target: gate_shellsup.inputs.mask
 - source: gate.outputs.decisions
-  target: FOSpeckFilter.inputs.decisions
-- source: FOSpeckFilter.outputs.decisions
-  target: FOObjectGate.inputs.decisions
+  target: FOBlobFilter.inputs.decisions
 - source: cu3s_data.outputs.cube
-  target: FOObjects.inputs.cube
-- source: FOObjects.outputs.decisions
-  target: FOObjectGate.inputs.mask
-- source: FOObjectGate.outputs.decisions
+  target: FOBlobFilter.inputs.cube
+- source: FOBlobFilter.outputs.decisions
   target: FOFlickerFilter.inputs.decisions

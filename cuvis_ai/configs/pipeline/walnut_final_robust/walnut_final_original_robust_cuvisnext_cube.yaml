@@ -1,6 +1,6 @@
 metadata:
   name: walnut_final_original_robust_cuvisnext_cube
-  description: 'ROBUST FO MASK: after the gate, blobs below 250 px go (FOSpeckFilter), a blob stays only if it holds >= 16 px that are not the empty belt (FOObjects: spectral angle to the frame median > 6 deg; FOObjectGate), and a pixel shows only if the frame before showed FO within 40 px (FOFlickerFilter). gate (alarm, heatmap, log) is unchanged: calibrate like the source. Copy of walnut_final_original_cuvisnext_cube: Variant of walnut_combo_gated_fp16trt_trt16_cuvisnext_cube. Composite view: Composite.mask (label map, 85 = shell, 255 = FO, FO on top) and Composite.scores (level map, shells 0.5, FO 1.0). The single outputs stay selectable: gate.scores (FO heatmap), FOMask.decisions (FO mask), ShellMask.decisions (shell mask), ShellHeatmap.scores (shell heatmap). Otherwise identical to the base: weights (.pt hardlink), thresholds (calibrate_live.py writes both), TensorRT engines.'
+  description: 'ROBUST FO MASK: after the gate a blob stays only if it has >= 250 px and holds >= 16 px that are not the empty belt (spectral angle to the frame median > 6 deg; FOBlobFilter), and a pixel shows only if the frame before showed FO within 40 px (FOFlickerFilter). gate (alarm, heatmap, log) is unchanged: calibrate like the source. Copy of walnut_final_original_cuvisnext_cube: Variant of walnut_combo_gated_fp16trt_trt16_cuvisnext_cube. Composite view: Composite.mask (label map, 85 = shell, 255 = FO, FO on top) and Composite.scores (level map, shells 0.5, FO 1.0). The single outputs stay selectable: gate.scores (FO heatmap), FOMask.decisions (FO mask), ShellMask.decisions (shell mask), ShellHeatmap.scores (shell heatmap). Otherwise identical to the base: weights (.pt hardlink), thresholds (calibrate_live.py writes both), TensorRT engines.'
   created: ''
   tags:
   - anomaly
@@ -242,19 +242,14 @@ nodes:
   hparams:
     labels: [85, 255]
     levels: [0.5, 1.0]
-- name: FOSpeckFilter
-  class_name: cuvis_ai_patchcore.node.morphology.MaskMinArea
+- name: FOBlobFilter
+  class_name: cuvis_ai_patchcore.node.objectness.MaskBlobFilter
   hparams:
     min_area: 250
-- name: FOObjects
-  class_name: cuvis_ai_patchcore.node.objectness.SpectralObjectMask
-  hparams:
+    min_object_px: 16
     min_angle_deg: 6.0
-    stride: 4
-- name: FOObjectGate
-  class_name: cuvis_ai_patchcore.node.morphology.MaskBlobGate
-  hparams:
-    min_px: 16
+    cell: 4
+    median_stride: 8
 - name: FOFlickerFilter
   class_name: cuvis_ai_patchcore.node.temporal.MaskPersistence
   hparams:
@@ -323,12 +318,8 @@ connections:
 - source: FOFlickerFilter.outputs.decisions
   target: Composite.inputs.decisions
 - source: gate.outputs.decisions
-  target: FOSpeckFilter.inputs.decisions
-- source: FOSpeckFilter.outputs.decisions
-  target: FOObjectGate.inputs.decisions
+  target: FOBlobFilter.inputs.decisions
 - source: cu3s_data.outputs.cube
-  target: FOObjects.inputs.cube
-- source: FOObjects.outputs.decisions
-  target: FOObjectGate.inputs.mask
-- source: FOObjectGate.outputs.decisions
+  target: FOBlobFilter.inputs.cube
+- source: FOBlobFilter.outputs.decisions
   target: FOFlickerFilter.inputs.decisions
