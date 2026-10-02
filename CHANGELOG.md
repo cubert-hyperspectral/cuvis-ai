@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.18.0 - 2026-10-02
 
 - Removed, breaking (the next release is 0.18.0): the public names the 0.17.3 simplification pass kept for an API decision. None of them is referenced by the plugins, the notebooks, the skills, the UI catalog or CuvisNEXT.
   - `ScoreToLogit.get_threshold`, `set_threshold` and `predict_anomalies`.
