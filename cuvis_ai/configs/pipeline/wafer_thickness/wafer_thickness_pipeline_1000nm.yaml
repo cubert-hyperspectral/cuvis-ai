@@ -1,14 +1,12 @@
 metadata:
-  name: WaferThicknessMappingCuvisNextCube
-  description: CuvisNEXT cube-mode variant (1000 nm regime) - upload via the CuvisNEXT
-    pipeline builder; CuvisNEXT injects the hyperspectral cube into CU3SDataNode at
-    runtime. Thickness pixel map is emitted on WaferThickness.outputs.thickness.
+  name: WaferThicknessMapping1000nm
+  description: Per-pixel SiO2 film thickness map from a cu3s reflectance capture of a
+    nominal 1000 nm wafer (spectral-contrast segmentation -> interference-order thickness).
   created: ''
   tags:
   - wafer
   - thin-film
   - thickness
-  - cuvisnext
   author: cuvis.ai
 plugins:
 - wafer_thickness
@@ -45,7 +43,7 @@ nodes:
 - name: ThicknessWriter
   class_name: cuvis_ai.node.numpy_file.NumpyFeatureWriterNode
   hparams:
-    output_dir: outputs/wafer_thickness
+    output_dir: outputs/wafer_thickness_1000nm
     prefix: thickness_nm
 connections:
 - source: CU3SDataNode.outputs.cube
