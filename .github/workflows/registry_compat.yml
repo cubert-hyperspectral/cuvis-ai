@@ -48,6 +48,9 @@ jobs:
           uv run --no-project --python 3.11 --with pyyaml
           python scripts/fetch_plugin_pyprojects.py --out "$RUNNER_TEMP/plugin_pyprojects"
 
+      # cuvis_ai_builtin points at this repository. Its floors equal this repo's lock (the
+      # dependency floor audit enforces that) and so run ahead of core's lock; the host check
+      # of this repo covers them, and the registry audit checks the external plugins only.
       - name: Audit plugin manifests against the core lock
         run: >
           uv run --no-project --python 3.11 --with click --with packaging --with pyyaml
@@ -56,4 +59,5 @@ jobs:
           --plugins-dir cuvis_ai/configs/plugins
           --pyproject-cache "$RUNNER_TEMP/plugin_pyprojects"
           --against-core core
+          --exclude cuvis_ai_builtin
           --strict
