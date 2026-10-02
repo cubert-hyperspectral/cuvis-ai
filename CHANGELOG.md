@@ -1,10 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.18.1 - 2026-10-02
 
 - Bumped the `wafer_thickness` manifest pin v0.3.1 -> v0.3.2: the torch backend smooths the spectrum ends like the numpy reference again (the reference 300 nm wafer read 308.10 nm instead of 292.94 nm), the 500 and 1000 nm results are bit-identical, and the lightweight tag provisions on cuvis-ai-core 0.17.x too.
 - Added the wafer-thickness 300 nm presets `wafer_thickness_pipeline_300nm.yaml` and `wafer_thickness_pipeline_300nm_cuvisnext_cube.yaml`: one order `[[1, 800, 905]]` covering about 276 to 312 nm, so `uncertainty` is always 0.
 - Renamed the wafer-thickness 1000 nm presets to `wafer_thickness_pipeline_1000nm.yaml` and `wafer_thickness_pipeline_1000nm_cuvisnext_cube.yaml` (display names `WaferThicknessMapping1000nm` and `WaferThicknessMapping1000nmCuvisNextCube`, writer output `outputs/wafer_thickness_1000nm`), so the 300, 500 and 1000 nm presets read alike in the CuvisNEXT picker; breaking for anything that loads the old paths or names.
+- Plugin development guide: a node plugin's optional backend (TensorRT) is a pip extra that a second, minimal manifest requests with a manifest-level `extras:` (cuvis-ai-schemas 0.13.0, cuvis-ai-core 0.18.1); the guide states the merge-by-package rule, the reuse rule (TensorRT pipelines list both manifests), the compose-time refusal of an unknown extra and the `provision` dry run that shows the requirement, and no longer claims that data-module extras are the only manifest-level knob.
+- Profiling guide (`docs/workflows/profiling.md`): the `Data loading (outside the nodes)` block cuvis-ai-core 0.18.1 prints after the node table (`data_load`, `to_device`, `batch_loop` per stage, the excluded first batch, the per-batch line in host wall time or CUDA-synchronized), `CuvisPipeline.iter_profiled_batches()` for your own loops, `get_data_profiling_summary()`, `restore-pipeline --profile-sync`, and `Predictor.predict(max_batches=)` stopping before the fetch; the example block comes from a synthetic run and says so.
+- Requires `cuvis-ai-core>=0.18.1` and `cuvis-ai-schemas[full]>=0.14.0,<0.15` (lock 0.17.3 -> 0.18.1 and 0.12.0 -> 0.14.0; the `hydra-core` floor and lock move 1.3.5 -> 1.3.7 because core 0.18.1 floors it there). 0.18.1 is the first cuvis-ai-core that accepts schemas 0.14.x, and the explicit core floor keeps 0.17.3 and 0.17.4 (no schemas cap, but a server that cannot start on 0.14.0) from resolving this release. A host on cuvis-ai-core 0.17.x keeps composing the cuvis-ai its installed builtin manifest tag names (v0.17.2 on CuvisNEXT 0.6.0); moving a host to this release means moving it to core 0.18.1 and schemas 0.14.0 together.
 
 ## 0.18.0 - 2026-10-02
 
