@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Bumped the `wafer_thickness` manifest pin v0.3.1 -> v0.3.2: the plugin's torch backend smooths the spectrum ends like the numpy reference again (zero padding had pulled any order window reaching the first or last three bands onto a fake peak — 308.10 nm instead of 292.94 nm on the reference 300 nm wafer); the shipped 500/1000 nm presets are bit-identical.
+- Added the wafer-thickness 300 nm presets `cuvis_ai/configs/pipeline/wafer_thickness/wafer_thickness_pipeline_300nm.yaml` and `wafer_thickness_pipeline_300nm_cuvisnext_cube.yaml`, mirrored from the plugin (single order `[[1, 800, 905]]`; `uncertainty` is 0 by construction because the k=2 maximum falls below 430 nm).
+
 ## 0.18.0 - 2026-10-02
 
 - Removed, breaking (the next release is 0.18.0): the public names the 0.17.3 simplification pass kept for an API decision. None of them is referenced by the plugins, the notebooks, the skills, the UI catalog or CuvisNEXT.

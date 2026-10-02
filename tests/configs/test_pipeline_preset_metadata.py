@@ -32,6 +32,7 @@ CUVISNEXT_PRESETS = {
     "sam3/sam3_mask_propagation_view.yaml",
     "sam3/sam3_point_expansion_postprocess_view.yaml",
     "sam3/sam3_point_expansion_view.yaml",
+    "wafer_thickness/wafer_thickness_pipeline_300nm_cuvisnext_cube.yaml",
     "wafer_thickness/wafer_thickness_pipeline_500nm_cuvisnext_cube.yaml",
     "wafer_thickness/wafer_thickness_pipeline_cuvisnext_cube.yaml",
 }

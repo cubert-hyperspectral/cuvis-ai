@@ -1,0 +1,61 @@
+metadata:
+  name: WaferThicknessMapping300nm
+  description: Per-pixel SiO2 film thickness map from a cu3s reflectance capture of a
+    nominal 300 nm wafer (spectral-contrast segmentation -> interference-order thickness).
+  created: ''
+  tags:
+  - wafer
+  - thin-film
+  - thickness
+  author: cuvis.ai
+plugins:
+- wafer_thickness
+- cuvis_ai_builtin
+nodes:
+- name: CU3SDataNode
+  class_name: cuvis_ai.node.data.CU3SDataNode
+  hparams: {}
+- name: WaferSegmentation
+  class_name: cuvis_ai_wafer_thickness.node.wafer_segmentation.WaferSegmentation
+  hparams:
+    wl_min: 450.0
+    wl_max: 880.0
+    open_px: 3
+    close_px: 7
+    erode_px: 10
+    min_area_frac: 0.03
+    backend: torch
+- name: WaferThickness
+  class_name: cuvis_ai_wafer_thickness.node.wafer_thickness.WaferThickness
+  hparams:
+    # nominal 300 nm regime: a single interference order (k=1) inside 430-910 nm; k=2 lies
+    # below the band, so there is no cross-check and `uncertainty` is 0 by construction
+    orders:
+    - [1, 800, 905]
+    refractive_model: sellmeier
+    n_constant: 1.46
+    theta_air_deg: 5.0
+    sg_window: 7
+    sg_polyorder: 2
+    median_size: 5
+    backend: torch
+- name: ThicknessWriter
+  class_name: cuvis_ai.node.numpy_file.NumpyFeatureWriterNode
+  hparams:
+    output_dir: outputs/wafer_thickness_300nm
+    prefix: thickness_nm
+connections:
+- source: CU3SDataNode.outputs.cube
+  target: WaferSegmentation.inputs.cube
+- source: CU3SDataNode.outputs.wavelengths
+  target: WaferSegmentation.inputs.wavelengths
+- source: CU3SDataNode.outputs.cube
+  target: WaferThickness.inputs.cube
+- source: CU3SDataNode.outputs.wavelengths
+  target: WaferThickness.inputs.wavelengths
+- source: WaferSegmentation.outputs.mask
+  target: WaferThickness.inputs.mask
+- source: WaferThickness.outputs.thickness
+  target: ThicknessWriter.inputs.features
+- source: CU3SDataNode.outputs.mesu_index
+  target: ThicknessWriter.inputs.frame_id
