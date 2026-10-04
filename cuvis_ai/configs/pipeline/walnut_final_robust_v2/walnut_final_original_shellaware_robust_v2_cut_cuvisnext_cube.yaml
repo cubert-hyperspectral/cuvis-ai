@@ -1,6 +1,6 @@
 metadata:
   name: walnut_final_original_shellaware_robust_v2_cut_cuvisnext_cube
-  description: 'ROBUST FO MASK: after the gate a blob stays only if it has >= 100 px and holds >= 16 px that are not the empty belt (spectral angle to the frame median > 6 deg; FOBlobFilter); then each mark is cut to the objects of the frame (Otsu level of the belt angle, at least 2 deg, holes filled) plus 4 px, pieces under 100 px or below 0.8 x the peak score of their mark dropped (FOObjects, FOCut, FOCutSize, FOCutPeak). gate (alarm, heatmap, log) is unchanged: calibrate like the source. Copy of walnut_final_original_shellaware_cuvisnext_cube: SHELL-AWARE: the FO map x 0.8 on the SEG shells (shrunk 4 px) before the gate, so an FO on a shell needs 1.25 x the thresholds; unchanged off the shells. Calibrate from a log of this pipeline. Copy of walnut_final_original_cuvisnext_cube: Variant of walnut_combo_gated_fp16trt_trt16_cuvisnext_cube. Composite view: Composite.mask (label map, 85 = shell, 255 = FO, FO on top) and Composite.scores (level map, shells 0.5, FO 1.0). The single outputs stay selectable: gate.scores (FO heatmap), FOMask.decisions (FO mask), ShellMask.decisions (shell mask), ShellHeatmap.scores (shell heatmap). Otherwise identical to the base: weights (.pt hardlink), thresholds (calibrate_live.py writes both), TensorRT engines.'
+  description: 'ROBUST FO MASK: after the gate a blob stays only if it has >= 100 px and holds >= 16 px that are not the empty belt (spectral angle to the frame median > 6 deg; FOBlobFilter); then each mark is cut to the objects of the frame (Otsu level of the belt angle, at least 2 deg, holes filled) plus 4 px, pieces under 100 px or below 0.8 x the peak score of their mark dropped (FOObjects, FOCut, FOCutSize, FOCutPeak); a mark the cut would remove entirely stays whole (FOCutLost), and the gate pixels above 1.3 x mask_threshold always stay (gate core_ratio, FOCore; FOCutTrim). gate (alarm, heatmap, log) is unchanged: calibrate like the source. Copy of walnut_final_original_shellaware_cuvisnext_cube: SHELL-AWARE: the FO map x 0.8 on the SEG shells (shrunk 4 px) before the gate, so an FO on a shell needs 1.25 x the thresholds; unchanged off the shells. Calibrate from a log of this pipeline. Copy of walnut_final_original_cuvisnext_cube: Variant of walnut_combo_gated_fp16trt_trt16_cuvisnext_cube. Composite view: Composite.mask (label map, 85 = shell, 255 = FO, FO on top) and Composite.scores (level map, shells 0.5, FO 1.0). The single outputs stay selectable: gate.scores (FO heatmap), FOMask.decisions (FO mask), ShellMask.decisions (shell mask), ShellHeatmap.scores (shell heatmap). Otherwise identical to the base: weights (.pt hardlink), thresholds (calibrate_live.py writes both), TensorRT engines.'
   created: ''
   tags:
   - anomaly
@@ -138,6 +138,7 @@ nodes:
   hparams:
     threshold: 1.35
     mask_threshold: 1.35
+    core_ratio: 1.3
     topk_frac: 0.001
     mode: heatmap
     log_scores: true
@@ -280,6 +281,20 @@ nodes:
   hparams:
     ratio: 0.8
     cell: 4
+- name: FOCutLost
+  class_name: cuvis_ai_patchcore.node.morphology.MaskBlobGate
+  hparams:
+    min_px: 1
+    cell: 4
+    invert: true
+- name: FOCore
+  class_name: cuvis_ai_patchcore.node.fusion.DecisionFusion
+  hparams:
+    mode: all
+- name: FOCutTrim
+  class_name: cuvis_ai_patchcore.node.fusion.DecisionFusion
+  hparams:
+    mode: any
 connections:
 - source: cu3s_data.outputs.cube
   target: cir_870_640_550.inputs.cube
@@ -337,11 +352,11 @@ connections:
   target: ShellFuse.inputs.b
 - source: ShellDecider.outputs.decisions
   target: ShellMask.inputs.decisions
-- source: FOCutPeak.outputs.decisions
+- source: FOCutTrim.outputs.decisions
   target: FOMask.inputs.decisions
 - source: ShellDecider.outputs.decisions
   target: Composite.inputs.decisions
-- source: FOCutPeak.outputs.decisions
+- source: FOCutTrim.outputs.decisions
   target: Composite.inputs.decisions
 - source: gate_shellsup.outputs.scores
   target: gate.inputs.scores
@@ -365,3 +380,17 @@ connections:
   target: FOCutPeak.inputs.reference
 - source: gate_shellsup.outputs.scores
   target: FOCutPeak.inputs.scores
+- source: FOBlobFilter.outputs.decisions
+  target: FOCutLost.inputs.decisions
+- source: FOCutPeak.outputs.decisions
+  target: FOCutLost.inputs.mask
+- source: gate.outputs.core
+  target: FOCore.inputs.decisions
+- source: FOBlobFilter.outputs.decisions
+  target: FOCore.inputs.decisions
+- source: FOCutPeak.outputs.decisions
+  target: FOCutTrim.inputs.decisions
+- source: FOCutLost.outputs.decisions
+  target: FOCutTrim.inputs.decisions
+- source: FOCore.outputs.decisions
+  target: FOCutTrim.inputs.decisions
