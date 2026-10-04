@@ -16,6 +16,15 @@ The alarm (`gate.passed`, the frame score), the FO heatmap and the shells are un
 | `walnut_final_original_shellaware_robust_v2_cuvisnext_cube.yaml` + `.pt` | `..._original_shellaware` | 1.35 / 1.35 |
 | `walnut_final_refit_1oct_shellaware_robust_v2_cuvisnext_cube.yaml` + `.pt` | `..._refit_1oct_shellaware` | 1.1512 / **1.2178** |
 
+**`*_robust_v2_cut_*` (four more files, the same thresholds): v2 plus the pixel-level cut.** Each mark is cut to the
+objects of the frame, so the mask no longer spills over the belt. Four nodes come after FOBlobFilter:
+1. **FOObjects** (SpectralObjectMask) finds the objects: the frame's own Otsu level of the belt angle (at least 2 deg),
+   holes filled, plus 4 px around each object;
+2. **FOCut** keeps only the mark pixels on those objects;
+3. **FOCutSize** drops leftover pieces under 100 px;
+4. **FOCutPeak** (MaskPeakGate) drops pieces whose highest score is below 0.8 × the highest score of the mark they
+   came from: halo left on neighbouring objects goes, the FO stays.
+
 **Measured offline on every session** (each pipeline calibrated as at the stand; an FO counts as found when at least
 50 marked pixels lie on it, a quarter of it for FOs under 200 px):
 
@@ -27,15 +36,26 @@ The alarm (`gate.passed`, the frame score), the FO heatmap and the shells are un
 | original, final | 556 (58) | 0.37 | 309 | 0/17 | 10.62 / 2.55 | 335 / 0.97 |
 | original, robust v1 | 526 (50) | 0.04 | 284 | 0/17 | 0.11 / 0.16 | 322 / 0.69 |
 | **original, robust v2** | **552 (57)** | **0.18** | **303** | **0/17** | **0.04 / 0.05** | **330 / 0.78** |
+| refit, robust v2 + cut | 565 (69) | 0.17 | 236 | 8/17 | 0.02 / 0.04 | 231 / 0.52 |
+| original, robust v2 + cut | 552 (57) | 0.14 | 303 | 0/17 | 0.05 / 0.07 | 329 / 0.87 |
 
-**Speed** (RTX 4070 laptop, median of 50 runs): refit +0.3 to +1.8 ms per frame, original −0.8 to +1.1 ms. Thor: not
-measured yet.
+The cut removes about 88 % of the marked area off FOs and shells on your labels (refit 6,127 → 758 px per FO frame,
+original 5,539 → 692) and loses no FO there.
 
-**Checked end to end:** the four pipelines on 32 consecutive real frames. All 128 frame checks pass (`robust_e2e.py`),
-including the refit's new mask threshold: on passing frames, its gate mask is the base gate's input map above 1.2178.
+**Speed** (RTX 4070 laptop, median of 50 runs, against `walnut_final/`):
+- v2: refit +0.3 to +1.8 ms per frame, original −0.8 to +1.1 ms;
+- v2 + cut: refit +0.9 to +4.1 ms, original +1.8 to +4.4 ms. The object finder runs on every frame (about 1.1 ms).
 
-**Restart CuvisNEXT once** if `walnut_final_robust/` was never loaded on this machine (it needs the patchcore plugin's
-MaskBlobFilter).
+Thor: not measured yet.
+
+**Checked end to end:** the eight pipelines on 32 consecutive real frames each. All 256 frame checks pass
+(`robust_e2e.py`):
+- the refit's new mask threshold: on passing frames, its gate mask is the base gate's input map above 1.2178;
+- every step of the cut against independent NumPy / OpenCV / SciPy references: the angle within 0.01 deg, the Otsu
+  objects, the AND, the size test and the peak rule.
+
+**Restart CuvisNEXT once** after updating the patchcore plugin: the cut pipelines need MaskPeakGate and the new
+SpectralObjectMask options.
 
 **Calibration:**
 - **original:** as the source.
@@ -55,10 +75,8 @@ MaskBlobFilter).
 
 **Not chosen**, measured the same way (`walnut_fo_v3/runs/improve_4oct*.md`):
 - **Flicker filter on whole marks, or a radius of 80 / 120 px:** it still hides most of the same FOs.
-- **The pixel-level cut** (each mark cut to the objects plus 4 px): about 88 % less marked area off FOs and shells, and
-  belt marks to 0, at no FO cost on your labels. It needs a new node; it is the next step if the tighter masks are
-  wanted.
 
 Built with:
 - `make_robust.py --src walnut_final/<name>_cuvisnext_cube.yaml --dst walnut_final_robust_v2/<name>_robust_v2_cuvisnext_cube.yaml --min-area 100 --no-flicker`
-- the refit versions add `--scale-mask-threshold 0.9565217391304348` (1.10 / 1.15).
+- the refit versions add `--scale-mask-threshold 0.9565217391304348` (1.10 / 1.15);
+- the `_cut` versions add `--cut` (floor 2 deg, margin 4 px, 100 px, peak 0.8).
