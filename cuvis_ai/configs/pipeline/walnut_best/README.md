@@ -7,8 +7,8 @@ where it was, for comparison only.
 |---|---|---|---|
 | `walnut_best_refit_cuvisnext_cube.yaml` | refit (1 Oct banks) | v2 | **first choice at the production stand** |
 | `walnut_best_original_cuvisnext_cube.yaml` | original | v2 | other setups, older lighting |
-| `walnut_best_refit_cut_cuvisnext_cube.yaml` | refit | v2 + pixel cut | the same, mask tighter around the objects |
-| `walnut_best_original_cut_cuvisnext_cube.yaml` | original | v2 + pixel cut | the same, mask tighter around the objects |
+| `walnut_best_refit_cut_cuvisnext_cube.yaml` | refit | v2 + pixel cut | the same, mask tighter around the objects; about 20 ms slower on Thor |
+| `walnut_best_original_cut_cuvisnext_cube.yaml` | original | v2 + pixel cut | the same, mask tighter around the objects; about 20 ms slower on Thor |
 
 They are copies of `walnut_final_robust_v2/` (`make_best.py`; only the name and description differ, checked on real
 frames). The weights (`.pt`) are hard links; the SEG weights and TensorRT engines are read from their usual folders.
@@ -57,7 +57,15 @@ on it (a quarter of it under 200 px). False marks: marks touching no FO, per fra
 - **Which model:** the refit is the better one at the production stand (more FOs, fewer false marks). It is weaker on
   the older setups (232 vs 330 of 536), so use the original there.
 
-Speed (RTX 4070 laptop, against the final pipelines): v2 about +1 ms per frame; v2 + cut +2 to +5 ms.
+Speed against the final pipelines, per frame:
+- **laptop** (RTX 4070): v2 about +1 ms; v2 + cut +2 to +5 ms;
+- **Thor** (5 Oct, CuvisNEXT running its camera as in the live setup; the final pipelines take 120-140 ms): v2 +0 to
+  +5 ms (within the noise); **v2 + cut +17 to +23 ms on frames with marks**, +0 to +3 ms on clean frames. The cut's
+  extra steps run partly on Thor's CPU. **On Thor use the plain v2**; try the cut only if the frame rate holds up.
+
+Checked on Thor (5 Oct): all four on 16 consecutive frames of Thor's own recordings (your 1 Oct labelled file, a
+clean 1 Oct file, the 2 Oct production recording), every step against independent references: 64 / 64 pass; no mark
+on the clean frames.
 
 ## Calibrate at the stand
 
