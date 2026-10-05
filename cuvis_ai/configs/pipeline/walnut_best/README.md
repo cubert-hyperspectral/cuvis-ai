@@ -1,6 +1,6 @@
 # walnut_best: the pipelines to load (5 Oct 2026)
 
-Four pipelines, both FO models, each with and without the pixel cut. Everything else in `configs/pipeline/` stays
+Six pipelines: both FO models plain, shell-aware and with the pixel cut. Everything else in `configs/pipeline/` stays
 where it was, for comparison only.
 
 | file | model | mask | use |
@@ -9,10 +9,20 @@ where it was, for comparison only.
 | `walnut_best_original_cuvisnext_cube.yaml` | original | v2 | other setups, older lighting |
 | `walnut_best_refit_cut_cuvisnext_cube.yaml` | refit | v2 + pixel cut | the same, mask tighter around the objects; about 20 ms slower on Thor |
 | `walnut_best_original_cut_cuvisnext_cube.yaml` | original | v2 + pixel cut | the same, mask tighter around the objects; about 20 ms slower on Thor |
+| `walnut_best_refit_shellaware_cuvisnext_cube.yaml` | refit | v2, FO map x 0.8 on the SEG shells | when real shells next to an FO light up (5 Oct live test) |
+| `walnut_best_original_shellaware_cuvisnext_cube.yaml` | original | v2, FO map x 0.8 on the SEG shells | the same for the original model |
 
 They are copies of `walnut_final_robust_v2/` (`make_best.py`; only the name and description differ, checked on real
 frames). The weights (`.pt`) are hard links; the SEG weights and TensorRT engines are read from their usual folders.
 Restart CuvisNEXT once after the plugin update of 4 Oct (patchcore 87d823b) before loading the `_cut` files.
+
+**5 Oct live test on Thor (FOs, a fake shell touching a real shell, stem, dark dots):** the plain v2 marks the fake,
+the stem and the dots, and also the real shell touching the fake (the FO score spills across touching objects) and
+some kernel edges. The shell-aware v2 removes the marks on the real shells (SEG outlines them; the fake has no
+outline) and keeps the fake, the stem and the dots. Kernels are not a SEG class, so they are not helped by it; the
+clean-turn calibration is their fix. The cut removed the stem's mark with the original model again, so it stays an
+option for the laptop only. An FO lying on a real shell needs 1.25 x the thresholds in the shell-aware versions:
+calibrate them from a clean turn of their own (their gate sees the dampened map).
 
 ## What runs, step by step
 
