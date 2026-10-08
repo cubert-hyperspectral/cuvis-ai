@@ -2103,19 +2103,55 @@ class CIRSelector(ChannelSelectorBase):
 class CIETristimulusRGBSelector(ChannelSelectorBase):
     """CIE 1931 tristimulus-based RGB rendering.
 
-    Converts a hyperspectral cube to sRGB by integrating each pixel's spectrum
-    with the CIE 1931 2-degree standard observer color matching functions
-    (x_bar, y_bar, z_bar), applying a D65 white point normalization, and
-    converting from CIE XYZ to linear sRGB.
+    Treats the cube as reflectance, renders it under an illuminant by
+    integrating each pixel's spectrum with the CIE 1931 2-degree standard
+    observer color matching functions (x_bar, y_bar, z_bar), and converts
+    from CIE XYZ to linear sRGB (Rec. 709 primaries, D65 white).
 
-    Normalization and sRGB gamma are handled by ``ChannelSelectorBase`` (see
-    ``apply_gamma`` parameter inherited from the base class).
+    With ``illuminant="D65"`` (default) the integrand is weighted with the CIE
+    standard illuminant D65 spectrum and the result is white normalised: a
+    perfect white reflector (reflectance 1.0 in every band) has Y = 1 and maps
+    to linear sRGB (1, 1, 1), and reflectance scales linearly from there.
 
-    This produces a faithful (true) RGB rendering and lands closest to the
-    distribution SAM3's Perception Encoder expects.
+    The sensor grid rarely covers the full CMF range of 380 to 780 nm (an
+    XMR camera starts at 430 nm and so misses part of z_bar). The white
+    normalisation is computed on the sensor grid itself: the white the
+    covered bands can see is adapted to the D65 white with the Bradford
+    transform, so white and greys stay neutral. Colours whose energy sits in
+    the uncovered part of the range (violets below the first band) are still
+    rendered without that energy. ``band_info`` reports the share of the full
+    range D65 white that the sensor bands capture, per tristimulus component,
+    as ``white_xyz_coverage`` (about 0.98, 1.00, 0.91 on an XMR grid), and a
+    warning is logged once when any component is below 99 %. When any
+    component is below 50 % (a grid starting at 500 nm sees about 5 % of
+    z_bar) the white is not adapted, because that would amplify a near zero
+    cone response: only Y of the white is normalised to 1, white and greys
+    are not neutral, and ``band_info["white_adapted"]`` is False.
+
+    ``illuminant="E"`` keeps the behaviour of cuvis-ai 0.18.1 and earlier:
+    reflectance integrated with the bare CMFs (equal energy illuminant E), no
+    white normalisation and no chromatic adaptation. A perfect white then
+    renders warm in linear sRGB (about (1.00, 0.81, 0.67) relative on an XMR
+    grid). Use it only to reproduce outputs of older pipelines.
+
+    The rendered linear sRGB is clamped at 0, then normalised to [0, 1] per
+    channel and optionally gamma encoded by ``ChannelSelectorBase`` (see
+    ``norm_mode`` and ``apply_gamma``). Because that normalisation is per
+    channel, the absolute white scale only shows in ``_compute_raw_rgb``, and
+    the per channel bounds act as a scene dependent white balance: a white or
+    grey pixel in ``rgb_image`` is neutral only when the channel bounds happen
+    to be. The illuminant choice still changes the colour balance of the
+    output, because D65 reweights the wavelengths within each channel.
 
     For wavelengths outside the visible range (approx. >780 nm), the CMFs are
     zero, so NIR bands do not contribute to the output.
+
+    Parameters
+    ----------
+    illuminant : {"D65", "E"}
+        Illuminant the reflectance is rendered under. Default: "D65".
+    **kwargs : Any
+        Passed to ``ChannelSelectorBase`` (``norm_mode``, ``apply_gamma``, ...).
     """
 
     _category = NodeCategory.TRANSFORM
@@ -2178,7 +2214,38 @@ class CIETristimulusRGBSelector(ChannelSelectorBase):
         0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
         0.0000,
     ], dtype=np.float64)
+
+    # CIE standard illuminant D65 relative spectral power, same 5 nm grid.
+    # Source: CIE S 014-2 / ISO 11664-2 (normalised to 100 at 560 nm).
+    _D65_SPD = np.array([
+        49.9755, 52.3118, 54.6482, 68.7015, 82.7549, 87.1204, 91.4860, 92.4589,
+        93.4318, 90.0570, 86.6823, 95.7736, 104.865, 110.936, 117.008, 117.410,
+        117.812, 116.336, 114.861, 115.392, 115.923, 112.367, 108.811, 109.082,
+        109.354, 108.578, 107.802, 106.296, 104.790, 106.239, 107.689, 106.047,
+        104.405, 104.225, 104.046, 102.023, 100.000, 98.1671, 96.3342, 96.0611,
+        95.7880, 92.2368, 88.6856, 89.3459, 90.0062, 89.8026, 89.5991, 88.6489,
+        87.6987, 85.4936, 83.2886, 83.4939, 83.6992, 81.8630, 80.0268, 80.1207,
+        80.2146, 81.2462, 82.2778, 80.2810, 78.2842, 74.0027, 69.7213, 70.6652,
+        71.6091, 72.9790, 74.3490, 67.9765, 61.6040, 65.7448, 69.8856, 72.4863,
+        75.0870, 69.3398, 63.5927, 55.0054, 46.4182, 56.6118, 66.8054, 65.0941,
+        63.3828,
+    ], dtype=np.float64)
     # fmt: on
+
+    # Bradford cone response matrix (XYZ -> LMS), for adapting the white the
+    # sensor grid sees to the sRGB (D65) white.
+    _BRADFORD = np.array(
+        [
+            [0.8951, 0.2664, -0.1614],
+            [-0.7502, 1.7135, 0.0367],
+            [0.0389, -0.0685, 1.0296],
+        ],
+        dtype=np.float64,
+    )
+
+    _ILLUMINANTS = ("D65", "E")
+    _MIN_WHITE_XYZ_COVERAGE = 0.99
+    _MIN_ADAPTABLE_XYZ_COVERAGE = 0.5
 
     # XYZ -> linear sRGB matrix (IEC 61966-2-1 / Rec. 709 primaries, D65).
     _XYZ_TO_SRGB = np.array(
@@ -2190,8 +2257,11 @@ class CIETristimulusRGBSelector(ChannelSelectorBase):
         dtype=np.float64,
     )
 
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
+    def __init__(self, illuminant: Literal["D65", "E"] = "D65", **kwargs: Any) -> None:
+        if illuminant not in self._ILLUMINANTS:
+            raise ValueError(f"illuminant must be one of {self._ILLUMINANTS}, got {illuminant!r}")
+        super().__init__(illuminant=illuminant, **kwargs)
+        self.illuminant = illuminant
 
         # Static XYZ -> linear sRGB matrix; buffer so .to(device) moves it.
         self.register_buffer(
@@ -2202,6 +2272,9 @@ class CIETristimulusRGBSelector(ChannelSelectorBase):
         self.register_buffer("_cmf_weights", None, persistent=False)
         self._cached_wl_key: tuple[float, ...] | None = None
         self._cached_n_visible: int = 0
+        self._cached_white_xyz_coverage: list[float] | None = None
+        self._cached_white_adapted: bool | None = None
+        self._coverage_warned = False
 
     def _interpolate_cmfs(
         self,
@@ -2234,10 +2307,69 @@ class CIETristimulusRGBSelector(ChannelSelectorBase):
         if self._cmf_weights is None or self._cached_wl_key != wl_key:
             cmfs = self._interpolate_cmfs(wavelengths_np)
             spacing = np.gradient(wavelengths_np)
-            iw = (cmfs * spacing[np.newaxis, :]).astype(np.float32)
-            self._cmf_weights = torch.from_numpy(iw).to(device=device)
+            iw = cmfs * spacing[np.newaxis, :]
+            if self.illuminant == "D65":
+                iw = self._d65_white_normalised_weights(wavelengths_np, iw)
+            self._cmf_weights = torch.from_numpy(iw.astype(np.float32)).to(device=device)
             self._cached_wl_key = wl_key
             self._cached_n_visible = int((cmfs.sum(axis=0) > 1e-6).sum())
+
+    def _d65_white_normalised_weights(
+        self, wavelengths_nm: np.ndarray, cmf_weights: np.ndarray
+    ) -> np.ndarray:
+        """Weight the CMF integration weights with D65 and map a perfect white to sRGB white.
+
+        Parameters
+        ----------
+        wavelengths_nm : np.ndarray
+            Sensor wavelengths in nm, shape (C,).
+        cmf_weights : np.ndarray
+            Bare CMF integration weights (CMF times band spacing), shape (3, C).
+
+        Returns
+        -------
+        np.ndarray
+            XYZ integration weights, shape (3, C), that map reflectance 1.0 in
+            every band to the XYZ of the sRGB white (Y = 1, linear sRGB (1, 1, 1)).
+        """
+        spd = np.interp(wavelengths_nm, self._CMF_WAVELENGTHS, self._D65_SPD)
+        weights = cmf_weights * spd[np.newaxis, :]
+        white_xyz = weights.sum(axis=1)
+
+        full_range_white = np.array(
+            [np.sum(self._D65_SPD * bar) * 5.0 for bar in (self._X_BAR, self._Y_BAR, self._Z_BAR)]
+        )
+        coverage = white_xyz / full_range_white
+        self._cached_white_xyz_coverage = [round(float(c), 4) for c in coverage]
+        # Adapting a white the bands barely see would amplify a near zero cone response.
+        self._cached_white_adapted = bool(coverage.min() >= self._MIN_ADAPTABLE_XYZ_COVERAGE)
+        if coverage.min() < self._MIN_WHITE_XYZ_COVERAGE and not self._coverage_warned:
+            self._coverage_warned = True
+            consequence = (
+                "white stays neutral after adaptation, but colours with energy outside the "
+                "sensor range are rendered without it."
+                if self._cached_white_adapted
+                else "too little to adapt the white, so only Y is normalised and white and "
+                "greys are not neutral."
+            )
+            logger.warning(
+                f"CIETristimulusRGBSelector: the sensor bands ({wavelengths_nm[0]:.0f} to "
+                f"{wavelengths_nm[-1]:.0f} nm) capture X, Y, Z = "
+                f"{', '.join(f'{100.0 * c:.1f} %' for c in coverage)} of the D65 white over the "
+                f"380 to 780 nm CMF range; {consequence}"
+            )
+        if white_xyz[1] <= 0.0:
+            # No band inside the CMF range: nothing to normalise, the output stays black.
+            self._cached_white_adapted = False
+            return weights
+        if not self._cached_white_adapted:
+            return weights / white_xyz[1]
+
+        # sRGB white in XYZ (Y = 1), taken from the matrix so it maps to (1, 1, 1) exactly.
+        target_white = np.linalg.solve(self._XYZ_TO_SRGB, np.ones(3))
+        lms_gain = (self._BRADFORD @ target_white) / (self._BRADFORD @ white_xyz)
+        adaptation = np.linalg.solve(self._BRADFORD, lms_gain[:, np.newaxis] * self._BRADFORD)
+        return adaptation @ weights
 
     def _compute_raw_rgb(self, cube: torch.Tensor, wavelengths: Any) -> torch.Tensor:
         """Convert spectral cube to linear sRGB via CIE XYZ tristimulus integration."""
@@ -2273,7 +2405,10 @@ class CIETristimulusRGBSelector(ChannelSelectorBase):
 
         band_info = {
             "strategy": "cie_tristimulus",
-            "illuminant": "D65",
+            "illuminant": self.illuminant,
+            "white_normalised": self.illuminant == "D65",
+            "white_adapted": self._cached_white_adapted,
+            "white_xyz_coverage": self._cached_white_xyz_coverage,
             "apply_gamma": self.apply_gamma,
             "sensor_bands_total": len(wavelengths_np),
             "sensor_bands_visible": self._cached_n_visible,

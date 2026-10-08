@@ -2,7 +2,11 @@
 
 ## Unreleased
 
+## Unreleased
+
 - Lock: fsspec 2026.3.0 to 2026.9.0 (CVE-2026-104851), multidict 6.7.1 to 6.9.1 (CVE-2026-104874) and werkzeug 3.1.8 to 3.1.9 (CVE-2026-102598), the advisories pip-audit started flagging on main after 0.18.1. All three are transitive (torch, lightning and huggingface-hub pull fsspec; aiohttp and yarl pull multidict; tensorboard pulls werkzeug), so no floor changes.
+- `CIETristimulusRGBSelector` now renders reflectance under illuminant D65, as its docstring and `band_info` always claimed. Up to 0.18.1 it integrated the bare colour matching functions (equal energy illuminant E) with no white normalisation and no chromatic adaptation, so a perfect white came out warm in linear sRGB (about (1.00, 0.81, 0.67) relative on a 430 to 910 nm XMR grid). The integrand is now weighted with the CIE D65 spectrum, Y of a perfect white is 1, and the white the sensor bands can see is Bradford adapted to the sRGB white, so a perfect white maps to linear sRGB (1, 1, 1) and greys stay neutral on any band grid. When the bands do not cover 380 to 780 nm the node logs one warning, and `band_info` reports the captured share of the D65 white per tristimulus component as `white_xyz_coverage` (about 0.98, 1.00, 0.91 on XMR, which starts above the violet end of z_bar), plus `white_normalised` and `white_adapted`. A grid that sees under half of any component (one starting at 500 nm sees about 5 % of z_bar) is not adapted, since that would amplify a near zero cone response: only Y of the white is normalised to 1, white is not neutral, and the warning says so.
+- Behaviour change for every pipeline that uses the node with default hparams, including the SAM3 and rtSAM2 presets. The base class still normalises `rgb_image` per channel, so the white scale cancels there and only the colour balance moves: on 4096 synthetic smooth reflectances over the XMR grid (per frame normalisation, gamma on) the output differs from 0.18.1 by 2.0 8-bit levels on average, 5.9 at the 95th percentile and 48 at most. `illuminant: E` restores the old rendering bit for bit (checked against 0.18.1 in per frame and running mode); unknown illuminants raise `ValueError`. That per channel normalisation is also why a white pixel in `rgb_image` is neutral only when the scene's channel bounds are, which the docstring now says.
 
 ## 0.18.1 - 2026-10-02
 
@@ -41,7 +45,6 @@
 - One rotation table for `ToVideoNode`, `ToImage` and `SpatialRotateNode` (`cuvis_ai.utils.rotation`): the same eight accepted spellings, one canonical form and one quarter-turn lookup for `torch.rot90`. An out-of-range value is rejected with the same message at all three constructors (`<parameter> must be one of None, 0, 90, -90, 180, -180, 270, -270, got <value>`); the video writers listed the values after a colon and the rotate node listed them sorted. Accepted values, canonical forms and recorded hparams are unchanged.
 - CI: the registry audit (`registry_compat`) fetches the pinned plugins' pyprojects into the runner's temp directory (`scripts/fetch_plugin_pyprojects.py --out`, default `.plugin_pyprojects/`, gitignored) and passes it to `audit-plugin-deps --pyproject-cache` instead of writing to `~/.cuvis_plugins`, the clone cache cuvis-ai-core 0.18.0 dropped. The job fetches the audit script from core's `main` and excludes the `cuvis_ai_builtin` manifest (`--exclude`): it points at this repository, whose floors equal its own lock (the dependency-floor audit enforces that) and so run ahead of core's lock; the host check of this repository covers them.
 - Lock upgrades past the advisories published 2026-10-01: jupyterlab 4.6.4 (PYSEC-2026-4055, PYSEC-2026-4056, PYSEC-2026-4057) and notebook 7.6.3 (PYSEC-2026-4112); both are unpinned direct dependencies, no floor changes.
-
 
 ## 0.17.3 - 2026-10-01
 
