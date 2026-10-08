@@ -1,0 +1,11 @@
+# TensorRT extra for the RF-DETR segmentation pipelines that run `backend: tensorrt`. Same source and package
+# as `rfdetr_seg.yaml`: a pipeline lists both, and the composer (cuvis-ai-core 0.18.1 and later) installs
+# cuvis-ai-rfdetr once, with the `tensorrt` extra, so only these pipelines' environments get TensorRT. With
+# cuvis-ai-rfdetr 0.5.2 the segmenter builds a missing engine when the pipeline loads. On Thor, re-stamp
+# `path:` like `rfdetr_seg.yaml` (see THOR_DEPLOY_NOTES).
+name: rfdetr_seg_trt
+path: "D:/walnuts/walnut_fo_stack/cuvis-ai-rfdetr"
+package_name: cuvis-ai-rfdetr
+extras: [tensorrt]
+capabilities:
+  - class_name: cuvis_ai_rfdetr.node.rfdetr_segmenter.RFDETRSegmenter
