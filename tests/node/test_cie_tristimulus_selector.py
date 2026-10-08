@@ -21,6 +21,8 @@ _BRADFORD = np.array(
     [[0.8951, 0.2664, -0.1614], [-0.7502, 1.7135, 0.0367], [0.0389, -0.0685, 1.0296]]
 )
 _NODE_CLASS = "cuvis_ai.node.channel_selector.CIETristimulusRGBSelector"
+_D65 = CIETristimulusRGBSelector._ILLUMINANTS.index("D65")  # marker codes of the running bounds
+_E = CIETristimulusRGBSelector._ILLUMINANTS.index("E")
 
 
 def _cube_and_wavelengths() -> tuple[torch.Tensor, np.ndarray]:
@@ -240,3 +242,123 @@ def test_illuminant_survives_the_pipeline_yaml_round_trip(tmp_path, illuminant: 
 def test_preset_without_hparams_renders_under_d65() -> None:
     pipeline = PipelineBuilder().build_from_config(_single_node_config({}))
     assert next(n for n in pipeline.nodes if n.name == "true_rgb").illuminant == "D65"
+
+
+def _legacy_state_dict(node: CIETristimulusRGBSelector) -> dict:
+    """A checkpoint written before the illuminant marker existed."""
+    return {k: v for k, v in node.state_dict().items() if k != "_bounds_illuminant"}
+
+
+def _xmr_frames(n: int = 25) -> torch.Tensor:
+    generator = torch.Generator().manual_seed(3)
+    return 0.2 + 0.6 * torch.rand(n, 1, 4, 5, _XMR_WAVELENGTHS.size, generator=generator)
+
+
+def _render(node: CIETristimulusRGBSelector, frames: torch.Tensor) -> list[torch.Tensor]:
+    return [node.forward(cube=frame, wavelengths=_XMR_WAVELENGTHS)["rgb_image"] for frame in frames]
+
+
+def _load_with_warnings(node: CIETristimulusRGBSelector, state: dict) -> list[str]:
+    messages: list[str] = []
+    sink = logger.add(messages.append, level="WARNING")
+    try:
+        node.load_state_dict(state, strict=True)
+    finally:
+        logger.remove(sink)
+    return messages
+
+
+def test_legacy_running_checkpoint_rewarms_under_d65() -> None:
+    frames = _xmr_frames()
+    legacy = CIETristimulusRGBSelector(illuminant="E", apply_gamma=False)
+    _render(legacy, frames)
+    assert int(legacy._norm_frame_count.item()) == 25
+
+    restored = CIETristimulusRGBSelector(apply_gamma=False)
+    messages = _load_with_warnings(restored, _legacy_state_dict(legacy))
+    assert len(messages) == 1 and "fitted under illuminant E" in messages[0]
+    assert "re-warming" in messages[0]
+    assert torch.isnan(restored.running_min).all() and torch.isnan(restored.running_max).all()
+    assert int(restored._norm_frame_count.item()) == 0
+    assert restored.illuminant == "D65" and int(restored._bounds_illuminant.item()) == _D65
+
+    fresh = CIETristimulusRGBSelector(apply_gamma=False)
+    for got, expected in zip(_render(restored, frames), _render(fresh, frames), strict=True):
+        assert torch.equal(got, expected)
+
+
+def test_legacy_statistical_checkpoint_falls_back_to_per_frame() -> None:
+    frames = _xmr_frames(4)
+    legacy = CIETristimulusRGBSelector(illuminant="E", norm_mode="statistical", apply_gamma=False)
+    legacy.statistical_initialization(
+        iter([{"cube": frame, "wavelengths": _XMR_WAVELENGTHS} for frame in frames])
+    )
+    assert legacy._statistically_initialized
+
+    restored = CIETristimulusRGBSelector(norm_mode="statistical", apply_gamma=False)
+    messages = _load_with_warnings(restored, _legacy_state_dict(legacy))
+    assert len(messages) == 1 and "re-fitted" in messages[0]
+    assert restored._statistically_initialized is False
+    assert torch.isnan(restored.running_min).all()
+
+    fresh = CIETristimulusRGBSelector(norm_mode="statistical", apply_gamma=False)
+    for got, expected in zip(_render(restored, frames), _render(fresh, frames), strict=True):
+        assert torch.equal(got, expected) and not torch.isnan(got).any()
+
+
+def test_legacy_bounds_in_per_frame_mode_reset_silently() -> None:
+    legacy = CIETristimulusRGBSelector(illuminant="E", apply_gamma=False)
+    _render(legacy, _xmr_frames(3))
+    restored = CIETristimulusRGBSelector(norm_mode="per_frame", apply_gamma=False)
+    assert _load_with_warnings(restored, _legacy_state_dict(legacy)) == []
+    assert torch.isnan(restored.running_min).all() and restored.illuminant == "D65"
+
+
+def test_legacy_unfitted_checkpoint_loads_unchanged() -> None:
+    restored = CIETristimulusRGBSelector(apply_gamma=False)
+    legacy = _legacy_state_dict(CIETristimulusRGBSelector(illuminant="E"))
+    assert _load_with_warnings(restored, legacy) == []
+    assert int(restored._norm_frame_count.item()) == 0
+    assert int(restored._bounds_illuminant.item()) == _D65 and restored.illuminant == "D65"
+
+
+def test_current_checkpoint_round_trip_keeps_bounds() -> None:
+    frames = _xmr_frames(12)
+    fitted = CIETristimulusRGBSelector(apply_gamma=False)
+    _render(fitted, frames)
+    restored = CIETristimulusRGBSelector(apply_gamma=False)
+    assert _load_with_warnings(restored, fitted.state_dict()) == []
+    assert torch.equal(restored.running_min, fitted.running_min)
+    assert torch.equal(restored.running_max, fitted.running_max)
+    assert int(restored._norm_frame_count.item()) == 12
+    assert torch.equal(
+        restored.forward(cube=frames[0], wavelengths=_XMR_WAVELENGTHS)["rgb_image"],
+        fitted.forward(cube=frames[0], wavelengths=_XMR_WAVELENGTHS)["rgb_image"],
+    )
+
+
+def test_bounds_fitted_under_another_illuminant_are_discarded() -> None:
+    fitted = CIETristimulusRGBSelector(apply_gamma=False)
+    _render(fitted, _xmr_frames(3))
+    restored = CIETristimulusRGBSelector(illuminant="E", apply_gamma=False)
+    messages = _load_with_warnings(restored, fitted.state_dict())
+    assert len(messages) == 1 and "fitted under illuminant D65" in messages[0]
+    assert torch.isnan(restored.running_min).all()
+    assert int(restored._bounds_illuminant.item()) == _E and restored.illuminant == "E"
+
+
+def test_grid_without_visible_bands_renders_black_and_reports_zero_coverage() -> None:
+    wavelengths = np.linspace(900.0, 1700.0, 100)
+    messages: list[str] = []
+    sink = logger.add(messages.append, level="WARNING")
+    try:
+        out = CIETristimulusRGBSelector(apply_gamma=False).forward(
+            cube=torch.ones(1, 2, 2, 100), wavelengths=wavelengths
+        )
+    finally:
+        logger.remove(sink)
+    assert torch.equal(out["rgb_image"], torch.zeros(1, 2, 2, 3))
+    assert out["band_info"]["white_xyz_coverage"] == [0.0, 0.0, 0.0]
+    assert out["band_info"]["white_adapted"] is False
+    assert out["band_info"]["sensor_bands_visible"] == 0
+    assert len(messages) == 1 and "not neutral" in messages[0]

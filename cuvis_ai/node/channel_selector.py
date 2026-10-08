@@ -2132,7 +2132,13 @@ class CIETristimulusRGBSelector(ChannelSelectorBase):
     reflectance integrated with the bare CMFs (equal energy illuminant E), no
     white normalisation and no chromatic adaptation. A perfect white then
     renders warm in linear sRGB (about (1.00, 0.81, 0.67) relative on an XMR
-    grid). Use it only to reproduce outputs of older pipelines.
+    grid). Use it only to reproduce outputs of older pipelines. The running
+    bounds of ``ChannelSelectorBase`` are fitted on the raw scale of one
+    illuminant, so a checkpoint whose bounds were fitted under another
+    illuminant than the configured one (every checkpoint written before the
+    illuminant option existed was fitted under E) drops them on load with a
+    warning: in ``running`` mode the node warms up again, in ``statistical``
+    mode it renders per frame until it is re-fitted.
 
     The rendered linear sRGB is clamped at 0, then normalised to [0, 1] per
     channel and optionally gamma encoded by ``ChannelSelectorBase`` (see
@@ -2275,6 +2281,65 @@ class CIETristimulusRGBSelector(ChannelSelectorBase):
         self._cached_white_xyz_coverage: list[float] | None = None
         self._cached_white_adapted: bool | None = None
         self._coverage_warned = False
+        # The rendering the running bounds were fitted under (index into _ILLUMINANTS). The raw
+        # linear sRGB scale differs about 100x between the two, so bounds fitted under
+        # another rendering than the configured one are discarded on load.
+        self.register_buffer(
+            "_bounds_illuminant", torch.tensor(self._ILLUMINANTS.index(illuminant))
+        )
+        self._discarded_fitted_bounds = False
+
+    def _load_from_state_dict(
+        self,
+        state_dict,
+        prefix,
+        local_metadata,
+        strict,
+        missing_keys,
+        unexpected_keys,
+        error_msgs,
+    ) -> None:
+        """Load the buffers; discard running bounds fitted under another illuminant."""
+        super()._load_from_state_dict(
+            state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs
+        )
+        # Checkpoints written before the marker existed were all fitted under E.
+        marker_key = prefix + "_bounds_illuminant"
+        loaded_min = state_dict.get(prefix + "running_min")
+        fitted = loaded_min is not None and not bool(torch.isnan(loaded_min).any())
+        if marker_key in missing_keys:
+            missing_keys.remove(marker_key)
+            fitted_under = "E" if fitted else self.illuminant
+        else:
+            fitted_under = self._ILLUMINANTS[int(self._bounds_illuminant.item())]
+        self._bounds_illuminant.fill_(self._ILLUMINANTS.index(self.illuminant))
+        if not fitted or fitted_under == self.illuminant:
+            return
+        self.running_min.fill_(float("nan"))
+        self.running_max.fill_(float("nan"))
+        self._norm_frame_count.zero_()
+        self._discarded_fitted_bounds = True
+        if self.norm_mode == NormMode.PER_FRAME:
+            return
+        consequence = (
+            "re-warming over the next frames"
+            if self.norm_mode == NormMode.RUNNING
+            else "rendering per frame until the node is re-fitted (restore-trainrun validate or test)"
+        )
+        logger.warning(
+            f"CIETristimulusRGBSelector: the checkpoint's running bounds were fitted under "
+            f"illuminant {fitted_under}, but the node renders under {self.illuminant}; the bounds "
+            f"are discarded, {consequence}. Set illuminant: {fitted_under} to keep them."
+        )
+
+    def load_state_dict(self, state_dict, strict: bool = True, assign: bool = False) -> Any:
+        """Load the state dict; a node whose fitted bounds were discarded is not fitted."""
+        result = super().load_state_dict(state_dict, strict=strict, assign=assign)
+        # Node.load_state_dict marks the node as fitted after the hooks ran.
+        if self._discarded_fitted_bounds:
+            self._statistically_initialized = False
+            self._discarded_fitted_bounds = False
+        return result
 
     def _interpolate_cmfs(
         self,
