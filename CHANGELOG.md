@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Lock: fsspec 2026.3.0 to 2026.9.0 (CVE-2026-104851), multidict 6.7.1 to 6.9.1 (CVE-2026-104874) and werkzeug 3.1.8 to 3.1.9 (CVE-2026-102598), the advisories pip-audit started flagging on main after 0.18.1. All three are transitive (torch, lightning and huggingface-hub pull fsspec; aiohttp and yarl pull multidict; tensorboard pulls werkzeug), so no floor changes.
+
 ## 0.18.1 - 2026-10-02
 
 - Bumped the `wafer_thickness` manifest pin v0.3.1 -> v0.3.2: the torch backend smooths the spectrum ends like the numpy reference again (the reference 300 nm wafer read 308.10 nm instead of 292.94 nm), the 500 and 1000 nm results are bit-identical, and the lightweight tag provisions on cuvis-ai-core 0.17.x too.
