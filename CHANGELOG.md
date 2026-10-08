@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.18.2 - 2026-10-08
 
 - Lock: fsspec 2026.3.0 to 2026.9.0 (CVE-2026-104851), multidict 6.7.1 to 6.9.1 (CVE-2026-104874) and werkzeug 3.1.8 to 3.1.9 (CVE-2026-102598), the advisories pip-audit started flagging on main after 0.18.1. All three are transitive (torch, lightning and huggingface-hub pull fsspec; aiohttp and yarl pull multidict; tensorboard pulls werkzeug), so no floor changes.
 - `CIETristimulusRGBSelector` renders reflectance under illuminant D65 with white normalisation, as its docstring and `band_info` claimed: the colour matching function weights are multiplied by the D65 spectrum, Y of a perfect white is 1 and the white the sensor bands see is Bradford adapted to the sRGB white, so a perfect white maps to linear sRGB (1, 1, 1) and greys stay neutral. Up to 0.18.1 it integrated the bare CMFs (illuminant E) and a perfect white came out warm (about 1.00, 0.81, 0.67 relative on a 430 to 910 nm XMR grid). New hparam `illuminant: D65 | E`; `E` restores the old rendering bit for bit, unknown values raise `ValueError`.
