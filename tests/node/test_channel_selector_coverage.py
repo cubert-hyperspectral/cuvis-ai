@@ -113,8 +113,28 @@ def test_cir_selector_basic() -> None:
     result = node.forward(cube=cube, wavelengths=wavelengths)
 
     assert result["rgb_image"].shape == (B, H, W, 3)
+    assert result["rgb_image"].min() >= 0.0
+    assert result["rgb_image"].max() <= 1.0 + 1e-6
     assert result["band_info"]["strategy"] == "cir_false_color"
     assert result["band_info"]["channel_mapping"] == {"R": "NIR", "G": "Red", "B": "Green"}
+    assert result["band_info"]["normalized_output"] is True
+
+
+@torch.no_grad()
+def test_cir_selector_without_normalization() -> None:
+    """When normalize_output=False, the three CIR bands pass through unscaled and without gamma."""
+    B, H, W, C = 1, 4, 4, 30
+    cube = torch.full((B, H, W, C), 500.0)
+    wavelengths = np.linspace(400, 1000, C).astype(np.float32)
+
+    node = CIRSelector(normalize_output=False)
+    result = node.forward(cube=cube, wavelengths=wavelengths)
+    rgb = result["rgb_image"]
+
+    assert rgb.shape == (B, H, W, 3)
+    assert torch.all(rgb == 500.0)
+    assert result["band_info"]["strategy"] == "cir_false_color"
+    assert result["band_info"]["normalized_output"] is False
 
 
 # ---------------------------------------------------------------------------

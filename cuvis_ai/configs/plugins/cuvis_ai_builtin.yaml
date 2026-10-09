@@ -646,7 +646,7 @@ capabilities:
       dtype: float32
       shape: [-1, -1, -1, 3]
       optional: false
-      description: Composed RGB image [B, H, W, 3] in 0-1 range.
+      description: Composed RGB image [B, H, W, 3] in 0-1 range, or the raw composed bands when normalize_output=False.
     band_info:
       dtype: ''
       shape: []
@@ -673,7 +673,7 @@ capabilities:
       dtype: float32
       shape: [-1, -1, -1, 3]
       optional: false
-      description: Composed RGB image [B, H, W, 3] in 0-1 range.
+      description: Composed RGB image [B, H, W, 3] in 0-1 range, or the raw composed bands when normalize_output=False.
     band_info:
       dtype: ''
       shape: []
@@ -700,7 +700,7 @@ capabilities:
       dtype: float32
       shape: [-1, -1, -1, 3]
       optional: false
-      description: Composed RGB image [B, H, W, 3] in 0-1 range.
+      description: Composed RGB image [B, H, W, 3] in 0-1 range, or the raw composed bands when normalize_output=False.
     band_info:
       dtype: ''
       shape: []
@@ -727,7 +727,7 @@ capabilities:
       dtype: float32
       shape: [-1, -1, -1, 3]
       optional: false
-      description: Composed RGB image [B, H, W, 3] in 0-1 range.
+      description: Composed RGB image [B, H, W, 3] in 0-1 range, or the raw composed bands when normalize_output=False.
     band_info:
       dtype: ''
       shape: []
@@ -781,7 +781,7 @@ capabilities:
       dtype: float32
       shape: [-1, -1, -1, -1]
       optional: false
-      description: Composed image [B, H, W, C] in 0-1 range. C == 3 for the standard RGB default; C == len(target_wavelengths) for FixedWavelengthSelector with n > 3.
+      description: Composed image [B, H, W, C] in 0-1 range, or the raw stacked bands when normalize_output=False. C == 3 for the standard RGB default; C == len(target_wavelengths) for FixedWavelengthSelector with n > 3.
     band_info:
       dtype: ''
       shape: []
@@ -808,7 +808,7 @@ capabilities:
       dtype: float32
       shape: [-1, -1, -1, 3]
       optional: false
-      description: Composed RGB image [B, H, W, 3] in 0-1 range.
+      description: Composed RGB image [B, H, W, 3] in 0-1 range, or the raw composed bands when normalize_output=False.
     band_info:
       dtype: ''
       shape: []
@@ -867,7 +867,7 @@ capabilities:
       dtype: float32
       shape: [-1, -1, -1, 3]
       optional: false
-      description: Composed RGB image [B, H, W, 3] in 0-1 range.
+      description: Composed RGB image [B, H, W, 3] in 0-1 range, or the raw composed bands when normalize_output=False.
     band_info:
       dtype: ''
       shape: []
@@ -921,7 +921,7 @@ capabilities:
       dtype: float32
       shape: [-1, -1, -1, 3]
       optional: false
-      description: Composed RGB image [B, H, W, 3] in 0-1 range.
+      description: Composed RGB image [B, H, W, 3] in 0-1 range, or the raw composed bands when normalize_output=False.
     band_info:
       dtype: ''
       shape: []
@@ -953,7 +953,7 @@ capabilities:
       dtype: float32
       shape: [-1, -1, -1, 3]
       optional: false
-      description: Composed RGB image [B, H, W, 3] in 0-1 range.
+      description: Composed RGB image [B, H, W, 3] in 0-1 range, or the raw composed bands when normalize_output=False.
     band_info:
       dtype: ''
       shape: []
@@ -985,7 +985,7 @@ capabilities:
       dtype: float32
       shape: [-1, -1, -1, 3]
       optional: false
-      description: Composed RGB image [B, H, W, 3] in 0-1 range.
+      description: Composed RGB image [B, H, W, 3] in 0-1 range, or the raw composed bands when normalize_output=False.
     band_info:
       dtype: ''
       shape: []
@@ -1017,7 +1017,7 @@ capabilities:
       dtype: float32
       shape: [-1, -1, -1, 3]
       optional: false
-      description: Composed RGB image [B, H, W, 3] in 0-1 range.
+      description: Composed RGB image [B, H, W, 3] in 0-1 range, or the raw composed bands when normalize_output=False.
     band_info:
       dtype: ''
       shape: []
