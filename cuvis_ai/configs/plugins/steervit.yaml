@@ -1,0 +1,93 @@
+# SteerViT plugin manifest
+#
+# SteerViT for Cuvis.AI: prompt-steered DINOv2 patch features, a zero-shot prompted anomaly map and image tiling for multi-scale feature grids.
+#
+# To use it, declare `plugins: [steervit]` in the pipeline yaml and point
+# the loader at the catalog directory that holds this manifest:
+#   uv run restore-pipeline --pipeline-path <pipeline>.yaml --plugins-dir cuvis_ai/configs/plugins
+
+name: steervit
+# Local development override (optional):
+# path: "../../../cuvis-ai-steervit"
+repo: "https://github.com/cubert-hyperspectral/cuvis-ai-steervit.git"
+tag: "v0.3.0"
+package_name: "cuvis-ai-steervit"
+capabilities:
+- class_name: cuvis_ai_steervit.node.steervit.SteerViTExtractor
+  category: model
+  tags: [anomaly, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\n</svg>\n"
+  input_specs:
+    rgb_image:
+      dtype: float32
+      shape: [-1, -1, -1, 3]
+      optional: false
+      description: RGB frame [B, H, W, 3] in [0, 1], e.g. a stretched false-RGB projection; resized to the model resolution and normalised internally.
+  output_specs:
+    features:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Prompt-steered patch tokens on the patch grid [B, G, G, D] ([B, 24, 24, 768] for ViT-B/14 at 336 px), steered by `feature_prompt`; the input of a PatchCore memory bank.
+    scores:
+      dtype: float32
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: 'Zero-shot prompted anomaly map [B, H, W, 1]: activation of the segmentation logits averaged over `prompts`, bilinearly upsampled to the input size.'
+    anomaly_score:
+      dtype: float32
+      shape: [-1]
+      optional: false
+      description: 'Image-level score [B]: mean of the top topk_frac pixels of `scores`.'
+  doc_summary: Prompt-steered SteerViT patch features and the zero-shot anomaly map of an RGB frame.
+- class_name: cuvis_ai_steervit.node.stretch.JointPercentileStretch
+  category: transform
+  tags: [normalization, preprocessing, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    data:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Any BHWC tensor, e.g. a 3-band false-RGB projection in reflectance units.
+  output_specs:
+    normalized:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Same shape, per frame (x - p_low) / (p_high - p_low) clipped to [0, 1]; percentiles over all channels jointly (or per channel), optionally quantized.
+  doc_summary: Stretch each frame of a BHWC tensor to [0, 1] between two joint-channel percentiles.
+- class_name: cuvis_ai_steervit.node.tiling.ImageTiler
+  category: transform
+  tags: [batched, differentiable, image, preprocessing, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    image:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Image batch [B, H, W, C] (any channel count); H and W must be divisible by `tiles`.
+  output_specs:
+    tiles:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Tiles [B * T * T, H / T, W / T, C]; tile (i, j) of image b sits at index b * T * T + i * T + j (image-major, then row-major), the order GridStitcher expects.
+  doc_summary: Split every image of a batch into a T x T grid of equal tiles stacked along the batch.
+- class_name: cuvis_ai_steervit.node.tiling.GridStitcher
+  category: transform
+  tags: [batched, differentiable, embedding, postprocessing, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    tiles:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Per-tile grids [B * T * T, g_h, g_w, D] in ImageTiler order (e.g. SteerViT patch features).
+  output_specs:
+    grid:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: 'Stitched grid [B, T * g_h, T * g_w, D]: tile (i, j) fills rows i * g_h.. and columns j * g_w..'
+  doc_summary: Reassemble per-tile grids produced in ImageTiler order into one grid per image.

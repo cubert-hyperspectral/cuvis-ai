@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Added the `patchcore`, `steervit` and `efficientad` plugin manifests at v0.3.0, the walnut foreign-object stack: HSI-PatchCore with its score, gate and mask nodes, SteerViT with the torch or TensorRT backend plus stretch and tiling, EfficientAD with the torch or TensorRT backend. Each manifest is the plugin's own `plugins.yaml` in `repo:` + `tag:` form; the walnut presets follow with the catalog.
+
 ## 0.18.2 - 2026-10-08
 
 - Lock: fsspec 2026.3.0 to 2026.9.0 (CVE-2026-104851), multidict 6.7.1 to 6.9.1 (CVE-2026-104874) and werkzeug 3.1.8 to 3.1.9 (CVE-2026-102598), the advisories pip-audit started flagging on main after 0.18.1. All three are transitive (torch, lightning and huggingface-hub pull fsspec; aiohttp and yarl pull multidict; tensorboard pulls werkzeug), so no floor changes.

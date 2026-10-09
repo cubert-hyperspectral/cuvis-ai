@@ -1,0 +1,365 @@
+# HSI-PatchCore plugin manifest
+#
+# HSI-PatchCore for Cuvis.AI: memory-bank anomaly detection on hyperspectral spectra or dense feature grids, with score calibration, fusion and a frame gate.
+#
+# To use it, declare `plugins: [patchcore]` in the pipeline yaml and point
+# the loader at the catalog directory that holds this manifest:
+#   uv run restore-pipeline --pipeline-path <pipeline>.yaml --plugins-dir cuvis_ai/configs/plugins
+
+name: patchcore
+# Local development override (optional):
+# path: "../../../cuvis-ai-patchcore"
+repo: "https://github.com/cubert-hyperspectral/cuvis-ai-patchcore.git"
+tag: "v0.3.0"
+package_name: "cuvis-ai-patchcore"
+capabilities:
+- class_name: cuvis_ai_patchcore.node.patchcore.PatchCoreDetector
+  category: model
+  tags: [anomaly, hyperspectral, stateful, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\n</svg>\n"
+  input_specs:
+    cube:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: 'Dense feature grid [B, H, W, C] float32: a hyperspectral cube (spectra as features) or any per-location features such as ViT patch tokens on their patch grid; C must equal input_channels.'
+    reference:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: true
+      description: Optional [B, H_ref, W_ref, *] tensor whose spatial size sets the resolution of `scores` (e.g. the cube when the input is a coarse feature grid). Defaults to the input's own H, W.
+  output_specs:
+    scores:
+      dtype: float32
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: 'Pixel-wise anomaly scores [B, H, W, 1]: distance to the nearest coreset entry, bilinearly upsampled from the stride grid to the input (or reference) size.'
+    anomaly_score:
+      dtype: float32
+      shape: [-1]
+      optional: false
+      description: Image-level anomaly score [B] (mean of the top topk_frac pixel scores).
+  doc_summary: Nearest-coreset distance anomaly detector on spectra or dense feature grids (PatchCore).
+- class_name: cuvis_ai_patchcore.node.fusion.ScoreMapFusion
+  category: transform
+  tags: [anomaly, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    scores:
+      dtype: float32
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: Score maps [B, H, W, 1] of identical shape, one per inbound connection (fan-in); connect every detector's normalized map to this port.
+      variadic: true
+  output_specs:
+    scores:
+      dtype: float32
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: Fused score map [B, H, W, 1] per ``mode``.
+  doc_summary: Fuse N score maps [B, H, W, 1] into one by a fixed elementwise rule (``mode``).
+- class_name: cuvis_ai_patchcore.node.calibration.ScoreRangeNormalizer
+  category: transform
+  tags: [anomaly, normalization, stateful, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    scores:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: 'Score maps [B, H, W, C] (anomaly maps: C = 1); C must equal n_channels.'
+  output_specs:
+    normalized:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: 'Same shape: (x - p_low) / (p_high - p_low) per channel with the fitted normal-range percentiles, floored at 0 when `floor` is set, never clamped above.'
+  doc_summary: Map score maps onto their fitted normal range, (x - p_low) / (p_high - p_low), unclamped.
+- class_name: cuvis_ai_patchcore.node.gate.FrameScoreGate
+  category: transform
+  tags: [anomaly, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    scores:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: 'Display map [B, H, W, C] (a heatmap has C = 1): the map that is passed through or blanked, e.g. a fusion or normalized bank map.'
+    alarm_scores:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: true
+      description: Optional separate map [B, H, W, C] whose top-k frame score drives the gate. When omitted the gate scores `scores` itself. Use it to alarm on one bank (e.g. a feature bank) while displaying another map (e.g. a two-bank fusion).
+  output_specs:
+    scores:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: "Same shape as `scores`: the display map when the frame's alarm score > threshold, else all zeros. With mode='mask' the passing frame is binarised (at `mask_threshold`, defaulting to `threshold`) instead of passed through."
+    frame_score:
+      dtype: float32
+      shape: [-1]
+      optional: false
+      description: Per-frame alarm score [B] = mean of the top `topk_frac` pixels of the alarm map (`alarm_scores` when given, else `scores`). Raw, before smoothing.
+    passed:
+      dtype: int32
+      shape: [-1]
+      optional: false
+      description: 'Per-frame gate [B]: 1 when the (optionally smoothed) score > threshold, else 0.'
+    decisions:
+      dtype: bool
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: 'Boolean mask, same shape as `scores`: the pixels of the display map above `mask_threshold` (default `threshold`) on passing frames, all False on the others. Viewers show a `decisions` port as a mask overlay.'
+    core:
+      dtype: bool
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: 'Boolean mask, same shape as `scores`: the pixels of the display map above `core_ratio` x `mask_threshold` on passing frames (equal to `decisions` with the default ratio 1): the confident core of the mask.'
+  doc_summary: Zero a display map unless its per-frame top-k score exceeds a threshold (heatmap or mask).
+- class_name: cuvis_ai_patchcore.node.fusion.DecisionFusion
+  category: transform
+  tags: [mask, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    decisions:
+      dtype: bool
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Boolean masks [B, H, W, C] of identical shape, one per inbound connection (fan-in), e.g. the `decisions` of several gates.
+      variadic: true
+  output_specs:
+    decisions:
+      dtype: bool
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Fused mask [B, H, W, C] per ``mode``.
+  doc_summary: Fuse N boolean masks [B, H, W, C] into one by ``mode`` (any | all | first).
+- class_name: cuvis_ai_patchcore.node.fusion.MaskComposite
+  category: transform
+  tags: [mask, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    decisions:
+      dtype: bool
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Boolean masks [B, H, W, C] of one batch, height and width, one per inbound connection (fan-in), in the order of `labels` / `levels`; a pixel of a mask counts as set where any of its channels is.
+      variadic: true
+  output_specs:
+    mask:
+      dtype: int32
+      shape: [-1, -1, -1]
+      optional: false
+      description: 'Label map [B, H, W]: 0 where no mask is set, else the largest `labels` entry among the masks set there.'
+    scores:
+      dtype: float32
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: 'Level map [B, H, W, 1]: 0 where no mask is set, else the largest `levels` entry among the masks set there.'
+  doc_summary: Merge N boolean masks [B, H, W, C] into one label map and one level map for display.
+- class_name: cuvis_ai_patchcore.node.spatial.GridSubsample
+  category: transform
+  tags: [hyperspectral, preprocessing, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    cube:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Cube [B, H, W, C] (a hyperspectral cube or any per-pixel feature map).
+  output_specs:
+    cube:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: The grid [B, ceil(H / stride), ceil(W / stride), C], starting at pixel 0.
+  doc_summary: 'Keep every ``stride``-th pixel of a cube in both spatial axes: ``cube[:, ::s, ::s, :]``.'
+- class_name: cuvis_ai_patchcore.node.spatial.ScoreUpsample
+  category: transform
+  tags: [anomaly, postprocessing, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    scores:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Score map [B, h, w, C] of a coarse grid (e.g. a GridSubsample branch).
+    reference:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Any tensor [B, H, W, *] of the target size; only its height and width are read (e.g. the full-resolution cube the grid was taken from).
+  output_specs:
+    scores:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: The map resized to [B, H, W, C] (align_corners=False).
+  doc_summary: Resize a score map [B, h, w, C] to the height and width of a reference tensor.
+- class_name: cuvis_ai_patchcore.node.fusion.ScoreMapSuppression
+  category: transform
+  tags: [anomaly, mask, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    scores:
+      dtype: float32
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: Score map [B, H, W, 1], e.g. a fused anomaly map.
+    mask:
+      dtype: bool
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: "Boolean mask [B, H, W, C] of the same batch, height and width: where the score map is suppressed (a pixel counts as set where any channel is), e.g. a segmenter's decisions for an object class that cannot be anomalous."
+  output_specs:
+    scores:
+      dtype: float32
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: 'scores x (1 - weight x the eroded mask): unchanged outside the mask and within `erode_px` of its edge, scaled by 1 - weight inside.'
+  doc_summary: Down-weight a score map [B, H, W, 1] inside a boolean mask shrunk by ``erode_px``.
+- class_name: cuvis_ai_patchcore.node.temporal.MaskPersistence
+  category: transform
+  tags: [mask, postprocessing, stateful, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    decisions:
+      dtype: bool
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Boolean mask [B, H, W, C] of consecutive frames (batch order is time order), e.g. a FrameScoreGate's decisions; each channel is filtered on its own.
+  output_specs:
+    decisions:
+      dtype: bool
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: "Same shape: the pixels of `decisions` with a set pixel of the previous frame's mask (same channel) within `radius_px`; all False on the first frame."
+  doc_summary: Keep the pixels of a boolean mask [B, H, W, C] that the previous frame's mask has nearby.
+- class_name: cuvis_ai_patchcore.node.morphology.MaskMinArea
+  category: transform
+  tags: [mask, numpy, postprocessing]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    decisions:
+      dtype: bool
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Boolean mask [B, H, W, C], e.g. a FrameScoreGate's decisions; each frame and channel is filtered on its own.
+  output_specs:
+    decisions:
+      dtype: bool
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: 'Same shape: the blobs of `decisions` with at least `min_area` pixels (8-connected).'
+  doc_summary: Drop the 8-connected blobs of a boolean mask [B, H, W, C] below ``min_area`` pixels.
+- class_name: cuvis_ai_patchcore.node.spatial.ScoreMapSmoothing
+  category: transform
+  tags: [anomaly, postprocessing, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    scores:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Score map [B, H, W, C], e.g. a fused anomaly map.
+  output_specs:
+    scores:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: 'Same shape: each channel convolved with a normalised Gaussian of `sigma_px` (radius round(4 sigma), mirrored border).'
+  doc_summary: Smooth a score map [B, H, W, C] with a Gaussian of ``sigma_px`` pixels.
+- class_name: cuvis_ai_patchcore.node.morphology.MaskBlobGate
+  category: transform
+  tags: [mask, numpy, postprocessing]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    decisions:
+      dtype: bool
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Boolean mask [B, H, W, C] whose blobs are gated, e.g. an anomaly mask.
+    mask:
+      dtype: bool
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: "Gating mask [B, H, W, C'] of the same batch, height and width (a pixel counts where any channel is set), e.g. a SpectralObjectMask: where objects are."
+  output_specs:
+    decisions:
+      dtype: bool
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: 'Same shape as `decisions`: its 8-connected blobs that hold at least `min_px` pixels of `mask` (with `invert`: fewer than `min_px`).'
+  doc_summary: Keep the blobs of a boolean mask that hold enough pixels of a second (gating) mask.
+- class_name: cuvis_ai_patchcore.node.objectness.SpectralObjectMask
+  category: transform
+  tags: [hyperspectral, mask, segmentation, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    cube:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Hyperspectral cube [B, H, W, C] (e.g. reflectance) whose background covers most of the frame.
+  output_specs:
+    decisions:
+      dtype: bool
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: "Object mask [B, H, W, 1]: spectral angle to the frame's median spectrum above the threshold (on the stride grid, nearest neighbour to H, W), filled and grown when `fill` / `dilate_px` are set."
+    angle:
+      dtype: float32
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: The angle in degrees on the stride grid [B, ceil(H / s), ceil(W / s), 1].
+  doc_summary: Mark the pixels whose spectral angle to the frame's median spectrum exceeds a threshold.
+- class_name: cuvis_ai_patchcore.node.objectness.MaskBlobFilter
+  category: transform
+  tags: [hyperspectral, mask, numpy, postprocessing]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    decisions:
+      dtype: bool
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Boolean mask [B, H, W, C] whose blobs are filtered, e.g. a FrameScoreGate's decisions; each frame and channel on its own.
+    cube:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: true
+      description: Hyperspectral cube [B, H, W, K] of the same frames, for the object test; without it only the size test runs.
+  output_specs:
+    decisions:
+      dtype: bool
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: 'Same shape: the blobs of `decisions` with at least `min_area` pixels that hold at least `min_object_px` pixels of non-background material.'
+  doc_summary: Keep the blobs of a boolean mask that are large enough and lie on non-background material.
+- class_name: cuvis_ai_patchcore.node.morphology.MaskPeakGate
+  category: transform
+  tags: [mask, numpy, postprocessing]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    decisions:
+      dtype: bool
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Boolean mask [B, H, W, C] whose blobs are kept or dropped, e.g. the pieces of a mask after a cut.
+    reference:
+      dtype: bool
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Boolean mask [B, H, W, C'] of the same batch, height and width (a pixel counts where any channel is set) whose blobs set the peak to reach, e.g. the mask before the cut.
+    scores:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Score map [B, H, W, C''] the peaks are read from (the first channel), e.g. the anomaly map the mask was thresholded from; finite and positive where marked.
+  output_specs:
+    decisions:
+      dtype: bool
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: 'Same shape as `decisions`: the blobs whose highest score reaches `ratio` times the highest score of the reference blob they lie in; blobs outside every reference blob stay.'
+  doc_summary: Keep the blobs of a mask whose peak score reaches a share of their reference blob's peak.
