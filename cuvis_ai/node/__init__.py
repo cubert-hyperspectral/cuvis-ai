@@ -67,7 +67,7 @@ from cuvis_ai.node.deciders import (
     QuantileBinaryDecider,
     TwoStageBinaryDecider,
 )
-from cuvis_ai.node.dimensionality_reduction import PCA, TrainablePCA
+from cuvis_ai.node.dimensionality_reduction import PCA, FixedPCAProjection, TrainablePCA
 from cuvis_ai.node.image_file import PngWriter
 from cuvis_ai.node.json_file import (
     CocoTrackBBoxWriter,
@@ -130,6 +130,7 @@ from cuvis_ai.node.pretreatments import (
 )
 from cuvis_ai.node.prompts import BBoxPrompt, MaskPrompt, PointPrompt, TextPrompt
 from cuvis_ai.node.segmentation import IntensityThresholdSegmenter
+from cuvis_ai.node.spatial import GridSubsample, ScoreMapSmoothing, ScoreUpsample
 from cuvis_ai.node.spectral_angle_mapper import SpectralAngleMapper
 from cuvis_ai.node.spectral_extractor import (
     BBoxSpectralExtractor,
@@ -238,6 +239,10 @@ __all__ = [
     "TrackingOverlayNode",
     "TrackingResultsReader",
     "TrainablePCA",
+    "FixedPCAProjection",
+    "GridSubsample",
+    "ScoreMapSmoothing",
+    "ScoreUpsample",
     "BinaryDecider",
     "DeepSVDDProjection",
     "LADGlobal",

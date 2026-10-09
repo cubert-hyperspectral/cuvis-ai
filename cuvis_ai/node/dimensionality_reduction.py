@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
+import numpy as np
 import torch
 from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.execution import InputStream
@@ -245,4 +246,137 @@ class TrainablePCA(PCA):
         return outputs
 
 
-__all__ = ["PCA", "TrainablePCA"]
+class FixedPCAProjection(TrainablePCA):
+    """Project cubes with a fixed PCA loaded from an ``.npz`` file; the projection is never refit.
+
+    The projection math is :class:`TrainablePCA`'s, but mean, components and the percentile range
+    come from the file instead of ``statistical_initialization``: a projection that a downstream
+    model was trained on must not be refit at inference, and the stateless :class:`PCA` refits per
+    frame with arbitrary eigenvector signs. For the same reason the node opts out of the
+    statistical fit of a trainrun.
+
+    ``input_global_minmax`` (on by default) first min-maxes each cube to [0, 1] with one min and
+    one max over all its H x W x C values, the normalisation the projection was fitted on. This
+    makes the projection invariant to the caller's absolute reflectance scale (a raw-scale cube
+    would otherwise push every pixel to the clamp and give the downstream model a flat image) and
+    is idempotent on a [0, 1] cube; per-channel scaling would change the relative band magnitudes
+    the projection depends on. After the parent's ``(x - mean) @ components.T`` the node applies
+    the fixed scaling ``(p - lo) / (hi - lo)`` and clamps to [0, 1], which keeps specular outliers
+    out of a downstream 8-bit conversion.
+
+    npz keys: ``mean`` [C], ``comps`` [K, C], ``lo`` [K], ``hi`` [K], optional ``explained`` [K].
+    """
+
+    # A fixed transform like PCA, but with persistent state (the projection loaded from the file).
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset(
+        {
+            NodeTag.HYPERSPECTRAL,
+            NodeTag.DIM_REDUCTION,
+            NodeTag.PREPROCESSING,
+            NodeTag.STATEFUL,
+            NodeTag.TORCH,
+        }
+    )
+
+    # Only the projected image is exposed: the parent's ``components`` [K, C] and
+    # ``explained_variance_ratio`` [K] are not images, a host that displays every output port
+    # (cuvis.next) cannot show them, and nothing downstream consumes them.
+    OUTPUT_SPECS = {
+        "projected": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, -1),
+            description="Fixed-PCA projection, scaled to [0, 1] [B, H, W, K].",
+        ),
+    }
+
+    def __init__(
+        self,
+        projection_path: str,
+        scale_to_unit: bool = True,
+        clamp01: bool = True,
+        input_global_minmax: bool = True,
+        **kwargs: Any,
+    ) -> None:
+        """Load the projection.
+
+        Parameters
+        ----------
+        projection_path : path of the ``.npz`` file with the keys listed in the class docstring.
+        scale_to_unit : apply the fixed scaling ``(p - lo) / (hi - lo)`` (default True).
+        clamp01 : clamp the projection to [0, 1] (default True).
+        input_global_minmax : min-max each cube to [0, 1] over all its values before projecting
+            (default True).
+        """
+        # A restored pipeline passes back the parent's recorded num_channels and n_components
+        # hparams; both come from the npz, so they are dropped before forwarding kwargs.
+        kwargs.pop("num_channels", None)
+        kwargs.pop("n_components", None)
+        proj = np.load(projection_path)
+        mean = torch.from_numpy(np.asarray(proj["mean"], dtype=np.float32))
+        comps = torch.from_numpy(np.asarray(proj["comps"], dtype=np.float32))
+        lo = torch.from_numpy(np.asarray(proj["lo"], dtype=np.float32))
+        hi = torch.from_numpy(np.asarray(proj["hi"], dtype=np.float32))
+        if comps.ndim != 2 or mean.ndim != 1 or comps.shape[1] != mean.shape[0]:
+            raise ValueError(
+                "FixedPCAProjection: expected comps [K, C] and mean [C], got "
+                f"{tuple(comps.shape)} / {tuple(mean.shape)}."
+            )
+        self.projection_path = str(projection_path)
+        self.scale_to_unit = bool(scale_to_unit)
+        self.clamp01 = bool(clamp01)
+        self.input_global_minmax = bool(input_global_minmax)
+        super().__init__(
+            num_channels=int(comps.shape[1]),
+            n_components=int(comps.shape[0]),
+            projection_path=self.projection_path,
+            scale_to_unit=self.scale_to_unit,
+            clamp01=self.clamp01,
+            input_global_minmax=self.input_global_minmax,
+            **kwargs,
+        )
+        self._mean.copy_(mean)
+        self._components.copy_(comps)
+        # The parent's buffer holds eigenvalues, the file holds explained-variance ratios; the
+        # projection reads the buffer only with ``whiten=True``, which a fixed projection does
+        # not use.
+        if "explained" in proj.files and np.asarray(proj["explained"]).shape[0] == comps.shape[0]:
+            self._explained_variance.copy_(
+                torch.from_numpy(np.asarray(proj["explained"], dtype=np.float32))
+            )
+        else:
+            self._explained_variance.zero_()
+        self.register_buffer("_lo", lo)
+        self.register_buffer("_hi", hi)
+        self._statistically_initialized = True
+        # The file is the fit: a trainrun's statistical pass must not refit the projection.
+        self._requires_initial_fit_override = False
+
+    @staticmethod
+    def _global_minmax(data: Tensor, eps: float = 1e-6) -> Tensor:
+        """Min-max each frame to [0, 1] with one min and one max over all its H x W x C values.
+
+        Global rather than per channel, the normalisation the projection was fitted on: the
+        relative band magnitudes stay, so the fixed mean and components stay valid. Invariant to
+        the caller's absolute reflectance scale and idempotent on a [0, 1] cube.
+        """
+        b = data.shape[0]
+        flat = data.reshape(b, -1)
+        mn = flat.min(dim=1, keepdim=True).values
+        mx = flat.max(dim=1, keepdim=True).values
+        return ((flat - mn) / (mx - mn).clamp(min=eps)).reshape(data.shape)
+
+    def forward(self, data: Tensor, **_: Any) -> dict[str, Tensor]:
+        """Min-max the cube (optional), project it, apply the fixed scaling and the clamp."""
+        if self.input_global_minmax:
+            data = self._global_minmax(data)
+        out = super().forward(data=data)
+        p = out["projected"]
+        if self.scale_to_unit:
+            p = (p - self._lo) / (self._hi - self._lo)
+        if self.clamp01:
+            p = p.clamp(0.0, 1.0)
+        return {"projected": p}
+
+
+__all__ = ["PCA", "FixedPCAProjection", "TrainablePCA"]
