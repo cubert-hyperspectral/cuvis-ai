@@ -547,6 +547,23 @@ class PerPixelUnitNorm(_NormalizerBase):
         return normalized
 
 
+def _sorted_quantiles(values: Tensor, quantiles: tuple[float, ...]) -> list[Tensor]:
+    """Linear-interpolation quantiles of a 1-D tensor from one sort (numpy's default method).
+
+    The interpolation position ``q * (n - 1)`` is computed in double precision and the result in
+    the tensor's dtype, so a frame gets the same bounds bit for bit wherever it is computed.
+    """
+    n = values.numel()
+    ordered, _ = torch.sort(values)
+    out = []
+    for q in quantiles:
+        pos = torch.tensor(q * (n - 1), dtype=ordered.dtype, device=ordered.device)
+        lo = pos.floor().long().clamp(0, n - 1)
+        hi = pos.ceil().long().clamp(0, n - 1)
+        out.append(ordered[lo] + (ordered[hi] - ordered[lo]) * (pos - lo.to(ordered.dtype)))
+    return out
+
+
 class PercentileNormalizer(_NormalizerBase):
     """Per-channel normalization to ``[0, 1]`` for BHWC data of any channel count.
 
@@ -558,13 +575,18 @@ class PercentileNormalizer(_NormalizerBase):
 
     Modes (``norm_mode``):
 
-    - ``per_frame``: per-batch, per-channel absolute min/max; no inter-frame state.
+    - ``per_frame``: per frame and channel between the absolute min and max; no inter-frame state.
     - ``statistical``: global percentile bounds precomputed via ``StatisticalTrainer``.
     - ``running`` (default): the first ``running_warmup_frames`` frames use per-frame
       percentile normalization while accumulating global percentile bounds (min-of-lows,
       max-of-highs); afterwards those bounds are used, frozen after
       ``freeze_running_bounds_after_frames`` frames. Bounds update on every frame including
       inference, which live false-RGB video relies on; the freeze guards late drift.
+
+    In ``per_frame`` mode, ``per_frame_quantiles`` takes the frame's ``quantile_low`` /
+    ``quantile_high`` quantiles instead of its min and max (clipping outliers such as specular
+    highlights), and ``joint_channels`` takes one pair of bounds over all channels together, which
+    keeps the ratios between the channels (a false-RGB image keeps its colours).
 
     Parameters
     ----------
@@ -582,6 +604,17 @@ class PercentileNormalizer(_NormalizerBase):
         Default ``0.005`` / ``0.995``.
     eps : float
         Floor for the ``(max - min)`` denominator. Default ``1e-8``.
+    per_frame_quantiles : bool
+        ``per_frame`` only: bounds from the frame's ``quantile_low`` / ``quantile_high``
+        quantiles (linear interpolation, numpy's default method) instead of its min and max.
+        Default ``False``.
+    joint_channels : bool
+        ``per_frame`` only: one pair of bounds per frame over all channels together instead of
+        one pair per channel. Default ``False``.
+    quantize_levels : int | None
+        Truncate the output to this many levels, ``floor(x * levels) / levels``, exactly as
+        casting a ``[0, 1]`` image to ``uint8`` does for ``255``; any mode. Default ``None``
+        keeps the float values.
 
     Ports
     -----
@@ -603,11 +636,32 @@ class PercentileNormalizer(_NormalizerBase):
         quantile_low: float = 0.005,
         quantile_high: float = 0.995,
         eps: float = 1e-8,
+        per_frame_quantiles: bool = False,
+        joint_channels: bool = False,
+        quantize_levels: int | None = None,
         **kwargs: Any,
     ) -> None:
         if isinstance(n_channels, bool) or not isinstance(n_channels, int) or n_channels < 1:
             raise ValueError("PercentileNormalizer: n_channels must be an integer >= 1")
         norm_mode = NormMode(norm_mode)
+        for flag_name, flag in (
+            ("per_frame_quantiles", per_frame_quantiles),
+            ("joint_channels", joint_channels),
+        ):
+            if not isinstance(flag, bool):
+                raise ValueError(f"PercentileNormalizer: {flag_name} must be a bool")
+            if flag and norm_mode != NormMode.PER_FRAME:
+                raise ValueError(
+                    f"PercentileNormalizer: {flag_name} applies to norm_mode='per_frame' only"
+                )
+        if quantize_levels is not None and (
+            isinstance(quantize_levels, bool)
+            or not isinstance(quantize_levels, int)
+            or quantize_levels < 1
+        ):
+            raise ValueError(
+                "PercentileNormalizer: quantize_levels must be an integer >= 1 or None"
+            )
         if freeze_running_bounds_after_frames is not None and (
             isinstance(freeze_running_bounds_after_frames, bool)
             or not isinstance(freeze_running_bounds_after_frames, int)
@@ -630,6 +684,9 @@ class PercentileNormalizer(_NormalizerBase):
         self.quantile_low = float(quantile_low)
         self.quantile_high = float(quantile_high)
         self.eps = float(eps)
+        self.per_frame_quantiles = per_frame_quantiles
+        self.joint_channels = joint_channels
+        self.quantize_levels = quantize_levels
 
         super().__init__(
             n_channels=self.n_channels,
@@ -639,6 +696,9 @@ class PercentileNormalizer(_NormalizerBase):
             quantile_low=self.quantile_low,
             quantile_high=self.quantile_high,
             eps=self.eps,
+            per_frame_quantiles=self.per_frame_quantiles,
+            joint_channels=self.joint_channels,
+            quantize_levels=self.quantize_levels,
             **kwargs,
         )
 
@@ -663,6 +723,27 @@ class PercentileNormalizer(_NormalizerBase):
         hi = data.amax(dim=(1, 2), keepdim=True)
         denom = (hi - lo).clamp_min(self.eps)
         return ((data - lo) / denom).clamp_(0.0, 1.0)
+
+    def _frame_bounds(self, values: Tensor) -> tuple[Tensor, Tensor]:
+        """Low and high bound of one frame's values (1-D): quantiles or min and max."""
+        if self.per_frame_quantiles:
+            lo, hi = _sorted_quantiles(values, (self.quantile_low, self.quantile_high))
+            return lo, hi
+        return values.amin(), values.amax()
+
+    def _per_frame_bounds(self, data: Tensor) -> Tensor:
+        """Frame by frame to ``[0, 1]`` between per-channel or joint bounds of that frame."""
+        frames = []
+        for frame in data:  # [H, W, C]
+            if self.joint_channels:
+                lo, hi = self._frame_bounds(frame.reshape(-1))
+            else:
+                columns = frame.reshape(-1, frame.shape[-1])
+                pairs = [self._frame_bounds(columns[:, c]) for c in range(columns.shape[1])]
+                lo = torch.stack([pair[0] for pair in pairs])
+                hi = torch.stack([pair[1] for pair in pairs])
+            frames.append(((frame - lo) / (hi - lo).clamp_min(self.eps)).clamp(0.0, 1.0))
+        return torch.stack(frames, dim=0)
 
     @torch.no_grad()
     def _running_normalize(self, data: Tensor) -> Tensor:
@@ -699,10 +780,16 @@ class PercentileNormalizer(_NormalizerBase):
                     "PercentileNormalizer: statistical mode requires "
                     "statistical_initialization() before forward()"
                 )
-            return normalize_with_bounds(tensor, self.running_min, self.running_max, self.eps)
-        if self.norm_mode == NormMode.RUNNING:
-            return self._running_normalize(tensor)
-        return self._per_frame_minmax(tensor)
+            out = normalize_with_bounds(tensor, self.running_min, self.running_max, self.eps)
+        elif self.norm_mode == NormMode.RUNNING:
+            out = self._running_normalize(tensor)
+        elif self.per_frame_quantiles or self.joint_channels:
+            out = self._per_frame_bounds(tensor)
+        else:
+            out = self._per_frame_minmax(tensor)
+        if self.quantize_levels is not None:
+            out = torch.floor(out * self.quantize_levels) / self.quantize_levels
+        return out
 
     def statistical_initialization(self, input_stream: InputStream) -> None:
         """Accumulate global per-channel percentile bounds across the dataset.

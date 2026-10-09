@@ -68,6 +68,7 @@ from cuvis_ai.node.deciders import (
     TwoStageBinaryDecider,
 )
 from cuvis_ai.node.dimensionality_reduction import PCA, TrainablePCA
+from cuvis_ai.node.fusion import DecisionFusion, ScoreMapFusion
 from cuvis_ai.node.image_file import PngWriter
 from cuvis_ai.node.json_file import (
     CocoTrackBBoxWriter,
@@ -172,6 +173,7 @@ __all__ = [
     "CubeRGBVisualizer",
     "DetectionCocoJsonNode",
     "DetectionJsonReader",
+    "DecisionFusion",
     "DecisionToMask",
     "DiceLoss",
     "DisplayNormalizer",
@@ -213,6 +215,7 @@ __all__ = [
     "RangeAverageFalseRGBSelector",
     "RGBAnomalyMask",
     "ScoreHeatmapVisualizer",
+    "ScoreMapFusion",
     "ScalarHSVColormapNode",
     "SigmoidNormalizer",
     "SolidOcclusionNode",
