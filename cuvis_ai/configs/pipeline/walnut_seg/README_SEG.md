@@ -93,6 +93,17 @@ permitted; checked against the stack's core 0.17.4 / schemas 0.12.0), and all si
 to load. This change therefore lives on its own branch until the stack moves to core 0.18.2 and
 cuvis-ai-rfdetr 0.5.2.
 
+**The FO pipelines need the same (9 Oct).** A stack on core 0.18.3, cuvis-ai 0.18.2 and the 0.3.0 plugins composed a
+fresh FO environment without TensorRT, and all eight production FO pipelines (`walnut_best/`, the 80 ms pick,
+`walnut_final_robust_v2`) stopped at their first frame with "needs the TensorRT Python package": their SEG nodes
+run `backend: tensorrt`, and the deployed FO environment only works because `check_trt_env.py --fix` installed
+TensorRT into it by hand. So every pipeline with a TensorRT node now lists the matching manifest next to its plugin:
+`steervit_trt` (`cuvis_ai/configs/plugins/steervit_trt.yaml`), `efficientad_trt` (`efficientad_trt.yaml`) and
+`rfdetr_seg_trt`, each with the plugin's own source and package plus `extras: [tensorrt]` (TensorRT 10.15.1.29 and
+onnx, the version the deployed engines were built with). That is 80 pipelines: 122 SteerViT, 142 RF-DETR and 13
+EfficientAD nodes on `backend: tensorrt`. The same rule applies: these lists need the stack on core 0.18.1 or
+later, because older schemas reject `extras`.
+
 ## Outputs — heatmap AND mask in cuvis.next's Displayed Output (2026-09-24)
 Every pipeline here ends in two output nodes fed by the model scores (`<term>` = `Seg` / `Fuse` / `Inter` /
 `Gate`):

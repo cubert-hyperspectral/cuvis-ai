@@ -32,8 +32,11 @@ plugins:
 - cuvis_ai_builtin
 - patchcore
 - steervit
+- steervit_trt
 - efficientad
+- efficientad_trt
 - rfdetr_seg
+- rfdetr_seg_trt
 nodes:
 - name: cu3s_data
   class_name: cuvis_ai.node.data.CU3SDataNode
