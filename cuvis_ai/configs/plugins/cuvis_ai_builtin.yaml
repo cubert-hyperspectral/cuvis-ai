@@ -2602,6 +2602,28 @@ capabilities:
       optional: false
       description: 1-based best-matching identity [B, H, W]
   doc_summary: Compute per-pixel spectral angle against one or more reference spectra.
+- class_name: cuvis_ai.node.spectral_angle_mapper.SpectralObjectMask
+  category: transform
+  tags: [hyperspectral, mask, segmentation, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    cube:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Hyperspectral cube [B, H, W, C] (e.g. reflectance) whose background covers most of the frame.
+  output_specs:
+    decisions:
+      dtype: bool
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: "Object mask [B, H, W, 1]: spectral angle to the frame's median spectrum above the threshold (on the stride grid, nearest neighbour to H, W), filled and grown when `fill` / `dilate_px` are set."
+    angle:
+      dtype: float32
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: The angle in degrees on the stride grid [B, ceil(H / s), ceil(W / s), 1].
+  doc_summary: Mark the pixels whose spectral angle to the frame's median spectrum exceeds a threshold.
 - class_name: cuvis_ai.node.spectral_extractor.BBoxSpectralExtractor
   category: transform
   tags: [embedding, hyperspectral, numpy]
@@ -3606,6 +3628,139 @@ capabilities:
       optional: false
       description: Label map [B, H, W] with `offset` added to every label.
   doc_summary: Add a constant offset to every label in an integer label map.
+- class_name: cuvis_ai.node.mask_ops.MaskMinArea
+  category: transform
+  tags: [mask, numpy, postprocessing]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    decisions:
+      dtype: bool
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Boolean mask [B, H, W, C], e.g. a decider's decisions; each frame and channel is filtered on its own.
+  output_specs:
+    decisions:
+      dtype: bool
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: 'Same shape: the blobs of `decisions` with at least `min_area` pixels (8-connected).'
+  doc_summary: Drop the 8-connected blobs of a boolean mask [B, H, W, C] below ``min_area`` pixels.
+- class_name: cuvis_ai.node.mask_ops.MaskBlobGate
+  category: transform
+  tags: [mask, numpy, postprocessing]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    decisions:
+      dtype: bool
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Boolean mask [B, H, W, C] whose blobs are gated, e.g. an anomaly mask.
+    mask:
+      dtype: bool
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: "Gating mask [B, H, W, C'] of the same batch, height and width (a pixel counts where any channel is set), e.g. a SpectralObjectMask: where objects are."
+  output_specs:
+    decisions:
+      dtype: bool
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: 'Same shape as `decisions`: its 8-connected blobs that hold at least `min_px` pixels of `mask` (with `invert`: fewer than `min_px`).'
+  doc_summary: Keep the blobs of a boolean mask that hold enough pixels of a second (gating) mask.
+- class_name: cuvis_ai.node.mask_ops.MaskPeakGate
+  category: transform
+  tags: [mask, numpy, postprocessing]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    decisions:
+      dtype: bool
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Boolean mask [B, H, W, C] whose blobs are kept or dropped, e.g. the pieces of a mask after a cut.
+    reference:
+      dtype: bool
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Boolean mask [B, H, W, C'] of the same batch, height and width (a pixel counts where any channel is set) whose blobs set the peak to reach, e.g. the mask before the cut.
+    scores:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Score map [B, H, W, C''] the peaks are read from (the first channel), e.g. the anomaly map the mask was thresholded from; finite and positive where marked.
+  output_specs:
+    decisions:
+      dtype: bool
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: 'Same shape as `decisions`: the blobs whose highest score reaches `ratio` times the highest score of the reference blob they lie in; blobs outside every reference blob stay.'
+  doc_summary: Keep the blobs of a mask whose peak score reaches a share of their reference blob's peak.
+- class_name: cuvis_ai.node.mask_ops.MaskBlobFilter
+  category: transform
+  tags: [hyperspectral, mask, numpy, postprocessing]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    decisions:
+      dtype: bool
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Boolean mask [B, H, W, C] whose blobs are filtered, e.g. a decider's decisions; each frame and channel on its own.
+    cube:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: true
+      description: Hyperspectral cube [B, H, W, K] of the same frames, for the object test; without it only the size test runs.
+  output_specs:
+    decisions:
+      dtype: bool
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: 'Same shape: the blobs of `decisions` with at least `min_area` pixels that hold at least `min_object_px` pixels of non-background material.'
+  doc_summary: Keep the blobs of a boolean mask that are large enough and lie on non-background material.
+- class_name: cuvis_ai.node.mask_ops.MaskComposite
+  category: transform
+  tags: [mask, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    decisions:
+      dtype: bool
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Boolean masks [B, H, W, C] of one batch, height and width, one per inbound connection (fan-in), in the order of `labels` / `levels`; a pixel of a mask counts as set where any of its channels is.
+      variadic: true
+  output_specs:
+    mask:
+      dtype: int32
+      shape: [-1, -1, -1]
+      optional: false
+      description: 'Label map [B, H, W]: 0 where no mask is set, else the largest `labels` entry among the masks set there.'
+    scores:
+      dtype: float32
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: 'Level map [B, H, W, 1]: 0 where no mask is set, else the largest `levels` entry among the masks set there.'
+  doc_summary: Merge N boolean masks [B, H, W, C] into one label map and one level map for display.
+- class_name: cuvis_ai.node.mask_ops.ScoreMapSuppression
+  category: transform
+  tags: [anomaly, mask, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    scores:
+      dtype: float32
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: Score map [B, H, W, 1], e.g. a fused anomaly map.
+    mask:
+      dtype: bool
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: "Boolean mask [B, H, W, C] of the same batch, height and width: where the score map is suppressed (a pixel counts as set where any channel is), e.g. a segmenter's decisions for an object class that cannot be anomalous."
+  output_specs:
+    scores:
+      dtype: float32
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: 'scores x (1 - weight x the eroded mask): unchanged outside the mask and within `erode_px` of its edge, scaled by 1 - weight inside.'
+  doc_summary: Down-weight a score map [B, H, W, 1] inside a boolean mask shrunk by ``erode_px``.
 - class_name: cuvis_ai.node.spectral_extractor.SignaturesToReferences
   category: transform
   tags: [classification, hyperspectral]

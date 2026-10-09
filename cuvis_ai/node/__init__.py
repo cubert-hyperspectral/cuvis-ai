@@ -87,9 +87,15 @@ from cuvis_ai.node.mask_ops import (
     ClassMapRobustifier,
     LabelOffset,
     MajorityVoteByBlob,
+    MaskBlobFilter,
+    MaskBlobGate,
+    MaskComposite,
+    MaskMinArea,
+    MaskPeakGate,
     MaskRobustifier,
     MaskToBBoxKalman,
     NearestLabelFill,
+    ScoreMapSuppression,
 )
 from cuvis_ai.node.morphology import ShapeMorphology
 from cuvis_ai.node.normalization import (
@@ -130,7 +136,7 @@ from cuvis_ai.node.pretreatments import (
 )
 from cuvis_ai.node.prompts import BBoxPrompt, MaskPrompt, PointPrompt, TextPrompt
 from cuvis_ai.node.segmentation import IntensityThresholdSegmenter
-from cuvis_ai.node.spectral_angle_mapper import SpectralAngleMapper
+from cuvis_ai.node.spectral_angle_mapper import SpectralAngleMapper, SpectralObjectMask
 from cuvis_ai.node.spectral_extractor import (
     BBoxSpectralExtractor,
     MaskedMeanSpectrum,
@@ -150,6 +156,13 @@ from cuvis_ai.node.video import (
 )
 
 __all__ = [
+    "MaskBlobFilter",
+    "MaskBlobGate",
+    "MaskComposite",
+    "MaskMinArea",
+    "MaskPeakGate",
+    "ScoreMapSuppression",
+    "SpectralObjectMask",
     "AnomalyMask",
     "BandpassByWavelength",
     "BBoxesOverlayNode",

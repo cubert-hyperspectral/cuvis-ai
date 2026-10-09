@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 import cv2
@@ -23,8 +24,17 @@ import torch
 import torch.nn.functional as F
 from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.pipeline import PortSpec
+from torch import Tensor
 
-from cuvis_ai.utils.connected_components import label_connected_components
+from cuvis_ai.utils.connected_components import (
+    cell_max,
+    cell_sums,
+    expand_cells,
+    filter_blobs,
+    keep_blobs,
+    label_connected_components,
+    peak_keep,
+)
 from cuvis_ai_core.node import Node
 
 
@@ -730,3 +740,504 @@ class LabelOffset(Node):
     def forward(self, class_map: torch.Tensor, **_: Any) -> dict[str, torch.Tensor]:
         """Return the label map with `offset` added to every element."""
         return {"class_map": class_map.to(torch.int32) + self.offset}
+
+
+class MaskMinArea(Node):
+    """Drop the 8-connected blobs of a boolean mask [B, H, W, C] below ``min_area`` pixels."""
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.MASK, NodeTag.POSTPROCESSING, NodeTag.NUMPY})
+
+    INPUT_SPECS = {
+        "decisions": PortSpec(
+            dtype=torch.bool,
+            shape=(-1, -1, -1, -1),
+            description="Boolean mask [B, H, W, C], e.g. a decider's decisions; each frame "
+            "and channel is filtered on its own.",
+        ),
+    }
+    OUTPUT_SPECS = {
+        "decisions": PortSpec(
+            dtype=torch.bool,
+            shape=(-1, -1, -1, -1),
+            description="Same shape: the blobs of `decisions` with at least `min_area` pixels "
+            "(8-connected).",
+        ),
+    }
+
+    def __init__(self, min_area: int = 250, cell: int = 4, **kwargs: Any) -> None:
+        """Create a minimum-area mask filter.
+
+        Parameters
+        ----------
+        min_area : smallest blob that is kept, in pixels (8-connected, default 250); ``0`` or ``1``
+            keep every blob. Choose it below the smallest real object's blob (the object plus the
+            score map's halo) and above the specks of the background.
+        cell : side of the cells the blobs are labelled on (default 4; ``1`` labels every pixel).
+        """
+        if isinstance(min_area, bool) or not isinstance(min_area, int) or min_area < 0:
+            raise ValueError(f"MaskMinArea: min_area must be an integer >= 0, got {min_area!r}.")
+        if isinstance(cell, bool) or not isinstance(cell, int) or cell < 1:
+            raise ValueError(f"MaskMinArea: cell must be an integer >= 1, got {cell!r}.")
+        self.min_area = int(min_area)
+        self.cell = int(cell)
+        super().__init__(min_area=self.min_area, cell=self.cell, **kwargs)
+
+    def forward(self, decisions: Tensor, **_: Any) -> dict[str, Tensor]:
+        """Return the mask without its blobs smaller than ``min_area`` pixels."""
+        if self.min_area <= 1 or decisions.numel() == 0 or not bool(decisions.any()):
+            return {"decisions": decisions.clone()}
+        x = decisions.permute(0, 3, 1, 2)
+        out = filter_blobs(x, None, float(self.min_area), self.cell)
+        return {"decisions": out.permute(0, 2, 3, 1)}
+
+
+class MaskBlobGate(Node):
+    """Keep the blobs of a boolean mask that hold enough pixels of a second (gating) mask."""
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.MASK, NodeTag.POSTPROCESSING, NodeTag.NUMPY})
+
+    INPUT_SPECS = {
+        "decisions": PortSpec(
+            dtype=torch.bool,
+            shape=(-1, -1, -1, -1),
+            description="Boolean mask [B, H, W, C] whose blobs are gated, e.g. an anomaly mask.",
+        ),
+        "mask": PortSpec(
+            dtype=torch.bool,
+            shape=(-1, -1, -1, -1),
+            description="Gating mask [B, H, W, C'] of the same batch, height and width (a pixel "
+            "counts where any channel is set), e.g. a SpectralObjectMask: where objects are.",
+        ),
+    }
+    OUTPUT_SPECS = {
+        "decisions": PortSpec(
+            dtype=torch.bool,
+            shape=(-1, -1, -1, -1),
+            description="Same shape as `decisions`: its 8-connected blobs that hold at least "
+            "`min_px` pixels of `mask` (with `invert`: fewer than `min_px`).",
+        ),
+    }
+
+    def __init__(
+        self, min_px: int = 16, cell: int = 4, invert: bool = False, **kwargs: Any
+    ) -> None:
+        """Create a blob gate.
+
+        Parameters
+        ----------
+        min_px : pixels of the gating mask a blob needs to stay (default 16; ``0`` keeps every
+            blob). With a SpectralObjectMask as the gate, a blob on the empty background goes and a
+            blob around an object (its halo included) stays.
+        cell : side of the cells the blobs are labelled on (default 4; ``1`` labels every pixel).
+        invert : keep the other blobs instead, those with fewer than ``min_px`` pixels of the
+            gating mask (default False). With ``min_px=1``, a mask before a cut as ``decisions`` and
+            the mask after it as ``mask``, these are the marks the cut removed entirely; fused with
+            the cut mask (``DecisionFusion("any")``) the cut trims marks but never deletes one.
+        """
+        if isinstance(min_px, bool) or not isinstance(min_px, int) or min_px < 0:
+            raise ValueError(f"MaskBlobGate: min_px must be an integer >= 0, got {min_px!r}.")
+        if isinstance(cell, bool) or not isinstance(cell, int) or cell < 1:
+            raise ValueError(f"MaskBlobGate: cell must be an integer >= 1, got {cell!r}.")
+        if not isinstance(invert, bool):
+            raise ValueError(f"MaskBlobGate: invert must be a bool, got {invert!r}.")
+        self.min_px = int(min_px)
+        self.cell = int(cell)
+        self.invert = invert
+        super().__init__(min_px=self.min_px, cell=self.cell, invert=self.invert, **kwargs)
+
+    def forward(self, decisions: Tensor, mask: Tensor, **_: Any) -> dict[str, Tensor]:
+        """Return the blobs of ``decisions`` that overlap ``mask`` by at least ``min_px`` pixels
+        (with ``invert``: by fewer)."""
+        gate = mask.any(dim=-1)
+        if gate.shape != decisions.shape[:3]:
+            raise ValueError(
+                f"MaskBlobGate: mask is [B, H, W] = {tuple(gate.shape)}, decisions "
+                f"{tuple(decisions.shape[:3])}."
+            )
+        if decisions.numel() == 0 or not bool(decisions.any()):
+            return {"decisions": decisions.clone()}
+        if self.min_px == 0:  # every blob passes
+            return {"decisions": torch.zeros_like(decisions) if self.invert else decisions.clone()}
+        x = decisions.permute(0, 3, 1, 2)
+        w = (x & gate[:, None]).to(torch.float32)
+        out = filter_blobs(x, w, float(self.min_px), self.cell)
+        if self.invert:  # each set pixel's cell lies in one blob, kept or not
+            out = x & ~out
+        return {"decisions": out.permute(0, 2, 3, 1)}
+
+
+class MaskPeakGate(Node):
+    """Keep the blobs of a mask whose peak score reaches a share of their reference blob's peak."""
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.MASK, NodeTag.POSTPROCESSING, NodeTag.NUMPY})
+
+    INPUT_SPECS = {
+        "decisions": PortSpec(
+            dtype=torch.bool,
+            shape=(-1, -1, -1, -1),
+            description="Boolean mask [B, H, W, C] whose blobs are kept or dropped, e.g. the "
+            "pieces of a mask after a cut.",
+        ),
+        "reference": PortSpec(
+            dtype=torch.bool,
+            shape=(-1, -1, -1, -1),
+            description="Boolean mask [B, H, W, C'] of the same batch, height and width (a pixel "
+            "counts where any channel is set) whose blobs set the peak to reach, e.g. the mask "
+            "before the cut.",
+        ),
+        "scores": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, -1),
+            description="Score map [B, H, W, C''] the peaks are read from (the first channel), "
+            "e.g. the anomaly map the mask was thresholded from; finite and positive where marked.",
+        ),
+    }
+    OUTPUT_SPECS = {
+        "decisions": PortSpec(
+            dtype=torch.bool,
+            shape=(-1, -1, -1, -1),
+            description="Same shape as `decisions`: the blobs whose highest score reaches `ratio` "
+            "times the highest score of the reference blob they lie in; blobs outside every "
+            "reference blob stay.",
+        ),
+    }
+
+    def __init__(self, ratio: float = 0.8, cell: int = 4, **kwargs: Any) -> None:
+        """Create a peak gate.
+
+        Parameters
+        ----------
+        ratio : share of the reference blob's peak a blob must reach to stay (default 0.8; ``0``
+            keeps every blob). After a cut of an anomaly mask to the objects, the piece holding the
+            mark's peak stays and halo pieces on neighbouring objects, far below it, go.
+        cell : side of the cells the blobs are labelled on (default 4; ``1`` labels every pixel).
+        """
+        if (
+            isinstance(ratio, bool)
+            or not isinstance(ratio, (int, float))
+            or not 0.0 <= ratio <= 1.0
+        ):
+            raise ValueError(f"MaskPeakGate: ratio must be in [0, 1], got {ratio!r}.")
+        if isinstance(cell, bool) or not isinstance(cell, int) or cell < 1:
+            raise ValueError(f"MaskPeakGate: cell must be an integer >= 1, got {cell!r}.")
+        self.ratio = float(ratio)
+        self.cell = int(cell)
+        super().__init__(ratio=self.ratio, cell=self.cell, **kwargs)
+
+    def forward(
+        self, decisions: Tensor, reference: Tensor, scores: Tensor, **_: Any
+    ) -> dict[str, Tensor]:
+        """Return the blobs of ``decisions`` whose peak reaches ``ratio`` x their reference peak."""
+        ref = reference.any(dim=-1)
+        if ref.shape != decisions.shape[:3] or tuple(scores.shape[:3]) != tuple(
+            decisions.shape[:3]
+        ):
+            raise ValueError(
+                f"MaskPeakGate: reference {tuple(ref.shape)} / scores {tuple(scores.shape[:3])} do "
+                f"not match decisions [B, H, W] = {tuple(decisions.shape[:3])}."
+            )
+        if self.ratio == 0.0 or decisions.numel() == 0 or not bool(decisions.any()):
+            return {"decisions": decisions.clone()}
+        x = decisions.permute(0, 3, 1, 2)
+        s = scores[..., :1].permute(0, 3, 1, 2).to(torch.float32)
+        r = ref[:, None]
+        low = torch.full_like(s, float("-inf"))
+        peak = cell_max(torch.where(x, s, low), self.cell)
+        ref_peak = cell_max(torch.where(r, s, low), self.cell)
+        host = torch.cat([peak, ref_peak], dim=1).cpu().numpy()  # one copy to the host
+        keep = np.zeros(peak.shape, bool)
+        for i in range(keep.shape[0]):
+            rp = host[i, -1]
+            for c in range(keep.shape[1]):
+                occ = host[i, c] > -np.inf  # a cell holds a mark iff its maximum is finite
+                if occ.any():
+                    keep[i, c] = peak_keep(occ, rp > -np.inf, host[i, c], rp, self.ratio)
+        kk = torch.from_numpy(keep).to(device=decisions.device).permute(0, 2, 3, 1)
+        return {"decisions": expand_cells(kk, decisions, self.cell)}
+
+
+class MaskBlobFilter(Node):
+    """Keep the blobs of a boolean mask that are large enough and lie on non-background material."""
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.MASK, NodeTag.POSTPROCESSING, NodeTag.HYPERSPECTRAL, NodeTag.NUMPY})
+
+    INPUT_SPECS = {
+        "decisions": PortSpec(
+            dtype=torch.bool,
+            shape=(-1, -1, -1, -1),
+            description="Boolean mask [B, H, W, C] whose blobs are filtered, e.g. a "
+            "decider's decisions; each frame and channel on its own.",
+        ),
+        "cube": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, -1),
+            optional=True,
+            description="Hyperspectral cube [B, H, W, K] of the same frames, for the object test; "
+            "without it only the size test runs.",
+        ),
+    }
+    OUTPUT_SPECS = {
+        "decisions": PortSpec(
+            dtype=torch.bool,
+            shape=(-1, -1, -1, -1),
+            description="Same shape: the blobs of `decisions` with at least `min_area` pixels that "
+            "hold at least `min_object_px` pixels of non-background material.",
+        ),
+    }
+
+    def __init__(
+        self,
+        min_area: int = 250,
+        min_object_px: int = 16,
+        min_angle_deg: float = 6.0,
+        cell: int = 4,
+        median_stride: int = 8,
+        **kwargs: Any,
+    ) -> None:
+        """Create a blob filter: MaskMinArea, SpectralObjectMask and MaskBlobGate in one pass.
+
+        Parameters
+        ----------
+        min_area : smallest blob that is kept, in pixels (default 250; 0 or 1 keep every size).
+        min_object_px : pixels of the blob that must be objects (default 16; 0 skips the test).
+        min_angle_deg : spectral angle to the frame's median spectrum above which a pixel is an
+            object (default 6.0).
+        cell : the blobs are labelled on cells of cell x cell pixels (default 4) and the object test
+            reads each cell's first pixel (the stride-``cell`` grid of SpectralObjectMask).
+        median_stride : grid step of the pixels whose per-band median is the background spectrum
+            (default 8).
+        """
+        for name, val, lo in (
+            ("min_area", min_area, 0),
+            ("min_object_px", min_object_px, 0),
+            ("cell", cell, 1),
+            ("median_stride", median_stride, 1),
+        ):
+            if isinstance(val, bool) or not isinstance(val, int) or val < lo:
+                raise ValueError(f"MaskBlobFilter: {name} must be an integer >= {lo}, got {val!r}.")
+        if (
+            isinstance(min_angle_deg, bool)
+            or not isinstance(min_angle_deg, (int, float))
+            or not 0.0 <= float(min_angle_deg) <= 180.0
+        ):
+            raise ValueError(
+                f"MaskBlobFilter: min_angle_deg must be in [0, 180], got {min_angle_deg!r}."
+            )
+        self.min_area = int(min_area)
+        self.min_object_px = int(min_object_px)
+        self.min_angle_deg = float(min_angle_deg)
+        self.cell = int(cell)
+        self.median_stride = int(median_stride)
+        super().__init__(
+            min_area=self.min_area,
+            min_object_px=self.min_object_px,
+            min_angle_deg=self.min_angle_deg,
+            cell=self.cell,
+            median_stride=self.median_stride,
+            **kwargs,
+        )
+
+    def _object_cells(self, cube: Tensor) -> Tensor:
+        """[B, h, w] bool on the cell grid: the cells whose first pixel is not background, i.e. has
+        a spectral angle above ``min_angle_deg`` to the frame's median spectrum."""
+        b, k = cube.shape[0], cube.shape[-1]
+        m = self.median_stride
+        sample = cube[:, ::m, ::m, :].to(torch.float32).permute(0, 3, 1, 2).reshape(b, k, -1)
+        ref = sample.median(dim=2).values  # [B, K]: along the contiguous axis, 4x faster on a GPU
+        px = cube[:, :: self.cell, :: self.cell, :].to(torch.float32)  # [B, h, w, K]
+        dot = torch.einsum("bhwk,bk->bhw", px, ref)
+        norm = torch.linalg.vector_norm(px, dim=-1) * ref.norm(dim=-1)[:, None, None]
+        cos = (dot / (norm + 1e-6)).clamp(-1.0, 1.0)
+        return cos < math.cos(math.radians(self.min_angle_deg))  # angle > a <=> cos < cos(a)
+
+    def forward(self, decisions: Tensor, cube: Tensor | None = None, **_: Any) -> dict[str, Tensor]:
+        """Return the blobs that pass the size test and, with a cube, the object test."""
+        if decisions.numel() == 0 or not bool(decisions.any()):
+            return {"decisions": decisions.clone()}
+        counts = cell_sums(decisions.permute(0, 3, 1, 2).to(torch.float32), self.cell)
+        small = torch.uint8 if self.cell * self.cell < 256 else torch.int32
+        planes = [counts.to(small)]  # marked pixels per cell, [B, C, h, w]
+        if cube is not None and self.min_object_px > 0:
+            obj = self._object_cells(cube)
+            planes.append((counts * obj[:, None]).to(small))  # marked object pixels per cell
+        host = torch.stack(planes).cpu().numpy()  # the one copy to the host
+        keep = np.zeros(host.shape[1:], bool)
+        for i in range(keep.shape[0]):
+            for c in range(keep.shape[1]):
+                occ = host[0, i, c] > 0
+                if not occ.any():
+                    continue
+                tests = [(host[0, i, c], max(self.min_area, 1))]
+                if len(planes) > 1:
+                    tests.append((host[1, i, c], self.min_object_px))
+                keep[i, c] = keep_blobs(occ, tests)
+        kk = torch.from_numpy(keep).to(device=decisions.device).permute(0, 2, 3, 1)
+        return {"decisions": expand_cells(kk, decisions, self.cell)}
+
+
+class MaskComposite(Node):
+    """Merge N boolean masks [B, H, W, C] into one label map and one level map for display."""
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.MASK, NodeTag.TORCH})
+
+    INPUT_SPECS = {
+        "decisions": PortSpec(
+            dtype=torch.bool,
+            shape=(-1, -1, -1, -1),
+            variadic=True,
+            description="Boolean masks [B, H, W, C] of one batch, height and width, one per "
+            "inbound connection (fan-in), in the order of `labels` / `levels`; a pixel of a mask "
+            "counts as set where any of its channels is.",
+        ),
+    }
+    OUTPUT_SPECS = {
+        "mask": PortSpec(
+            dtype=torch.int32,
+            shape=(-1, -1, -1),
+            description="Label map [B, H, W]: 0 where no mask is set, else the largest `labels` "
+            "entry among the masks set there.",
+        ),
+        "scores": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 1),
+            description="Level map [B, H, W, 1]: 0 where no mask is set, else the largest `levels` "
+            "entry among the masks set there.",
+        ),
+    }
+
+    def __init__(
+        self, labels: list[int] | None = None, levels: list[float] | None = None, **kwargs: Any
+    ) -> None:
+        """Create a mask composite.
+
+        Parameters
+        ----------
+        labels : one positive integer label per inbound mask, in connection order (default
+            ``[1, 2]``). Where masks overlap the largest label wins, so give the mask that should
+            stay visible on top (e.g. a defect on an object) the largest one.
+        levels : one non-negative level per inbound mask, in connection order (default
+            ``[0.5, 1.0]``); where masks overlap the largest level wins.
+        """
+        labels = [1, 2] if labels is None else list(labels)
+        levels = [0.5, 1.0] if levels is None else list(levels)
+        if not labels or len(labels) != len(levels):
+            raise ValueError(
+                "MaskComposite: labels and levels need one entry per mask, "
+                f"got {labels!r} / {levels!r}."
+            )
+        if any(isinstance(x, bool) or not isinstance(x, int) or x < 1 for x in labels):
+            raise ValueError(f"MaskComposite: labels must be integers >= 1, got {labels!r}.")
+        if any(
+            isinstance(x, bool)
+            or not isinstance(x, (int, float))
+            or not 0.0 <= float(x) < float("inf")
+            for x in levels
+        ):
+            raise ValueError(f"MaskComposite: levels must be finite numbers >= 0, got {levels!r}.")
+        self.labels = [int(x) for x in labels]
+        self.levels = [float(x) for x in levels]
+        super().__init__(labels=self.labels, levels=self.levels, **kwargs)
+
+    def forward(self, decisions: list[Tensor] | Tensor, **_: Any) -> dict[str, Tensor]:
+        """Return the label map and the level map of the inbound masks."""
+        masks = list(decisions) if isinstance(decisions, (list, tuple)) else [decisions]
+        if len(masks) != len(self.labels):
+            raise ValueError(
+                f"MaskComposite: {len(masks)} masks connected, "
+                f"{len(self.labels)} labels configured."
+            )
+        bhw = masks[0].shape[:3]
+        for i, m in enumerate(masks[1:], start=1):
+            if m.shape[:3] != bhw:
+                raise ValueError(
+                    f"MaskComposite: mask {i} is [B, H, W] = {tuple(m.shape[:3])}, "
+                    f"expected {tuple(bhw)}."
+                )
+        stack = torch.stack([m.any(dim=-1) for m in masks], dim=0)  # [N, B, H, W]
+        dev = stack.device
+        labels = torch.tensor(self.labels, dtype=torch.int32, device=dev).view(-1, 1, 1, 1)
+        levels = torch.tensor(self.levels, dtype=torch.float32, device=dev).view(-1, 1, 1, 1)
+        label_map = (stack.to(torch.int32) * labels).amax(dim=0)
+        level_map = (stack.to(torch.float32) * levels).amax(dim=0).unsqueeze(-1)
+        return {"mask": label_map, "scores": level_map}
+
+
+class ScoreMapSuppression(Node):
+    """Down-weight a score map [B, H, W, 1] inside a boolean mask shrunk by ``erode_px``."""
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.ANOMALY, NodeTag.MASK, NodeTag.TORCH})
+
+    INPUT_SPECS = {
+        "scores": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 1),
+            description="Score map [B, H, W, 1], e.g. a fused anomaly map.",
+        ),
+        "mask": PortSpec(
+            dtype=torch.bool,
+            shape=(-1, -1, -1, -1),
+            description="Boolean mask [B, H, W, C] of the same batch, height and width: where the "
+            "score map is suppressed (a pixel counts as set where any channel is), e.g. a "
+            "segmenter's decisions for an object class that cannot be anomalous.",
+        ),
+    }
+    OUTPUT_SPECS = {
+        "scores": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 1),
+            description="scores x (1 - weight x the eroded mask): unchanged outside the mask and "
+            "within `erode_px` of its edge, scaled by 1 - weight inside.",
+        ),
+    }
+
+    def __init__(self, weight: float = 1.0, erode_px: int = 4, **kwargs: Any) -> None:
+        """Create a masked score suppression.
+
+        Parameters
+        ----------
+        weight : how much of the score is removed inside the eroded mask, in ``[0, 1]`` (default
+            1.0: set to zero; 0.0 leaves the map unchanged).
+        erode_px : margin in pixels by which the mask is shrunk first (square erosion, default 4),
+            so that an object touching a masked one keeps its score near the shared edge. The image
+            border does not shrink the mask.
+        """
+        if (
+            isinstance(weight, bool)
+            or not isinstance(weight, (int, float))
+            or not 0.0 <= weight <= 1.0
+        ):
+            raise ValueError(
+                f"ScoreMapSuppression: weight must be a number in [0, 1], got {weight!r}."
+            )
+        if isinstance(erode_px, bool) or not isinstance(erode_px, int) or erode_px < 0:
+            raise ValueError(
+                f"ScoreMapSuppression: erode_px must be an integer >= 0, got {erode_px!r}."
+            )
+        self.weight = float(weight)
+        self.erode_px = int(erode_px)
+        super().__init__(weight=self.weight, erode_px=self.erode_px, **kwargs)
+
+    def forward(self, scores: Tensor, mask: Tensor, **_: Any) -> dict[str, Tensor]:
+        """Return the score map with the eroded mask's pixels scaled by ``1 - weight``."""
+        inside = mask.any(dim=-1)  # [B, H, W]
+        if inside.shape != scores.shape[:3]:
+            raise ValueError(
+                f"ScoreMapSuppression: mask is [B, H, W] = {tuple(inside.shape)}, scores "
+                f"{tuple(scores.shape[:3])}."
+            )
+        if self.erode_px:
+            # a pixel stays inside if no outside pixel lies within erode_px (square window);
+            # max-pool pads with zeros, so beyond the image border counts as inside
+            outside = (~inside).to(scores.dtype).unsqueeze(1)
+            near_outside = torch.nn.functional.max_pool2d(
+                outside, kernel_size=2 * self.erode_px + 1, stride=1, padding=self.erode_px
+            )
+            inside = near_outside.squeeze(1) == 0
+        keep = 1.0 - self.weight * inside.to(scores.dtype)
+        return {"scores": scores * keep.unsqueeze(-1)}
