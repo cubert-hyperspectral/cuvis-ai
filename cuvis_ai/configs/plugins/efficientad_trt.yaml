@@ -1,0 +1,10 @@
+# TensorRT extra for the EfficientAD pipelines that run `backend: tensorrt`. Same source and package as
+# `efficientad.yaml`: a pipeline lists both, and the composer (cuvis-ai-core 0.18.1 and later) installs
+# cuvis-ai-efficientad once, with the `tensorrt` extra (TensorRT 10.15.1.29 and onnx), so only these pipelines'
+# environments get TensorRT. On Thor, re-stamp `path:` like `efficientad.yaml` (see THOR_DEPLOY_NOTES).
+name: efficientad_trt
+path: "D:/walnuts/walnut_fo_stack/cuvis-ai-efficientad"
+package_name: cuvis-ai-efficientad
+extras: [tensorrt]
+capabilities:
+  - class_name: cuvis_ai_efficientad.node.efficientad.EfficientAdDetector
