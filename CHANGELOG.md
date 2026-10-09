@@ -4,6 +4,7 @@
 
 - Re-synced the mirrored catalog page of `XMR_Industrial_Foreign_Object_Detection_Lentils` from the Hub README at `ce3a213e` (splits without `leakage_check`, one README per day, the class table with id 0, the note on reassigned day-level annotation ids); the registry pins follow with the next cuvis-ai-core release.
 - Added the `patchcore`, `steervit` and `efficientad` plugin manifests at v0.3.0, the walnut foreign-object stack: HSI-PatchCore with its score, gate and mask nodes, SteerViT with the torch or TensorRT backend plus stretch and tiling, EfficientAD with the torch or TensorRT backend. Each manifest is the plugin's own `plugins.yaml` in `repo:` + `tag:` form; the walnut presets follow with the catalog.
+- Fix: `NDVISelector`, `NDWISelector`, `NBRSelector`, `GNDVISelector` and `NDRESelector` rebuild from their saved hparams. Their base forwarded the derived `primary_nm` and `secondary_nm` beside the selector's own wavelength names, so a pipeline saved by cuvis-ai with one of these nodes failed to restore with `TypeError: got multiple values for keyword argument 'primary_nm'`; hand-written YAMLs were unaffected.
 
 ## 0.18.2 - 2026-10-08
 

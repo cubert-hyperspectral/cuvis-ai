@@ -4,7 +4,14 @@ import numpy as np
 import pytest
 import torch
 
-from cuvis_ai.node.channel_selector import NDVISelector, NormMode
+from cuvis_ai.node.channel_selector import (
+    GNDVISelector,
+    NBRSelector,
+    NDRESelector,
+    NDVISelector,
+    NDWISelector,
+    NormMode,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -139,3 +146,16 @@ def test_ndvi_selector_defaults_to_per_frame_and_no_gamma() -> None:
     assert node.colormap == "hsv"
     assert node.colormap_min == -0.7
     assert node.colormap_max == 0.5
+
+
+@pytest.mark.parametrize(
+    "cls", [NDVISelector, NDWISelector, NBRSelector, GNDVISelector, NDRESelector]
+)
+def test_rebuilds_from_its_saved_hparams(cls: type) -> None:
+    """The saved hparams carry only the selector's own wavelength names, so a node saved
+    by cuvis-ai (``pipeline.save`` writes ``node.hparams``) can be built again from them."""
+    node = cls()
+    rebuilt = cls(**node.hparams)
+    assert rebuilt.primary_nm == node.primary_nm
+    assert rebuilt.secondary_nm == node.secondary_nm
+    assert "primary_nm" not in node.hparams and "secondary_nm" not in node.hparams

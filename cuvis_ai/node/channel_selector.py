@@ -507,9 +507,10 @@ class _NormalizedDifferenceIndexBase(ChannelSelectorBase, ABC):
         if eps < 0:
             raise ValueError("eps must be >= 0")
 
+        # primary_nm/secondary_nm are derived from the subclass's own wavelength hparams
+        # (nir_nm, red_nm, ...), which the subclass forwards itself; passing them on as well
+        # would save both names and make the node fail to rebuild from its hparams.
         super().__init__(
-            primary_nm=float(primary_nm),
-            secondary_nm=float(secondary_nm),
             eps=float(eps),
             band_tolerance_nm=float(band_tolerance_nm),
             **kwargs,
