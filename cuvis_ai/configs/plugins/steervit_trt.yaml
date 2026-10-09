@@ -1,0 +1,10 @@
+# TensorRT extra for the SteerViT pipelines that run `backend: tensorrt`. Same source and package as
+# `steervit.yaml`: a pipeline lists both, and the composer (cuvis-ai-core 0.18.1 and later) installs
+# cuvis-ai-steervit once, with the `tensorrt` extra (TensorRT 10.15.1.29 and onnx), so only these pipelines'
+# environments get TensorRT. On Thor, re-stamp `path:` like `steervit.yaml` (see THOR_DEPLOY_NOTES).
+name: steervit_trt
+path: "D:/walnuts/walnut_fo_stack/cuvis-ai-steervit"
+package_name: cuvis-ai-steervit
+extras: [tensorrt]
+capabilities:
+  - class_name: cuvis_ai_steervit.node.steervit.SteerViTExtractor
