@@ -16,6 +16,10 @@ They are copies of `walnut_final_robust_v2/` (`make_best.py`; only the name and 
 frames). The weights (`.pt`) are hard links; the SEG weights and TensorRT engines are read from their usual folders.
 Restart CuvisNEXT once after the plugin update of 4 Oct (patchcore 87d823b) before loading the `_cut` files.
 
+These pipelines run TensorRT nodes and list `steervit_trt` and `rfdetr_seg_trt` next to `steervit` and `rfdetr_seg`,
+so the composer installs TensorRT into their environment; that needs the stack on cuvis-ai-core 0.18.1 or later
+(older schemas reject the manifests' `extras`). Details: `walnut_seg/README_SEG.md`, "The FO pipelines need the same".
+
 **5 Oct live test on Thor (FOs, a fake shell touching a real shell, stem, dark dots):** the plain v2 marks the fake,
 the stem and the dots, and also the real shell touching the fake (the FO score spills across touching objects) and
 some kernel edges. The shell-aware v2 removes the marks on the real shells (SEG outlines them; the fake has no

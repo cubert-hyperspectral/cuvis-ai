@@ -1,6 +1,7 @@
 plugins:
 - cuvis_ai_builtin
 - rfdetr_seg
+- rfdetr_seg_trt
 nodes:
 - name: DataSource
   class_name: cuvis_ai.node.data.CU3SDataNode
