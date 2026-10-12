@@ -14,11 +14,13 @@ from __future__ import annotations
 import inspect
 from collections.abc import Generator
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pytest
 import torch
+import yaml
 from loguru import logger
 
 from cuvis_ai.node import channel_selector as cs
@@ -389,18 +391,89 @@ def test_a_subclass_that_declares_the_operand_names_saves_and_rebuilds_them(cls:
     )
 
 
-def test_ndvi_preset_node_round_trips_without_a_warning(tmp_path) -> None:
-    """The hparams of the shipped ndvi.yaml, saved by cuvis-ai and loaded again."""
-    config = _single_node_config(
-        "ndvi",
-        "cuvis_ai.node.channel_selector.NDVISelector",
-        {"nir_nm": 827.0, "red_nm": 668.0, "norm_mode": "per_frame"},
-    )
+_NDVI_PRESET = (
+    Path(__file__).resolve().parents[2]
+    / "cuvis_ai"
+    / "configs"
+    / "pipeline"
+    / "medical"
+    / "blood_perfusion"
+    / "ndvi.yaml"
+)
+
+
+def test_shipped_ndvi_preset_round_trips_without_a_warning(tmp_path) -> None:
+    """The shipped ndvi.yaml carries no normalisation key; its node loads, saves and
+    reloads without a warning and without the keys."""
+    source = yaml.safe_load(_NDVI_PRESET.read_text(encoding="utf-8"))
+    ndvi = next(node for node in source["nodes"] if node["name"] == "ndvi")
+    assert ndvi["class_name"] == "cuvis_ai.node.channel_selector.NDVISelector"
+    assert not set(NORMALISATION_KEYS) & set(ndvi["hparams"])
+    assert (ndvi["hparams"]["nir_nm"], ndvi["hparams"]["red_nm"]) == (750.0, 566.0)
+
+    config = _single_node_config("ndvi", ndvi["class_name"], ndvi["hparams"])
     yaml_path = tmp_path / "ndvi.yaml"
     with _captured_warnings() as messages:
         pipeline = PipelineBuilder().build_from_config(config)
         pipeline.save_to_file(yaml_path, save_weights=False)
         rebuilt = _node(PipelineBuilder().build_from_config(yaml_path), "ndvi")
     assert messages == []
-    assert rebuilt.nir_nm == 827.0 and rebuilt.red_nm == 668.0
+    assert (rebuilt.nir_nm, rebuilt.red_nm) == (750.0, 566.0)
     assert not set(NORMALISATION_KEYS) & set(rebuilt.hparams)
+
+
+# ---------------------------------------------------------------------------
+# NaN bounds never count as fitted
+# ---------------------------------------------------------------------------
+
+
+@torch.no_grad()
+def test_statistical_node_loaded_with_nan_bounds_is_not_fitted() -> None:
+    """A statistical selector saved with the switch off carries NaN bounds; loaded into a
+    node with the switch on, it schedules its fit and renders per frame until then."""
+    saved = CIRSelector(norm_mode="statistical", normalize_output=False)
+    restored = CIRSelector(norm_mode="statistical")
+    restored.load_state_dict(saved.state_dict())
+
+    assert restored._statistically_initialized is False
+    assert restored.requires_initial_fit is True
+    cube = _cube()
+    out = restored.forward(cube=cube, wavelengths=WAVELENGTHS)["rgb_image"]
+    assert not torch.isnan(out).any()
+    fresh = CIRSelector(norm_mode="statistical")
+    assert torch.equal(out, fresh.forward(cube=cube, wavelengths=WAVELENGTHS)["rgb_image"])
+
+
+@torch.no_grad()
+def test_statistical_node_loaded_with_fitted_bounds_stays_fitted() -> None:
+    fitted = CIRSelector(norm_mode="statistical")
+    fitted.statistical_initialization(iter([{"cube": _cube(), "wavelengths": WAVELENGTHS}]))
+
+    restored = CIRSelector(norm_mode="statistical")
+    restored.load_state_dict(fitted.state_dict())
+    assert restored._statistically_initialized is True
+    assert torch.equal(restored.running_min, fitted.running_min)
+
+
+@torch.no_grad()
+def test_supervised_node_loaded_with_nan_bounds_stays_fitted() -> None:
+    """The supervised selectors fit their band choice, not the bounds: their checkpoints
+    keep NaN bounds and still count as fitted."""
+    n_bands = 12
+    wavelengths = np.linspace(450.0, 950.0, n_bands).astype(np.float32)
+    torch.manual_seed(1)
+    cube = torch.rand(2, 6, 6, n_bands) * 100.0
+    mask = torch.zeros(2, 6, 6, 1)
+    mask[:, :3, :, :] = 1.0
+    cube[:, :3, :, 7] += 50.0
+
+    fitted = SupervisedCIRSelector(num_spectral_bands=n_bands, norm_mode="statistical")
+    fitted.statistical_initialization(
+        iter([{"cube": cube, "mask": mask, "wavelengths": wavelengths}])
+    )
+    assert torch.isnan(fitted.running_min).all()
+
+    restored = SupervisedCIRSelector(num_spectral_bands=n_bands, norm_mode="statistical")
+    restored.load_state_dict(fitted.state_dict())
+    assert restored._statistically_initialized is True
+    assert torch.equal(restored.selected_indices, fitted.selected_indices)

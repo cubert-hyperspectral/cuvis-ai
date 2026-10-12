@@ -1,10 +1,12 @@
-"""Guard the built-in manifest's data-node port sets against the live classes.
+"""Guard the built-in manifest's port declarations against the live classes.
 
 ``cuvis_ai_builtin.yaml`` is hand-maintained, and the docs catalog skips it in
 favour of live introspection, so nothing else checks it against the classes it
 mirrors. This asserts the anomaly data nodes' declared ports match the live
 ``INPUT_SPECS`` / ``OUTPUT_SPECS`` key sets, catching a manifest that drifts
-behind a class change (e.g. a newly added port).
+behind a class change (e.g. a newly added port), and that every channel
+selector's port names and descriptions equal the live ``PortSpec`` entries,
+catching a description that changes on a base class without the manifest.
 """
 
 from __future__ import annotations
@@ -50,3 +52,33 @@ def test_anomaly_data_node_ports_match_live_class(class_name: str) -> None:
     )
     # class_mask is the port this guard was added for; assert it explicitly.
     assert "class_mask" in cap.input_specs and "class_mask" in cap.output_specs
+
+
+def _channel_selector_class_names() -> list[str]:
+    manifest = load_plugin_manifest(BUILTIN_MANIFEST_PATH)
+    prefix = "cuvis_ai.node.channel_selector."
+    return [cap.class_name for cap in manifest.capabilities if cap.class_name.startswith(prefix)]
+
+
+@pytest.mark.parametrize(
+    "class_name", _channel_selector_class_names(), ids=lambda name: name.rsplit(".", 1)[1]
+)
+def test_channel_selector_ports_match_live_class(class_name: str) -> None:
+    """Port names and descriptions of every channel selector equal the live PortSpecs.
+
+    The selectors inherit most ports from ``ChannelSelectorBase``; a description that
+    changes on the base reaches every subclass that does not override it, so the manifest
+    text of each entry is checked, not only the base's.
+    """
+    from cuvis_ai.node import channel_selector
+
+    cls = getattr(channel_selector, class_name.rsplit(".", 1)[1])
+    cap = _manifest_capability(class_name)
+
+    for side, live in (("input_specs", cls.INPUT_SPECS), ("output_specs", cls.OUTPUT_SPECS)):
+        declared = getattr(cap, side)
+        assert set(declared) == set(live), f"{class_name}: manifest {side} port names out of sync"
+        for port, spec in declared.items():
+            assert spec.description == live[port].description, (
+                f"{class_name}.{port}: manifest description out of sync with the live PortSpec"
+            )

@@ -490,6 +490,25 @@ class ChannelSelectorBase(Node):
                 warm = max(self.running_warmup_frames, self.freeze_running_bounds_after_frames or 0)
                 self._norm_frame_count.fill_(warm)
 
+    def load_state_dict(self, state_dict, strict: bool = True, assign: bool = False) -> Any:
+        """Load the state dict; statistical bounds that are still NaN do not count as fitted.
+
+        ``Node.load_state_dict`` marks any node with a non-empty state dict as fitted. A
+        statistical selector saved before its fit (or with ``normalize_output=False``, which
+        schedules none) carries NaN bounds and would render NaN; it renders per frame and
+        keeps its fit scheduled instead. Subclasses with their own initialization (the
+        supervised selectors fit their band choice, not the bounds) keep the inferred state.
+        """
+        result = super().load_state_dict(state_dict, strict=strict, assign=assign)
+        if (
+            self.norm_mode == NormMode.STATISTICAL
+            and type(self).statistical_initialization
+            is ChannelSelectorBase.statistical_initialization
+            and bool(torch.isnan(self.running_min).any())
+        ):
+            self._statistically_initialized = False
+        return result
+
     # ------------------------------------------------------------------
     # Subclass hooks
     # ------------------------------------------------------------------
@@ -564,6 +583,16 @@ class ChannelSelectorBase(Node):
         return self._normalize_rgb(rgb)
 
 
+# The rgb_image spec of the selectors that render their own output (FastRGB, the index
+# selectors): always in 0-1, never through the base normalisation, so the base's
+# "or the raw composed bands when normalize_output=False" does not apply to them.
+_UNIT_RANGE_RGB_IMAGE_SPEC = PortSpec(
+    dtype=torch.float32,
+    shape=(-1, -1, -1, 3),
+    description="Composed RGB image [B, H, W, 3] in 0-1 range.",
+)
+
+
 class _NormalizedDifferenceIndexBase(ChannelSelectorBase, ABC):
     """Abstract base for two-band normalized-difference indices.
 
@@ -579,6 +608,7 @@ class _NormalizedDifferenceIndexBase(ChannelSelectorBase, ABC):
 
     OUTPUT_SPECS = {
         **ChannelSelectorBase.OUTPUT_SPECS,
+        "rgb_image": _UNIT_RANGE_RGB_IMAGE_SPEC,
         "index_image": PortSpec(
             dtype=torch.float32,
             shape=(-1, -1, -1, 1),
@@ -1103,6 +1133,7 @@ class _VegetationIndexBase(ChannelSelectorBase, ABC):
 
     OUTPUT_SPECS = {
         **ChannelSelectorBase.OUTPUT_SPECS,
+        "rgb_image": _UNIT_RANGE_RGB_IMAGE_SPEC,
         "index_image": PortSpec(
             dtype=torch.float32,
             shape=(-1, -1, -1, 1),
@@ -1894,6 +1925,8 @@ class FastRGBSelector(ChannelSelectorBase):
 
     _REFLECTANCE_100 = 10000.0
 
+    OUTPUT_SPECS = {**ChannelSelectorBase.OUTPUT_SPECS, "rgb_image": _UNIT_RANGE_RGB_IMAGE_SPEC}
+
     # FastRGB has its own scaling path and never uses the base normalisation.
     _USES_BASE_NORMALIZATION = False
     _IGNORED_NORMALIZATION_DEFAULTS = {"norm_mode": NormMode.PER_FRAME, "apply_gamma": False}
@@ -2455,7 +2488,7 @@ class CIETristimulusRGBSelector(ChannelSelectorBase):
         self.running_max.fill_(float("nan"))
         self._norm_frame_count.zero_()
         self._discarded_fitted_bounds = True
-        if self.norm_mode == NormMode.PER_FRAME:
+        if self.norm_mode == NormMode.PER_FRAME or not self.normalize_output:
             return
         consequence = (
             "re-warming over the next frames"
