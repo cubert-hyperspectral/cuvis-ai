@@ -409,11 +409,16 @@ class ChannelSelectorBase(Node):
         torch.Tensor
             Normalized (and gamma-corrected if ``apply_gamma``) RGB [B, H, W, 3], or
             ``raw_rgb`` unchanged when ``normalize_output`` is False (no bounds update,
-            no frame count, no gamma).
+            no frame count, no gamma). Statistical bounds that are not usable (see
+            ``_has_statistical_bounds``) render per frame.
         """
         if not self.normalize_output:
             return raw_rgb
-        if self.norm_mode == NormMode.STATISTICAL and self._statistically_initialized:
+        if (
+            self.norm_mode == NormMode.STATISTICAL
+            and self._statistically_initialized
+            and self._has_statistical_bounds()
+        ):
             result = self._apply_accumulated_stats(raw_rgb)
         elif self.norm_mode == NormMode.RUNNING:
             result = self._running_normalize(raw_rgb)
@@ -440,6 +445,36 @@ class ChannelSelectorBase(Node):
     def _apply_accumulated_stats(self, rgb: torch.Tensor) -> torch.Tensor:
         """Normalize using accumulated per-channel bounds."""
         return normalize_with_bounds(rgb, self.running_min, self.running_max, 1e-8)
+
+    def _has_statistical_bounds(self) -> bool:
+        """Whether the fitted bounds can scale a frame: both buffers finite in every channel.
+
+        NaN bounds (never fitted, or saved by a fit that skipped them), a finite minimum
+        beside a NaN maximum (a damaged checkpoint) and infinite bounds all render NaN
+        through ``normalize_with_bounds``; one predicate decides for the render branch,
+        the load guard and the supervised selectors' load warning.
+        """
+        return bool(
+            torch.isfinite(self.running_min).all() and torch.isfinite(self.running_max).all()
+        )
+
+    def _accumulate_statistical_bounds(self, raw_rgb: torch.Tensor) -> None:
+        """Fold one batch's percentile bounds into ``running_min`` / ``running_max``.
+
+        The first batch, or any batch that finds the current pair unusable (see
+        ``_has_statistical_bounds``), replaces the pair; later batches widen it (min of
+        lows, max of highs). ``statistical_initialization`` and the supervised selectors'
+        fit share this arithmetic.
+        """
+        flat = raw_rgb.reshape(-1, 3).float()  # quantile() requires float/double
+        batch_lo = torch.quantile(flat, self._NORM_QUANTILE_LOW, dim=0).to(self.running_min.device)
+        batch_hi = torch.quantile(flat, self._NORM_QUANTILE_HIGH, dim=0).to(self.running_max.device)
+        if not self._has_statistical_bounds():
+            self.running_min.copy_(batch_lo)
+            self.running_max.copy_(batch_hi)
+        else:
+            torch.minimum(self.running_min, batch_lo, out=self.running_min)
+            torch.maximum(self.running_max, batch_hi, out=self.running_max)
 
     @staticmethod
     def _srgb_gamma(linear: torch.Tensor) -> torch.Tensor:
@@ -507,20 +542,21 @@ class ChannelSelectorBase(Node):
                 self._norm_frame_count.fill_(warm)
 
     def load_state_dict(self, state_dict, strict: bool = True, assign: bool = False) -> Any:
-        """Load the state dict; statistical bounds that are still NaN do not count as fitted.
+        """Load the state dict; statistical bounds that are not usable do not count as fitted.
 
         ``Node.load_state_dict`` marks any node with a non-empty state dict as fitted. A
         statistical selector saved before its fit (or with ``normalize_output=False``, which
         schedules none) carries NaN bounds and would render NaN; it renders per frame and
-        keeps its fit scheduled instead. Subclasses with their own initialization (the
-        supervised selectors fit their band choice, not the bounds) keep the inferred state.
+        keeps its fit scheduled instead. Subclasses with their own initialization keep the
+        inferred state: the supervised selectors keep their learned band choice, see
+        ``SupervisedSelectorBase.load_state_dict`` for their bounds.
         """
         result = super().load_state_dict(state_dict, strict=strict, assign=assign)
         if (
             self.norm_mode == NormMode.STATISTICAL
             and type(self).statistical_initialization
             is ChannelSelectorBase.statistical_initialization
-            and bool(torch.isnan(self.running_min).any())
+            and not self._has_statistical_bounds()
         ):
             self._statistically_initialized = False
         return result
@@ -556,20 +592,13 @@ class ChannelSelectorBase(Node):
         """Compute global percentile bounds across the entire dataset.
 
         Uses ``_compute_raw_rgb()`` to convert each batch, then accumulates
-        per-channel percentile bounds (min-of-lows, max-of-highs).
+        per-channel percentile bounds (min-of-lows, max-of-highs) through
+        ``_accumulate_statistical_bounds``.
         """
         for batch_data in input_stream:
-            raw_rgb = self._compute_raw_rgb(batch_data["cube"], batch_data["wavelengths"])
-            flat = raw_rgb.reshape(-1, 3).float()  # quantile() requires float/double
-            frame_lo = torch.quantile(flat, self._NORM_QUANTILE_LOW, dim=0)
-            frame_hi = torch.quantile(flat, self._NORM_QUANTILE_HIGH, dim=0)
-
-            if torch.isnan(self.running_min).any():
-                self.running_min.copy_(frame_lo)
-                self.running_max.copy_(frame_hi)
-            else:
-                torch.minimum(self.running_min, frame_lo, out=self.running_min)
-                torch.maximum(self.running_max, frame_hi, out=self.running_max)
+            self._accumulate_statistical_bounds(
+                self._compute_raw_rgb(batch_data["cube"], batch_data["wavelengths"])
+            )
 
         if torch.isnan(self.running_min).any():
             raise RuntimeError(f"{type(self).__name__}.statistical_initialization received no data")
@@ -671,24 +700,46 @@ class _NormalizedDifferenceIndexBase(ChannelSelectorBase, ABC):
 
     @classmethod
     def _pop_legacy_operand_names(
-        cls, kwargs: dict[str, Any], primary_nm: float, secondary_nm: float
+        cls,
+        kwargs: dict[str, Any],
+        primary: tuple[str, float],
+        secondary: tuple[str, float],
     ) -> None:
         """Drop ``primary_nm`` and ``secondary_nm`` from a shipped selector's ``kwargs``.
 
         cuvis-ai up to 0.18.2 saved the two derived names beside the selector's own
         wavelength names (``nir_nm``, ``red_nm``, ...), so a pipeline written then carries
-        both. The own names win: a saved value that differs is reported once, ``None`` is
-        dropped silently.
+        both. ``primary`` and ``secondary`` are the own ``(name, value)`` pairs, and the own
+        value wins: a value that differs is reported once, ``None`` is dropped silently, a
+        value that is not a number raises ``ValueError``. A subclass that declares the
+        derived name as its own argument and passes a differing value through is refused
+        with ``TypeError``, since the derived value would silently replace the declared one.
         """
-        for legacy, own in (("primary_nm", primary_nm), ("secondary_nm", secondary_nm)):
+        declared = inspect.signature(cls.__init__).parameters
+        for legacy, (own_name, own_value) in (("primary_nm", primary), ("secondary_nm", secondary)):
             if legacy not in kwargs:
                 continue
             value = kwargs.pop(legacy)
-            if value is not None and float(value) != float(own):
-                logger.warning(
-                    f"{cls.__name__} ignores the saved {legacy}={value!r} and uses its own "
-                    f"wavelength {float(own)} nm."
+            if value is None:
+                continue
+            try:
+                differs = float(value) != float(own_value)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"{cls.__name__}: {legacy} must be a number or null, got {value!r}"
+                ) from exc
+            if not differs:
+                continue
+            if legacy in declared:
+                raise TypeError(
+                    f"{cls.__name__} passes {legacy}={value!r}, but its base derives {legacy} "
+                    f"from {own_name}={float(own_value)}; pass {own_name} instead"
                 )
+            logger.warning(
+                f"{cls.__name__} ignores {legacy}={value!r} and uses {own_name}="
+                f"{float(own_value)} nm (cuvis-ai up to 0.18.2 saved the derived name beside "
+                "its own)."
+            )
 
     @property
     @abstractmethod
@@ -800,7 +851,9 @@ class NDVISelector(_NormalizedDifferenceIndexBase):
     ) -> None:
         if colormap_max <= colormap_min:
             raise ValueError("colormap_max must be greater than colormap_min")
-        self._pop_legacy_operand_names(kwargs, nir_nm, red_nm)
+        self._pop_legacy_operand_names(
+            kwargs, primary=("nir_nm", nir_nm), secondary=("red_nm", red_nm)
+        )
         super().__init__(
             primary_nm=nir_nm,
             secondary_nm=red_nm,
@@ -943,7 +996,9 @@ class NDWISelector(_ColormappedNormalizedDifferenceSelector):
         eps: float = 1.0e-6,
         **kwargs: Any,
     ) -> None:
-        self._pop_legacy_operand_names(kwargs, green_nm, nir_nm)
+        self._pop_legacy_operand_names(
+            kwargs, primary=("green_nm", green_nm), secondary=("nir_nm", nir_nm)
+        )
         super().__init__(
             primary_nm=green_nm,
             secondary_nm=nir_nm,
@@ -996,7 +1051,9 @@ class NBRSelector(_ColormappedNormalizedDifferenceSelector):
         eps: float = 1.0e-6,
         **kwargs: Any,
     ) -> None:
-        self._pop_legacy_operand_names(kwargs, nir_nm, swir_nm)
+        self._pop_legacy_operand_names(
+            kwargs, primary=("nir_nm", nir_nm), secondary=("swir_nm", swir_nm)
+        )
         super().__init__(
             primary_nm=nir_nm,
             secondary_nm=swir_nm,
@@ -1049,7 +1106,9 @@ class GNDVISelector(_ColormappedNormalizedDifferenceSelector):
         eps: float = 1.0e-6,
         **kwargs: Any,
     ) -> None:
-        self._pop_legacy_operand_names(kwargs, nir_nm, green_nm)
+        self._pop_legacy_operand_names(
+            kwargs, primary=("nir_nm", nir_nm), secondary=("green_nm", green_nm)
+        )
         super().__init__(
             primary_nm=nir_nm,
             secondary_nm=green_nm,
@@ -1103,7 +1162,9 @@ class NDRESelector(_ColormappedNormalizedDifferenceSelector):
         eps: float = 1.0e-6,
         **kwargs: Any,
     ) -> None:
-        self._pop_legacy_operand_names(kwargs, nir_nm, red_edge_nm)
+        self._pop_legacy_operand_names(
+            kwargs, primary=("nir_nm", nir_nm), secondary=("red_edge_nm", red_edge_nm)
+        )
         super().__init__(
             primary_nm=nir_nm,
             secondary_nm=red_edge_nm,
@@ -1810,9 +1871,10 @@ class RangeAverageFalseRGBSelector(ChannelSelectorBase):
         Inclusive wavelength range for green channel in nanometers.
     blue_range : tuple[float, float]
         Inclusive wavelength range for blue channel in nanometers.
-    normalize_output : bool
-        The ``ChannelSelectorBase`` switch (default ``True``); ``False`` returns
-        the three averaged bands without rescaling or gamma.
+    **kwargs : Any
+        ``ChannelSelectorBase`` settings (``norm_mode``, ``apply_gamma``, ...);
+        ``normalize_output=False`` returns the three averaged bands without
+        rescaling or gamma.
     """
 
     _category = NodeCategory.TRANSFORM
@@ -2108,9 +2170,10 @@ class HighContrastSelector(ChannelSelectorBase):
         Default: ((440, 500), (500, 580), (610, 700)) for visible spectrum.
     alpha : float
         Weight for Laplacian energy term. Default: 0.1
-    normalize_output : bool
-        The ``ChannelSelectorBase`` switch (default ``True``); ``False`` returns
-        the three selected bands without rescaling or gamma.
+    **kwargs : Any
+        ``ChannelSelectorBase`` settings (``norm_mode``, ``apply_gamma``, ...);
+        ``normalize_output=False`` returns the three selected bands without
+        rescaling or gamma.
     """
 
     _category = NodeCategory.TRANSFORM
@@ -2214,10 +2277,11 @@ class CIRSelector(ChannelSelectorBase):
         Red wavelength in nm. Default: 670.0
     green_nm : float
         Green wavelength in nm. Default: 560.0
-    normalize_output : bool
-        The ``ChannelSelectorBase`` switch (default ``True``). ``False`` returns the
-        three raw bands without rescaling or gamma, for a cube an upstream node (for
-        example ``MinMaxNormalizer``) has already scaled.
+    **kwargs : Any
+        ``ChannelSelectorBase`` settings (``norm_mode``, ``apply_gamma``, ...);
+        ``normalize_output=False`` returns the three raw bands without rescaling or
+        gamma, for a cube an upstream node (for example ``MinMaxNormalizer``) has
+        already scaled.
     """
 
     _category = NodeCategory.TRANSFORM
@@ -2350,11 +2414,10 @@ class CIETristimulusRGBSelector(ChannelSelectorBase):
     ----------
     illuminant : {"D65", "E"}
         Illuminant the reflectance is rendered under. Default: "D65".
-    normalize_output : bool
-        The ``ChannelSelectorBase`` switch (default ``True``); ``False`` returns
-        the clamped linear sRGB as is, without rescaling or gamma.
     **kwargs : Any
-        Passed to ``ChannelSelectorBase`` (``norm_mode``, ``apply_gamma``, ...).
+        Passed to ``ChannelSelectorBase`` (``norm_mode``, ``apply_gamma``, ...);
+        ``normalize_output=False`` returns the clamped linear sRGB as is, without
+        rescaling or gamma.
     """
 
     _category = NodeCategory.TRANSFORM
@@ -2707,9 +2770,10 @@ class CameraEmulationFalseRGBSelector(ChannelSelectorBase):
         Green channel Gaussian sigma in nm. Default: 35.0
     b_sigma : float
         Blue channel Gaussian sigma in nm. Default: 30.0
-    normalize_output : bool
-        The ``ChannelSelectorBase`` switch (default ``True``); ``False`` returns
-        the three weighted sums without rescaling or gamma.
+    **kwargs : Any
+        ``ChannelSelectorBase`` settings (``norm_mode``, ``apply_gamma``, ...);
+        ``normalize_output=False`` returns the three weighted sums without
+        rescaling or gamma.
     """
 
     _category = NodeCategory.TRANSFORM
@@ -3062,6 +3126,11 @@ class SupervisedSelectorBase(ChannelSelectorBase):
 
     The mask is assumed to be binary (0/1), where 1 denotes the positive
     class (e.g. stone) and 0 denotes the negative class (e.g. lentil/background).
+
+    In ``statistical`` mode the fit also fixes the display bounds of the three chosen bands
+    (the percentiles over the training cubes, reset on every fit); a checkpoint written by
+    cuvis-ai up to 0.18.3 carries no bounds and renders per frame, with one warning at load,
+    until the node is fitted again.
     """
 
     _category = NodeCategory.MODEL
@@ -3244,6 +3313,43 @@ class SupervisedSelectorBase(ChannelSelectorBase):
         self._store_scores_and_indices(
             band_scores, fisher_scores, auc_scores, mi_scores, selected_indices
         )
+        if self.norm_mode == NormMode.STATISTICAL and self.normalize_output:
+            # The band choice may differ from the last fit, so the bounds start over. The
+            # training cubes are already in memory: one more pass over them, not over the
+            # stream.
+            self.running_min.fill_(float("nan"))
+            self.running_max.fill_(float("nan"))
+            for cube in cubes:
+                self._accumulate_statistical_bounds(
+                    self._compute_raw_rgb(torch.from_numpy(cube)[None], wavelengths)
+                )
+
+    def _compute_raw_rgb(self, cube: torch.Tensor, wavelengths: Any) -> torch.Tensor:  # noqa: ARG002
+        """The three learned bands of ``cube`` stacked as [B, H, W, 3]; needs a fitted selection."""
+        if not self._statistically_initialized or self.selected_indices.numel() != 3:
+            raise RuntimeError(f"{type(self).__name__} not fitted")
+        return torch.stack([cube[..., idx] for idx in self.selected_indices.tolist()], dim=-1)
+
+    def load_state_dict(self, state_dict, strict: bool = True, assign: bool = False) -> Any:
+        """Load the state dict; a statistical checkpoint without usable bounds says so once.
+
+        The band choice stays fitted (the base guard skips this class on purpose) and the
+        node renders per frame until it is fitted again, which fills the bounds.
+        """
+        result = super().load_state_dict(state_dict, strict=strict, assign=assign)
+        if (
+            self.norm_mode == NormMode.STATISTICAL
+            and self.normalize_output
+            and self._statistically_initialized
+            and not self._has_statistical_bounds()
+        ):
+            logger.warning(
+                f"{type(self).__name__}: the checkpoint carries no usable normalisation bounds "
+                "(the band choice was fitted without them: cuvis-ai up to 0.18.3, or "
+                "normalize_output=False at fit time); rendering per frame until the node is "
+                "fitted again."
+            )
+        return result
 
     def forward(
         self,
@@ -3278,12 +3384,9 @@ class SupervisedSelectorBase(ChannelSelectorBase):
         RuntimeError
             If the node has not been statistically initialized.
         """
-        if not self._statistically_initialized or self.selected_indices.numel() != 3:
-            raise RuntimeError(f"{type(self).__name__} not fitted")
-
         wavelengths_np = np.asarray(wavelengths, dtype=np.float32)
+        rgb = self._normalize_rgb(self._compute_raw_rgb(cube, wavelengths_np))
         indices = self.selected_indices.tolist()
-        rgb = self._compose_rgb(cube, indices)
 
         band_info = {
             "strategy": self._strategy_name,
@@ -3354,7 +3457,8 @@ class SupervisedCIRSelector(_SupervisedWindowSelectorBase):
     The selector chooses one band per window using a supervised score
     (Fisher + AUC + MI) with an mRMR-style redundancy penalty.
     ``normalize_output=False`` returns the three learned bands raw, see
-    ``ChannelSelectorBase``.
+    ``ChannelSelectorBase``. In ``statistical`` mode the fit also fixes the display
+    bounds of the chosen bands, see ``SupervisedSelectorBase``.
     """
 
     _category = NodeCategory.MODEL
@@ -3396,7 +3500,8 @@ class SupervisedWindowedSelector(_SupervisedWindowSelectorBase):
         - Red: 610-700 nm
 
     ``normalize_output=False`` returns the three learned bands raw, see
-    ``ChannelSelectorBase``.
+    ``ChannelSelectorBase``. In ``statistical`` mode the fit also fixes the display
+    bounds of the chosen bands, see ``SupervisedSelectorBase``.
     """
 
     _category = NodeCategory.MODEL
@@ -3432,7 +3537,9 @@ class SupervisedFullSpectrumSelector(SupervisedSelectorBase):
 
     Picks the top-3 discriminative bands globally with an mRMR-style
     redundancy penalty applied over the full spectrum. ``normalize_output=False``
-    returns the three learned bands raw, see ``ChannelSelectorBase``.
+    returns the three learned bands raw, see ``ChannelSelectorBase``. In
+    ``statistical`` mode the fit also fixes the display bounds of the chosen bands,
+    see ``SupervisedSelectorBase``.
     """
 
     _category = NodeCategory.MODEL
