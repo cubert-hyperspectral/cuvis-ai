@@ -3,7 +3,7 @@
 Seven selector paths go through the base normalisation (FixedWavelength, RangeAverage,
 HighContrast, CIR, CIETristimulus, CameraEmulation and the supervised selectors); the switch
 turns it off for all of them: the raw composed bands come back, the running bounds and the
-frame counter do not move, no gamma is applied, and no statistical fit pass is scheduled.
+frame counter do not move, no gamma is applied, and no fit pass is scheduled for the bounds.
 FastRGB and the index selectors render their own output: for them the five base
 normalisation hparams are neither saved nor shown, and a value that differs from the class
 default warns once. The normalised-difference selectors rebuild from their own saved hparams.

@@ -157,9 +157,12 @@ class ChannelSelectorBase(Node):
         Apply the normalisation above to the composed bands. Default ``True``.
         With ``False`` the raw composed bands come back as ``rgb_image`` (in the
         cube's own range), the running bounds and the frame counter do not move,
-        no gamma is applied and no statistical fit pass is scheduled, so
+        no gamma is applied and no fit pass is scheduled for the bounds (the
+        supervised selectors still run their fit to pick the bands), so
         ``norm_mode``, ``apply_gamma``, ``running_warmup_frames`` and
-        ``freeze_running_bounds_after_frames`` have no effect. Use it when an
+        ``freeze_running_bounds_after_frames`` no longer change the output; the
+        existing constructor validation still applies (``FixedWavelengthSelector``
+        still rejects ``running`` and ``statistical`` for n != 3). Use it when an
         upstream node (for example ``MinMaxNormalizer``) already scaled the cube
         and a second rescaling is unwanted; ``band_info["normalized_output"]``
         reports the value. Anything but a bool raises ``ValueError`` on the
@@ -180,7 +183,8 @@ class ChannelSelectorBase(Node):
             Wavelength array in nanometers.
     OUTPUT_SPECS
         ``rgb_image`` : float32, shape (-1, -1, -1, 3)
-            Composed RGB image in BHWC format (0-1 range). Subclasses that emit
+            Composed RGB image in BHWC format (0-1 range, or the raw composed
+            bands when ``normalize_output=False``). Subclasses that emit
             a different channel count (e.g. :class:`FixedWavelengthSelector`
             with ``n != 3``) must override ``OUTPUT_SPECS`` to widen the channel
             dimension; the base class keeps the tight 3-channel contract so
@@ -588,7 +592,8 @@ class ChannelSelectorBase(Node):
         Returns
         -------
         torch.Tensor
-            RGB image [B, H, W, 3] in 0-1 range, on the same device as input.
+            RGB image [B, H, W, 3] in 0-1 range (the raw composed bands when
+            ``normalize_output`` is False), on the same device as input.
         """
         bands = [cube[..., idx] for idx in indices]  # each [B, H, W]
         rgb = torch.stack(bands, dim=-1)  # [B, H, W, 3]
@@ -1805,6 +1810,9 @@ class RangeAverageFalseRGBSelector(ChannelSelectorBase):
         Inclusive wavelength range for green channel in nanometers.
     blue_range : tuple[float, float]
         Inclusive wavelength range for blue channel in nanometers.
+    normalize_output : bool
+        The ``ChannelSelectorBase`` switch (default ``True``); ``False`` returns
+        the three averaged bands without rescaling or gamma.
     """
 
     _category = NodeCategory.TRANSFORM
@@ -2100,6 +2108,9 @@ class HighContrastSelector(ChannelSelectorBase):
         Default: ((440, 500), (500, 580), (610, 700)) for visible spectrum.
     alpha : float
         Weight for Laplacian energy term. Default: 0.1
+    normalize_output : bool
+        The ``ChannelSelectorBase`` switch (default ``True``); ``False`` returns
+        the three selected bands without rescaling or gamma.
     """
 
     _category = NodeCategory.TRANSFORM
@@ -2319,11 +2330,13 @@ class CIETristimulusRGBSelector(ChannelSelectorBase):
     illuminant than the configured one (every checkpoint written before the
     illuminant option existed was fitted under E) drops them on load with a
     warning: in ``running`` mode the node warms up again, in ``statistical``
-    mode it renders per frame until it is re-fitted.
+    mode it renders per frame until it is re-fitted. With
+    ``normalize_output=False`` the bounds play no part and the reset is silent.
 
     The rendered linear sRGB is clamped at 0, then normalised to [0, 1] per
     channel and optionally gamma encoded by ``ChannelSelectorBase`` (see
-    ``norm_mode`` and ``apply_gamma``). Because that normalisation is per
+    ``norm_mode`` and ``apply_gamma``); with ``normalize_output=False`` the
+    clamped linear sRGB is returned as is. Because that normalisation is per
     channel, the absolute white scale only shows in ``_compute_raw_rgb``, and
     the per channel bounds act as a scene dependent white balance: a white or
     grey pixel in ``rgb_image`` is neutral only when the channel bounds happen
@@ -2337,6 +2350,9 @@ class CIETristimulusRGBSelector(ChannelSelectorBase):
     ----------
     illuminant : {"D65", "E"}
         Illuminant the reflectance is rendered under. Default: "D65".
+    normalize_output : bool
+        The ``ChannelSelectorBase`` switch (default ``True``); ``False`` returns
+        the clamped linear sRGB as is, without rescaling or gamma.
     **kwargs : Any
         Passed to ``ChannelSelectorBase`` (``norm_mode``, ``apply_gamma``, ...).
     """
@@ -2691,6 +2707,9 @@ class CameraEmulationFalseRGBSelector(ChannelSelectorBase):
         Green channel Gaussian sigma in nm. Default: 35.0
     b_sigma : float
         Blue channel Gaussian sigma in nm. Default: 30.0
+    normalize_output : bool
+        The ``ChannelSelectorBase`` switch (default ``True``); ``False`` returns
+        the three weighted sums without rescaling or gamma.
     """
 
     _category = NodeCategory.TRANSFORM
@@ -3334,6 +3353,8 @@ class SupervisedCIRSelector(_SupervisedWindowSelectorBase):
 
     The selector chooses one band per window using a supervised score
     (Fisher + AUC + MI) with an mRMR-style redundancy penalty.
+    ``normalize_output=False`` returns the three learned bands raw, see
+    ``ChannelSelectorBase``.
     """
 
     _category = NodeCategory.MODEL
@@ -3373,6 +3394,9 @@ class SupervisedWindowedSelector(_SupervisedWindowSelectorBase):
         - Blue: 440-500 nm
         - Green: 500-580 nm
         - Red: 610-700 nm
+
+    ``normalize_output=False`` returns the three learned bands raw, see
+    ``ChannelSelectorBase``.
     """
 
     _category = NodeCategory.MODEL
@@ -3407,7 +3431,8 @@ class SupervisedFullSpectrumSelector(SupervisedSelectorBase):
     """Supervised selection without window constraints.
 
     Picks the top-3 discriminative bands globally with an mRMR-style
-    redundancy penalty applied over the full spectrum.
+    redundancy penalty applied over the full spectrum. ``normalize_output=False``
+    returns the three learned bands raw, see ``ChannelSelectorBase``.
     """
 
     _category = NodeCategory.MODEL
