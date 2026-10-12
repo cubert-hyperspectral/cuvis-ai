@@ -47,6 +47,7 @@ All channel selectors share a common RGB normalization strategy in
 
 from __future__ import annotations
 
+import inspect
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import Any, Literal
@@ -113,6 +114,16 @@ def _render_hsv_index(
     return render_scalar_hsv_colormap(normalized)
 
 
+# The five ChannelSelectorBase.__init__ hparams that drive the base normalisation.
+_BASE_NORMALIZATION_KEYS = (
+    "norm_mode",
+    "apply_gamma",
+    "freeze_running_bounds_after_frames",
+    "running_warmup_frames",
+    "normalize_output",
+)
+
+
 class ChannelSelectorBase(Node):
     """Base class for hyperspectral band selection strategies.
 
@@ -142,6 +153,26 @@ class ChannelSelectorBase(Node):
         node's weights, so a checkpoint restored for inference does not warm
         up again or move its bounds; checkpoints written before the counter
         was saved are treated as warm and frozen on load.
+    normalize_output : bool
+        Apply the normalisation above to the composed bands. Default ``True``.
+        With ``False`` the raw composed bands come back as ``rgb_image`` (in the
+        cube's own range), the running bounds and the frame counter do not move,
+        no gamma is applied and no fit pass is scheduled for the bounds (the
+        supervised selectors still run their fit to pick the bands), so
+        ``norm_mode``, ``apply_gamma``, ``running_warmup_frames`` and
+        ``freeze_running_bounds_after_frames`` no longer change the output; the
+        existing constructor validation still applies (``FixedWavelengthSelector``
+        still rejects ``running`` and ``statistical`` for n != 3). Use it when an
+        upstream node (for example ``MinMaxNormalizer``) already scaled the cube
+        and a second rescaling is unwanted; ``band_info["normalized_output"]``
+        reports the value. Anything but a bool raises ``ValueError`` on the
+        selectors that use this normalisation.
+
+        Selectors that render their own output (``FastRGBSelector``, the
+        normalised-difference and the vegetation index selectors) never use this
+        normalisation: for them the five hparams above are neither applied, saved
+        nor shown, and a passed value that differs from the class default is
+        dropped with one warning.
 
     Ports
     -----
@@ -152,7 +183,8 @@ class ChannelSelectorBase(Node):
             Wavelength array in nanometers.
     OUTPUT_SPECS
         ``rgb_image`` : float32, shape (-1, -1, -1, 3)
-            Composed RGB image in BHWC format (0-1 range). Subclasses that emit
+            Composed RGB image in BHWC format (0-1 range, or the raw composed
+            bands when ``normalize_output=False``). Subclasses that emit
             a different channel count (e.g. :class:`FixedWavelengthSelector`
             with ``n != 3``) must override ``OUTPUT_SPECS`` to widen the channel
             dimension; the base class keeps the tight 3-channel contract so
@@ -185,7 +217,8 @@ class ChannelSelectorBase(Node):
         "rgb_image": PortSpec(
             dtype=torch.float32,
             shape=(-1, -1, -1, 3),
-            description="Composed RGB image [B, H, W, 3] in 0-1 range.",
+            description="Composed RGB image [B, H, W, 3] in 0-1 range, or the raw composed "
+            "bands when normalize_output=False.",
         ),
         "band_info": PortSpec(
             dtype=dict,
@@ -200,12 +233,20 @@ class ChannelSelectorBase(Node):
     _NORM_QUANTILE_HIGH = 0.995  # 99.5th percentile
     _WARMUP_FRAMES = 10  # per-frame normalization during warmup
 
+    # Subclasses that render their own output (FastRGB, the index selectors) set this to
+    # False: the five normalisation hparams of __init__ are then neither applied, saved nor
+    # shown, and a passed value that differs from the class default (the signature defaults
+    # overridden by _IGNORED_NORMALIZATION_DEFAULTS) is dropped with one warning.
+    _USES_BASE_NORMALIZATION: bool = True
+    _IGNORED_NORMALIZATION_DEFAULTS: dict[str, Any] = {}
+
     def __init__(
         self,
         norm_mode: str | NormMode = NormMode.RUNNING,
         apply_gamma: bool = True,
         freeze_running_bounds_after_frames: int | None = 20,
         running_warmup_frames: int = _WARMUP_FRAMES,
+        normalize_output: bool = True,
         **kwargs: Any,
     ) -> None:
         if freeze_running_bounds_after_frames is not None:
@@ -223,17 +264,37 @@ class ChannelSelectorBase(Node):
             or running_warmup_frames < 0
         ):
             raise ValueError("running_warmup_frames must be an integer >= 0")
-        super().__init__(
-            norm_mode=str(norm_mode) if isinstance(norm_mode, NormMode) else norm_mode,
-            apply_gamma=apply_gamma,
-            freeze_running_bounds_after_frames=freeze_running_bounds_after_frames,
-            running_warmup_frames=running_warmup_frames,
-            **kwargs,
-        )
-        self.norm_mode = NormMode(norm_mode)
-        self.apply_gamma = apply_gamma
-        self.freeze_running_bounds_after_frames = freeze_running_bounds_after_frames
-        self.running_warmup_frames = running_warmup_frames
+        if not isinstance(normalize_output, bool):
+            raise ValueError("normalize_output must be a bool")
+        settings: dict[str, Any] = {
+            "norm_mode": NormMode(norm_mode),
+            "apply_gamma": apply_gamma,
+            "freeze_running_bounds_after_frames": freeze_running_bounds_after_frames,
+            "running_warmup_frames": running_warmup_frames,
+            "normalize_output": normalize_output,
+        }
+        if type(self)._USES_BASE_NORMALIZATION:
+            super().__init__(
+                norm_mode=str(norm_mode) if isinstance(norm_mode, NormMode) else norm_mode,
+                apply_gamma=apply_gamma,
+                freeze_running_bounds_after_frames=freeze_running_bounds_after_frames,
+                running_warmup_frames=running_warmup_frames,
+                normalize_output=normalize_output,
+                **kwargs,
+            )
+        else:
+            # The subclass popped the five keys from its kwargs before calling here (see
+            # _pop_ignored_normalization_settings), so nothing reaches Node: the keys stay
+            # out of the saved hparams and the parameter panel, and the class defaults apply.
+            settings = type(self)._ignored_normalization_defaults()
+            super().__init__(**kwargs)
+        self.norm_mode: NormMode = settings["norm_mode"]
+        self.apply_gamma: bool = settings["apply_gamma"]
+        self.freeze_running_bounds_after_frames: int | None = settings[
+            "freeze_running_bounds_after_frames"
+        ]
+        self.running_warmup_frames: int = settings["running_warmup_frames"]
+        self.normalize_output: bool = settings["normalize_output"]
 
         # Per-channel [3] running bounds for normalization. The frame counter is a
         # buffer too, so warmup and freeze state survive a checkpoint reload: a restored
@@ -244,16 +305,57 @@ class ChannelSelectorBase(Node):
         self.register_buffer("running_max", torch.full((3,), float("nan")))
         self.register_buffer("_norm_frame_count", torch.zeros((), dtype=torch.long))
 
-        # Only STATISTICAL mode needs the StatisticalTrainer pass; without an override,
+        # Only STATISTICAL mode with the normalisation switched on needs the StatisticalTrainer
+        # pass (switched off, the fitted bounds would never be read); without an override,
         # RUNNING/PER_FRAME would inherit True from the auto-detect because this base
         # implements statistical_initialization. Subclasses with their own initialization
         # (e.g. SupervisedSelectorBase) keep the auto-detect.
-        if self.norm_mode == NormMode.STATISTICAL:
+        if self.norm_mode == NormMode.STATISTICAL and self.normalize_output:
             self._requires_initial_fit_override = True
         elif (
             type(self).statistical_initialization is ChannelSelectorBase.statistical_initialization
         ):
             self._requires_initial_fit_override = False
+
+    @classmethod
+    def _ignored_normalization_defaults(cls) -> dict[str, Any]:
+        """The class defaults of the five normalisation hparams for a subclass that renders
+        its own output: the ``ChannelSelectorBase.__init__`` signature defaults (what the
+        constructor applies when nothing is passed) overridden by
+        ``_IGNORED_NORMALIZATION_DEFAULTS``."""
+        parameters = inspect.signature(ChannelSelectorBase.__init__).parameters
+        defaults = {key: parameters[key].default for key in _BASE_NORMALIZATION_KEYS}
+        defaults["norm_mode"] = NormMode(defaults["norm_mode"])
+        return {**defaults, **cls._IGNORED_NORMALIZATION_DEFAULTS}
+
+    @classmethod
+    def _pop_ignored_normalization_settings(cls, kwargs: dict[str, Any]) -> None:
+        """Remove the five normalisation hparams from a subclass's ``kwargs`` in place.
+
+        Called by the constructors of subclasses with ``_USES_BASE_NORMALIZATION = False``
+        before they call ``super().__init__``, so the keys never reach ``Node`` and are
+        neither saved nor shown. Each passed value that differs from the class default is
+        reported once, so a pipeline that sets ``apply_gamma`` on an NDVI node learns that
+        nothing happens; the values saved by earlier versions equal the defaults and stay
+        silent.
+        """
+        defaults = cls._ignored_normalization_defaults()
+        for key in defaults:
+            if key not in kwargs:
+                continue
+            value = kwargs.pop(key)
+            if key == "norm_mode":
+                value = NormMode(value)
+            if value != defaults[key]:
+                shown, default = (
+                    (value.value, defaults[key].value)
+                    if isinstance(value, NormMode)
+                    else (value, defaults[key])
+                )
+                logger.warning(
+                    f"{cls.__name__} renders its own output and ignores {key}: "
+                    f"the value {shown!r} is dropped (class default {default!r})."
+                )
 
     @staticmethod
     def _nearest_band_index(wavelengths: np.ndarray, target_nm: float) -> int:
@@ -305,8 +407,12 @@ class ChannelSelectorBase(Node):
         Returns
         -------
         torch.Tensor
-            Normalized (and gamma-corrected if ``apply_gamma``) RGB [B, H, W, 3].
+            Normalized (and gamma-corrected if ``apply_gamma``) RGB [B, H, W, 3], or
+            ``raw_rgb`` unchanged when ``normalize_output`` is False (no bounds update,
+            no frame count, no gamma).
         """
+        if not self.normalize_output:
+            return raw_rgb
         if self.norm_mode == NormMode.STATISTICAL and self._statistically_initialized:
             result = self._apply_accumulated_stats(raw_rgb)
         elif self.norm_mode == NormMode.RUNNING:
@@ -400,6 +506,25 @@ class ChannelSelectorBase(Node):
                 warm = max(self.running_warmup_frames, self.freeze_running_bounds_after_frames or 0)
                 self._norm_frame_count.fill_(warm)
 
+    def load_state_dict(self, state_dict, strict: bool = True, assign: bool = False) -> Any:
+        """Load the state dict; statistical bounds that are still NaN do not count as fitted.
+
+        ``Node.load_state_dict`` marks any node with a non-empty state dict as fitted. A
+        statistical selector saved before its fit (or with ``normalize_output=False``, which
+        schedules none) carries NaN bounds and would render NaN; it renders per frame and
+        keeps its fit scheduled instead. Subclasses with their own initialization (the
+        supervised selectors fit their band choice, not the bounds) keep the inferred state.
+        """
+        result = super().load_state_dict(state_dict, strict=strict, assign=assign)
+        if (
+            self.norm_mode == NormMode.STATISTICAL
+            and type(self).statistical_initialization
+            is ChannelSelectorBase.statistical_initialization
+            and bool(torch.isnan(self.running_min).any())
+        ):
+            self._statistically_initialized = False
+        return result
+
     # ------------------------------------------------------------------
     # Subclass hooks
     # ------------------------------------------------------------------
@@ -467,11 +592,22 @@ class ChannelSelectorBase(Node):
         Returns
         -------
         torch.Tensor
-            RGB image [B, H, W, 3] in 0-1 range, on the same device as input.
+            RGB image [B, H, W, 3] in 0-1 range (the raw composed bands when
+            ``normalize_output`` is False), on the same device as input.
         """
         bands = [cube[..., idx] for idx in indices]  # each [B, H, W]
         rgb = torch.stack(bands, dim=-1)  # [B, H, W, 3]
         return self._normalize_rgb(rgb)
+
+
+# The rgb_image spec of the selectors that render their own output (FastRGB, the index
+# selectors): always in 0-1, never through the base normalisation, so the base's
+# "or the raw composed bands when normalize_output=False" does not apply to them.
+_UNIT_RANGE_RGB_IMAGE_SPEC = PortSpec(
+    dtype=torch.float32,
+    shape=(-1, -1, -1, 3),
+    description="Composed RGB image [B, H, W, 3] in 0-1 range.",
+)
 
 
 class _NormalizedDifferenceIndexBase(ChannelSelectorBase, ABC):
@@ -489,12 +625,17 @@ class _NormalizedDifferenceIndexBase(ChannelSelectorBase, ABC):
 
     OUTPUT_SPECS = {
         **ChannelSelectorBase.OUTPUT_SPECS,
+        "rgb_image": _UNIT_RANGE_RGB_IMAGE_SPEC,
         "index_image": PortSpec(
             dtype=torch.float32,
             shape=(-1, -1, -1, 1),
             description="Raw normalized-difference index image [B, H, W, 1]",
         ),
     }
+
+    # The colour-mapped render never goes through the base normalisation.
+    _USES_BASE_NORMALIZATION = False
+    _IGNORED_NORMALIZATION_DEFAULTS = {"norm_mode": NormMode.PER_FRAME, "apply_gamma": False}
 
     def __init__(
         self,
@@ -506,10 +647,18 @@ class _NormalizedDifferenceIndexBase(ChannelSelectorBase, ABC):
     ) -> None:
         if eps < 0:
             raise ValueError("eps must be >= 0")
+        self._pop_ignored_normalization_settings(kwargs)
 
+        # The shipped selectors derive primary_nm/secondary_nm from their own wavelength
+        # hparams (nir_nm, red_nm, ...), which they forward themselves; saving the two names
+        # as well would make the node fail to rebuild from its hparams (multiple values for
+        # primary_nm). A subclass that declares the two names as its own arguments needs
+        # them saved, or Serializable fills in that signature's defaults on rebuild.
+        own_parameters = inspect.signature(type(self).__init__).parameters
+        for name, value in (("primary_nm", primary_nm), ("secondary_nm", secondary_nm)):
+            if name in own_parameters:
+                kwargs[name] = float(value)
         super().__init__(
-            primary_nm=float(primary_nm),
-            secondary_nm=float(secondary_nm),
             eps=float(eps),
             band_tolerance_nm=float(band_tolerance_nm),
             **kwargs,
@@ -519,6 +668,27 @@ class _NormalizedDifferenceIndexBase(ChannelSelectorBase, ABC):
         self.eps = float(eps)
         self.band_tolerance_nm = float(band_tolerance_nm)
         self._bands_warned: set[str] = set()
+
+    @classmethod
+    def _pop_legacy_operand_names(
+        cls, kwargs: dict[str, Any], primary_nm: float, secondary_nm: float
+    ) -> None:
+        """Drop ``primary_nm`` and ``secondary_nm`` from a shipped selector's ``kwargs``.
+
+        cuvis-ai up to 0.18.2 saved the two derived names beside the selector's own
+        wavelength names (``nir_nm``, ``red_nm``, ...), so a pipeline written then carries
+        both. The own names win: a saved value that differs is reported once, ``None`` is
+        dropped silently.
+        """
+        for legacy, own in (("primary_nm", primary_nm), ("secondary_nm", secondary_nm)):
+            if legacy not in kwargs:
+                continue
+            value = kwargs.pop(legacy)
+            if value is not None and float(value) != float(own):
+                logger.warning(
+                    f"{cls.__name__} ignores the saved {legacy}={value!r} and uses its own "
+                    f"wavelength {float(own)} nm."
+                )
 
     @property
     @abstractmethod
@@ -630,8 +800,7 @@ class NDVISelector(_NormalizedDifferenceIndexBase):
     ) -> None:
         if colormap_max <= colormap_min:
             raise ValueError("colormap_max must be greater than colormap_min")
-        kwargs.setdefault("norm_mode", NormMode.PER_FRAME)
-        kwargs.setdefault("apply_gamma", False)
+        self._pop_legacy_operand_names(kwargs, nir_nm, red_nm)
         super().__init__(
             primary_nm=nir_nm,
             secondary_nm=red_nm,
@@ -714,8 +883,6 @@ class _ColormappedNormalizedDifferenceSelector(_NormalizedDifferenceIndexBase, A
     ) -> None:
         if colormap_max <= colormap_min:
             raise ValueError("colormap_max must be greater than colormap_min")
-        kwargs.setdefault("norm_mode", NormMode.PER_FRAME)
-        kwargs.setdefault("apply_gamma", False)
         super().__init__(
             primary_nm=primary_nm,
             secondary_nm=secondary_nm,
@@ -776,6 +943,7 @@ class NDWISelector(_ColormappedNormalizedDifferenceSelector):
         eps: float = 1.0e-6,
         **kwargs: Any,
     ) -> None:
+        self._pop_legacy_operand_names(kwargs, green_nm, nir_nm)
         super().__init__(
             primary_nm=green_nm,
             secondary_nm=nir_nm,
@@ -828,6 +996,7 @@ class NBRSelector(_ColormappedNormalizedDifferenceSelector):
         eps: float = 1.0e-6,
         **kwargs: Any,
     ) -> None:
+        self._pop_legacy_operand_names(kwargs, nir_nm, swir_nm)
         super().__init__(
             primary_nm=nir_nm,
             secondary_nm=swir_nm,
@@ -880,6 +1049,7 @@ class GNDVISelector(_ColormappedNormalizedDifferenceSelector):
         eps: float = 1.0e-6,
         **kwargs: Any,
     ) -> None:
+        self._pop_legacy_operand_names(kwargs, nir_nm, green_nm)
         super().__init__(
             primary_nm=nir_nm,
             secondary_nm=green_nm,
@@ -933,6 +1103,7 @@ class NDRESelector(_ColormappedNormalizedDifferenceSelector):
         eps: float = 1.0e-6,
         **kwargs: Any,
     ) -> None:
+        self._pop_legacy_operand_names(kwargs, nir_nm, red_edge_nm)
         super().__init__(
             primary_nm=nir_nm,
             secondary_nm=red_edge_nm,
@@ -979,12 +1150,17 @@ class _VegetationIndexBase(ChannelSelectorBase, ABC):
 
     OUTPUT_SPECS = {
         **ChannelSelectorBase.OUTPUT_SPECS,
+        "rgb_image": _UNIT_RANGE_RGB_IMAGE_SPEC,
         "index_image": PortSpec(
             dtype=torch.float32,
             shape=(-1, -1, -1, 1),
             description="Raw vegetation index image [B, H, W, 1]",
         ),
     }
+
+    # The colour-mapped render never goes through the base normalisation.
+    _USES_BASE_NORMALIZATION = False
+    _IGNORED_NORMALIZATION_DEFAULTS = {"norm_mode": NormMode.PER_FRAME, "apply_gamma": False}
 
     def __init__(
         self,
@@ -999,8 +1175,7 @@ class _VegetationIndexBase(ChannelSelectorBase, ABC):
             raise ValueError("eps must be >= 0")
         if colormap_max <= colormap_min:
             raise ValueError("colormap_max must be greater than colormap_min")
-        kwargs.setdefault("norm_mode", NormMode.PER_FRAME)
-        kwargs.setdefault("apply_gamma", False)
+        self._pop_ignored_normalization_settings(kwargs)
         super().__init__(
             colormap_min=float(colormap_min),
             colormap_max=float(colormap_max),
@@ -1460,15 +1635,16 @@ class FixedWavelengthSelector(ChannelSelectorBase):
         Must contain at least one wavelength.
         Default: (650.0, 550.0, 450.0) — standard false-RGB.
     normalize_output : bool
-        If ``True`` (default), apply selector normalization to produce a 0–1 output.
-        Normalization (running bounds + optional sRGB gamma) is only available for
-        the 3-channel case (``len(target_wavelengths) == 3``). For ``n != 3`` the
-        bands are stacked raw regardless of this flag; a single warning is emitted
-        at construction so callers know to pass ``normalize_output=False`` to silence
-        it. ``norm_mode`` settings of ``running`` / ``statistical`` rely on
-        3-element running buffers and a hard ``reshape(-1, 3)`` and are therefore
-        rejected at construction for ``n != 3`` — pass ``norm_mode="per_frame"``
-        (the only mode the n-channel path supports today).
+        The ``ChannelSelectorBase`` switch (default ``True``): apply the selector
+        normalisation to produce a 0-1 output. Normalization (running bounds +
+        optional sRGB gamma) is only available for the 3-channel case
+        (``len(target_wavelengths) == 3``). For ``n != 3`` the bands are stacked raw
+        regardless of this flag; a single warning is emitted at construction so
+        callers know to pass ``normalize_output=False`` to silence it. ``norm_mode``
+        settings of ``running`` / ``statistical`` rely on 3-element running buffers
+        and a hard ``reshape(-1, 3)`` and are therefore rejected at construction for
+        ``n != 3``; pass ``norm_mode="per_frame"`` (the only mode the n-channel path
+        supports today).
 
     Ports
     -----
@@ -1477,7 +1653,8 @@ class FixedWavelengthSelector(ChannelSelectorBase):
             Stacked selected bands ``[B, H, W, len(target_wavelengths)]``.
             Port name kept as ``rgb_image`` for graph compatibility with
             downstream consumers. For the 3-channel default the output is the
-            normalised RGB image; for ``n != 3`` it is the raw stacked bands.
+            normalised RGB image; for ``n != 3`` or ``normalize_output=False`` it
+            is the raw stacked bands.
         ``band_info`` : dict
             See ``forward`` for keys.
     """
@@ -1494,7 +1671,8 @@ class FixedWavelengthSelector(ChannelSelectorBase):
         "rgb_image": PortSpec(
             dtype=torch.float32,
             shape=(-1, -1, -1, -1),
-            description="Composed image [B, H, W, C] in 0-1 range. "
+            description="Composed image [B, H, W, C] in 0-1 range, or the raw stacked bands "
+            "when normalize_output=False. "
             "C == 3 for the standard RGB default; "
             "C == len(target_wavelengths) for FixedWavelengthSelector with n > 3.",
         ),
@@ -1541,7 +1719,6 @@ class FixedWavelengthSelector(ChannelSelectorBase):
             **kwargs,
         )
         self.target_wavelengths = target_wavelengths
-        self.normalize_output = bool(normalize_output)
 
         # Whether the forward path will actually normalise. The band_info flag
         # downstream MUST mirror this — `normalize_output=True` with n != 3
@@ -1633,6 +1810,9 @@ class RangeAverageFalseRGBSelector(ChannelSelectorBase):
         Inclusive wavelength range for green channel in nanometers.
     blue_range : tuple[float, float]
         Inclusive wavelength range for blue channel in nanometers.
+    normalize_output : bool
+        The ``ChannelSelectorBase`` switch (default ``True``); ``False`` returns
+        the three averaged bands without rescaling or gamma.
     """
 
     _category = NodeCategory.TRANSFORM
@@ -1742,6 +1922,7 @@ class RangeAverageFalseRGBSelector(ChannelSelectorBase):
             },
             "aggregation": "mean",
             "missing_channels": missing_channels,
+            "normalized_output": self.normalize_output,
         }
         return {"rgb_image": rgb, "band_info": band_info}
 
@@ -1764,6 +1945,12 @@ class FastRGBSelector(ChannelSelectorBase):
 
     _REFLECTANCE_100 = 10000.0
 
+    OUTPUT_SPECS = {**ChannelSelectorBase.OUTPUT_SPECS, "rgb_image": _UNIT_RANGE_RGB_IMAGE_SPEC}
+
+    # FastRGB has its own scaling path and never uses the base normalisation.
+    _USES_BASE_NORMALIZATION = False
+    _IGNORED_NORMALIZATION_DEFAULTS = {"norm_mode": NormMode.PER_FRAME, "apply_gamma": False}
+
     def __init__(
         self,
         red_range: tuple[float, float] = (580.0, 650.0),
@@ -1780,12 +1967,8 @@ class FastRGBSelector(ChannelSelectorBase):
             if len(rng) != 2 or rng[0] > rng[1]:
                 raise ValueError(f"{name} must be (min_nm, max_nm) with min_nm <= max_nm")
 
-        # FastRGB has its own scaling path; disable base normalization/gamma.
-        kwargs.pop("norm_mode", None)
-        kwargs.pop("apply_gamma", None)
+        self._pop_ignored_normalization_settings(kwargs)
         super().__init__(
-            norm_mode=NormMode.PER_FRAME,
-            apply_gamma=False,
             red_range=red_range,
             green_range=green_range,
             blue_range=blue_range,
@@ -1925,6 +2108,9 @@ class HighContrastSelector(ChannelSelectorBase):
         Default: ((440, 500), (500, 580), (610, 700)) for visible spectrum.
     alpha : float
         Weight for Laplacian energy term. Default: 0.1
+    normalize_output : bool
+        The ``ChannelSelectorBase`` switch (default ``True``); ``False`` returns
+        the three selected bands without rescaling or gamma.
     """
 
     _category = NodeCategory.TRANSFORM
@@ -1973,6 +2159,7 @@ class HighContrastSelector(ChannelSelectorBase):
             "band_wavelengths_nm": [float(wavelengths_np[i]) for i in selected_indices],
             "windows_nm": [[float(s), float(e)] for s, e in self.windows],
             "alpha": self.alpha,
+            "normalized_output": self.normalize_output,
         }
 
         return {"rgb_image": rgb, "band_info": band_info}
@@ -2027,6 +2214,10 @@ class CIRSelector(ChannelSelectorBase):
         Red wavelength in nm. Default: 670.0
     green_nm : float
         Green wavelength in nm. Default: 560.0
+    normalize_output : bool
+        The ``ChannelSelectorBase`` switch (default ``True``). ``False`` returns the
+        three raw bands without rescaling or gamma, for a cube an upstream node (for
+        example ``MinMaxNormalizer``) has already scaled.
     """
 
     _category = NodeCategory.TRANSFORM
@@ -2095,6 +2286,7 @@ class CIRSelector(ChannelSelectorBase):
             "band_wavelengths_nm": [float(wavelengths_np[i]) for i in indices],
             "target_wavelengths_nm": [self.nir_nm, self.red_nm, self.green_nm],
             "channel_mapping": {"R": "NIR", "G": "Red", "B": "Green"},
+            "normalized_output": self.normalize_output,
         }
 
         return {"rgb_image": rgb, "band_info": band_info}
@@ -2138,11 +2330,13 @@ class CIETristimulusRGBSelector(ChannelSelectorBase):
     illuminant than the configured one (every checkpoint written before the
     illuminant option existed was fitted under E) drops them on load with a
     warning: in ``running`` mode the node warms up again, in ``statistical``
-    mode it renders per frame until it is re-fitted.
+    mode it renders per frame until it is re-fitted. With
+    ``normalize_output=False`` the bounds play no part and the reset is silent.
 
     The rendered linear sRGB is clamped at 0, then normalised to [0, 1] per
     channel and optionally gamma encoded by ``ChannelSelectorBase`` (see
-    ``norm_mode`` and ``apply_gamma``). Because that normalisation is per
+    ``norm_mode`` and ``apply_gamma``); with ``normalize_output=False`` the
+    clamped linear sRGB is returned as is. Because that normalisation is per
     channel, the absolute white scale only shows in ``_compute_raw_rgb``, and
     the per channel bounds act as a scene dependent white balance: a white or
     grey pixel in ``rgb_image`` is neutral only when the channel bounds happen
@@ -2156,6 +2350,9 @@ class CIETristimulusRGBSelector(ChannelSelectorBase):
     ----------
     illuminant : {"D65", "E"}
         Illuminant the reflectance is rendered under. Default: "D65".
+    normalize_output : bool
+        The ``ChannelSelectorBase`` switch (default ``True``); ``False`` returns
+        the clamped linear sRGB as is, without rescaling or gamma.
     **kwargs : Any
         Passed to ``ChannelSelectorBase`` (``norm_mode``, ``apply_gamma``, ...).
     """
@@ -2319,7 +2516,7 @@ class CIETristimulusRGBSelector(ChannelSelectorBase):
         self.running_max.fill_(float("nan"))
         self._norm_frame_count.zero_()
         self._discarded_fitted_bounds = True
-        if self.norm_mode == NormMode.PER_FRAME:
+        if self.norm_mode == NormMode.PER_FRAME or not self.normalize_output:
             return
         consequence = (
             "re-warming over the next frames"
@@ -2474,7 +2671,9 @@ class CIETristimulusRGBSelector(ChannelSelectorBase):
             "white_normalised": self.illuminant == "D65",
             "white_adapted": self._cached_white_adapted,
             "white_xyz_coverage": self._cached_white_xyz_coverage,
-            "apply_gamma": self.apply_gamma,
+            # The gamma that was applied: none when the normalisation is switched off.
+            "apply_gamma": self.apply_gamma and self.normalize_output,
+            "normalized_output": self.normalize_output,
             "sensor_bands_total": len(wavelengths_np),
             "sensor_bands_visible": self._cached_n_visible,
             "wavelength_range_nm": [float(wavelengths_np[0]), float(wavelengths_np[-1])],
@@ -2508,6 +2707,9 @@ class CameraEmulationFalseRGBSelector(ChannelSelectorBase):
         Green channel Gaussian sigma in nm. Default: 35.0
     b_sigma : float
         Blue channel Gaussian sigma in nm. Default: 30.0
+    normalize_output : bool
+        The ``ChannelSelectorBase`` switch (default ``True``); ``False`` returns
+        the three weighted sums without rescaling or gamma.
     """
 
     _category = NodeCategory.TRANSFORM
@@ -2597,6 +2799,7 @@ class CameraEmulationFalseRGBSelector(ChannelSelectorBase):
             "peaks_nm": {"R": self.peaks[0], "G": self.peaks[1], "B": self.peaks[2]},
             "sigmas_nm": {"R": self.sigmas[0], "G": self.sigmas[1], "B": self.sigmas[2]},
             "sensor_bands_total": len(wavelengths_np),
+            "normalized_output": self.normalize_output,
         }
 
         return {"rgb_image": rgb, "band_info": band_info}
@@ -3088,6 +3291,7 @@ class SupervisedSelectorBase(ChannelSelectorBase):
             "band_wavelengths_nm": [float(wavelengths_np[i]) for i in indices],
             "score_weights": list(self.score_weights),
             "lambda_penalty": float(self.lambda_penalty),
+            "normalized_output": self.normalize_output,
             **self._extra_band_info(wavelengths_np),
         }
         return {"rgb_image": rgb, "band_info": band_info}
@@ -3149,6 +3353,8 @@ class SupervisedCIRSelector(_SupervisedWindowSelectorBase):
 
     The selector chooses one band per window using a supervised score
     (Fisher + AUC + MI) with an mRMR-style redundancy penalty.
+    ``normalize_output=False`` returns the three learned bands raw, see
+    ``ChannelSelectorBase``.
     """
 
     _category = NodeCategory.MODEL
@@ -3188,6 +3394,9 @@ class SupervisedWindowedSelector(_SupervisedWindowSelectorBase):
         - Blue: 440-500 nm
         - Green: 500-580 nm
         - Red: 610-700 nm
+
+    ``normalize_output=False`` returns the three learned bands raw, see
+    ``ChannelSelectorBase``.
     """
 
     _category = NodeCategory.MODEL
@@ -3222,7 +3431,8 @@ class SupervisedFullSpectrumSelector(SupervisedSelectorBase):
     """Supervised selection without window constraints.
 
     Picks the top-3 discriminative bands globally with an mRMR-style
-    redundancy penalty applied over the full spectrum.
+    redundancy penalty applied over the full spectrum. ``normalize_output=False``
+    returns the three learned bands raw, see ``ChannelSelectorBase``.
     """
 
     _category = NodeCategory.MODEL

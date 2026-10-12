@@ -20,10 +20,6 @@ nodes:
     colormap_min: -0.7
     colormap_max: 0.5
     eps: 1.0e-06
-    norm_mode: per_frame
-    apply_gamma: false
-    freeze_running_bounds_after_frames: 20
-    running_warmup_frames: 10
 - name: to_video
   class_name: cuvis_ai.node.video.ToVideoNode
   hparams:
