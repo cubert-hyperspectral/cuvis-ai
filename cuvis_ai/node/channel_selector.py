@@ -47,6 +47,7 @@ All channel selectors share a common RGB normalization strategy in
 
 from __future__ import annotations
 
+import inspect
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import Any, Literal
@@ -601,9 +602,15 @@ class _NormalizedDifferenceIndexBase(ChannelSelectorBase, ABC):
             raise ValueError("eps must be >= 0")
         self._pop_ignored_normalisation_settings(kwargs)
 
-        # primary_nm/secondary_nm are derived from the subclass's own wavelength hparams
-        # (nir_nm, red_nm, ...), which the subclass forwards itself; passing them on as well
-        # would save both names and make the node fail to rebuild from its hparams.
+        # The shipped selectors derive primary_nm/secondary_nm from their own wavelength
+        # hparams (nir_nm, red_nm, ...), which they forward themselves; saving the two names
+        # as well would make the node fail to rebuild from its hparams (multiple values for
+        # primary_nm). A subclass that declares the two names as its own arguments needs
+        # them saved, or Serializable fills in that signature's defaults on rebuild.
+        own_parameters = inspect.signature(type(self).__init__).parameters
+        for name, value in (("primary_nm", primary_nm), ("secondary_nm", secondary_nm)):
+            if name in own_parameters:
+                kwargs[name] = float(value)
         super().__init__(
             eps=float(eps),
             band_tolerance_nm=float(band_tolerance_nm),
@@ -614,6 +621,27 @@ class _NormalizedDifferenceIndexBase(ChannelSelectorBase, ABC):
         self.eps = float(eps)
         self.band_tolerance_nm = float(band_tolerance_nm)
         self._bands_warned: set[str] = set()
+
+    @classmethod
+    def _pop_legacy_operand_names(
+        cls, kwargs: dict[str, Any], primary_nm: float, secondary_nm: float
+    ) -> None:
+        """Drop ``primary_nm`` and ``secondary_nm`` from a shipped selector's ``kwargs``.
+
+        cuvis-ai up to 0.18.2 saved the two derived names beside the selector's own
+        wavelength names (``nir_nm``, ``red_nm``, ...), so a pipeline written then carries
+        both. The own names win: a saved value that differs is reported once, ``None`` is
+        dropped silently.
+        """
+        for legacy, own in (("primary_nm", primary_nm), ("secondary_nm", secondary_nm)):
+            if legacy not in kwargs:
+                continue
+            value = kwargs.pop(legacy)
+            if value is not None and float(value) != float(own):
+                logger.warning(
+                    f"{cls.__name__} ignores the saved {legacy}={value!r} and uses its own "
+                    f"wavelength {float(own)} nm."
+                )
 
     @property
     @abstractmethod
@@ -725,6 +753,7 @@ class NDVISelector(_NormalizedDifferenceIndexBase):
     ) -> None:
         if colormap_max <= colormap_min:
             raise ValueError("colormap_max must be greater than colormap_min")
+        self._pop_legacy_operand_names(kwargs, nir_nm, red_nm)
         super().__init__(
             primary_nm=nir_nm,
             secondary_nm=red_nm,
@@ -867,6 +896,7 @@ class NDWISelector(_ColormappedNormalizedDifferenceSelector):
         eps: float = 1.0e-6,
         **kwargs: Any,
     ) -> None:
+        self._pop_legacy_operand_names(kwargs, green_nm, nir_nm)
         super().__init__(
             primary_nm=green_nm,
             secondary_nm=nir_nm,
@@ -919,6 +949,7 @@ class NBRSelector(_ColormappedNormalizedDifferenceSelector):
         eps: float = 1.0e-6,
         **kwargs: Any,
     ) -> None:
+        self._pop_legacy_operand_names(kwargs, nir_nm, swir_nm)
         super().__init__(
             primary_nm=nir_nm,
             secondary_nm=swir_nm,
@@ -971,6 +1002,7 @@ class GNDVISelector(_ColormappedNormalizedDifferenceSelector):
         eps: float = 1.0e-6,
         **kwargs: Any,
     ) -> None:
+        self._pop_legacy_operand_names(kwargs, nir_nm, green_nm)
         super().__init__(
             primary_nm=nir_nm,
             secondary_nm=green_nm,
@@ -1024,6 +1056,7 @@ class NDRESelector(_ColormappedNormalizedDifferenceSelector):
         eps: float = 1.0e-6,
         **kwargs: Any,
     ) -> None:
+        self._pop_legacy_operand_names(kwargs, nir_nm, red_edge_nm)
         super().__init__(
             primary_nm=nir_nm,
             secondary_nm=red_edge_nm,

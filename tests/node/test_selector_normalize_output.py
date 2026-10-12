@@ -313,6 +313,82 @@ def test_switch_off_survives_the_pipeline_yaml_round_trip(tmp_path) -> None:
     assert torch.equal(out["rgb_image"], rebuilt._compute_raw_rgb(cube, WAVELENGTHS))
 
 
+@torch.no_grad()
+def test_ndvi_yaml_saved_before_the_fix_loads_and_resaves_clean(tmp_path) -> None:
+    """A pipeline YAML written by cuvis-ai 0.18.2 carries ``primary_nm`` and ``secondary_nm``
+    beside ``nir_nm`` and ``red_nm``: it loads, reads ``nir_nm`` and ``red_nm``, and the
+    re-saved YAML carries neither of the two nor a normalisation key."""
+    config = _single_node_config(
+        "ndvi",
+        "cuvis_ai.node.channel_selector.NDVISelector",
+        {
+            "nir_nm": 750.0,
+            "red_nm": 566.0,
+            "primary_nm": 750.0,
+            "secondary_nm": 566.0,
+            "colormap_min": -0.7,
+            "colormap_max": 0.5,
+            "eps": 1.0e-06,
+            "band_tolerance_nm": 50.0,
+            "norm_mode": "per_frame",
+            "apply_gamma": False,
+            "freeze_running_bounds_after_frames": 20,
+            "running_warmup_frames": 10,
+        },
+    )
+    yaml_path = tmp_path / "ndvi.yaml"
+    with _captured_warnings() as messages:
+        pipeline = PipelineBuilder().build_from_config(config)
+        pipeline.save_to_file(yaml_path, save_weights=False)
+        rebuilt = _node(PipelineBuilder().build_from_config(yaml_path), "ndvi")
+    assert messages == []
+    assert (rebuilt.nir_nm, rebuilt.red_nm) == (750.0, 566.0)
+    assert not {"primary_nm", "secondary_nm", *NORMALISATION_KEYS} & set(rebuilt.hparams)
+
+
+class _GenericTwoBandIndex(cs._ColormappedNormalizedDifferenceSelector):
+    """A plugin-style index that keeps the base's operand names as its own arguments."""
+
+    def __init__(
+        self, primary_nm: float = 800.0, secondary_nm: float = 600.0, **kwargs: Any
+    ) -> None:
+        super().__init__(primary_nm=primary_nm, secondary_nm=secondary_nm, **kwargs)
+
+    @property
+    def index_name(self) -> str:
+        return "generic"
+
+    @property
+    def primary_label(self) -> str:
+        return "primary"
+
+    @property
+    def secondary_label(self) -> str:
+        return "secondary"
+
+
+class _GenericTwoBandIndexRequired(_GenericTwoBandIndex):
+    """The same index with the two operands as required arguments."""
+
+    def __init__(self, primary_nm: float, secondary_nm: float, **kwargs: Any) -> None:
+        super().__init__(primary_nm=primary_nm, secondary_nm=secondary_nm, **kwargs)
+
+
+@torch.no_grad()
+@pytest.mark.parametrize("cls", [_GenericTwoBandIndex, _GenericTwoBandIndexRequired])
+def test_a_subclass_that_declares_the_operand_names_saves_and_rebuilds_them(cls: type) -> None:
+    node = cls(primary_nm=720.0, secondary_nm=550.0)
+    assert (node.hparams["primary_nm"], node.hparams["secondary_nm"]) == (720.0, 550.0)
+
+    rebuilt = cls(**node.hparams)
+    assert (rebuilt.primary_nm, rebuilt.secondary_nm) == (720.0, 550.0)
+    cube = _cube()
+    assert torch.equal(
+        rebuilt.forward(cube=cube, wavelengths=WAVELENGTHS)["index_image"],
+        node.forward(cube=cube, wavelengths=WAVELENGTHS)["index_image"],
+    )
+
+
 def test_ndvi_preset_node_round_trips_without_a_warning(tmp_path) -> None:
     """The hparams of the shipped ndvi.yaml, saved by cuvis-ai and loaded again."""
     config = _single_node_config(
