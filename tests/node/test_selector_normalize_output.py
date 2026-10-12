@@ -279,6 +279,9 @@ def test_bypassing_selector_warns_once_and_drops_a_non_default_value() -> None:
         fast = FastRGBSelector(norm_mode="running")
     assert len(messages) == 1
     assert "FastRGBSelector" in messages[0] and "norm_mode" in messages[0]
+    # The enum values, not the enum repr, are what the message shows.
+    assert "'running'" in messages[0] and "'per_frame'" in messages[0]
+    assert "NormMode" not in messages[0]
     assert fast.norm_mode == cs.NormMode.PER_FRAME
 
 

@@ -114,6 +114,16 @@ def _render_hsv_index(
     return render_scalar_hsv_colormap(normalized)
 
 
+# The five ChannelSelectorBase.__init__ hparams that drive the base normalisation.
+_BASE_NORMALIZATION_KEYS = (
+    "norm_mode",
+    "apply_gamma",
+    "freeze_running_bounds_after_frames",
+    "running_warmup_frames",
+    "normalize_output",
+)
+
+
 class ChannelSelectorBase(Node):
     """Base class for hyperspectral band selection strategies.
 
@@ -270,9 +280,9 @@ class ChannelSelectorBase(Node):
             )
         else:
             # The subclass popped the five keys from its kwargs before calling here (see
-            # _pop_ignored_normalisation_settings), so nothing reaches Node: the keys stay
+            # _pop_ignored_normalization_settings), so nothing reaches Node: the keys stay
             # out of the saved hparams and the parameter panel, and the class defaults apply.
-            settings = type(self)._ignored_normalisation_defaults()
+            settings = type(self)._ignored_normalization_defaults()
             super().__init__(**kwargs)
         self.norm_mode: NormMode = settings["norm_mode"]
         self.apply_gamma: bool = settings["apply_gamma"]
@@ -304,21 +314,18 @@ class ChannelSelectorBase(Node):
             self._requires_initial_fit_override = False
 
     @classmethod
-    def _ignored_normalisation_defaults(cls) -> dict[str, Any]:
+    def _ignored_normalization_defaults(cls) -> dict[str, Any]:
         """The class defaults of the five normalisation hparams for a subclass that renders
-        its own output: the ``__init__`` defaults overridden by
+        its own output: the ``ChannelSelectorBase.__init__`` signature defaults (what the
+        constructor applies when nothing is passed) overridden by
         ``_IGNORED_NORMALIZATION_DEFAULTS``."""
-        return {
-            "norm_mode": NormMode.RUNNING,
-            "apply_gamma": True,
-            "freeze_running_bounds_after_frames": 20,
-            "running_warmup_frames": cls._WARMUP_FRAMES,
-            "normalize_output": True,
-            **cls._IGNORED_NORMALIZATION_DEFAULTS,
-        }
+        parameters = inspect.signature(ChannelSelectorBase.__init__).parameters
+        defaults = {key: parameters[key].default for key in _BASE_NORMALIZATION_KEYS}
+        defaults["norm_mode"] = NormMode(defaults["norm_mode"])
+        return {**defaults, **cls._IGNORED_NORMALIZATION_DEFAULTS}
 
     @classmethod
-    def _pop_ignored_normalisation_settings(cls, kwargs: dict[str, Any]) -> None:
+    def _pop_ignored_normalization_settings(cls, kwargs: dict[str, Any]) -> None:
         """Remove the five normalisation hparams from a subclass's ``kwargs`` in place.
 
         Called by the constructors of subclasses with ``_USES_BASE_NORMALIZATION = False``
@@ -328,7 +335,7 @@ class ChannelSelectorBase(Node):
         nothing happens; the values saved by earlier versions equal the defaults and stay
         silent.
         """
-        defaults = cls._ignored_normalisation_defaults()
+        defaults = cls._ignored_normalization_defaults()
         for key in defaults:
             if key not in kwargs:
                 continue
@@ -336,9 +343,14 @@ class ChannelSelectorBase(Node):
             if key == "norm_mode":
                 value = NormMode(value)
             if value != defaults[key]:
+                shown, default = (
+                    (value.value, defaults[key].value)
+                    if isinstance(value, NormMode)
+                    else (value, defaults[key])
+                )
                 logger.warning(
                     f"{cls.__name__} renders its own output and ignores {key}: "
-                    f"the value {value!r} is dropped (class default {defaults[key]!r})."
+                    f"the value {shown!r} is dropped (class default {default!r})."
                 )
 
     @staticmethod
@@ -630,7 +642,7 @@ class _NormalizedDifferenceIndexBase(ChannelSelectorBase, ABC):
     ) -> None:
         if eps < 0:
             raise ValueError("eps must be >= 0")
-        self._pop_ignored_normalisation_settings(kwargs)
+        self._pop_ignored_normalization_settings(kwargs)
 
         # The shipped selectors derive primary_nm/secondary_nm from their own wavelength
         # hparams (nir_nm, red_nm, ...), which they forward themselves; saving the two names
@@ -1158,7 +1170,7 @@ class _VegetationIndexBase(ChannelSelectorBase, ABC):
             raise ValueError("eps must be >= 0")
         if colormap_max <= colormap_min:
             raise ValueError("colormap_max must be greater than colormap_min")
-        self._pop_ignored_normalisation_settings(kwargs)
+        self._pop_ignored_normalization_settings(kwargs)
         super().__init__(
             colormap_min=float(colormap_min),
             colormap_max=float(colormap_max),
@@ -1947,7 +1959,7 @@ class FastRGBSelector(ChannelSelectorBase):
             if len(rng) != 2 or rng[0] > rng[1]:
                 raise ValueError(f"{name} must be (min_nm, max_nm) with min_nm <= max_nm")
 
-        self._pop_ignored_normalisation_settings(kwargs)
+        self._pop_ignored_normalization_settings(kwargs)
         super().__init__(
             red_range=red_range,
             green_range=green_range,
