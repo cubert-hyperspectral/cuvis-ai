@@ -314,6 +314,23 @@ def test_legacy_bounds_in_per_frame_mode_reset_silently() -> None:
     assert torch.isnan(restored.running_min).all() and restored.illuminant == "D65"
 
 
+def test_legacy_bounds_with_the_normalisation_off_reset_silently() -> None:
+    """With normalize_output=False nothing re-warms, so the discard carries no warning."""
+    frames = _xmr_frames(3)
+    legacy = CIETristimulusRGBSelector(illuminant="E", apply_gamma=False)
+    _render(legacy, frames)
+
+    restored = CIETristimulusRGBSelector(normalize_output=False)
+    assert _load_with_warnings(restored, _legacy_state_dict(legacy)) == []
+    assert torch.isnan(restored.running_min).all() and torch.isnan(restored.running_max).all()
+    assert int(restored._norm_frame_count.item()) == 0
+    assert restored._discarded_fitted_bounds is False
+
+    fresh = CIETristimulusRGBSelector(normalize_output=False)
+    for got, expected in zip(_render(restored, frames), _render(fresh, frames), strict=True):
+        assert torch.equal(got, expected)
+
+
 def test_legacy_unfitted_checkpoint_loads_unchanged() -> None:
     restored = CIETristimulusRGBSelector(apply_gamma=False)
     legacy = _legacy_state_dict(CIETristimulusRGBSelector(illuminant="E"))
