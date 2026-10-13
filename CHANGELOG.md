@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.18.4 - 2026-10-13
+
+- Fix: `SupervisedCIRSelector`, `SupervisedWindowedSelector` and `SupervisedFullSpectrumSelector` with `norm_mode: statistical` rendered an all-NaN `rgb_image` after their fit, which chose the bands and never filled the normalisation bounds. The fit now also fixes the display bounds of the three chosen bands (the 0.5 and 99.5 percentiles over the training cubes, reset on every fit), so the render is finite and frozen and the bounds travel with the checkpoint. A checkpoint written by cuvis-ai up to 0.18.3, or saved with `normalize_output: false` and loaded with the switch on, carries no usable bounds: it keeps its band choice, renders per frame and says so once at load; fitting it again fills the bounds. Bounds count as usable only when both are finite in every channel: a base selector loaded with a finite minimum beside a NaN maximum, or an infinite bound, is not fitted either (0.18.3 looked at the minimum only), and a fit that finds an unusable pair starts over instead of widening it.
+- `NDVISelector`, `NDWISelector`, `NBRSelector`, `GNDVISelector` and `NDRESelector`: the warning for a saved `primary_nm` or `secondary_nm` that differs from the selector's own wavelength names the own key (`uses nir_nm=777.0 nm`); a value that is not a number or null raises `ValueError` with the class and key instead of the interpreter's message; a subclass that declares one of the two derived names as its own argument and passes a differing value through is refused with `TypeError` at construction (the derived value used to replace it silently), while a subclass that maps the name to its own wavelength itself keeps working.
+- The built-in manifest guard checks the other direction too: every public node class defined in `cuvis_ai.node.channel_selector` needs a manifest entry.
+- Docs: `mkdocs build --strict` passes again; 0.18.3 documented `normalize_output` as a parameter of five selectors whose constructor takes it through `**kwargs`, which the docs build flagged.
+
 ## 0.18.3 - 2026-10-12
 
 - Re-synced the mirrored catalog page of `XMR_Industrial_Foreign_Object_Detection_Lentils` from the Hub README at `ce3a213e` (splits without `leakage_check`, one README per day, the class table with id 0, the note on reassigned day-level annotation ids); the registry pins follow with the next cuvis-ai-core release.

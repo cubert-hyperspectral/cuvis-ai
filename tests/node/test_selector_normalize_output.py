@@ -459,9 +459,26 @@ def test_statistical_node_loaded_with_fitted_bounds_stays_fitted() -> None:
 
 
 @torch.no_grad()
+def test_statistical_node_loaded_with_a_nan_maximum_is_not_fitted() -> None:
+    """A finite minimum beside a NaN maximum is as unusable as a NaN pair."""
+    fitted = CIRSelector(norm_mode="statistical")
+    fitted.statistical_initialization(iter([{"cube": _cube(), "wavelengths": WAVELENGTHS}]))
+    state = dict(fitted.state_dict())
+    state["running_max"] = torch.full((3,), float("nan"))
+
+    restored = CIRSelector(norm_mode="statistical")
+    restored.load_state_dict(state)
+    assert restored._statistically_initialized is False
+    assert restored.requires_initial_fit is True
+    assert not torch.isnan(
+        restored.forward(cube=_cube(), wavelengths=WAVELENGTHS)["rgb_image"]
+    ).any()
+
+
+@torch.no_grad()
 def test_supervised_node_loaded_with_nan_bounds_stays_fitted() -> None:
-    """The supervised selectors fit their band choice, not the bounds: their checkpoints
-    keep NaN bounds and still count as fitted."""
+    """A supervised checkpoint written by cuvis-ai up to 0.18.3 carries the band choice and
+    NaN bounds (its fit chose the bands only); loaded, the band choice still counts as fitted."""
     n_bands = 12
     wavelengths = np.linspace(450.0, 950.0, n_bands).astype(np.float32)
     torch.manual_seed(1)
@@ -474,9 +491,12 @@ def test_supervised_node_loaded_with_nan_bounds_stays_fitted() -> None:
     fitted.statistical_initialization(
         iter([{"cube": cube, "mask": mask, "wavelengths": wavelengths}])
     )
-    assert torch.isnan(fitted.running_min).all()
+    state = dict(fitted.state_dict())
+    state["running_min"] = torch.full((3,), float("nan"))
+    state["running_max"] = torch.full((3,), float("nan"))
 
     restored = SupervisedCIRSelector(num_spectral_bands=n_bands, norm_mode="statistical")
-    restored.load_state_dict(fitted.state_dict())
+    with _captured_warnings():
+        restored.load_state_dict(state)
     assert restored._statistically_initialized is True
     assert torch.equal(restored.selected_indices, fitted.selected_indices)

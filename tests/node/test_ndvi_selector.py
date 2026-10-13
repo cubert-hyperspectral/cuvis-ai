@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Generator
 from contextlib import contextmanager
+from typing import Any
 
 import numpy as np
 import pytest
@@ -246,6 +247,7 @@ def test_a_differing_legacy_value_loses_to_the_own_name_with_one_warning(cls: ty
         node = cls(**saved)
     assert len(messages) == 1
     assert cls.__name__ in messages[0] and "primary_nm" in messages[0]
+    assert OWN_NAMES[cls][0] in messages[0], "the message names the own wavelength key"
     assert (node.primary_nm, node.secondary_nm) == (PRIMARY_NM, SECONDARY_NM)
 
 
@@ -258,3 +260,72 @@ def test_a_null_legacy_value_is_dropped_silently(cls: type) -> None:
         node = cls(**saved)
     assert messages == []
     assert (node.primary_nm, node.secondary_nm) == (PRIMARY_NM, SECONDARY_NM)
+
+
+@pytest.mark.parametrize("cls", NORMALISED_DIFFERENCE)
+@pytest.mark.parametrize("value", ["abc", [777.0]], ids=["string", "list"])
+def test_a_non_numeric_legacy_value_raises_a_named_error(cls: type, value: object) -> None:
+    saved = _hparams_saved_before_the_fix(cls)
+    saved["primary_nm"] = value
+    with pytest.raises(ValueError, match=rf"{cls.__name__}: primary_nm must be a number or null"):
+        cls(**saved)
+
+
+# ---------------------------------------------------------------------------
+# Subclasses of a shipped selector that touch the derived names
+# ---------------------------------------------------------------------------
+
+
+class _TranslatingNDVI(NDVISelector):
+    """A plugin that calls its NIR argument ``primary_nm`` and maps it to ``nir_nm`` itself.
+
+    The base saves the declared ``primary_nm`` beside ``nir_nm``, so the rebuild drops the
+    alias it derives from its own argument.
+    """
+
+    def __init__(self, primary_nm: float = 700.0, **kwargs: Any) -> None:
+        kwargs.pop("nir_nm", None)
+        super().__init__(nir_nm=primary_nm, **kwargs)
+
+
+class _PassThroughNDVI(NDVISelector):
+    """A plugin that declares ``primary_nm`` and hands it to the base unchanged."""
+
+    def __init__(self, primary_nm: float = 700.0, **kwargs: Any) -> None:
+        super().__init__(primary_nm=primary_nm, **kwargs)
+
+
+class _PlainNDVI(NDVISelector):
+    """A subclass without its own constructor."""
+
+
+def test_a_translating_subclass_builds_silently_and_rebuilds() -> None:
+    with _captured_warnings() as messages:
+        node = _TranslatingNDVI(primary_nm=720.0)
+    assert messages == []
+    assert node.primary_nm == 720.0
+    assert node.hparams["primary_nm"] == node.hparams["nir_nm"] == 720.0
+    with _captured_warnings() as messages:
+        rebuilt = _TranslatingNDVI(**node.hparams)
+    assert messages == []
+    assert rebuilt.primary_nm == 720.0
+
+
+def test_a_pass_through_subclass_with_a_contradicting_value_is_refused() -> None:
+    with pytest.raises(TypeError, match=r"_PassThroughNDVI passes primary_nm=720.0.*nir_nm"):
+        _PassThroughNDVI(primary_nm=720.0)
+
+
+def test_a_pass_through_subclass_with_an_equal_value_is_silent() -> None:
+    with _captured_warnings() as messages:
+        node = _PassThroughNDVI(primary_nm=827.0)
+    assert messages == []
+    assert node.primary_nm == 827.0
+
+
+def test_a_subclass_without_its_own_constructor_builds_silently() -> None:
+    with _captured_warnings() as messages:
+        node = _PlainNDVI(nir_nm=720.0)
+    assert messages == []
+    assert node.primary_nm == 720.0
+    assert "primary_nm" not in node.hparams
