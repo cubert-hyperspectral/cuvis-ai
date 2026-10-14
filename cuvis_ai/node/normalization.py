@@ -49,6 +49,8 @@ from cuvis_ai.node._running_bounds import (
     running_normalize,
 )
 from cuvis_ai_core.node import Node
+from cuvis_ai_core.node.fit_utils import random_cap
+from cuvis_ai_core.node.metric_utils import subsample_hw
 
 
 class NormMode(StrEnum):
@@ -547,6 +549,10 @@ class PerPixelUnitNorm(_NormalizerBase):
         return normalized
 
 
+_STATISTICAL_FITS = ("batch_bounds", "pooled")
+_CLAMPS = ("both", "floor", "none")
+
+
 def _sorted_quantiles(values: Tensor, quantiles: tuple[float, ...]) -> list[Tensor]:
     """Linear-interpolation quantiles of a 1-D tensor from one sort (numpy's default method).
 
@@ -617,6 +623,24 @@ class PercentileNormalizer(_NormalizerBase):
         Truncate the output to this many levels, ``floor(x * levels) / levels``, exactly as
         casting a ``[0, 1]`` image to ``uint8`` does for ``255``; any mode. Default ``None``
         keeps the float values.
+    statistical_fit : str
+        ``statistical`` only: ``"batch_bounds"`` (default) takes the quantiles of every fit batch
+        and keeps the lowest low and the highest high. ``"pooled"`` pools the values of all fit
+        batches (every ``fit_subsample``-th pixel in both axes, at most ``max_fit_values`` rows
+        by a seeded random cap) and takes the quantiles of the pool once, so one extreme batch
+        does not set the range.
+    fit_subsample, max_fit_values, seed : int
+        The pooled fit's spatial stride, row cap and cap seed. Defaults ``4``, ``4_000_000``
+        and ``0``; another value raises unless ``statistical_fit="pooled"``.
+    clamp : str
+        ``statistical`` only: ``"both"`` (default) clamps the output to ``[0, 1]``, ``"floor"``
+        only at 0 and ``"none"`` not at all. Without the upper clamp a value far above the
+        fitted range keeps its rank, so maps fitted on their normal range stay comparable
+        across detectors.
+    invert : bool
+        ``statistical`` only: fit and normalise ``-x`` instead of ``x``, for maps where higher
+        means more normal (a log-likelihood), so the output rises with the anomaly. Default
+        ``False``.
 
     Ports
     -----
@@ -641,11 +665,53 @@ class PercentileNormalizer(_NormalizerBase):
         per_frame_quantiles: bool = False,
         joint_channels: bool = False,
         quantize_levels: int | None = None,
+        statistical_fit: str = "batch_bounds",
+        fit_subsample: int = 4,
+        max_fit_values: int = 4_000_000,
+        seed: int = 0,
+        clamp: str = "both",
+        invert: bool = False,
         **kwargs: Any,
     ) -> None:
         if isinstance(n_channels, bool) or not isinstance(n_channels, int) or n_channels < 1:
             raise ValueError("PercentileNormalizer: n_channels must be an integer >= 1")
         norm_mode = NormMode(norm_mode)
+        if statistical_fit not in _STATISTICAL_FITS:
+            raise ValueError(
+                f"PercentileNormalizer: statistical_fit must be one of {_STATISTICAL_FITS}, "
+                f"got {statistical_fit!r}"
+            )
+        if clamp not in _CLAMPS:
+            raise ValueError(f"PercentileNormalizer: clamp must be one of {_CLAMPS}, got {clamp!r}")
+        if not isinstance(invert, bool):
+            raise ValueError("PercentileNormalizer: invert must be a bool")
+        for name, value, low in (
+            ("fit_subsample", fit_subsample, 1),
+            ("max_fit_values", max_fit_values, 2),
+            ("seed", seed, 0),
+        ):
+            if isinstance(value, bool) or not isinstance(value, int) or value < low:
+                raise ValueError(f"PercentileNormalizer: {name} must be an integer >= {low}")
+        if norm_mode != NormMode.STATISTICAL:
+            for name, value, default in (
+                ("statistical_fit", statistical_fit, "batch_bounds"),
+                ("clamp", clamp, "both"),
+                ("invert", invert, False),
+            ):
+                if value != default:
+                    raise ValueError(
+                        f"PercentileNormalizer: {name} applies to norm_mode='statistical' only"
+                    )
+        if statistical_fit != "pooled":
+            for name, value, default in (
+                ("fit_subsample", fit_subsample, 4),
+                ("max_fit_values", max_fit_values, 4_000_000),
+                ("seed", seed, 0),
+            ):
+                if value != default:
+                    raise ValueError(
+                        f"PercentileNormalizer: {name} applies to statistical_fit='pooled' only"
+                    )
         for flag_name, flag in (
             ("per_frame_quantiles", per_frame_quantiles),
             ("joint_channels", joint_channels),
@@ -689,6 +755,12 @@ class PercentileNormalizer(_NormalizerBase):
         self.per_frame_quantiles = per_frame_quantiles
         self.joint_channels = joint_channels
         self.quantize_levels = quantize_levels
+        self.statistical_fit = statistical_fit
+        self.fit_subsample = fit_subsample
+        self.max_fit_values = max_fit_values
+        self.seed = seed
+        self.clamp = clamp
+        self.invert = invert
 
         super().__init__(
             n_channels=self.n_channels,
@@ -701,6 +773,12 @@ class PercentileNormalizer(_NormalizerBase):
             per_frame_quantiles=self.per_frame_quantiles,
             joint_channels=self.joint_channels,
             quantize_levels=self.quantize_levels,
+            statistical_fit=self.statistical_fit,
+            fit_subsample=self.fit_subsample,
+            max_fit_values=self.max_fit_values,
+            seed=self.seed,
+            clamp=self.clamp,
+            invert=self.invert,
             **kwargs,
         )
 
@@ -770,6 +848,15 @@ class PercentileNormalizer(_NormalizerBase):
             eps=self.eps,
         )
 
+    def _statistical_normalize(self, tensor: Tensor) -> Tensor:
+        """Scale by the fitted bounds, clamped to ``[0, 1]``, at 0 only, or not at all."""
+        if self.clamp == "both":
+            return normalize_with_bounds(tensor, self.running_min, self.running_max, self.eps)
+        out = (tensor - self.running_min) / (self.running_max - self.running_min).clamp_min(
+            self.eps
+        )
+        return out.clamp_min(0.0) if self.clamp == "floor" else out
+
     def _normalize(self, tensor: Tensor) -> Tensor:
         """Dispatch on ``norm_mode`` (raises on channel mismatch / unfitted statistical)."""
         if tensor.shape[-1] != self.n_channels:
@@ -782,7 +869,7 @@ class PercentileNormalizer(_NormalizerBase):
                     "PercentileNormalizer: statistical mode requires "
                     "statistical_initialization() before forward()"
                 )
-            out = normalize_with_bounds(tensor, self.running_min, self.running_max, self.eps)
+            out = self._statistical_normalize(-tensor if self.invert else tensor)
         elif self.norm_mode == NormMode.RUNNING:
             out = self._running_normalize(tensor)
         elif self.per_frame_quantiles or self.joint_channels:
@@ -794,15 +881,20 @@ class PercentileNormalizer(_NormalizerBase):
         return out
 
     def statistical_initialization(self, input_stream: InputStream) -> None:
-        """Accumulate global per-channel percentile bounds across the dataset.
+        """Fit global per-channel percentile bounds across the dataset.
 
-        Preserves the established min-of-batch-lows / max-of-batch-highs
-        accumulation (batch-order sensitive); a true streaming percentile is a
-        deliberate follow-up, not changed here.
+        ``statistical_fit="batch_bounds"`` keeps the established min-of-batch-lows /
+        max-of-batch-highs accumulation (batch-order sensitive); ``"pooled"`` takes the
+        quantiles of the pooled, subsampled and capped values once.
         """
+        if self.statistical_fit == "pooled":
+            self._pooled_fit(input_stream)
+            return
         for batch_data in input_stream:
             data = batch_data["data"]
             flat = data.reshape(-1, self.n_channels).float()
+            if self.invert:
+                flat = -flat
             frame_lo = torch.quantile(flat, self.quantile_low, dim=0)
             frame_hi = torch.quantile(flat, self.quantile_high, dim=0)
             if torch.isnan(self.running_min).any():
@@ -813,6 +905,41 @@ class PercentileNormalizer(_NormalizerBase):
                 torch.maximum(self.running_max, frame_hi, out=self.running_max)
         if torch.isnan(self.running_min).any():
             raise RuntimeError("PercentileNormalizer.statistical_initialization received no data")
+
+    @torch.no_grad()
+    def _pooled_fit(self, input_stream: InputStream) -> None:
+        """Quantiles of the pooled values of all fit batches (subsampled, seeded cap)."""
+        generator = torch.Generator().manual_seed(self.seed)
+        chunks: list[Tensor] = []
+        total = 0
+        for batch_data in input_stream:
+            data = batch_data.get("data") if isinstance(batch_data, dict) else None
+            if data is None:
+                continue
+            if data.shape[-1] != self.n_channels:
+                raise ValueError(
+                    f"PercentileNormalizer expected {self.n_channels} channels, "
+                    f"got {data.shape[-1]}"
+                )
+            values = subsample_hw(data, self.fit_subsample).reshape(-1, self.n_channels).float()
+            chunks.append(-values if self.invert else values)
+            total += values.shape[0]
+            if total > 2 * self.max_fit_values:  # bound the memory while streaming
+                chunks = [random_cap(torch.cat(chunks, dim=0), self.max_fit_values, generator)]
+                total = chunks[0].shape[0]
+        if not chunks:
+            raise RuntimeError("PercentileNormalizer.statistical_initialization received no data")
+        pool = random_cap(torch.cat(chunks, dim=0), self.max_fit_values, generator)
+        if pool.shape[0] < 2:
+            raise RuntimeError(
+                "PercentileNormalizer.statistical_initialization needs at least 2 values"
+            )
+        q = torch.tensor(
+            [self.quantile_low, self.quantile_high], dtype=pool.dtype, device=pool.device
+        )
+        bounds = torch.quantile(pool, q, dim=0)  # [2, C], linear interpolation
+        self.running_min.copy_(bounds[0])
+        self.running_max.copy_(bounds[1])
 
 
 class DisplayNormalizer(_NormalizerBase):

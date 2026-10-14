@@ -191,6 +191,48 @@ capabilities:
       optional: false
       description: Binary decision mask (BHWC format)
   doc_summary: Quantile-based thresholding node operating on BHWC logits or scores.
+- class_name: cuvis_ai.node.deciders.frame_score_gate.FrameScoreGate
+  category: transform
+  tags: [anomaly, postprocessing, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    scores:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: 'Display map [B, H, W, C] (a heatmap has C = 1): the map that is passed through or blanked, e.g. a fusion or normalized bank map.'
+    alarm_scores:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: true
+      description: Optional separate map [B, H, W, C] whose top-k frame score drives the gate. When omitted the gate scores `scores` itself. Use it to alarm on one bank (e.g. a feature bank) while displaying another map (e.g. a two-bank fusion).
+  output_specs:
+    scores:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: "Same shape as `scores`: the display map when the frame's alarm score > threshold, else all zeros. With mode='mask' the passing frame is binarised (at `mask_threshold`, defaulting to `threshold`) instead of passed through."
+    frame_score:
+      dtype: float32
+      shape: [-1]
+      optional: false
+      description: Per-frame alarm score [B] = mean of the top `topk_frac` pixels of the alarm map (`alarm_scores` when given, else `scores`). Raw, before smoothing.
+    passed:
+      dtype: int32
+      shape: [-1]
+      optional: false
+      description: 'Per-frame gate [B]: 1 when the (optionally smoothed) score > threshold, else 0.'
+    decisions:
+      dtype: bool
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: 'Boolean mask, same shape as `scores`: the pixels of the display map above `mask_threshold` (default `threshold`) on passing frames, all False on the others. Viewers show a `decisions` port as a mask overlay.'
+    core:
+      dtype: bool
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: 'Boolean mask, same shape as `scores`: the pixels of the display map above `core_ratio` x `mask_threshold` on passing frames (equal to `decisions` with the default ratio 1): the confident core of the mask.'
+  doc_summary: Zero a display map unless its per-frame top-k score exceeds a threshold (heatmap or mask).
 - class_name: cuvis_ai.node.deciders.two_stage_decider.TwoStageBinaryDecider
   category: transform
   tags: [classification, numpy, postprocessing]
