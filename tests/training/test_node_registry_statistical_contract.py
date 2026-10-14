@@ -43,6 +43,7 @@ REQUIRED_ARG_DEFAULTS: dict[str, object] = {
     "output_json_path": "test_output.json",
     "json_path": "test_input.json",
     "file_path": "missing.npy",
+    "projection_path": "missing_projection.npz",
     "tracking_json_path": "missing_tracking.json",
     "track_ids": [1],
     "occlusion_start_frame": 0,
