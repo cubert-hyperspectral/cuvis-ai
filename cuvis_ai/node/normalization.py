@@ -631,7 +631,7 @@ class PercentileNormalizer(_NormalizerBase):
         does not set the range.
     fit_subsample, max_fit_values, seed : int
         The pooled fit's spatial stride, row cap and cap seed. Defaults ``4``, ``4_000_000``
-        and ``0``.
+        and ``0``; another value raises unless ``statistical_fit="pooled"``.
     clamp : str
         ``statistical`` only: ``"both"`` (default) clamps the output to ``[0, 1]``, ``"floor"``
         only at 0 and ``"none"`` not at all. Without the upper clamp a value far above the
@@ -701,6 +701,16 @@ class PercentileNormalizer(_NormalizerBase):
                 if value != default:
                     raise ValueError(
                         f"PercentileNormalizer: {name} applies to norm_mode='statistical' only"
+                    )
+        if statistical_fit != "pooled":
+            for name, value, default in (
+                ("fit_subsample", fit_subsample, 4),
+                ("max_fit_values", max_fit_values, 4_000_000),
+                ("seed", seed, 0),
+            ):
+                if value != default:
+                    raise ValueError(
+                        f"PercentileNormalizer: {name} applies to statistical_fit='pooled' only"
                     )
         for flag_name, flag in (
             ("per_frame_quantiles", per_frame_quantiles),

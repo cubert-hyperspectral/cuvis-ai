@@ -186,6 +186,14 @@ def test_statistical_options_refuse_the_other_modes(kw, mode):
         PercentileNormalizer(n_channels=1, norm_mode=mode, **kw)
 
 
+@pytest.mark.parametrize("kw", [{"fit_subsample": 2}, {"max_fit_values": 10}, {"seed": 1}])
+@pytest.mark.parametrize("mode", ["per_frame", "running", "statistical"])
+def test_pooled_fit_options_refuse_the_other_fits(kw, mode):
+    """The pooled fit's stride, cap and seed would be ignored by any other fit, so they raise."""
+    with pytest.raises(ValueError, match="pooled"):
+        PercentileNormalizer(n_channels=1, norm_mode=mode, **kw)
+
+
 @pytest.mark.parametrize(
     "bad",
     [
