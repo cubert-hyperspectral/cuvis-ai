@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- cuvis-ai-core floor 0.18.5 (was 0.18.1): the shared helpers the next node families import (`metric_utils.topk_count` and `topk_mean`, `fit_utils.random_cap`, `utils.tiling`); the lock moves to 0.18.5.
+
 ## 0.19.0 - 2026-10-14
 
 - `ScoreMapFusion` and `DecisionFusion` in the new `cuvis_ai.node.fusion`, the built-in homes of the fusion nodes the walnut plugins carried (`ScoreMapFusion` and `DecisionFusion` of cuvis-ai-patchcore, `ScoreFusion` and `ScoreIntersection` of cuvis-ai-rfdetr). `ScoreMapFusion` takes any number of score maps of one shape through one variadic `scores` port and combines them by `mode`: `mean`, `min`, `max`, `wmean` (normalised `weights`), `gmean` (geometric mean of the maps floored at 0), `first` (per frame the first map that is not all zero, in connection order) or `softmin` (`beta`, optional `weights`). `DecisionFusion` combines boolean masks with `any`, `all` or `first`. For two maps `mean`, `min` and `max` give the bits of the former two-input node (`0.5 * (a + b)`, `torch.minimum`, `torch.maximum`) on CPU and CUDA, so pipelines move over without a change in their outputs; `ScoreIntersection` is `ScoreMapFusion` with `min`.
