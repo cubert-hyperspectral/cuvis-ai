@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- cuvis-ai-core floor 0.18.5 (was 0.18.1): the shared helpers the next node families import (`metric_utils.topk_count` and `topk_mean`, `fit_utils.random_cap`, `utils.tiling`); the lock moves to 0.18.5.
+- cuvis-ai-core floor 0.18.5 (was 0.18.1): the shared helpers the next node families import (`metric_utils.topk_count` and `topk_mean`, `fit_utils.random_cap`, `utils.tiling`); the lock moves to 0.18.5. `weights.index.json` is regenerated against it: the three `dinomaly_lentils_*` pipelines point at the Hub revision `3602a04e` core pins since 0.18.4.
 
 ## 0.19.0 - 2026-10-14
 
