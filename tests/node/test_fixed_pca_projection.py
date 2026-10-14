@@ -56,6 +56,23 @@ def test_raw_projection_when_scaling_disabled(tmp_path):
     assert np.allclose(out, ref, atol=1e-5)
 
 
+def test_a_component_with_an_empty_range_stays_finite(tmp_path):
+    # hi == lo for one component: that channel is shifted by lo but not scaled, instead of
+    # dividing by zero; the other components keep the fixed scaling.
+    _, mean, comps, lo, hi = _proj(tmp_path)
+    hi[1] = lo[1]
+    path = tmp_path / "flat.npz"
+    np.savez(path, mean=mean, comps=comps, lo=lo, hi=hi)
+    node = FixedPCAProjection(projection_path=str(path), clamp01=False, input_global_minmax=False)
+    rng = np.random.default_rng(4)
+    cube = (rng.normal(size=(1, 3, 3, 7)) * 2).astype(np.float32)
+    out = node(data=torch.from_numpy(cube))["projected"].numpy()
+    raw = ((cube.reshape(-1, 7) - mean) @ comps.T).reshape(1, 3, 3, 3)
+    assert np.isfinite(out).all()
+    assert np.allclose(out[..., 1], raw[..., 1] - lo[1], atol=1e-5)
+    assert np.allclose(out[..., 0], (raw[..., 0] - lo[0]) / (hi[0] - lo[0]), atol=1e-5)
+
+
 def test_input_global_minmax_is_scale_invariant_and_idempotent(tmp_path):
     # The projection was fitted on cubes min-maxed to [0, 1] as a whole, so it must not depend on
     # the caller's absolute scale (a source may deliver raw-scale reflectance). With the min-max on

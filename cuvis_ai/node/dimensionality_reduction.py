@@ -373,7 +373,9 @@ class FixedPCAProjection(TrainablePCA):
         out = super().forward(data=data)
         p = out["projected"]
         if self.scale_to_unit:
-            p = (p - self._lo) / (self._hi - self._lo)
+            # A component whose range is empty (hi == lo) is shifted but not scaled.
+            span = self._hi - self._lo
+            p = (p - self._lo) / torch.where(span == 0, torch.ones_like(span), span)
         if self.clamp01:
             p = p.clamp(0.0, 1.0)
         return {"projected": p}
