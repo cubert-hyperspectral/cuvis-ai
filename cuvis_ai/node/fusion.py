@@ -95,7 +95,8 @@ class ScoreMapFusion(Node):
         mode : str
             ``"mean"`` (arithmetic mean), ``"min"`` (AND), ``"max"`` (OR), ``"wmean"`` (weighted
             mean with ``weights``, normalised to sum to one), ``"gmean"`` (geometric mean of the
-            maps floored at 0), ``"first"`` (per frame, the first inbound map in connection order
+            maps floored at 0; its gradient is not finite where a map is exactly 0, so train
+            through ``mean`` or ``softmin`` instead), ``"first"`` (per frame, the first inbound map in connection order
             that is not all zero; the first map when all are) or ``"softmin"`` (the soft minimum
             ``-(1/beta) log(sum_i w_i exp(-beta x_i))`` with the weights normalised to sum to one,
             equal by default: at most ``log(N) / beta`` above the minimum for equal weights, and

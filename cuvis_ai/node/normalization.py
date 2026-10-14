@@ -550,8 +550,10 @@ class PerPixelUnitNorm(_NormalizerBase):
 def _sorted_quantiles(values: Tensor, quantiles: tuple[float, ...]) -> list[Tensor]:
     """Linear-interpolation quantiles of a 1-D tensor from one sort (numpy's default method).
 
-    The interpolation position ``q * (n - 1)`` is computed in double precision and the result in
-    the tensor's dtype, so a frame gets the same bounds bit for bit wherever it is computed.
+    The interpolation position ``q * (n - 1)`` is cast to the tensor's dtype before the floor,
+    the ceil and the interpolation weight are taken, as the percentile stretch this replaces did.
+    Keep it that way: a position kept in double precision gives other bounds whenever float32
+    rounds it to a whole number.
     """
     n = values.numel()
     ordered, _ = torch.sort(values)
