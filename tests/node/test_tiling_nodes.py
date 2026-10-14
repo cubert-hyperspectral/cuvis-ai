@@ -110,3 +110,11 @@ def test_errors():
 def test_hparams_recorded():
     assert ImageTiler(tiles=3).tiles == 3
     assert GridStitcher(tiles=3).tiles == 3
+
+
+@pytest.mark.parametrize("cls", [ImageTiler, GridStitcher])
+def test_rebuilds_from_its_recorded_hparams(cls):
+    """A restored pipeline constructs each node from ``hparams``; the rebuild keeps ``tiles``."""
+    node = cls(tiles=3)
+    assert node.hparams["tiles"] == 3
+    assert cls(**node.hparams).tiles == 3
