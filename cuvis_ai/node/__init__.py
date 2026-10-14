@@ -147,6 +147,7 @@ from cuvis_ai.node.spectral_extractor import (
 )
 from cuvis_ai.node.spectrum_plot import SpectraPlot, SpectrumPlotNode
 from cuvis_ai.node.svm import OneClassSVMDetector
+from cuvis_ai.node.tiling import GridStitcher, ImageTiler
 from cuvis_ai.node.unmixing import NMFUnmixing, NNLSUnmixing
 from cuvis_ai.node.video import (
     ToImage,
@@ -255,6 +256,8 @@ __all__ = [
     "TrackingOverlayNode",
     "TrackingResultsReader",
     "TrainablePCA",
+    "GridStitcher",
+    "ImageTiler",
     "FixedPCAProjection",
     "GridSubsample",
     "ScoreMapSmoothing",

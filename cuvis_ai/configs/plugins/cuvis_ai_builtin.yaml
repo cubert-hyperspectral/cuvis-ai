@@ -3984,3 +3984,37 @@ capabilities:
       optional: false
       description: 'Same shape: each channel convolved with a normalised Gaussian of `sigma_px` (radius round(4 sigma), mirrored border).'
   doc_summary: Smooth a score map [B, H, W, C] with a Gaussian of ``sigma_px`` pixels.
+- class_name: cuvis_ai.node.tiling.ImageTiler
+  category: transform
+  tags: [batched, differentiable, image, preprocessing, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    image:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Image batch [B, H, W, C] (any channel count); H and W must be divisible by `tiles`.
+  output_specs:
+    tiles:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Tiles [B * T * T, H / T, W / T, C]; tile (i, j) of image b sits at index b * T * T + i * T + j (image-major, then row-major), the order GridStitcher expects.
+  doc_summary: Split every image of a batch into a T x T grid of equal tiles stacked along the batch.
+- class_name: cuvis_ai.node.tiling.GridStitcher
+  category: transform
+  tags: [batched, differentiable, embedding, postprocessing, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    tiles:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Per-tile grids [B * T * T, g_h, g_w, D] in ImageTiler order (e.g. ViT patch features).
+  output_specs:
+    grid:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: 'Stitched grid [B, T * g_h, T * g_w, D]: tile (i, j) fills rows i * g_h.. and columns j * g_w..'
+  doc_summary: Reassemble per-tile grids produced in ImageTiler order into one grid per image.
