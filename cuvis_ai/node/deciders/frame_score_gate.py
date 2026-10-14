@@ -132,9 +132,9 @@ class FrameScoreGate(Node):
             smoothing). Runtime-only state (not serialized); needs one frame per forward (a batch
             of several frames raises); ``reset()`` forgets the history (e.g. a new recording).
         core_ratio : the ``core`` output marks the pixels above ``core_ratio`` x ``mask_threshold``
-            on passing frames (default 1.0: the pixels of ``decisions``; must be >= 1, for a
-            positive ``mask_threshold``). E.g. 1.3 keeps the confident part of a mark through a
-            cut of the mask to the objects.
+            on passing frames (default 1.0: the pixels of ``decisions``; must be >= 1, and above
+            1 the cutoff must not be negative). E.g. 1.3 keeps the confident part of a mark
+            through a cut of the mask to the objects.
         """
         if isinstance(threshold, bool) or not isinstance(threshold, (int, float)):
             raise ValueError(f"threshold must be a number, got {threshold!r}")
@@ -153,6 +153,12 @@ class FrameScoreGate(Node):
             or not core_ratio >= 1.0
         ):
             raise ValueError(f"core_ratio must be a number >= 1, got {core_ratio!r}")
+        cutoff = threshold if mask_threshold is None else mask_threshold
+        if core_ratio != 1.0 and cutoff < 0:
+            raise ValueError(
+                f"core_ratio {core_ratio!r} needs a cutoff >= 0, got {cutoff!r}: on a negative "
+                "mask_threshold the ratio would loosen it"
+            )
         self.threshold = float(threshold)
         self.topk_frac = float(topk_frac)
         self.mode = str(mode)

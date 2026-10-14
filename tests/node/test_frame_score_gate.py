@@ -154,6 +154,16 @@ def test_invalid_core_ratio_raises(kw):
         FrameScoreGate(threshold=1.0, **kw)
 
 
+def test_core_ratio_above_one_refuses_a_negative_cutoff():
+    """On a negative cutoff the ratio would loosen it, and ``core`` would leave ``decisions``."""
+    with pytest.raises(ValueError, match="core_ratio"):
+        FrameScoreGate(threshold=-5.0, mask_threshold=-2.0, core_ratio=2.0)
+    with pytest.raises(ValueError, match="core_ratio"):
+        FrameScoreGate(threshold=-1.0, core_ratio=1.3)
+    FrameScoreGate(threshold=-1.0, mask_threshold=0.5, core_ratio=1.3)
+    FrameScoreGate(threshold=-1.0)
+
+
 @pytest.mark.parametrize(
     "kw",
     [
