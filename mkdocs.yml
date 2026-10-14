@@ -191,6 +191,7 @@ nav:
           - XMR Demo Object Tracking: catalogs/datasets/XMR_Demo_Object_Tracking.md
           - XMR Lentils: catalogs/datasets/XMR_Lentils.md
           - XMR Industrial FOD (Lentils): catalogs/datasets/XMR_Industrial_FOD_Lentils.md
+          - XMR Industrial FOD (Walnuts): catalogs/datasets/XMR_Industrial_FOD_Walnuts.md
           - X4 SWIR Industrial FOD (Bedding): catalogs/datasets/X4_SWIR_Industrial_FOD_Bedding.md
   - Workflows:
       - Overview: workflows/index.md
