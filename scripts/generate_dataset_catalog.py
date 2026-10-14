@@ -60,6 +60,14 @@ CARDS: dict[str, tuple[str, str, str]] = {
         "split holding the 51 annotated foreign-object frames "
         "(`configs/data/industrial_fod_bedding.yaml`).",
     ),
+    "Industrial_FOD_Walnuts": (
+        "XMR_Industrial_FOD_Walnuts",
+        ":material-factory:",
+        "Walnut kernels and shell fragments with stones, stems, rubber, aluminium shards and "
+        "imitation shells: 90 recordings over seven days, 2,283 frames (820 annotated), seven "
+        "classes with the shell as its own class, and baked foreign-object and shell "
+        "segmentation splits. The trained pipelines are in the companion model repository.",
+    ),
 }
 
 CAMERA_NOTES = {

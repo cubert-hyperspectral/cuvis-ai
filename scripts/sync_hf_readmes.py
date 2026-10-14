@@ -66,6 +66,10 @@ DATASETS: tuple[tuple[str, str], ...] = (
         "X4_SWIR_Industrial_FOD_Bedding",
         "X4_SWIR_Industrial_Foreign_Object_Detection_Bedding",
     ),
+    (
+        "XMR_Industrial_FOD_Walnuts",
+        "XMR_Industrial_Foreign_Object_Detection_Walnuts",
+    ),
 )
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
