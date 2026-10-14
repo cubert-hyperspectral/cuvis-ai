@@ -63,6 +63,7 @@ from cuvis_ai.node.compositing import (
 from cuvis_ai.node.conversion import DecisionToMask
 from cuvis_ai.node.deciders import (
     BinaryDecider,
+    FrameScoreGate,
     MultiRangeSlicer,
     QuantileBinaryDecider,
     TwoStageBinaryDecider,
@@ -269,6 +270,7 @@ __all__ = [
     "RXGlobal",
     "RXPerBatch",
     "TwoStageBinaryDecider",
+    "FrameScoreGate",
     "ZScoreNormalizerGlobal",
     "SavitzkyGolay",
     "ContinuumRemoval",
