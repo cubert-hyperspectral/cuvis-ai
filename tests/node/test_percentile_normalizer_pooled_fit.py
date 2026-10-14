@@ -233,9 +233,13 @@ def _reference_fit(stream, low, high, s, cap, seed, invert):
 
 @pytest.mark.parametrize("invert", [False, True])
 @pytest.mark.parametrize("floor", [True, False])
-@pytest.mark.parametrize("cap", [4_000_000, 300])
+@pytest.mark.parametrize("cap", [4_000_000, 300, 50])
 def test_bits_match_the_score_range_calibration(invert, floor, cap):
     stream = _stream(5, seed=21)
+    if cap == 50:
+        # 30 rows per frame at stride 4: the fourth frame takes the pool to 120 > 2 * cap (reduced
+        # to 50 while streaming), the fifth to 80, which the final cap takes down to 50.
+        assert subsample_hw(stream[0]["data"], 4).reshape(-1).numel() == 30
     lo, hi = _reference_fit(stream, 1.0, 99.0, 4, cap, 0, invert)
     node = _node(floor=floor, fit_subsample=4, max_fit_values=cap, seed=0, invert=invert)
     node.statistical_initialization(iter(stream))
