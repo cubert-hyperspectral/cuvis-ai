@@ -16,7 +16,21 @@ from cuvis_ai_core.node import Node
 
 
 class SpectralAngleMapper(Node):
-    """Compute per-pixel spectral angle against one or more reference spectra."""
+    """Compute per-pixel spectral angle against one or more reference spectra.
+
+    Pixels and references are divided by their own mean before the angle, which leaves the angle
+    of positive spectra unchanged; a pixel whose mean is negative (dark, noisy raw data) gets
+    ``pi`` minus its angle. A zero reference (an object absent from the frame) scores ``pi / 2``
+    everywhere. The extra memory of a forward pass is about four ``[B, H, W, N]`` tensors and one
+    copy of the cube.
+
+    Parameters
+    ----------
+    num_channels : int, optional
+        Channel count ``C`` the cube must have; ``None`` (default) accepts any count.
+    eps : float, optional
+        Guard against division by a zero mean or norm (default 1e-12).
+    """
 
     _category = NodeCategory.MODEL
     _tags = frozenset(
@@ -54,10 +68,10 @@ class SpectralAngleMapper(Node):
         ),
     }
 
-    def __init__(self, num_channels: int, eps: float = 1e-12, **kwargs: Any) -> None:
-        if int(num_channels) <= 0:
+    def __init__(self, num_channels: int | None = None, eps: float = 1e-12, **kwargs: Any) -> None:
+        if num_channels is not None and int(num_channels) <= 0:
             raise ValueError(f"num_channels must be > 0, got {num_channels}")
-        self.num_channels = int(num_channels)
+        self.num_channels = int(num_channels) if num_channels is not None else None
         self.eps = float(eps)
         super().__init__(num_channels=self.num_channels, eps=self.eps, **kwargs)
 
@@ -70,17 +84,27 @@ class SpectralAngleMapper(Node):
     ) -> dict[str, torch.Tensor]:
         """Run spectral-angle scoring for all references."""
         ref = spectral_signature.squeeze(1).squeeze(1)  # [N, C]
-        channel_count = int(ref.shape[-1])
+        channels = int(cube.shape[-1])
+        if ref.shape[0] == 0:
+            raise ValueError("SpectralAngleMapper: spectral_signature holds no reference spectrum.")
+        if int(ref.shape[-1]) != channels:
+            raise ValueError(
+                f"SpectralAngleMapper: the cube has {channels} channels but the references have "
+                f"{int(ref.shape[-1])}."
+            )
+        if self.num_channels is not None and channels != self.num_channels:
+            raise ValueError(
+                f"SpectralAngleMapper: num_channels is {self.num_channels} but the cube has "
+                f"{channels} channels."
+            )
         ref_mean = ref.mean(dim=-1, keepdim=True)
         ref_norm = ref / (ref_mean + self.eps)
 
         pixel_mean = cube.mean(dim=-1, keepdim=True)
         cube_norm = cube / (pixel_mean + self.eps)
 
-        ref_expanded = ref_norm.view(1, 1, 1, ref_norm.shape[0], channel_count)
-        cube_expanded = cube_norm.unsqueeze(-2)
-
-        dot = (cube_expanded * ref_expanded).sum(dim=-1)
+        # one matrix product, without a [B, H, W, N, C] temporary
+        dot = torch.einsum("bhwc,nc->bhwn", cube_norm, ref_norm)
         norms = cube_norm.norm(dim=-1, keepdim=True) * ref_norm.norm(dim=-1).view(1, 1, 1, -1)
         cos_sim = dot / (norms + self.eps)
         scores = torch.acos(cos_sim.clamp(-1.0, 1.0))

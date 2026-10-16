@@ -5,11 +5,14 @@ scores or logits into binary decisions (anomaly/normal). Two strategies are avai
 
 - **BinaryDecider**: Fixed threshold applied globally to sigmoid-transformed logits
 - **QuantileBinaryDecider**: Adaptive per-batch thresholding using quantile statistics
+- **ScoreThreshold**: Fixed threshold on a raw score, keeping the values below or above it
 
 Decision nodes are typically placed at the end of anomaly detection pipelines to
 convert detector outputs into actionable binary masks for visualization or evaluation.
 """
 
+import math
+import numbers
 from collections.abc import Sequence
 from typing import Any
 
@@ -20,6 +23,7 @@ from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
 
 from cuvis_ai_core.deciders.base_decider import BinaryDecider as BaseDecider
+from cuvis_ai_core.node import Node
 
 from . import _calibration
 
@@ -327,3 +331,82 @@ class QuantileBinaryDecider(BaseDecider):
             "precision": best["precision"],
             "recall": best["recall"],
         }
+
+
+_KEEP = ("below", "above")
+
+
+def _valid_threshold(value: Any) -> float:
+    """``value`` as a float when it is a finite, non-negative number; ``ValueError`` otherwise."""
+    if isinstance(value, bool) or not isinstance(value, numbers.Real):
+        raise ValueError(f"ScoreThreshold: threshold must be a number, got {value!r}.")
+    if not math.isfinite(value) or value < 0:
+        raise ValueError(f"ScoreThreshold: threshold must be finite and >= 0, got {value!r}.")
+    return float(value)
+
+
+class ScoreThreshold(Node):
+    """Mark the pixels whose raw score lies below or above a threshold (no sigmoid).
+
+    ``keep: "below"`` marks ``scores <= threshold``, for a distance such as a spectral angle to a
+    reference; ``keep: "above"`` marks ``scores > threshold``. NaN scores are never marked. The
+    optional ``threshold`` input replaces the hparam for one call, so a slider in a GUI needs no
+    pipeline reload.
+
+    Parameters
+    ----------
+    threshold : float
+        Finite, non-negative threshold in the unit of ``scores`` (default 0.5).
+    keep : str
+        ``"below"`` (default) or ``"above"``.
+    """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.CLASSIFICATION, NodeTag.POSTPROCESSING, NodeTag.TORCH})
+
+    INPUT_SPECS = {
+        "scores": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 1),
+            description="Per-pixel score map [B, H, W, 1], e.g. a spectral angle in radians.",
+        ),
+        "threshold": PortSpec(
+            dtype=torch.float32,
+            shape=(1,),
+            description="Threshold for this call [1]; replaces the `threshold` hparam.",
+            optional=True,
+        ),
+    }
+
+    OUTPUT_SPECS = {
+        "decisions": PortSpec(
+            dtype=torch.bool,
+            shape=(-1, -1, -1, 1),
+            description="Pixels with a score at or below (`keep: below`) or above (`keep: above`) "
+            "the threshold [B, H, W, 1].",
+        ),
+    }
+
+    def __init__(self, threshold: float = 0.5, keep: str = "below", **kwargs: Any) -> None:
+        if keep not in _KEEP:
+            raise ValueError(f"ScoreThreshold: keep must be one of {_KEEP}, got {keep!r}.")
+        self.threshold = _valid_threshold(threshold)
+        self.keep = keep
+        super().__init__(threshold=self.threshold, keep=self.keep, **kwargs)
+
+    @torch.no_grad()
+    def forward(
+        self, scores: Tensor, threshold: Tensor | None = None, **_: Any
+    ) -> dict[str, Tensor]:
+        """Return the pixels on the kept side of the threshold."""
+        value = self.threshold
+        if threshold is not None:
+            if tuple(threshold.shape) != (1,):
+                raise ValueError(
+                    f"ScoreThreshold: the threshold input must have shape [1], got "
+                    f"{list(threshold.shape)}."
+                )
+            value = _valid_threshold(float(threshold.item()))
+        if self.keep == "below":
+            return {"decisions": scores <= value}
+        return {"decisions": scores > value}

@@ -1,0 +1,67 @@
+metadata:
+  name: Spectral_Match_Validity
+  description: >-
+    Spectral Match with a validity gate: the same request and outputs as
+    spectral_match.yaml, but pixels that are non-finite, below the norm floor, saturated (when
+    saturation_value is set) or outside the ROI margin never light up, in either mode. The norm
+    floor of 50 fits XMR reflectance; set norm_floor and saturation_value for other data.
+    validity.frame_status [B] (0 ok, 1 too few valid pixels, 2 band mismatch) and
+    validity.valid_fraction [B] tell why a frame shows nothing.
+  tags:
+  - segmentation
+  - spectral-angle
+  - spectral-match
+  author: cuvis.ai
+plugins:
+- cuvis_ai_builtin
+nodes:
+- name: cu3s_data
+  class_name: cuvis_ai.node.data.CU3SDataNode
+  hparams: {}
+- name: validity
+  class_name: cuvis_ai.node.preprocessors.SpectralValidity
+  hparams:
+    n_features: null
+    expected_wavelengths: null
+    wavelength_tol_nm: 1.0
+    norm_floor: 50.0
+    saturation_value: null
+    roi_margin_px: 0
+    roi_reference_hw:
+    - 1000
+    - 1080
+    min_valid_fraction: 0.5
+- name: spectral_angle
+  class_name: cuvis_ai.node.spectral_angle_mapper.SpectralAngleMapper
+  hparams:
+    num_channels: null
+    eps: 1.0e-12
+- name: match
+  class_name: cuvis_ai.node.deciders.binary_decider.ScoreThreshold
+  hparams:
+    threshold: 0.12
+    keep: below
+- name: valid_gate
+  class_name: cuvis_ai.node.fusion.DecisionFusion
+  hparams:
+    mode: all
+- name: mask
+  class_name: cuvis_ai.node.mask_ops.MaskMinArea
+  hparams:
+    min_area: 0
+    cell: 1
+connections:
+- source: cu3s_data.outputs.cube
+  target: validity.inputs.cube
+- source: cu3s_data.outputs.wavelengths
+  target: validity.inputs.wavelengths
+- source: cu3s_data.outputs.cube
+  target: spectral_angle.inputs.cube
+- source: spectral_angle.outputs.best_scores
+  target: match.inputs.scores
+- source: match.outputs.decisions
+  target: valid_gate.inputs.decisions
+- source: validity.outputs.valid_mask
+  target: valid_gate.inputs.decisions
+- source: valid_gate.outputs.decisions
+  target: mask.inputs.decisions
