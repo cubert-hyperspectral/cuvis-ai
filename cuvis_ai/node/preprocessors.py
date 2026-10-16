@@ -490,7 +490,6 @@ class SaturatedPixelDetector(Node):
         return {"scores": scores, "decisions": decisions}
 
 
-_REASON_VALID = 0
 _REASON_NON_FINITE = 1
 _REASON_LOW_NORM = 2
 _REASON_SATURATED = 3
