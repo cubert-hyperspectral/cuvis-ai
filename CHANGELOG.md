@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- The `steervit` plugin manifest moves to v0.3.1 and carries the plugin's `weights:` block: the SteerViT checkpoint `steervit_dinov2_base` (the default, labelled "Research use only", served from `JonaRuthardt/SteerViT` at `4468b691`), the Apache-2.0 commercial checkpoints `steervit_dinov2_commercial_small` and `_base` as options from `cubert-gmbh/steervit-commercial`, the DINOv2 ViT-B/14 trunk and RoBERTa-large from the `cubert-gmbh` mirrors. `download-model` and CuvisNEXT provision them from this catalog without `--plugins-dir`; `weights.index.json` is regenerated.
+
 ## 0.19.1 - 2026-10-14
 
 - cuvis-ai-core floor 0.18.5 (was 0.18.1): the shared helpers the next node families import (`metric_utils.topk_count` and `topk_mean`, `fit_utils.random_cap`, `utils.tiling`); the lock moves to 0.18.5. `weights.index.json` is regenerated against it: the three `dinomaly_lentils_*` pipelines point at the Hub revision `3602a04e` core pins since 0.18.4.
