@@ -27,7 +27,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        plugin: [sam3, rtsam2, adaclip, dinomaly]
+        plugin: [sam3, rtsam2, adaclip, dinomaly, steervit]
     env:
       UV_TORCH_BACKEND: cpu
     steps:

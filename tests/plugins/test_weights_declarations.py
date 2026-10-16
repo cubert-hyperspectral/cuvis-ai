@@ -18,7 +18,16 @@ from scripts.weights_index import INDEX_PATH, PLUGINS_DIR, generate
 
 pytestmark = pytest.mark.unit
 
-WEIGHT_BEARING_PLUGINS = {"sam3", "rtsam2", "adaclip", "dinomaly"}
+WEIGHT_BEARING_PLUGINS = {"sam3", "rtsam2", "adaclip", "dinomaly", "steervit"}
+
+# Rows served from the upstream repository instead of a cubert-gmbh mirror, with the reason;
+# every other row lives on a public cubert-gmbh mirror.
+UPSTREAM_SERVED = {
+    ("steervit", "steervit_dinov2_base"): (
+        "JonaRuthardt/SteerViT",
+        "the authors label the file research-only, so the cubert-gmbh mirror stays gated",
+    ),
+}
 
 
 def _blocks() -> dict[str, list[PluginWeightEntry]]:
@@ -38,7 +47,11 @@ def test_every_entry_is_fully_pinned_to_a_cubert_mirror() -> None:
     for plugin, entries in _blocks().items():
         for entry in entries:
             assert isinstance(entry, PluginWeightEntry)
-            assert entry.repo_id.startswith("cubert-gmbh/"), (plugin, entry.name)
+            upstream = UPSTREAM_SERVED.get((plugin, entry.name))
+            if upstream is not None:
+                assert entry.repo_id == upstream[0], (plugin, entry.name)
+            else:
+                assert entry.repo_id.startswith("cubert-gmbh/"), (plugin, entry.name)
             assert len(entry.revision) == 40 and len(entry.sha256) == 64, (plugin, entry.name)
             assert entry.size_bytes > 0
             for aux in entry.aux_files:
