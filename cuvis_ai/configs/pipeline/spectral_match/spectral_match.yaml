@@ -5,7 +5,9 @@ metadata:
     blobs under min_area pixels. The host sends the cube with its wavelengths and the signature
     as spectral_signature [N, 1, 1, C] float32 (one mean spectrum per label, same bands and
     processing mode as the cube); an optional threshold [1] float32 in radians replaces the
-    match node's threshold for that frame, so a slider needs no reload. Nothing is fitted, so a
+    match node's threshold for that frame, so a slider needs no reload (the default of 0.12 rad
+    suits several spectra per label; Spectral Match sends the angle that covers 99 % of the
+    selected pixels). Blobs are labelled per pixel (cell 1). Nothing is fitted, so a
     new signature needs no reload either. Outputs - mask.decisions [B, H, W, 1],
     spectral_angle.best_scores (radians) and spectral_angle.identity_mask (1-based label).
   tags:
@@ -27,13 +29,13 @@ nodes:
 - name: match
   class_name: cuvis_ai.node.deciders.binary_decider.ScoreThreshold
   hparams:
-    threshold: 0.1
+    threshold: 0.12
     keep: below
 - name: mask
   class_name: cuvis_ai.node.mask_ops.MaskMinArea
   hparams:
     min_area: 0
-    cell: 4
+    cell: 1
 connections:
 - source: cu3s_data.outputs.cube
   target: spectral_angle.inputs.cube

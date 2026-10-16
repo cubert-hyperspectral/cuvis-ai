@@ -38,7 +38,7 @@ nodes:
 - name: match
   class_name: cuvis_ai.node.deciders.binary_decider.ScoreThreshold
   hparams:
-    threshold: 0.1
+    threshold: 0.12
     keep: below
 - name: valid_gate
   class_name: cuvis_ai.node.fusion.DecisionFusion
@@ -48,7 +48,7 @@ nodes:
   class_name: cuvis_ai.node.mask_ops.MaskMinArea
   hparams:
     min_area: 0
-    cell: 4
+    cell: 1
 connections:
 - source: cu3s_data.outputs.cube
   target: validity.inputs.cube

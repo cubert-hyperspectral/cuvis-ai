@@ -1,8 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.19.2 - 2026-10-16
 
+- `SpectralAngleMapper` computes its dot products with one matrix product instead of a `[B, H, W, N, C]` temporary: on a 1000 x 1080 x 61 frame with 16 references the extra memory drops from 4343 MB to 586 MB and a forward takes 5 ms on an RTX 5070 Ti Laptop GPU (61 ms on its CPU); the three outputs keep their values within float32 summation order.
+- `SpectralAngleMapper.num_channels` is optional (`None` accepts any channel count, a set value refuses a cube with another one); an empty `spectral_signature` or references with another channel count than the cube raise a `ValueError` that names the counts. A zero reference, as `SignaturesToReferences` passes for an object absent from the frame, still scores pi / 2.
+- `ScoreThreshold` in `cuvis_ai.node.deciders`: marks the pixels of a raw score map at or below (`keep: below`) or above (`keep: above`) a threshold, without the sigmoid of `BinaryDecider`; NaN scores are never marked. An optional `threshold` input of shape `[1]` replaces the hparam for one call, so a slider needs no pipeline reload.
+- `SpectralValidity` in `cuvis_ai.node.preprocessors`: flags non-finite pixels, spectra below `norm_floor`, saturated bands (`saturation_value`, off by default) and a border margin, and reports `frame_status` and `valid_fraction` per frame; `n_features` defaults to `None` (any band count).
+- Presets `spectral_match/spectral_match.yaml` and `spectral_match/spectral_match_validity.yaml`: the spectral angle of every pixel to the nearest of N signature spectra sent with the request (`spectral_signature` `[N, 1, 1, C]`), `ScoreThreshold` and `MaskMinArea`; the validity variant ANDs `SpectralValidity`'s mask into the result. Both take an optional `threshold` per frame and need the cube's wavelengths; they carry no `cuvisnext` tag, so the CuvisNEXT picker does not list them.
 - The `steervit` plugin manifest moves to v0.3.1 and carries the plugin's `weights:` block: the SteerViT checkpoint `steervit_dinov2_base` (the default, labelled "Research use only", served from `JonaRuthardt/SteerViT` at `4468b691`), the Apache-2.0 commercial checkpoints `steervit_dinov2_commercial_small` and `_base` as options from `cubert-gmbh/steervit-commercial`, the DINOv2 ViT-B/14 trunk and RoBERTa-large from the `cubert-gmbh` mirrors. `download-model` and CuvisNEXT provision them from this catalog without `--plugins-dir`; `weights.index.json` is regenerated.
+- The built-in plugin manifest pins `v0.19.2`.
 
 ## 0.19.1 - 2026-10-14
 
