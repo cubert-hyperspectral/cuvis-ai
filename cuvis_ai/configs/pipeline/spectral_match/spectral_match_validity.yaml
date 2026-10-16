@@ -1,6 +1,7 @@
 metadata:
   name: Spectral_Match_Validity
-  description: Spectral Match with a validity gate - the same request and outputs as
+  description: >-
+    Spectral Match with a validity gate: the same request and outputs as
     spectral_match.yaml, but pixels that are non-finite, below the norm floor, saturated (when
     saturation_value is set) or outside the ROI margin never light up, in either mode. The norm
     floor of 50 fits XMR reflectance; set norm_floor and saturation_value for other data.

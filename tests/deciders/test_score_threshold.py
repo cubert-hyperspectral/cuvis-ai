@@ -2,6 +2,7 @@
 
 import math
 
+import numpy as np
 import pytest
 import torch
 
@@ -67,3 +68,9 @@ def test_port_contract_and_rebuild() -> None:
     assert out["decisions"].shape == (2, 5, 7, 1) and out["decisions"].dtype == torch.bool
     assert ScoreThreshold.INPUT_SPECS["threshold"].optional
     assert ScoreThreshold(**node.hparams).hparams == node.hparams
+
+
+def test_numpy_scalar_threshold_is_accepted_and_stored_as_float() -> None:
+    node = ScoreThreshold(threshold=np.float32(0.25))
+    assert node.threshold == pytest.approx(0.25)
+    assert type(node.hparams["threshold"]) is float

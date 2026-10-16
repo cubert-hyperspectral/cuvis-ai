@@ -12,6 +12,7 @@ convert detector outputs into actionable binary masks for visualization or evalu
 """
 
 import math
+import numbers
 from collections.abc import Sequence
 from typing import Any
 
@@ -337,7 +338,7 @@ _KEEP = ("below", "above")
 
 def _valid_threshold(value: Any) -> float:
     """``value`` as a float when it is a finite, non-negative number; ``ValueError`` otherwise."""
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
+    if isinstance(value, bool) or not isinstance(value, numbers.Real):
         raise ValueError(f"ScoreThreshold: threshold must be a number, got {value!r}.")
     if not math.isfinite(value) or value < 0:
         raise ValueError(f"ScoreThreshold: threshold must be finite and >= 0, got {value!r}.")

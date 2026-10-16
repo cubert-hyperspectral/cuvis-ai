@@ -1,6 +1,7 @@
 metadata:
   name: Spectral_Match
-  description: Highlights the pixels whose spectral angle to the nearest of N signature spectra
+  description: >-
+    Highlights the pixels whose spectral angle to the nearest of N signature spectra
     lies below (keep below, "similar") or above (keep above, "different") a threshold, and drops
     blobs under min_area pixels. The host sends the cube with its wavelengths and the signature
     as spectral_signature [N, 1, 1, C] float32 (one mean spectrum per label, same bands and
@@ -8,7 +9,7 @@ metadata:
     match node's threshold for that frame, so a slider needs no reload (the default of 0.12 rad
     suits several spectra per label; Spectral Match sends the angle that covers 99 % of the
     selected pixels). Blobs are labelled per pixel (cell 1). Nothing is fitted, so a
-    new signature needs no reload either. Outputs - mask.decisions [B, H, W, 1],
+    new signature needs no reload either. Outputs: mask.decisions [B, H, W, 1],
     spectral_angle.best_scores (radians) and spectral_angle.identity_mask (1-based label).
   tags:
   - segmentation
