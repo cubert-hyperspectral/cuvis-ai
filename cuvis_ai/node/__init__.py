@@ -66,6 +66,7 @@ from cuvis_ai.node.deciders import (
     FrameScoreGate,
     MultiRangeSlicer,
     QuantileBinaryDecider,
+    ScoreThreshold,
     TwoStageBinaryDecider,
 )
 from cuvis_ai.node.dimensionality_reduction import PCA, FixedPCAProjection, TrainablePCA
@@ -126,6 +127,7 @@ from cuvis_ai.node.preprocessors import (
     ChannelNormalizeNode,
     SaturatedPixelDetector,
     SpatialRotateNode,
+    SpectralValidity,
 )
 from cuvis_ai.node.pretreatments import (
     ContinuumRemoval,
@@ -271,6 +273,7 @@ __all__ = [
     "RXPerBatch",
     "TwoStageBinaryDecider",
     "FrameScoreGate",
+    "ScoreThreshold",
     "ZScoreNormalizerGlobal",
     "SavitzkyGolay",
     "ContinuumRemoval",
@@ -297,6 +300,7 @@ __all__ = [
     "GaussianMixtureClusterer",
     "OneClassSVMDetector",
     "SaturatedPixelDetector",
+    "SpectralValidity",
     "MultiRangeSlicer",
     "IntensityThresholdSegmenter",
     "BlobDetector",

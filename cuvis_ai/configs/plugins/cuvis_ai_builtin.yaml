@@ -191,6 +191,28 @@ capabilities:
       optional: false
       description: Binary decision mask (BHWC format)
   doc_summary: Quantile-based thresholding node operating on BHWC logits or scores.
+- class_name: cuvis_ai.node.deciders.binary_decider.ScoreThreshold
+  category: transform
+  tags: [classification, postprocessing, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    scores:
+      dtype: float32
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: Per-pixel score map [B, H, W, 1], e.g. a spectral angle in radians.
+    threshold:
+      dtype: float32
+      shape: [1]
+      optional: true
+      description: Threshold for this call [1]; replaces the `threshold` hparam.
+  output_specs:
+    decisions:
+      dtype: bool
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: 'Pixels with a score at or below (`keep: below`) or above (`keep: above`) the threshold [B, H, W, 1].'
+  doc_summary: Mark the pixels whose raw score lies below or above a threshold (no sigmoid).
 - class_name: cuvis_ai.node.deciders.frame_score_gate.FrameScoreGate
   category: transform
   tags: [anomaly, postprocessing, torch]
@@ -3613,6 +3635,43 @@ capabilities:
       optional: false
       description: Per-pixel saturation mask where scores > mask_threshold [B, H, W, 1]
   doc_summary: Flag pixels whose channels reach the sensor saturation value.
+- class_name: cuvis_ai.node.preprocessors.SpectralValidity
+  category: transform
+  tags: [hyperspectral, mask, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    cube:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Hyperspectral cube [B, H, W, C] float32.
+    wavelengths:
+      dtype: int32
+      shape: [-1]
+      optional: true
+      description: Wavelengths [C] in nm, as the cu3s data node publishes them (numpy int32; torch tensors are accepted when called directly).
+  output_specs:
+    valid_mask:
+      dtype: bool
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: Per-pixel validity [B, H, W, 1].
+    invalid_reason:
+      dtype: int32
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: 'Per-pixel invalid reason [B, H, W, 1]: 0 valid, 1 non-finite, 2 norm below floor, 3 saturated band, 4 outside ROI.'
+    frame_status:
+      dtype: int32
+      shape: [-1]
+      optional: false
+      description: 'Per-frame status [B]: 0 ok, 1 invalid (low valid fraction), 2 input mismatch.'
+    valid_fraction:
+      dtype: float32
+      shape: [-1]
+      optional: false
+      description: Per-frame valid pixel fraction within the ROI [B].
+  doc_summary: Flag non-finite, faint, saturated, and out-of-ROI pixels per frame.
 - class_name: cuvis_ai.node.deciders.multi_range_decider.MultiRangeSlicer
   category: transform
   tags: [classification, postprocessing, torch]

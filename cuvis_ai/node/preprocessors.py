@@ -3,7 +3,7 @@ Preprocessing Nodes.
 
 This module provides nodes that prepare hyperspectral data before analysis:
 wavelength-based band selection, spatial rotation, bounding-box crops,
-per-channel normalization and saturated-pixel detection.
+per-channel normalization, saturated-pixel detection and per-pixel validity gating.
 
 See Also
 --------
@@ -490,10 +490,255 @@ class SaturatedPixelDetector(Node):
         return {"scores": scores, "decisions": decisions}
 
 
+_REASON_VALID = 0
+_REASON_NON_FINITE = 1
+_REASON_LOW_NORM = 2
+_REASON_SATURATED = 3
+_REASON_OUTSIDE_ROI = 4
+
+_STATUS_OK = 0
+_STATUS_INVALID = 1
+_STATUS_INPUT_MISMATCH = 2
+
+
+def _as_wavelength_array(wavelengths: Any) -> np.ndarray:
+    """Coerce a wavelengths input (numpy or torch) to a 1-D float64 numpy array."""
+    if isinstance(wavelengths, torch.Tensor):
+        return wavelengths.detach().cpu().numpy().astype(np.float64).reshape(-1)
+    return np.asarray(wavelengths, dtype=np.float64).reshape(-1)
+
+
+class SpectralValidity(Node):
+    """Flag non-finite, faint, saturated, and out-of-ROI pixels per frame.
+
+    The saturation rule is :class:`SaturatedPixelDetector`'s with ``mask_threshold=0`` (any band at
+    or above ``saturation_value``); this node adds the other checks and a per-frame status, so a
+    downstream mask can be gated with ``valid_mask`` and a GUI can say why a frame shows nothing.
+
+    Checks run in this order per pixel: non-finite values anywhere in the
+    spectrum, then an L2-norm floor, then any band at or above a saturation
+    value, then a border region-of-interest margin. A frame whose declared
+    band count or wavelength grid does not match ``expected_wavelengths`` is
+    flagged with ``frame_status=2`` (input mismatch) and an all-invalid mask,
+    independent of the per-pixel checks; a frame whose valid fraction (after
+    the per-pixel checks) falls below ``min_valid_fraction`` gets
+    ``frame_status=1``. No band is ever treated as foreground or background
+    here.
+
+    Parameters
+    ----------
+    n_features : int, optional
+        Expected number of spectral channels; a cube with another count is flagged
+        ``frame_status=2``. ``None`` (default) accepts any count.
+    expected_wavelengths : list[float], optional
+        Expected wavelength grid in nm, same length as ``n_features``. When
+        given and an incoming ``wavelengths`` input does not match within
+        ``wavelength_tol_nm``, the frame is flagged ``frame_status=2``.
+        ``None`` (default) skips the wavelength check.
+    wavelength_tol_nm : float, optional
+        Per-band tolerance for the wavelength-grid check, in nm (default 1.0).
+    norm_floor : float, optional
+        Minimum L2 norm (in the cube's own units) a pixel's spectrum must
+        reach to be considered valid (default 1.0).
+    saturation_value : float, optional
+        A pixel is flagged saturated when any band is at or above this value.
+        ``None`` (default) disables the saturation check.
+    roi_margin_px : int, optional
+        Border margin, in pixels at the reference resolution
+        ``roi_reference_hw``, excluded from the valid region (default 0).
+    roi_reference_hw : list[int], optional
+        ``[H, W]`` the margin is specified against; the margin scales with
+        the ratio of the actual frame size to this reference (default
+        ``[1000, 1080]``).
+    min_valid_fraction : float, optional
+        Minimum fraction of per-pixel-valid pixels within the ROI for the
+        frame to be considered ``frame_status=0`` (default 0.5).
+    """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.MASK, NodeTag.TORCH})
+
+    INPUT_SPECS = {
+        "cube": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, -1),
+            description="Hyperspectral cube [B, H, W, C] float32.",
+        ),
+        "wavelengths": PortSpec(
+            dtype=np.int32,
+            shape=(-1,),
+            description="Wavelengths [C] in nm, as the cu3s data node publishes them (numpy int32; "
+            "torch tensors are accepted when called directly).",
+            optional=True,
+        ),
+    }
+    OUTPUT_SPECS = {
+        "valid_mask": PortSpec(
+            dtype=torch.bool,
+            shape=(-1, -1, -1, 1),
+            description="Per-pixel validity [B, H, W, 1].",
+        ),
+        "invalid_reason": PortSpec(
+            dtype=torch.int32,
+            shape=(-1, -1, -1, 1),
+            description="Per-pixel invalid reason [B, H, W, 1]: 0 valid, 1 non-finite, "
+            "2 norm below floor, 3 saturated band, 4 outside ROI.",
+        ),
+        "frame_status": PortSpec(
+            dtype=torch.int32,
+            shape=(-1,),
+            description="Per-frame status [B]: 0 ok, 1 invalid (low valid fraction), "
+            "2 input mismatch.",
+        ),
+        "valid_fraction": PortSpec(
+            dtype=torch.float32,
+            shape=(-1,),
+            description="Per-frame valid pixel fraction within the ROI [B].",
+        ),
+    }
+
+    def __init__(
+        self,
+        n_features: int | None = None,
+        expected_wavelengths: list[float] | None = None,
+        wavelength_tol_nm: float = 1.0,
+        norm_floor: float = 1.0,
+        saturation_value: float | None = None,
+        roi_margin_px: int = 0,
+        roi_reference_hw: list[int] | None = None,
+        min_valid_fraction: float = 0.5,
+        **kwargs: Any,
+    ) -> None:
+        if n_features is not None and int(n_features) <= 0:
+            raise ValueError(f"n_features must be > 0, got {n_features}")
+        if roi_reference_hw is None:
+            roi_reference_hw = [1000, 1080]
+        if len(roi_reference_hw) != 2:
+            raise ValueError("roi_reference_hw must be [H, W]")
+
+        self.n_features = int(n_features) if n_features is not None else None
+        self.expected_wavelengths = (
+            list(expected_wavelengths) if expected_wavelengths is not None else None
+        )
+        self.wavelength_tol_nm = float(wavelength_tol_nm)
+        self.norm_floor = float(norm_floor)
+        self.saturation_value = float(saturation_value) if saturation_value is not None else None
+        self.roi_margin_px = int(roi_margin_px)
+        self.roi_reference_hw = [int(roi_reference_hw[0]), int(roi_reference_hw[1])]
+        self.min_valid_fraction = float(min_valid_fraction)
+
+        super().__init__(
+            n_features=self.n_features,
+            expected_wavelengths=self.expected_wavelengths,
+            wavelength_tol_nm=self.wavelength_tol_nm,
+            norm_floor=self.norm_floor,
+            saturation_value=self.saturation_value,
+            roi_margin_px=self.roi_margin_px,
+            roi_reference_hw=self.roi_reference_hw,
+            min_valid_fraction=self.min_valid_fraction,
+            **kwargs,
+        )
+
+    def _wavelength_mismatch(self, wavelengths: Any, n_channels: int) -> bool:
+        """Whether the incoming band count or wavelength grid disagrees with expectations."""
+        if self.n_features is not None and n_channels != self.n_features:
+            return True
+        if self.expected_wavelengths is None or wavelengths is None:
+            return False
+        observed = _as_wavelength_array(wavelengths)
+        expected = np.asarray(self.expected_wavelengths, dtype=np.float64)
+        if observed.shape[0] != expected.shape[0]:
+            return True
+        return bool(np.any(np.abs(observed - expected) > self.wavelength_tol_nm))
+
+    def _roi_mask(self, h: int, w: int, device: torch.device) -> torch.Tensor:
+        """Boolean ROI mask [H, W]: True inside the scaled border margin."""
+        if self.roi_margin_px <= 0:
+            return torch.ones(h, w, dtype=torch.bool, device=device)
+        ref_h, ref_w = self.roi_reference_hw
+        margin_y = int(round(self.roi_margin_px * (h / ref_h)))
+        margin_x = int(round(self.roi_margin_px * (w / ref_w)))
+        margin_y = max(0, min(margin_y, (h - 1) // 2))
+        margin_x = max(0, min(margin_x, (w - 1) // 2))
+        mask = torch.zeros(h, w, dtype=torch.bool, device=device)
+        mask[margin_y : h - margin_y, margin_x : w - margin_x] = True
+        return mask
+
+    def forward(
+        self,
+        cube: torch.Tensor,
+        wavelengths: Any = None,
+        **_: Any,
+    ) -> dict[str, torch.Tensor]:
+        """Classify every pixel and summarise per-frame status."""
+        b, h, w, c = cube.shape
+        device = cube.device
+
+        if self._wavelength_mismatch(wavelengths, c):
+            valid_mask = torch.zeros(b, h, w, 1, dtype=torch.bool, device=device)
+            # Band-count/grid mismatch is not a per-pixel reason; use non-finite
+            # as the generic "cannot be evaluated" marker for every pixel.
+            invalid_reason = torch.full(
+                (b, h, w, 1), _REASON_NON_FINITE, dtype=torch.int32, device=device
+            )
+            frame_status = torch.full(
+                (b,), _STATUS_INPUT_MISMATCH, dtype=torch.int32, device=device
+            )
+            valid_fraction = torch.zeros(b, dtype=torch.float32, device=device)
+            return {
+                "valid_mask": valid_mask,
+                "invalid_reason": invalid_reason,
+                "frame_status": frame_status,
+                "valid_fraction": valid_fraction,
+            }
+
+        finite = torch.isfinite(cube).all(dim=-1)  # [B, H, W]
+        norm = torch.linalg.vector_norm(
+            torch.nan_to_num(cube, nan=0.0, posinf=0.0, neginf=0.0), dim=-1
+        )
+        above_floor = norm >= self.norm_floor
+
+        if self.saturation_value is not None:
+            not_saturated = (cube < self.saturation_value).all(dim=-1)
+        else:
+            not_saturated = torch.ones(b, h, w, dtype=torch.bool, device=device)
+
+        roi = self._roi_mask(h, w, device).unsqueeze(0).expand(b, h, w)
+
+        reason = torch.zeros(b, h, w, dtype=torch.int32, device=device)
+        # Priority order: non-finite, then norm floor, then saturation, then ROI.
+        reason = torch.where(~roi, torch.full_like(reason, _REASON_OUTSIDE_ROI), reason)
+        reason = torch.where(~not_saturated, torch.full_like(reason, _REASON_SATURATED), reason)
+        reason = torch.where(~above_floor, torch.full_like(reason, _REASON_LOW_NORM), reason)
+        reason = torch.where(~finite, torch.full_like(reason, _REASON_NON_FINITE), reason)
+
+        valid = finite & above_floor & not_saturated & roi
+        valid_mask = valid.unsqueeze(-1)
+        invalid_reason = reason.unsqueeze(-1)
+
+        roi_counts = roi.reshape(b, -1).sum(dim=1).clamp(min=1)
+        valid_counts = valid.reshape(b, -1).sum(dim=1)
+        valid_fraction = valid_counts.to(torch.float32) / roi_counts.to(torch.float32)
+
+        frame_status = torch.where(
+            valid_fraction < self.min_valid_fraction,
+            torch.full((b,), _STATUS_INVALID, dtype=torch.int32, device=device),
+            torch.full((b,), _STATUS_OK, dtype=torch.int32, device=device),
+        )
+
+        return {
+            "valid_mask": valid_mask,
+            "invalid_reason": invalid_reason,
+            "frame_status": frame_status,
+            "valid_fraction": valid_fraction,
+        }
+
+
 __all__ = [
     "BandpassByWavelength",
     "BBoxRoiCropNode",
     "ChannelNormalizeNode",
     "SaturatedPixelDetector",
     "SpatialRotateNode",
+    "SpectralValidity",
 ]
