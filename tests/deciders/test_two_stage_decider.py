@@ -587,3 +587,256 @@ def test_two_stage_decider_calibrated_returns_decisions_at_val():
 
     assert "decisions" in out
     assert out["decisions"].dtype == torch.bool
+
+
+# --- per-call threshold inputs ---
+
+
+def test_two_stage_decider_declares_optional_threshold_inputs():
+    """Both thresholds are optional [1] float32 inputs beside the hparams."""
+    for name in ("image_threshold", "pixel_threshold"):
+        spec = TwoStageBinaryDecider.INPUT_SPECS[name]
+        assert spec.optional is True
+        assert tuple(spec.shape) == (1,)
+        assert spec.dtype == torch.float32
+
+
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
+def test_two_stage_decider_pixel_threshold_input_overrides_the_hparam_for_one_call(dtype):
+    """The input replaces pixel_threshold for this call; the hparam is untouched after."""
+    tensor = _make_linear_map() / 100.0  # values 0.01 .. 1.00
+    decider = TwoStageBinaryDecider(image_threshold=0.5, top_k_fraction=0.1, pixel_threshold=0.75)
+
+    out = decider.forward(logits=tensor, pixel_threshold=torch.tensor([0.9], dtype=dtype))
+
+    assert out["decisions"].sum().item() == 11  # 0.90 .. 1.00
+    assert decider.pixel_threshold == 0.75
+    assert decider.hparams["pixel_threshold"] == 0.75
+    assert decider.forward(logits=tensor)["decisions"].sum().item() == 26
+
+
+def test_two_stage_decider_pixel_threshold_input_replaces_the_quantile_fallback():
+    """With pixel_threshold unset the input is the cutoff instead of the frame's quantile."""
+    tensor = _make_linear_map() / 100.0
+    decider = TwoStageBinaryDecider()
+
+    out = decider.forward(logits=tensor, pixel_threshold=torch.tensor([0.5]))
+
+    assert out["decisions"].sum().item() == 51  # 0.50 .. 1.00
+    assert decider.pixel_threshold is None
+
+
+def test_two_stage_decider_image_threshold_input_turns_the_gate_on_for_one_call():
+    """An image_threshold input on a None hparam gates this call only."""
+    tensor = _make_low_score_map()
+    decider = TwoStageBinaryDecider(top_k_fraction=0.1)
+    assert decider.forward(logits=tensor)["decisions"].sum().item() > 0
+
+    gated = decider.forward(logits=tensor, image_threshold=torch.tensor([0.5]))
+
+    assert gated["decisions"].sum().item() == 0
+    assert decider.image_threshold is None
+    assert decider.forward(logits=tensor)["decisions"].sum().item() > 0
+
+
+def test_two_stage_decider_image_threshold_input_overrides_the_hparam():
+    """A stricter gate from the input blanks a frame the hparam gate lets through."""
+    tensor = _make_high_score_map()
+    decider = TwoStageBinaryDecider(image_threshold=0.5, top_k_fraction=0.1)
+    assert decider.forward(logits=tensor)["decisions"].sum().item() > 0
+
+    out = decider.forward(logits=tensor, image_threshold=torch.tensor([0.95]))
+
+    assert out["decisions"].sum().item() == 0
+    assert decider.image_threshold == 0.5
+
+
+@pytest.mark.parametrize("port", ["image_threshold", "pixel_threshold"])
+@pytest.mark.parametrize("value", [torch.tensor([0.1, 0.2]), torch.tensor(0.1), torch.zeros(1, 1)])
+def test_two_stage_decider_threshold_input_of_another_shape_raises(port, value):
+    with pytest.raises(ValueError, match=rf"{port}.*shape"):
+        TwoStageBinaryDecider().forward(logits=_make_high_score_map(), **{port: value})
+
+
+@pytest.mark.parametrize("port", ["image_threshold", "pixel_threshold"])
+@pytest.mark.parametrize("value", [float("nan"), float("inf")])
+def test_two_stage_decider_threshold_input_must_be_finite(port, value):
+    with pytest.raises(ValueError, match=f"{port} must be a finite"):
+        TwoStageBinaryDecider().forward(
+            logits=_make_high_score_map(), **{port: torch.tensor([value])}
+        )
+
+
+def test_two_stage_decider_negative_threshold_input_is_legal():
+    """Raw score space is unbounded, so a negative cutoff is a valid input."""
+    tensor = _make_linear_map() / 100.0 - 0.5  # values -0.49 .. 0.50
+
+    out = TwoStageBinaryDecider().forward(logits=tensor, pixel_threshold=torch.tensor([-0.105]))
+
+    assert out["decisions"].sum().item() == 61  # -0.10 .. 0.50
+
+
+def test_two_stage_decider_threshold_inputs_do_not_lift_the_withholding():
+    """An uncalibrated decider at VAL stays silent whatever the inputs carry."""
+    decider = TwoStageBinaryDecider()
+    context = Context(stage=ExecutionStage.VAL, epoch=0, batch_idx=0)
+
+    out = decider.forward(
+        logits=_make_high_score_map(),
+        context=context,
+        image_threshold=torch.tensor([0.5]),
+        pixel_threshold=torch.tensor([0.5]),
+    )
+
+    assert out == {}
+
+
+def test_two_stage_decider_threshold_inputs_leave_the_hparams_untouched():
+    """The inputs never enter hparams, so a rebuild carries the configured thresholds."""
+    decider = TwoStageBinaryDecider(image_threshold=0.5, pixel_threshold=0.75)
+
+    decider.forward(
+        logits=_make_high_score_map(),
+        image_threshold=torch.tensor([0.1]),
+        pixel_threshold=torch.tensor([0.2]),
+    )
+
+    assert decider.hparams["image_threshold"] == 0.5
+    assert decider.hparams["pixel_threshold"] == 0.75
+    restored = TwoStageBinaryDecider(**decider.hparams)
+    assert restored.image_threshold == 0.5
+    assert restored.pixel_threshold == 0.75
+
+
+# --- per-frame threshold statistics ---
+
+_STAT_OUTPUTS = {
+    "pixel_threshold_range": (-1, 2),
+    "pixel_threshold_value": (-1,),
+    "image_threshold_range": (-1, 2),
+    "image_threshold_value": (-1,),
+    "image_threshold_score": (-1,),
+}
+
+
+def test_two_stage_decider_declares_optional_stat_outputs():
+    """The five statistics are optional float32 outputs named after their port."""
+    for name, shape in _STAT_OUTPUTS.items():
+        spec = TwoStageBinaryDecider.OUTPUT_SPECS[name]
+        assert spec.optional is True
+        assert tuple(spec.shape) == shape
+        assert spec.dtype == torch.float32
+
+
+def test_two_stage_decider_stat_outputs_come_with_decisions():
+    """Every stat is a float32 tensor of the batch size on the input's device."""
+    tensor = torch.rand(3, 8, 6, 2, generator=torch.Generator().manual_seed(7))
+
+    out = TwoStageBinaryDecider(image_threshold=0.5, pixel_threshold=0.5).forward(logits=tensor)
+
+    assert set(out) == {"decisions", *_STAT_OUTPUTS}
+    for name, shape in _STAT_OUTPUTS.items():
+        expected = tuple(3 if dim == -1 else dim for dim in shape)
+        assert out[name].shape == expected, name
+        assert out[name].dtype == torch.float32, name
+        assert out[name].device == tensor.device, name
+
+
+def test_two_stage_decider_outputs_without_inputs_keep_the_former_decisions():
+    """Ports absent: the decisions equal the hparam path, the stats ride along."""
+    tensor = torch.rand(2, 12, 9, 3, generator=torch.Generator().manual_seed(11))
+    decider = TwoStageBinaryDecider(image_threshold=0.5, top_k_fraction=0.05, pixel_threshold=0.6)
+
+    out = decider.forward(logits=tensor)
+
+    expected = (tensor.max(dim=-1).values >= 0.6).unsqueeze(-1)
+    assert torch.equal(out["decisions"], expected)
+
+
+def test_two_stage_decider_pixel_threshold_range_is_the_finite_min_and_max():
+    """The range spans the finite per-pixel scores after the channel max."""
+    tensor = torch.zeros(1, 2, 2, 2, dtype=torch.float32)
+    tensor[0, 0, 0] = torch.tensor([0.2, 0.9])  # per-pixel max 0.9
+    tensor[0, 0, 1] = torch.tensor([-0.3, -0.4])  # per-pixel max -0.3
+    tensor[0, 1, 0] = torch.tensor([float("nan"), 0.1])  # NaN pixel, left out
+    tensor[0, 1, 1] = torch.tensor([0.5, float("inf")])  # inf pixel, left out
+
+    out = TwoStageBinaryDecider().forward(logits=tensor)
+
+    assert out["pixel_threshold_range"][0].tolist() == pytest.approx([-0.3, 0.9])
+
+
+def test_two_stage_decider_ranges_without_a_finite_score_are_zero():
+    """A frame without a finite score reports [0, 0] instead of NaN or inf."""
+    tensor = torch.full((2, 3, 3, 1), float("nan"))
+    tensor[1] = float("inf")
+
+    out = TwoStageBinaryDecider(pixel_threshold=0.5).forward(logits=tensor)
+
+    assert out["pixel_threshold_range"].tolist() == [[0.0, 0.0], [0.0, 0.0]]
+    assert out["image_threshold_range"].tolist() == [[0.0, 0.0], [0.0, 0.0]]
+
+
+def test_two_stage_decider_pixel_threshold_value_is_the_cutoff_in_effect():
+    """The reported cutoff is the input, else the hparam, else the frame's quantile."""
+    tensor = _make_linear_map() / 100.0
+
+    out = TwoStageBinaryDecider(pixel_threshold=0.75).forward(logits=tensor)
+    assert out["pixel_threshold_value"].tolist() == pytest.approx([0.75])
+
+    out = TwoStageBinaryDecider(pixel_threshold=0.75).forward(
+        logits=tensor, pixel_threshold=torch.tensor([0.3])
+    )
+    assert out["pixel_threshold_value"].tolist() == pytest.approx([0.3])
+
+    out = TwoStageBinaryDecider(quantile=0.9).forward(logits=tensor)
+    assert out["pixel_threshold_value"].tolist() == pytest.approx(
+        [torch.quantile(tensor[0], 0.9).item()]
+    )
+    assert torch.equal(out["decisions"], tensor >= out["pixel_threshold_value"][0])
+
+
+def test_two_stage_decider_stats_are_reported_for_a_gated_out_frame():
+    """A frame the gate blanks still reports its cutoff, gate value and image score."""
+    tensor = torch.zeros(2, 10, 10, 1, dtype=torch.float32)
+    tensor[0, -1, :, 0] = torch.linspace(0.8, 1.0, 10)  # passes a 0.5 gate
+    tensor[1, 0, :3, 0] = 0.03  # fails it
+    decider = TwoStageBinaryDecider(image_threshold=0.5, top_k_fraction=0.1, pixel_threshold=0.02)
+
+    out = decider.forward(logits=tensor)
+
+    assert out["decisions"][1].sum().item() == 0
+    assert out["pixel_threshold_value"].tolist() == pytest.approx([0.02, 0.02])
+    assert out["image_threshold_value"].tolist() == pytest.approx([0.5, 0.5])
+    score = out["image_threshold_score"]
+    assert score[0].item() == pytest.approx(_compute_image_score(tensor[:1], 0.1))
+    assert score[1].item() == pytest.approx(_compute_image_score(tensor[1:], 0.1))
+    assert score[0].item() >= 0.5 > score[1].item()
+
+
+def test_two_stage_decider_image_threshold_value_is_nan_while_the_gate_is_off():
+    """Gate off: the value is NaN, the score is still computed; an input sets the value."""
+    tensor = _make_high_score_map()
+    decider = TwoStageBinaryDecider(top_k_fraction=0.1)
+
+    out = decider.forward(logits=tensor)
+    assert torch.isnan(out["image_threshold_value"]).all()
+    assert out["image_threshold_score"].tolist() == pytest.approx(
+        [_compute_image_score(tensor, 0.1)]
+    )
+
+    out = decider.forward(logits=tensor, image_threshold=torch.tensor([0.25]))
+    assert out["image_threshold_value"].tolist() == pytest.approx([0.25])
+
+
+def test_two_stage_decider_image_threshold_range_is_the_ordered_pair_of_zero_and_the_maximum():
+    """[0, max] for a positive frame, [max, 0] for an all-negative one: always ordered."""
+    tensor = torch.full((2, 4, 4, 1), -0.2, dtype=torch.float32)
+    tensor[0] = 0.0
+    tensor[0, 0, 0, 0] = 0.7
+    tensor[1, 0, 0, 0] = -0.1
+
+    out = TwoStageBinaryDecider().forward(logits=tensor)
+
+    assert out["image_threshold_range"][0].tolist() == pytest.approx([0.0, 0.7])
+    assert out["image_threshold_range"][1].tolist() == pytest.approx([-0.1, 0.0])
