@@ -354,30 +354,49 @@ training_config = TrainingConfig(
 
 ---
 
-## Threshold Calibration After Training
+## The Post-Fit Lifecycle
 
-*Fit the decider's thresholds to the trained model's scores.*
+*What happens to the trained weights before they are saved.*
 
-Training moves the score distribution, so a decider threshold tuned for one set of weights misfits the next. After the fit, the trainrun runs the trained pipeline over the validation split, collects the scores feeding each decider together with the ground-truth `mask`, and calls `decider.calibrate(scores, targets)`. Each decider re-fits its own rule to the F1 optimum:
+A fit ends with weights. Three steps turn them into a pipeline that is ready to evaluate, and cuvis-ai-core (0.18.6 and later) runs them in one place, `PostFitCallback`. Each step runs when its inputs exist; no trainrun field declares or disables one.
 
-- `BinaryDecider` sweeps its `threshold` in the float32 sigmoid-probability space that `forward` compares in.
-- `QuantileBinaryDecider` sweeps its per-frame `quantile`.
-- `TwoStageBinaryDecider` sweeps the image gate and the absolute pixel threshold on a 2-D grid: the gate at the frame-level F1 optimum, the pixel threshold at the pixel-level F1 optimum on the gated frames.
+1. **Restore the best checkpoint.** When the trainrun's checkpoint callback saved a best file (the CuvisNEXT preset monitors `metrics_auroc/auroc_pixel`), its weights replace the final epoch's in the live nodes, after a check that its keys and shapes match the model. Without a checkpoint callback, or with one that has no monitor, the final epoch's weights stay and the log says so.
+2. **Calibrate the decider thresholds on the validation split.** Training moves the score distribution, so a decider threshold tuned for one set of weights misfits the next. The pipeline runs once over the validation split, the scores feeding each decider are collected together with the ground-truth `mask`, and `decider.calibrate(scores, targets)` re-fits each decider's rule to the F1 optimum:
+    - `BinaryDecider` sweeps its `threshold` in the float32 sigmoid-probability space that `forward` compares in.
+    - `QuantileBinaryDecider` sweeps its per-frame `quantile`.
+    - `TwoStageBinaryDecider` sweeps the image gate and the absolute pixel threshold on a 2-D grid: the gate at the frame-level F1 optimum, the pixel threshold at the pixel-level F1 optimum on the gated frames.
 
-The stored value is the midpoint of the F1 plateau rather than the score of one sample, so a new frame that lands next to a training sample is decided the same way. Calibrated values are ordinary hparams: `pipeline.save_to_file` writes them into the pipeline yaml, and the `.pt` weights are unchanged. A preset that ships `image_threshold` and `pixel_threshold` as `null` gets both filled by this phase.
+    The stored value is the midpoint of the F1 plateau rather than the score of one sample, so a new frame that lands next to a training sample is decided the same way. Calibrated values are ordinary hparams: `pipeline.save_to_file` writes them into the pipeline yaml, and the `.pt` weights are unchanged. A preset that ships `image_threshold` and `pixel_threshold` as `null` gets both filled by this step.
+3. **Evaluate the validation and the test split.** Each split that resolves gets one pass with the pipeline's metric nodes. The pooled metrics (average precision, the AUROC values and, once decisions exist, precision, recall, F1 and IoU on the pixels and on the frames) are computed once over the whole split; the other metrics are averaged over the batches. A split that does not resolve is reported as missing. A pass that raises is logged and the run is still saved: the pipeline is the product, the numbers describe it.
 
-Where it runs (cuvis-ai-core 0.16.2 and later):
+Where the steps run:
 
-- `restore-trainrun` in train mode, after the statistical or gradient fit and before the save; the log carries `Calibration: thresholds calibrated on val: ...`.
-- The gRPC `Train` service, gradient and statistical alike; the completion `TrainResponse.message` ends with `thresholds calibrated on val: gate (image_threshold 2.5, pixel_threshold 2.5)` or `thresholds not calibrated: <reason>`, which CuvisNEXT shows as the training status.
+- Inside the gradient fit, at Lightning's `on_train_end`, while the model is still on its training device; the save follows the fit. `restore-trainrun --mode train` and the gRPC `Train` service go through the same callback.
+- After a statistical-only fit (a trainrun without a `training:` block). A statistical phase that a gradient phase follows runs none of them; the steps run once, at the end of the gradient fit.
+- On demand, without a fit: `Train(TRAINER_TYPE_CALIBRATION)` runs the calibration and the two evaluations on a session that already holds trained weights (a run restored with its `.pt`, loaded weights, or a finished fit). CuvisNEXT's Recalibrate button is this call. A session without weights is refused.
 - By hand: the `calibrate-thresholds` CLI runs the same sweep over a saved training run and prints the values to put into the yaml.
 
-The phase never costs the trained weights. It is skipped, with the reason in its outcome, when the pipeline has no decider that implements `calibrate`, when the validation split holds only normal or only anomalous frames, when no node produces a ground-truth `mask` (or two do), or when `calibrate` raises: the deciders raise `CalibrationError` for a shape mismatch, non-finite scores, single-class targets, or a `reduce_dims` the sweep cannot honour. The save then proceeds with the preset's thresholds.
+**Decisions before the calibration.** A `TwoStageBinaryDecider` with both thresholds `null` (the shipped Dinomaly presets) holds no thresholds until step 2. At the TRAIN, VAL and TEST stages such a decider emits no `decisions`: `AnomalyDetectionMetrics` reports average precision and the AUROC values per epoch and none of the thresholded metrics, and the anomaly visualizers draw the heatmap and the ground truth without a mask overlay. The per-frame quantile fallback (0.995) survives at INFERENCE and with no execution context, where a pipeline has to answer. Two consequences: a trainrun that monitors `metrics_anomaly/iou` on such a pipeline fails at its first checkpoint (Lightning raises on a missing monitor key), so monitor `metrics_auroc/auroc_pixel` instead; and a training graph that feeds `DecisionToMask` (a required `decisions` input) from an uncalibrated decider is refused before the fit, with both node names in the error.
+
+**What a run reports.** The gRPC `Train` stream carries every step as a typed `TrainResponse.event` (see [the gRPC workflow](../deployment/grpc-workflow.md#lifecycle-events-on-the-train-stream)); `restore-trainrun` logs one line per step:
+
+```
+Best checkpoint restored (epoch 7 metrics_auroc/auroc_pixel 0.9958): outputs/dinomaly/checkpoints/epoch=7-step=352.ckpt
+Calibrating decider thresholds on val
+Calibration: thresholds calibrated on val: gate (image_threshold 2.5, pixel_threshold 2.5)
+Evaluating val
+Evaluated val (44 frames): metrics_anomaly/average_precision 0.4081, metrics_anomaly/f1_score 0.428, metrics_anomaly/image_f1 0.956, ...
+Evaluating test
+Evaluated test (51 frames): metrics_anomaly/average_precision 0.39, ...
+Post-fit steps complete
+```
+
+The calibration is skipped, with the reason in its outcome, when the pipeline has no decider that implements `calibrate`, when the validation split holds only normal or only anomalous frames, when no node produces a ground-truth `mask` (or two do), or when `calibrate` raises: the deciders raise `CalibrationError` for a shape mismatch, non-finite scores, single-class targets, or a `reduce_dims` the sweep cannot honour. A decider whose thresholds came from the pipeline config keeps them and keeps emitting decisions; a decider still without thresholds emits none, so the thresholded metrics are absent from the evaluation.
 
 Two things to keep in mind:
 
-- Metrics reported on the same validation split after calibration are optimistic, because the thresholds were chosen on it. Judge the model on the test split.
-- The calibration pass is a full inference forward over the split, so sink nodes in the pipeline (video or JSON writers) fire once more.
+- Metrics reported on the validation split after the calibration are optimistic, because the thresholds were chosen on it. Judge the model on the test split.
+- The calibration pass and the two evaluation passes are full forwards over their splits, so sink nodes in the pipeline (video or JSON writers) fire once more per pass.
 
 In a notebook, call the method directly on the scores you collected:
 

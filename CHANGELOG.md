@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- `AnomalyDetectionMetrics`: `precision`, `recall`, `f1_score` and `iou` are pooled over the split (one confusion count per `(stage, epoch)`, computed over every pixel seen), no longer the mean of per-batch values, which a split of mostly normal frames pulled towards zero. Three frame-level metrics join them: `image_precision`, `image_recall` and `image_f1`, a frame counting as anomalous when any pixel of its decisions or of its mask is set, computed on the full-resolution masks before `pixel_stride` thins them. `POOLED_METRIC_NAMES` lists all eight pooled names; the per-batch values on the `metrics` port are the running values of the epoch.
+- `decisions` is an optional input of `AnomalyDetectionMetrics`, `AnomalyPixelStatisticsMetric`, `AnomalyMask` and `RGBAnomalyMask`: without it the metrics node reports average precision only, the statistics metric reports nothing, and the visualizers draw the heatmap and the ground truth without a mask overlay.
+- `TwoStageBinaryDecider` with both thresholds `null` emits no `decisions` at the TRAIN, VAL and TEST stages (its `decisions` output is optional, `is_calibrated` says whether it holds thresholds); the per-frame quantile fallback survives at INFERENCE and without an execution context. The thresholded metrics therefore do not exist before the post-fit calibration, in TensorBoard too, and `restore-trainrun --mode test` on an uncalibrated pipeline reports none of them instead of the fallback's numbers. A trainrun that monitors `metrics_anomaly/iou` on such a pipeline fails at its first checkpoint; monitor `metrics_auroc/auroc_pixel` instead.
+- Docs: the training concept page describes the post-fit lifecycle (best-checkpoint restore, calibration on the validation split, evaluation of validation and test, the standalone calibration phase) and the deployment pages the typed `TrainResponse.event` of the Train stream.
+
 ## 0.19.2 - 2026-10-16
 
 - `SpectralAngleMapper` computes its dot products with one matrix product instead of a `[B, H, W, N, C]` temporary: on a 1000 x 1080 x 61 frame with 16 references the extra memory drops from 4343 MB to 586 MB and a forward takes 5 ms on an RTX 5070 Ti Laptop GPU (61 ms on its CPU); the three outputs keep their values within float32 summation order.

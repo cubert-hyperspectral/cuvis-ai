@@ -99,16 +99,24 @@ sequenceDiagram
   Client->>CuvisAIService: SetTrainRunConfig(session_id, config_bytes)
   CuvisAIService-->>Client: SetTrainRunConfigResponse(success)
 
-  Note over Client,CuvisAIService: Phase 1: Statistical Training (Calibration)
+  Note over Client,CuvisAIService: Phase 1: Statistical Training (Initialization)
   Client->>CuvisAIService: Train(session_id, TRAINER_TYPE_STATISTICAL)
   CuvisAIService-->>Client: TrainResponse(status=COMPLETE)
 
   Note over Client,CuvisAIService: Phase 2: Gradient Training (Fine-tuning)
   Client->>CuvisAIService: Train(session_id, TRAINER_TYPE_GRADIENT)
+  CuvisAIService-->>Client: TrainResponse(event=FIT_START, calibration_pending)
 
   loop Streaming Updates (Epochs)
-    CuvisAIService-->>Client: TrainResponse(losses, metrics, status=RUNNING)
+    CuvisAIService-->>Client: TrainResponse(losses, metrics, event=VALIDATION_END | EPOCH_END, status=RUNNING)
   end
+
+  Note over Client,CuvisAIService: Post-fit steps, each when its inputs exist
+  CuvisAIService-->>Client: TrainResponse(event=FIT_END)
+  CuvisAIService-->>Client: TrainResponse(event=CHECKPOINT_RESTORED, checkpoint)
+  CuvisAIService-->>Client: TrainResponse(event=CALIBRATION_START .. CALIBRATION_END, calibration)
+  CuvisAIService-->>Client: TrainResponse(event=EVALUATION_START .. EVALUATION_END, evaluation) for val, then test
+  CuvisAIService-->>Client: TrainResponse(event=POST_FIT_END)
   CuvisAIService-->>Client: TrainResponse(status=COMPLETE)
 
   par Save Pipeline
@@ -131,12 +139,17 @@ sequenceDiagram
 **Training Phases:**
 
 - **TRAINER_TYPE_STATISTICAL**: Single-pass initialization (computes mean, covariance, centers, etc.)
-  - No streaming updates (completes immediately)
   - Initializes statistical nodes with background statistics
+  - When a gradient phase follows (the trainrun has a `training:` block), the phase ends COMPLETE after its fit; a statistical-only trainrun runs the post-fit steps below after its fit
 
 - **TRAINER_TYPE_GRADIENT**: Multi-epoch gradient-based training
   - Streams progress updates for each epoch
   - Reports losses, metrics, and training context
+  - After the last epoch: the best checkpoint is restored, the deciders are calibrated on the validation split, the validation and test splits are evaluated; each step is one typed `event` on the stream, then COMPLETE
+
+- **TRAINER_TYPE_CALIBRATION**: The post-fit steps on a session that already holds trained weights, without a fit
+  - `RestoreTrainRun` with `weights_path`, then `Train(TRAINER_TYPE_CALIBRATION)`, then `SaveTrainRun` with `save_weights=false` (the thresholds change, the weights do not)
+  - Refused with `FAILED_PRECONDITION` on a session without weights
 
 ---
 
