@@ -4,11 +4,23 @@ from pathlib import Path
 
 import pytest
 import torch
+from cuvis_ai_schemas.enums import ExecutionStage
+from cuvis_ai_schemas.execution import Context
+from loguru import logger
 
 from cuvis_ai.node.deciders.binary_decider import QuantileBinaryDecider
 from cuvis_ai.node.deciders.two_stage_decider import TwoStageBinaryDecider
 
 pytestmark = pytest.mark.unit
+
+
+@pytest.fixture
+def loguru_messages():
+    """Capture loguru record messages for the duration of a test."""
+    messages: list[str] = []
+    sink_id = logger.add(lambda record: messages.append(record.record["message"]), level="INFO")
+    yield messages
+    logger.remove(sink_id)
 
 
 def _make_linear_map() -> torch.Tensor:
@@ -502,3 +514,76 @@ def test_two_stage_decider_non_numeric_pixel_threshold_rejected(bad):
     """pixel_threshold gets the same by-name refusal as image_threshold."""
     with pytest.raises(ValueError, match="pixel_threshold must be a finite number or None"):
         TwoStageBinaryDecider(pixel_threshold=bad)
+
+
+def test_two_stage_decider_is_calibrated_reflects_both_thresholds():
+    """is_calibrated is true only once both thresholds are set."""
+    assert not TwoStageBinaryDecider().is_calibrated
+    assert not TwoStageBinaryDecider(image_threshold=0.5).is_calibrated
+    assert not TwoStageBinaryDecider(pixel_threshold=0.5).is_calibrated
+    assert TwoStageBinaryDecider(image_threshold=0.5, pixel_threshold=0.5).is_calibrated
+
+
+def test_two_stage_decider_decisions_output_is_optional():
+    """The decisions output is declared optional so an uncalibrated decider can skip it."""
+    assert TwoStageBinaryDecider.OUTPUT_SPECS["decisions"].optional is True
+
+
+def test_two_stage_decider_uncalibrated_returns_no_decisions_at_val(loguru_messages):
+    """An uncalibrated decider emits no decisions at VAL and logs once."""
+    decider = TwoStageBinaryDecider()
+    context = Context(stage=ExecutionStage.VAL, epoch=0, batch_idx=0)
+    tensor = _make_high_score_map()
+
+    first = decider.forward(logits=tensor, context=context)
+    second = decider.forward(
+        logits=tensor, context=Context(stage=ExecutionStage.VAL, epoch=0, batch_idx=1)
+    )
+
+    assert first == {}
+    assert second == {}
+    matching = [m for m in loguru_messages if "thresholds unset" in m]
+    assert len(matching) == 1
+    assert matching[0] == "thresholds unset, no decisions until the calibration"
+
+
+def test_two_stage_decider_uncalibrated_returns_no_decisions_at_train_and_test(loguru_messages):
+    """The uncalibrated withholding also applies to TRAIN and TEST."""
+    decider = TwoStageBinaryDecider()
+    tensor = _make_high_score_map()
+
+    for stage in (ExecutionStage.TRAIN, ExecutionStage.TEST):
+        out = decider.forward(logits=tensor, context=Context(stage=stage, epoch=0, batch_idx=0))
+        assert out == {}
+
+
+def test_two_stage_decider_uncalibrated_falls_back_at_inference():
+    """At INFERENCE the uncalibrated decider keeps today's quantile fallback."""
+    decider = TwoStageBinaryDecider()
+    context = Context(stage=ExecutionStage.INFERENCE, epoch=0, batch_idx=0)
+
+    out = decider.forward(logits=_make_low_score_map(), context=context)
+
+    assert "decisions" in out
+    assert out["decisions"].sum().item() > 0
+
+
+def test_two_stage_decider_uncalibrated_falls_back_without_context():
+    """With no context at all (direct forward call) the fallback also stays."""
+    decider = TwoStageBinaryDecider()
+
+    out = decider.forward(logits=_make_low_score_map())
+
+    assert "decisions" in out
+    assert out["decisions"].sum().item() > 0
+
+
+def test_two_stage_decider_calibrated_returns_decisions_at_val():
+    """Once both thresholds are set, VAL (and every stage) returns decisions as today."""
+    decider = TwoStageBinaryDecider(image_threshold=0.5, pixel_threshold=0.75)
+    context = Context(stage=ExecutionStage.VAL, epoch=0, batch_idx=0)
+
+    out = decider.forward(logits=_make_high_score_map(), context=context)
+
+    assert "decisions" in out
+    assert out["decisions"].dtype == torch.bool

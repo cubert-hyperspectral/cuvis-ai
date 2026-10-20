@@ -84,3 +84,39 @@ def test_rgb_anomaly_mask_forward():
     )
     assert 0 < len(out["artifacts"])
     _assert_image_artifacts(out["artifacts"], len(out["artifacts"]))
+
+
+def test_anomaly_mask_forward_without_decisions_draws_heatmap_and_gt():
+    """An uncalibrated decider withholds decisions; the panel still draws something."""
+    node = AnomalyMask(channel=1, up_to=2)
+    cube = torch.rand(2, 8, 8, 4)
+    mask = torch.rand(2, 8, 8, 1) > 0.5
+    scores = torch.rand(2, 8, 8, 1)
+
+    out = node.forward(cube=cube, context=_context(), mask=mask, scores=scores)
+
+    assert len(out["artifacts"]) > 0
+    _assert_image_artifacts(out["artifacts"], len(out["artifacts"]))
+
+
+def test_anomaly_mask_forward_without_decisions_or_mask_or_scores():
+    """Nothing but the cube: the heatmap falls back to the cube channel, no GT panel."""
+    node = AnomalyMask(channel=0, up_to=2)
+    cube = torch.rand(2, 8, 8, 4)
+
+    out = node.forward(cube=cube, context=_context())
+
+    assert len(out["artifacts"]) > 0
+    _assert_image_artifacts(out["artifacts"], len(out["artifacts"]))
+
+
+def test_rgb_anomaly_mask_forward_without_decisions_draws_rgb_and_gt():
+    """An uncalibrated decider withholds decisions; the RGB panel still draws something."""
+    node = RGBAnomalyMask(up_to=2)
+    rgb_image = torch.rand(2, 8, 8, 3)
+    mask = torch.rand(2, 8, 8, 1) > 0.5
+
+    out = node.forward(rgb_image=rgb_image, context=_context(), mask=mask)
+
+    assert len(out["artifacts"]) > 0
+    _assert_image_artifacts(out["artifacts"], len(out["artifacts"]))

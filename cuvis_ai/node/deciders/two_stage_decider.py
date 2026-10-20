@@ -22,7 +22,8 @@ from collections.abc import Sequence
 from typing import Any
 
 import torch
-from cuvis_ai_schemas.enums import NodeCategory, NodeTag
+from cuvis_ai_schemas.enums import ExecutionStage, NodeCategory, NodeTag
+from cuvis_ai_schemas.execution import Context
 from cuvis_ai_schemas.pipeline import PortSpec
 from loguru import logger
 from torch import Tensor
@@ -30,6 +31,8 @@ from torch import Tensor
 from cuvis_ai_core.deciders.base_decider import BinaryDecider as BaseDecider
 
 from . import _calibration
+
+_WITHHOLDING_STAGES = frozenset({ExecutionStage.TRAIN, ExecutionStage.VAL, ExecutionStage.TEST})
 
 
 def _optional_finite(name: str, value: Any) -> float | None:
@@ -56,9 +59,15 @@ class TwoStageBinaryDecider(BaseDecider):
 
     Stage 2 uses the calibrated absolute ``pixel_threshold`` (raw score space) when one is
     set and otherwise falls back to the per-frame ``quantile`` cutoff, which flags a fixed
-    fraction of every gated frame. With both ``image_threshold`` and ``pixel_threshold``
-    unset this node is ``QuantileBinaryDecider`` for ``[B, H, W, 1]`` input, decision for
-    decision.
+    fraction of every gated frame.
+
+    At the TRAIN, VAL and TEST stages the quantile fallback only runs once the decider is
+    calibrated (:attr:`is_calibrated`: both ``image_threshold`` and ``pixel_threshold``
+    set); an uncalibrated decider emits no ``decisions`` there at all, so stale fallback
+    numbers never reach the thresholded metrics before a calibration has run. At INFERENCE,
+    or with no execution context, the quantile fallback always applies: with both
+    thresholds unset this node is ``QuantileBinaryDecider`` for ``[B, H, W, 1]`` input,
+    decision for decision.
     """
 
     _category = NodeCategory.TRANSFORM
@@ -75,7 +84,9 @@ class TwoStageBinaryDecider(BaseDecider):
         "decisions": PortSpec(
             dtype=torch.bool,
             shape=(-1, -1, -1, 1),
-            description="Binary anomaly mask (BHWC).",
+            description="Binary anomaly mask (BHWC). Absent at TRAIN, VAL and TEST while the "
+            "decider holds no thresholds.",
+            optional=True,
         )
     }
 
@@ -111,8 +122,21 @@ class TwoStageBinaryDecider(BaseDecider):
             reduce_dims=self.reduce_dims,
             **kwargs,
         )
+        self._withheld_stages_logged: set[ExecutionStage] = set()
 
-    def forward(self, logits: Tensor, **_: Any) -> dict[str, Tensor]:
+    @property
+    def is_calibrated(self) -> bool:
+        """Whether both ``image_threshold`` and ``pixel_threshold`` are set.
+
+        A decider still missing either value has never been calibrated (or the pipeline
+        ships it uncalibrated on purpose); :meth:`forward` then withholds ``decisions`` at
+        the TRAIN, VAL and TEST stages instead of falling back to the per-frame quantile.
+        """
+        return self.image_threshold is not None and self.pixel_threshold is not None
+
+    def forward(
+        self, logits: Tensor, context: Context | None = None, **_: Any
+    ) -> dict[str, Tensor]:
         """Apply the optional image-level gate, then the pixel-level cutoff.
 
         Stage 1 (only when ``image_threshold`` is set): the image score is the mean of
@@ -123,17 +147,25 @@ class TwoStageBinaryDecider(BaseDecider):
         Stage 2: the calibrated absolute ``pixel_threshold`` when set, otherwise the
         per-frame ``quantile`` cutoff over the frame's own scores.
 
+        Before either stage, an uncalibrated decider (:attr:`is_calibrated` false) at the
+        TRAIN, VAL or TEST stage returns no ``decisions`` at all and logs once per stage,
+        at info level, that thresholds are unset; the quantile fallback survives only at
+        INFERENCE, or when no context is given.
+
         Parameters
         ----------
         logits : Tensor
             Anomaly scores [B, H, W, C] or [B, H, W, 1].
+        context : Context | None
+            Execution context carrying the stage; ``None`` behaves like INFERENCE.
         **_ : Any
             Additional unused keyword arguments.
 
         Returns
         -------
         dict[str, Tensor]
-            Dictionary with "decisions" key containing binary masks [B, H, W, 1].
+            Dictionary with "decisions" key containing binary masks [B, H, W, 1], or an
+            empty dictionary while uncalibrated outside INFERENCE.
 
         Notes
         -----
@@ -141,6 +173,12 @@ class TwoStageBinaryDecider(BaseDecider):
         comparison. Debug logging is lazy: nothing is formatted, and no tensor is
         synchronized for logging, unless the debug level is enabled.
         """
+        if not self.is_calibrated and context is not None and context.stage in _WITHHOLDING_STAGES:
+            if context.stage not in self._withheld_stages_logged:
+                self._withheld_stages_logged.add(context.stage)
+                logger.info("thresholds unset, no decisions until the calibration")
+            return {}
+
         tensor = logits
         decisions = []
         for b in range(tensor.shape[0]):
