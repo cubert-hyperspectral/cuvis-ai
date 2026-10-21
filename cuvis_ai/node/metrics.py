@@ -201,9 +201,9 @@ class AnomalyDetectionMetrics(Node):
 
     def forward(
         self,
-        decisions: Tensor | None,
         targets: Tensor,
         context: Context,
+        decisions: Tensor | None = None,
         logits: Tensor | None = None,
     ) -> dict[str, Any]:
         """Compute anomaly detection metrics using torchmetrics.
@@ -212,16 +212,19 @@ class AnomalyDetectionMetrics(Node):
         s-th row and column first, so those metrics are computed on that subsample; the
         frame-level ``image_*`` metrics always see the full-resolution tensors.
 
+        The two optional ports default to ``None`` because the pipeline passes no
+        argument at all for an optional port nothing feeds.
+
         Parameters
         ----------
-        decisions : Tensor | None
-            Binary anomaly decisions [B, H, W, 1]; ``None`` while an uncalibrated
-            decider upstream withholds them, in which case only ``average_precision``
-            (when ``logits`` is given) is emitted.
         targets : Tensor
             Ground truth binary masks [B, H, W, 1]
         context : Context
             Execution context with stage, epoch, batch_idx
+        decisions : Tensor | None
+            Binary anomaly decisions [B, H, W, 1]; absent while an uncalibrated
+            decider upstream withholds them, in which case only ``average_precision``
+            (when ``logits`` is given) is emitted.
         logits : Tensor | None
             Optional anomaly logits/probabilities for ``average_precision``.
 
