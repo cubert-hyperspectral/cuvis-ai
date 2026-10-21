@@ -343,14 +343,13 @@ class TwoStageBinaryDecider(BaseDecider):
 
             decisions.append((pixel_scores >= threshold).unsqueeze(-1).to(torch.bool))
 
-        batch = tensor.shape[0]
         return {
             "decisions": torch.stack(decisions, dim=0),
             "pixel_threshold_range": torch.stack(pixel_ranges).to(torch.float32),
             "pixel_threshold_value": torch.stack(cutoffs).to(torch.float32),
             "image_threshold_range": torch.stack(image_ranges).to(torch.float32),
             "image_threshold_value": torch.full(
-                (batch,),
+                (tensor.shape[0],),
                 math.nan if gate is None else gate,
                 dtype=torch.float32,
                 device=tensor.device,
