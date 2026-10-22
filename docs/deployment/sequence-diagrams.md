@@ -101,18 +101,25 @@ sequenceDiagram
 
   Note over Client,CuvisAIService: Phase 1: Statistical Training (Initialization)
   Client->>CuvisAIService: Train(session_id, TRAINER_TYPE_STATISTICAL)
+  loop Per statistical node
+    CuvisAIService-->>Client: TrainResponse(event=STATISTICAL_NODE_START .. STATISTICAL_PROGRESS .. STATISTICAL_NODE_END, node, progress)
+  end
   CuvisAIService-->>Client: TrainResponse(status=COMPLETE)
 
   Note over Client,CuvisAIService: Phase 2: Gradient Training (Fine-tuning)
   Client->>CuvisAIService: Train(session_id, TRAINER_TYPE_GRADIENT)
-  CuvisAIService-->>Client: TrainResponse(event=FIT_START, calibration_pending)
+  CuvisAIService-->>Client: TrainResponse(event=FIT_START, epochs, calibration_pending)
 
   loop Streaming Updates (Epochs)
-    CuvisAIService-->>Client: TrainResponse(losses, metrics, event=VALIDATION_END | EPOCH_END, status=RUNNING)
+    CuvisAIService-->>Client: TrainResponse(event=EPOCH_START, epochs, progress)
+    CuvisAIService-->>Client: TrainResponse(losses, event=TRAIN_PROGRESS, progress) per train batch
+    CuvisAIService-->>Client: TrainResponse(event=VALIDATION_START .. VALIDATION_PROGRESS, progress) per validation batch
+    CuvisAIService-->>Client: TrainResponse(metrics, event=VALIDATION_END, epochs)
+    CuvisAIService-->>Client: TrainResponse(losses, event=EPOCH_END, epochs)
   end
 
   Note over Client,CuvisAIService: Post-fit steps, each when its inputs exist
-  CuvisAIService-->>Client: TrainResponse(event=FIT_END)
+  CuvisAIService-->>Client: TrainResponse(event=FIT_END, epochs: the completed epochs)
   CuvisAIService-->>Client: TrainResponse(event=CHECKPOINT_RESTORED, checkpoint)
   CuvisAIService-->>Client: TrainResponse(event=CALIBRATION_START .. CALIBRATION_END, calibration)
   CuvisAIService-->>Client: TrainResponse(event=EVALUATION_START .. EVALUATION_END, evaluation) for val, then test

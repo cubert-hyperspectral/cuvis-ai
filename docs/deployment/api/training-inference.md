@@ -44,17 +44,23 @@ message TrainResponse {
 }
 
 message TrainEvent {
-  TrainHook hook = 1;                  // FIT_START, EPOCH_END, VALIDATION_END, FIT_END,
-                                       // CHECKPOINT_RESTORED, CALIBRATION_START/PROGRESS/END,
+  TrainHook hook = 1;                  // STATISTICAL_NODE_START/PROGRESS/END, FIT_START,
+                                       // EPOCH_START, TRAIN_PROGRESS, VALIDATION_START/PROGRESS/END,
+                                       // EPOCH_END, FIT_END, CHECKPOINT_RESTORED,
+                                       // CALIBRATION_START/PROGRESS/END,
                                        // EVALUATION_START/PROGRESS/END, POST_FIT_END
-  ExecutionStage split = 2;            // on the calibration and evaluation hooks
-  FrameProgress progress = 3;          // {done, total} in frames on the progress hooks
+  ExecutionStage split = 2;            // on the validation, calibration and evaluation hooks
+  FrameProgress progress = 3;          // {done, total} in frames on the start and progress hooks
   CheckpointRestored checkpoint = 4;   // on CHECKPOINT_RESTORED
   CalibrationOutcome calibration = 5;  // on CALIBRATION_END
   EvaluationOutcome evaluation = 6;    // on EVALUATION_END
   bool calibration_pending = 7;        // on FIT_START: a decider holds no thresholds yet
+  EpochProgress epochs = 8;            // on the epoch hooks: {current, total}, current one-based
+  string node = 9;                     // on the STATISTICAL hooks: the node being fitted
 }
 ```
+
+Every RUNNING response that reports progress carries an event, the per-batch responses included: the statistical phase reports each node's fit (start with the frame total of the train split, one event per batch, end), the gradient phase the epoch start, each train batch (on the response with the batch losses), the validation start and each validation batch, all with `FrameProgress` in frames (`total` 0 when the loader has no length or the trainer limits the pass) and the epoch hooks with an `EpochProgress` (`total` 0 when `max_epochs` is unlimited; on `FIT_END` the completed-epoch count). The opening status sentence of a phase and the terminal COMPLETE, ERROR and CANCELLED responses carry no event.
 
 After the fit, every `Train` run restores the best checkpoint, calibrates the deciders on the validation split and evaluates the validation and test splits, each when its inputs exist, and reports each step as an event on the same stream before the COMPLETE response. The COMPLETE response carries an empty `metrics` map; the results are in the `CALIBRATION_END` and `EVALUATION_END` events. The [gRPC workflow page](../grpc-workflow.md#lifecycle-events-on-the-train-stream) lists the hooks and the outcome messages.
 

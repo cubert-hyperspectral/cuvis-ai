@@ -362,11 +362,13 @@ A fit ends with weights. Three steps turn them into a pipeline that is ready to 
 
 1. **Restore the best checkpoint.** When the trainrun's checkpoint callback saved a best file (the CuvisNEXT preset monitors `metrics_auroc/auroc_pixel`), its weights replace the final epoch's in the live nodes, after a check that its keys and shapes match the model. Without a checkpoint callback, or with one that has no monitor, the final epoch's weights stay and the log says so.
 2. **Calibrate the decider thresholds on the validation split.** Training moves the score distribution, so a decider threshold tuned for one set of weights misfits the next. The pipeline runs once over the validation split, the scores feeding each decider are collected together with the ground-truth `mask`, and `decider.calibrate(scores, targets)` re-fits each decider's rule to the F1 optimum:
+
     - `BinaryDecider` sweeps its `threshold` in the float32 sigmoid-probability space that `forward` compares in.
     - `QuantileBinaryDecider` sweeps its per-frame `quantile`.
     - `TwoStageBinaryDecider` sweeps the image gate and the absolute pixel threshold on a 2-D grid: the gate at the frame-level F1 optimum, the pixel threshold at the pixel-level F1 optimum on the gated frames.
 
     The stored value is the midpoint of the F1 plateau rather than the score of one sample, so a new frame that lands next to a training sample is decided the same way. Calibrated values are ordinary hparams: `pipeline.save_to_file` writes them into the pipeline yaml, and the `.pt` weights are unchanged. A preset that ships `image_threshold` and `pixel_threshold` as `null` gets both filled by this step.
+
 3. **Evaluate the validation and the test split.** Each split that resolves gets one pass with the pipeline's metric nodes. The pooled metrics (average precision, the AUROC values and, once decisions exist, precision, recall, F1 and IoU on the pixels and on the frames) are computed once over the whole split; the other metrics are averaged over the batches. A split that does not resolve is reported as missing. A pass that raises is logged and the run is still saved: the pipeline is the product, the numbers describe it.
 
 Where the steps run:
@@ -378,7 +380,7 @@ Where the steps run:
 
 **Decisions before the calibration.** A `TwoStageBinaryDecider` with both thresholds `null` (the shipped Dinomaly presets) holds no thresholds until step 2. At the TRAIN, VAL and TEST stages such a decider emits no `decisions`: `AnomalyDetectionMetrics` reports average precision and the AUROC values per epoch and none of the thresholded metrics, and the anomaly visualizers draw the heatmap and the ground truth without a mask overlay. The per-frame quantile fallback (0.995) survives at INFERENCE and with no execution context, where a pipeline has to answer. Two consequences: a trainrun that monitors `metrics_anomaly/iou` on such a pipeline fails at its first checkpoint (Lightning raises on a missing monitor key), so monitor `metrics_auroc/auroc_pixel` instead; and a training graph that feeds `DecisionToMask` (a required `decisions` input) from an uncalibrated decider is refused before the fit, with both node names in the error.
 
-**What a run reports.** The gRPC `Train` stream carries every step as a typed `TrainResponse.event` (see [the gRPC workflow](../deployment/grpc-workflow.md#lifecycle-events-on-the-train-stream)); `restore-trainrun` logs one line per step:
+**What a run reports.** The gRPC `Train` stream carries every step as a typed `TrainResponse.event` (see [the gRPC workflow](../deployment/grpc-workflow.md#lifecycle-events-on-the-train-stream)), and the fit before them through the same field: one start, one event per batch and one end per statistical node, the epoch start, every train and validation batch with its frame count and the epoch pair. `restore-trainrun` logs `Fitting <node>` and `Fitted <node>` per statistical node and one line per post-fit step:
 
 ```
 Best checkpoint restored (epoch 7 metrics_auroc/auroc_pixel 0.9958): outputs/dinomaly/checkpoints/epoch=7-step=352.ckpt
