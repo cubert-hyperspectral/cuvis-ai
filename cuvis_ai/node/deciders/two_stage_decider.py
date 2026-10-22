@@ -48,6 +48,19 @@ def _optional_finite(name: str, value: Any) -> float | None:
     return float(value)
 
 
+def _call_threshold(name: str, value: Tensor | None, fallback: float | None) -> float | None:
+    """The threshold for this call: the ``[1]`` input when one is given, else ``fallback``.
+
+    An input of another shape or a non-finite value is refused by port name, so a GUI that
+    sends a bad number learns which control sent it.
+    """
+    if value is None:
+        return fallback
+    if tuple(value.shape) != (1,):
+        raise ValueError(f"{name} input must have shape [1], got {list(value.shape)}")
+    return _optional_finite(name, float(value.item()))
+
+
 class TwoStageBinaryDecider(BaseDecider):
     """Two-stage binary decider: optional image-level gate + pixel mask.
 
@@ -68,6 +81,22 @@ class TwoStageBinaryDecider(BaseDecider):
     or with no execution context, the quantile fallback always applies: with both
     thresholds unset this node is ``QuantileBinaryDecider`` for ``[B, H, W, 1]`` input,
     decision for decision.
+
+    Both thresholds are also optional inputs of shape ``[1]``: a value on the port replaces
+    the hparam for that call only (a value on a ``None`` ``image_threshold`` turns the gate
+    on for the call), so a GUI slider needs no pipeline reload and the yaml keeps the
+    default. The withholding above looks at the hparams alone.
+
+    Beside ``decisions`` the node reports per-frame statistics named after the port they
+    describe, the convention a GUI can rely on for any tunable port ``<p>``: ``<p>_range``
+    ``[B, 2]`` (the slider span), ``<p>_value`` ``[B]`` (the value in effect, NaN while the
+    stage is off) and ``<p>_score`` ``[B]`` (the frame statistic compared against it).
+    Here: ``pixel_threshold_range`` (the finite per-pixel score span after the channel
+    max), ``pixel_threshold_value`` (the stage-2 cutoff: input, hparam or the frame's
+    quantile, reported for gated-out frames too), ``image_threshold_range`` (0 and the
+    frame's maximum score, ordered), ``image_threshold_value`` (the gate, NaN while off)
+    and ``image_threshold_score`` (the top-k mean, computed for every frame). They are
+    absent exactly when ``decisions`` is.
     """
 
     _category = NodeCategory.TRANSFORM
@@ -78,7 +107,21 @@ class TwoStageBinaryDecider(BaseDecider):
             dtype=torch.float32,
             shape=(-1, -1, -1, -1),
             description="Anomaly scores (BHWC).",
-        )
+        ),
+        "image_threshold": PortSpec(
+            dtype=torch.float32,
+            shape=(1,),
+            description="Image gate for this call [1]; replaces the `image_threshold` hparam "
+            "and turns the gate on when that is null.",
+            optional=True,
+        ),
+        "pixel_threshold": PortSpec(
+            dtype=torch.float32,
+            shape=(1,),
+            description="Pixel cutoff for this call [1]; replaces the `pixel_threshold` hparam "
+            "and the quantile fallback.",
+            optional=True,
+        ),
     }
     OUTPUT_SPECS = {
         "decisions": PortSpec(
@@ -87,7 +130,42 @@ class TwoStageBinaryDecider(BaseDecider):
             description="Binary anomaly mask (BHWC). Absent at TRAIN, VAL and TEST while the "
             "decider holds no thresholds.",
             optional=True,
-        )
+        ),
+        "pixel_threshold_range": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, 2),
+            description="Per frame the minimum and maximum finite per-pixel score after the "
+            "channel max [B, 2], [0, 0] without a finite score. Absent whenever `decisions` is.",
+            optional=True,
+        ),
+        "pixel_threshold_value": PortSpec(
+            dtype=torch.float32,
+            shape=(-1,),
+            description="Per frame the stage-2 cutoff in effect [B]: the `pixel_threshold` "
+            "input, else the hparam, else the frame's quantile; reported for gated-out frames "
+            "too.",
+            optional=True,
+        ),
+        "image_threshold_range": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, 2),
+            description="Per frame 0 and the maximum finite per-pixel score, ordered [B, 2].",
+            optional=True,
+        ),
+        "image_threshold_value": PortSpec(
+            dtype=torch.float32,
+            shape=(-1,),
+            description="Per frame the image gate in effect [B]: the `image_threshold` input, "
+            "else the hparam; NaN while the gate is off.",
+            optional=True,
+        ),
+        "image_threshold_score": PortSpec(
+            dtype=torch.float32,
+            shape=(-1,),
+            description="Per frame the stage-1 image score [B]: the mean of the top-k per-pixel "
+            "scores, gate on or off.",
+            optional=True,
+        ),
     }
 
     def __init__(
@@ -135,27 +213,39 @@ class TwoStageBinaryDecider(BaseDecider):
         return self.image_threshold is not None and self.pixel_threshold is not None
 
     def forward(
-        self, logits: Tensor, context: Context | None = None, **_: Any
+        self,
+        logits: Tensor,
+        context: Context | None = None,
+        *,
+        image_threshold: Tensor | None = None,
+        pixel_threshold: Tensor | None = None,
+        **_: Any,
     ) -> dict[str, Tensor]:
         """Apply the optional image-level gate, then the pixel-level cutoff.
 
-        Stage 1 (only when ``image_threshold`` is set): the image score is the mean of
-        the top-k per-pixel scores (``k = ceil(top_k_fraction * pixels)``, at least 1).
-        A frame below the threshold gets a blank mask. With ``image_threshold=None``
-        every frame goes straight to stage 2 and no top-k statistics are computed.
+        Stage 1 (only while the gate is set): the image score is the mean of the top-k
+        per-pixel scores (``k = ceil(top_k_fraction * pixels)``, at least 1). A frame below
+        the gate gets a blank mask. With the gate off every frame goes straight to stage 2;
+        the image score is still reported.
 
-        Stage 2: the calibrated absolute ``pixel_threshold`` when set, otherwise the
-        per-frame ``quantile`` cutoff over the frame's own scores.
+        Stage 2: the absolute pixel cutoff when set, otherwise the per-frame ``quantile``
+        cutoff over the frame's own scores.
+
+        Each threshold is the ``[1]`` input when one is given for this call, else the hparam.
 
         Before either stage, an uncalibrated decider (:attr:`is_calibrated` false) at the
-        TRAIN, VAL or TEST stage returns no ``decisions`` at all and logs once per stage,
-        at info level, that thresholds are unset; the quantile fallback survives only at
-        INFERENCE, or when no context is given.
+        TRAIN, VAL or TEST stage returns no outputs at all and logs once per stage, at info
+        level, that thresholds are unset; the quantile fallback survives only at INFERENCE,
+        or when no context is given.
 
         Parameters
         ----------
         logits : Tensor
             Anomaly scores [B, H, W, C] or [B, H, W, 1].
+        image_threshold : Tensor | None
+            Image gate for this call, shape [1]; ``None`` uses the hparam.
+        pixel_threshold : Tensor | None
+            Pixel cutoff for this call, shape [1]; ``None`` uses the hparam or the quantile.
         context : Context | None
             Execution context carrying the stage; ``None`` behaves like INFERENCE.
         **_ : Any
@@ -164,14 +254,20 @@ class TwoStageBinaryDecider(BaseDecider):
         Returns
         -------
         dict[str, Tensor]
-            Dictionary with "decisions" key containing binary masks [B, H, W, 1], or an
-            empty dictionary while uncalibrated outside INFERENCE.
+            ``decisions`` [B, H, W, 1] and the five per-frame statistics of the class
+            docstring, or an empty dictionary while uncalibrated outside INFERENCE.
+
+        Raises
+        ------
+        ValueError
+            An input of another shape than [1] or a non-finite value, named by its port.
 
         Notes
         -----
         Multi-channel inputs reduce to the per-pixel max across channels before either
-        comparison. Debug logging is lazy: nothing is formatted, and no tensor is
-        synchronized for logging, unless the debug level is enabled.
+        comparison. The ranges are taken over finite scores only (``[0, 0]`` without one).
+        Debug logging is lazy: nothing is formatted, and no tensor is synchronized for
+        logging, unless the debug level is enabled.
         """
         if not self.is_calibrated and context is not None and context.stage in _WITHHOLDING_STAGES:
             if context.stage not in self._withheld_stages_logged:
@@ -179,26 +275,57 @@ class TwoStageBinaryDecider(BaseDecider):
                 logger.info("thresholds unset, no decisions until the calibration")
             return {}
 
+        gate = _call_threshold("image_threshold", image_threshold, self.image_threshold)
+        pixel_cut = _call_threshold("pixel_threshold", pixel_threshold, self.pixel_threshold)
+
         tensor = logits
         decisions = []
+        pixel_ranges, cutoffs, image_ranges, image_scores = [], [], [], []
         for b in range(tensor.shape[0]):
             scores = tensor[b]  # [H, W, C] or [H, W]
             pixel_scores = scores.max(dim=-1)[0] if scores.dim() == 3 else scores
 
-            # Stage 1: image-level gate, skipped entirely when no threshold is set. The
-            # statistic is shared with calibrate(), so a calibrated gate is exact here.
-            if self.image_threshold is not None:
+            # Per-frame statistics for a GUI control: finite scores only, no device sync.
+            finite = torch.isfinite(pixel_scores)
+            zero = torch.zeros((), dtype=pixel_scores.dtype, device=pixel_scores.device)
+            low = pixel_scores.masked_fill(~finite, math.inf).amin()
+            high = pixel_scores.masked_fill(~finite, -math.inf).amax()
+            low = torch.where(torch.isinf(low), zero, low)
+            high = torch.where(torch.isinf(high), zero, high)
+            pixel_ranges.append(torch.stack((low, high)))
+            image_ranges.append(torch.stack((torch.minimum(zero, high), torch.maximum(zero, high))))
+
+            # Stage 1 statistic, computed for every frame: the gate compares it when on, a
+            # GUI marks it on the slider when off. Shared with calibrate(), so a calibrated
+            # gate is exact here.
+            image_score = _calibration.frame_image_score(pixel_scores, self.top_k_fraction)
+            image_scores.append(image_score)
+
+            # Stage 2 cutoff, resolved before the gate decision so a gated-out frame reports
+            # the cutoff it would use. An absolute threshold takes precedence: it is compared
+            # in raw score space (the same space this node receives - no sigmoid), so the
+            # flagged region follows the anomaly's size. The per-frame quantile fallback
+            # flags a fixed fraction of every frame regardless of how much of it is
+            # anomalous; over the full [H, W, C] slice it matches QuantileBinaryDecider's
+            # reduction over (H, W, C).
+            if pixel_cut is not None:
+                threshold = torch.tensor(pixel_cut, dtype=scores.dtype, device=scores.device)
+            else:
+                threshold = torch.quantile(scores, self.quantile)
+            cutoffs.append(threshold.reshape(()))
+
+            # Stage 1: image-level gate, skipped when no threshold is set.
+            if gate is not None:
                 k = _calibration.topk_count(pixel_scores.numel(), self.top_k_fraction)
-                image_score = _calibration.frame_image_score(pixel_scores, self.top_k_fraction)
                 # Lazy args (bound as defaults so each frame logs its own values): nothing
                 # is formatted unless the debug level is enabled.
-                if image_score < self.image_threshold:
+                if image_score < gate:
                     logger.opt(lazy=True).debug(
                         "TwoStageDecider[batch={}]: image_score={} < image_threshold={}, "
                         "returning blank mask",
                         lambda b=b: b,
                         lambda s=image_score: f"{s:.6f}",
-                        lambda: f"{self.image_threshold:.6f}",
+                        lambda g=gate: f"{g:.6f}",
                     )
                     decisions.append(
                         torch.zeros(
@@ -211,25 +338,26 @@ class TwoStageBinaryDecider(BaseDecider):
                     lambda b=b: b,
                     lambda k=k: k,
                     lambda s=image_score: f"{s:.6f}",
-                    lambda: f"{self.image_threshold:.6f}",
+                    lambda g=gate: f"{g:.6f}",
                 )
-
-            # Stage 2: pixel-level cutoff. A calibrated absolute threshold takes precedence:
-            # it is compared in raw score space (the same space this node receives - no
-            # sigmoid), so the flagged region follows the anomaly's size. The per-frame
-            # quantile fallback flags a fixed fraction of every frame regardless of how much
-            # of it is anomalous; over the full [H, W, C] slice it matches
-            # QuantileBinaryDecider's reduction over (H, W, C).
-            if self.pixel_threshold is not None:
-                threshold = torch.tensor(
-                    self.pixel_threshold, dtype=scores.dtype, device=scores.device
-                )
-            else:
-                threshold = torch.quantile(scores, self.quantile)
 
             decisions.append((pixel_scores >= threshold).unsqueeze(-1).to(torch.bool))
 
-        return {"decisions": torch.stack(decisions, dim=0)}
+        return {
+            "decisions": torch.stack(decisions, dim=0),
+            "pixel_threshold_range": torch.stack(pixel_ranges).to(torch.float32),
+            "pixel_threshold_value": torch.stack(cutoffs).to(torch.float32),
+            "image_threshold_range": torch.stack(image_ranges).to(torch.float32),
+            "image_threshold_value": torch.full(
+                (tensor.shape[0],),
+                math.nan if gate is None else gate,
+                dtype=torch.float32,
+                device=tensor.device,
+            ),
+            "image_threshold_score": torch.tensor(
+                image_scores, dtype=torch.float32, device=tensor.device
+            ),
+        }
 
     def calibrate(
         self, scores: Tensor, targets: Tensor, *, num_candidates: int = 256
