@@ -15,31 +15,54 @@ Execute statistical and gradient-based training with streaming progress updates.
 
 ### Train
 
-**Purpose:** Execute training with streaming progress updates (statistical or gradient).
+**Purpose:** Execute training with streaming progress updates (statistical, gradient, or the post-fit calibration of a trained session).
 
 **Request:**
 ```protobuf
 message TrainRequest {
   string session_id = 1;
-  TrainerType trainer_type = 2;  // STATISTICAL or GRADIENT
+  TrainerType trainer_type = 2;
 }
 
 enum TrainerType {
-  TRAINER_TYPE_STATISTICAL = 0;
-  TRAINER_TYPE_GRADIENT = 1;
+  TRAINER_TYPE_UNSPECIFIED = 0;
+  TRAINER_TYPE_STATISTICAL = 1;
+  TRAINER_TYPE_GRADIENT = 2;
+  TRAINER_TYPE_CALIBRATION = 3;  // post-fit steps on a session with trained weights; no fit
 }
 ```
 
 **Response (Server-Side Streaming):**
 ```protobuf
 message TrainResponse {
-  ExecutionContext context = 1;      // Epoch, step, stage info
-  TrainStatus status = 2;            // RUNNING, COMPLETED, FAILED
-  map<string, float> losses = 3;     // Loss values
-  map<string, float> metrics = 4;    // Metric values
-  string message = 5;                // Progress message
+  Context context = 1;               // Epoch, step, stage info
+  map<string, float> losses = 2;     // Loss values
+  map<string, float> metrics = 3;    // Per-epoch metric values (live view)
+  TrainStatus status = 4;            // RUNNING, COMPLETE, ERROR, CANCELLED
+  string message = 5;                // One sentence for a status line
+  TrainEvent event = 6;              // The lifecycle hook this response reports
+}
+
+message TrainEvent {
+  TrainHook hook = 1;                  // STATISTICAL_NODE_START/PROGRESS/END, FIT_START,
+                                       // EPOCH_START, TRAIN_PROGRESS, VALIDATION_START/PROGRESS/END,
+                                       // EPOCH_END, FIT_END, CHECKPOINT_RESTORED,
+                                       // CALIBRATION_START/PROGRESS/END,
+                                       // EVALUATION_START/PROGRESS/END, POST_FIT_END
+  ExecutionStage split = 2;            // on the validation, calibration and evaluation hooks
+  FrameProgress progress = 3;          // {done, total} in frames on the start and progress hooks
+  CheckpointRestored checkpoint = 4;   // on CHECKPOINT_RESTORED
+  CalibrationOutcome calibration = 5;  // on CALIBRATION_END
+  EvaluationOutcome evaluation = 6;    // on EVALUATION_END
+  bool calibration_pending = 7;        // on FIT_START: a decider holds no thresholds yet
+  EpochProgress epochs = 8;            // on the epoch hooks: {current, total}, current one-based
+  string node = 9;                     // on the STATISTICAL hooks: the node being fitted
 }
 ```
+
+Every RUNNING response that reports progress carries an event, the per-batch responses included: the statistical phase reports each node's fit (start with the frame total of the train split, one event per batch, end), the gradient phase the epoch start, each train batch (on the response with the batch losses), the validation start and each validation batch, all with `FrameProgress` in frames (`total` 0 when the loader has no length or the trainer limits the pass) and the epoch hooks with an `EpochProgress` (`total` 0 when `max_epochs` is unlimited; on `FIT_END` the completed-epoch count). The opening status sentence of a phase and the terminal COMPLETE, ERROR and CANCELLED responses carry no event.
+
+After the fit, every `Train` run restores the best checkpoint, calibrates the deciders on the validation split and evaluates the validation and test splits, each when its inputs exist, and reports each step as an event on the same stream before the COMPLETE response. The COMPLETE response carries an empty `metrics` map; the results are in the `CALIBRATION_END` and `EVALUATION_END` events. The [gRPC workflow page](../grpc-workflow.md#lifecycle-events-on-the-train-stream) lists the hooks and the outcome messages.
 
 **Python Example - Statistical Training:**
 ```python
@@ -94,6 +117,29 @@ for progress in stub.Train(
     print(f"[gradient] {format_progress(progress)}")
 ```
 
+**Python Example - Recalibrate a saved run:**
+```python
+# Restore the run with its weights, then run the post-fit steps without a fit.
+# Refused with FAILED_PRECONDITION on a session without weights.
+stub.RestoreTrainRun(
+    cuvis_ai_pb2.RestoreTrainRunRequest(
+        session_id=session_id,
+        trainrun_path="outputs/run/saved/trainrun.yaml",
+        weights_path="outputs/run/saved/trainrun_pipeline.pt",
+    )
+)
+for progress in stub.Train(
+    cuvis_ai_pb2.TrainRequest(
+        session_id=session_id,
+        trainer_type=cuvis_ai_pb2.TRAINER_TYPE_CALIBRATION,
+    )
+):
+    if progress.HasField("event") and progress.event.HasField("calibration"):
+        outcome = progress.event.calibration
+        for decider in outcome.deciders:
+            print(decider.name, cuvis_ai_pb2.DeciderCalibrationStatus.Name(decider.status))
+```
+
 **Execution Stages:**
 
 - `EXECUTION_STAGE_TRAIN` - Training loop
@@ -102,9 +148,10 @@ for progress in stub.Train(
 
 **Train Status:**
 
-- `TRAIN_STATUS_RUNNING` - Training in progress
-- `TRAIN_STATUS_COMPLETED` - Training finished successfully
-- `TRAIN_STATUS_FAILED` - Training failed with error
+- `TRAIN_STATUS_RUNNING` - Training in progress; every lifecycle event arrives with this status
+- `TRAIN_STATUS_COMPLETE` - Training finished successfully (the last response)
+- `TRAIN_STATUS_ERROR` - Training failed with error
+- `TRAIN_STATUS_CANCELLED` - A `StopTrain` ended the run, during the fit or during a post-fit step
 
 **Helper Function:**
 ```python

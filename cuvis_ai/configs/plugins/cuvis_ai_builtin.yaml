@@ -9,7 +9,7 @@
 name: cuvis_ai_builtin
 package_name: cuvis-ai
 repo: https://github.com/cubert-hyperspectral/cuvis-ai.git
-tag: "v0.19.2"
+tag: "v0.19.3"
 capabilities:
 - class_name: cuvis_ai.node.anomaly.deep_svdd.DeepSVDDCenterTracker
   category: transform
@@ -265,12 +265,47 @@ capabilities:
       shape: [-1, -1, -1, -1]
       optional: false
       description: Anomaly scores (BHWC).
+    image_threshold:
+      dtype: float32
+      shape: [1]
+      optional: true
+      description: 'Image gate for this call [1]; replaces the `image_threshold` hparam and turns the gate on when that is null.'
+    pixel_threshold:
+      dtype: float32
+      shape: [1]
+      optional: true
+      description: 'Pixel cutoff for this call [1]; replaces the `pixel_threshold` hparam and the quantile fallback.'
   output_specs:
     decisions:
       dtype: bool
       shape: [-1, -1, -1, 1]
-      optional: false
-      description: Binary anomaly mask (BHWC).
+      optional: true
+      description: Binary anomaly mask (BHWC). Absent at TRAIN, VAL and TEST while the decider holds no thresholds.
+    pixel_threshold_range:
+      dtype: float32
+      shape: [-1, 2]
+      optional: true
+      description: 'Per frame the minimum and maximum finite per-pixel score after the channel max [B, 2], [0, 0] without a finite score. Absent whenever `decisions` is.'
+    pixel_threshold_value:
+      dtype: float32
+      shape: [-1]
+      optional: true
+      description: 'Per frame the stage-2 cutoff in effect [B]: the `pixel_threshold` input, else the hparam, else the frame''s quantile; reported for gated-out frames too.'
+    image_threshold_range:
+      dtype: float32
+      shape: [-1, 2]
+      optional: true
+      description: 'Per frame 0 and the maximum finite per-pixel score, ordered [B, 2].'
+    image_threshold_value:
+      dtype: float32
+      shape: [-1]
+      optional: true
+      description: 'Per frame the image gate in effect [B]: the `image_threshold` input, else the hparam; NaN while the gate is off.'
+    image_threshold_score:
+      dtype: float32
+      shape: [-1]
+      optional: true
+      description: 'Per frame the stage-1 image score [B]: the mean of the top-k per-pixel scores, gate on or off.'
   doc_summary: 'Two-stage binary decider: optional image-level gate + pixel mask.'
 - class_name: cuvis_ai.node.anomaly_visualization.AnomalyMask
   category: visualizer

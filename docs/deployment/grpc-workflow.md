@@ -221,41 +221,116 @@ print("Session closed.")
 
 ### Training Progress Output
 
-**Statistical Training:**
+**Statistical Training:** one event per node that needs a fit, with the frames of the train split; the opening sentence and COMPLETE carry none:
 ```
-[statistical] [TRAIN] IN_PROGRESS | message=Initializing RXGlobal detector
-[statistical] [TRAIN] IN_PROGRESS | message=Processing batch 1/50
-[statistical] [TRAIN] IN_PROGRESS | message=Processing batch 50/50
-[statistical] [TRAIN] COMPLETED | message=Statistical training complete
+[statistical] [TRAIN] RUNNING | Starting statistical training
+[statistical] [TRAIN] RUNNING | event=STATISTICAL_NODE_START node=normalizer 0/124 | Fitting normalizer (0/124)
+[statistical] [TRAIN] RUNNING | event=STATISTICAL_PROGRESS node=normalizer 4/124 | Fitting normalizer (4/124)
+[statistical] [TRAIN] RUNNING | event=STATISTICAL_PROGRESS node=normalizer 124/124 | Fitting normalizer (124/124)
+[statistical] [TRAIN] RUNNING | event=STATISTICAL_NODE_END node=normalizer | Fitted normalizer
+[statistical] [TRAIN] COMPLETE | Statistical training complete
 ```
 
-**Gradient Training:**
+**Gradient Training:** every response of the fit carries an event: the epoch start with the train frame total, one `TRAIN_PROGRESS` per batch on the response that carries the batch losses, the validation start and one `VALIDATION_PROGRESS` per validation batch, then the validation end with the metrics that exist before the calibration (average precision, the AUROC values) and the epoch end. After the last epoch the post-fit steps follow on the same stream, each as a typed event, and the COMPLETE response comes last:
 ```
-[gradient] [TRAIN] IN_PROGRESS | losses={'deep_svdd_loss': 0.4523} | metrics={'iou': 0.6823}
-[gradient] [TRAIN] IN_PROGRESS | losses={'deep_svdd_loss': 0.3891} | metrics={'iou': 0.7234}
-[gradient] [VAL] IN_PROGRESS | metrics={'val_iou': 0.7456, 'val_precision': 0.8123}
-[gradient] [TRAIN] COMPLETED | message=Training complete (50 epochs)
+[gradient] [TRAIN] RUNNING | event=FIT_START epochs=1/20 calibration_pending=True
+[gradient] [TRAIN] RUNNING | event=EPOCH_START epochs=1/20 0/124 | Training (0/124)
+[gradient] [TRAIN] RUNNING | event=TRAIN_PROGRESS epochs=1/20 4/124 | losses={'deep_svdd_loss': 0.4523} | Training (4/124)
+[gradient] [VAL] RUNNING | event=VALIDATION_START epochs=1/20 0/44 | Validating (0/44)
+[gradient] [VAL] RUNNING | event=VALIDATION_PROGRESS 4/44 | Validating (4/44)
+[gradient] [VAL] RUNNING | event=VALIDATION_END epochs=1/20 | metrics={'metrics_anomaly/average_precision': 0.398, 'metrics_auroc/auroc_pixel': 0.9941}
+[gradient] [TRAIN] RUNNING | event=EPOCH_END epochs=1/20 | losses={'deep_svdd_loss': 0.3891}
+[gradient] [TRAIN] RUNNING | event=FIT_END epochs=20/20
+[gradient] [TRAIN] RUNNING | event=CHECKPOINT_RESTORED | Best checkpoint restored (epoch 7 metrics_auroc/auroc_pixel 0.9958): outputs/dinomaly/checkpoints/epoch=7-step=352.ckpt
+[gradient] [VAL] RUNNING | event=CALIBRATION_START | Calibrating decider thresholds on val
+[gradient] [VAL] RUNNING | event=CALIBRATION_PROGRESS 12/44 | Calibrating decider thresholds (12/44)
+[gradient] [VAL] RUNNING | event=CALIBRATION_END | Calibration: thresholds calibrated on val: gate (image_threshold 2.5, pixel_threshold 2.5)
+[gradient] [VAL] RUNNING | event=EVALUATION_START | Evaluating val
+[gradient] [VAL] RUNNING | event=EVALUATION_PROGRESS 44/44 | Evaluating val (44/44)
+[gradient] [VAL] RUNNING | event=EVALUATION_END 44 frames | Evaluated val (44 frames): metrics_anomaly/average_precision 0.4081, metrics_anomaly/f1_score 0.428, ...
+[gradient] [TEST] RUNNING | event=EVALUATION_END 51 frames | Evaluated test (51 frames): ...
+[gradient] [TRAIN] RUNNING | event=POST_FIT_END | Post-fit steps complete
+[gradient] [TRAIN] COMPLETE | Gradient training complete; thresholds calibrated on val: gate (image_threshold 2.5, pixel_threshold 2.5)
+```
+
+### Lifecycle events on the Train stream
+
+Every lifecycle hook lands as `TrainResponse.event` (`TrainEvent`, cuvis-ai-schemas 0.14.2 and cuvis-ai-core 0.18.6). Every RUNNING response that reports progress carries one, the per-batch responses included; the opening status sentence of a phase and the terminal COMPLETE, ERROR and CANCELLED responses carry none. The `metrics` map stays the per-epoch view for live charts; the results of a run live in the events, and the COMPLETE response carries an empty `metrics` map. `message` is one sentence for a status line; nothing parses it. `FrameProgress` counts frames (the running sum of batch sizes); its `total` is the split's length when the whole loader runs and 0 when the loader has no length or the trainer limits the pass (`limit_train_batches`, `limit_val_batches`). `EpochProgress.current` is one-based for display (`Context.epoch` stays zero-based); `total` is `max_epochs`, or 0 when unlimited.
+
+| `event.hook` | When | Payload |
+|---|---|---|
+| `STATISTICAL_NODE_START`, `STATISTICAL_PROGRESS`, `STATISTICAL_NODE_END` | per node that needs a fit, in the statistical phase | `node`; `progress` in frames of the train split (the start carries 0 of the total, one event per batch the node reads; a node's own compute after its last batch emits nothing before the end) |
+| `FIT_START` | once, before the first epoch | `epochs`; `calibration_pending`: a decider still holds no thresholds |
+| `EPOCH_START` | per training epoch | `epochs`; `progress`: 0 of the train frames |
+| `TRAIN_PROGRESS` | per train batch | `epochs`; `progress`; `losses` on the response: the batch's values |
+| `VALIDATION_START`, `VALIDATION_PROGRESS` | per validation epoch, per validation batch | `split` VAL; `progress` in validation frames; `epochs` on the start |
+| `VALIDATION_END` | per validation epoch | `split` VAL; `epochs`; `metrics` on the response: the epoch's values |
+| `EPOCH_END` | per training epoch | `epochs`; `losses` on the response |
+| `FIT_END` | after the last epoch | `epochs`: the completed epochs of the total (an early stop reads 3 of 20); status stays RUNNING: the post-fit steps follow |
+| `CHECKPOINT_RESTORED` | once | `checkpoint`: `restored`, `path`, `epoch`, `monitor`, `score`, or `reason` why the final epoch's weights stay |
+| `CALIBRATION_START`, `CALIBRATION_PROGRESS`, `CALIBRATION_END` | once per run | `split`; `progress` in frames; `calibration`: the `CalibrationOutcome` |
+| `EVALUATION_START`, `EVALUATION_PROGRESS`, `EVALUATION_END` | per split (val, then test) | `split`; `progress` in frames; `evaluation`: `status` (`EVALUATED`, `NO_SPLIT`, `FAILED`), `frames`, `metrics`, `error` |
+| `POST_FIT_END` | once | the steps are done; COMPLETE follows |
+
+`CalibrationOutcome` is data, not text: `applicable` (a calibratable decider exists), `phase_skip` (`NONE`, `NO_SPLIT`, `INFERENCE_FAILED`, `AMBIGUOUS_MASK`, `SINGLE_CLASS`) with `phase_detail`, `frames` and `anomalous_frames`, and one `DeciderCalibration` per decider with its `status` (`CALIBRATED`: thresholds updated on this run; `SKIPPED` with a `skip` reason: `NOTHING_WIRED`, `NO_SCORES`, `CALIBRATE_FAILED`, `NO_REPORT`), the `thresholds` as `before` and `after` per knob, the `metrics` at the chosen thresholds, and `thresholds_present` (the decider holds thresholds after the step, kept or updated). A client words every skip from the enums in its own language.
+
+A `StopTrain` during a post-fit step ends the stream CANCELLED at the next batch. A pass that raises ends as `EVALUATION_END` with status `FAILED` and the error text; the run continues to the next split and to COMPLETE, so the trained pipeline can still be saved.
+
+**Recalibrate a saved run** (`TRAINER_TYPE_CALIBRATION`): restore the run with its weights, run the post-fit steps without a fit, save the run again. The thresholds in the yaml change, the weights do not. A session without weights, or with unfitted statistical nodes, is refused with `FAILED_PRECONDITION`.
+
+```python
+stub.RestoreTrainRun(
+    cuvis_ai_pb2.RestoreTrainRunRequest(
+        session_id=session_id,
+        trainrun_path="outputs/run/saved/trainrun.yaml",
+        weights_path="outputs/run/saved/trainrun_pipeline.pt",
+    )
+)
+for progress in stub.Train(
+    cuvis_ai_pb2.TrainRequest(
+        session_id=session_id,
+        trainer_type=cuvis_ai_pb2.TRAINER_TYPE_CALIBRATION,
+    )
+):
+    print(f"[calibration] {format_progress(progress)}")
+stub.SaveTrainRun(
+    cuvis_ai_pb2.SaveTrainRunRequest(
+        session_id=session_id,
+        trainrun_path="outputs/run/saved/trainrun.yaml",
+        save_weights=False,
+    )
+)
 ```
 
 ### Streaming Progress Updates
 
-The `Train` RPC returns a **stream** of progress messages:
+The `Train` RPC returns a **stream** of progress messages. Read the live values from `losses` and `metrics`, the results from the events:
 
 ```python
+results = {}
 for progress in stub.Train(train_request):
     stage = cuvis_ai_pb2.ExecutionStage.Name(progress.context.stage)
-    status = cuvis_ai_pb2.TrainStatus.Name(progress.status)
 
     if progress.losses:
-        losses = dict(progress.losses)
-        print(f"[{stage}] Losses: {losses}")
-
+        print(f"[{stage}] Losses: {dict(progress.losses)}")
     if progress.metrics:
-        metrics = dict(progress.metrics)
-        print(f"[{stage}] Metrics: {metrics}")
+        print(f"[{stage}] Metrics: {dict(progress.metrics)}")
 
-    if progress.status == cuvis_ai_pb2.TRAIN_STATUS_COMPLETED:
-        print("Training finished!")
+    if progress.HasField("event"):
+        event = progress.event
+        if event.hook == cuvis_ai_pb2.TRAIN_HOOK_CALIBRATION_END:
+            calibrated = any(
+                d.status == cuvis_ai_pb2.DECIDER_CALIBRATION_STATUS_CALIBRATED
+                for d in event.calibration.deciders
+            )
+            print(f"calibrated={calibrated} on {event.calibration.frames} frames")
+        elif event.hook == cuvis_ai_pb2.TRAIN_HOOK_EVALUATION_END:
+            split = cuvis_ai_pb2.ExecutionStage.Name(event.evaluation.split)
+            if event.evaluation.status == cuvis_ai_pb2.EVALUATION_STATUS_EVALUATED:
+                results[split] = dict(event.evaluation.metrics)
+
+    if progress.status == cuvis_ai_pb2.TRAIN_STATUS_COMPLETE:
+        print(f"Training finished: {progress.message}")
         break
 ```
 
@@ -595,6 +670,20 @@ def format_progress(progress: cuvis_ai_pb2.TrainResponse) -> str:
     status = cuvis_ai_pb2.TrainStatus.Name(progress.status)
 
     parts = [f"[{stage}] {status}"]
+    if progress.HasField("event"):
+        event = progress.event
+        hook = cuvis_ai_pb2.TrainHook.Name(event.hook).removeprefix("TRAIN_HOOK_")
+        if event.node:
+            hook += f" node={event.node}"
+        if event.HasField("epochs"):
+            hook += f" epochs={event.epochs.current}/{event.epochs.total}"
+        if event.HasField("progress"):
+            hook += f" {event.progress.done}/{event.progress.total}"
+        elif event.HasField("evaluation"):
+            hook += f" {event.evaluation.frames} frames"
+        if event.hook == cuvis_ai_pb2.TRAIN_HOOK_FIT_START:
+            hook += f" calibration_pending={event.calibration_pending}"
+        parts.append(f"event={hook}")
     if progress.losses:
         parts.append(f"losses={dict(progress.losses)}")
     if progress.metrics:

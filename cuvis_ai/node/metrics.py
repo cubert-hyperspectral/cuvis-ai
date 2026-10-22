@@ -94,10 +94,30 @@ class AnomalyDetectionMetrics(Node):
     Expects binary decisions and targets to be binary masks.
     Executes only during validation and test stages.
 
-    ``pixel_stride`` subsamples the pixel grid on H and W before the metrics see
-    it, so a full-frame validation step no longer allocates flattened copies of
-    every pixel. It changes only how many pixels the metrics score, never the
-    ``scores`` grid a decider, overlay or heatmap reads.
+    ``precision``, ``recall``, ``f1_score`` and ``iou`` are dataset-level pixel metrics:
+    stateful torchmetrics objects that accumulate with ``update()`` over every batch of
+    the split and are reduced once with a single ``compute()``, reset only at the
+    ``(stage, epoch)`` boundary. The value on the ``metrics`` port each batch is therefore
+    a *running* value over the batches seen so far in the current epoch, not that batch's
+    own value; the last batch of the epoch carries the true epoch-level number. This
+    matches ``average_precision``, which was already pooled the same way.
+
+    ``image_precision``, ``image_recall`` and ``image_f1`` are frame-level: a frame counts
+    as predicted anomalous when any of its decision pixels is true, and as anomalous when
+    any of its target pixels is true, pooled the same way over every frame of the epoch.
+    They are computed on the full-resolution ``decisions``/``targets`` before
+    ``pixel_stride`` subsampling runs, so a small anomaly that falls between the retained
+    pixels still marks its frame anomalous.
+
+    ``decisions`` is optional: without it (an uncalibrated decider upstream, outside
+    inference) only ``average_precision`` is emitted, from ``logits`` alone, and the node
+    does not fail.
+
+    ``pixel_stride`` subsamples the pixel grid on H and W before the pixel-level metrics
+    see it, so a full-frame validation step no longer allocates flattened copies of
+    every pixel. It changes only how many pixels those metrics score, never the
+    ``scores`` grid a decider, overlay or heatmap reads, and never the frame-level
+    image_* reduction above.
     """
 
     _category = NodeCategory.METRIC
@@ -108,6 +128,7 @@ class AnomalyDetectionMetrics(Node):
             dtype=torch.bool,
             shape=(-1, -1, -1, 1),
             description="Binary anomaly decisions [B, H, W, 1]",
+            optional=True,
         ),
         "targets": PortSpec(
             dtype=torch.bool,
@@ -124,14 +145,23 @@ class AnomalyDetectionMetrics(Node):
 
     OUTPUT_SPECS = {"metrics": PortSpec(dtype=list, shape=(), description="List of Metric objects")}
 
-    # average_precision accumulates across the epoch and must be reduced by a
-    # single pooled compute() at epoch end, not by averaging the per-batch
-    # running values. The trainer skips these names in per-batch logging and
-    # instead logs the live torchmetrics object from pooled_metrics() with
-    # on_epoch=True, so Lightning does the pooled compute()+reset() natively.
-    # Precision/recall/F1/IoU stay per-batch (mean reduction is their intended
-    # epoch value).
-    POOLED_METRIC_NAMES: ClassVar[frozenset[str]] = frozenset({"average_precision"})
+    # Every name here accumulates across the epoch and must be reduced by a single
+    # pooled compute() at epoch end, not by averaging the per-batch running values.
+    # The trainer skips these names in per-batch logging and instead logs the live
+    # torchmetrics object from pooled_metrics() with on_epoch=True, so Lightning does
+    # the pooled compute()+reset() natively.
+    POOLED_METRIC_NAMES: ClassVar[frozenset[str]] = frozenset(
+        {
+            "precision",
+            "recall",
+            "f1_score",
+            "iou",
+            "average_precision",
+            "image_precision",
+            "image_recall",
+            "image_f1",
+        }
+    )
 
     EXECUTION_STAGES = {ExecutionStage.VAL, ExecutionStage.TEST}
 
@@ -145,16 +175,15 @@ class AnomalyDetectionMetrics(Node):
         self.pixel_stride = pixel_stride
         super().__init__(ap_thresholds=ap_thresholds, pixel_stride=pixel_stride, **kwargs)
 
-        # Precision/Recall/F1/IoU keep O(1) running confmat state and are stateless
-        # under torchmetrics __call__ (full_state_update=False) — per-batch values.
-        # BinaryAveragePrecision uses histogram-based AP (thresholds=N) so state is
-        # O(N) instead of O(n_pixels). We accumulate via update() across batches
-        # within a (stage, epoch) and reset only at the boundary, so the value
-        # emitted each batch is a *running* AP across batches seen so far in the
-        # current epoch — the last batch's value is true epoch-level AP.
-        # validate_args=False skips torchmetrics' per-call input check, which sorts
-        # the whole input to prove it is binary, pure overhead for ports the
-        # pipeline already types as bool/float32.
+        # Every metric below keeps O(1) running confmat state (full_state_update=False
+        # on the pixel ones) except BinaryAveragePrecision, which uses histogram-based
+        # AP (thresholds=N) for O(N) state instead of O(n_pixels). All of them accumulate
+        # via update() across batches within a (stage, epoch) and reset only at the
+        # boundary, so the value emitted each batch is a *running* value across batches
+        # seen so far in the current epoch — the last batch's value is the true
+        # epoch-level number. validate_args=False skips torchmetrics' per-call input
+        # check, which sorts the whole input to prove it is binary, pure overhead for
+        # ports the pipeline already types as bool/float32.
         self.precision_metric = BinaryPrecision(validate_args=False)
         self.recall_metric = BinaryRecall(validate_args=False)
         self.f1_metric = BinaryF1Score(validate_args=False)
@@ -162,69 +191,103 @@ class AnomalyDetectionMetrics(Node):
         self.average_precision_metric = BinaryAveragePrecision(
             thresholds=ap_thresholds, validate_args=False
         )
+        self.image_precision_metric = BinaryPrecision(validate_args=False)
+        self.image_recall_metric = BinaryRecall(validate_args=False)
+        self.image_f1_metric = BinaryF1Score(validate_args=False)
         self._ap_last_key: tuple[ExecutionStage, int] | None = None
+        self._pixel_last_key: tuple[ExecutionStage, int] | None = None
+        self._image_last_key: tuple[ExecutionStage, int] | None = None
         self._stride_warn_state: dict[str, bool] = {}
 
     def forward(
         self,
-        decisions: Tensor,
         targets: Tensor,
         context: Context,
+        decisions: Tensor | None = None,
         logits: Tensor | None = None,
     ) -> dict[str, Any]:
         """Compute anomaly detection metrics using torchmetrics.
 
-        With ``pixel_stride`` above 1 the three pixel grids are subsampled to
-        every s-th row and column first, so the reported values are computed on
-        that subsample.
+        With ``pixel_stride`` above 1 the pixel-level grids are subsampled to every
+        s-th row and column first, so those metrics are computed on that subsample; the
+        frame-level ``image_*`` metrics always see the full-resolution tensors.
+
+        The two optional ports default to ``None`` because the pipeline passes no
+        argument at all for an optional port nothing feeds.
 
         Parameters
         ----------
-        decisions : Tensor
-            Binary anomaly decisions [B, H, W, 1]
         targets : Tensor
             Ground truth binary masks [B, H, W, 1]
         context : Context
             Execution context with stage, epoch, batch_idx
+        decisions : Tensor | None
+            Binary anomaly decisions [B, H, W, 1]; absent while an uncalibrated
+            decider upstream withholds them, in which case only ``average_precision``
+            (when ``logits`` is given) is emitted.
+        logits : Tensor | None
+            Optional anomaly logits/probabilities for ``average_precision``.
 
         Returns
         -------
         dict[str, Any]
             Dictionary with "metrics" key containing list of Metric objects
         """
-        # Ensure consistent shapes and flatten spatial dimensions
-        decisions = decisions.squeeze(-1)  # [B, H, W]
-        targets = targets.squeeze(-1)  # [B, H, W]
+        values: dict[str, float] = {}
+        epoch_key = (context.stage, context.epoch)
 
-        # Subsample the pixel grid before anything is flattened: every copy below
-        # (and the AP sigmoid) then costs ceil(H/s)*ceil(W/s) per frame instead of H*W.
-        full_elements = decisions.numel()
-        decisions = subsample_hw(decisions, self.pixel_stride)
-        targets = subsample_hw(targets, self.pixel_stride)
-        warn_below_vectorized_cutoff(
-            self.name, decisions.numel(), full_elements, self._stride_warn_state
-        )
+        if decisions is not None:
+            # Frame-level reduction first, on the full-resolution masks: a stride
+            # subsample must never decide whether a frame counts as anomalous.
+            frame_pred = decisions.flatten(1).any(dim=1).to(torch.int64)
+            frame_gt = targets.flatten(1).any(dim=1).to(torch.int64)
+            if self._image_last_key != epoch_key:
+                self.image_precision_metric.reset()
+                self.image_recall_metric.reset()
+                self.image_f1_metric.reset()
+                self._image_last_key = epoch_key
+            values["image_precision"] = self.image_precision_metric(frame_pred, frame_gt).item()
+            values["image_recall"] = self.image_recall_metric(frame_pred, frame_gt).item()
+            values["image_f1"] = self.image_f1_metric(frame_pred, frame_gt).item()
 
-        # Flatten to [N] where N = B*ceil(H/s)*ceil(W/s) for torchmetrics
-        preds_flat = decisions.flatten()
-        targets_flat = targets.flatten()
+            # Ensure consistent shapes and flatten spatial dimensions
+            pixel_decisions = decisions.squeeze(-1)  # [B, H, W]
+            pixel_targets = targets.squeeze(-1)  # [B, H, W]
 
-        # Compute metrics using torchmetrics (they handle edge cases robustly)
-        values = {
-            "precision": self.precision_metric(preds_flat, targets_flat).item(),
-            "recall": self.recall_metric(preds_flat, targets_flat).item(),
-            "f1_score": self.f1_metric(preds_flat, targets_flat).item(),
-            "iou": self.iou_metric(preds_flat, targets_flat).item(),
-        }
+            # Subsample the pixel grid before anything is flattened: every copy below
+            # (and the AP sigmoid) then costs ceil(H/s)*ceil(W/s) per frame instead of H*W.
+            full_elements = pixel_decisions.numel()
+            pixel_decisions = subsample_hw(pixel_decisions, self.pixel_stride)
+            pixel_targets = subsample_hw(pixel_targets, self.pixel_stride)
+            warn_below_vectorized_cutoff(
+                self.name, pixel_decisions.numel(), full_elements, self._stride_warn_state
+            )
+
+            # Flatten to [N] where N = B*ceil(H/s)*ceil(W/s) for torchmetrics
+            preds_flat = pixel_decisions.flatten()
+            targets_flat = pixel_targets.flatten()
+
+            if self._pixel_last_key != epoch_key:
+                self.precision_metric.reset()
+                self.recall_metric.reset()
+                self.f1_metric.reset()
+                self.iou_metric.reset()
+                self._pixel_last_key = epoch_key
+
+            values["precision"] = self.precision_metric(preds_flat, targets_flat).item()
+            values["recall"] = self.recall_metric(preds_flat, targets_flat).item()
+            values["f1_score"] = self.f1_metric(preds_flat, targets_flat).item()
+            values["iou"] = self.iou_metric(preds_flat, targets_flat).item()
+        else:
+            targets_flat = subsample_hw(targets.squeeze(-1), self.pixel_stride).flatten()
 
         if logits is not None:
             raw_scores = subsample_hw(logits.squeeze(-1), self.pixel_stride).flatten().float()
             probs_for_ap = torch.sigmoid(raw_scores)
 
-            current_key = (context.stage, context.epoch)
-            if self._ap_last_key != current_key:
+            if self._ap_last_key != epoch_key:
                 self.average_precision_metric.reset()
-                self._ap_last_key = current_key
+                self._ap_last_key = epoch_key
 
             self.average_precision_metric.update(probs_for_ap, targets_flat)
             values["average_precision"] = self.average_precision_metric.compute().item()
@@ -245,16 +308,28 @@ class AnomalyDetectionMetrics(Node):
     def pooled_metrics(self) -> dict[str, TorchMetric]:
         """Live torchmetrics objects for the epoch-pooled metrics, keyed by name.
 
-        ``average_precision`` accumulates across the epoch (reset only at the
-        ``(stage, epoch)`` boundary), so the trainer logs this object with
-        ``on_epoch=True`` and Lightning computes the single pooled AP and resets
-        it at epoch end, exact and batch-size-invariant. Returns an empty mapping
-        until at least one batch with ``logits`` has been seen, so nothing is
-        logged for a run that never produced scores.
+        Every metric named in :data:`POOLED_METRIC_NAMES` accumulates across the epoch
+        (reset only at the ``(stage, epoch)`` boundary), so the trainer logs each live
+        object with ``on_epoch=True`` and Lightning computes a single pooled value and
+        resets it at epoch end, exact and batch-size-invariant. A metric is present
+        only once it has seen at least one batch: the pixel and frame-level ones once a
+        batch with ``decisions`` has been seen, ``average_precision`` once a batch with
+        ``logits`` has been seen. Returns an empty mapping until then, so nothing is
+        logged for a run that never produced the matching input.
         """
-        if self._ap_last_key is None:
-            return {}
-        return {"average_precision": self.average_precision_metric}
+        pooled: dict[str, TorchMetric] = {}
+        if self._pixel_last_key is not None:
+            pooled["precision"] = self.precision_metric
+            pooled["recall"] = self.recall_metric
+            pooled["f1_score"] = self.f1_metric
+            pooled["iou"] = self.iou_metric
+        if self._image_last_key is not None:
+            pooled["image_precision"] = self.image_precision_metric
+            pooled["image_recall"] = self.image_recall_metric
+            pooled["image_f1"] = self.image_f1_metric
+        if self._ap_last_key is not None:
+            pooled["average_precision"] = self.average_precision_metric
+        return pooled
 
 
 class ScoreStatisticsMetric(Node):
@@ -542,7 +617,9 @@ class AnomalyPixelStatisticsMetric(Node):
 
     Calculates total pixels, anomalous pixels count, and anomaly percentage.
     Useful for monitoring the proportion of detected anomalies in batches.
-    Executes only during validation and test stages.
+    Executes only during validation and test stages. ``decisions`` is optional: an
+    uncalibrated decider upstream emits none outside inference, and this node then
+    emits no metrics at all rather than failing.
     """
 
     _category = NodeCategory.METRIC
@@ -553,6 +630,7 @@ class AnomalyPixelStatisticsMetric(Node):
             dtype=torch.bool,
             shape=(-1, -1, -1, 1),
             description="Binary anomaly decisions [B, H, W, 1]",
+            optional=True,
         ),
     }
 
@@ -563,21 +641,26 @@ class AnomalyPixelStatisticsMetric(Node):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
 
-    def forward(self, decisions: Tensor, context: Context) -> dict[str, Any]:
+    def forward(self, context: Context, decisions: Tensor | None = None) -> dict[str, Any]:
         """Compute anomaly pixel statistics.
 
         Parameters
         ----------
-        decisions : Tensor
-            Binary anomaly decisions [B, H, W, 1]
         context : Context
             Execution context with stage, epoch, batch_idx
+        decisions : Tensor | None
+            Binary anomaly decisions [B, H, W, 1]; ``None`` while an uncalibrated decider
+            upstream withholds them, in which case no metrics are emitted.
 
         Returns
         -------
         dict[str, Any]
-            Dictionary with "metrics" key containing list of Metric objects
+            Dictionary with "metrics" key containing list of Metric objects, empty
+            without ``decisions``.
         """
+        if decisions is None:
+            return {"metrics": []}
+
         # Calculate statistics
         total_pixels = decisions.numel()
         anomalous_pixels = int(decisions.sum().item())

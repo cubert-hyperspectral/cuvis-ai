@@ -190,6 +190,51 @@ class TestAnomalyDetectionMetrics:
         with pytest.raises(TypeError):
             metric_node.forward(decisions=decisions, context=context)
 
+    def test_without_decisions_emits_average_precision_only(self):
+        """An uncalibrated decider upstream withholds decisions; AP still comes from logits."""
+        metric_node = AnomalyDetectionMetrics()
+        context = Context(stage=ExecutionStage.VAL, epoch=0, batch_idx=0)
+
+        b, h, w = 2, 8, 8
+        targets = torch.randint(0, 2, (b, h, w, 1)).bool()
+        logits = torch.randn(b, h, w, 1)
+
+        outputs = metric_node.forward(
+            decisions=None, targets=targets, context=context, logits=logits
+        )
+        metrics = {m.name: m.value for m in outputs["metrics"]}
+
+        assert set(metrics) == {"average_precision"}
+
+    def test_without_decisions_and_without_logits_emits_nothing(self):
+        """No decisions and no logits: nothing to compute, and it must not fail."""
+        metric_node = AnomalyDetectionMetrics()
+        context = Context(stage=ExecutionStage.VAL, epoch=0, batch_idx=0)
+
+        targets = torch.randint(0, 2, (1, 4, 4, 1)).bool()
+
+        outputs = metric_node.forward(decisions=None, targets=targets, context=context)
+
+        assert outputs["metrics"] == []
+
+    def test_decisions_keyword_may_be_omitted(self):
+        """The pipeline passes no keyword at all for an optional port nobody feeds.
+
+        An uncalibrated decider emits no decisions, so the executor calls forward without
+        the ``decisions`` argument; the node must not require it positionally.
+        """
+        metric_node = AnomalyDetectionMetrics()
+        context = Context(stage=ExecutionStage.VAL, epoch=0, batch_idx=0)
+
+        b, h, w = 2, 8, 8
+        targets = torch.randint(0, 2, (b, h, w, 1)).bool()
+        logits = torch.randn(b, h, w, 1)
+
+        outputs = metric_node.forward(targets=targets, context=context, logits=logits)
+        metrics = {m.name: m.value for m in outputs["metrics"]}
+
+        assert set(metrics) == {"average_precision"}
+
     def test_4d_tensor_handling(self):
         """Test metrics with 4D tensors [B, H, W, 1]."""
         metric_node = AnomalyDetectionMetrics()
@@ -220,7 +265,7 @@ class TestAnomalyDetectionMetrics:
                 batch_idx=batch_idx,
                 global_step=batch_idx,
             )
-            metric_node.forward(decisions, targets, ctx, logits=logits)
+            metric_node.forward(decisions=decisions, targets=targets, context=ctx, logits=logits)
 
         ap = metric_node.average_precision_metric
         # Histogram-mode AP must not store raw preds/targets per batch.
@@ -248,7 +293,9 @@ class TestAnomalyDetectionMetrics:
         # Aligned logits: high where target=True, low where target=False → AP ≈ 1.
         aligned = torch.where(targets, torch.tensor(10.0), torch.tensor(-10.0))
         ctx0 = Context(stage=ExecutionStage.VAL, epoch=0, batch_idx=0)
-        outputs0 = metric_node.forward(decisions, targets, ctx0, logits=aligned)
+        outputs0 = metric_node.forward(
+            decisions=decisions, targets=targets, context=ctx0, logits=aligned
+        )
         ap0 = next(m.value for m in outputs0["metrics"] if m.name == "average_precision")
         assert ap0 > 0.99
 
@@ -256,7 +303,9 @@ class TestAnomalyDetectionMetrics:
         # If state leaked across epoch boundary, ap1 would be pulled toward ap0.
         inverted = -aligned
         ctx1 = Context(stage=ExecutionStage.VAL, epoch=1, batch_idx=0)
-        outputs1 = metric_node.forward(decisions, targets, ctx1, logits=inverted)
+        outputs1 = metric_node.forward(
+            decisions=decisions, targets=targets, context=ctx1, logits=inverted
+        )
         ap1 = next(m.value for m in outputs1["metrics"] if m.name == "average_precision")
         assert ap1 < 0.6, f"epoch-1 AP should reflect inverted-only data, got {ap1}"
 
@@ -273,17 +322,23 @@ class TestAnomalyDetectionMetrics:
 
         # Batch 0: aligned logits → running AP ≈ 1.
         ctx0 = Context(stage=ExecutionStage.VAL, epoch=0, batch_idx=0)
-        out0 = metric_node.forward(decisions, targets, ctx0, logits=aligned)
+        out0 = metric_node.forward(
+            decisions=decisions, targets=targets, context=ctx0, logits=aligned
+        )
         ap0 = next(m.value for m in out0["metrics"] if m.name == "average_precision")
 
         # Batch 1: inverted logits → running AP across batches 0+1 drops below ap0.
         ctx1 = Context(stage=ExecutionStage.VAL, epoch=0, batch_idx=1)
-        out1 = metric_node.forward(decisions, targets, ctx1, logits=inverted)
+        out1 = metric_node.forward(
+            decisions=decisions, targets=targets, context=ctx1, logits=inverted
+        )
         ap1 = next(m.value for m in out1["metrics"] if m.name == "average_precision")
 
         # Batch 2: more inverted data → running AP drops further toward inverted-only.
         ctx2 = Context(stage=ExecutionStage.VAL, epoch=0, batch_idx=2)
-        out2 = metric_node.forward(decisions, targets, ctx2, logits=inverted)
+        out2 = metric_node.forward(
+            decisions=decisions, targets=targets, context=ctx2, logits=inverted
+        )
         ap2 = next(m.value for m in out2["metrics"] if m.name == "average_precision")
 
         assert ap0 > 0.99, "first batch with aligned logits should give AP ≈ 1"
@@ -301,11 +356,13 @@ class TestAnomalyDetectionMetrics:
 
         # VAL epoch 5: inverted logits accumulate (low AP).
         ctx_val = Context(stage=ExecutionStage.VAL, epoch=5, batch_idx=0)
-        metric_node.forward(decisions, targets, ctx_val, logits=inverted)
+        metric_node.forward(decisions=decisions, targets=targets, context=ctx_val, logits=inverted)
 
         # TEST epoch 5: aligned logits should yield AP ≈ 1, not a polluted average.
         ctx_test = Context(stage=ExecutionStage.TEST, epoch=5, batch_idx=0)
-        out = metric_node.forward(decisions, targets, ctx_test, logits=aligned)
+        out = metric_node.forward(
+            decisions=decisions, targets=targets, context=ctx_test, logits=aligned
+        )
         ap = next(m.value for m in out["metrics"] if m.name == "average_precision")
         assert ap > 0.99
 
@@ -323,7 +380,7 @@ class TestAnomalyDetectionMetrics:
         decisions = torch.zeros(b, h, w, 1).bool()
         logits = torch.randn(b, h, w, 1)
         ctx = Context(stage=ExecutionStage.VAL, epoch=0, batch_idx=0)
-        out = metric_node.forward(decisions, targets, ctx, logits=logits)
+        out = metric_node.forward(decisions=decisions, targets=targets, context=ctx, logits=logits)
         ap = next(m.value for m in out["metrics"] if m.name == "average_precision")
         assert math.isnan(ap) or ap == 0.0
 
@@ -358,13 +415,192 @@ class TestAnomalyDetectionMetrics:
         # Two batches within one epoch (aligned then inverted).
         for batch_idx, logits in enumerate((aligned, inverted)):
             ctx = Context(stage=ExecutionStage.VAL, epoch=0, batch_idx=batch_idx)
-            metric_node.forward(decisions, targets, ctx, logits=logits)
+            metric_node.forward(decisions=decisions, targets=targets, context=ctx, logits=logits)
 
         pooled = metric_node.pooled_metrics()
-        assert list(pooled) == ["average_precision"]
-        # The mapping exposes the LIVE accumulator (same object), which the trainer logs
-        # with on_epoch=True; the pooled AP math itself is covered by the AP-accumulation tests.
+        # decisions was also given, so the pixel and frame-level pooled metrics are
+        # present too; the mapping exposes the LIVE accumulator for each (same object),
+        # which the trainer logs with on_epoch=True. The pooled AP math itself is
+        # covered by the AP-accumulation tests.
+        assert "average_precision" in pooled
         assert pooled["average_precision"] is metric_node.average_precision_metric
+
+
+class TestAnomalyDetectionMetricsPooled:
+    """Pooled pixel metrics (precision, recall, F1, IoU) and frame-level metrics."""
+
+    @staticmethod
+    def _ctx(epoch: int = 0, batch_idx: int = 0, stage: ExecutionStage = ExecutionStage.VAL):
+        return Context(stage=stage, epoch=epoch, batch_idx=batch_idx)
+
+    def test_pooled_f1_over_two_batches_equals_f1_of_concatenation(self):
+        """Pooled F1 across an all-normal batch then an anomalous batch equals the joint F1.
+
+        Averaging the two batches' per-batch F1 values would differ from this (the
+        all-normal batch has an undefined/zero F1), so this pins the pooling semantics.
+        """
+        metric_node = AnomalyDetectionMetrics()
+
+        # Batch 0: all-normal, decisions all false (no false positives).
+        decisions0 = torch.zeros(1, 4, 4, 1, dtype=torch.bool)
+        targets0 = torch.zeros(1, 4, 4, 1, dtype=torch.bool)
+        metric_node.forward(decisions=decisions0, targets=targets0, context=self._ctx(batch_idx=0))
+
+        # Batch 1: anomalous, with some false positives/negatives.
+        decisions1 = torch.zeros(1, 4, 4, 1, dtype=torch.bool)
+        decisions1[0, :2, :2, 0] = True  # 4 predicted positive
+        targets1 = torch.zeros(1, 4, 4, 1, dtype=torch.bool)
+        targets1[0, :2, :3, 0] = True  # 6 actual positive (4 TP, 2 FN, 0 FP)
+        out1 = metric_node.forward(
+            decisions=decisions1, targets=targets1, context=self._ctx(batch_idx=1)
+        )
+        pooled_f1 = next(m.value for m in out1["metrics"] if m.name == "f1_score")
+
+        # Reference: F1 over the concatenation of both batches' flattened pixels.
+        preds_cat = torch.cat([decisions0.flatten(), decisions1.flatten()])
+        targets_cat = torch.cat([targets0.flatten(), targets1.flatten()])
+        tp = (preds_cat & targets_cat).sum().item()
+        fp = (preds_cat & ~targets_cat).sum().item()
+        fn = (~preds_cat & targets_cat).sum().item()
+        expected_f1 = 2 * tp / (2 * tp + fp + fn)
+
+        assert pooled_f1 == pytest.approx(expected_f1)
+
+    def test_pooled_f1_resets_on_new_epoch(self):
+        """A new (stage, epoch) key resets the pooled pixel metrics."""
+        metric_node = AnomalyDetectionMetrics()
+
+        decisions = torch.ones(1, 4, 4, 1, dtype=torch.bool)
+        targets = torch.zeros(1, 4, 4, 1, dtype=torch.bool)  # all false positives -> F1 = 0
+        out0 = metric_node.forward(
+            decisions=decisions, targets=targets, context=self._ctx(epoch=0, batch_idx=0)
+        )
+        f1_epoch0 = next(m.value for m in out0["metrics"] if m.name == "f1_score")
+        assert f1_epoch0 == pytest.approx(0.0)
+
+        # New epoch, perfect predictions: must not carry epoch-0's FPs into the pool.
+        decisions1 = torch.ones(1, 4, 4, 1, dtype=torch.bool)
+        targets1 = torch.ones(1, 4, 4, 1, dtype=torch.bool)
+        out1 = metric_node.forward(
+            decisions=decisions1, targets=targets1, context=self._ctx(epoch=1, batch_idx=0)
+        )
+        f1_epoch1 = next(m.value for m in out1["metrics"] if m.name == "f1_score")
+        assert f1_epoch1 == pytest.approx(1.0)
+
+    def test_pooled_f1_resets_on_stage_boundary(self):
+        """VAL and TEST at the same epoch number must not share pooled state."""
+        metric_node = AnomalyDetectionMetrics()
+
+        decisions = torch.ones(1, 4, 4, 1, dtype=torch.bool)
+        targets = torch.zeros(1, 4, 4, 1, dtype=torch.bool)
+        metric_node.forward(
+            decisions=decisions,
+            targets=targets,
+            context=self._ctx(epoch=3, stage=ExecutionStage.VAL),
+        )
+
+        decisions1 = torch.ones(1, 4, 4, 1, dtype=torch.bool)
+        targets1 = torch.ones(1, 4, 4, 1, dtype=torch.bool)
+        out = metric_node.forward(
+            decisions=decisions1,
+            targets=targets1,
+            context=self._ctx(epoch=3, stage=ExecutionStage.TEST),
+        )
+        f1 = next(m.value for m in out["metrics"] if m.name == "f1_score")
+        assert f1 == pytest.approx(1.0)
+
+    def test_image_level_metrics_three_frames_one_false_positive(self):
+        """image_precision/recall/f1: any-pixel frame labels, pooled over the batch."""
+        metric_node = AnomalyDetectionMetrics()
+
+        b, h, w = 3, 4, 4
+        decisions = torch.zeros(b, h, w, 1, dtype=torch.bool)
+        targets = torch.zeros(b, h, w, 1, dtype=torch.bool)
+
+        # Frame 0: true positive (both anomalous).
+        decisions[0, 0, 0, 0] = True
+        targets[0, 0, 0, 0] = True
+        # Frame 1: false positive (predicted anomalous, actually normal).
+        decisions[1, 0, 0, 0] = True
+        # Frame 2: true negative (both normal).
+
+        out = metric_node.forward(decisions=decisions, targets=targets, context=self._ctx())
+        metrics = {m.name: m.value for m in out["metrics"]}
+
+        # tp=1, fp=1, fn=0 at the frame level.
+        assert metrics["image_precision"] == pytest.approx(0.5)
+        assert metrics["image_recall"] == pytest.approx(1.0)
+        assert metrics["image_f1"] == pytest.approx(2 / 3)
+
+    def test_image_level_off_grid_anomaly_survives_pixel_stride(self):
+        """A single odd-row/odd-column anomalous pixel still counts at image level.
+
+        With pixel_stride=2 the pixel-level metrics subsample to even rows/columns, which
+        would silently drop an off-grid anomaly; the frame-level any-pixel reduction must
+        run on the full-resolution masks before that subsampling.
+        """
+        metric_node = AnomalyDetectionMetrics(pixel_stride=2)
+
+        decisions = torch.zeros(1, 6, 6, 1, dtype=torch.bool)
+        targets = torch.zeros(1, 6, 6, 1, dtype=torch.bool)
+        # Odd row, odd column: dropped by a stride-2 subsample starting at index 0.
+        decisions[0, 1, 1, 0] = True
+        targets[0, 1, 1, 0] = True
+
+        out = metric_node.forward(decisions=decisions, targets=targets, context=self._ctx())
+        metrics = {m.name: m.value for m in out["metrics"]}
+
+        assert metrics["image_precision"] == pytest.approx(1.0)
+        assert metrics["image_recall"] == pytest.approx(1.0)
+        assert metrics["image_f1"] == pytest.approx(1.0)
+
+    def test_pooled_metric_names_lists_all_eight(self):
+        """POOLED_METRIC_NAMES names every pooled metric, pixel and frame level."""
+        assert AnomalyDetectionMetrics.POOLED_METRIC_NAMES == frozenset(
+            {
+                "precision",
+                "recall",
+                "f1_score",
+                "iou",
+                "average_precision",
+                "image_precision",
+                "image_recall",
+                "image_f1",
+            }
+        )
+
+    def test_pooled_metrics_keys_after_a_batch(self):
+        """pooled_metrics() returns every metric object that has seen a batch."""
+        metric_node = AnomalyDetectionMetrics()
+        assert metric_node.pooled_metrics() == {}
+
+        decisions = torch.zeros(1, 4, 4, 1, dtype=torch.bool)
+        targets = torch.zeros(1, 4, 4, 1, dtype=torch.bool)
+        metric_node.forward(decisions=decisions, targets=targets, context=self._ctx())
+
+        pooled = metric_node.pooled_metrics()
+        assert set(pooled) == {
+            "precision",
+            "recall",
+            "f1_score",
+            "iou",
+            "image_precision",
+            "image_recall",
+            "image_f1",
+        }
+
+    def test_pooled_metrics_keys_include_ap_once_logits_seen(self):
+        """pooled_metrics() adds average_precision once a logits batch has been seen."""
+        metric_node = AnomalyDetectionMetrics()
+        decisions = torch.zeros(1, 4, 4, 1, dtype=torch.bool)
+        targets = torch.zeros(1, 4, 4, 1, dtype=torch.bool)
+        logits = torch.randn(1, 4, 4, 1)
+        metric_node.forward(
+            decisions=decisions, targets=targets, context=self._ctx(), logits=logits
+        )
+
+        pooled = metric_node.pooled_metrics()
+        assert "average_precision" in pooled
 
 
 class TestAnomalyDetectionMetricsPixelStride:
@@ -424,7 +660,7 @@ class TestAnomalyDetectionMetricsPixelStride:
         decisions, targets, logits = self._batch(b, h, w)
         ctx = Context(stage=ExecutionStage.VAL, epoch=0, batch_idx=0)
 
-        metric_node.forward(decisions, targets, ctx, logits=logits)
+        metric_node.forward(decisions=decisions, targets=targets, context=ctx, logits=logits)
 
         expected = b * math.ceil(h / stride) * math.ceil(w / stride)
         assert seen, "no torchmetrics update() was observed"
@@ -437,9 +673,20 @@ class TestAnomalyDetectionMetricsPixelStride:
         decisions, targets, logits = self._batch(2, 33, 21)
         ctx = Context(stage=ExecutionStage.VAL, epoch=0, batch_idx=0)
 
-        values = self._values(metric_node.forward(decisions, targets, ctx, logits=logits))
+        values = self._values(
+            metric_node.forward(decisions=decisions, targets=targets, context=ctx, logits=logits)
+        )
 
-        assert set(values) == {"precision", "recall", "f1_score", "iou", "average_precision"}
+        assert set(values) == {
+            "precision",
+            "recall",
+            "f1_score",
+            "iou",
+            "average_precision",
+            "image_precision",
+            "image_recall",
+            "image_f1",
+        }
         for name, value in values.items():
             assert math.isfinite(value), f"{name} is not finite at stride {stride}"
             assert 0.0 <= value <= 1.0, f"{name}={value} out of range at stride {stride}"
@@ -451,7 +698,9 @@ class TestAnomalyDetectionMetricsPixelStride:
         metric_node = AnomalyDetectionMetrics(pixel_stride=1)
         ctx = Context(stage=ExecutionStage.VAL, epoch=0, batch_idx=0)
 
-        got = self._values(metric_node.forward(decisions, targets, ctx, logits=logits))
+        got = self._values(
+            metric_node.forward(decisions=decisions, targets=targets, context=ctx, logits=logits)
+        )
 
         # Reference: torchmetrics called directly on the full flattened frame.
         preds_flat = decisions.squeeze(-1).flatten()
@@ -475,12 +724,12 @@ class TestAnomalyDetectionMetricsPixelStride:
 
         bool_values = self._values(
             AnomalyDetectionMetrics(pixel_stride=stride).forward(
-                decisions, targets, ctx, logits=logits
+                decisions=decisions, targets=targets, context=ctx, logits=logits
             )
         )
         long_values = self._values(
             AnomalyDetectionMetrics(pixel_stride=stride).forward(
-                decisions, targets.long(), ctx, logits=logits
+                decisions=decisions, targets=targets.long(), context=ctx, logits=logits
             )
         )
 
@@ -758,6 +1007,19 @@ class TestAnomalyPixelStatisticsMetric:
         assert metrics["anomaly/total_pixels"] == 0.0
         assert metrics["anomaly/anomalous_pixels"] == 0.0
         assert metrics["anomaly/anomaly_percentage"] == 0.0  # Division-by-zero guard
+
+    def test_decisions_input_is_optional(self):
+        """decisions is declared optional so an uncalibrated decider upstream doesn't break it."""
+        assert AnomalyPixelStatisticsMetric.INPUT_SPECS["decisions"].optional is True
+
+    def test_without_decisions_emits_nothing(self):
+        """Without decisions the node emits no metrics and must not fail."""
+        metric_node = AnomalyPixelStatisticsMetric()
+        context = Context(stage=ExecutionStage.VAL, epoch=0, batch_idx=0)
+
+        outputs = metric_node.forward(context=context)
+
+        assert outputs == {"metrics": []}
 
 
 class TestMetricNodeProtocol:

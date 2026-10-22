@@ -176,7 +176,10 @@ class AnomalyMask(Node):
         "decisions": PortSpec(
             dtype=torch.bool,
             shape=(-1, -1, -1, 1),
-            description="Binary anomaly decisions [B, H, W, 1]",
+            description="Binary anomaly decisions [B, H, W, 1]. Absent while an "
+            "uncalibrated decider withholds them outside inference: the panel then "
+            "draws the score heatmap and the ground truth and omits the mask overlay.",
+            optional=True,
         ),
         "mask": PortSpec(
             dtype=torch.bool,
@@ -212,9 +215,9 @@ class AnomalyMask(Node):
 
     def forward(
         self,
-        decisions: torch.Tensor,
         cube: torch.Tensor,
         context: Context,
+        decisions: torch.Tensor | None = None,
         mask: torch.Tensor | None = None,
         scores: torch.Tensor | None = None,
     ) -> dict:
@@ -222,14 +225,17 @@ class AnomalyMask(Node):
 
         Parameters
         ----------
-        decisions : torch.Tensor
-            Binary anomaly decisions [B, H, W, 1]
-        mask : torch.Tensor | None
-            Ground truth anomaly mask [B, H, W, 1] (optional)
         cube : torch.Tensor
             Original cube [B, H, W, C] for visualization
         context : Context
             Execution context with stage, epoch, batch_idx
+        decisions : torch.Tensor | None
+            Binary anomaly decisions [B, H, W, 1]. ``None`` while an uncalibrated
+            decider upstream withholds them outside inference; the panel then draws
+            the score heatmap (when ``scores`` is given, else the raw cube channel)
+            and the ground truth, and omits the mask overlay and prediction panels.
+        mask : torch.Tensor | None
+            Ground truth anomaly mask [B, H, W, 1] (optional)
         scores : torch.Tensor | None
             Anomaly logits [B, H, W, 1]; with a ground-truth mask, the
             per-image average precision joins the overlay title
@@ -244,12 +250,26 @@ class AnomalyMask(Node):
         epoch = context.epoch
         batch_idx = context.batch_idx
 
+        cube_np = cube.detach().cpu().numpy()  # [B, H, W, C]
+
+        if decisions is None:
+            return {
+                "artifacts": self._forward_without_decisions(
+                    cube_np,
+                    context,
+                    mask=mask,
+                    scores=scores,
+                    stage=stage,
+                    epoch=epoch,
+                    batch_idx=batch_idx,
+                )
+            }
+
         # Use decisions directly (already binary)
         pred_mask = decisions.float()
 
         # Convert to numpy and squeeze channel dimension
         pred_mask_np = pred_mask.detach().cpu().numpy().squeeze(-1)  # [B, H, W]
-        cube_np = cube.detach().cpu().numpy()  # [B, H, W, C]
 
         # Determine if we should use ground truth
         # Skip GT comparison if: mask not provided, inference stage, or mask is all zeros
@@ -442,6 +462,93 @@ class AnomalyMask(Node):
         # Return artifacts
         return {"artifacts": artifacts}
 
+    def _forward_without_decisions(
+        self,
+        cube_np: np.ndarray,
+        context: Context,
+        *,
+        mask: torch.Tensor | None,
+        scores: torch.Tensor | None,
+        stage: str,
+        epoch: int,
+        batch_idx: int,
+    ) -> list[Artifact]:
+        """Draw the score heatmap and the ground truth, with no mask overlay.
+
+        Used while an uncalibrated decider upstream withholds ``decisions`` outside
+        inference: there is no prediction to compare against the ground truth, so the
+        panel shows what is available instead of failing.
+        """
+        use_gt = (
+            mask is not None and context.stage != ExecutionStage.INFERENCE and mask.any().item()
+        )
+        gt_mask_np = mask.detach().cpu().numpy().squeeze(-1) if use_gt else None
+        scores_np = scores.detach().cpu().numpy().squeeze(-1) if scores is not None else None
+
+        batch_size = cube_np.shape[0]
+        up_to_batch = batch_size if self.up_to is None else min(batch_size, self.up_to)
+        artifacts: list[Artifact] = []
+
+        for i in range(up_to_batch):
+            if scores_np is not None:
+                heatmap_src = scores_np[i]
+                heatmap_label = "Score Heatmap"
+            else:
+                cube_img = cube_np[i]
+                heatmap_src = cube_img[:, :, self.channel]
+                heatmap_label = f"Cube Channel {self.channel}"
+            heatmap_norm = self._normalize_heatmap(heatmap_src)
+
+            ncols = 2 if gt_mask_np is not None else 1
+            fig, axes = plt.subplots(1, ncols, figsize=(6 * ncols, 6))
+            axes_list = axes if ncols > 1 else [axes]
+
+            axes_list[0].imshow(heatmap_norm, cmap="inferno", aspect="auto")
+            axes_list[0].set_title(heatmap_label)
+            _label_axes(axes_list[0])
+
+            if gt_mask_np is not None:
+                axes_list[1].imshow(gt_mask_np[i] > 0.5, cmap="gray", aspect="auto")
+                axes_list[1].set_title("Ground Truth Mask")
+                _label_axes(axes_list[1])
+
+            fig.suptitle(
+                f"Anomaly Mask Visualization - {stage} E{epoch} B{batch_idx} Img{i}\n"
+                "No decisions yet (thresholds not calibrated)",
+                fontsize=14,
+                fontweight="bold",
+            )
+            plt.tight_layout()
+            img_array = fig_to_array(fig, dpi=150)
+
+            artifacts.append(
+                Artifact(
+                    name=f"anomaly_mask_img{i:02d}",
+                    stage=context.stage,
+                    epoch=context.epoch,
+                    batch_idx=context.batch_idx,
+                    value=img_array,
+                    el_id=i,
+                    desc=f"Anomaly heatmap (no decisions yet) for {stage} epoch {epoch}, "
+                    f"batch {batch_idx}, image {i}",
+                    type=ArtifactType.IMAGE,
+                )
+            )
+            logger.info(
+                "Created anomaly mask artifact ({}/{}): no decisions yet", i + 1, up_to_batch
+            )
+            plt.close(fig)
+
+        return artifacts
+
+    @staticmethod
+    def _normalize_heatmap(values: np.ndarray) -> np.ndarray:
+        """Normalize a 2-D array to [0, 1] for display, flat input mapped to zeros."""
+        v_min, v_max = float(values.min()), float(values.max())
+        if v_max - v_min > 1e-9:
+            return (values - v_min) / (v_max - v_min)
+        return np.zeros_like(values)
+
 
 class ScoreHeatmapVisualizer(Node):
     """Log LAD/RX score heatmaps as TensorBoard artifacts.
@@ -582,7 +689,10 @@ class RGBAnomalyMask(Node):
         "decisions": PortSpec(
             dtype=torch.bool,
             shape=(-1, -1, -1, 1),
-            description="Binary anomaly decisions [B, H, W, 1]",
+            description="Binary anomaly decisions [B, H, W, 1]. Absent while an "
+            "uncalibrated decider withholds them outside inference: the panel then "
+            "draws the score heatmap and the ground truth and omits the mask overlay.",
+            optional=True,
         ),
         "mask": PortSpec(
             dtype=torch.bool,
@@ -670,10 +780,69 @@ class RGBAnomalyMask(Node):
         axes[1].set_title("Prediction Overlay (RGB)\nCyan=Predicted Anomalies")
         _label_axes(axes[1])
 
+    def _forward_without_decisions(
+        self,
+        rgb_np: np.ndarray,
+        context: Context,
+        *,
+        mask: torch.Tensor | None,
+    ) -> list[Artifact]:
+        """Draw the RGB input and the ground truth, with no mask overlay.
+
+        Used while an uncalibrated decider upstream withholds ``decisions`` outside
+        inference: there is no prediction to compare against the ground truth, so the
+        panel shows what is available instead of failing.
+        """
+        use_gt = (
+            mask is not None and context.stage != ExecutionStage.INFERENCE and mask.any().item()
+        )
+        gt_mask_np: np.ndarray | None = None
+        if use_gt:
+            assert mask is not None
+            gt_mask_np = tensor_to_numpy(mask.squeeze(-1))  # [B, H, W]
+
+        batch_size = rgb_np.shape[0]
+        up_to_batch = min(batch_size, self.up_to or batch_size)
+        artifacts: list[Artifact] = []
+
+        for i in range(up_to_batch):
+            rgb_img = rgb_np[i]
+            ncols = 2 if gt_mask_np is not None else 1
+            fig, axes = plt.subplots(1, ncols, figsize=(6 * ncols, 6))
+            axes_list = axes if ncols > 1 else [axes]
+
+            axes_list[0].imshow(rgb_img, aspect="auto")
+            axes_list[0].set_title("RGB Input")
+            _label_axes(axes_list[0])
+
+            if gt_mask_np is not None:
+                axes_list[1].imshow(gt_mask_np[i] > 0.5, cmap="gray", aspect="auto")
+                axes_list[1].set_title("Ground Truth Mask")
+                _label_axes(axes_list[1])
+
+            plt.tight_layout()
+            img_array = fig_to_array(fig, dpi=150)
+            plt.close(fig)
+
+            artifacts.append(
+                Artifact(
+                    name=f"rgb_anomaly_mask_img{i:02d}",
+                    value=img_array,
+                    el_id=i,
+                    desc=f"RGB anomaly mask ({i + 1}/{up_to_batch}): no decisions yet",
+                    type=ArtifactType.IMAGE,
+                    stage=context.stage,
+                    epoch=context.epoch,
+                    batch_idx=context.batch_idx,
+                )
+            )
+
+        return artifacts
+
     def forward(
         self,
-        decisions: torch.Tensor,
         rgb_image: torch.Tensor,
+        decisions: torch.Tensor | None = None,
         mask: torch.Tensor | None = None,
         context: Context | None = None,
         scores: torch.Tensor | None = None,
@@ -682,10 +851,12 @@ class RGBAnomalyMask(Node):
 
         Parameters
         ----------
-        decisions : torch.Tensor
-            Binary anomaly decisions [B, H, W, 1]
         rgb_image : torch.Tensor
             RGB image [B, H, W, 3] for visualization
+        decisions : torch.Tensor | None
+            Binary anomaly decisions [B, H, W, 1]. ``None`` while an uncalibrated
+            decider upstream withholds them outside inference; the panel then draws
+            the RGB input and the ground truth, and omits the mask overlay.
         mask : torch.Tensor | None
             Ground truth anomaly mask [B, H, W, 1] (optional)
         context : Context | None
@@ -701,14 +872,17 @@ class RGBAnomalyMask(Node):
         if context is None:
             raise ValueError("RGBAnomalyMask.forward() requires a Context object")
 
-        # Convert to numpy only at this point (keep on device until last moment)
-        pred_mask_np: np.ndarray = tensor_to_numpy(decisions.float().squeeze(-1))  # [B, H, W]
-        rgb_np: np.ndarray = tensor_to_numpy(rgb_image)  # [B, H, W, 3]
-
         # Normalize RGB to [0, 1]
+        rgb_np: np.ndarray = tensor_to_numpy(rgb_image)  # [B, H, W, 3]
         if rgb_np.max() > 1.0:
             rgb_np = rgb_np / 255.0
         rgb_np = np.clip(rgb_np, 0.0, 1.0)
+
+        if decisions is None:
+            return {"artifacts": self._forward_without_decisions(rgb_np, context, mask=mask)}
+
+        # Convert to numpy only at this point (keep on device until last moment)
+        pred_mask_np: np.ndarray = tensor_to_numpy(decisions.float().squeeze(-1))  # [B, H, W]
 
         # Check if GT available and valid
         use_gt = (
