@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.19.3 - 2026-10-22
 
 - `AnomalyDetectionMetrics`: `precision`, `recall`, `f1_score` and `iou` are pooled over the split (one confusion count per `(stage, epoch)`, computed over every pixel seen), no longer the mean of per-batch values, which a split of mostly normal frames pulled towards zero. Three frame-level metrics join them: `image_precision`, `image_recall` and `image_f1`, a frame counting as anomalous when any pixel of its decisions or of its mask is set, computed on the full-resolution masks before `pixel_stride` thins them. `POOLED_METRIC_NAMES` lists all eight pooled names; the per-batch values on the `metrics` port are the running values of the epoch.
 - `decisions` is an optional input of `AnomalyDetectionMetrics`, `AnomalyPixelStatisticsMetric`, `AnomalyMask` and `RGBAnomalyMask`: without it the metrics node reports average precision only, the statistics metric reports nothing, and the visualizers draw the heatmap and the ground truth without a mask overlay. `AnomalyDetectionMetrics.forward` takes `targets` and `context` first and `decisions` behind them with a default of `None`, since the pipeline passes no argument for an optional port nothing feeds; a registry-wide test holds every builtin node to that rule.
