@@ -234,18 +234,18 @@ class AnomalyDetectionMetrics(Node):
             Dictionary with "metrics" key containing list of Metric objects
         """
         values: dict[str, float] = {}
+        epoch_key = (context.stage, context.epoch)
 
         if decisions is not None:
             # Frame-level reduction first, on the full-resolution masks: a stride
             # subsample must never decide whether a frame counts as anomalous.
             frame_pred = decisions.flatten(1).any(dim=1).to(torch.int64)
             frame_gt = targets.flatten(1).any(dim=1).to(torch.int64)
-            image_key = (context.stage, context.epoch)
-            if self._image_last_key != image_key:
+            if self._image_last_key != epoch_key:
                 self.image_precision_metric.reset()
                 self.image_recall_metric.reset()
                 self.image_f1_metric.reset()
-                self._image_last_key = image_key
+                self._image_last_key = epoch_key
             values["image_precision"] = self.image_precision_metric(frame_pred, frame_gt).item()
             values["image_recall"] = self.image_recall_metric(frame_pred, frame_gt).item()
             values["image_f1"] = self.image_f1_metric(frame_pred, frame_gt).item()
@@ -267,13 +267,12 @@ class AnomalyDetectionMetrics(Node):
             preds_flat = pixel_decisions.flatten()
             targets_flat = pixel_targets.flatten()
 
-            pixel_key = (context.stage, context.epoch)
-            if self._pixel_last_key != pixel_key:
+            if self._pixel_last_key != epoch_key:
                 self.precision_metric.reset()
                 self.recall_metric.reset()
                 self.f1_metric.reset()
                 self.iou_metric.reset()
-                self._pixel_last_key = pixel_key
+                self._pixel_last_key = epoch_key
 
             values["precision"] = self.precision_metric(preds_flat, targets_flat).item()
             values["recall"] = self.recall_metric(preds_flat, targets_flat).item()
@@ -286,10 +285,9 @@ class AnomalyDetectionMetrics(Node):
             raw_scores = subsample_hw(logits.squeeze(-1), self.pixel_stride).flatten().float()
             probs_for_ap = torch.sigmoid(raw_scores)
 
-            current_key = (context.stage, context.epoch)
-            if self._ap_last_key != current_key:
+            if self._ap_last_key != epoch_key:
                 self.average_precision_metric.reset()
-                self._ap_last_key = current_key
+                self._ap_last_key = epoch_key
 
             self.average_precision_metric.update(probs_for_ap, targets_flat)
             values["average_precision"] = self.average_precision_metric.compute().item()
