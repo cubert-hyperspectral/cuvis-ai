@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Docs: the profiling guide describes the compute cost per node that cuvis-ai-core 0.18.7 counts next to the timing (the `GFLOP` and `GFLOP/s` columns, what counts and what counts nothing, the synchronized timing GFLOP/s needs on a GPU, the `CUVIS_PROFILE_FLOPS=0` switch), with the example tables regenerated from a run of that version; the gRPC API page carries `NodeProfilingStats.flops_per_call` (field 11, cuvis-ai-schemas 0.14.3). The lock moves to cuvis-ai-core 0.18.7 and cuvis-ai-schemas 0.14.3; the floors are unchanged.
+- Docs: the profiling guide describes the compute cost per node that cuvis-ai-core 0.18.7 counts next to the timing (the `GFLOP` and `GFLOP/s` columns, what counts and what counts nothing, the synchronized timing GFLOP/s needs on a GPU, the `CUVIS_PROFILE_FLOPS=0` switch), with the example tables regenerated from a run of that version; the gRPC API page carries `NodeProfilingStats.flops_per_call` (field 11, cuvis-ai-schemas 0.14.3).
 
 ## 0.19.3 - 2026-10-22
 
