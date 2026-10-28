@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Docs: the profiling guide describes the compute cost per node that cuvis-ai-core 0.18.7 counts next to the timing (the `GFLOP` and `GFLOP/s` columns, what counts and what counts nothing, the synchronized timing GFLOP/s needs on a GPU, the `CUVIS_PROFILE_FLOPS=0` switch), with the example tables regenerated from a run of that version; the gRPC API page carries `NodeProfilingStats.flops_per_call` (field 11, cuvis-ai-schemas 0.14.3). The lock moves to cuvis-ai-core 0.18.7 and cuvis-ai-schemas 0.14.3; the floors are unchanged.
+
 ## 0.19.3 - 2026-10-22
 
 - `AnomalyDetectionMetrics`: `precision`, `recall`, `f1_score` and `iou` are pooled over the split (one confusion count per `(stage, epoch)`, computed over every pixel seen), no longer the mean of per-batch values, which a split of mostly normal frames pulled towards zero. Three frame-level metrics join them: `image_precision`, `image_recall` and `image_f1`, a frame counting as anomalous when any pixel of its decisions or of its mask is set, computed on the full-resolution masks before `pixel_stride` thins them. `POOLED_METRIC_NAMES` lists all eight pooled names; the per-batch values on the `metrics` port are the running values of the epoch.
