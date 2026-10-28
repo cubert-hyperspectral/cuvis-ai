@@ -15,6 +15,7 @@ Cuvis.AI includes **opt-in, manual profiling** that wraps each `node.forward()` 
 - **Cumulative** — stats accumulate across all `pipeline.forward()` calls until explicit reset
 - **Per-node, per-stage** — timings are keyed by `(execution_stage, node_name)`
 - **Data loading included** (cuvis-ai-core 0.18.1) — `restore-pipeline` and `Predictor` feed their batches through `CuvisPipeline.iter_profiled_batches()`, which records `data_load`, `to_device` and `batch_loop` per stage next to the node timings
+- **Compute cost included** (cuvis-ai-core 0.18.7): the first forward of each node after a reset also counts its floating-point operations, shown as `GFLOP` and `GFLOP/s` next to the times (see [Compute cost (GFLOP)](#compute-cost-gflop))
 - **Constant memory** — online Welford mean/std + P² approximate median, no sample history stored
 - **Thread-safe** — safe for concurrent gRPC requests on the same session
 
@@ -26,31 +27,35 @@ Cuvis.AI includes **opt-in, manual profiling** that wraps each `node.forward()` 
 from cuvis_ai_core.training.predictor import Predictor
 
 # 1. Enable profiling on the pipeline
-pipeline.set_profiling(enabled=True, skip_first_n=3)
+pipeline.set_profiling(enabled=True, synchronize_cuda=True, skip_first_n=3)
 
 # 2. Run your workload through Predictor or GradientTrainer
 predictor = Predictor(pipeline=pipeline, datamodule=datamodule)
-predictor.predict(max_batches=350)
+predictor.predict(max_batches=10)
 
 # 3. Print the formatted summary
-print(pipeline.format_profiling_summary(total_frames=350))
+print(pipeline.format_profiling_summary(total_frames=10))
 ```
 
-Example output:
+Example output, from a lentils anomaly pipeline (a `SpectralAngleMapper` with 16 references on 1000 x 1080 x 61 frames of a cu3s recording, CUDA-synchronized, on an RTX 5070 Ti Laptop GPU with cuvis-ai-core 0.18.7):
 
 ```
-Profiling Summary (350 frames, skip_first_n=3)
-Node                                     Stage        Count   Mean(ms)    Std(ms)    Min(ms)    Max(ms) Median(ms)   Total(s)
------------------------------------------------------------------------------------------------------------------------------
-sam3_tracker                             inference      347     895.08     145.43     487.49    1747.95     891.04    310.591
-tracking_coco_json                       inference      347      11.60       2.47       7.63      20.38      11.18      4.025
-overlay                                  inference      347      10.23       2.19       6.27      25.60       9.68      3.551
-to_video                                 inference      347       7.76       2.14       5.82      43.55       7.67      2.694
-video_frame                              inference      347       0.01       0.00       0.01       0.03       0.01      0.005
------------------------------------------------------------------------------------------------------------------------------
-TOTAL                                                                                                                320.867
-Average per-frame pipeline time: 924.69 ms (1.1 FPS)
+Profiling Summary (10 frames, skip_first_n=3)
+Node                                     Stage        Count   Mean(ms)    Std(ms)    Min(ms)    Max(ms) Median(ms)   Total(s)      GFLOP    GFLOP/s
+---------------------------------------------------------------------------------------------------------------------------------------------------
+area_filter                              inference        7      17.50       0.71      16.81      19.08      17.22      0.123      0.000       0.00
+validity                                 inference        7       8.54       1.77       6.65      11.13       8.35      0.060      0.000       0.00
+spectral_angle                           inference        7       7.39       1.38       6.26      10.07       7.57      0.052      2.108     285.15
+unit_normalize                           inference        7       4.70       0.68       4.02       5.79       4.48      0.033      0.000       0.00
+calibrator                               inference        7       0.65       0.21       0.45       1.10       0.55      0.005      0.000       0.00
+cube_source                              inference        7       0.16       0.03       0.13       0.22       0.14      0.001      0.000       0.00
+references                               inference        7       0.12       0.02       0.10       0.15       0.10      0.001      0.000       0.00
+---------------------------------------------------------------------------------------------------------------------------------------------------
+TOTAL                                                                                                                   0.273
+Average per-frame pipeline time: 39.07 ms (25.6 FPS), 2.108 GFLOP per forward (53.96 GFLOP/s)
 ```
+
+The `GFLOP` and `GFLOP/s` columns are the node's compute cost (cuvis-ai-core 0.18.7, see [Compute cost (GFLOP)](#compute-cost-gflop)): the spectral angle node does 2.108 GFLOP of matrix multiplication per frame, the area filter and the validity check are elementwise and count 0, and the per-frame line sums the counts.
 
 Runs that go through `restore-pipeline` or `Predictor` (cuvis-ai-core 0.18.1) print a `Data loading (outside the nodes)` block after the node table. The block below comes from a separate, synthetic run (two normalizer nodes, a simulated 20 ms fetch, 50 batches of shape `[1, 64, 64, 61]` on the CPU), so its numbers say nothing about the table above:
 
@@ -146,6 +151,36 @@ finally:
 
 print(pipeline.format_profiling_summary(stage=ExecutionStage.INFERENCE, total_frames=global_step))
 ```
+
+---
+
+## Compute cost (GFLOP)
+
+Since cuvis-ai-core 0.18.7 the profiler also counts how much compute each node does, so a slow node can be told apart from a heavy one. While profiling is enabled, the first forward of every `(stage, node)` after a profiling reset runs under a counting mode that adds up the floating-point operations of its matrix multiplications, convolutions and attention blocks. The count is stored per node as `NodeProfilingStats.flops_per_call`, and `gflop_per_s` divides it by the node's mean time. The text table shows both as `GFLOP` and `GFLOP/s` columns whenever a node has a count, and the per-frame line adds the sum per forward when all rows belong to one stage:
+
+```text
+Profiling Summary (3 frames)
+Node                                     Stage        Count   Mean(ms)    Std(ms)    Min(ms)    Max(ms) Median(ms)   Total(s)      GFLOP    GFLOP/s
+---------------------------------------------------------------------------------------------------------------------------------------------------
+dinomaly_detector                        inference        3     131.27     150.57      23.14     344.21      26.47      0.394    306.978    2338.46
+cir_selector                             inference        3      64.07      86.92       2.34     187.00       2.87      0.192      0.000       0.00
+MinMaxNormalizer                         inference        3      26.38      29.31       4.23      67.80       7.12      0.079      0.000       0.00
+cube_source                              inference        3       0.51       0.41       0.21       1.10       0.23      0.002      0.000       0.00
+---------------------------------------------------------------------------------------------------------------------------------------------------
+TOTAL                                                                                                                   0.667
+Average per-frame pipeline time: 222.24 ms (4.5 FPS), 306.978 GFLOP per forward (1381.31 GFLOP/s)
+The first forward of each node also counted its FLOPs and runs slower; skip_first_n >= 1 leaves it out of the times.
+```
+
+The run above is a Dinomaly detector (DINOv2 ViT-B/14 encoder and an 8-layer decoder on a 448 x 448 false-colour image, bf16 autocast) on three 1000 x 1080 x 61 frames from a cu3s recording, CUDA-synchronized, on an RTX 5070 Ti Laptop GPU. The detector's 307 GFLOP per forward are its matrix multiplications and attention; the normalizer and the band selector are elementwise and count 0. With `skip_first_n=0` the mean of every node includes the first forward, which paid for the kernel warm-up and the count (344 ms against 26 ms afterwards), so the `GFLOP/s` column understates the steady state; `skip_first_n=3` on a longer run gives the rate of the warm frames.
+
+What counts: `mm`, `addmm`, `bmm`, `matmul`, `linear`, `einsum`, every convolution and every scaled-dot-product attention op (any batch layout, grouped-query attention included), on the CPU as on the GPU and under `torch.no_grad` as under `torch.inference_mode`. Everything else counts 0: elementwise ops and reductions, normalisations, interpolation, `linalg` solves and inverses, numpy and OpenCV code, TensorRT and ONNX engines, and work a node hands to another thread. Compiled regions (`torch.compile`) run fused kernels the counter does not see, so a compiled node can count low; whether it does depends on how much of its counted first forward still runs op by op (the Dinomaly detector above, compiled with `mode="reduce-overhead"`, counted the same 307 GFLOP as in eager mode). A heavy node can therefore read 0: a diagonal Gaussian mixture scored per pixel with squares, divisions and sums takes 100 ms on the same frames and counts nothing, while a spectral angle mapper with 16 references counts its 2.108 GFLOP (2 x 1000 x 1080 pixels x 16 x 61 bands) exactly. A node that runs a profiled sub-pipeline during its counted forward includes the sub-pipeline's FLOPs in its own count. The data-loading rows carry no count.
+
+The counted forward computes exactly what an uncounted one does: every op runs unchanged, the counter only reads shapes. It costs about 10 us per op plus one shape-only decomposition per distinct composite call (cached), so with `skip_first_n=0` the first sample of each node is a few milliseconds slower than the rest, and the table says so under the node block. With `skip_first_n >= 1` that forward stays out of the timing rows as before; the sample counts never change. A count keeps its first forward's value: a node whose work depends on the frame (a tracker with a varying object count) reports the cost of the frame it was counted on. When two forwards on one session run at the same time, the first to finish gets the count; a forward that raises leaves the count to the next one, and a reset during a counted forward discards its result.
+
+GFLOP/s is a throughput only when the time under it is the node's own. For GPU nodes that needs `synchronize_cuda=True` (`restore-pipeline --profile-sync`); otherwise the node's time is the host's queueing time, the rate reads high, and the table prints `Node times are host wall time (no CUDA synchronize): GFLOP/s of GPU nodes reads high.` under the node block.
+
+A formula that fails on an input leaves that node's count empty (an empty `GFLOP` cell, `flops_per_call` is `None`) and logs one warning naming the node and the op. `CUVIS_PROFILE_FLOPS=0` (also `false`, `no` or `off`) in the environment turns the counting off for every pipeline of the process while the timing stays on; the variable is read whenever profiling is switched on. A server that another program starts, such as the backend CuvisNEXT launches, inherits that program's environment, so set the variable before starting the program (on Windows as a user or system environment variable) when a plugin node misbehaves under the counting mode.
 
 ---
 
@@ -276,6 +311,8 @@ Each entry in the profiling summary contains:
 | `max_ms` | `float` | Maximum execution time |
 | `total_ms` | `float` | Total accumulated time |
 | `last_ms` | `float` | Most recent sample |
+| `flops_per_call` | `int \| None` | Floating-point operations of one forward (matrix multiplication, convolution, attention), counted on the first forward after a reset (cuvis-ai-core 0.18.7); `None` when the node was not counted |
+| `gflop_per_s` | `float \| None` | Property: `flops_per_call / (mean_ms * 1e6)`; `None` without a count or a positive mean |
 
 ---
 
@@ -291,8 +328,10 @@ Each entry in the profiling summary contains:
 | **Min/Max(ms)** | Fastest and slowest individual calls |
 | **Median(ms)** | Approximate median via P² estimator (constant memory) |
 | **Total(s)** | Cumulative wall-clock time for this node (in seconds) |
+| **GFLOP** | Floating-point operations of one forward of the node, in billions, counted on its first forward after a reset (cuvis-ai-core 0.18.7); the column appears when any node has a count and the cell stays empty for a node without one |
+| **GFLOP/s** | `GFLOP` divided by `Mean(ms)`; a throughput only on a CUDA-synchronized run |
 
-The **TOTAL** row sums all nodes' total times. The **FPS** line divides total pipeline time by the first node's count to estimate per-frame throughput.
+The **TOTAL** row sums all nodes' total times. The **FPS** line divides total pipeline time by the first node's count to estimate per-frame throughput; when all rows belong to one stage it also carries the sum of the counts per forward, the rate that follows from it, and `N node(s) not counted` when rows without a count exist. Two notes can follow the node block: one when the run was not CUDA-synchronized (the GFLOP/s of GPU nodes then reads high) and one when `skip_first_n` is 0 (the counted first forward is part of the times).
 
 The `Data loading (outside the nodes)` block (cuvis-ai-core 0.18.1) uses the same columns with a **Step** instead of a node name:
 
@@ -336,7 +375,10 @@ response = stub.GetProfilingSummary(
     )
 )
 for stat in response.node_stats:
-    print(f"{stat.node_name}: {stat.mean_ms:.2f} ms ({stat.count} calls)")
+    line = f"{stat.node_name}: {stat.mean_ms:.2f} ms ({stat.count} calls)"
+    if stat.HasField("flops_per_call"):  # presence means counted (cuvis-ai-core 0.18.7)
+        line += f", {stat.flops_per_call / 1e9:.3f} GFLOP"
+    print(line)
 ```
 
 ---
@@ -364,6 +406,12 @@ for stat in response.node_stats:
     sets the frame rate: look at the recording format, processing mode and `num_workers`
     before touching the nodes. A large "First batch data load" is setup cost (opening the
     recording, warming caches), not steady-state throughput.
+
+!!! tip "Heavy or slow?"
+    Read `GFLOP` and `Mean(ms)` together. A node with a large count and a time to match is
+    compute-bound; a node with a small count and a long time waits for something else (a
+    CPU-side loop, a device copy, a kernel launch per pixel). `GFLOP/s` on a synchronized run
+    puts the first kind against the device's peak rate.
 
 !!! tip "Cumulative stats and reset"
     Stats accumulate across all forward calls (including multiple `predict()` runs)

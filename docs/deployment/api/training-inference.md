@@ -454,8 +454,15 @@ message NodeProfilingStats {
   double max_ms = 8;
   double total_ms = 9;
   double last_ms = 10;
+  // Floating-point operations of one forward of the node (matrix multiplication,
+  // convolution, attention), counted on its first forward after a profiling reset.
+  // Unset for the data-loading rows, a server that does not count, or a count that
+  // failed; a set 0 means the node ran none of the counted operations.
+  optional int64 flops_per_call = 11;
 }
 ```
+
+`flops_per_call` (cuvis-ai-schemas 0.14.3, filled by cuvis-ai-core 0.18.7) carries presence: test `HasField("flops_per_call")` rather than the value, and divide by `mean_ms * 1e6` for GFLOP/s. The count comes from the node's first forward after a reset and only covers matrix multiplication, convolution and attention; see [Compute cost (GFLOP)](../../workflows/profiling.md#compute-cost-gflop) for what counts nothing and for the `CUVIS_PROFILE_FLOPS=0` switch.
 
 **Example:**
 ```python
@@ -464,8 +471,10 @@ response = stub.GetProfilingSummary(
     cuvis_ai_pb2.GetProfilingSummaryRequest(session_id=session_id)
 )
 for stat in response.node_stats:
-    print(f"{stat.node_name} ({stat.stage}): "
-          f"mean={stat.mean_ms:.2f}ms, count={stat.count}")
+    line = f"{stat.node_name} ({stat.stage}): mean={stat.mean_ms:.2f}ms, count={stat.count}"
+    if stat.HasField("flops_per_call"):
+        line += f", {stat.flops_per_call / 1e9:.3f} GFLOP"
+    print(line)
 
 # Get only inference stage stats
 response = stub.GetProfilingSummary(
