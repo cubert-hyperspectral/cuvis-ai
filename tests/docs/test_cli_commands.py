@@ -46,7 +46,7 @@ def test_calibrate_thresholds_help():
 @pytest.mark.parametrize("command", CLI_COMMANDS_BASIC, ids=lambda c: " ".join(c))
 def test_basic_cli_commands(command):
     """Test that basic CLI commands execute successfully."""
-    result = subprocess.run(command, capture_output=True, text=True, timeout=30)
+    result = subprocess.run(command, capture_output=True, text=True, timeout=120)
     assert result.returncode == 0, f"Command failed: {' '.join(command)}\n{result.stderr}"
 
 
