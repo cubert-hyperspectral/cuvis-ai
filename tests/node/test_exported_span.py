@@ -426,7 +426,9 @@ def test_a_deploy_yaml_loads_and_runs_with_the_deploy_dir_variable(tmp_path, mon
 def test_a_deploy_yaml_finds_the_onnx_file_next_to_itself(tmp_path, monkeypatch):
     """A relative ``onnx_path`` resolves against the yaml's folder when the loader says
     where the yaml is (``pipeline_source_dir`` in cuvis-ai-core)."""
-    pytest.importorskip("cuvis_ai_core.pipeline.factory").pipeline_source_dir  # noqa: B018
+    factory = pytest.importorskip("cuvis_ai_core.pipeline.factory")
+    if not hasattr(factory, "pipeline_source_dir"):
+        pytest.skip("needs cuvis-ai-core with pipeline_source_dir (0.19)")
     from cuvis_ai.node.exported_span import DEPLOY_DIR_ENV
 
     _write_deploy(tmp_path)
