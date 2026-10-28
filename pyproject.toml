@@ -79,6 +79,16 @@ restore-pipeline = "cuvis_ai_core.utils.restore:restore_pipeline_cli"
 restore-trainrun = "cuvis_ai_core.utils.restore:restore_trainrun_cli"
 
 [project.optional-dependencies]
+# The ExportedSpan node (a span exported by cuvis-ai-core's export-pipeline) and the
+# exporter's own needs. onnxruntime-gpu runs the CPU provider as well; an environment
+# holds one onnxruntime flavour only, so do not add cuvis-ai-core[onnx] (the CPU wheel)
+# on top of this extra. The cuvis_ai_onnx plugin manifest names this extra so a
+# composed environment installs it only for a deploy yaml.
+onnx = [
+    "onnxruntime-gpu>=1.27.0",
+    "onnx>=1.18.0",
+    "onnxscript>=0.5.0",
+]
 docs = [
     "mkdocs>=1.5.0",
     "mkdocs-material>=9.5.0",
@@ -179,6 +189,12 @@ torch = [
 torchvision = [
     { index = "pytorch-cu128", group = "cuda", marker = "sys_platform != 'linux' or platform_machine != 'aarch64'" },
     { index = "pytorch-cu130", group = "cuda", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
+]
+# onnxruntime-gpu on PyPI is built with CUDA 13 from 1.27 on. The CUDA 12.8 builds that
+# match torch cu128 (and find its DLLs once torch is imported) come from ONNX Runtime's
+# own feed; Linux aarch64 (Jetson, torch cu130) keeps the PyPI build.
+onnxruntime-gpu = [
+    { index = "onnxruntime-cuda-12", marker = "sys_platform != 'linux' or platform_machine != 'aarch64'" },
 ]
 # Local editable overrides for day-to-day development against working copies of the
 # core libs. Strip (re-comment) before release so CI and PyPI consumers resolve the
@@ -297,6 +313,11 @@ cuda = [
 [[tool.uv.index]]
 name = "pytorch-cu128"
 url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[[tool.uv.index]]
+name = "onnxruntime-cuda-12"
+url = "https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/"
 explicit = true
 
 [[tool.uv.index]]

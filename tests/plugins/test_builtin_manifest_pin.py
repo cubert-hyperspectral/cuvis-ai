@@ -20,14 +20,20 @@ ROOT = Path(__file__).resolve().parents[2]
 RELEASE_HEADING = re.compile(r"^## (\d+\.\d+\.\d+) - \d{4}-\d{2}-\d{2}\s*$", re.MULTILINE)
 
 
-def test_builtin_manifest_tag_is_the_newest_changelog_version() -> None:
-    """``tag`` equals ``v<version>`` of the first release heading in CHANGELOG.md."""
+@pytest.mark.parametrize("name", ["cuvis_ai_builtin", "cuvis_ai_onnx"])
+def test_builtin_manifest_tag_is_the_newest_changelog_version(name: str) -> None:
+    """``tag`` equals ``v<version>`` of the first release heading in CHANGELOG.md.
+
+    ``cuvis_ai_onnx`` is the same package behind the ``onnx`` extra, so it carries the
+    same pin.
+    """
     match = RELEASE_HEADING.search((ROOT / "CHANGELOG.md").read_text(encoding="utf-8"))
     assert match, "CHANGELOG.md has no '## X.Y.Z - YYYY-MM-DD' heading"
     manifest = yaml.safe_load(
-        (ROOT / "cuvis_ai/configs/plugins/cuvis_ai_builtin.yaml").read_text(encoding="utf-8")
+        (ROOT / f"cuvis_ai/configs/plugins/{name}.yaml").read_text(encoding="utf-8")
     )
-    assert manifest["name"] == "cuvis_ai_builtin"
+    assert manifest["name"] == name
+    assert manifest["package_name"] == "cuvis-ai"
     assert manifest["tag"] == f"v{match.group(1)}", (
         f"manifest pins {manifest['tag']}, CHANGELOG.md leads with {match.group(1)}"
     )

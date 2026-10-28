@@ -207,6 +207,7 @@ nav:
       - Overview: deployment/index.md
       - Architecture: deployment/overview.md
       - gRPC Workflow: deployment/grpc-workflow.md
+      - Exported spans (ONNX): deployment/onnx-span.md
       - gRPC API:
           - Session Management: deployment/api/session.md
           - Configuration API: deployment/api/config.md
