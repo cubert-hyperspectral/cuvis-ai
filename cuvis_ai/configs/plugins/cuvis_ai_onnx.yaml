@@ -1,0 +1,16 @@
+# The ONNX Runtime variant of the built-in manifest: the one node that runs a span
+# exported by cuvis-ai-core's export-pipeline. Same package as cuvis_ai_builtin
+# (manifests of one package merge into one requirement in a composed environment),
+# with the onnx extra, so ONNX Runtime is installed only for a deploy yaml that lists
+# this plugin. Pinned to the same tag as cuvis_ai_builtin.yaml; the release stamp
+# bumps both (tests/plugins/test_builtin_manifest_pin.py).
+name: cuvis_ai_onnx
+package_name: cuvis-ai
+repo: https://github.com/cubert-hyperspectral/cuvis-ai.git
+tag: "v0.19.3"
+extras: [onnx]
+capabilities:
+- class_name: cuvis_ai.node.exported_span.ExportedSpan
+  category: model
+  tags: [inference]
+  doc_summary: Runs a span exported to ONNX in place of its nodes; the ports come from the sidecar next to the file.

@@ -46,6 +46,7 @@ REQUIRED_ARG_DEFAULTS: dict[str, object] = {
     "threshold": 1.0,
     "projection_path": "missing_projection.npz",
     "tracking_json_path": "missing_tracking.json",
+    "onnx_path": "missing_span.onnx",
     "track_ids": [1],
     "occlusion_start_frame": 0,
     "occlusion_end_frame": 0,

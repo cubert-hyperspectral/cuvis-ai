@@ -30,6 +30,12 @@ deployment required.
 
     Operational walk-through: starting the server, connecting from a client, training and inferring remotely.
 
+-   :material-graph-outline: **[Exported spans (ONNX)](onnx-span.md)**
+
+    ---
+
+    Run the tensor part of a pipeline as one ONNX graph: the deploy folder, where the file is looked up, what the node refuses.
+
 </div>
 
 ## API reference

@@ -70,6 +70,7 @@ from cuvis_ai.node.deciders import (
     TwoStageBinaryDecider,
 )
 from cuvis_ai.node.dimensionality_reduction import PCA, FixedPCAProjection, TrainablePCA
+from cuvis_ai.node.exported_span import ExportedSpan
 from cuvis_ai.node.fusion import DecisionFusion, ScoreMapFusion
 from cuvis_ai.node.image_file import PngWriter
 from cuvis_ai.node.json_file import (
@@ -262,6 +263,7 @@ __all__ = [
     "GridStitcher",
     "ImageTiler",
     "FixedPCAProjection",
+    "ExportedSpan",
     "GridSubsample",
     "ScoreMapSmoothing",
     "ScoreUpsample",
