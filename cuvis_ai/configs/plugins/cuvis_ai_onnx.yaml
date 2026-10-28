@@ -7,7 +7,7 @@
 name: cuvis_ai_onnx
 package_name: cuvis-ai
 repo: https://github.com/cubert-hyperspectral/cuvis-ai.git
-tag: "v0.19.3"
+tag: "v0.20.0"
 extras: [onnx]
 capabilities:
 - class_name: cuvis_ai.node.exported_span.ExportedSpan
