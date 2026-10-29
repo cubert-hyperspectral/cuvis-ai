@@ -39,11 +39,25 @@ and the offline ``calibrate-thresholds`` CLI call the same code.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+import math
+import numbers
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
 import torch
+
+CALIBRATION_OBJECTIVES = ("f1", "precision", "recall")
+CALIBRATION_LEVELS = ("pixels", "frames")
+# A split with at most this many distinct pixel scores is swept over every one of them, so a
+# target lands on the exact point; a larger split starts from the sampled grid and refines.
+EXACT_GRID_LIMIT = 4096
+# The refinement sweeps at most this many distinct scores per round inside the bracket of the
+# best cell; a wider bracket is thinned evenly and the next round zooms into the new best.
+REFINE_LIMIT = 4096
+REFINE_ROUNDS = 4
+_EXACT_PROBE = 65536
 
 
 class CalibrationError(ValueError):
@@ -393,3 +407,342 @@ def sweep_quantile(
             best = row
     assert best is not None
     return best
+
+
+# --- calibration to a precision or recall target --------------------------------------------
+
+
+@dataclass(frozen=True)
+class CalibrationObjective:
+    """What ``calibrate`` optimises: the F1 optimum, or a precision or recall target.
+
+    ``objective`` is ``"f1"``, ``"precision"`` or ``"recall"``; ``target`` the value in [0, 1] a
+    target objective must reach; ``level`` the level it is measured at, ``"pixels"`` (pooled
+    over the split) or ``"frames"`` (a frame counts as flagged when any of its pixels is, the
+    evaluation's definition). Built by :func:`calibration_objective_of` from the deciders'
+    ``calibration_objective``, ``calibration_target`` and ``calibration_level`` hparams.
+    """
+
+    objective: str = "f1"
+    target: float | None = None
+    level: str = "pixels"
+
+    @property
+    def targeted(self) -> bool:
+        """Whether a target replaces the F1 optimum."""
+        return self.objective != "f1"
+
+
+def calibration_objective_of(
+    objective: Any,
+    target: Any,
+    level: Any,
+    *,
+    levels: Sequence[str] = CALIBRATION_LEVELS,
+) -> CalibrationObjective:
+    """Validate the three objective hparams of a decider, refusing each by name.
+
+    ``levels`` lists the levels the decider can serve; ``QuantileBinaryDecider`` flags pixels
+    in every frame and serves ``pixels`` only.
+    """
+    if objective not in CALIBRATION_OBJECTIVES:
+        raise ValueError(
+            f"calibration_objective must be one of {CALIBRATION_OBJECTIVES}, got {objective!r}"
+        )
+    if level not in levels:
+        raise ValueError(f"calibration_level must be one of {tuple(levels)}, got {level!r}")
+    if target is None:
+        if objective != "f1":
+            raise ValueError(
+                f"calibration_target is required for calibration_objective {objective!r}"
+            )
+        return CalibrationObjective(objective, None, level)
+    if isinstance(target, bool) or not isinstance(target, numbers.Real):
+        raise ValueError(f"calibration_target must be a number in [0, 1], got {target!r}")
+    value = float(target)
+    if not math.isfinite(value) or not 0.0 <= value <= 1.0:
+        raise ValueError(f"calibration_target must be a number in [0, 1], got {target!r}")
+    return CalibrationObjective(objective, value, level)
+
+
+def _row_thresholds(row: dict[str, Any]) -> tuple[float, float]:
+    """The tie-breaking thresholds of a row, the image gate first."""
+    cutoff = row.get("pixel_threshold", row.get("threshold", row.get("quantile", 0.0)))
+    return float(row.get("image_threshold", 0.0)), float(cutoff)
+
+
+def select_calibration_row(
+    rows: Sequence[dict[str, Any]], objective: CalibrationObjective
+) -> tuple[dict[str, Any], bool]:
+    """The row a target objective picks, and whether the target was reached.
+
+    Rows carry ``precision``, ``recall`` and ``f1`` at the pixel level and ``frame_precision``,
+    ``frame_recall`` and ``frame_f1`` at the frame level, plus their thresholds. A recall
+    objective takes, among the rows whose recall at the objective's level is at least the
+    target, the one with the highest precision; a precision objective the one with the highest
+    recall among the rows whose precision is at least the target. Ties go to the higher F1 at
+    the other level, then to the higher thresholds (image gate first). When no row reaches the
+    target, the row with the highest value of the targeted metric is returned with ``False``
+    (ties broken the same way, the other metric first).
+    """
+    if not objective.targeted or objective.target is None:
+        raise ValueError("select_calibration_row needs a precision or recall objective")
+    prefix = "" if objective.level == "pixels" else "frame_"
+    other_f1 = "frame_f1" if objective.level == "pixels" else "f1"
+    primary, secondary = (
+        ("recall", "precision") if objective.objective == "recall" else ("precision", "recall")
+    )
+    reaching = [row for row in rows if row[prefix + primary] >= objective.target]
+    if reaching:
+        best = max(
+            reaching,
+            key=lambda row: (row[prefix + secondary], row[other_f1], _row_thresholds(row)),
+        )
+        return best, True
+    best = max(
+        rows,
+        key=lambda row: (
+            row[prefix + primary],
+            row[prefix + secondary],
+            row[other_f1],
+            _row_thresholds(row),
+        ),
+    )
+    return best, False
+
+
+def target_pixel_candidates(
+    pixel_scores: np.ndarray, num_candidates: int
+) -> tuple[np.ndarray, bool]:
+    """Ascending float32 cutoffs for a target sweep, and whether they are every distinct score.
+
+    A split with at most :data:`EXACT_GRID_LIMIT` distinct scores (probed on a sample first, so
+    a large split is not sorted twice) sweeps all of them. A larger split starts from the F1
+    sweep's log-spaced quantiles above the pooled median, their mirror below it down to the
+    pooled minimum (so recall 1.0 is on the grid) and the extremes; the refinement then zooms
+    into the bracket of the best cell.
+    """
+    flat = pixel_scores.reshape(-1)
+    probe = flat[:: max(1, flat.size // _EXACT_PROBE)]
+    if np.unique(probe).size <= EXACT_GRID_LIMIT:
+        distinct = np.unique(flat)
+        if distinct.size <= EXACT_GRID_LIMIT:
+            return distinct, True
+    tail_lo = max(1.0 / flat.size, 1e-12)
+    tail = np.logspace(np.log10(tail_lo), np.log10(0.5), num_candidates)
+    pooled = np.quantile(flat, np.concatenate((tail, 1.0 - tail)))
+    values = np.concatenate((pooled, [flat.min(), flat.max()])).astype(np.float32)
+    return np.unique(values), False
+
+
+def gated_rows(
+    pixel_scores: np.ndarray,
+    gt_masks: np.ndarray,
+    image_scores: np.ndarray,
+    frame_labels: np.ndarray,
+    gates: np.ndarray,
+    cutoffs: np.ndarray,
+) -> list[dict[str, Any]]:
+    """One row per (gate, cutoff) with the metrics at both levels.
+
+    A gated-out frame contributes its ground truth as misses at the pixel level and counts as
+    not flagged at the frame level; an admitted frame is flagged when any of its pixels reaches
+    the cutoff. Every row carries ``image_threshold`` and ``pixel_threshold`` on-point.
+    """
+    tp, fp = frame_confusions(pixel_scores, gt_masks, cutoffs)
+    any_pixel = (tp + fp) > 0
+    total_gt = float(gt_masks.sum())
+    positive_frames = float(frame_labels.sum())
+    rows: list[dict[str, Any]] = []
+    for gate in gates:
+        admitted = image_scores >= gate
+        gated_tp = tp[admitted].sum(axis=0)
+        gated_fp = fp[admitted].sum(axis=0)
+        flagged = any_pixel & admitted[:, None]
+        frame_tp = (flagged & frame_labels[:, None]).sum(axis=0)
+        frame_fp = (flagged & ~frame_labels[:, None]).sum(axis=0)
+        for j, cutoff in enumerate(cutoffs):
+            frame = prf(float(frame_tp[j]), float(frame_fp[j]), positive_frames - frame_tp[j])
+            rows.append(
+                {
+                    "image_threshold": float(gate),
+                    "pixel_threshold": float(cutoff),
+                    **prf(float(gated_tp[j]), float(gated_fp[j]), total_gt - float(gated_tp[j])),
+                    "frame_precision": frame["precision"],
+                    "frame_recall": frame["recall"],
+                    "frame_f1": frame["f1"],
+                    "frame_iou": frame["iou"],
+                }
+            )
+    return rows
+
+
+def _refine_cutoffs(
+    pixel_scores: np.ndarray,
+    gt_masks: np.ndarray,
+    image_scores: np.ndarray,
+    frame_labels: np.ndarray,
+    objective: CalibrationObjective,
+    best: dict[str, Any],
+    cutoffs: np.ndarray,
+    rows: list[dict[str, Any]],
+) -> tuple[dict[str, Any], bool]:
+    """Zoom into the bracket of the best cell until every distinct score in it was swept.
+
+    Each round sweeps, at the best cell's gate, the distinct pixel scores between the cell's
+    neighbouring cutoffs (thinned evenly to :data:`REFINE_LIMIT` when there are more), selects
+    again over every row seen and stops when the bracket was swept in full or nothing moved.
+    """
+    distinct = np.unique(pixel_scores.reshape(-1))
+    reached = False
+    for _ in range(REFINE_ROUNDS):
+        j = int(np.searchsorted(cutoffs, np.float32(best["pixel_threshold"])))
+        low = cutoffs[j - 1] if j > 0 else -np.inf
+        high = cutoffs[j + 1] if j + 1 < cutoffs.size else np.inf
+        inside = distinct[(distinct > low) & (distinct < high)]
+        if inside.size == 0:
+            break
+        thinned = inside.size > REFINE_LIMIT
+        if thinned:
+            inside = inside[np.linspace(0, inside.size - 1, REFINE_LIMIT).astype(np.int64)]
+        gate = np.asarray([best["image_threshold"]], dtype=np.float64)
+        rows = rows + gated_rows(pixel_scores, gt_masks, image_scores, frame_labels, gate, inside)
+        cutoffs = np.unique(np.concatenate((cutoffs, inside)))
+        previous = best
+        best, reached = select_calibration_row(rows, objective)
+        if not thinned or best is previous:
+            break
+    return best, reached
+
+
+def sweep_two_stage_target(
+    pixel_scores: np.ndarray,
+    gt_masks: np.ndarray,
+    image_scores: np.ndarray,
+    frame_labels: np.ndarray,
+    objective: CalibrationObjective,
+    num_candidates: int,
+) -> tuple[dict[str, Any], bool]:
+    """The (gate, cutoff) a target objective picks for ``TwoStageBinaryDecider``.
+
+    Gates are every distinct image score. At the frame level the cutoffs hold every frame's
+    maximum pixel score beside the sampled grid, so the grid is exact in the frame flags; at
+    the pixel level a sampled grid is refined around the best cell. The row carries the
+    on-point thresholds and their plateau midpoints ``margin_image_threshold`` and
+    ``margin_pixel_threshold``.
+    """
+    pixel_scores = np.ascontiguousarray(pixel_scores, dtype=np.float32)
+    gates = np.unique(image_scores)
+    cutoffs, exact = target_pixel_candidates(pixel_scores, num_candidates)
+    if objective.level == "frames":
+        frame_max = pixel_scores.reshape(pixel_scores.shape[0], -1).max(axis=1)
+        cutoffs = np.unique(np.concatenate((cutoffs, frame_max)))
+    rows = gated_rows(pixel_scores, gt_masks, image_scores, frame_labels, gates, cutoffs)
+    best, reached = select_calibration_row(rows, objective)
+    if not exact and objective.level == "pixels":
+        best, reached = _refine_cutoffs(
+            pixel_scores, gt_masks, image_scores, frame_labels, objective, best, cutoffs, rows
+        )
+    best = dict(best)
+    best["margin_image_threshold"] = margin_below(
+        best["image_threshold"], image_scores, float32=False
+    )
+    best["margin_pixel_threshold"] = margin_below(
+        best["pixel_threshold"], pixel_scores, float32=True
+    )
+    return best, reached
+
+
+def sweep_absolute_target(
+    pixel_scores: np.ndarray,
+    gt_masks: np.ndarray,
+    frame_labels: np.ndarray,
+    objective: CalibrationObjective,
+    num_candidates: int,
+) -> tuple[dict[str, Any], bool]:
+    """The cutoff a target objective picks for ``BinaryDecider`` (every frame admitted).
+
+    The row carries the on-point ``threshold`` and its plateau midpoint ``margin_threshold``.
+    """
+    pixel_scores = np.ascontiguousarray(pixel_scores, dtype=np.float32)
+    admit_all = np.zeros(pixel_scores.shape[0], dtype=np.float64)
+    best, reached = sweep_two_stage_target(
+        pixel_scores, gt_masks, admit_all, frame_labels, objective, num_candidates
+    )
+    row = {
+        key: value
+        for key, value in best.items()
+        if key not in ("image_threshold", "margin_image_threshold")
+    }
+    row["threshold"] = row.pop("pixel_threshold")
+    row["margin_threshold"] = row.pop("margin_pixel_threshold")
+    return row, reached
+
+
+def quantile_target_grid(numel: int, preset_quantile: float, num_candidates: int) -> np.ndarray:
+    """Ascending quantiles in [0, 1] for a target sweep: the F1 grid, its mirror and the ends."""
+    upper = quantile_grid_builder(preset_quantile, num_candidates)(numel)
+    tail_lo = max(1.0 / numel, 1e-12)
+    lower = np.logspace(np.log10(tail_lo), np.log10(0.5), num_candidates)
+    values = np.concatenate((upper, lower, [0.0, 1.0]))
+    return np.unique(np.clip(values, 0.0, 1.0))
+
+
+def quantile_rows(
+    pixel_scores: np.ndarray,
+    gt_masks: np.ndarray,
+    frame_labels: np.ndarray,
+    frame_quantiles: dict[float, np.ndarray],
+) -> list[dict[str, Any]]:
+    """One row per quantile for ``QuantileBinaryDecider``, metrics at both levels.
+
+    Every frame flags at least its maximum, so the frame numbers are the same in every row.
+    """
+    total_gt = float(gt_masks.sum())
+    not_gt = ~gt_masks
+    positive_frames = float(frame_labels.sum())
+    frame = prf(positive_frames, float(frame_labels.size - positive_frames), 0.0)
+    rows: list[dict[str, Any]] = []
+    for q in sorted(frame_quantiles):
+        thresholds = frame_quantiles[q][:, None, None]
+        flagged = pixel_scores >= thresholds
+        tp = float((flagged & gt_masks).sum())
+        rows.append(
+            {
+                "quantile": float(q),
+                **prf(tp, float((flagged & not_gt).sum()), total_gt - tp),
+                "frame_precision": frame["precision"],
+                "frame_recall": frame["recall"],
+                "frame_f1": frame["f1"],
+                "frame_iou": frame["iou"],
+            }
+        )
+    return rows
+
+
+def counts_at_point(
+    pixel_scores: np.ndarray,
+    gt_masks: np.ndarray,
+    frame_labels: np.ndarray,
+    admitted: np.ndarray,
+    cutoffs: np.ndarray,
+) -> dict[str, float]:
+    """The metrics at one operating point, counted the way ``forward`` decides.
+
+    ``admitted`` marks the frames the gate lets through, ``cutoffs`` holds each frame's pixel
+    cutoff (one value per frame, float32). Returns ``precision``, ``recall``, ``f1`` and ``iou``
+    at the pixel level and the same four with a ``frame_`` prefix.
+    """
+    hits = (pixel_scores >= np.asarray(cutoffs, dtype=np.float32)[:, None, None]) & admitted[
+        :, None, None
+    ]
+    tp = float((hits & gt_masks).sum())
+    fp = float((hits & ~gt_masks).sum())
+    fn = float(gt_masks.sum()) - tp
+    flagged = hits.reshape(hits.shape[0], -1).any(axis=1)
+    frame_tp = float((flagged & frame_labels).sum())
+    frame_fp = float((flagged & ~frame_labels).sum())
+    frame_fn = float(frame_labels.sum()) - frame_tp
+    pixel = prf(tp, fp, fn)
+    frame = prf(frame_tp, frame_fp, frame_fn)
+    return {**pixel, **{f"frame_{key}": value for key, value in frame.items()}}
