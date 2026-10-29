@@ -276,7 +276,7 @@ Every lifecycle hook lands as `TrainResponse.event` (`TrainEvent`, cuvis-ai-sche
 
 A `StopTrain` during a post-fit step ends the stream CANCELLED at the next batch. A pass that raises ends as `EVALUATION_END` with status `FAILED` and the error text; the run continues to the next split and to COMPLETE, so the trained pipeline can still be saved.
 
-**Recalibrate a saved run** (`TRAINER_TYPE_CALIBRATION`): restore the run with its weights, run the post-fit steps without a fit, save the run again. The thresholds in the yaml change, the weights do not. A session without weights, or with unfitted statistical nodes, is refused with `FAILED_PRECONDITION`.
+**Recalibrate a saved run** (`TRAINER_TYPE_CALIBRATION`): restore the run with its weights, run the post-fit steps without a fit, save the run again. The thresholds in the yaml change, the weights do not. A session without weights, or with unfitted statistical nodes, is refused with `FAILED_PRECONDITION`. A pass that runs out of GPU memory ends with `RESOURCE_EXHAUSTED` (cuvis-ai-core 0.19.1 and later), while the post-fit steps after a fit record that error and go on. To run the pass on the CPU, restore the run again from a trainrun whose `training.accelerator` is `cpu`.
 
 ```python
 stub.RestoreTrainRun(
