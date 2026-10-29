@@ -731,7 +731,8 @@ def counts_at_point(
 
     ``admitted`` marks the frames the gate lets through, ``cutoffs`` holds each frame's pixel
     cutoff (one value per frame, float32). Returns ``precision``, ``recall``, ``f1`` and ``iou``
-    at the pixel level and the same four with a ``frame_`` prefix.
+    at the pixel level with the ``tp``, ``fp`` and ``fn`` counts behind them, and the same
+    seven with a ``frame_`` prefix.
     """
     hits = (pixel_scores >= np.asarray(cutoffs, dtype=np.float32)[:, None, None]) & admitted[
         :, None, None
@@ -743,6 +744,6 @@ def counts_at_point(
     frame_tp = float((flagged & frame_labels).sum())
     frame_fp = float((flagged & ~frame_labels).sum())
     frame_fn = float(frame_labels.sum()) - frame_tp
-    pixel = prf(tp, fp, fn)
-    frame = prf(frame_tp, frame_fp, frame_fn)
+    pixel = {**prf(tp, fp, fn), "tp": tp, "fp": fp, "fn": fn}
+    frame = {**prf(frame_tp, frame_fp, frame_fn), "tp": frame_tp, "fp": frame_fp, "fn": frame_fn}
     return {**pixel, **{f"frame_{key}": value for key, value in frame.items()}}

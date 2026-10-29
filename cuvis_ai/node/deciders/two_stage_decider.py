@@ -386,8 +386,9 @@ class TwoStageBinaryDecider(BaseDecider):
 
         The report's numbers at the applied point, counted as ``forward`` decides: precision,
         recall, F1 and IoU at the pixel level (``pixel_*``) and at the frame level
-        (``frame_*``), the ``frames`` and ``anomalous_frames`` of the split and, for a target
-        objective, ``target`` and ``reached`` (1 or 0).
+        (``frame_*``) with the ``tp``, ``fp`` and ``fn`` counts behind them, the ``frames``
+        and ``anomalous_frames`` of the split and, for a target objective, ``target`` and
+        ``reached`` (1 or 0).
 
         Raises:
             CalibrationError: shape mismatch, non-finite scores, or a single-class split.
@@ -447,10 +448,16 @@ class TwoStageBinaryDecider(BaseDecider):
                 "pixel_precision": counts["precision"],
                 "pixel_recall": counts["recall"],
                 "pixel_iou": counts["iou"],
+                "pixel_tp": int(counts["tp"]),
+                "pixel_fp": int(counts["fp"]),
+                "pixel_fn": int(counts["fn"]),
                 "frame_f1": counts["frame_f1"],
                 "frame_precision": counts["frame_precision"],
                 "frame_recall": counts["frame_recall"],
                 "frame_iou": counts["frame_iou"],
+                "frame_tp": int(counts["frame_tp"]),
+                "frame_fp": int(counts["frame_fp"]),
+                "frame_fn": int(counts["frame_fn"]),
                 "frames": int(frame_labels.size),
                 "anomalous_frames": int(frame_labels.sum()),
             }
