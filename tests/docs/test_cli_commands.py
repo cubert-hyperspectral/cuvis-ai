@@ -38,6 +38,9 @@ def test_calibrate_thresholds_help():
         "--decider-node",
         "--scores-port",
         "--mask-port",
+        "--objective",
+        "--target",
+        "--level",
     ]
     for flag in expected_flags:
         assert flag in result.stdout, f"Expected flag '{flag}' not found in help output"

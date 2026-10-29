@@ -22,6 +22,11 @@ The sweep is dispatched on the pipeline's decider class:
 
 Any other decider class aborts with an explicit unsupported-decider error.
 
+With ``--objective precision`` or ``recall`` and a ``--target`` in [0, 1], the decider's own
+``calibrate`` picks the point instead, at ``--level pixels`` (the default) or ``frames``, as a
+trainrun's ``calibration:`` block makes the calibration phase pick it
+(``QuantileBinaryDecider`` serves the pixel level only).
+
 The scores are collected from the port wired into the decider's ``logits`` input (the
 space the decider actually thresholds), not from a global port scan; ground truth is
 the pipeline's single bool ``mask`` output. Both can be overridden with
@@ -48,6 +53,10 @@ Explicit artifacts and the test split::
     calibrate-thresholds --trainrun-dir <run> --split test \\
         --pipeline-yaml <run>/saved/trainrun_pipeline.yaml \\
         --weights-path <run>/saved/trainrun.pt
+
+A frame-level recall target instead of the F1 optimum::
+
+    calibrate-thresholds --trainrun-dir <run> --objective recall --target 0.9 --level frames
 """
 
 from __future__ import annotations
@@ -66,6 +75,7 @@ import torch
 from cuvis_ai_schemas.enums import ExecutionStage
 from cuvis_ai_schemas.execution import Context
 from cuvis_ai_schemas.pipeline import PipelineConfig
+from cuvis_ai_schemas.training import CalibrationConfig
 from loguru import logger
 
 from cuvis_ai.node.deciders import _calibration as _calib
@@ -81,6 +91,13 @@ _SUPPORTED_DECIDERS = {
     "TwoStageBinaryDecider": "two_stage",
     "BinaryDecider": "binary",
     "QuantileBinaryDecider": "quantile",
+}
+
+#: The decider hparams a calibration sets, per sweep mode, in the order the report lists them.
+_SHIPPED_HPARAMS = {
+    "two_stage": ("image_threshold", "top_k_fraction", "pixel_threshold"),
+    "binary": ("threshold",),
+    "quantile": ("quantile",),
 }
 
 #: Node hparams that make score distributions depend on frame order / warm-up history.
@@ -467,6 +484,7 @@ def calibrate_thresholds(
     mask_port: str | None = None,
     top_k_fraction: float | None = None,
     num_candidates: int = 256,
+    objective: CalibrationConfig | None = None,
     output: str | Path | None = None,
     plugins_dirs: list[str] | None = None,
 ) -> dict[str, Any]:
@@ -493,6 +511,9 @@ def calibrate_thresholds(
         hparams when omitted.
     num_candidates : int
         Sweep resolution for threshold/quantile candidates.
+    objective : CalibrationConfig | None
+        A precision or recall target (a trainrun's ``calibration:`` block); the decider's
+        own ``calibrate`` then picks the point. ``None`` (the default) keeps the F1 sweep.
     output : str | Path | None
         JSON report path (default ``<trainrun_dir>/calibration_<split>.json``).
     plugins_dirs : list[str] | None
@@ -577,7 +598,25 @@ def calibrate_thresholds(
         "history_dependent_nodes": history_flags,
     }
 
-    if mode == "two_stage":
+    if objective is not None:
+        decider = next(node for node in pipeline.nodes() if node.name == decider_name)
+        point, hparams = _target_point(
+            decider,
+            mode,
+            pixel_scores,
+            gt_masks,
+            objective,
+            num_candidates=num_candidates,
+            top_k_fraction=top_k_fraction,
+        )
+        report.update(
+            {
+                "objective": objective.model_dump(),
+                "target_point": point,
+                "calibrated_decider_hparams": hparams,
+            }
+        )
+    elif mode == "two_stage":
         image_scores = _calib.topk_mean_scores(pixel_scores, top_k_fraction)
         best_image, joint_best, conditional_best = _calib.sweep_two_stage(
             pixel_scores, gt_masks, image_scores, frame_labels, num_candidates
@@ -716,6 +755,34 @@ def _binary_hparams(best: dict[str, Any]) -> dict[str, float]:
     return {"threshold": float(best["margin_threshold"])}
 
 
+def _target_point(
+    decider: Any,
+    mode: str,
+    pixel_scores: np.ndarray,
+    gt_masks: np.ndarray,
+    objective: CalibrationConfig,
+    *,
+    num_candidates: int,
+    top_k_fraction: float,
+) -> tuple[dict[str, Any], dict[str, float]]:
+    """Calibrate the pipeline's own decider to a target, as the calibration phase does.
+
+    The decider's ``calibrate`` owns the selection rule, so this CLI and a training run pick
+    the same point for the same scores. It scores the channel-max map the collection keeps,
+    which is exact for the single-channel scores the anomaly nodes emit. Returns the
+    decider's report and the hparams to ship.
+    """
+    if mode == "two_stage":
+        decider.top_k_fraction = top_k_fraction
+    point = decider.calibrate(
+        torch.from_numpy(pixel_scores[..., None]),
+        torch.from_numpy(gt_masks[..., None]),
+        objective=objective,
+        num_candidates=num_candidates,
+    )
+    return point, {name: getattr(decider, name) for name in _SHIPPED_HPARAMS[mode]}
+
+
 def _current_preset_binary(
     probabilities: np.ndarray, gt_masks: np.ndarray, decider_defaults: dict[str, Any]
 ) -> dict[str, Any]:
@@ -752,7 +819,21 @@ def _print_report(report: dict[str, Any]) -> None:
         f"decider: {report['decider']['node']} ({report['decider']['class_name']}), "
         f"scores from {report['score_source']}"
     )
-    if mode == "two_stage":
+    if "target_point" in report:
+        objective, point = report["objective"], report["target_point"]
+        level = "frame" if objective["level"] == "frames" else "pixel"
+        reached = "reached" if point["reached"] else "not reached"
+        print(  # noqa: T201
+            f"target: {objective['objective']} {objective['target']} at the {level} level, "
+            f"{reached}"
+        )
+        for name, prefix in (("frames", "frame"), ("pixels", "pixel")):
+            print(  # noqa: T201
+                f"{name}: precision {point[f'{prefix}_precision']:.3f}, "
+                f"recall {point[f'{prefix}_recall']:.3f} (tp {point[f'{prefix}_tp']}, "
+                f"fp {point[f'{prefix}_fp']}, fn {point[f'{prefix}_fn']})"
+            )
+    elif mode == "two_stage":
         image = report["image"]["f1_max"]
         joint = report["pixel"]["joint_optimum"]
         conditional = report["pixel"]["conditional_on_image_f1max"]
@@ -808,6 +889,19 @@ def _print_report(report: dict[str, Any]) -> None:
         print(f"    {key}: {value}")  # noqa: T201
 
 
+def _calibration_block(
+    objective: str, target: float | None, level: str
+) -> CalibrationConfig | None:
+    """The trainrun calibration block the flags name; ``None`` keeps the F1 sweep.
+
+    ``CalibrationConfig`` checks the flags as it checks a trainrun: precision and recall need
+    a target in [0, 1], and f1 takes neither a target nor the frame level.
+    """
+    if (objective, target, level) == ("f1", None, "pixels"):
+        return None
+    return CalibrationConfig(objective=objective, target=target, level=level)
+
+
 def main() -> None:
     """CLI entry point for ``calibrate-thresholds``."""
     parser = argparse.ArgumentParser(
@@ -824,6 +918,8 @@ def main() -> None:
             "--weights-path <run>/saved/trainrun.pt\n"
             "  calibrate-thresholds --trainrun-dir <run> --decider-node decider "
             "--scores-port dinomaly_detector.scores\n"
+            "  calibrate-thresholds --trainrun-dir <run> --objective recall --target 0.9 "
+            "--level frames\n"
         ),
     )
     parser.add_argument(
@@ -858,6 +954,25 @@ def main() -> None:
     parser.add_argument(
         "--num-candidates", type=int, default=256, help="Threshold/quantile sweep resolution"
     )
+    parser.add_argument(
+        "--objective",
+        choices=_calib.CALIBRATION_OBJECTIVES,
+        default="f1",
+        help="What the thresholds are chosen for: the F1 optimum (default), or a precision or "
+        "recall target",
+    )
+    parser.add_argument(
+        "--target",
+        type=float,
+        default=None,
+        help="Precision or recall to reach, in [0, 1] (with --objective precision or recall)",
+    )
+    parser.add_argument(
+        "--level",
+        choices=_calib.CALIBRATION_LEVELS,
+        default="pixels",
+        help="Where precision and recall are counted: pixels (default) or frames",
+    )
     parser.add_argument("--output", default=None, help="JSON report path")
     parser.add_argument(
         "--plugins-dir",
@@ -867,6 +982,10 @@ def main() -> None:
     )
 
     args = parser.parse_args()
+    try:
+        objective = _calibration_block(args.objective, args.target, args.level)
+    except ValueError as error:
+        parser.error(str(error))
     try:
         calibrate_thresholds(
             trainrun_dir=args.trainrun_dir,
@@ -880,6 +999,7 @@ def main() -> None:
             mask_port=args.mask_port,
             top_k_fraction=args.top_k_fraction,
             num_candidates=args.num_candidates,
+            objective=objective,
             output=args.output,
             plugins_dirs=args.plugins_dir,
         )
