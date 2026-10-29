@@ -39,14 +39,13 @@ and the offline ``calibrate-thresholds`` CLI call the same code.
 
 from __future__ import annotations
 
-import math
-import numbers
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
 import torch
+from cuvis_ai_schemas.training import CalibrationConfig
 
 CALIBRATION_OBJECTIVES = ("f1", "precision", "recall")
 CALIBRATION_LEVELS = ("pixels", "frames")
@@ -419,8 +418,8 @@ class CalibrationObjective:
     ``objective`` is ``"f1"``, ``"precision"`` or ``"recall"``; ``target`` the value in [0, 1] a
     target objective must reach; ``level`` the level it is measured at, ``"pixels"`` (pooled
     over the split) or ``"frames"`` (a frame counts as flagged when any of its pixels is, the
-    evaluation's definition). Built by :func:`calibration_objective_of` from the deciders'
-    ``calibration_objective``, ``calibration_target`` and ``calibration_level`` hparams.
+    evaluation's definition). Built by :func:`calibration_objective_of` from the trainrun's
+    calibration block.
     """
 
     objective: str = "f1"
@@ -434,35 +433,25 @@ class CalibrationObjective:
 
 
 def calibration_objective_of(
-    objective: Any,
-    target: Any,
-    level: Any,
+    config: CalibrationConfig | None,
     *,
     levels: Sequence[str] = CALIBRATION_LEVELS,
 ) -> CalibrationObjective:
-    """Validate the three objective hparams of a decider, refusing each by name.
+    """The objective a trainrun's calibration block names; the F1 optimum without a block.
 
-    ``levels`` lists the levels the decider can serve; ``QuantileBinaryDecider`` flags pixels
-    in every frame and serves ``pixels`` only.
+    The block arrives validated (``CalibrationConfig`` refuses a missing or out-of-range
+    target and a level other than ``pixels`` on the f1 objective), so only the level is
+    checked here: ``levels`` lists the levels the decider serves, and
+    ``QuantileBinaryDecider`` flags pixels in every frame and serves ``pixels`` only.
     """
-    if objective not in CALIBRATION_OBJECTIVES:
+    if config is None:
+        return CalibrationObjective()
+    if config.level not in levels:
         raise ValueError(
-            f"calibration_objective must be one of {CALIBRATION_OBJECTIVES}, got {objective!r}"
+            f"calibration level {config.level!r} is not served by this decider; "
+            f"it calibrates at {', '.join(map(repr, levels))}"
         )
-    if level not in levels:
-        raise ValueError(f"calibration_level must be one of {tuple(levels)}, got {level!r}")
-    if target is None:
-        if objective != "f1":
-            raise ValueError(
-                f"calibration_target is required for calibration_objective {objective!r}"
-            )
-        return CalibrationObjective(objective, None, level)
-    if isinstance(target, bool) or not isinstance(target, numbers.Real):
-        raise ValueError(f"calibration_target must be a number in [0, 1], got {target!r}")
-    value = float(target)
-    if not math.isfinite(value) or not 0.0 <= value <= 1.0:
-        raise ValueError(f"calibration_target must be a number in [0, 1], got {target!r}")
-    return CalibrationObjective(objective, value, level)
+    return CalibrationObjective(config.objective, config.target, config.level)
 
 
 def _row_thresholds(row: dict[str, Any]) -> tuple[float, float]:

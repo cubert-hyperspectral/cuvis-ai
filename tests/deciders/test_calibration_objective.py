@@ -1,12 +1,12 @@
 """Calibration to a precision or recall target.
 
-The deciders calibrate to the F1 optimum unless their ``calibration_objective`` hparam names a
-target: ``precision`` or ``recall`` at ``calibration_level`` ``pixels`` or ``frames``. These tests
-pin the selection rule on hand-built rows, the hparam validation, the parity of the
-single-threshold deciders with torchmetrics' fixed-point metrics (which search every distinct
-score, so they also prove the refinement finds the exact point on a split larger than the
-candidate grid), the frame-level definition against ``forward``, the unreachable case, and the
-report numbers a client reads.
+The deciders calibrate to the F1 optimum unless the trainrun's calibration block, handed to
+``calibrate`` as ``objective``, names a target: ``precision`` or ``recall`` at the level
+``pixels`` or ``frames``. These tests pin the selection rule on hand-built rows, how the block
+maps to the objective, the parity of the single-threshold deciders with torchmetrics'
+fixed-point metrics (which search every distinct score, so they also prove the refinement finds
+the exact point on a split larger than the candidate grid), the frame-level definition against
+``forward``, the unreachable case, and the report numbers a client reads.
 """
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 import torch
+from cuvis_ai_schemas.training import CalibrationConfig
 from torchmetrics.classification import BinaryPrecisionAtFixedRecall, BinaryRecallAtFixedPrecision
 
 from cuvis_ai.node.deciders import _calibration as calib
@@ -39,6 +40,11 @@ def _row(**values):
     }
     row.update(values)
     return row
+
+
+def _block(objective: str = "f1", target: float | None = None, level: str = "pixels"):
+    """The trainrun's calibration block, as core hands it to ``calibrate``."""
+    return CalibrationConfig(objective=objective, target=target, level=level)
 
 
 def _logits(seed: int = 0, n: int = 4, size: int = 16, positive_rate: float = 0.1):
@@ -147,51 +153,42 @@ def test_frame_level_reads_the_frame_columns():
     assert row["pixel_threshold"] == 2.0
 
 
-# --- the hparams ---------------------------------------------------------------------------
+# --- the objective argument ----------------------------------------------------------------
 
 
-@pytest.mark.parametrize("cls", DECIDERS)
-def test_a_target_objective_needs_a_target(cls):
-    with pytest.raises(ValueError, match="calibration_target"):
-        cls(calibration_objective="recall")
+def test_no_block_is_the_f1_optimum():
+    assert calib.calibration_objective_of(None) == calib.CalibrationObjective("f1", None, "pixels")
 
 
-@pytest.mark.parametrize("cls", DECIDERS)
-@pytest.mark.parametrize("target", [-0.1, 1.5, float("nan")])
-def test_a_target_outside_the_unit_interval_is_refused(cls, target):
-    with pytest.raises(ValueError, match="calibration_target"):
-        cls(calibration_objective="precision", calibration_target=target)
-
-
-@pytest.mark.parametrize("cls", DECIDERS)
-def test_an_unknown_objective_is_refused(cls):
-    with pytest.raises(ValueError, match="calibration_objective"):
-        cls(calibration_objective="accuracy", calibration_target=0.9)
-
-
-@pytest.mark.parametrize("cls", DECIDERS)
-def test_an_unknown_level_is_refused(cls):
-    with pytest.raises(ValueError, match="calibration_level"):
-        cls(calibration_objective="recall", calibration_target=0.9, calibration_level="images")
+def test_the_block_maps_to_the_objective():
+    objective = calib.calibration_objective_of(_block("recall", 0.9, "frames"))
+    assert objective == calib.CalibrationObjective("recall", 0.9, "frames")
 
 
 def test_the_quantile_decider_refuses_the_frame_level():
-    with pytest.raises(ValueError, match="calibration_level"):
-        QuantileBinaryDecider(
-            calibration_objective="recall", calibration_target=0.9, calibration_level="frames"
-        )
+    scores, targets = _logits()
+    decider = QuantileBinaryDecider()
+    before = decider.quantile
+    with pytest.raises(ValueError, match="frames"):
+        decider.calibrate(scores, targets, objective=_block("recall", 0.9, "frames"))
+    assert decider.quantile == before
 
 
 @pytest.mark.parametrize("cls", DECIDERS)
-def test_the_objective_defaults_to_f1_and_persists_in_the_hparams(cls):
-    default = cls()
-    assert default.hparams["calibration_objective"] == "f1"
-    assert default.hparams["calibration_target"] is None
-    assert default.hparams["calibration_level"] == "pixels"
-    decider = cls(calibration_objective="recall", calibration_target=0.9)
-    rebuilt = cls(**decider.hparams)
-    assert rebuilt.hparams["calibration_objective"] == "recall"
-    assert rebuilt.hparams["calibration_target"] == 0.9
+def test_the_hparams_carry_no_objective(cls):
+    """The objective lives in the trainrun, so the pipeline yaml carries none."""
+    assert not any(key.startswith("calibration_") for key in cls().hparams)
+
+
+@pytest.mark.parametrize("cls", DECIDERS)
+def test_without_a_block_calibrate_keeps_the_f1_thresholds(cls):
+    scores, targets = _logits(seed=7)
+    plain, explicit, none_given = cls(), cls(), cls()
+    report = plain.calibrate(scores, targets)
+    assert report["objective"] == "f1"
+    assert explicit.calibrate(scores, targets, objective=_block()) == report
+    assert none_given.calibrate(scores, targets, objective=None) == report
+    assert explicit.hparams == plain.hparams == none_given.hparams
 
 
 # --- the deciders against torchmetrics and forward ------------------------------------------
@@ -199,8 +196,8 @@ def test_the_objective_defaults_to_f1_and_persists_in_the_hparams(cls):
 
 def test_binary_decider_recall_target_matches_torchmetrics_and_forward():
     scores, targets = _logits()
-    decider = BinaryDecider(calibration_objective="recall", calibration_target=0.9)
-    report = decider.calibrate(scores, targets)
+    decider = BinaryDecider()
+    report = decider.calibrate(scores, targets, objective=_block("recall", 0.9))
 
     probabilities = torch.sigmoid(scores).reshape(-1)
     labels = targets.reshape(-1).int()
@@ -220,8 +217,8 @@ def test_binary_decider_recall_target_matches_torchmetrics_and_forward():
 def test_binary_decider_precision_target_on_a_split_larger_than_the_grid_is_exact():
     """18432 distinct scores: the coarse grid alone misses the point, the refinement finds it."""
     scores, targets = _logits(seed=3, n=2, size=96)
-    decider = BinaryDecider(calibration_objective="precision", calibration_target=0.8)
-    report = decider.calibrate(scores, targets)
+    decider = BinaryDecider()
+    report = decider.calibrate(scores, targets, objective=_block("precision", 0.8))
 
     probabilities = torch.sigmoid(scores).reshape(-1)
     labels = targets.reshape(-1).int()
@@ -235,10 +232,8 @@ def test_two_stage_frame_recall_target_counts_frames_like_the_evaluation():
     scores, targets = _logits(seed=1, n=8, positive_rate=0.02)
     targets[0] = False
     targets[1] = False
-    decider = TwoStageBinaryDecider(
-        calibration_objective="recall", calibration_target=0.8, calibration_level="frames"
-    )
-    report = decider.calibrate(scores, targets)
+    decider = TwoStageBinaryDecider()
+    report = decider.calibrate(scores, targets, objective=_block("recall", 0.8, "frames"))
 
     decisions = decider.forward(logits=scores)["decisions"]
     frame = _frame_prf(decisions, targets)
@@ -258,10 +253,8 @@ def test_two_stage_frame_target_grid_is_exact_in_the_frame_flags():
     """A frame target is reached whenever any cutoff reaches it: the grid holds every frame maximum."""
     scores, targets = _logits(seed=2, n=6, positive_rate=0.02)
     targets[0] = False
-    decider = TwoStageBinaryDecider(
-        calibration_objective="precision", calibration_target=1.0, calibration_level="frames"
-    )
-    report = decider.calibrate(scores, targets)
+    decider = TwoStageBinaryDecider()
+    report = decider.calibrate(scores, targets, objective=_block("precision", 1.0, "frames"))
     # The anomalous frames hold the highest pixel scores (shifted by 1.5), so a gate that admits
     # only them and a cutoff at their maximum gives frame precision 1.0.
     assert report["reached"] == 1.0
@@ -272,8 +265,8 @@ def test_two_stage_frame_target_grid_is_exact_in_the_frame_flags():
 
 def test_quantile_decider_pixel_recall_target():
     scores, targets = _logits(seed=4, n=4, size=12)
-    decider = QuantileBinaryDecider(calibration_objective="recall", calibration_target=0.7)
-    report = decider.calibrate(scores, targets)
+    decider = QuantileBinaryDecider()
+    report = decider.calibrate(scores, targets, objective=_block("recall", 0.7))
     decisions = decider.forward(logits=scores)["decisions"]
     pixel = _pixel_prf(decisions, targets)
     assert report["reached"] == 1.0 and report["pixel_recall"] >= 0.7
@@ -290,8 +283,8 @@ def test_an_unreachable_precision_target_lands_on_the_most_precise_point_and_say
     # pixel also flags them and no cutoff reaches a precision of 0.99.
     scores[0, 0, :5, 0] = torch.tensor([9.0, 8.0, 7.0, 6.0, 5.0])
     targets[0, 0, :5, 0] = False
-    decider = BinaryDecider(calibration_objective="precision", calibration_target=0.99)
-    report = decider.calibrate(scores, targets)
+    decider = BinaryDecider()
+    report = decider.calibrate(scores, targets, objective=_block("precision", 0.99))
 
     probabilities = torch.sigmoid(scores).reshape(-1).numpy()
     labels = targets.reshape(-1).numpy()

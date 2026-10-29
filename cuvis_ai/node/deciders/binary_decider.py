@@ -20,6 +20,7 @@ import numpy as np
 import torch
 from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.pipeline import PortSpec
+from cuvis_ai_schemas.training import CalibrationConfig
 from torch import Tensor
 
 from cuvis_ai_core.deciders.base_decider import BinaryDecider as BaseDecider
@@ -72,10 +73,10 @@ class BinaryDecider(BaseDecider):
     the hparam for that call only, so a GUI slider needs no pipeline reload and the yaml keeps
     the hparam.
 
-    :meth:`calibrate` fits the F1 optimum unless the ``calibration_objective`` hparam names a
-    target: ``"precision"`` or ``"recall"`` with ``calibration_target`` in [0, 1], measured at
-    ``calibration_level`` ``"pixels"`` or ``"frames"``. The three persist in the pipeline
-    yaml, so a retrain calibrates to the same target.
+    :meth:`calibrate` fits the F1 optimum unless the trainrun's calibration block, handed in
+    as ``objective``, names a target: ``"precision"`` or ``"recall"`` with a ``target`` in
+    [0, 1], measured at the ``"pixels"`` or ``"frames"`` level. The block stays in the
+    trainrun; the pipeline yaml carries only the threshold it produced.
 
     Examples
     --------
@@ -130,26 +131,10 @@ class BinaryDecider(BaseDecider):
         )
     }
 
-    def __init__(
-        self,
-        threshold: float = 0.5,
-        calibration_objective: str = "f1",
-        calibration_target: float | None = None,
-        calibration_level: str = "pixels",
-        **kwargs,
-    ) -> None:
+    def __init__(self, threshold: float = 0.5, **kwargs) -> None:
         self.threshold = threshold
-        self._calibration_objective = _calibration.calibration_objective_of(
-            calibration_objective, calibration_target, calibration_level
-        )
-        # Forward the hparams to BaseDecider so Serializable captures them
-        super().__init__(
-            threshold=threshold,
-            calibration_objective=self._calibration_objective.objective,
-            calibration_target=self._calibration_objective.target,
-            calibration_level=self._calibration_objective.level,
-            **kwargs,
-        )
+        # Forward threshold to BaseDecider so Serializable captures it in hparams
+        super().__init__(threshold=threshold, **kwargs)
 
     def forward(
         self,
@@ -178,18 +163,18 @@ class BinaryDecider(BaseDecider):
         scores: Tensor,
         targets: Tensor,
         *,
+        objective: CalibrationConfig | None = None,
         num_candidates: int = 256,
     ) -> dict[str, Any]:
         """Refit ``threshold`` on labelled validation scores.
 
         ``scores`` is the decider-input tensor stacked over the split (``[N, H, W, C]``);
-        ``targets`` the matching ground-truth mask. The sweep runs on ``torch.sigmoid(scores)``
-        in float32, exactly what ``forward`` compares against ``threshold``, so the fitted
-        value is reachable at runtime even when raw logits saturate the sigmoid. With the
-        default ``f1`` objective the optimum is the F1 maximum; with a precision or recall
-        objective (the ``calibration_objective``, ``calibration_target`` and
-        ``calibration_level`` hparams) it is the cutoff that reaches the target with the best
-        other metric (:func:`_calibration.select_calibration_row`), found on every distinct
+        ``targets`` the matching ground-truth mask; ``objective`` the trainrun's calibration
+        block. The sweep runs on ``torch.sigmoid(scores)`` in float32, exactly what ``forward``
+        compares against ``threshold``, so the fitted value is reachable at runtime even when
+        raw logits saturate the sigmoid. Without a block, or with the f1 one, the optimum is
+        the F1 maximum; with a precision or recall target it is the cutoff that reaches the
+        target with the best other metric (:func:`_calibration.select_calibration_row`), found on every distinct
         score of a small split and by a refinement around the best sampled cutoff on a large
         one; a target no cutoff reaches lands on the closest one and the report says so.
         Either value is moved to the midpoint of its plateau (``_calibration.margin_below``)
@@ -206,16 +191,16 @@ class BinaryDecider(BaseDecider):
         Raises:
             CalibrationError: shape mismatch, non-finite scores, or a single-class split.
         """
+        goal = _calibration.calibration_objective_of(objective)
         probabilities = torch.sigmoid(scores.detach().to("cpu", torch.float32))
         _, pixel, gt, frame_labels = _calibration.reduce_scores_targets(probabilities, targets)
-        objective = self._calibration_objective
         old = self.threshold
         report: dict[str, Any] = {"class": type(self).__name__}
-        if objective.targeted:
+        if goal.targeted:
             best, reached = _calibration.sweep_absolute_target(
-                pixel, gt, frame_labels, objective, num_candidates
+                pixel, gt, frame_labels, goal, num_candidates
             )
-            report["target"] = objective.target
+            report["target"] = goal.target
             report["reached"] = 1.0 if reached else 0.0
         else:
             best = _calibration.sweep_absolute(pixel, gt, num_candidates)
@@ -233,8 +218,8 @@ class BinaryDecider(BaseDecider):
             {
                 "threshold": {"old": old, "new": new},
                 "on_point_threshold": best["threshold"],
-                "objective": objective.objective,
-                "level": objective.level,
+                "objective": goal.objective,
+                "level": goal.level,
                 "f1": counts["f1"],
                 "precision": counts["precision"],
                 "recall": counts["recall"],
@@ -283,10 +268,9 @@ class QuantileBinaryDecider(BaseDecider):
     the hparam for that call only, so a GUI slider needs no pipeline reload and the yaml keeps
     the hparam.
 
-    :meth:`calibrate` fits the F1 optimum unless the ``calibration_objective`` hparam names a
-    target: ``"precision"`` or ``"recall"`` with ``calibration_target`` in [0, 1]. The node
-    flags pixels in every frame, so ``calibration_level`` accepts ``"pixels"`` only. The
-    three persist in the pipeline yaml, so a retrain calibrates to the same target.
+    :meth:`calibrate` fits the F1 optimum unless the trainrun's calibration block, handed in
+    as ``objective``, names a target: ``"precision"`` or ``"recall"`` with a ``target`` in
+    [0, 1]. The node flags pixels in every frame, so it serves the ``"pixels"`` level only.
 
     Examples
     --------
@@ -344,9 +328,6 @@ class QuantileBinaryDecider(BaseDecider):
         self,
         quantile: float = 0.995,
         reduce_dims: Sequence[int] | None = None,
-        calibration_objective: str = "f1",
-        calibration_target: float | None = None,
-        calibration_level: str = "pixels",
         **kwargs,
     ) -> None:
         if not 0.0 <= quantile <= 1.0:
@@ -355,18 +336,8 @@ class QuantileBinaryDecider(BaseDecider):
         self.reduce_dims = (
             tuple(int(dim) for dim in reduce_dims) if reduce_dims is not None else None
         )
-        self._calibration_objective = _calibration.calibration_objective_of(
-            calibration_objective, calibration_target, calibration_level, levels=("pixels",)
-        )
         # Forward init params so Serializable records them for config serialization
-        super().__init__(
-            quantile=self.quantile,
-            reduce_dims=self.reduce_dims,
-            calibration_objective=self._calibration_objective.objective,
-            calibration_target=self._calibration_objective.target,
-            calibration_level=self._calibration_objective.level,
-            **kwargs,
-        )
+        super().__init__(quantile=self.quantile, reduce_dims=self.reduce_dims, **kwargs)
 
     def forward(
         self, logits: Tensor, *, quantile: Tensor | None = None, **_: Any
@@ -425,16 +396,17 @@ class QuantileBinaryDecider(BaseDecider):
         scores: Tensor,
         targets: Tensor,
         *,
+        objective: CalibrationConfig | None = None,
         num_candidates: int = 256,
     ) -> dict[str, Any]:
         """Refit ``quantile`` on labelled validation scores.
 
         The node recomputes its cutoff from each frame's own scores, so there is no absolute
-        threshold to fit - the sweep finds the best flagged-pixel fraction instead (per frame,
+        threshold to fit: the sweep finds the best flagged-pixel fraction instead (per frame,
         over the full ``[H, W, C]`` tensor, matching the runtime ``torch.quantile`` with the
-        default ``reduce_dims``): the F1-best one by default, or, with a precision or recall
-        objective (the ``calibration_objective`` and ``calibration_target`` hparams), the one
-        that reaches the target with the best other metric on a grid that reaches both ends
+        default ``reduce_dims``). Without a calibration block (``objective``, from the
+        trainrun), or with the f1 one, that is the F1-best fraction; with a precision or recall
+        target it is the one that reaches the target with the best other metric on a grid that reaches both ends
         (:func:`_calibration.select_calibration_row`); a target no quantile on the grid reaches
         lands on the closest one and the report says so. The result is written to the live
         attribute and to ``hparams``; ``pipeline.save_to_file`` then carries it in the pipeline
@@ -448,10 +420,13 @@ class QuantileBinaryDecider(BaseDecider):
         and ``reached`` (1 or 0).
 
         Raises:
+            ValueError: a calibration block at the ``"frames"`` level, which this node does
+                not serve.
             CalibrationError: shape mismatch, non-finite scores, a single-class split, or a
                 ``reduce_dims`` that keeps a real (size > 1) non-batch axis out of the quantile,
                 a decision rule the per-frame sweep cannot reproduce.
         """
+        goal = _calibration.calibration_objective_of(objective, levels=("pixels",))
         kept = [
             dim
             for dim in range(1, scores.dim())
@@ -466,16 +441,15 @@ class QuantileBinaryDecider(BaseDecider):
             )
         full, pixel, gt, frame_labels = _calibration.reduce_scores_targets(scores, targets)
         flat = full.reshape(full.shape[0], -1)  # [N, H*W*C] - the runtime quantile space
-        objective = self._calibration_objective
         old = self.quantile
         report: dict[str, Any] = {"class": type(self).__name__}
-        if objective.targeted:
+        if goal.targeted:
             grid = _calibration.quantile_target_grid(flat.shape[1], self.quantile, num_candidates)
             per_frame = np.quantile(flat, grid, axis=1)  # [len(grid), N]
             frame_quantiles = {float(q): per_frame[i] for i, q in enumerate(grid)}
             rows = _calibration.quantile_rows(pixel, gt, frame_labels, frame_quantiles)
-            best, reached = _calibration.select_calibration_row(rows, objective)
-            report["target"] = objective.target
+            best, reached = _calibration.select_calibration_row(rows, goal)
+            report["target"] = goal.target
             report["reached"] = 1.0 if reached else 0.0
         else:
             grid = _calibration.quantile_grid_builder(self.quantile, num_candidates)(flat.shape[1])
@@ -493,8 +467,8 @@ class QuantileBinaryDecider(BaseDecider):
         report.update(
             {
                 "quantile": {"old": old, "new": new},
-                "objective": objective.objective,
-                "level": objective.level,
+                "objective": goal.objective,
+                "level": goal.level,
                 "f1": counts["f1"],
                 "precision": counts["precision"],
                 "recall": counts["recall"],

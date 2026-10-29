@@ -25,6 +25,7 @@ import torch
 from cuvis_ai_schemas.enums import ExecutionStage, NodeCategory, NodeTag
 from cuvis_ai_schemas.execution import Context
 from cuvis_ai_schemas.pipeline import PortSpec
+from cuvis_ai_schemas.training import CalibrationConfig
 from loguru import logger
 from torch import Tensor
 
@@ -73,11 +74,12 @@ class TwoStageBinaryDecider(BaseDecider):
     and ``image_threshold_score`` (the top-k mean, computed for every frame). They are
     absent exactly when ``decisions`` is.
 
-    :meth:`calibrate` fits the F1 optimum unless the ``calibration_objective`` hparam names a
-    target: ``"precision"`` or ``"recall"`` with ``calibration_target`` in [0, 1], measured at
-    ``calibration_level`` ``"pixels"`` (pooled over the split) or ``"frames"`` (a frame counts
-    as flagged when any of its pixels is, the evaluation's definition). The three persist in
-    the pipeline yaml, so a retrain calibrates to the same target.
+    :meth:`calibrate` fits the F1 optimum unless the trainrun's calibration block, handed in
+    as ``objective``, names a target: ``"precision"`` or ``"recall"`` with a ``target`` in
+    [0, 1], measured at the ``"pixels"`` level (pooled over the split) or the ``"frames"``
+    level (a frame counts as flagged when any of its pixels is, the evaluation's definition).
+    The block stays in the trainrun; the pipeline yaml carries only the thresholds it
+    produced.
     """
 
     _category = NodeCategory.TRANSFORM
@@ -158,9 +160,6 @@ class TwoStageBinaryDecider(BaseDecider):
         quantile: float = 0.995,
         pixel_threshold: float | None = None,
         reduce_dims: Sequence[int] | None = None,
-        calibration_objective: str = "f1",
-        calibration_target: float | None = None,
-        calibration_level: str = "pixels",
         **kwargs,
     ) -> None:
         # Both thresholds are compared in raw score space (see forward), and raw anomaly
@@ -178,18 +177,12 @@ class TwoStageBinaryDecider(BaseDecider):
         self.reduce_dims = (
             tuple(int(dim) for dim in reduce_dims) if reduce_dims is not None else None
         )
-        self._calibration_objective = _calibration.calibration_objective_of(
-            calibration_objective, calibration_target, calibration_level
-        )
         super().__init__(
             image_threshold=self.image_threshold,
             top_k_fraction=self.top_k_fraction,
             quantile=self.quantile,
             pixel_threshold=self.pixel_threshold,
             reduce_dims=self.reduce_dims,
-            calibration_objective=self._calibration_objective.objective,
-            calibration_target=self._calibration_objective.target,
-            calibration_level=self._calibration_objective.level,
             **kwargs,
         )
         self._withheld_stages_logged: set[ExecutionStage] = set()
@@ -356,20 +349,21 @@ class TwoStageBinaryDecider(BaseDecider):
         scores: Tensor,
         targets: Tensor,
         *,
+        objective: CalibrationConfig | None = None,
         num_candidates: int = 256,
     ) -> dict[str, Any]:
         """Refit ``image_threshold`` + ``pixel_threshold`` on labelled validation scores.
 
-        With the default ``f1`` objective: runs the joint 2-D sweep (image gate x absolute
-        pixel cutoff, raw score space, with gated-out frames contributing their full ground
-        truth as misses). Sets the F1-max image gate and, at that gate, the F1-max absolute
-        pixel threshold - moving stage 2 off the fixed-fraction quantile onto a cutoff that
-        tracks anomaly size. The report also carries the on-point optima and the joint
-        optimum, which may beat the conditional one.
+        Without a calibration block (``objective``, from the trainrun), or with the f1 one:
+        runs the joint 2-D sweep (image gate x absolute pixel cutoff, raw score space, with
+        gated-out frames contributing their full ground truth as misses). Sets the F1-max
+        image gate and, at that gate, the F1-max absolute pixel threshold, which moves stage 2
+        off the fixed-fraction quantile onto a cutoff that tracks anomaly size. The report
+        also carries the on-point optima and the joint optimum, which may beat the
+        conditional one.
 
-        With a precision or recall objective (the ``calibration_objective``,
-        ``calibration_target`` and ``calibration_level`` hparams): keeps the (gate, cutoff)
-        that reaches the target with the best other metric
+        With a precision or recall target: keeps the (gate, cutoff) that reaches the target
+        with the best other metric
         (:func:`_calibration.select_calibration_row`). Gates are every distinct image score;
         at the frame level the cutoffs hold every frame's maximum pixel score, so the grid is
         exact in the frame flags; at the pixel level the sampled grid is refined around the
@@ -393,14 +387,14 @@ class TwoStageBinaryDecider(BaseDecider):
         Raises:
             CalibrationError: shape mismatch, non-finite scores, or a single-class split.
         """
+        goal = _calibration.calibration_objective_of(objective)
         _, pixel, gt, frame_labels = _calibration.reduce_scores_targets(scores, targets)
         image_scores = _calibration.topk_mean_scores(pixel, self.top_k_fraction)
-        objective = self._calibration_objective
         old_image, old_pixel = self.image_threshold, self.pixel_threshold
         report: dict[str, Any] = {"class": type(self).__name__}
-        if objective.targeted:
+        if goal.targeted:
             best, reached = _calibration.sweep_two_stage_target(
-                pixel, gt, image_scores, frame_labels, objective, num_candidates
+                pixel, gt, image_scores, frame_labels, goal, num_candidates
             )
             new_image = float(best["margin_image_threshold"])
             new_pixel = float(best["margin_pixel_threshold"])
@@ -408,7 +402,7 @@ class TwoStageBinaryDecider(BaseDecider):
                 "image_threshold": best["image_threshold"],
                 "pixel_threshold": best["pixel_threshold"],
             }
-            report["target"] = objective.target
+            report["target"] = goal.target
             report["reached"] = 1.0 if reached else 0.0
         else:
             best_image, joint, conditional = _calibration.sweep_two_stage(
@@ -442,8 +436,8 @@ class TwoStageBinaryDecider(BaseDecider):
                 "image_threshold": {"old": old_image, "new": new_image},
                 "pixel_threshold": {"old": old_pixel, "new": new_pixel},
                 "on_point": on_point,
-                "objective": objective.objective,
-                "level": objective.level,
+                "objective": goal.objective,
+                "level": goal.level,
                 "pixel_f1": counts["f1"],
                 "pixel_precision": counts["precision"],
                 "pixel_recall": counts["recall"],
