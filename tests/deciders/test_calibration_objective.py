@@ -317,3 +317,14 @@ def test_the_f1_objective_reports_both_levels_too():
     assert report["frame_precision"] == pytest.approx(frame["precision"])
     assert report["frames"] == 6
     assert "summary" not in report
+    # The counts behind the rates are the ones forward's decisions give, as integers.
+    flagged = decisions.flatten(1).any(dim=1)
+    labels = targets.flatten(1).any(dim=1)
+    assert report["frame_tp"] == int((flagged & labels).sum())
+    assert report["frame_fp"] == int((flagged & ~labels).sum())
+    assert report["frame_fn"] == int((~flagged & labels).sum())
+    assert report["pixel_tp"] == int((decisions & targets).sum())
+    assert report["pixel_fp"] == int((decisions & ~targets).sum())
+    assert report["pixel_fn"] == int((~decisions & targets).sum())
+    assert report["frame_tp"] + report["frame_fn"] == report["anomalous_frames"]
+    assert all(isinstance(report[key], int) for key in ("pixel_tp", "frame_tp", "frame_fn"))
