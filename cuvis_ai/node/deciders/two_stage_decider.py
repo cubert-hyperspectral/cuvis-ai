@@ -17,10 +17,10 @@ cuvis_ai.node.deciders.binary_decider : Simple threshold-based binary decisions
 from __future__ import annotations
 
 import math
-import numbers
 from collections.abc import Sequence
 from typing import Any
 
+import numpy as np
 import torch
 from cuvis_ai_schemas.enums import ExecutionStage, NodeCategory, NodeTag
 from cuvis_ai_schemas.execution import Context
@@ -31,34 +31,9 @@ from torch import Tensor
 from cuvis_ai_core.deciders.base_decider import BinaryDecider as BaseDecider
 
 from . import _calibration
+from ._port_inputs import call_threshold, optional_finite
 
 _WITHHOLDING_STAGES = frozenset({ExecutionStage.TRAIN, ExecutionStage.VAL, ExecutionStage.TEST})
-
-
-def _optional_finite(name: str, value: Any) -> float | None:
-    """Return ``value`` as a float, pass ``None`` through, refuse anything else by name.
-
-    A pipeline yaml or the CuvisNEXT picker can hand a decider a string or a bool; a
-    silent coercion would gate at a number nobody chose, so the error names the hparam.
-    """
-    if value is None:
-        return None
-    if isinstance(value, bool) or not isinstance(value, numbers.Real) or not math.isfinite(value):
-        raise ValueError(f"{name} must be a finite number or None, got {value!r}")
-    return float(value)
-
-
-def _call_threshold(name: str, value: Tensor | None, fallback: float | None) -> float | None:
-    """The threshold for this call: the ``[1]`` input when one is given, else ``fallback``.
-
-    An input of another shape or a non-finite value is refused by port name, so a GUI that
-    sends a bad number learns which control sent it.
-    """
-    if value is None:
-        return fallback
-    if tuple(value.shape) != (1,):
-        raise ValueError(f"{name} input must have shape [1], got {list(value.shape)}")
-    return _optional_finite(name, float(value.item()))
 
 
 class TwoStageBinaryDecider(BaseDecider):
@@ -97,10 +72,18 @@ class TwoStageBinaryDecider(BaseDecider):
     frame's maximum score, ordered), ``image_threshold_value`` (the gate, NaN while off)
     and ``image_threshold_score`` (the top-k mean, computed for every frame). They are
     absent exactly when ``decisions`` is.
+
+    :meth:`calibrate` fits the F1 optimum unless the ``calibration_objective`` hparam names a
+    target: ``"precision"`` or ``"recall"`` with ``calibration_target`` in [0, 1], measured at
+    ``calibration_level`` ``"pixels"`` (pooled over the split) or ``"frames"`` (a frame counts
+    as flagged when any of its pixels is, the evaluation's definition). The three persist in
+    the pipeline yaml, so a retrain calibrates to the same target.
     """
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.CLASSIFICATION, NodeTag.POSTPROCESSING, NodeTag.NUMPY})
+    _tags = frozenset(
+        {NodeTag.CLASSIFICATION, NodeTag.POSTPROCESSING, NodeTag.NUMPY, NodeTag.CALIBRATION}
+    )
 
     INPUT_SPECS = {
         "logits": PortSpec(
@@ -175,22 +158,28 @@ class TwoStageBinaryDecider(BaseDecider):
         quantile: float = 0.995,
         pixel_threshold: float | None = None,
         reduce_dims: Sequence[int] | None = None,
+        calibration_objective: str = "f1",
+        calibration_target: float | None = None,
+        calibration_level: str = "pixels",
         **kwargs,
     ) -> None:
         # Both thresholds are compared in raw score space (see forward), and raw anomaly
         # scores are unbounded - a [0, 1] cap would make calibrated values unrepresentable.
         # None switches the respective stage off; non-numbers are refused by name.
-        self.image_threshold = _optional_finite("image_threshold", image_threshold)
+        self.image_threshold = optional_finite("image_threshold", image_threshold)
         if not 0.0 < top_k_fraction <= 1.0:
             raise ValueError("top_k_fraction must be in (0, 1]")
         if not 0.0 <= quantile <= 1.0:
             raise ValueError("quantile must be within [0, 1]")
-        self.pixel_threshold = _optional_finite("pixel_threshold", pixel_threshold)
+        self.pixel_threshold = optional_finite("pixel_threshold", pixel_threshold)
 
         self.top_k_fraction = float(top_k_fraction)
         self.quantile = float(quantile)
         self.reduce_dims = (
             tuple(int(dim) for dim in reduce_dims) if reduce_dims is not None else None
+        )
+        self._calibration_objective = _calibration.calibration_objective_of(
+            calibration_objective, calibration_target, calibration_level
         )
         super().__init__(
             image_threshold=self.image_threshold,
@@ -198,6 +187,9 @@ class TwoStageBinaryDecider(BaseDecider):
             quantile=self.quantile,
             pixel_threshold=self.pixel_threshold,
             reduce_dims=self.reduce_dims,
+            calibration_objective=self._calibration_objective.objective,
+            calibration_target=self._calibration_objective.target,
+            calibration_level=self._calibration_objective.level,
             **kwargs,
         )
         self._withheld_stages_logged: set[ExecutionStage] = set()
@@ -275,8 +267,8 @@ class TwoStageBinaryDecider(BaseDecider):
                 logger.info("thresholds unset, no decisions until the calibration")
             return {}
 
-        gate = _call_threshold("image_threshold", image_threshold, self.image_threshold)
-        pixel_cut = _call_threshold("pixel_threshold", pixel_threshold, self.pixel_threshold)
+        gate = call_threshold("image_threshold", image_threshold, self.image_threshold)
+        pixel_cut = call_threshold("pixel_threshold", pixel_threshold, self.pixel_threshold)
 
         tensor = logits
         decisions = []
@@ -360,54 +352,107 @@ class TwoStageBinaryDecider(BaseDecider):
         }
 
     def calibrate(
-        self, scores: Tensor, targets: Tensor, *, num_candidates: int = 256
+        self,
+        scores: Tensor,
+        targets: Tensor,
+        *,
+        num_candidates: int = 256,
     ) -> dict[str, Any]:
-        """Refit ``image_threshold`` + ``pixel_threshold`` to F1-max on labelled val scores.
+        """Refit ``image_threshold`` + ``pixel_threshold`` on labelled validation scores.
 
-        Runs the joint 2-D sweep (image gate x absolute pixel cutoff, raw score space, with
-        gated-out frames contributing their full ground truth as misses). Sets the F1-max
-        image gate and, at that gate, the F1-max absolute pixel threshold - moving stage 2
-        off the fixed-fraction quantile onto a cutoff that tracks anomaly size. Both values
-        are the midpoints of their F1 plateaus (``_calibration.margin_below``); the pixel
-        cutoff is exact in float32, the dtype ``forward`` compares in, and the gate uses the
-        very ``frame_image_score`` statistic ``forward`` computes. The values go to the live
-        attributes and to ``hparams``; ``pipeline.save_to_file`` then carries them in the
-        pipeline yaml. The ``.pt`` weights are unchanged, so load the saved yaml rather than
-        the preset plus weights. ``scores`` is the decider-input tensor stacked over the split
-        (``[N, H, W, C]``); ``targets`` the ground-truth mask. The report also carries the
-        on-point optima and the joint optimum, which may beat the conditional one.
+        With the default ``f1`` objective: runs the joint 2-D sweep (image gate x absolute
+        pixel cutoff, raw score space, with gated-out frames contributing their full ground
+        truth as misses). Sets the F1-max image gate and, at that gate, the F1-max absolute
+        pixel threshold - moving stage 2 off the fixed-fraction quantile onto a cutoff that
+        tracks anomaly size. The report also carries the on-point optima and the joint
+        optimum, which may beat the conditional one.
+
+        With a precision or recall objective (the ``calibration_objective``,
+        ``calibration_target`` and ``calibration_level`` hparams): keeps the (gate, cutoff)
+        that reaches the target with the best other metric
+        (:func:`_calibration.select_calibration_row`). Gates are every distinct image score;
+        at the frame level the cutoffs hold every frame's maximum pixel score, so the grid is
+        exact in the frame flags; at the pixel level the sampled grid is refined around the
+        best cell. A target no cell reaches lands on the closest one and the report says so.
+
+        Either way both values are the midpoints of their plateaus
+        (``_calibration.margin_below``); the pixel cutoff is exact in float32, the dtype
+        ``forward`` compares in, and the gate uses the very ``frame_image_score`` statistic
+        ``forward`` computes. The values go to the live attributes and to ``hparams``;
+        ``pipeline.save_to_file`` then carries them in the pipeline yaml. The ``.pt`` weights
+        are unchanged, so load the saved yaml rather than the preset plus weights. ``scores``
+        is the decider-input tensor stacked over the split (``[N, H, W, C]``); ``targets`` the
+        ground-truth mask.
+
+        The report's numbers at the applied point, counted as ``forward`` decides: precision,
+        recall, F1 and IoU at the pixel level (``pixel_*``) and at the frame level
+        (``frame_*``), the ``frames`` and ``anomalous_frames`` of the split and, for a target
+        objective, ``target`` and ``reached`` (1 or 0).
 
         Raises:
             CalibrationError: shape mismatch, non-finite scores, or a single-class split.
         """
         _, pixel, gt, frame_labels = _calibration.reduce_scores_targets(scores, targets)
         image_scores = _calibration.topk_mean_scores(pixel, self.top_k_fraction)
-        best_image, joint, conditional = _calibration.sweep_two_stage(
-            pixel, gt, image_scores, frame_labels, num_candidates
-        )
+        objective = self._calibration_objective
         old_image, old_pixel = self.image_threshold, self.pixel_threshold
-        new_image = float(best_image["margin_threshold"])
-        new_pixel = float(conditional["margin_pixel_threshold"])
+        report: dict[str, Any] = {"class": type(self).__name__}
+        if objective.targeted:
+            best, reached = _calibration.sweep_two_stage_target(
+                pixel, gt, image_scores, frame_labels, objective, num_candidates
+            )
+            new_image = float(best["margin_image_threshold"])
+            new_pixel = float(best["margin_pixel_threshold"])
+            on_point = {
+                "image_threshold": best["image_threshold"],
+                "pixel_threshold": best["pixel_threshold"],
+            }
+            report["target"] = objective.target
+            report["reached"] = 1.0 if reached else 0.0
+        else:
+            best_image, joint, conditional = _calibration.sweep_two_stage(
+                pixel, gt, image_scores, frame_labels, num_candidates
+            )
+            new_image = float(best_image["margin_threshold"])
+            new_pixel = float(conditional["margin_pixel_threshold"])
+            on_point = {
+                "image_threshold": best_image["threshold"],
+                "pixel_threshold": conditional["pixel_threshold"],
+            }
+            report["image_f1"] = best_image["f1"]
+            report["joint"] = {
+                "image_threshold": joint["margin_image_threshold"],
+                "pixel_threshold": joint["margin_pixel_threshold"],
+                "f1": joint["f1"],
+            }
+        counts = _calibration.counts_at_point(
+            pixel,
+            gt,
+            frame_labels,
+            image_scores >= new_image,
+            np.full(pixel.shape[0], np.float32(new_pixel)),
+        )
         self.image_threshold = new_image
         self.pixel_threshold = new_pixel
         self.hparams["image_threshold"] = new_image
         self.hparams["pixel_threshold"] = new_pixel
-        return {
-            "class": type(self).__name__,
-            "image_threshold": {"old": old_image, "new": new_image},
-            "pixel_threshold": {"old": old_pixel, "new": new_pixel},
-            "on_point": {
-                "image_threshold": best_image["threshold"],
-                "pixel_threshold": conditional["pixel_threshold"],
-            },
-            "image_f1": best_image["f1"],
-            "pixel_f1": conditional["f1"],
-            "pixel_precision": conditional["precision"],
-            "pixel_recall": conditional["recall"],
-            "pixel_iou": conditional["iou"],
-            "joint": {
-                "image_threshold": joint["margin_image_threshold"],
-                "pixel_threshold": joint["margin_pixel_threshold"],
-                "f1": joint["f1"],
-            },
-        }
+        report.update(
+            {
+                "image_threshold": {"old": old_image, "new": new_image},
+                "pixel_threshold": {"old": old_pixel, "new": new_pixel},
+                "on_point": on_point,
+                "objective": objective.objective,
+                "level": objective.level,
+                "pixel_f1": counts["f1"],
+                "pixel_precision": counts["precision"],
+                "pixel_recall": counts["recall"],
+                "pixel_iou": counts["iou"],
+                "frame_f1": counts["frame_f1"],
+                "frame_precision": counts["frame_precision"],
+                "frame_recall": counts["frame_recall"],
+                "frame_iou": counts["frame_iou"],
+                "frames": int(frame_labels.size),
+                "anomalous_frames": int(frame_labels.sum()),
+            }
+        )
+        return report

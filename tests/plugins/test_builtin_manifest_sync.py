@@ -123,3 +123,31 @@ def test_the_guard_reports_a_public_class_without_an_entry(monkeypatch) -> None:
     )
     monkeypatch.setattr(channel_selector, "ExtraSelector", extra, raising=False)
     assert _classes_without_manifest_entry() == {"ExtraSelector"}
+
+
+CALIBRATABLE_DECIDERS = (
+    "cuvis_ai.node.deciders.binary_decider.BinaryDecider",
+    "cuvis_ai.node.deciders.binary_decider.QuantileBinaryDecider",
+    "cuvis_ai.node.deciders.two_stage_decider.TwoStageBinaryDecider",
+)
+
+
+@pytest.mark.parametrize(
+    "class_name", CALIBRATABLE_DECIDERS, ids=lambda name: name.rsplit(".", 1)[1]
+)
+def test_calibratable_decider_entries_match_the_live_class(class_name: str) -> None:
+    """Port names and tags of the calibratable deciders equal the live class.
+
+    A client finds these deciders by their ``calibration`` tag and previews thresholds through
+    their optional input ports, so a manifest that lags behind either one hides them.
+    """
+    import importlib
+
+    module_name, name = class_name.rsplit(".", 1)
+    cls = getattr(importlib.import_module(module_name), name)
+    cap = _manifest_capability(class_name)
+
+    assert set(cap.input_specs) == set(cls.INPUT_SPECS), f"{class_name}: input ports out of sync"
+    assert set(cap.output_specs) == set(cls.OUTPUT_SPECS), f"{class_name}: output ports out of sync"
+    declared = {str(getattr(tag, "value", tag)) for tag in cap.tags}
+    assert declared == {tag.value for tag in cls.get_tags()}, f"{class_name}: tags out of sync"

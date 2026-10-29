@@ -83,3 +83,31 @@ def test_quantile_binary_decider_serialization_roundtrip(tmp_path: Path):
 def test_quantile_binary_decider_rejects_an_out_of_range_quantile(quantile: float) -> None:
     with pytest.raises(ValueError, match=r"Quantile must be within \[0.0, 1.0\]"):
         QuantileBinaryDecider(quantile=quantile)
+
+
+def test_the_quantile_input_replaces_the_hparam_for_one_call() -> None:
+    decider = QuantileBinaryDecider(quantile=0.5)
+    tensor = _make_linear_map()
+    result = decider.forward(logits=tensor, quantile=torch.tensor([0.9]))
+    assert torch.equal(result["decisions"], tensor >= torch.quantile(tensor, 0.9))
+    assert decider.quantile == 0.5
+    assert decider.hparams["quantile"] == 0.5
+    assert torch.equal(
+        decider.forward(logits=tensor)["decisions"], tensor >= torch.quantile(tensor, 0.5)
+    )
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        torch.tensor([0.4, 0.6]),
+        torch.tensor(0.5),
+        torch.tensor([float("nan")]),
+        torch.tensor([-0.1]),
+        torch.tensor([1.5]),
+    ],
+)
+def test_a_bad_quantile_input_is_refused_by_port_name(value: torch.Tensor) -> None:
+    decider = QuantileBinaryDecider(quantile=0.5)
+    with pytest.raises(ValueError, match="quantile"):
+        decider.forward(logits=_make_linear_map(), quantile=value)
