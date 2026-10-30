@@ -25,13 +25,12 @@ import torch
 from cuvis_ai_schemas.enums import ExecutionStage, NodeCategory, NodeTag
 from cuvis_ai_schemas.execution import Context
 from cuvis_ai_schemas.pipeline import PortSpec
-from cuvis_ai_schemas.training import CalibrationConfig
 from loguru import logger
 from torch import Tensor
 
+from cuvis_ai_core.deciders import threshold_search
 from cuvis_ai_core.deciders.base_decider import BinaryDecider as BaseDecider
 
-from . import _calibration
 from ._port_inputs import call_threshold, optional_finite
 
 _WITHHOLDING_STAGES = frozenset({ExecutionStage.TRAIN, ExecutionStage.VAL, ExecutionStage.TEST})
@@ -153,6 +152,12 @@ class TwoStageBinaryDecider(BaseDecider):
         ),
     }
 
+    # The calibration contract (cuvis_ai_core.deciders.BinaryDecider): the search moves the
+    # image gate and the absolute pixel cutoff, at the pixel or the frame level.
+    CALIBRATION_RULE = "gate_cutoff"
+    CALIBRATION_GATE = "image_threshold"
+    CALIBRATION_CUTOFF = "pixel_threshold"
+
     def __init__(
         self,
         image_threshold: float | None = None,
@@ -196,6 +201,10 @@ class TwoStageBinaryDecider(BaseDecider):
         the TRAIN, VAL and TEST stages instead of falling back to the per-frame quantile.
         """
         return self.image_threshold is not None and self.pixel_threshold is not None
+
+    def calibration_image_scores(self, pixel_scores: np.ndarray) -> np.ndarray:
+        """The stage-1 statistic per frame: the top-k mean ``forward`` computes."""
+        return threshold_search.topk_mean_scores(pixel_scores, self.top_k_fraction)
 
     def forward(
         self,
@@ -283,7 +292,7 @@ class TwoStageBinaryDecider(BaseDecider):
             # Stage 1 statistic, computed for every frame: the gate compares it when on, a
             # GUI marks it on the slider when off. Shared with calibrate(), so a calibrated
             # gate is exact here.
-            image_score = _calibration.frame_image_score(pixel_scores, self.top_k_fraction)
+            image_score = threshold_search.frame_image_score(pixel_scores, self.top_k_fraction)
             image_scores.append(image_score)
 
             # Stage 2 cutoff, resolved before the gate decision so a gated-out frame reports
@@ -301,7 +310,7 @@ class TwoStageBinaryDecider(BaseDecider):
 
             # Stage 1: image-level gate, skipped when no threshold is set.
             if gate is not None:
-                k = _calibration.topk_count(pixel_scores.numel(), self.top_k_fraction)
+                k = threshold_search.topk_count(pixel_scores.numel(), self.top_k_fraction)
                 # Lazy args (bound as defaults so each frame logs its own values): nothing
                 # is formatted unless the debug level is enabled.
                 if image_score < gate:
@@ -343,100 +352,3 @@ class TwoStageBinaryDecider(BaseDecider):
                 image_scores, dtype=torch.float32, device=tensor.device
             ),
         }
-
-    def calibrate(
-        self,
-        scores: Tensor,
-        targets: Tensor,
-        *,
-        objective: CalibrationConfig | None = None,
-        num_candidates: int = 256,
-    ) -> dict[str, Any]:
-        """Refit ``image_threshold`` + ``pixel_threshold`` on labelled validation scores.
-
-        Without a calibration block (``objective``, from the trainrun), or with the f1 one:
-        runs the joint 2-D sweep (image gate x absolute pixel cutoff, raw score space, with
-        gated-out frames contributing their full ground truth as misses). Sets the F1-max
-        image gate and, at that gate, the F1-max absolute pixel threshold, which moves stage 2
-        off the fixed-fraction quantile onto a cutoff that tracks anomaly size. The report
-        also carries the on-point optima and the joint optimum, which may beat the
-        conditional one.
-
-        With a precision or recall target: keeps the (gate, cutoff) that reaches the target
-        with the best other metric
-        (:func:`_calibration.select_calibration_row`). Gates are every distinct image score;
-        at the frame level the cutoffs hold every frame's maximum pixel score, so the grid is
-        exact in the frame flags; at the pixel level the sampled grid is refined around the
-        best cell. A target no cell reaches lands on the closest one and the report says so.
-
-        Either way both values are the midpoints of their plateaus
-        (``_calibration.margin_below``); the pixel cutoff is exact in float32, the dtype
-        ``forward`` compares in, and the gate uses the very ``frame_image_score`` statistic
-        ``forward`` computes. The values go to the live attributes and to ``hparams``;
-        ``pipeline.save_to_file`` then carries them in the pipeline yaml. The ``.pt`` weights
-        are unchanged, so load the saved yaml rather than the preset plus weights. ``scores``
-        is the decider-input tensor stacked over the split (``[N, H, W, C]``); ``targets`` the
-        ground-truth mask.
-
-        The report's numbers at the applied point, counted as ``forward`` decides: precision,
-        recall, F1 and IoU at the pixel level (``pixel_*``) and at the frame level
-        (``frame_*``) with the ``tp``, ``fp`` and ``fn`` counts behind them, the ``frames``
-        and ``anomalous_frames`` of the split and, for a target objective, ``target`` and
-        ``reached`` (1 or 0).
-
-        Raises:
-            CalibrationError: shape mismatch, non-finite scores, or a single-class split.
-        """
-        goal = _calibration.calibration_objective_of(objective)
-        _, pixel, gt, frame_labels = _calibration.reduce_scores_targets(scores, targets)
-        image_scores = _calibration.topk_mean_scores(pixel, self.top_k_fraction)
-        old_image, old_pixel = self.image_threshold, self.pixel_threshold
-        report: dict[str, Any] = {"class": type(self).__name__}
-        if goal.targeted:
-            best, reached = _calibration.sweep_two_stage_target(
-                pixel, gt, image_scores, frame_labels, goal, num_candidates
-            )
-            new_image = float(best["margin_image_threshold"])
-            new_pixel = float(best["margin_pixel_threshold"])
-            on_point = {
-                "image_threshold": best["image_threshold"],
-                "pixel_threshold": best["pixel_threshold"],
-            }
-            report["target"] = goal.target
-            report["reached"] = 1.0 if reached else 0.0
-        else:
-            best_image, joint, conditional = _calibration.sweep_two_stage(
-                pixel, gt, image_scores, frame_labels, num_candidates
-            )
-            new_image = float(best_image["margin_threshold"])
-            new_pixel = float(conditional["margin_pixel_threshold"])
-            on_point = {
-                "image_threshold": best_image["threshold"],
-                "pixel_threshold": conditional["pixel_threshold"],
-            }
-            report["image_f1"] = best_image["f1"]
-            report["joint"] = {
-                "image_threshold": joint["margin_image_threshold"],
-                "pixel_threshold": joint["margin_pixel_threshold"],
-                "f1": joint["f1"],
-            }
-        counts = _calibration.counts_at_point(
-            pixel,
-            gt,
-            frame_labels,
-            image_scores >= new_image,
-            np.full(pixel.shape[0], np.float32(new_pixel)),
-        )
-        self.image_threshold = new_image
-        self.pixel_threshold = new_pixel
-        self.hparams["image_threshold"] = new_image
-        self.hparams["pixel_threshold"] = new_pixel
-        report.update(_calibration.calibration_report(goal, counts, frame_labels))
-        report.update(
-            {
-                "image_threshold": {"old": old_image, "new": new_image},
-                "pixel_threshold": {"old": old_pixel, "new": new_pixel},
-                "on_point": on_point,
-            }
-        )
-        return report

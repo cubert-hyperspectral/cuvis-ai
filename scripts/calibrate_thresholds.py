@@ -78,8 +78,8 @@ from cuvis_ai_schemas.pipeline import PipelineConfig
 from cuvis_ai_schemas.training import CalibrationConfig
 from loguru import logger
 
-from cuvis_ai.node.deciders import _calibration as _calib
 from cuvis_ai.utils.grpc_workflow import CONFIG_ROOT
+from cuvis_ai_core.deciders import threshold_search as _calib
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_core.training.config import TrainRunConfig
 from cuvis_ai_core.utils.node_registry import NodeRegistry
@@ -789,7 +789,7 @@ def _current_preset_binary(
     """Metrics at the ``BinaryDecider`` threshold currently shipped.
 
     ``probabilities`` are the float32 sigmoid values ``forward`` compares (see
-    ``_calibration.sigmoid_float32``), so this is the decision ``forward`` makes today.
+    ``threshold_search.sigmoid_float32``), so this is the decision ``forward`` makes today.
     """
     threshold = float(decider_defaults.get("threshold", 0.5))
     flagged = probabilities >= threshold

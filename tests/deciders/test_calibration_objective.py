@@ -1,9 +1,10 @@
-"""Calibration to a precision or recall target.
+"""Calibration to a precision or recall target through the deciders.
 
 The deciders calibrate to the F1 optimum unless the trainrun's calibration block, handed to
 ``calibrate`` as ``objective``, names a target: ``precision`` or ``recall`` at the level
-``pixels`` or ``frames``. These tests pin the selection rule on hand-built rows, how the block
-maps to the objective, the parity of the single-threshold deciders with torchmetrics'
+``pixels`` or ``frames``. The search and its selection rule live in cuvis-ai-core
+(``cuvis_ai_core.deciders.threshold_search``, tested there); these tests pin what the three
+deciders make of it: the parity of the single-threshold deciders with torchmetrics'
 fixed-point metrics (which search every distinct score, so they also prove the refinement finds
 the exact point on a split larger than the candidate grid), the frame-level definition against
 ``forward``, the unreachable case, and the report numbers a client reads.
@@ -17,29 +18,13 @@ import torch
 from cuvis_ai_schemas.training import CalibrationConfig
 from torchmetrics.classification import BinaryPrecisionAtFixedRecall, BinaryRecallAtFixedPrecision
 
-from cuvis_ai.node.deciders import _calibration as calib
 from cuvis_ai.node.deciders.binary_decider import BinaryDecider, QuantileBinaryDecider
 from cuvis_ai.node.deciders.two_stage_decider import TwoStageBinaryDecider
+from cuvis_ai_core.deciders import threshold_search as calib
 
 pytestmark = pytest.mark.unit
 
 DECIDERS = [BinaryDecider, QuantileBinaryDecider, TwoStageBinaryDecider]
-
-
-def _row(**values):
-    """A sweep row with every metric the selection reads, zero unless given."""
-    row = {
-        "precision": 0.0,
-        "recall": 0.0,
-        "f1": 0.0,
-        "frame_precision": 0.0,
-        "frame_recall": 0.0,
-        "frame_f1": 0.0,
-        "image_threshold": 0.0,
-        "pixel_threshold": 0.0,
-    }
-    row.update(values)
-    return row
 
 
 def _block(objective: str = "f1", target: float | None = None, level: str = "pixels"):
@@ -75,94 +60,7 @@ def _pixel_prf(decisions: torch.Tensor, targets: torch.Tensor) -> dict[str, floa
     return calib.prf(tp, fp, fn)
 
 
-# --- the selection rule on hand-built rows -------------------------------------------------
-
-
-def test_recall_target_takes_the_most_precise_row_at_or_above_the_target():
-    rows = [
-        _row(recall=0.95, precision=0.5, pixel_threshold=1.0),
-        _row(recall=0.92, precision=0.7, pixel_threshold=2.0),
-        _row(recall=0.85, precision=0.9, pixel_threshold=3.0),
-    ]
-    row, reached = calib.select_calibration_row(
-        rows, calib.CalibrationObjective("recall", 0.9, "pixels")
-    )
-    assert reached
-    assert row["pixel_threshold"] == 2.0
-
-
-def test_precision_target_takes_the_highest_recall_row_at_or_above_the_target():
-    rows = [
-        _row(recall=0.95, precision=0.5, pixel_threshold=1.0),
-        _row(recall=0.92, precision=0.7, pixel_threshold=2.0),
-        _row(recall=0.85, precision=0.9, pixel_threshold=3.0),
-    ]
-    row, reached = calib.select_calibration_row(
-        rows, calib.CalibrationObjective("precision", 0.6, "pixels")
-    )
-    assert reached
-    assert row["pixel_threshold"] == 2.0
-
-
-def test_ties_resolve_by_the_other_level_then_the_higher_thresholds():
-    rows = [
-        _row(recall=0.9, precision=0.8, frame_f1=0.5, image_threshold=1.0, pixel_threshold=2.0),
-        _row(recall=0.9, precision=0.8, frame_f1=0.9, image_threshold=1.0, pixel_threshold=1.0),
-        _row(recall=0.9, precision=0.8, frame_f1=0.9, image_threshold=2.0, pixel_threshold=1.0),
-    ]
-    row, _ = calib.select_calibration_row(rows, calib.CalibrationObjective("recall", 0.9, "pixels"))
-    assert row["frame_f1"] == 0.9
-    assert (row["image_threshold"], row["pixel_threshold"]) == (2.0, 1.0)
-
-
-def test_unreachable_recall_lands_on_the_highest_recall_row_and_says_so():
-    rows = [
-        _row(recall=0.95, precision=0.5, pixel_threshold=1.0),
-        _row(recall=0.95, precision=0.6, pixel_threshold=2.0),
-        _row(recall=0.85, precision=0.9, pixel_threshold=3.0),
-    ]
-    row, reached = calib.select_calibration_row(
-        rows, calib.CalibrationObjective("recall", 0.99, "pixels")
-    )
-    assert not reached
-    assert row["pixel_threshold"] == 2.0  # the most precise of the highest-recall rows
-
-
-def test_unreachable_precision_lands_on_the_most_precise_row():
-    rows = [
-        _row(recall=0.95, precision=0.5, pixel_threshold=1.0),
-        _row(recall=0.85, precision=0.9, pixel_threshold=3.0),
-        _row(recall=0.80, precision=0.9, pixel_threshold=4.0),
-    ]
-    row, reached = calib.select_calibration_row(
-        rows, calib.CalibrationObjective("precision", 0.99, "pixels")
-    )
-    assert not reached
-    assert row["pixel_threshold"] == 3.0  # the highest recall among the most precise rows
-
-
-def test_frame_level_reads_the_frame_columns():
-    rows = [
-        _row(frame_recall=0.9, frame_precision=0.5, recall=0.1, precision=0.1, pixel_threshold=1.0),
-        _row(frame_recall=0.9, frame_precision=0.8, recall=0.1, precision=0.1, pixel_threshold=2.0),
-    ]
-    row, reached = calib.select_calibration_row(
-        rows, calib.CalibrationObjective("recall", 0.9, "frames")
-    )
-    assert reached
-    assert row["pixel_threshold"] == 2.0
-
-
-# --- the objective argument ----------------------------------------------------------------
-
-
-def test_no_block_is_the_f1_optimum():
-    assert calib.calibration_objective_of(None) == calib.CalibrationObjective("f1", None, "pixels")
-
-
-def test_the_block_maps_to_the_objective():
-    objective = calib.calibration_objective_of(_block("recall", 0.9, "frames"))
-    assert objective == calib.CalibrationObjective("recall", 0.9, "frames")
+# --- the objective argument ------------------------------------------------------------
 
 
 def test_the_quantile_decider_refuses_the_frame_level():

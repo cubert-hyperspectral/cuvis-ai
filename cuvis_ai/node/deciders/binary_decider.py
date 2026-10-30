@@ -16,17 +16,15 @@ import numbers
 from collections.abc import Sequence
 from typing import Any
 
-import numpy as np
 import torch
 from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.pipeline import PortSpec
-from cuvis_ai_schemas.training import CalibrationConfig
 from torch import Tensor
 
+from cuvis_ai_core.deciders import threshold_search
 from cuvis_ai_core.deciders.base_decider import BinaryDecider as BaseDecider
 from cuvis_ai_core.node import Node
 
-from . import _calibration
 from ._port_inputs import call_threshold
 
 
@@ -131,10 +129,19 @@ class BinaryDecider(BaseDecider):
         )
     }
 
+    # The calibration contract (cuvis_ai_core.deciders.BinaryDecider): the search moves
+    # ``threshold`` on the sigmoid probabilities, the space ``forward`` compares in.
+    CALIBRATION_RULE = "cutoff"
+    CALIBRATION_CUTOFF = "threshold"
+
     def __init__(self, threshold: float = 0.5, **kwargs) -> None:
         self.threshold = threshold
         # Forward threshold to BaseDecider so Serializable captures it in hparams
         super().__init__(threshold=threshold, **kwargs)
+
+    def calibration_scores(self, scores: Tensor) -> Tensor:
+        """``sigmoid(scores)`` in float32, what ``forward`` compares ``threshold`` against."""
+        return torch.sigmoid(scores.detach().to("cpu", torch.float32))
 
     def forward(
         self,
@@ -157,74 +164,6 @@ class BinaryDecider(BaseDecider):
         """
         cut = call_threshold("threshold", threshold, self.threshold)
         return {"decisions": torch.sigmoid(logits) >= cut}
-
-    def calibrate(
-        self,
-        scores: Tensor,
-        targets: Tensor,
-        *,
-        objective: CalibrationConfig | None = None,
-        num_candidates: int = 256,
-    ) -> dict[str, Any]:
-        """Refit ``threshold`` on labelled validation scores.
-
-        ``scores`` is the decider-input tensor stacked over the split (``[N, H, W, C]``);
-        ``targets`` the matching ground-truth mask; ``objective`` the trainrun's calibration
-        block. The sweep runs on ``torch.sigmoid(scores)`` in float32, exactly what ``forward``
-        compares against ``threshold``, so the fitted value is reachable at runtime even when
-        raw logits saturate the sigmoid. Without a block, or with the f1 one, the optimum is
-        the F1 maximum; with a precision or recall target it is the cutoff that reaches the
-        target with the best other metric (:func:`_calibration.select_calibration_row`), found on every distinct
-        score of a small split and by a refinement around the best sampled cutoff on a large
-        one; a target no cutoff reaches lands on the closest one and the report says so.
-        Either value is moved to the midpoint of its plateau (``_calibration.margin_below``)
-        and written to the live attribute and to ``hparams``; ``pipeline.save_to_file`` then
-        carries it in the pipeline yaml. The ``.pt`` weights are unchanged, so load the saved
-        yaml rather than the preset plus weights. Multi-channel input is reduced to the
-        per-pixel max, which matches ``forward`` exactly for single-channel scores.
-
-        The report carries, at the applied point and counted as ``forward`` decides, the
-        pixel-level ``f1``, ``precision`` and ``recall`` (also as ``pixel_*``), the frame-level
-        ``frame_*`` numbers, ``frames`` and ``anomalous_frames`` and, for a target objective,
-        ``target`` and ``reached`` (1 or 0).
-
-        Raises:
-            CalibrationError: shape mismatch, non-finite scores, or a single-class split.
-        """
-        goal = _calibration.calibration_objective_of(objective)
-        probabilities = torch.sigmoid(scores.detach().to("cpu", torch.float32))
-        _, pixel, gt, frame_labels = _calibration.reduce_scores_targets(probabilities, targets)
-        old = self.threshold
-        report: dict[str, Any] = {"class": type(self).__name__}
-        if goal.targeted:
-            best, reached = _calibration.sweep_absolute_target(
-                pixel, gt, frame_labels, goal, num_candidates
-            )
-            report["target"] = goal.target
-            report["reached"] = 1.0 if reached else 0.0
-        else:
-            best = _calibration.sweep_absolute(pixel, gt, num_candidates)
-        new = float(best["margin_threshold"])
-        counts = _calibration.counts_at_point(
-            pixel,
-            gt,
-            frame_labels,
-            np.ones(pixel.shape[0], dtype=bool),
-            np.full(pixel.shape[0], np.float32(new)),
-        )
-        self.threshold = new
-        self.hparams["threshold"] = new
-        report.update(_calibration.calibration_report(goal, counts, frame_labels))
-        report.update(
-            {
-                "threshold": {"old": old, "new": new},
-                "on_point_threshold": best["threshold"],
-                "f1": counts["f1"],
-                "precision": counts["precision"],
-                "recall": counts["recall"],
-            }
-        )
-        return report
 
 
 class QuantileBinaryDecider(BaseDecider):
@@ -307,6 +246,13 @@ class QuantileBinaryDecider(BaseDecider):
         )
     }
 
+    # The calibration contract (cuvis_ai_core.deciders.BinaryDecider): the search moves
+    # ``quantile``, one per-frame cutoff over all non-batch dims, so it serves the pixel
+    # level only.
+    CALIBRATION_RULE = "quantile"
+    CALIBRATION_CUTOFF = "quantile"
+    CALIBRATION_LEVELS = ("pixels",)
+
     def __init__(
         self,
         quantile: float = 0.995,
@@ -321,6 +267,28 @@ class QuantileBinaryDecider(BaseDecider):
         )
         # Forward init params so Serializable records them for config serialization
         super().__init__(quantile=self.quantile, reduce_dims=self.reduce_dims, **kwargs)
+
+    def calibration_scores(self, scores: Tensor) -> Tensor:
+        """The raw scores, once ``reduce_dims`` is a rule the per-frame sweep reproduces.
+
+        Raises:
+            CalibrationError: ``reduce_dims`` keeps a real (size > 1) non-batch axis out of
+                the quantile; the sweep probes one quantile per frame over all non-batch
+                dims and cannot reproduce that rule.
+        """
+        kept = [
+            dim
+            for dim in range(1, scores.dim())
+            if dim not in resolve_reduce_dims(self.reduce_dims, scores.dim())
+            and scores.shape[dim] > 1
+        ]
+        if kept:
+            raise threshold_search.CalibrationError(
+                f"{type(self).__name__} reduce_dims={self.reduce_dims!r} keeps axes {kept} of "
+                f"shape {tuple(scores.shape)} out of the quantile; calibration sweeps one "
+                "quantile per frame over all non-batch dims and cannot reproduce that rule"
+            )
+        return scores
 
     def forward(
         self, logits: Tensor, *, quantile: Tensor | None = None, **_: Any
@@ -373,90 +341,6 @@ class QuantileBinaryDecider(BaseDecider):
 
         decisions = (tensor >= threshold).to(torch.bool)
         return {"decisions": decisions}
-
-    def calibrate(
-        self,
-        scores: Tensor,
-        targets: Tensor,
-        *,
-        objective: CalibrationConfig | None = None,
-        num_candidates: int = 256,
-    ) -> dict[str, Any]:
-        """Refit ``quantile`` on labelled validation scores.
-
-        The node recomputes its cutoff from each frame's own scores, so there is no absolute
-        threshold to fit: the sweep finds the best flagged-pixel fraction instead (per frame,
-        over the full ``[H, W, C]`` tensor, matching the runtime ``torch.quantile`` with the
-        default ``reduce_dims``). Without a calibration block (``objective``, from the
-        trainrun), or with the f1 one, that is the F1-best fraction; with a precision or recall
-        target it is the one that reaches the target with the best other metric on a grid that reaches both ends
-        (:func:`_calibration.select_calibration_row`); a target no quantile on the grid reaches
-        lands on the closest one and the report says so. The result is written to the live
-        attribute and to ``hparams``; ``pipeline.save_to_file`` then carries it in the pipeline
-        yaml (the ``.pt`` weights are unchanged). Decisions are scored on the per-pixel max over
-        channels, which matches ``forward`` exactly for single-channel scores.
-
-        The report carries, at the applied quantile and counted as ``forward`` decides, the
-        pixel-level ``f1``, ``precision`` and ``recall`` (also as ``pixel_*``), the frame-level
-        ``frame_*`` numbers (the same at every quantile: every frame flags at least its
-        maximum), ``frames`` and ``anomalous_frames`` and, for a target objective, ``target``
-        and ``reached`` (1 or 0).
-
-        Raises:
-            ValueError: a calibration block at the ``"frames"`` level, which this node does
-                not serve.
-            CalibrationError: shape mismatch, non-finite scores, a single-class split, or a
-                ``reduce_dims`` that keeps a real (size > 1) non-batch axis out of the quantile,
-                a decision rule the per-frame sweep cannot reproduce.
-        """
-        goal = _calibration.calibration_objective_of(objective, levels=("pixels",))
-        kept = [
-            dim
-            for dim in range(1, scores.dim())
-            if dim not in resolve_reduce_dims(self.reduce_dims, scores.dim())
-            and scores.shape[dim] > 1
-        ]
-        if kept:
-            raise _calibration.CalibrationError(
-                f"{type(self).__name__} reduce_dims={self.reduce_dims!r} keeps axes {kept} of "
-                f"shape {tuple(scores.shape)} out of the quantile; calibration sweeps one "
-                "quantile per frame over all non-batch dims and cannot reproduce that rule"
-            )
-        full, pixel, gt, frame_labels = _calibration.reduce_scores_targets(scores, targets)
-        flat = full.reshape(full.shape[0], -1)  # [N, H*W*C] - the runtime quantile space
-        old = self.quantile
-        report: dict[str, Any] = {"class": type(self).__name__}
-        if goal.targeted:
-            grid = _calibration.quantile_target_grid(flat.shape[1], self.quantile, num_candidates)
-            per_frame = np.quantile(flat, grid, axis=1)  # [len(grid), N]
-            frame_quantiles = {float(q): per_frame[i] for i, q in enumerate(grid)}
-            rows = _calibration.quantile_rows(pixel, gt, frame_labels, frame_quantiles)
-            best, reached = _calibration.select_calibration_row(rows, goal)
-            report["target"] = goal.target
-            report["reached"] = 1.0 if reached else 0.0
-        else:
-            grid = _calibration.quantile_grid_builder(self.quantile, num_candidates)(flat.shape[1])
-            per_frame = np.quantile(flat, grid, axis=1)  # [len(grid), N]
-            frame_quantiles = {float(q): per_frame[i] for i, q in enumerate(grid)}
-            best = _calibration.sweep_quantile(pixel, gt, frame_quantiles)
-        new = float(best["quantile"])
-        # The cutoffs forward will apply: torch's quantile on each frame's own values.
-        cutoffs = torch.quantile(torch.from_numpy(flat), new, dim=1).numpy().astype(np.float32)
-        counts = _calibration.counts_at_point(
-            pixel, gt, frame_labels, np.ones(pixel.shape[0], dtype=bool), cutoffs
-        )
-        self.quantile = new
-        self.hparams["quantile"] = new
-        report.update(_calibration.calibration_report(goal, counts, frame_labels))
-        report.update(
-            {
-                "quantile": {"old": old, "new": new},
-                "f1": counts["f1"],
-                "precision": counts["precision"],
-                "recall": counts["recall"],
-            }
-        )
-        return report
 
 
 _KEEP = ("below", "above")
