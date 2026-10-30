@@ -736,3 +736,34 @@ def counts_at_point(
     pixel = {**prf(tp, fp, fn), "tp": tp, "fp": fp, "fn": fn}
     frame = {**prf(frame_tp, frame_fp, frame_fn), "tp": frame_tp, "fp": frame_fp, "fn": frame_fn}
     return {**pixel, **{f"frame_{key}": value for key, value in frame.items()}}
+
+
+def calibration_report(
+    goal: CalibrationObjective, counts: dict[str, float], frame_labels: np.ndarray
+) -> dict[str, Any]:
+    """The objective, level and per-level metrics every ``calibrate`` report carries.
+
+    ``counts`` is :func:`counts_at_point`'s return at the applied threshold; ``frame_labels``
+    the split's per-frame ground truth. Callers update the result with their own before/after
+    and on-point keys.
+    """
+    return {
+        "objective": goal.objective,
+        "level": goal.level,
+        "pixel_f1": counts["f1"],
+        "pixel_precision": counts["precision"],
+        "pixel_recall": counts["recall"],
+        "pixel_iou": counts["iou"],
+        "pixel_tp": int(counts["tp"]),
+        "pixel_fp": int(counts["fp"]),
+        "pixel_fn": int(counts["fn"]),
+        "frame_f1": counts["frame_f1"],
+        "frame_precision": counts["frame_precision"],
+        "frame_recall": counts["frame_recall"],
+        "frame_iou": counts["frame_iou"],
+        "frame_tp": int(counts["frame_tp"]),
+        "frame_fp": int(counts["frame_fp"]),
+        "frame_fn": int(counts["frame_fn"]),
+        "frames": int(frame_labels.size),
+        "anomalous_frames": int(frame_labels.sum()),
+    }

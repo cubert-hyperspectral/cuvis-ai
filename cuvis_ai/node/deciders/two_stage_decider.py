@@ -431,29 +431,12 @@ class TwoStageBinaryDecider(BaseDecider):
         self.pixel_threshold = new_pixel
         self.hparams["image_threshold"] = new_image
         self.hparams["pixel_threshold"] = new_pixel
+        report.update(_calibration.calibration_report(goal, counts, frame_labels))
         report.update(
             {
                 "image_threshold": {"old": old_image, "new": new_image},
                 "pixel_threshold": {"old": old_pixel, "new": new_pixel},
                 "on_point": on_point,
-                "objective": goal.objective,
-                "level": goal.level,
-                "pixel_f1": counts["f1"],
-                "pixel_precision": counts["precision"],
-                "pixel_recall": counts["recall"],
-                "pixel_iou": counts["iou"],
-                "pixel_tp": int(counts["tp"]),
-                "pixel_fp": int(counts["fp"]),
-                "pixel_fn": int(counts["fn"]),
-                "frame_f1": counts["frame_f1"],
-                "frame_precision": counts["frame_precision"],
-                "frame_recall": counts["frame_recall"],
-                "frame_iou": counts["frame_iou"],
-                "frame_tp": int(counts["frame_tp"]),
-                "frame_fp": int(counts["frame_fp"]),
-                "frame_fn": int(counts["frame_fn"]),
-                "frames": int(frame_labels.size),
-                "anomalous_frames": int(frame_labels.sum()),
             }
         )
         return report

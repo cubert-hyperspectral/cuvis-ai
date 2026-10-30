@@ -214,31 +214,14 @@ class BinaryDecider(BaseDecider):
         )
         self.threshold = new
         self.hparams["threshold"] = new
+        report.update(_calibration.calibration_report(goal, counts, frame_labels))
         report.update(
             {
                 "threshold": {"old": old, "new": new},
                 "on_point_threshold": best["threshold"],
-                "objective": goal.objective,
-                "level": goal.level,
                 "f1": counts["f1"],
                 "precision": counts["precision"],
                 "recall": counts["recall"],
-                "pixel_f1": counts["f1"],
-                "pixel_precision": counts["precision"],
-                "pixel_recall": counts["recall"],
-                "pixel_iou": counts["iou"],
-                "pixel_tp": int(counts["tp"]),
-                "pixel_fp": int(counts["fp"]),
-                "pixel_fn": int(counts["fn"]),
-                "frame_f1": counts["frame_f1"],
-                "frame_precision": counts["frame_precision"],
-                "frame_recall": counts["frame_recall"],
-                "frame_iou": counts["frame_iou"],
-                "frame_tp": int(counts["frame_tp"]),
-                "frame_fp": int(counts["frame_fp"]),
-                "frame_fn": int(counts["frame_fn"]),
-                "frames": int(frame_labels.size),
-                "anomalous_frames": int(frame_labels.sum()),
             }
         )
         return report
@@ -464,30 +447,13 @@ class QuantileBinaryDecider(BaseDecider):
         )
         self.quantile = new
         self.hparams["quantile"] = new
+        report.update(_calibration.calibration_report(goal, counts, frame_labels))
         report.update(
             {
                 "quantile": {"old": old, "new": new},
-                "objective": goal.objective,
-                "level": goal.level,
                 "f1": counts["f1"],
                 "precision": counts["precision"],
                 "recall": counts["recall"],
-                "pixel_f1": counts["f1"],
-                "pixel_precision": counts["precision"],
-                "pixel_recall": counts["recall"],
-                "pixel_iou": counts["iou"],
-                "pixel_tp": int(counts["tp"]),
-                "pixel_fp": int(counts["fp"]),
-                "pixel_fn": int(counts["fn"]),
-                "frame_f1": counts["frame_f1"],
-                "frame_precision": counts["frame_precision"],
-                "frame_recall": counts["frame_recall"],
-                "frame_iou": counts["frame_iou"],
-                "frame_tp": int(counts["frame_tp"]),
-                "frame_fp": int(counts["frame_fp"]),
-                "frame_fn": int(counts["frame_fn"]),
-                "frames": int(frame_labels.size),
-                "anomalous_frames": int(frame_labels.sum()),
             }
         )
         return report
