@@ -133,7 +133,7 @@ for progress in train_with_retry(stub, session_id, cuvis_ai_pb2.TRAINER_TYPE_GRA
 
 **Retryable vs Non-Retryable Errors:**
 
-- **Retry:** `UNAVAILABLE`, `DEADLINE_EXCEEDED`, `RESOURCE_EXHAUSTED` (transient)
+- **Retry:** `UNAVAILABLE`, `DEADLINE_EXCEEDED`, `RESOURCE_EXHAUSTED` (transient). From `Train` or `RestoreTrainRun`, `RESOURCE_EXHAUSTED` means the GPU ran out of memory: the same request fails again, so retry on the CPU (a trainrun with `training.accelerator: cpu`) or after freeing GPU memory.
 - **Don't Retry:** `INVALID_ARGUMENT`, `NOT_FOUND`, `FAILED_PRECONDITION` (permanent)
 
 ---

@@ -159,7 +159,7 @@ capabilities:
   doc_summary: Computes μ, Σ per image in the batch on the fly; no fit/finalize.
 - class_name: cuvis_ai.node.deciders.binary_decider.BinaryDecider
   category: transform
-  tags: [classification, numpy, postprocessing]
+  tags: [calibration, classification, numpy, postprocessing]
   icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
   input_specs:
     logits:
@@ -167,6 +167,11 @@ capabilities:
       shape: [-1, -1, -1, -1]
       optional: false
       description: Input logits to threshold (BHWC format)
+    threshold:
+      dtype: float32
+      shape: [1]
+      optional: true
+      description: 'Threshold on sigmoid(logits) for this call [1]; replaces the `threshold` hparam.'
   output_specs:
     decisions:
       dtype: bool
@@ -176,7 +181,7 @@ capabilities:
   doc_summary: Simple decider node using a static threshold to classify data.
 - class_name: cuvis_ai.node.deciders.binary_decider.QuantileBinaryDecider
   category: transform
-  tags: [classification, numpy, postprocessing]
+  tags: [calibration, classification, numpy, postprocessing]
   icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
   input_specs:
     logits:
@@ -184,6 +189,11 @@ capabilities:
       shape: [-1, -1, -1, -1]
       optional: false
       description: Input logits or anomaly scores (BHWC format)
+    quantile:
+      dtype: float32
+      shape: [1]
+      optional: true
+      description: 'Quantile for this call [1], within [0, 1]; replaces the `quantile` hparam.'
   output_specs:
     decisions:
       dtype: bool
@@ -257,7 +267,7 @@ capabilities:
   doc_summary: Zero a display map unless its per-frame top-k score exceeds a threshold (heatmap or mask).
 - class_name: cuvis_ai.node.deciders.two_stage_decider.TwoStageBinaryDecider
   category: transform
-  tags: [classification, numpy, postprocessing]
+  tags: [calibration, classification, numpy, postprocessing]
   icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
   input_specs:
     logits:

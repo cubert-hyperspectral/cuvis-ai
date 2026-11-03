@@ -17,10 +17,10 @@ cuvis_ai.node.deciders.binary_decider : Simple threshold-based binary decisions
 from __future__ import annotations
 
 import math
-import numbers
 from collections.abc import Sequence
 from typing import Any
 
+import numpy as np
 import torch
 from cuvis_ai_schemas.enums import ExecutionStage, NodeCategory, NodeTag
 from cuvis_ai_schemas.execution import Context
@@ -28,37 +28,12 @@ from cuvis_ai_schemas.pipeline import PortSpec
 from loguru import logger
 from torch import Tensor
 
+from cuvis_ai_core.deciders import threshold_search
 from cuvis_ai_core.deciders.base_decider import BinaryDecider as BaseDecider
 
-from . import _calibration
+from ._port_inputs import call_threshold, optional_finite
 
 _WITHHOLDING_STAGES = frozenset({ExecutionStage.TRAIN, ExecutionStage.VAL, ExecutionStage.TEST})
-
-
-def _optional_finite(name: str, value: Any) -> float | None:
-    """Return ``value`` as a float, pass ``None`` through, refuse anything else by name.
-
-    A pipeline yaml or the CuvisNEXT picker can hand a decider a string or a bool; a
-    silent coercion would gate at a number nobody chose, so the error names the hparam.
-    """
-    if value is None:
-        return None
-    if isinstance(value, bool) or not isinstance(value, numbers.Real) or not math.isfinite(value):
-        raise ValueError(f"{name} must be a finite number or None, got {value!r}")
-    return float(value)
-
-
-def _call_threshold(name: str, value: Tensor | None, fallback: float | None) -> float | None:
-    """The threshold for this call: the ``[1]`` input when one is given, else ``fallback``.
-
-    An input of another shape or a non-finite value is refused by port name, so a GUI that
-    sends a bad number learns which control sent it.
-    """
-    if value is None:
-        return fallback
-    if tuple(value.shape) != (1,):
-        raise ValueError(f"{name} input must have shape [1], got {list(value.shape)}")
-    return _optional_finite(name, float(value.item()))
 
 
 class TwoStageBinaryDecider(BaseDecider):
@@ -97,10 +72,19 @@ class TwoStageBinaryDecider(BaseDecider):
     frame's maximum score, ordered), ``image_threshold_value`` (the gate, NaN while off)
     and ``image_threshold_score`` (the top-k mean, computed for every frame). They are
     absent exactly when ``decisions`` is.
+
+    :meth:`calibrate` fits the F1 optimum unless the trainrun's calibration block, handed in
+    as ``objective``, names a target: ``"precision"`` or ``"recall"`` with a ``target`` in
+    [0, 1], measured at the ``"pixels"`` level (pooled over the split) or the ``"frames"``
+    level (a frame counts as flagged when any of its pixels is, the evaluation's definition).
+    The block stays in the trainrun; the pipeline yaml carries only the thresholds it
+    produced.
     """
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.CLASSIFICATION, NodeTag.POSTPROCESSING, NodeTag.NUMPY})
+    _tags = frozenset(
+        {NodeTag.CLASSIFICATION, NodeTag.POSTPROCESSING, NodeTag.NUMPY, NodeTag.CALIBRATION}
+    )
 
     INPUT_SPECS = {
         "logits": PortSpec(
@@ -168,6 +152,12 @@ class TwoStageBinaryDecider(BaseDecider):
         ),
     }
 
+    # The calibration contract (cuvis_ai_core.deciders.BinaryDecider): the search moves the
+    # image gate and the absolute pixel cutoff, at the pixel or the frame level.
+    CALIBRATION_RULE = "gate_cutoff"
+    CALIBRATION_GATE = "image_threshold"
+    CALIBRATION_CUTOFF = "pixel_threshold"
+
     def __init__(
         self,
         image_threshold: float | None = None,
@@ -180,12 +170,12 @@ class TwoStageBinaryDecider(BaseDecider):
         # Both thresholds are compared in raw score space (see forward), and raw anomaly
         # scores are unbounded - a [0, 1] cap would make calibrated values unrepresentable.
         # None switches the respective stage off; non-numbers are refused by name.
-        self.image_threshold = _optional_finite("image_threshold", image_threshold)
+        self.image_threshold = optional_finite("image_threshold", image_threshold)
         if not 0.0 < top_k_fraction <= 1.0:
             raise ValueError("top_k_fraction must be in (0, 1]")
         if not 0.0 <= quantile <= 1.0:
             raise ValueError("quantile must be within [0, 1]")
-        self.pixel_threshold = _optional_finite("pixel_threshold", pixel_threshold)
+        self.pixel_threshold = optional_finite("pixel_threshold", pixel_threshold)
 
         self.top_k_fraction = float(top_k_fraction)
         self.quantile = float(quantile)
@@ -211,6 +201,10 @@ class TwoStageBinaryDecider(BaseDecider):
         the TRAIN, VAL and TEST stages instead of falling back to the per-frame quantile.
         """
         return self.image_threshold is not None and self.pixel_threshold is not None
+
+    def calibration_image_scores(self, pixel_scores: np.ndarray) -> np.ndarray:
+        """The stage-1 statistic per frame: the top-k mean ``forward`` computes."""
+        return threshold_search.topk_mean_scores(pixel_scores, self.top_k_fraction)
 
     def forward(
         self,
@@ -275,8 +269,8 @@ class TwoStageBinaryDecider(BaseDecider):
                 logger.info("thresholds unset, no decisions until the calibration")
             return {}
 
-        gate = _call_threshold("image_threshold", image_threshold, self.image_threshold)
-        pixel_cut = _call_threshold("pixel_threshold", pixel_threshold, self.pixel_threshold)
+        gate = call_threshold("image_threshold", image_threshold, self.image_threshold)
+        pixel_cut = call_threshold("pixel_threshold", pixel_threshold, self.pixel_threshold)
 
         tensor = logits
         decisions = []
@@ -298,7 +292,7 @@ class TwoStageBinaryDecider(BaseDecider):
             # Stage 1 statistic, computed for every frame: the gate compares it when on, a
             # GUI marks it on the slider when off. Shared with calibrate(), so a calibrated
             # gate is exact here.
-            image_score = _calibration.frame_image_score(pixel_scores, self.top_k_fraction)
+            image_score = threshold_search.frame_image_score(pixel_scores, self.top_k_fraction)
             image_scores.append(image_score)
 
             # Stage 2 cutoff, resolved before the gate decision so a gated-out frame reports
@@ -316,7 +310,7 @@ class TwoStageBinaryDecider(BaseDecider):
 
             # Stage 1: image-level gate, skipped when no threshold is set.
             if gate is not None:
-                k = _calibration.topk_count(pixel_scores.numel(), self.top_k_fraction)
+                k = threshold_search.topk_count(pixel_scores.numel(), self.top_k_fraction)
                 # Lazy args (bound as defaults so each frame logs its own values): nothing
                 # is formatted unless the debug level is enabled.
                 if image_score < gate:
@@ -357,57 +351,4 @@ class TwoStageBinaryDecider(BaseDecider):
             "image_threshold_score": torch.tensor(
                 image_scores, dtype=torch.float32, device=tensor.device
             ),
-        }
-
-    def calibrate(
-        self, scores: Tensor, targets: Tensor, *, num_candidates: int = 256
-    ) -> dict[str, Any]:
-        """Refit ``image_threshold`` + ``pixel_threshold`` to F1-max on labelled val scores.
-
-        Runs the joint 2-D sweep (image gate x absolute pixel cutoff, raw score space, with
-        gated-out frames contributing their full ground truth as misses). Sets the F1-max
-        image gate and, at that gate, the F1-max absolute pixel threshold - moving stage 2
-        off the fixed-fraction quantile onto a cutoff that tracks anomaly size. Both values
-        are the midpoints of their F1 plateaus (``_calibration.margin_below``); the pixel
-        cutoff is exact in float32, the dtype ``forward`` compares in, and the gate uses the
-        very ``frame_image_score`` statistic ``forward`` computes. The values go to the live
-        attributes and to ``hparams``; ``pipeline.save_to_file`` then carries them in the
-        pipeline yaml. The ``.pt`` weights are unchanged, so load the saved yaml rather than
-        the preset plus weights. ``scores`` is the decider-input tensor stacked over the split
-        (``[N, H, W, C]``); ``targets`` the ground-truth mask. The report also carries the
-        on-point optima and the joint optimum, which may beat the conditional one.
-
-        Raises:
-            CalibrationError: shape mismatch, non-finite scores, or a single-class split.
-        """
-        _, pixel, gt, frame_labels = _calibration.reduce_scores_targets(scores, targets)
-        image_scores = _calibration.topk_mean_scores(pixel, self.top_k_fraction)
-        best_image, joint, conditional = _calibration.sweep_two_stage(
-            pixel, gt, image_scores, frame_labels, num_candidates
-        )
-        old_image, old_pixel = self.image_threshold, self.pixel_threshold
-        new_image = float(best_image["margin_threshold"])
-        new_pixel = float(conditional["margin_pixel_threshold"])
-        self.image_threshold = new_image
-        self.pixel_threshold = new_pixel
-        self.hparams["image_threshold"] = new_image
-        self.hparams["pixel_threshold"] = new_pixel
-        return {
-            "class": type(self).__name__,
-            "image_threshold": {"old": old_image, "new": new_image},
-            "pixel_threshold": {"old": old_pixel, "new": new_pixel},
-            "on_point": {
-                "image_threshold": best_image["threshold"],
-                "pixel_threshold": conditional["pixel_threshold"],
-            },
-            "image_f1": best_image["f1"],
-            "pixel_f1": conditional["f1"],
-            "pixel_precision": conditional["precision"],
-            "pixel_recall": conditional["recall"],
-            "pixel_iou": conditional["iou"],
-            "joint": {
-                "image_threshold": joint["margin_image_threshold"],
-                "pixel_threshold": joint["margin_pixel_threshold"],
-                "f1": joint["f1"],
-            },
         }

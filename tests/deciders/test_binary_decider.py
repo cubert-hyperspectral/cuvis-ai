@@ -67,3 +67,33 @@ class TestBinaryDecider:
         logits = torch.full((1, 2, 2, 1), -10.0)
         result = decider.forward(logits=logits)
         assert not result["decisions"].any()
+
+
+class TestBinaryDeciderThresholdInput:
+    """The optional ``[1]`` ``threshold`` input replaces the hparam for one call."""
+
+    def test_the_input_replaces_the_hparam_for_one_call(self):
+        decider = BinaryDecider(threshold=0.5)
+        logits = torch.tensor([[[[0.0], [1.0]], [[2.0], [-1.0]]]])
+        result = decider.forward(logits=logits, threshold=torch.tensor([0.8]))
+        assert torch.equal(result["decisions"], torch.sigmoid(logits) >= 0.8)
+        assert decider.threshold == 0.5
+        assert decider.hparams["threshold"] == 0.5
+        assert torch.equal(
+            decider.forward(logits=logits)["decisions"], torch.sigmoid(logits) >= 0.5
+        )
+
+    def test_the_input_compares_in_float32_like_the_hparam(self):
+        decider = BinaryDecider(threshold=0.5)
+        logits = torch.full((1, 1, 1, 1), 0.75)
+        cut = float(torch.sigmoid(logits).item())  # exactly the float32 probability
+        result = decider.forward(logits=logits, threshold=torch.tensor([cut]))
+        assert result["decisions"].all()
+
+    @pytest.mark.parametrize(
+        "value", [torch.tensor([0.4, 0.6]), torch.tensor(0.5), torch.tensor([float("nan")])]
+    )
+    def test_a_bad_input_is_refused_by_port_name(self, value):
+        decider = BinaryDecider(threshold=0.5)
+        with pytest.raises(ValueError, match="threshold"):
+            decider.forward(logits=torch.zeros(1, 2, 2, 1), threshold=value)

@@ -369,6 +369,19 @@ A fit ends with weights. Three steps turn them into a pipeline that is ready to 
 
     The stored value is the midpoint of the F1 plateau rather than the score of one sample, so a new frame that lands next to a training sample is decided the same way. Calibrated values are ordinary hparams: `pipeline.save_to_file` writes them into the pipeline yaml, and the `.pt` weights are unchanged. A preset that ships `image_threshold` and `pixel_threshold` as `null` gets both filled by this step.
 
+    The F1 optimum is the default. A `calibration:` block in the trainrun names a target instead (cuvis-ai-schemas 0.14.4; cuvis-ai-core 0.19.1 hands it on):
+
+    ```yaml
+    calibration:
+      objective: recall  # f1 (the default), precision or recall
+      target: 0.9        # in [0, 1]; required for precision and recall, refused with f1
+      level: frames      # pixels (the default) or frames; f1 stays at pixels
+    ```
+
+    The step then calls `decider.calibrate(scores, targets, objective=block)` instead of the two-argument call. `QuantileBinaryDecider` flags pixels in every frame and serves the pixel level only, so a frame-level block fails its calibration with that reason and its thresholds stay. A decider from another package whose `calibrate` takes no `objective` keeps calibrating to the F1 optimum without a block; with one, the step records it as failed ("takes no calibration objective") and leaves its thresholds. A recall target lands on the most precise thresholds whose recall reaches it, a precision target on the thresholds with the highest recall whose precision does; ties go to the higher F1 at the other level, then to the higher thresholds. At the frame level the candidate grid is exact (every distinct image score and every frame's maximum pixel score); at the pixel level the sweep's quantiles are mirrored below the median and the search is refined around the best cell over every distinct score, so a target the split cannot reach is reported as such after an exact search and the thresholds land on the closest point. Every report says what the applied thresholds do on the split, counted as `forward` decides: `objective` and `level`, under a target also `target` and `reached` (1 or 0), the precision, recall, F1 and IoU on the pixels (`pixel_*`) and on the frames (`frame_*`, a frame counting as flagged when one of its decision pixels is set, as the evaluation counts it) with the counts behind them (`pixel_tp`, `pixel_fp`, `pixel_fn`, `frame_tp`, `frame_fp`, `frame_fn`), `frames` and `anomalous_frames`. The block stays in the trainrun next to the thresholds it produced, so a run restored from that trainrun calibrates to the same target, and the report's numbers reach a gRPC client in the calibration outcome of the `Train` stream; CuvisNEXT sets a precision or recall target this way. The shipped Dinomaly presets count every pixel in their `AnomalyDetectionMetrics` node, so the evaluation's pixel precision and recall are the numbers the target was set on.
+
+    A decider takes part in the step by declaring its rule on cuvis-ai-core's `BinaryDecider`: `CALIBRATION_RULE` (`gate_cutoff`, `cutoff` or `quantile`), `CALIBRATION_GATE` and `CALIBRATION_CUTOFF` (the hparams the rule moves) and `CALIBRATION_LEVELS` (the levels a target may be measured at), plus two hooks where its `forward` needs them: `calibration_scores` (the tensor `forward` compares, when that is a transform of the input) and `calibration_image_scores` (the gate rule's per-frame score). The search itself lives in `cuvis_ai_core.deciders.threshold_search`, and the three deciders above are such declarations. A decider from another package may still override `calibrate` and is calibrated through that.
+
 3. **Evaluate the validation and the test split.** Each split that resolves gets one pass with the pipeline's metric nodes. The pooled metrics (average precision, the AUROC values and, once decisions exist, precision, recall, F1 and IoU on the pixels and on the frames) are computed once over the whole split; the other metrics are averaged over the batches. A split that does not resolve is reported as missing. A pass that raises is logged and the run is still saved: the pipeline is the product, the numbers describe it.
 
 Where the steps run:
@@ -376,7 +389,7 @@ Where the steps run:
 - Inside the gradient fit, at Lightning's `on_train_end`, while the model is still on its training device; the save follows the fit. `restore-trainrun --mode train` and the gRPC `Train` service go through the same callback.
 - After a statistical-only fit (a trainrun without a `training:` block). A statistical phase that a gradient phase follows runs none of them; the steps run once, at the end of the gradient fit.
 - On demand, without a fit: `Train(TRAINER_TYPE_CALIBRATION)` runs the calibration and the two evaluations on a session that already holds trained weights (a run restored with its `.pt`, loaded weights, or a finished fit). CuvisNEXT's Recalibrate button is this call. A session without weights is refused.
-- By hand: the `calibrate-thresholds` CLI runs the same sweep over a saved training run and prints the values to put into the yaml.
+- By hand: the `calibrate-thresholds` CLI runs the same sweep over a saved training run and prints the values to put into the yaml; `--objective`, `--target` and `--level` name a target the way the trainrun's block does.
 
 **Decisions before the calibration.** A `TwoStageBinaryDecider` with both thresholds `null` (the shipped Dinomaly presets) holds no thresholds until step 2. At the TRAIN, VAL and TEST stages such a decider emits no `decisions`: `AnomalyDetectionMetrics` reports average precision and the AUROC values per epoch and none of the thresholded metrics, and the anomaly visualizers draw the heatmap and the ground truth without a mask overlay. The per-frame quantile fallback (0.995) survives at INFERENCE and with no execution context, where a pipeline has to answer. Two consequences: a trainrun that monitors `metrics_anomaly/iou` on such a pipeline fails at its first checkpoint (Lightning raises on a missing monitor key), so monitor `metrics_auroc/auroc_pixel` instead; and a training graph that feeds `DecisionToMask` (a required `decisions` input) from an uncalibrated decider is refused before the fit, with both node names in the error.
 
@@ -403,13 +416,22 @@ Two things to keep in mind:
 In a notebook, call the method directly on the scores you collected:
 
 ```python
+from cuvis_ai_schemas.training import CalibrationConfig
+
 # scores: [N, H, W, C] detector output over a labelled split
 # targets: [N, H, W] or [N, H, W, C] ground-truth mask
 report = decider.calibrate(scores, targets)
 print(report)
-# {'class': 'TwoStageBinaryDecider',
+# {'class': 'TwoStageBinaryDecider', 'objective': 'f1', 'level': 'pixels',
 #  'image_threshold': {'old': None, 'new': 2.5},
-#  'pixel_threshold': {'old': None, 'new': 2.5}, 'f1': 0.93, ...}
+#  'pixel_threshold': {'old': None, 'new': 2.5},
+#  'pixel_precision': 0.91, 'pixel_recall': 0.95, 'frame_precision': 0.96, 'frame_recall': 1.0,
+#  'frames': 44, 'anomalous_frames': 12, ...}
+
+# A frame-level recall target, as a trainrun's calibration block names it
+block = CalibrationConfig(objective="recall", target=0.9, level="frames")
+report = decider.calibrate(scores, targets, objective=block)
+print(report["reached"], report["frame_recall"], report["frame_precision"])
 ```
 
 ---

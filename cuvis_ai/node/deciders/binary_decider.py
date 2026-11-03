@@ -16,16 +16,16 @@ import numbers
 from collections.abc import Sequence
 from typing import Any
 
-import numpy as np
 import torch
 from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
 
+from cuvis_ai_core.deciders import threshold_search
 from cuvis_ai_core.deciders.base_decider import BinaryDecider as BaseDecider
 from cuvis_ai_core.node import Node
 
-from . import _calibration
+from ._port_inputs import call_threshold
 
 
 def resolve_reduce_dims(reduce_dims: tuple[int, ...] | None, tensor_ndim: int) -> tuple[int, ...]:
@@ -67,6 +67,15 @@ class BinaryDecider(BaseDecider):
         Values >= threshold are classified as anomalies (True).
         Default: 0.5
 
+    The threshold is also an optional input of shape ``[1]``: a value on the port replaces
+    the hparam for that call only, so a GUI slider needs no pipeline reload and the yaml keeps
+    the hparam.
+
+    :meth:`calibrate` fits the F1 optimum unless the trainrun's calibration block, handed in
+    as ``objective``, names a target: ``"precision"`` or ``"recall"`` with a ``target`` in
+    [0, 1], measured at the ``"pixels"`` or ``"frames"`` level. The block stays in the
+    trainrun; the pipeline yaml carries only the threshold it produced.
+
     Examples
     --------
     >>> from cuvis_ai.node.deciders.binary_decider import BinaryDecider
@@ -93,14 +102,23 @@ class BinaryDecider(BaseDecider):
     """
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.CLASSIFICATION, NodeTag.POSTPROCESSING, NodeTag.NUMPY})
+    _tags = frozenset(
+        {NodeTag.CLASSIFICATION, NodeTag.POSTPROCESSING, NodeTag.NUMPY, NodeTag.CALIBRATION}
+    )
 
     INPUT_SPECS = {
         "logits": PortSpec(
             dtype=torch.float32,
             shape=(-1, -1, -1, -1),
             description="Input logits to threshold (BHWC format)",
-        )
+        ),
+        "threshold": PortSpec(
+            dtype=torch.float32,
+            shape=(1,),
+            description="Threshold on sigmoid(logits) for this call [1]; replaces the "
+            "`threshold` hparam.",
+            optional=True,
+        ),
     }
 
     OUTPUT_SPECS = {
@@ -111,60 +129,41 @@ class BinaryDecider(BaseDecider):
         )
     }
 
+    # The calibration contract (cuvis_ai_core.deciders.BinaryDecider): the search moves
+    # ``threshold`` on the sigmoid probabilities, the space ``forward`` compares in.
+    CALIBRATION_RULE = "cutoff"
+    CALIBRATION_CUTOFF = "threshold"
+
     def __init__(self, threshold: float = 0.5, **kwargs) -> None:
         self.threshold = threshold
         # Forward threshold to BaseDecider so Serializable captures it in hparams
         super().__init__(threshold=threshold, **kwargs)
 
+    def calibration_scores(self, scores: Tensor) -> Tensor:
+        """``sigmoid(scores)`` in float32, what ``forward`` compares ``threshold`` against."""
+        return torch.sigmoid(scores.detach().to("cpu", torch.float32))
+
     def forward(
         self,
         logits: Tensor,
+        *,
+        threshold: Tensor | None = None,
         **_: Any,
     ) -> dict[str, Tensor]:
         """Apply sigmoid and threshold-based decisioning on channels-last data.
 
         Args:
             logits: Tensor shaped (B, H, W, C) containing logits.
+            threshold: Threshold for this call, shape [1]; ``None`` uses the hparam.
 
         Returns:
             Dictionary with "decisions" key containing (B, H, W, 1) decision mask.
-        """
-
-        return {"decisions": torch.sigmoid(logits) >= self.threshold}
-
-    def calibrate(
-        self, scores: Tensor, targets: Tensor, *, num_candidates: int = 256
-    ) -> dict[str, Any]:
-        """Refit ``threshold`` to F1-max on labelled validation scores.
-
-        ``scores`` is the decider-input tensor stacked over the split (``[N, H, W, C]``);
-        ``targets`` the matching ground-truth mask. The sweep runs on ``torch.sigmoid(scores)``
-        in float32, exactly what ``forward`` compares against ``threshold``, so the fitted
-        value is reachable at runtime even when raw logits saturate the sigmoid. The optimum
-        is moved to the midpoint of its F1 plateau (``_calibration.margin_below``) and written
-        to the live attribute and to ``hparams``; ``pipeline.save_to_file`` then carries it in
-        the pipeline yaml. The ``.pt`` weights are unchanged, so load the saved yaml rather
-        than the preset plus weights. Multi-channel input is reduced to the per-pixel max, which
-        matches ``forward`` exactly for single-channel scores. Returns a report.
 
         Raises:
-            CalibrationError: shape mismatch, non-finite scores, or a single-class split.
+            ValueError: A ``threshold`` input of another shape than [1] or a non-finite value.
         """
-        probabilities = torch.sigmoid(scores.detach().to("cpu", torch.float32))
-        _, pixel, gt, _ = _calibration.reduce_scores_targets(probabilities, targets)
-        best = _calibration.sweep_absolute(pixel, gt, num_candidates)
-        old = self.threshold
-        new = float(best["margin_threshold"])
-        self.threshold = new
-        self.hparams["threshold"] = new
-        return {
-            "class": type(self).__name__,
-            "threshold": {"old": old, "new": new},
-            "on_point_threshold": best["threshold"],
-            "f1": best["f1"],
-            "precision": best["precision"],
-            "recall": best["recall"],
-        }
+        cut = call_threshold("threshold", threshold, self.threshold)
+        return {"decisions": torch.sigmoid(logits) >= cut}
 
 
 class QuantileBinaryDecider(BaseDecider):
@@ -186,6 +185,14 @@ class QuantileBinaryDecider(BaseDecider):
         Axes (relative to the input tensor) over which to compute the quantile.
         When ``None`` (default), all non-batch dimensions (H, W, C) are reduced.
         For per-channel thresholds, use reduce_dims=[1, 2] (reduce H, W only).
+
+    The quantile is also an optional input of shape ``[1]``: a value on the port replaces
+    the hparam for that call only, so a GUI slider needs no pipeline reload and the yaml keeps
+    the hparam.
+
+    :meth:`calibrate` fits the F1 optimum unless the trainrun's calibration block, handed in
+    as ``objective``, names a target: ``"precision"`` or ``"recall"`` with a ``target`` in
+    [0, 1]. The node flags pixels in every frame, so it serves the ``"pixels"`` level only.
 
     Examples
     --------
@@ -212,14 +219,23 @@ class QuantileBinaryDecider(BaseDecider):
     """
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.CLASSIFICATION, NodeTag.POSTPROCESSING, NodeTag.NUMPY})
+    _tags = frozenset(
+        {NodeTag.CLASSIFICATION, NodeTag.POSTPROCESSING, NodeTag.NUMPY, NodeTag.CALIBRATION}
+    )
 
     INPUT_SPECS = {
         "logits": PortSpec(
             dtype=torch.float32,
             shape=(-1, -1, -1, -1),
             description="Input logits or anomaly scores (BHWC format)",
-        )
+        ),
+        "quantile": PortSpec(
+            dtype=torch.float32,
+            shape=(1,),
+            description="Quantile for this call [1], within [0, 1]; replaces the `quantile` "
+            "hparam.",
+            optional=True,
+        ),
     }
 
     OUTPUT_SPECS = {
@@ -229,6 +245,13 @@ class QuantileBinaryDecider(BaseDecider):
             description="Binary decision mask (BHWC format)",
         )
     }
+
+    # The calibration contract (cuvis_ai_core.deciders.BinaryDecider): the search moves
+    # ``quantile``, one per-frame cutoff over all non-batch dims, so it serves the pixel
+    # level only.
+    CALIBRATION_RULE = "quantile"
+    CALIBRATION_CUTOFF = "quantile"
+    CALIBRATION_LEVELS = ("pixels",)
 
     def __init__(
         self,
@@ -245,7 +268,31 @@ class QuantileBinaryDecider(BaseDecider):
         # Forward init params so Serializable records them for config serialization
         super().__init__(quantile=self.quantile, reduce_dims=self.reduce_dims, **kwargs)
 
-    def forward(self, logits: Tensor, **_: Any) -> dict[str, Tensor]:
+    def calibration_scores(self, scores: Tensor) -> Tensor:
+        """The raw scores, once ``reduce_dims`` is a rule the per-frame sweep reproduces.
+
+        Raises:
+            CalibrationError: ``reduce_dims`` keeps a real (size > 1) non-batch axis out of
+                the quantile; the sweep probes one quantile per frame over all non-batch
+                dims and cannot reproduce that rule.
+        """
+        kept = [
+            dim
+            for dim in range(1, scores.dim())
+            if dim not in resolve_reduce_dims(self.reduce_dims, scores.dim())
+            and scores.shape[dim] > 1
+        ]
+        if kept:
+            raise threshold_search.CalibrationError(
+                f"{type(self).__name__} reduce_dims={self.reduce_dims!r} keeps axes {kept} of "
+                f"shape {tuple(scores.shape)} out of the quantile; calibration sweeps one "
+                "quantile per frame over all non-batch dims and cannot reproduce that rule"
+            )
+        return scores
+
+    def forward(
+        self, logits: Tensor, *, quantile: Tensor | None = None, **_: Any
+    ) -> dict[str, Tensor]:
         """Apply quantile-based thresholding to produce binary decisions.
 
         Computes per-batch thresholds using the specified quantile over reduce_dims,
@@ -255,6 +302,8 @@ class QuantileBinaryDecider(BaseDecider):
         ----------
         logits : Tensor
             Input logits or anomaly scores, shape (B, H, W, C)
+        quantile : Tensor | None
+            Quantile for this call, shape [1], within [0, 1]; ``None`` uses the hparam.
 
         Returns
         -------
@@ -263,14 +312,23 @@ class QuantileBinaryDecider(BaseDecider):
 
             - "decisions" : Tensor
                 Binary decision mask, shape (B, H, W, 1)
+
+        Raises
+        ------
+        ValueError
+            A ``quantile`` input of another shape than [1], or a value that is not finite or
+            lies outside [0, 1].
         """
+        q = call_threshold("quantile", quantile, self.quantile)
+        if not 0.0 <= q <= 1.0:
+            raise ValueError(f"quantile input must be within [0, 1], got {q!r}")
         tensor = logits
         dims = resolve_reduce_dims(self.reduce_dims, tensor.dim())
 
         if len(dims) == 1:
             threshold = torch.quantile(
                 tensor,
-                self.quantile,
+                q,
                 dim=dims[0],
                 keepdim=True,
             )
@@ -279,58 +337,10 @@ class QuantileBinaryDecider(BaseDecider):
             sizes_keep = [tensor.size(i) for i in dims_to_keep]
             flattened = tensor.permute(*dims_to_keep, *dims).reshape(*sizes_keep, -1)
             broadcast_shape = [1 if i in dims else tensor.size(i) for i in range(tensor.dim())]
-            threshold = torch.quantile(flattened, self.quantile, dim=-1).reshape(broadcast_shape)
+            threshold = torch.quantile(flattened, q, dim=-1).reshape(broadcast_shape)
 
         decisions = (tensor >= threshold).to(torch.bool)
         return {"decisions": decisions}
-
-    def calibrate(
-        self, scores: Tensor, targets: Tensor, *, num_candidates: int = 256
-    ) -> dict[str, Any]:
-        """Refit ``quantile`` to F1-max on labelled validation scores.
-
-        The node recomputes its cutoff from each frame's own scores, so there is no absolute
-        threshold to fit - the sweep finds the F1-best flagged-pixel fraction instead (per
-        frame, over the full ``[H, W, C]`` tensor, matching the runtime ``torch.quantile``
-        with the default ``reduce_dims``). The result is written to the live attribute and to
-        ``hparams``; ``pipeline.save_to_file`` then carries it in the pipeline yaml (the ``.pt``
-        weights are unchanged). Decisions are scored on the per-pixel max over channels, which
-        matches ``forward`` exactly for single-channel scores.
-
-        Raises:
-            CalibrationError: shape mismatch, non-finite scores, a single-class split, or a
-                ``reduce_dims`` that keeps a real (size > 1) non-batch axis out of the quantile,
-                a decision rule the per-frame sweep cannot reproduce.
-        """
-        kept = [
-            dim
-            for dim in range(1, scores.dim())
-            if dim not in resolve_reduce_dims(self.reduce_dims, scores.dim())
-            and scores.shape[dim] > 1
-        ]
-        if kept:
-            raise _calibration.CalibrationError(
-                f"{type(self).__name__} reduce_dims={self.reduce_dims!r} keeps axes {kept} of "
-                f"shape {tuple(scores.shape)} out of the quantile; calibration sweeps one "
-                "quantile per frame over all non-batch dims and cannot reproduce that rule"
-            )
-        full, pixel, gt, _ = _calibration.reduce_scores_targets(scores, targets)
-        flat = full.reshape(full.shape[0], -1)  # [N, H*W*C] - the runtime quantile space
-        grid = _calibration.quantile_grid_builder(self.quantile, num_candidates)(flat.shape[1])
-        per_frame = np.quantile(flat, grid, axis=1)  # [len(grid), N]
-        frame_quantiles = {float(q): per_frame[i] for i, q in enumerate(grid)}
-        best = _calibration.sweep_quantile(pixel, gt, frame_quantiles)
-        old = self.quantile
-        new = float(best["quantile"])
-        self.quantile = new
-        self.hparams["quantile"] = new
-        return {
-            "class": type(self).__name__,
-            "quantile": {"old": old, "new": new},
-            "f1": best["f1"],
-            "precision": best["precision"],
-            "recall": best["recall"],
-        }
 
 
 _KEEP = ("below", "above")

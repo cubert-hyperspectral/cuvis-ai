@@ -14,9 +14,9 @@ import numpy as np
 import pytest
 import torch
 
-from cuvis_ai.node.deciders import _calibration as calib
 from cuvis_ai.node.deciders.binary_decider import BinaryDecider, QuantileBinaryDecider
 from cuvis_ai.node.deciders.two_stage_decider import TwoStageBinaryDecider
+from cuvis_ai_core.deciders import threshold_search as calib
 from cuvis_ai_core.pipeline.factory import PipelineBuilder
 
 pytestmark = pytest.mark.unit
@@ -73,7 +73,7 @@ def test_binary_decider_calibrate_reproduces_gt():
     high = float(torch.sigmoid(torch.tensor(HIGH)))
     assert decider.threshold == pytest.approx((0.5 + high) / 2, abs=1e-6)
     assert np.float32(decider.threshold) == decider.threshold
-    assert report["on_point_threshold"] == pytest.approx(high)
+    assert report["on_point"]["threshold"] == pytest.approx(high)
 
 
 def test_quantile_decider_calibrate_finds_fraction():
@@ -254,3 +254,28 @@ def test_cli_ships_the_same_values_as_the_decider_methods():
     binary.calibrate(scores, targets)
     best = calib.sweep_absolute(calib.sigmoid_float32(pixel), gt, 256)
     assert _binary_hparams(best)["threshold"] == binary.hparams["threshold"]
+
+
+# --- the deciders declare their rules; core's base does the search ---------------------------
+
+
+def test_the_deciders_declare_their_rules_and_hold_no_calibrate_of_their_own():
+    from cuvis_ai_core.deciders.base_decider import BinaryDecider as Base
+
+    assert (
+        TwoStageBinaryDecider.CALIBRATION_RULE,
+        TwoStageBinaryDecider.CALIBRATION_GATE,
+        TwoStageBinaryDecider.CALIBRATION_CUTOFF,
+        TwoStageBinaryDecider.CALIBRATION_LEVELS,
+    ) == ("gate_cutoff", "image_threshold", "pixel_threshold", ("pixels", "frames"))
+    assert (BinaryDecider.CALIBRATION_RULE, BinaryDecider.CALIBRATION_CUTOFF) == (
+        "cutoff",
+        "threshold",
+    )
+    assert (
+        QuantileBinaryDecider.CALIBRATION_RULE,
+        QuantileBinaryDecider.CALIBRATION_CUTOFF,
+        QuantileBinaryDecider.CALIBRATION_LEVELS,
+    ) == ("quantile", "quantile", ("pixels",))
+    for cls in (TwoStageBinaryDecider, BinaryDecider, QuantileBinaryDecider):
+        assert cls.calibrate is Base.calibrate
