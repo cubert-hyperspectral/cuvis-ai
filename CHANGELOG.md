@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Bumped the `sam3` manifest pin v0.5.1 to v0.5.2: the SAM3 image nodes and the streaming trackers restore the autocast state after their model build (the sam3 library left a bfloat16 autocast open, so after `pipeline.to("cuda")` the next float32 port downstream failed its dtype check), and every forward returns `mask`, `object_ids` and `detection_scores` on the device of the incoming `rgb_image`; the plugin lock also moves anyio to 4.14.2 and cryptography to 50.0.1.
+- Bumped the `ultralytics` manifest pin v0.1.4 to v0.1.5: `YOLOPreprocess` keeps the RGB order of its input instead of swapping it to BGR (ultralytics models take RGB, so every model behind the node saw swapped colours and missed colour-defined objects), and gets an opt-in `imgsz` letterbox that reproduces an ultralytics predict call at its default 640 px; the manifest's port descriptions are regenerated from the plugin.
 
 ## 0.20.0 - 2026-10-28
 
