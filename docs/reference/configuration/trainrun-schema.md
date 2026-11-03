@@ -60,16 +60,23 @@ baking).
 
 ```yaml
 data:
-  data_module: npz_multi
+  data_module: cu3s_multi
   batch_size: 4
+  num_workers: 0                # the cuvis SDK reads in the training process
   splits:                       # inline selectors, or: splits_path: splits/dinomaly.json
     train:
       - { kind: file_indices, source: X.cu3s, ids: [0, 2, 3] }
     val:
       - { kind: file_indices, source: X.cu3s, ids: [1, 5] }
   params:
-    universe_csv: outputs/npz_local/universe.csv
+    universe_csv: universe.csv  # source, index, annotation: one row per frame
+    max_open_sessions: 4        # recordings kept open per loader, about 0.3 to 0.6 GB of GPU memory each
+    read_ahead: 1               # frames read ahead of the model step
 ```
+
+`max_open_sessions` near the number of recordings a split reads avoids reopening them during a
+shuffled epoch, `read_ahead` overlaps the read with the model step at batch 1, and `cuda_cubes: true`
+keeps the cubes on the GPU; the cuvis-ai-dataloader README covers each option.
 
 ## Current Patterns
 

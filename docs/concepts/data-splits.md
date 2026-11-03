@@ -10,9 +10,9 @@ A split is not a folder layout or a hard-coded id list. It is three separable th
 2. a **rule** that assigns them to stages (train / val / test / predict), and
 3. the **baked** assignment you commit and ship.
 
-Keeping these apart is what lets one split definition follow your data from raw `.cu3s`
-sessions to converted `.npz` frames without rewriting anything, and lets a GUI edit a split
-without re-scanning the disk. This page explains what each artifact does, the states it can be
+Keeping these apart is what lets one split definition drive the raw `.cu3s` recordings
+directly (and, should you convert them, per-frame `.npz` files too) without rewriting anything,
+and lets a GUI edit a split without re-scanning the disk. This page explains what each artifact does, the states it can be
 in, and how they compose.
 
 ---
@@ -131,7 +131,9 @@ columns: source, index [, materialized_path, split, annotation, format, group]
 
 - **Required for both `cu3s_multi` and `npz_multi`.** Both read a `universe.csv` (one shared
   vocabulary, one shared parser; each keeps its own reader). Only `tiff_paired` enumerates from
-  disk (cube/label pairs), so it needs no `universe_csv`.
+  disk (cube/label pairs), so it needs no `universe_csv`. A Cubert dataset on Hugging Face ships
+  its `universe.csv` and `splits/*.json` next to the recordings, so `cu3s_multi` trains on the
+  download as it is; the examples and notebooks read it that way.
 
 - **One universe, many splits, many materializations.** Because `source` is a stable logical
   identity (a cu3s-derived npz carries its originating cu3s path), the same `splits.json` resolves
