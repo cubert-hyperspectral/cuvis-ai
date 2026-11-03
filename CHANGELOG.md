@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Bumped the `sam3` manifest pin v0.5.1 to v0.5.2: the SAM3 image nodes and the streaming trackers restore the autocast state after their model build (the sam3 library left a bfloat16 autocast open, so after `pipeline.to("cuda")` the next float32 port downstream failed its dtype check), and every forward returns `mask`, `object_ids` and `detection_scores` on the device of the incoming `rgb_image`; the plugin lock also moves anyio to 4.14.2 and cryptography to 50.0.1.
+
 ## 0.20.0 - 2026-10-28
 
 - `ExportedSpan` (`cuvis_ai.node.exported_span`) runs a span that cuvis-ai-core's `export-pipeline` wrote to ONNX in place of the nodes it was cut from. The ports come from the sidecar next to the file: one input per span input, one per constant baked into the graph (its run-time value must equal the baked one, so a different wavelength grid is refused), one output per span output; shapes are the export's example shapes with a free batch dimension and the node runs the graph once per batch element, refusing another resolution with the exported shape in the message. The ONNX file must hash to the sidecar's `onnx_md5`. ONNX Runtime runs on the device the pipeline moved the node to (`device` overrides): on CUDA the torch tensors are bound to the session directly, and a CUDA request whose session lands on the CPU provider is refused. Validation and test stages run; a training stage is refused with a pointer to the canonical yaml. A relative `onnx_path` resolves under `CUVIS_AI_DEPLOY_DIR`, then the folder of the pipeline file being loaded (cuvis-ai-core 0.19), then the working directory; the error names all three.
