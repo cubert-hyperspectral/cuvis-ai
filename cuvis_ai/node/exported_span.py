@@ -118,11 +118,39 @@ def read_sidecar(onnx_path: Path) -> dict[str, Any]:
     return sidecar
 
 
+def _port_dtype(entry: dict[str, Any]) -> Any:
+    """The dtype the port declares.
+
+    The sidecar's ``port_dtype`` (``torch.float32``, ``torch.Tensor``, ``numpy.int32``,
+    ``numpy.ndarray``, ``Any``) when it carries one, so the node declares what the
+    original port declared and the deploy yaml connects where the canonical one did;
+    else the tensor dtype the span was exported with.
+    """
+    label = entry.get("port_dtype")
+    fallback = _DTYPES[entry["dtype"]]
+    if not label:
+        return fallback
+    if label == "Any":
+        return Any
+    if label == "torch.Tensor":
+        return torch.Tensor
+    if label == "numpy.ndarray":
+        return np.ndarray
+    if label.startswith("torch."):
+        return _DTYPES.get(label.removeprefix("torch."), fallback)
+    if label.startswith("numpy."):
+        try:
+            return np.dtype(label.removeprefix("numpy.")).type
+        except TypeError:
+            return fallback
+    return fallback
+
+
 def _batched_spec(entry: dict[str, Any]) -> PortSpec:
     """A port whose first dimension is the batch; the rest is fixed by the export."""
     shape = list(entry["shape"])
     return PortSpec(
-        dtype=_DTYPES[entry["dtype"]],
+        dtype=_port_dtype(entry),
         shape=(-1, *shape[1:]) if shape else (),
         description=f"{entry['port']} of the exported span, {entry['dtype']} {shape}",
     )
@@ -131,10 +159,17 @@ def _batched_spec(entry: dict[str, Any]) -> PortSpec:
 def _fixed_spec(entry: dict[str, Any]) -> PortSpec:
     """A constant's port: the value baked into the graph, checked at run time."""
     return PortSpec(
-        dtype=_DTYPES[entry["dtype"]],
+        dtype=_port_dtype(entry),
         shape=tuple(entry["shape"]),
         description=f"{entry['port']}, baked into the exported span; must equal that value",
     )
+
+
+def _as_tensor(value: Any) -> Any:
+    """A numpy array or scalar as a tensor (the wavelength grid arrives that way)."""
+    if isinstance(value, (np.ndarray, np.generic)):
+        return torch.as_tensor(value)
+    return value
 
 
 class ExportedSpan(Node):
@@ -215,7 +250,12 @@ class ExportedSpan(Node):
             preload = getattr(ort, "preload_dlls", None)
             if preload is not None:
                 preload(cuda=True, cudnn=True)
-            providers: list[Any] = [("CUDAExecutionProvider", {"device_id": device.index})]
+            # The provider runs matmuls in TF32 by default, which moves a nearest-neighbour
+            # distance by 0.4 on a PatchCore graph; the span keeps the fp32 the export
+            # was checked with.
+            providers: list[Any] = [
+                ("CUDAExecutionProvider", {"device_id": device.index, "use_tf32": 0})
+            ]
         else:
             providers = ["CPUExecutionProvider"]
         session = ort.InferenceSession(str(self.resolved_onnx_path), providers=providers)
@@ -287,11 +327,11 @@ class ExportedSpan(Node):
     def _check_constants(self, ports: dict[str, Any]) -> None:
         """Every baked constant must arrive with the value it was baked with."""
         for name, (port, baked) in self._constants.items():
-            value = ports.get(name)
+            value = _as_tensor(ports.get(name))
             if not isinstance(value, Tensor):
                 raise ValueError(
-                    f"Node {self.name!r}: input {name!r} ({port}) must be a tensor, got "
-                    f"{type(value).__name__}."
+                    f"Node {self.name!r}: input {name!r} ({port}) must be a tensor or a "
+                    f"numpy array, got {type(value).__name__}."
                 )
             got = value.detach().cpu()
             if tuple(got.shape) != tuple(baked.shape) or not torch.equal(
@@ -309,11 +349,11 @@ class ExportedSpan(Node):
         tensors: list[Tensor] = []
         for entry in self._inputs:
             name = entry["name"]
-            value = ports.get(name)
+            value = _as_tensor(ports.get(name))
             if not isinstance(value, Tensor):
                 raise ValueError(
-                    f"Node {self.name!r}: input {name!r} ({entry['port']}) must be a tensor, "
-                    f"got {type(value).__name__}."
+                    f"Node {self.name!r}: input {name!r} ({entry['port']}) must be a tensor "
+                    f"or a numpy array, got {type(value).__name__}."
                 )
             expected_dtype = _DTYPES[entry["dtype"]]
             if value.dtype != expected_dtype:
