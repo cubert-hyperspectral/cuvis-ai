@@ -335,3 +335,18 @@ def test_cli_keeps_same_named_pipelines_of_different_folders_apart(tmp_path):
         for folder in ("best", "best_80ms")
     }
     assert modes == {"best": "mean", "best_80ms": "max"}
+
+
+def test_migrated_yaml_keeps_the_key_order(tmp_path):
+    """A migrated preset differs from its source only where it was rewritten."""
+    doc = {"metadata": {"name": "p"}, **_doc()}
+    gate = next(n for n in doc["nodes"] if n["name"] == "gate")
+    gate["hparams"] = {"topk_frac": 0.001, "threshold": 1.0}
+    src = tmp_path / "p.yaml"
+    src.write_text(yaml.safe_dump(doc, sort_keys=False))
+    migrate_file(src, tmp_path / "out")
+    out = yaml.safe_load((tmp_path / "out" / "p.yaml").read_text())
+    assert list(out) == ["metadata", "plugins", "nodes", "connections"]
+    gate = next(n for n in out["nodes"] if n["name"] == "gate")
+    assert list(gate) == ["name", "class_name", "hparams"]
+    assert list(gate["hparams"]) == ["topk_frac", "threshold"]
