@@ -50,16 +50,29 @@ SEG_BASE = "walnut_seg_ens_rgb_cir_mean_v2"
 AUTHOR = "raj@cubert-gmbh.de"
 
 FAMILIES = {
-    "or": {"fo": "walnut_fo_multiscale_effad_or_gated", "fo_out": "display.scores", "fo_mask": "display_mask.decisions",
-           "fo_text": "multi-scale t1+t2 gate OR EfficientAD gate; display = the multi-scale gated map when its gate "
-                      "opens, else the EfficientAD gated map, zeros when neither passes"},
-    "gated": {"fo": "walnut_fo_multiscale_gated", "fo_out": "gate.scores", "fo_mask": "gate.decisions",
-              "fo_text": "multi-scale t1+t2 feature banks through FrameScoreGate; the map shows only when the gate "
-                         "opens, zeros otherwise"},
+    "or": {
+        "fo": "walnut_fo_multiscale_effad_or_gated",
+        "fo_out": "display.scores",
+        "fo_mask": "display_mask.decisions",
+        "fo_text": "multi-scale t1+t2 gate OR EfficientAD gate; display = the multi-scale gated map when its gate "
+        "opens, else the EfficientAD gated map, zeros when neither passes",
+    },
+    "gated": {
+        "fo": "walnut_fo_multiscale_gated",
+        "fo_out": "gate.scores",
+        "fo_mask": "gate.decisions",
+        "fo_text": "multi-scale t1+t2 feature banks through FrameScoreGate; the map shows only when the gate "
+        "opens, zeros otherwise",
+    },
 }
 # tier: (FO variant suffix, SEG tier suffix, FO text, SEG text)
 TIERS = {
-    "tf32_exact": ("_tf32", "_exact", "TF32", "fp32 PyTorch with GPU input (bit-identical to the SEG default)"),
+    "tf32_exact": (
+        "_tf32",
+        "_exact",
+        "TF32",
+        "fp32 PyTorch with GPU input (bit-identical to the SEG default)",
+    ),
     "tf32_fast": ("_tf32", "_fast", "TF32", "fp16 + JIT trace + GPU input"),
     "tf32_trt32": ("_tf32", "_trt_fp32", "TF32", "TensorRT fp32 engine (TF32 allowed)"),
     "tf32_trt16": ("_tf32", "_trt_fp16", "TF32", "TensorRT fp16 engine"),
@@ -71,8 +84,13 @@ TIERS = {
 # the tiers of a family: the gated family has no EfficientAD, so no tf32trt tier (it would be its tf32 tier)
 TIERS_OF = {"or": list(TIERS), "gated": [t for t in TIERS if not t.startswith("tf32trt")]}
 RENAME = {"DataSource": "cu3s_data", "Fuse": "ShellFuse"}
-PLUGIN_OF = (("cuvis_ai.", "cuvis_ai_builtin"), ("cuvis_ai_patchcore.", "patchcore"), ("cuvis_ai_steervit.", "steervit"),
-             ("cuvis_ai_efficientad.", "efficientad"), ("cuvis_ai_rfdetr.", "rfdetr_seg"))
+PLUGIN_OF = (
+    ("cuvis_ai.", "cuvis_ai_builtin"),
+    ("cuvis_ai_patchcore.", "patchcore"),
+    ("cuvis_ai_steervit.", "steervit"),
+    ("cuvis_ai_efficientad.", "efficientad"),
+    ("cuvis_ai_rfdetr.", "rfdetr_seg"),
+)
 
 
 def stem(family: str, tier: str) -> str:
@@ -80,7 +98,11 @@ def stem(family: str, tier: str) -> str:
 
 
 def thresholds(cfg: dict) -> dict[str, float]:
-    return {n["name"]: n["hparams"]["threshold"] for n in cfg["nodes"] if n["name"] in ("gate", "gate_effad")}
+    return {
+        n["name"]: n["hparams"]["threshold"]
+        for n in cfg["nodes"]
+        if n["name"] in ("gate", "gate_effad")
+    }
 
 
 def class_defaults(class_name: str) -> dict:
@@ -111,7 +133,9 @@ def source_hparams(node: dict, source: dict) -> dict:
     saved = {k: v for k, v in (node.get("hparams") or {}).items() if k != "name"}
     src = {k: v for k, v in (source.get("hparams") or {}).items() if k != "name"}
     if node["class_name"] != source["class_name"]:
-        raise SystemExit(f"{node['name']}: class {node['class_name']} != source {source['class_name']}")
+        raise SystemExit(
+            f"{node['name']}: class {node['class_name']} != source {source['class_name']}"
+        )
     wrong = {k: (saved.get(k), v) for k, v in src.items() if saved.get(k) != v}
     if wrong:
         raise SystemExit(f"{node['name']}: saved hparams differ from the source: {wrong}")
@@ -119,28 +143,39 @@ def source_hparams(node: dict, source: dict) -> dict:
     extra = {k: v for k, v in saved.items() if k not in src}
     not_default = {k: v for k, v in extra.items() if k not in defaults or defaults[k] != v}
     if not_default:
-        raise SystemExit(f"{node['name']}: saved hparams beyond the source that are not defaults: {not_default}")
+        raise SystemExit(
+            f"{node['name']}: saved hparams beyond the source that are not defaults: {not_default}"
+        )
     return src
 
 
 def build(family: str, tier: str, out_yaml: Path) -> None:
     """Restore the two standalone pipelines, join them and save `out_yaml` (+ its sibling .pt)."""
+    from cuvis_ai_rfdetr.node.score_fusion import ScoreFusion
+
     from cuvis_ai_core.training.config import PipelineMetadata
     from cuvis_ai_core.utils.restore import restore_pipeline
-    from cuvis_ai_rfdetr.node.score_fusion import ScoreFusion
 
     fo_sfx, seg_sfx, fo_txt, seg_txt = TIERS[tier]
     fo_stem = f"{FAMILIES[family]['fo']}{fo_sfx}_cuvisnext_cube"
     seg_stem = f"{SEG_BASE}{seg_sfx}_cuvisnext_cube"
     fo_cfg = yaml.safe_load(open(FO_DIR / f"{fo_stem}.yaml", encoding="utf-8"))
     seg_cfg = yaml.safe_load(open(SEG_DIR / f"{seg_stem}.yaml", encoding="utf-8"))
-    fo = restore_pipeline(str(FO_DIR / f"{fo_stem}.yaml"), weights_path=str(FO_DIR / f"{fo_stem}.pt"), device="cpu")
-    seg = restore_pipeline(str(SEG_DIR / f"{seg_stem}.yaml"), weights_path=str(SEG_DIR / f"{seg_stem}.pt"),
-                           device="cpu")
+    fo = restore_pipeline(
+        str(FO_DIR / f"{fo_stem}.yaml"), weights_path=str(FO_DIR / f"{fo_stem}.pt"), device="cpu"
+    )
+    seg = restore_pipeline(
+        str(SEG_DIR / f"{seg_stem}.yaml"),
+        weights_path=str(SEG_DIR / f"{seg_stem}.pt"),
+        device="cpu",
+    )
     fo_nodes = {n.name: n for n in fo.nodes if not isinstance(n, str)}
     seg_nodes = {n.name: n for n in seg.nodes if not isinstance(n, str)}
-    fuse_hp = {k: v for k, v in next(n for n in seg_cfg["nodes"] if n["name"] == "Fuse")["hparams"].items()
-               if k != "name"}
+    fuse_hp = {
+        k: v
+        for k, v in next(n for n in seg_cfg["nodes"] if n["name"] == "Fuse")["hparams"].items()
+        if k != "name"
+    }
     nodes = {k: v for k, v in seg_nodes.items() if k not in ("DataSource", "Fuse")}
     clash = set(nodes) & set(fo_nodes)
     if clash:
@@ -156,7 +191,9 @@ def build(family: str, tier: str, out_yaml: Path) -> None:
     thr = thresholds(fo_cfg)
     thr_txt = ", ".join(f"{k} {v}" for k, v in thr.items())
     fam = FAMILIES[family]
-    engines = [n["name"] for n in fo_cfg["nodes"] if (n.get("hparams") or {}).get("backend") == "tensorrt"]
+    engines = [
+        n["name"] for n in fo_cfg["nodes"] if (n.get("hparams") or {}).get("backend") == "tensorrt"
+    ]
     if engines:
         fo_txt = f"{fo_txt}; TensorRT engines for {', '.join(engines)}"
     desc = (
@@ -168,24 +205,43 @@ def build(family: str, tier: str, out_yaml: Path) -> None:
         f"mask), ShellHeatmap.scores (shell heatmap). Weights: the family .pt (every tier of walnut_combo_{family} shares it); the SEG models load "
         f"from their checkpoint_path."
     )
-    tags = sorted(set(fo_cfg["metadata"].get("tags") or []) | set(seg_cfg["metadata"].get("tags") or [])
-                  | {"combined", "segmentation", "walnut_combo"})
+    tags = sorted(
+        set(fo_cfg["metadata"].get("tags") or [])
+        | set(seg_cfg["metadata"].get("tags") or [])
+        | {"combined", "segmentation", "walnut_combo"}
+    )
     out_yaml.parent.mkdir(parents=True, exist_ok=True)
-    fo.save_to_file(str(out_yaml), metadata=PipelineMetadata(name=out_yaml.stem, description=desc, author=AUTHOR,
-                                                              tags=tags))
+    fo.save_to_file(
+        str(out_yaml),
+        metadata=PipelineMetadata(name=out_yaml.stem, description=desc, author=AUTHOR, tags=tags),
+    )
     cfg = yaml.safe_load(open(out_yaml, encoding="utf-8"))
-    cfg["plugins"] = [p for prefix, p in PLUGIN_OF if any(n["class_name"].startswith(prefix) for n in cfg["nodes"])]
+    cfg["plugins"] = [
+        p
+        for prefix, p in PLUGIN_OF
+        if any(n["class_name"].startswith(prefix) for n in cfg["nodes"])
+    ]
     # The source node of every combined node: FO nodes by name, SEG nodes by name, ShellFuse = SEG's Fuse.
     sources = {n["name"]: n for n in fo_cfg["nodes"]}
-    sources.update({RENAME.get(n["name"], n["name"]): n for n in seg_cfg["nodes"] if n["name"] != "DataSource"})
+    sources.update(
+        {RENAME.get(n["name"], n["name"]): n for n in seg_cfg["nodes"] if n["name"] != "DataSource"}
+    )
     for n in cfg["nodes"]:
-        n["hparams"] = ({} if n["class_name"] == "cuvis_ai.node.data.CU3SDataNode"
-                        else source_hparams(n, sources[n["name"]]))
+        n["hparams"] = (
+            {}
+            if n["class_name"] == "cuvis_ai.node.data.CU3SDataNode"
+            else source_hparams(n, sources[n["name"]])
+        )
     ordered = {k: cfg[k] for k in ("metadata", "plugins", "nodes", "connections") if k in cfg}
     ordered.update({k: v for k, v in cfg.items() if k not in ordered})
-    out_yaml.write_text(yaml.safe_dump(ordered, sort_keys=False, allow_unicode=True), encoding="utf-8")
-    print(f"built {out_yaml.name}: {len(cfg['nodes'])} nodes, {len(cfg['connections'])} connections, plugins "
-          f"{cfg['plugins']}, FO {fo_stem}, SEG {seg_stem}, thresholds {thr}", flush=True)
+    out_yaml.write_text(
+        yaml.safe_dump(ordered, sort_keys=False, allow_unicode=True), encoding="utf-8"
+    )
+    print(
+        f"built {out_yaml.name}: {len(cfg['nodes'])} nodes, {len(cfg['connections'])} connections, plugins "
+        f"{cfg['plugins']}, FO {fo_stem}, SEG {seg_stem}, thresholds {thr}",
+        flush=True,
+    )
 
 
 def same_state(a: Path, b: Path) -> bool:
@@ -199,9 +255,13 @@ def same_state(a: Path, b: Path) -> bool:
         for k, v in sa[node].items():
             w = sb[node][k]
             if isinstance(v, torch.Tensor):
-                if not (isinstance(w, torch.Tensor) and v.dtype == w.dtype and v.shape == w.shape
-                        and torch.equal(v.nan_to_num(123.0), w.nan_to_num(123.0))
-                        and torch.equal(v.isnan(), w.isnan())):
+                if not (
+                    isinstance(w, torch.Tensor)
+                    and v.dtype == w.dtype
+                    and v.shape == w.shape
+                    and torch.equal(v.nan_to_num(123.0), w.nan_to_num(123.0))
+                    and torch.equal(v.isnan(), w.isnan())
+                ):
                     return False
             elif v != w:
                 return False
@@ -211,8 +271,14 @@ def same_state(a: Path, b: Path) -> bool:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--families", default="or,gated")
-    ap.add_argument("--tiers", default="all", help="comma list, or all = every tier of the family (TIERS_OF)")
-    ap.add_argument("--scratch", required=True, help="where the tiers' own .pt land before the tensor comparison")
+    ap.add_argument(
+        "--tiers", default="all", help="comma list, or all = every tier of the family (TIERS_OF)"
+    )
+    ap.add_argument(
+        "--scratch",
+        required=True,
+        help="where the tiers' own .pt land before the tensor comparison",
+    )
     a = ap.parse_args()
     scratch = Path(a.scratch)
     for family in a.families.split(","):

@@ -26,6 +26,7 @@ import platform
 import numpy as np
 import torch
 import yaml
+
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
 SEG = os.path.dirname(os.path.abspath(__file__))
@@ -43,15 +44,21 @@ def main() -> None:
     ref = np.load(args.ref) if args.ref else None
     out, allok, seen = {}, True, {}
     have_trt = importlib.util.find_spec("tensorrt") is not None
-    print(f"host={platform.node()} torch={torch.__version__} device={args.device or 'default'} tensorrt={have_trt}",
-          flush=True)
+    print(
+        f"host={platform.node()} torch={torch.__version__} device={args.device or 'default'} tensorrt={have_trt}",
+        flush=True,
+    )
     for yml in sorted(glob.glob(os.path.join(SEG, "walnut_seg_*_cuvisnext_cube.yaml"))):
         name = os.path.basename(yml)[:-5]
         if "_trt_" in name and not have_trt:
             print(f"SKIP {name:48} (backend tensorrt: no tensorrt package in this env)", flush=True)
             continue
         cfg = yaml.safe_load(open(yml))
-        term = next(c["source"].split(".")[0] for c in cfg["connections"] if c["target"] == "ShellMask.inputs.logits")
+        term = next(
+            c["source"].split(".")[0]
+            for c in cfg["connections"]
+            if c["target"] == "ShellMask.inputs.logits"
+        )
         p = CuvisPipeline.load_pipeline(yml, weights_path=yml[:-5] + ".pt", device=args.device)
         x = cube.to(args.device) if args.device else cube
         with torch.no_grad():
@@ -68,16 +75,25 @@ def main() -> None:
                 key = f"m_{base}"
             if base in seen:
                 bit = torch.equal(h, seen[base][0]) and np.array_equal(m, seen[base][1])
-                msg += f" bit-identical to {base[len('walnut_seg_'):-len('_cuvisnext_cube')]}: {bit}"
+                msg += (
+                    f" bit-identical to {base[len('walnut_seg_') : -len('_cuvisnext_cube')]}: {bit}"
+                )
                 ok &= bit
-        for fp16_suffix in ("_trt_fp32_cuvisnext", "_trt_fp16_cuvisnext", "_fast_cuvisnext", "_fp16_cuvisnext"):
+        for fp16_suffix in (
+            "_trt_fp32_cuvisnext",
+            "_trt_fp16_cuvisnext",
+            "_fast_cuvisnext",
+            "_fp16_cuvisnext",
+        ):
             if ref is not None and key not in ref.files and fp16_suffix in name:
                 key, need = f"m_{name.replace(fp16_suffix, '_cuvisnext')}", 0.99
                 break
         if ref is not None and key in ref.files:
             r = np.unpackbits(ref[key])[: m.size].reshape(m.shape).astype(bool)
             iou = float((m & r).sum() / max(1, (m | r).sum()))
-            msg += f" ref px={int(r.sum()):6d} agreement IoU={iou:.5f}" + (" (vs fp32)" if need < 0.998 else "")
+            msg += f" ref px={int(r.sum()):6d} agreement IoU={iou:.5f}" + (
+                " (vs fp32)" if need < 0.998 else ""
+            )
             ok &= iou >= need
         allok &= ok
         out[f"m_{name}"] = np.packbits(m)

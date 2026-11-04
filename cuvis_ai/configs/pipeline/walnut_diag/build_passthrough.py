@@ -11,6 +11,7 @@ FO pipelines' child env instead of composing a new one.
 from pathlib import Path
 
 import yaml
+
 from cuvis_ai.node.channel_selector import FixedWavelengthSelector
 from cuvis_ai.node.data import CU3SDataNode
 from cuvis_ai_core.pipeline.factory import PipelineBuilder
@@ -21,8 +22,13 @@ NAME = "walnut_diag_passthrough_cuvisnext_cube"
 
 pipe = CuvisPipeline(NAME)
 src = CU3SDataNode(name="DataSource")
-cir = FixedWavelengthSelector(target_wavelengths=[870.0, 640.0, 550.0], normalize_output=True, norm_mode="per_frame",
-                              apply_gamma=False, name="CIR")
+cir = FixedWavelengthSelector(
+    target_wavelengths=[870.0, 640.0, 550.0],
+    normalize_output=True,
+    norm_mode="per_frame",
+    apply_gamma=False,
+    name="CIR",
+)
 pipe.connect(src.outputs.cube, cir.inputs.cube)
 pipe.connect(src.outputs.wavelengths, cir.inputs.wavelengths)
 out = HERE / f"{NAME}.yaml"
@@ -34,7 +40,8 @@ cfg["metadata"]["description"] = (
     "Control pipeline for the live-view jitter test: the cube to a CIR false-colour image (870/640/550 nm, per-frame "
     "normalisation), no model. Display CIR.rgb_image. If the view steps back and forth with this running too, the "
     "cause is the app's live-inference path, not the detectors. patchcore / steervit are listed only so cuvis.next "
-    "reuses the FO pipelines' child env.")
+    "reuses the FO pipelines' child env."
+)
 cfg["metadata"]["tags"] = ["walnut", "diagnostic", "passthrough"]
 cfg["plugins"] = ["cuvis_ai_builtin", "patchcore", "steervit"]
 for n in cfg["nodes"]:

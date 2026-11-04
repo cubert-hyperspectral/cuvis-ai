@@ -10,6 +10,7 @@ import sys
 
 import numpy as np
 import torch
+
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
 SEG = os.path.dirname(os.path.abspath(__file__))
@@ -18,7 +19,9 @@ device = sys.argv[sys.argv.index("--device") + 1] if "--device" in sys.argv else
 d = np.load(os.path.join(SEG, "ref", "real_world_live_000_f0000_reflectance.npz"))
 cube = torch.from_numpy(d["cube"].astype(np.float32))[None]
 wl = torch.from_numpy(d["wavelengths"].astype(np.int32))[None]
-p = CuvisPipeline.load_pipeline(os.path.join(SEG, name + ".yaml"), weights_path=os.path.join(SEG, name + ".pt"), device=device)
+p = CuvisPipeline.load_pipeline(
+    os.path.join(SEG, name + ".yaml"), weights_path=os.path.join(SEG, name + ".pt"), device=device
+)
 with torch.no_grad():
     o = p.forward(batch={"cube": cube.to(device) if device else cube, "wavelengths": wl})
 for (node, port), v in o.items():

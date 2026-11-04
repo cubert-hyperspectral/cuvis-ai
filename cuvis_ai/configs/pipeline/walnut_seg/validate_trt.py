@@ -18,6 +18,8 @@ Usage (overlay env with tensorrt + onnx; never install into the stack or cuvis.n
   python validate_trt.py --cache <frame_cache.pt> --work <dir> [--limit N]
 """
 
+from __future__ import annotations
+
 import argparse
 import copy
 import json
@@ -25,42 +27,60 @@ import os
 import platform
 import statistics
 import time
+from typing import Any
 
-import numpy as np
 import tensorrt as trt
 import torch
 import torchvision.transforms.functional as F
-from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_rfdetr.functional import to_unit_frames
+
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
 SEG = os.path.dirname(os.path.abspath(__file__))
 LOGGER = trt.Logger(trt.Logger.WARNING)
-TORCH_DTYPE = {trt.float32: torch.float32, trt.float16: torch.float16, trt.int32: torch.int32,
-               trt.int64: torch.int64, trt.bool: torch.bool}
+TORCH_DTYPE = {
+    trt.float32: torch.float32,
+    trt.float16: torch.float16,
+    trt.int32: torch.int32,
+    trt.int64: torch.int64,
+    trt.bool: torch.bool,
+}
 
 
-def load(short):
+def load(short: str) -> dict[str, Any]:
     y = os.path.join(SEG, f"walnut_seg_{short}_cuvisnext_cube.yaml")
-    return {n.name: n for n in CuvisPipeline.load_pipeline(y, weights_path=y[:-5] + ".pt", device="cuda").nodes}
+    return {
+        n.name: n
+        for n in CuvisPipeline.load_pipeline(y, weights_path=y[:-5] + ".pt", device="cuda").nodes
+    }
 
 
-def preprocess(m, img):
+def preprocess(m: Any, img: torch.Tensor) -> torch.Tensor:
     """Exactly the node's input path: re-quantize to uint8 levels / 255, resize, normalise (rfdetr predict)."""
     res = int(m.model.resolution)
     x = to_unit_frames(img)[0].permute(2, 0, 1).contiguous()
     return F.normalize(F.resize(x, [res, res], antialias=False), m.means, m.stds)[None].contiguous()
 
 
-def export_onnx(m, x, path):
+def export_onnx(m, x, path) -> None:
     net = copy.deepcopy(m.model.model).to(m.model.device).eval()
     net.export()
     kwargs = {"dynamo": False} if "dynamo" in torch.onnx.export.__code__.co_varnames else {}
-    torch.onnx.export(net.cpu(), (x.cpu(),), path, input_names=["input"], output_names=["dets", "labels", "masks"],
-                      dynamic_axes=None, opset_version=17, do_constant_folding=True, **kwargs)
+    torch.onnx.export(
+        net.cpu(),
+        (x.cpu(),),
+        path,
+        input_names=["input"],
+        output_names=["dets", "labels", "masks"],
+        dynamic_axes=None,
+        opset_version=17,
+        do_constant_folding=True,
+        **kwargs,
+    )
     del net
 
 
-def build_engine(onnx_path, engine_path, fp16):
+def build_engine(onnx_path: str, engine_path: str, fp16: bool) -> float:
     builder = trt.Builder(LOGGER)
     network = builder.create_network(0)
     parser = trt.OnnxParser(network, LOGGER)
@@ -81,7 +101,7 @@ def build_engine(onnx_path, engine_path, fp16):
 class Engine:
     """Minimal TensorRT runner on torch CUDA tensors (static shapes, batch 1): input 'input', outputs by name."""
 
-    def __init__(self, path):
+    def __init__(self, path) -> None:
         self.runtime = trt.Runtime(LOGGER)
         self.engine = self.runtime.deserialize_cuda_engine(open(path, "rb").read())
         self.ctx = self.engine.create_execution_context()
@@ -90,11 +110,13 @@ class Engine:
             name = self.engine.get_tensor_name(i)
             if self.engine.get_tensor_mode(name) == trt.TensorIOMode.OUTPUT:
                 shape = tuple(self.engine.get_tensor_shape(name))
-                self.out[name] = torch.empty(shape, dtype=TORCH_DTYPE[self.engine.get_tensor_dtype(name)], device="cuda")
+                self.out[name] = torch.empty(
+                    shape, dtype=TORCH_DTYPE[self.engine.get_tensor_dtype(name)], device="cuda"
+                )
                 self.ctx.set_tensor_address(name, self.out[name].data_ptr())
         self.times = []
 
-    def __call__(self, x):
+    def __call__(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         x = x.to(dtype=torch.float32).contiguous()
         self.ctx.set_tensor_address("input", x.data_ptr())
         torch.cuda.synchronize()
@@ -106,32 +128,46 @@ class Engine:
         return self.out["dets"], self.out["labels"], self.out["masks"]
 
 
-def score_map(m, outs, hw, threshold, class_id):
+def score_map(
+    m: Any, outs: tuple[torch.Tensor, ...], hw: tuple[int, int], threshold: float, class_id: int
+) -> torch.Tensor:
     """rfdetr post-processing + the node's rasterisation (per pixel max of mask x confidence)."""
-    pred = {"pred_boxes": outs[0].float(), "pred_logits": outs[1].float(), "pred_masks": outs[2].float()}
-    r = m.model.postprocess(pred, target_sizes=torch.tensor([hw], device="cuda"), score_threshold=threshold)[0]
+    pred = {
+        "pred_boxes": outs[0].float(),
+        "pred_logits": outs[1].float(),
+        "pred_masks": outs[2].float(),
+    }
+    r = m.model.postprocess(
+        pred, target_sizes=torch.tensor([hw], device="cuda"), score_threshold=threshold
+    )[0]
     keep = (r["scores"] > threshold) & (r["labels"] == class_id)
     canvas = torch.zeros(hw, device="cuda")
     if int(keep.sum()):
         masks = r["masks"][keep].reshape(int(keep.sum()), *hw).bool()
-        canvas = torch.where(masks, r["scores"][keep].float().view(-1, 1, 1), torch.zeros((), device="cuda")).amax(0)
+        canvas = torch.where(
+            masks, r["scores"][keep].float().view(-1, 1, 1), torch.zeros((), device="cuda")
+        ).amax(0)
     return canvas
 
 
-def agreement(a, b):
+def agreement(a: Any, b: Any) -> float:
     union = int((a | b).sum())
     return 1.0 if union == 0 else float((a & b).sum()) / union
 
 
-def main():
+def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--cache", required=True)
     ap.add_argument("--work", required=True)
     ap.add_argument("--limit", type=int, default=0)
     args = ap.parse_args()
     os.makedirs(args.work, exist_ok=True)
-    env = {"host": platform.node(), "gpu": torch.cuda.get_device_name(0), "torch": torch.__version__,
-           "tensorrt": trt.__version__}
+    env = {
+        "host": platform.node(),
+        "gpu": torch.cuda.get_device_name(0),
+        "torch": torch.__version__,
+        "tensorrt": trt.__version__,
+    }
     print("ENV", json.dumps(env), flush=True)
     frames = torch.load(args.cache, weights_only=False)
     frames = frames[: args.limit] if args.limit else frames
@@ -146,7 +182,9 @@ def main():
             export_onnx(m, preprocess(m, img0[k]), onnx_path)
             print(f"exported {onnx_path}", flush=True)
         for prec in ("fp32", "fp16"):
-            path = os.path.join(args.work, f"{k}_v2_{int(m.model.resolution)}_{prec}_trt{trt.__version__}.engine")
+            path = os.path.join(
+                args.work, f"{k}_v2_{int(m.model.resolution)}_{prec}_trt{trt.__version__}.engine"
+            )
             if not os.path.exists(path):
                 builds[f"{k}_{prec}"] = round(build_engine(onnx_path, path, prec == "fp16"), 1)
                 print(f"built {path} in {builds[f'{k}_{prec}']} s", flush=True)
@@ -157,12 +195,17 @@ def main():
         hw = (int(img["rgb"].shape[1]), int(img["rgb"].shape[2]))
         masks = {}
         with torch.no_grad():
-            s = {"rgb1": rgb1.forward(rgb_image=img["rgb"])["scores"][0, :, :, 0],
-                 "cir1": cir1.forward(rgb_image=img["cir"])["scores"][0, :, :, 0],
-                 "ensr": ens_rgb.forward(rgb_image=img["rgb"])["scores"][0, :, :, 0],
-                 "ensc": ens_cir.forward(rgb_image=img["cir"])["scores"][0, :, :, 0]}
-            masks["pytorch_fp32"] = {"rgb_v2": s["rgb1"] >= 0.5, "cir_v2": s["cir1"] >= 0.5,
-                                     "ens_rgb_cir_mean_v2": 0.5 * (s["ensr"] + s["ensc"]) >= 0.5}
+            s = {
+                "rgb1": rgb1.forward(rgb_image=img["rgb"])["scores"][0, :, :, 0],
+                "cir1": cir1.forward(rgb_image=img["cir"])["scores"][0, :, :, 0],
+                "ensr": ens_rgb.forward(rgb_image=img["rgb"])["scores"][0, :, :, 0],
+                "ensc": ens_cir.forward(rgb_image=img["cir"])["scores"][0, :, :, 0],
+            }
+            masks["pytorch_fp32"] = {
+                "rgb_v2": s["rgb1"] >= 0.5,
+                "cir_v2": s["cir1"] >= 0.5,
+                "ens_rgb_cir_mean_v2": 0.5 * (s["ensr"] + s["ensc"]) >= 0.5,
+            }
             for prec in ("fp32", "fp16"):
                 out = {}
                 for k, m in models.items():
@@ -170,23 +213,42 @@ def main():
                     node1, noden = (rgb1, ens_rgb) if k == "rgb" else (cir1, ens_cir)
                     out[k + "1"] = score_map(m, raw, hw, node1.threshold, node1.class_filter or 0)
                     out[k + "n"] = score_map(m, raw, hw, noden.threshold, noden.class_filter or 0)
-                masks[f"trt_{prec}"] = {"rgb_v2": out["rgb1"] >= 0.5, "cir_v2": out["cir1"] >= 0.5,
-                                        "ens_rgb_cir_mean_v2": 0.5 * (out["rgbn"] + out["cirn"]) >= 0.5}
+                masks[f"trt_{prec}"] = {
+                    "rgb_v2": out["rgb1"] >= 0.5,
+                    "cir_v2": out["cir1"] >= 0.5,
+                    "ens_rgb_cir_mean_v2": 0.5 * (out["rgbn"] + out["cirn"]) >= 0.5,
+                }
         gs, gf, unl = fr["gs"], fr["gf"], fr["unl"]
         for opt, per in masks.items():
             for pipe_name, mt in per.items():
                 mk = mt.cpu().numpy()
                 ref = masks["pytorch_fp32"][pipe_name].cpu().numpy()
-                rows.append(dict(option=opt, pipeline=pipe_name, set=fr["set"], scene=fr["scene"], name=fr["name"],
-                                 tp=int((mk & gs).sum()), fp=int((mk & ~gs).sum()), fn=int((gs & ~mk).sum()),
-                                 gs=int(gs.sum()), objfp=int((mk & unl).sum()), f2n=int((mk & gf).sum()),
-                                 gf=int(gf.sum()), agree=agreement(mk, ref)))
+                rows.append(
+                    {
+                        "option": opt,
+                        "pipeline": pipe_name,
+                        "set": fr["set"],
+                        "scene": fr["scene"],
+                        "name": fr["name"],
+                        "tp": int((mk & gs).sum()),
+                        "fp": int((mk & ~gs).sum()),
+                        "fn": int((gs & ~mk).sum()),
+                        "gs": int(gs.sum()),
+                        "objfp": int((mk & unl).sum()),
+                        "f2n": int((mk & gf).sum()),
+                        "gf": int(gf.sum()),
+                        "agree": agreement(mk, ref),
+                    }
+                )
         if (i + 1) % 20 == 0:
             print(f"  {i + 1}/{len(frames)} frames", flush=True)
     timing = {f"{k}_{p}": round(statistics.median(e.times), 2) for (k, p), e in engines.items()}
     json.dump(rows, open(os.path.join(args.work, f"validate_trt_{platform.node()}.json"), "w"))
-    json.dump({"env": env, "engine_build_s": builds, "engine_call_median_ms": timing},
-              open(os.path.join(args.work, f"validate_trt_meta_{platform.node()}.json"), "w"), indent=1)
+    json.dump(
+        {"env": env, "engine_build_s": builds, "engine_call_median_ms": timing},
+        open(os.path.join(args.work, f"validate_trt_meta_{platform.node()}.json"), "w"),
+        indent=1,
+    )
     print("ENGINE CALL median ms", json.dumps(timing), "| builds", json.dumps(builds), flush=True)
     print("VALIDATE TRT DONE", flush=True)
 
