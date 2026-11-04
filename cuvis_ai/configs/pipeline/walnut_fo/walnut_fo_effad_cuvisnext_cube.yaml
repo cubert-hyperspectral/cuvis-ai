@@ -19,8 +19,6 @@ metadata:
   cuvis_ai_version: 0.12.0
 plugins:
 - cuvis_ai_builtin
-- patchcore
-- steervit
 - efficientad
 nodes:
 - name: cu3s_data
@@ -35,11 +33,14 @@ nodes:
     - 550.0
     normalize_output: false
 - name: stretch
-  class_name: cuvis_ai_steervit.node.stretch.JointPercentileStretch
+  class_name: cuvis_ai.node.normalization.PercentileNormalizer
   hparams:
-    low: 2.0
-    high: 98.0
-    per_channel: false
+    n_channels: 3
+    norm_mode: per_frame
+    per_frame_quantiles: true
+    joint_channels: true
+    quantile_low: 0.02
+    quantile_high: 0.98
     quantize_levels: 255
     eps: 1.0e-06
 - name: effad
@@ -54,18 +55,21 @@ nodes:
     pad_maps: true
     topk_frac: 0.001
 - name: norm_effad
-  class_name: cuvis_ai_patchcore.node.calibration.ScoreRangeNormalizer
+  class_name: cuvis_ai.node.normalization.PercentileNormalizer
   hparams:
     n_channels: 1
-    low: 1.0
-    high: 99.0
-    floor: true
+    norm_mode: statistical
+    statistical_fit: pooled
+    quantile_low: 0.01
+    quantile_high: 0.99
+    clamp: floor
+    eps: 1.0e-09
     fit_subsample: 4
     max_fit_values: 4000000
     seed: 0
-    eps: 1.0e-09
+    invert: false
 - name: effad_map
-  class_name: cuvis_ai_patchcore.node.fusion.ScoreMapFusion
+  class_name: cuvis_ai.node.fusion.ScoreMapFusion
   hparams:
     mode: mean
     weights: null
@@ -79,6 +83,6 @@ connections:
 - source: stretch.outputs.normalized
   target: effad.inputs.rgb_image
 - source: effad.outputs.scores
-  target: norm_effad.inputs.scores
+  target: norm_effad.inputs.data
 - source: norm_effad.outputs.normalized
   target: effad_map.inputs.scores

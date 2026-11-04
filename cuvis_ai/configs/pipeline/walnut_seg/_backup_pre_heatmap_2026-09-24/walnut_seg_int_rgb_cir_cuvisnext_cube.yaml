@@ -71,8 +71,9 @@ nodes:
     top_frac: 0.001
     checkpoint_loader: constructor
 - name: Inter
-  class_name: cuvis_ai_rfdetr.node.score_intersection.ScoreIntersection
-  hparams: {}
+  class_name: cuvis_ai.node.fusion.ScoreMapFusion
+  hparams:
+    mode: min
 - name: ShellMask
   class_name: cuvis_ai.node.deciders.binary_decider.BinaryDecider
   hparams:
@@ -89,11 +90,11 @@ connections:
 - source: SelRGB.outputs.rgb_image
   target: SegRGB.inputs.rgb_image
 - source: SegRGB.outputs.scores
-  target: Inter.inputs.a
+  target: Inter.inputs.scores
+- source: SegCIR.outputs.scores
+  target: Inter.inputs.scores
 - source: SelCIR.outputs.rgb_image
   target: SegCIR.inputs.rgb_image
-- source: SegCIR.outputs.scores
-  target: Inter.inputs.b
 - source: Inter.outputs.scores
   target: ShellMask.inputs.logits
 metadata:

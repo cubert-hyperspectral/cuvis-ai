@@ -46,11 +46,14 @@ nodes:
     - 550.0
     normalize_output: false
 - name: stretch
-  class_name: cuvis_ai_steervit.node.stretch.JointPercentileStretch
+  class_name: cuvis_ai.node.normalization.PercentileNormalizer
   hparams:
-    low: 2.0
-    high: 98.0
-    per_channel: false
+    n_channels: 3
+    norm_mode: per_frame
+    per_frame_quantiles: true
+    joint_channels: true
+    quantile_low: 0.02
+    quantile_high: 0.98
     quantize_levels: 255
     eps: 1.0e-06
 - name: steervit_t1
@@ -82,7 +85,7 @@ nodes:
     projection_eps: 0.9
     tf32: true
 - name: tiler_t2
-  class_name: cuvis_ai_steervit.node.tiling.ImageTiler
+  class_name: cuvis_ai.node.tiling.ImageTiler
   hparams:
     tiles: 2
 - name: steervit_t2
@@ -96,7 +99,7 @@ nodes:
     score_activation: sigmoid
     tf32: true
 - name: stitch_t2
-  class_name: cuvis_ai_steervit.node.tiling.GridStitcher
+  class_name: cuvis_ai.node.tiling.GridStitcher
   hparams:
     tiles: 2
 - name: patchcore_t2
@@ -118,45 +121,54 @@ nodes:
     projection_eps: 0.9
     tf32: true
 - name: norm_t1
-  class_name: cuvis_ai_patchcore.node.calibration.ScoreRangeNormalizer
+  class_name: cuvis_ai.node.normalization.PercentileNormalizer
   hparams:
     n_channels: 1
-    low: 1.0
-    high: 99.0
-    floor: true
+    norm_mode: statistical
+    statistical_fit: pooled
+    quantile_low: 0.01
+    quantile_high: 0.99
+    clamp: floor
+    eps: 1.0e-09
     fit_subsample: 4
     max_fit_values: 4000000
     seed: 0
-    eps: 1.0e-09
+    invert: false
 - name: norm_t2
-  class_name: cuvis_ai_patchcore.node.calibration.ScoreRangeNormalizer
+  class_name: cuvis_ai.node.normalization.PercentileNormalizer
   hparams:
     n_channels: 1
-    low: 1.0
-    high: 99.0
-    floor: true
+    norm_mode: statistical
+    statistical_fit: pooled
+    quantile_low: 0.01
+    quantile_high: 0.99
+    clamp: floor
+    eps: 1.0e-09
     fit_subsample: 4
     max_fit_values: 4000000
     seed: 0
-    eps: 1.0e-09
+    invert: false
 - name: fuse
-  class_name: cuvis_ai_patchcore.node.fusion.ScoreMapFusion
+  class_name: cuvis_ai.node.fusion.ScoreMapFusion
   hparams:
     mode: mean
     weights: null
 - name: ms_norm
-  class_name: cuvis_ai_patchcore.node.calibration.ScoreRangeNormalizer
+  class_name: cuvis_ai.node.normalization.PercentileNormalizer
   hparams:
     n_channels: 1
-    low: 1.0
-    high: 99.0
-    floor: true
+    norm_mode: statistical
+    statistical_fit: pooled
+    quantile_low: 0.01
+    quantile_high: 0.99
+    clamp: floor
+    eps: 1.0e-09
     fit_subsample: 4
     max_fit_values: 4000000
     seed: 0
-    eps: 1.0e-09
+    invert: false
 - name: mix_grid
-  class_name: cuvis_ai_patchcore.node.spatial.GridSubsample
+  class_name: cuvis_ai.node.spatial.GridSubsample
   hparams:
     stride: 4
 - name: mix_snv
@@ -175,29 +187,31 @@ nodes:
     max_fit_pixels: 400000
     fit_seed: 0
 - name: mix_up
-  class_name: cuvis_ai_patchcore.node.spatial.ScoreUpsample
+  class_name: cuvis_ai.node.spatial.ScoreUpsample
   hparams:
     mode: bilinear
 - name: mix_norm
-  class_name: cuvis_ai_patchcore.node.calibration.ScoreRangeNormalizer
+  class_name: cuvis_ai.node.normalization.PercentileNormalizer
   hparams:
     n_channels: 1
-    low: 1.0
-    high: 99.0
-    floor: true
+    norm_mode: statistical
+    statistical_fit: pooled
+    quantile_low: 0.01
+    quantile_high: 0.99
+    clamp: floor
+    eps: 1.0e-09
     fit_subsample: 4
     max_fit_values: 4000000
     seed: 0
-    eps: 1.0e-09
     invert: true
 - name: fused
-  class_name: cuvis_ai_patchcore.node.fusion.ScoreMapFusion
+  class_name: cuvis_ai.node.fusion.ScoreMapFusion
   hparams:
     mode: softmin
     weights: null
     beta: 10.0
 - name: gate_fused
-  class_name: cuvis_ai_patchcore.node.gate.FrameScoreGate
+  class_name: cuvis_ai.node.deciders.frame_score_gate.FrameScoreGate
   hparams:
     threshold: 1.1309
     mask_threshold: 1.1698
@@ -205,7 +219,7 @@ nodes:
     mode: heatmap
     log_scores: true
 - name: gate
-  class_name: cuvis_ai_patchcore.node.gate.FrameScoreGate
+  class_name: cuvis_ai.node.deciders.frame_score_gate.FrameScoreGate
   hparams:
     threshold: 1.337
     mask_threshold: 1.2645
@@ -213,21 +227,21 @@ nodes:
     mode: heatmap
     log_scores: true
 - name: display
-  class_name: cuvis_ai_patchcore.node.fusion.ScoreMapFusion
+  class_name: cuvis_ai.node.fusion.ScoreMapFusion
   hparams:
     mode: first
     weights: null
 - name: display_mask
-  class_name: cuvis_ai_patchcore.node.fusion.DecisionFusion
+  class_name: cuvis_ai.node.fusion.DecisionFusion
   hparams:
     mode: first
 - name: fused_map
-  class_name: cuvis_ai_patchcore.node.fusion.ScoreMapFusion
+  class_name: cuvis_ai.node.fusion.ScoreMapFusion
   hparams:
     mode: mean
     weights: null
 - name: mixture_map
-  class_name: cuvis_ai_patchcore.node.fusion.ScoreMapFusion
+  class_name: cuvis_ai.node.fusion.ScoreMapFusion
   hparams:
     mode: mean
     weights: null
@@ -249,7 +263,7 @@ connections:
 - source: steervit_t1.outputs.features
   target: patchcore_t1.inputs.cube
 - source: patchcore_t1.outputs.scores
-  target: norm_t1.inputs.scores
+  target: norm_t1.inputs.data
 - source: tiler_t2.outputs.tiles
   target: steervit_t2.inputs.rgb_image
 - source: steervit_t2.outputs.features
@@ -257,13 +271,13 @@ connections:
 - source: stitch_t2.outputs.grid
   target: patchcore_t2.inputs.cube
 - source: patchcore_t2.outputs.scores
-  target: norm_t2.inputs.scores
+  target: norm_t2.inputs.data
 - source: norm_t1.outputs.normalized
   target: fuse.inputs.scores
 - source: norm_t2.outputs.normalized
   target: fuse.inputs.scores
 - source: fuse.outputs.scores
-  target: ms_norm.inputs.scores
+  target: ms_norm.inputs.data
 - source: cu3s_data.outputs.cube
   target: mix_grid.inputs.cube
 - source: mix_grid.outputs.cube
@@ -275,7 +289,7 @@ connections:
 - source: cu3s_data.outputs.cube
   target: mix_up.inputs.reference
 - source: mix_up.outputs.scores
-  target: mix_norm.inputs.scores
+  target: mix_norm.inputs.data
 - source: ms_norm.outputs.normalized
   target: fused.inputs.scores
 - source: mix_norm.outputs.normalized

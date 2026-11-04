@@ -32,11 +32,14 @@ nodes:
     - 550.0
     normalize_output: false
 - name: stretch
-  class_name: cuvis_ai_steervit.node.stretch.JointPercentileStretch
+  class_name: cuvis_ai.node.normalization.PercentileNormalizer
   hparams:
-    low: 2.0
-    high: 98.0
-    per_channel: false
+    n_channels: 3
+    norm_mode: per_frame
+    per_frame_quantiles: true
+    joint_channels: true
+    quantile_low: 0.02
+    quantile_high: 0.98
     quantize_levels: 255
     eps: 1.0e-06
 - name: steervit
@@ -67,16 +70,19 @@ nodes:
     coreset_projection: null
     projection_eps: 0.9
 - name: norm_steervit
-  class_name: cuvis_ai_patchcore.node.calibration.ScoreRangeNormalizer
+  class_name: cuvis_ai.node.normalization.PercentileNormalizer
   hparams:
     n_channels: 1
-    low: 1.0
-    high: 99.0
-    floor: true
+    norm_mode: statistical
+    statistical_fit: pooled
+    quantile_low: 0.01
+    quantile_high: 0.99
+    clamp: floor
+    eps: 1.0e-09
     fit_subsample: 4
     max_fit_values: 4000000
     seed: 0
-    eps: 1.0e-09
+    invert: false
 connections:
 - source: cu3s_data.outputs.cube
   target: rgb_640_550_470.inputs.cube
@@ -91,4 +97,4 @@ connections:
 - source: steervit.outputs.features
   target: patchcore_steervit.inputs.cube
 - source: patchcore_steervit.outputs.scores
-  target: norm_steervit.inputs.scores
+  target: norm_steervit.inputs.data
