@@ -34,6 +34,8 @@ def test_builtin_manifest_tag_is_the_newest_changelog_version(name: str) -> None
     )
     assert manifest["name"] == name
     assert manifest["package_name"] == "cuvis-ai"
+    if "path" in manifest and "tag" not in manifest:
+        pytest.skip("deployment checkout: the manifest points at a local path, not a tag")
     assert manifest["tag"] == f"v{match.group(1)}", (
         f"manifest pins {manifest['tag']}, CHANGELOG.md leads with {match.group(1)}"
     )
