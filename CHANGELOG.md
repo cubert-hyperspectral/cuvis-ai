@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- `ZScoreNormalizer` has a global running-statistics mode. `use_running_stats=True` fits per-band or scalar
+  mean/std over the training set during statistical initialization (Welford, capped by `max_init_frames`) and applies
+  the frozen stats at inference. Per-sample normalization stays the default.
+
 ## 0.20.1 - 2026-11-03
 
 - `TwoStageBinaryDecider`, `BinaryDecider` and `QuantileBinaryDecider` calibrate to a precision or recall target. The trainrun's `calibration:` block (cuvis-ai-schemas 0.14.4) names it, and cuvis-ai-core 0.19.1 hands it to `calibrate(scores, targets, objective=...)`: `objective` (`f1`, the default, `precision` or `recall`), `target` (a value in [0, 1]) and `level` (`pixels`, the default, or `frames`). `QuantileBinaryDecider` flags pixels in every frame and serves the pixel level only; a frame-level block raises, and the calibration phase records that as the decider's failure. A recall target lands on the most precise thresholds whose recall reaches it, a precision target on the thresholds with the highest recall whose precision does; ties go to the higher F1 at the other level, then to the higher thresholds, the image gate first. At the frame level the candidate grid is exact (every distinct image score and every frame's maximum pixel score); at the pixel level the sweep's quantiles are mirrored below the median and the search is refined around the best cell over every distinct score, so a target the split cannot reach is reported as such after an exact search and the thresholds land on the closest point. The report carries `objective` and `level`, under a target also `target` and `reached` (1 or 0), and at the applied thresholds the precision, recall, F1 and IoU on the pixels (`pixel_*`) and on the frames (`frame_*`, a frame counting as flagged when one of its decision pixels is set, the definition of `AnomalyDetectionMetrics`) with the counts behind them (`pixel_tp`, `pixel_fp`, `pixel_fn`, `frame_tp`, `frame_fp`, `frame_fn`), `frames` and `anomalous_frames`. Without a block, or with the f1 one, the deciders keep today's sweep and report the same numbers, so existing pipelines are unchanged. The block stays in the trainrun, and the pipeline yaml carries only the thresholds it produced.
@@ -461,8 +467,6 @@
   `CocoTrackMaskWriter`.
 - **Dropped the abstract `SAM3TrackerInference` entry from `configs/plugins/sam3.yaml`.** Base
   classes are not instantiable from pipelines, so the manifest now lists only concrete nodes.
-
-- **Added a global running-statistics mode to `ZScoreNormalizer`.** `use_running_stats=True` fits per-band or scalar mean/std across the training set during statistical initialization (Welford accumulation, with a `max_init_frames` cap) and applies the frozen stats at inference, alongside the existing per-sample normalization.
 
 ## 0.11.0 - 2026-07-14
 
