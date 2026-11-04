@@ -203,7 +203,7 @@ def migrate_doc(
     doc: dict[str, Any], state: dict[str, Any] | None, report: Report
 ) -> tuple[dict[str, Any], dict[str, Any] | None]:
     """Return the migrated pipeline document and node states (inputs are not modified)."""
-    doc = yaml.safe_load(yaml.safe_dump(doc))  # deep copy, plain types
+    doc = yaml.safe_load(yaml.safe_dump(doc, sort_keys=False))  # deep copy, plain types, key order
     state = dict(state) if state is not None else None
     fused: dict[str, str] = {}  # ScoreFusion-like nodes
     range_nodes: set[str] = set()
