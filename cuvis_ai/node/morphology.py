@@ -64,6 +64,15 @@ class ShapeMorphology(Node):
         If True, treat any nonzero pixel as foreground and run connected-
         component labeling.  If False, treat the input as an already-labeled
         mask and use its nonzero values as instance ids.  Default ``True``.
+
+    Does not export with the dynamo exporter: labelling round-trips each frame
+    through OpenCV (``cv2.connectedComponents`` via
+    ``cuvis_ai.utils.connected_components.label_connected_components``), which has
+    no torch equivalent in this repo, and the per-frame object count is itself
+    data-dependent (``labels.max().item()``), so neither the numpy call nor the
+    Python-level loop it drives can be guarded the way a validation-only check can.
+    An ``export_module()`` adapter would need a pure-torch connected-component
+    labelling implementation, which is out of scope here. No ``NodeTag.ONNX``.
     """
 
     _category = NodeCategory.TRANSFORM

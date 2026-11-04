@@ -2394,6 +2394,15 @@ class HighContrastSelector(ChannelSelectorBase):
         ``ChannelSelectorBase`` settings (``norm_mode``, ``apply_gamma``, ...);
         ``normalize_output=False`` returns the three selected bands without
         rescaling or gamma.
+
+    Does not export with the dynamo exporter: ``_select_indices`` picks the band
+    per window from the batch's own pixel values (variance, Laplacian energy) with
+    numpy and scipy, round-tripping through ``cube[0].cpu().numpy()``. Unlike the
+    other selectors' band lookup, the choice is content-dependent, not a function
+    of ``wavelengths`` alone, so caching a traced lookup from one eager call (as
+    :class:`CIETristimulusRGBSelector` does for its wavelength-dependent weights)
+    would freeze the band choice to whatever the priming frame happened to select.
+    No ``NodeTag.ONNX``.
     """
 
     _category = NodeCategory.TRANSFORM
