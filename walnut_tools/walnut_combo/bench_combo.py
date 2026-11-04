@@ -36,7 +36,10 @@ def main() -> None:
     ap.add_argument(
         "--seg-ref",
         default=str(
-            Path(__file__).resolve().parent.parent
+            Path(__file__).resolve().parents[2]
+            / "cuvis_ai"
+            / "configs"
+            / "pipeline"
             / "walnut_seg"
             / "ref"
             / "real_world_live_000_f0000_reflectance.npz"

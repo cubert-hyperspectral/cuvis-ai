@@ -42,7 +42,17 @@ import yaml
 
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
-SEG = os.path.dirname(os.path.abspath(__file__))
+SEG = os.path.normpath(
+    os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "..",
+        "..",
+        "cuvis_ai",
+        "configs",
+        "pipeline",
+        "walnut_seg",
+    )
+)
 VARIANTS = {
     "exact": (
         {"precision": "fp32", "jit_trace": False, "gpu_input": True, "fast_paste": True},

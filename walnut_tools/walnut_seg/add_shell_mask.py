@@ -24,7 +24,17 @@ import yaml
 from cuvis_ai.node.deciders.binary_decider import BinaryDecider
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
-SEG = os.path.dirname(os.path.abspath(__file__))
+SEG = os.path.normpath(
+    os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "..",
+        "..",
+        "cuvis_ai",
+        "configs",
+        "pipeline",
+        "walnut_seg",
+    )
+)
 BK = os.path.join(SEG, "_backup_pre_mask_2026-09-23")
 TERM = {
     "rgb_full": "Seg",

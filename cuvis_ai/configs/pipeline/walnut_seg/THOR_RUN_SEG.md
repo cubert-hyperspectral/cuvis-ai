@@ -69,7 +69,7 @@ not offered — fixed 24 Sep 13:39, see `README_SEG.md` → Outputs). Pick the o
 ## Ordered steps on Thor
 1. Copy `Z:\anish\walnut_fo_stack` → `<thor-root>` (e.g. `/home/anish/walnut_fo_stack`).
 2. **Rebuild the cuvis.next server venv** in the clone (§5/§9): install Jetson aarch64 torch/torchvision first, then the `uv pip install --no-sources -e ./cuvis-ai -e ./cuvis-ai-rfdetr … cuvis-ai-core==0.17.4 cuvis-ai-schemas[full]==0.12.0 cuvis==3.5.3.1` line from §5 (it already includes `cuvis-ai-rfdetr`; §5 still says core 0.17.3, but the cuvis.next build from 25 Sep requires ≥ 0.17.4 and the stack checkout is cuvis-ai v0.17.2 — without `.git` set `SETUPTOOLS_SCM_PRETEND_VERSION=0.17.2`).
-3. **Re-stamp paths:** `python cuvis-ai/cuvis_ai/configs/pipeline/walnut_seg/restamp_thor.py --root <thor-root>` (rewrites `D:/walnuts/walnut_fo_stack` → `<thor-root>` across all `plugins/*.yaml` + `pipeline/**/*.yaml`, seg **and** FO). Add `--dry` first to preview.
+3. **Re-stamp paths:** `python cuvis-ai/walnut_tools/walnut_seg/restamp_thor.py --root <thor-root>` (rewrites `D:/walnuts/walnut_fo_stack` → `<thor-root>` across all `plugins/*.yaml` + `pipeline/**/*.yaml`, seg **and** FO). Add `--dry` first to preview.
 4. **Pre-populate the HF cache** per §9 (copy the `models--…` dirs incl. `timm vit_base/small dinov2`; bridge `\hf`↔`\hub`).
 5. **cuvis.next:** cuvis.ai Directory = `<thor-root>/cuvis-ai`; Settings Directory = `<thor-root>/cuvis-ai/cuvis_ai/configs`; **do NOT** "Take ownership". Per pipeline set BOTH `Pipeline = …/walnut_seg/<name>.yaml` AND `Weights = …/walnut_seg/<name>.pt`.
 6. Load `walnut_seg_rgb_full` on a cu3s → confirm a shell mask renders. Then `ens_rgb_cir_mean`, then `ens_sam_t13`.
