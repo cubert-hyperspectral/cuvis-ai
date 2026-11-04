@@ -8,7 +8,6 @@ metadata:
   - hyperspectral
   - multiscale
   - patchcore
-  - segmentation
   - split_v3
   - steervit
   - walnut
