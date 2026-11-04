@@ -823,10 +823,20 @@ class _NormalizedDifferenceIndexBase(ChannelSelectorBase, ABC):
     def _render_rgb_from_index(self, index_image: torch.Tensor) -> torch.Tensor:
         """Render the scalar index image into an RGB image [B, H, W, 3]."""
 
-    def _resolve_band_indices_tensor(self, wavelengths: Any) -> tuple[torch.Tensor, torch.Tensor]:
-        """Resolve the two operand indices as a ``[2]`` int64 tensor (tensor ops only)."""
-        wavelengths_t = _wavelengths_tensor(wavelengths, device=torch.device("cpu"))
-        targets = torch.tensor([self.primary_nm, self.secondary_nm], dtype=torch.float32)
+    def _resolve_band_indices_tensor(
+        self, wavelengths: Any, cube: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Resolve the two operand indices as a ``[2]`` int64 tensor on ``cube``'s device.
+
+        ``wavelengths`` arrives as numpy (the cu3s loaders' convention) or as a CPU
+        tensor regardless of where the cube itself lives, so the lookup is built on
+        ``cube.device`` explicitly: an index tensor left on the CPU fails
+        ``index_select`` against a CUDA cube.
+        """
+        wavelengths_t = _wavelengths_tensor(wavelengths, device=cube.device)
+        targets = torch.tensor(
+            [self.primary_nm, self.secondary_nm], dtype=torch.float32, device=cube.device
+        )
         indices = self._nearest_band_indices_tensor(wavelengths_t, targets)
         return wavelengths_t, indices
 
@@ -843,7 +853,7 @@ class _NormalizedDifferenceIndexBase(ChannelSelectorBase, ABC):
 
     def _compute_index_image(self, cube: torch.Tensor, wavelengths: Any) -> torch.Tensor:
         """Compute the raw normalized-difference image [B, H, W, 1]."""
-        _, indices = self._resolve_band_indices_tensor(wavelengths)
+        _, indices = self._resolve_band_indices_tensor(wavelengths, cube)
         primary = torch.index_select(cube, -1, indices[0:1]).squeeze(-1)
         secondary = torch.index_select(cube, -1, indices[1:2]).squeeze(-1)
         numerator = primary - secondary
@@ -865,7 +875,7 @@ class _NormalizedDifferenceIndexBase(ChannelSelectorBase, ABC):
         **_: Any,
     ) -> dict[str, Any]:
         """Compute raw index image plus RGB render."""
-        wavelengths_t, indices = self._resolve_band_indices_tensor(wavelengths)
+        wavelengths_t, indices = self._resolve_band_indices_tensor(wavelengths, cube)
         index_image = self._compute_index_image(cube, wavelengths_t)
         rgb = self._render_rgb_from_index(index_image)
 
@@ -1392,22 +1402,27 @@ class _VegetationIndexBase(ChannelSelectorBase, ABC):
         return wavelengths_np, indices
 
     def _resolve_band_indices_tensor(
-        self, wavelengths: Any
+        self, wavelengths: Any, cube: torch.Tensor
     ) -> tuple[torch.Tensor, list[str], torch.Tensor]:
-        """Resolve every named band's index as one tensor (tensor ops only).
+        """Resolve every named band's index as one tensor on ``cube``'s device.
 
         Returns the wavelength tensor, the band names in a fixed order and the
-        ``[len(names)]`` int64 indices in that order.
+        ``[len(names)]`` int64 indices in that order. ``wavelengths`` arrives as
+        numpy (the cu3s loaders' convention) or as a CPU tensor regardless of where
+        the cube itself lives, so the lookup is built on ``cube.device`` explicitly:
+        an index tensor left on the CPU fails ``index_select`` against a CUDA cube.
         """
-        wavelengths_t = _wavelengths_tensor(wavelengths, device=torch.device("cpu"))
+        wavelengths_t = _wavelengths_tensor(wavelengths, device=cube.device)
         names = list(self.band_nm.keys())
-        targets = torch.tensor([self.band_nm[name] for name in names], dtype=torch.float32)
+        targets = torch.tensor(
+            [self.band_nm[name] for name in names], dtype=torch.float32, device=cube.device
+        )
         indices = self._nearest_band_indices_tensor(wavelengths_t, targets)
         return wavelengths_t, names, indices
 
     def _compute_index_image(self, cube: torch.Tensor, wavelengths: Any) -> torch.Tensor:
         """Compute the raw scalar index image [B, H, W, 1]."""
-        _, names, indices = self._resolve_band_indices_tensor(wavelengths)
+        _, names, indices = self._resolve_band_indices_tensor(wavelengths, cube)
         bands = {
             name: torch.index_select(cube, -1, indices[i : i + 1]).squeeze(-1)
             for i, name in enumerate(names)
@@ -1432,7 +1447,7 @@ class _VegetationIndexBase(ChannelSelectorBase, ABC):
         **_: Any,
     ) -> dict[str, Any]:
         """Compute the vegetation index plus a colour-mapped RGB output."""
-        wavelengths_t, names, indices = self._resolve_band_indices_tensor(wavelengths)
+        wavelengths_t, names, indices = self._resolve_band_indices_tensor(wavelengths, cube)
         index_image = self._compute_index_image(cube, wavelengths_t)
         rgb = self._render_rgb_from_index(index_image)
 
@@ -1999,16 +2014,26 @@ class FixedWavelengthSelector(ChannelSelectorBase):
                 n,
             )
 
-    def _resolve_band_indices_tensor(self, wavelengths: Any) -> tuple[torch.Tensor, torch.Tensor]:
-        """Resolve every target wavelength's index as one tensor (tensor ops only)."""
-        wavelengths_t = _wavelengths_tensor(wavelengths, device=torch.device("cpu"))
-        targets = torch.tensor(list(self.target_wavelengths), dtype=torch.float32)
+    def _resolve_band_indices_tensor(
+        self, wavelengths: Any, cube: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Resolve every target wavelength's index as one tensor on ``cube``'s device.
+
+        ``wavelengths`` arrives as numpy (the cu3s loaders' convention) or as a CPU
+        tensor regardless of where the cube itself lives, so the lookup is built on
+        ``cube.device`` explicitly: an index tensor left on the CPU fails
+        ``index_select`` against a CUDA cube.
+        """
+        wavelengths_t = _wavelengths_tensor(wavelengths, device=cube.device)
+        targets = torch.tensor(
+            list(self.target_wavelengths), dtype=torch.float32, device=cube.device
+        )
         indices = self._nearest_band_indices_tensor(wavelengths_t, targets)
         return wavelengths_t, indices
 
     def _compute_raw_rgb(self, cube: torch.Tensor, wavelengths: Any) -> torch.Tensor:
         """Select the nearest spectral band for each target wavelength."""
-        _, indices = self._resolve_band_indices_tensor(wavelengths)
+        _, indices = self._resolve_band_indices_tensor(wavelengths, cube)
         return torch.index_select(cube, -1, indices)
 
     def forward(
@@ -2032,7 +2057,7 @@ class FixedWavelengthSelector(ChannelSelectorBase):
         dict[str, Any]
             Dictionary with "rgb_image" and "band_info" keys.
         """
-        wavelengths_t, indices = self._resolve_band_indices_tensor(wavelengths)
+        wavelengths_t, indices = self._resolve_band_indices_tensor(wavelengths, cube)
 
         # 3-channel path goes through the (running / statistical / per-frame)
         # normalisation machinery in ChannelSelectorBase. For n != 3 we always
@@ -2545,16 +2570,26 @@ class CIRSelector(ChannelSelectorBase):
         green_idx = self._nearest_band_index(wavelengths_np, self.green_nm)
         return nir_idx, red_idx, green_idx
 
-    def _resolve_band_indices_tensor(self, wavelengths: Any) -> tuple[torch.Tensor, torch.Tensor]:
-        """Resolve the NIR/Red/Green indices as a ``[3]`` int64 tensor (tensor ops only)."""
-        wavelengths_t = _wavelengths_tensor(wavelengths, device=torch.device("cpu"))
-        targets = torch.tensor([self.nir_nm, self.red_nm, self.green_nm], dtype=torch.float32)
+    def _resolve_band_indices_tensor(
+        self, wavelengths: Any, cube: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Resolve the NIR/Red/Green indices as a ``[3]`` int64 tensor on ``cube``'s device.
+
+        ``wavelengths`` arrives as numpy (the cu3s loaders' convention) or as a CPU
+        tensor regardless of where the cube itself lives, so the lookup is built on
+        ``cube.device`` explicitly: an index tensor left on the CPU fails
+        ``index_select`` against a CUDA cube.
+        """
+        wavelengths_t = _wavelengths_tensor(wavelengths, device=cube.device)
+        targets = torch.tensor(
+            [self.nir_nm, self.red_nm, self.green_nm], dtype=torch.float32, device=cube.device
+        )
         indices = self._nearest_band_indices_tensor(wavelengths_t, targets)
         return wavelengths_t, indices
 
     def _compute_raw_rgb(self, cube: torch.Tensor, wavelengths: Any) -> torch.Tensor:
         """Compose unnormalized CIR RGB tensor [B, H, W, 3]."""
-        _, indices = self._resolve_band_indices_tensor(wavelengths)
+        _, indices = self._resolve_band_indices_tensor(wavelengths, cube)
         return torch.index_select(cube, -1, indices)
 
     def forward(
@@ -2578,7 +2613,7 @@ class CIRSelector(ChannelSelectorBase):
         dict[str, Any]
             Dictionary with "rgb_image" and "band_info" keys.
         """
-        wavelengths_t, indices = self._resolve_band_indices_tensor(wavelengths)
+        wavelengths_t, indices = self._resolve_band_indices_tensor(wavelengths, cube)
         rgb = self._normalize_rgb(self._compute_raw_rgb(cube, wavelengths_t))
 
         # Eager-only: band_info reads Python scalars out of tensors, which

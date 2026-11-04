@@ -249,3 +249,70 @@ def test_out_of_tolerance_guard_skipped_under_export() -> None:
             dynamo=True,
             opset_version=18,
         )
+
+
+# ---------------------------------------------------------------------------
+# Device: the band indices must follow the cube, not the (numpy-origin,
+# always-CPU) wavelengths. A cu3s source feeds a node its numpy wavelengths on
+# a numpy-typed port while the cube itself already sits on CUDA; the index
+# tensor the lookup builds must not stay on the CPU in that case.
+# ---------------------------------------------------------------------------
+
+
+def test_fixed_wavelength_selector_indices_follow_cube_device_on_cpu() -> None:
+    """Even on CPU, the resolved indices sit on the cube's device, not a hardcoded one."""
+    node = FixedWavelengthSelector(normalize_output=False)
+    cube = _cube()
+    wavelengths_t, indices = node._resolve_band_indices_tensor(wavelengths=WAVELENGTHS, cube=cube)
+    assert indices.device == cube.device
+    assert wavelengths_t.device == cube.device
+
+
+def test_ndvi_selector_indices_follow_cube_device_on_cpu() -> None:
+    node = NDVISelector(normalize_output=False)
+    cube = _cube()
+    wavelengths_t, indices = node._resolve_band_indices_tensor(wavelengths=WAVELENGTHS, cube=cube)
+    assert indices.device == cube.device
+    assert wavelengths_t.device == cube.device
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA required")
+def test_fixed_wavelength_selector_runs_on_cuda_cube_with_numpy_wavelengths() -> None:
+    """A node fed numpy wavelengths (a numpy-typed port) and a CUDA cube must not
+    raise a cross-device index_select; this reproduces the span-export failure on
+    the real Dinomaly pipeline (ALL-6819 follow-up)."""
+    node = FixedWavelengthSelector(normalize_output=False).cuda()
+    cube = _cube().cuda()
+    out = node.forward(cube, WAVELENGTHS)  # WAVELENGTHS is a plain numpy array
+    assert out["rgb_image"].device.type == "cuda"
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA required")
+def test_ndvi_selector_runs_on_cuda_cube_with_numpy_wavelengths() -> None:
+    node = NDVISelector(normalize_output=False).cuda()
+    cube = _cube().cuda()
+    out = node.forward(cube, WAVELENGTHS)
+    assert out["index_image"].device.type == "cuda"
+    assert out["rgb_image"].device.type == "cuda"
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA required")
+def test_cir_selector_runs_on_cuda_cube_with_numpy_wavelengths() -> None:
+    node = CIRSelector(normalize_output=False).cuda()
+    cube = _cube().cuda()
+    out = node.forward(cube, WAVELENGTHS)
+    assert out["rgb_image"].device.type == "cuda"
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA required")
+def test_evi_selector_runs_on_cuda_cube_with_numpy_wavelengths() -> None:
+    """The vegetation-index family shares the same band-lookup base as NDVISelector."""
+    node = EVISelector(normalize_output=False).cuda()
+    cube = _cube().cuda()
+    out = node.forward(cube, WAVELENGTHS)
+    assert out["index_image"].device.type == "cuda"
+    assert out["rgb_image"].device.type == "cuda"
