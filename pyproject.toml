@@ -73,6 +73,7 @@ classifiers = [
 
 [project.scripts]
 calibrate-thresholds = "scripts.calibrate_thresholds:main"
+compare-deploy = "scripts.compare_deploy:main"
 create-stubs = "scripts.generate_node_port_stubs:main"
 migrate-plugin-nodes = "scripts.migrate_plugin_nodes:main"
 dataset = "cuvis_ai_core.data.public_datasets:download_data_cli"
