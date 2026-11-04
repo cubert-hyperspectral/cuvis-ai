@@ -35,7 +35,7 @@ from pathlib import Path
 TRT_VERSION = "10.15.1.29"
 FO_PLUGINS = {"cuvis-ai-patchcore", "cuvis-ai-steervit", "cuvis-ai-ssft", "cuvis-ai-efficientad"}
 CHECKPOINTS = ("rgb_v2_ema.pth", "cir_v2_ema.pth")
-SEG = Path(__file__).resolve().parent
+SEG = Path(__file__).resolve().parents[2] / "cuvis_ai" / "configs" / "pipeline" / "walnut_seg"
 
 
 def trt_package() -> str:
