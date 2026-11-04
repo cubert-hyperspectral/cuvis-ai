@@ -44,7 +44,9 @@ class BinaryAnomalyLabelMapper(Node):
     """
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.MASK, NodeTag.ANOMALY, NodeTag.POSTPROCESSING, NodeTag.NUMPY})
+    _tags = frozenset(
+        {NodeTag.ONNX, NodeTag.MASK, NodeTag.ANOMALY, NodeTag.POSTPROCESSING, NodeTag.NUMPY}
+    )
 
     INPUT_SPECS = {
         "cube": PortSpec(

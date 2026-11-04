@@ -387,7 +387,7 @@ class MaskedMeanSpectrum(Node):
     """
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.EMBEDDING, NodeTag.NUMPY})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.HYPERSPECTRAL, NodeTag.EMBEDDING, NodeTag.NUMPY})
 
     INPUT_SPECS = {
         "cube": PortSpec(
@@ -455,7 +455,7 @@ class SignaturesToReferences(Node):
     """
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.CLASSIFICATION})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.HYPERSPECTRAL, NodeTag.CLASSIFICATION})
 
     INPUT_SPECS = {
         "signatures": PortSpec(

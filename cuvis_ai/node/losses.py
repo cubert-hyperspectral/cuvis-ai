@@ -44,7 +44,7 @@ class OrthogonalityLoss(LossNode):
     """
 
     _category = NodeCategory.REGULARIZER
-    _tags = frozenset({NodeTag.TRAINING, NodeTag.DIFFERENTIABLE, NodeTag.TORCH})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.TRAINING, NodeTag.DIFFERENTIABLE, NodeTag.TORCH})
 
     INPUT_SPECS = {
         "components": PortSpec(
@@ -103,7 +103,9 @@ class AnomalyBCEWithLogits(LossNode):
     """
 
     _category = NodeCategory.LOSS
-    _tags = frozenset({NodeTag.TRAINING, NodeTag.DIFFERENTIABLE, NodeTag.TORCH, NodeTag.ANOMALY})
+    _tags = frozenset(
+        {NodeTag.ONNX, NodeTag.TRAINING, NodeTag.DIFFERENTIABLE, NodeTag.TORCH, NodeTag.ANOMALY}
+    )
 
     INPUT_SPECS = {
         "predictions": PortSpec(
@@ -191,7 +193,13 @@ class MSEReconstructionLoss(LossNode):
 
     _category = NodeCategory.LOSS
     _tags = frozenset(
-        {NodeTag.TRAINING, NodeTag.DIFFERENTIABLE, NodeTag.TORCH, NodeTag.RECONSTRUCTION}
+        {
+            NodeTag.ONNX,
+            NodeTag.TRAINING,
+            NodeTag.DIFFERENTIABLE,
+            NodeTag.TORCH,
+            NodeTag.RECONSTRUCTION,
+        }
     )
 
     INPUT_SPECS = {
@@ -275,7 +283,7 @@ class DistinctnessLoss(LossNode):
     """
 
     _category = NodeCategory.LOSS
-    _tags = frozenset({NodeTag.TRAINING, NodeTag.DIFFERENTIABLE, NodeTag.TORCH})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.TRAINING, NodeTag.DIFFERENTIABLE, NodeTag.TORCH})
 
     INPUT_SPECS = {
         "selection_weights": PortSpec(
@@ -361,7 +369,7 @@ class SelectorEntropyRegularizer(LossNode):
     """
 
     _category = NodeCategory.REGULARIZER
-    _tags = frozenset({NodeTag.TRAINING, NodeTag.DIFFERENTIABLE, NodeTag.TORCH})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.TRAINING, NodeTag.DIFFERENTIABLE, NodeTag.TORCH})
 
     INPUT_SPECS = {
         "weights": PortSpec(
@@ -438,7 +446,7 @@ class SelectorDiversityRegularizer(LossNode):
     """
 
     _category = NodeCategory.REGULARIZER
-    _tags = frozenset({NodeTag.TRAINING, NodeTag.DIFFERENTIABLE, NodeTag.TORCH})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.TRAINING, NodeTag.DIFFERENTIABLE, NodeTag.TORCH})
 
     INPUT_SPECS = {
         "weights": PortSpec(
@@ -480,7 +488,9 @@ class DeepSVDDSoftBoundaryLoss(LossNode):
     """Soft-boundary Deep SVDD objective operating on BHWD embeddings."""
 
     _category = NodeCategory.LOSS
-    _tags = frozenset({NodeTag.TRAINING, NodeTag.DIFFERENTIABLE, NodeTag.TORCH, NodeTag.ANOMALY})
+    _tags = frozenset(
+        {NodeTag.ONNX, NodeTag.TRAINING, NodeTag.DIFFERENTIABLE, NodeTag.TORCH, NodeTag.ANOMALY}
+    )
 
     INPUT_SPECS = {
         "embeddings": PortSpec(
@@ -577,7 +587,13 @@ class IoULoss(LossNode):
 
     _category = NodeCategory.LOSS
     _tags = frozenset(
-        {NodeTag.TRAINING, NodeTag.DIFFERENTIABLE, NodeTag.TORCH, NodeTag.SEGMENTATION}
+        {
+            NodeTag.ONNX,
+            NodeTag.TRAINING,
+            NodeTag.DIFFERENTIABLE,
+            NodeTag.TORCH,
+            NodeTag.SEGMENTATION,
+        }
     )
 
     INPUT_SPECS = {
@@ -946,7 +962,13 @@ class DiceLoss(LossNode):
 
     _category = NodeCategory.LOSS
     _tags = frozenset(
-        {NodeTag.TRAINING, NodeTag.DIFFERENTIABLE, NodeTag.TORCH, NodeTag.SEGMENTATION}
+        {
+            NodeTag.ONNX,
+            NodeTag.TRAINING,
+            NodeTag.DIFFERENTIABLE,
+            NodeTag.TORCH,
+            NodeTag.SEGMENTATION,
+        }
     )
 
     INPUT_SPECS = {"logits": _SEG_LOGITS_SPEC, "targets": _SEG_TARGETS_SPEC}
@@ -1031,7 +1053,13 @@ class CrossEntropyLoss(LossNode):
 
     _category = NodeCategory.LOSS
     _tags = frozenset(
-        {NodeTag.TRAINING, NodeTag.DIFFERENTIABLE, NodeTag.TORCH, NodeTag.SEGMENTATION}
+        {
+            NodeTag.ONNX,
+            NodeTag.TRAINING,
+            NodeTag.DIFFERENTIABLE,
+            NodeTag.TORCH,
+            NodeTag.SEGMENTATION,
+        }
     )
 
     INPUT_SPECS = {"logits": _SEG_LOGITS_SPEC, "targets": _SEG_TARGETS_SPEC}

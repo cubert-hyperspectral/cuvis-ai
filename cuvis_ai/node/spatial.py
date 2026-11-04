@@ -29,7 +29,7 @@ class GridSubsample(Node):
     """Keep every ``stride``-th pixel of a cube in both spatial axes: ``cube[:, ::s, ::s, :]``."""
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.PREPROCESSING, NodeTag.TORCH})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.HYPERSPECTRAL, NodeTag.PREPROCESSING, NodeTag.TORCH})
 
     INPUT_SPECS = {
         "cube": PortSpec(
@@ -67,7 +67,7 @@ class ScoreUpsample(Node):
     """Resize a score map [B, h, w, C] to the height and width of a reference tensor."""
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.ANOMALY, NodeTag.POSTPROCESSING, NodeTag.TORCH})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.ANOMALY, NodeTag.POSTPROCESSING, NodeTag.TORCH})
 
     INPUT_SPECS = {
         "scores": PortSpec(
@@ -116,7 +116,7 @@ class ScoreMapSmoothing(Node):
     """Smooth a score map [B, H, W, C] with a Gaussian of ``sigma_px`` pixels."""
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.ANOMALY, NodeTag.POSTPROCESSING, NodeTag.TORCH})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.ANOMALY, NodeTag.POSTPROCESSING, NodeTag.TORCH})
 
     INPUT_SPECS = {
         "scores": PortSpec(

@@ -79,7 +79,7 @@ class ScalarHSVColormapNode(Node):
     """Map a scalar BHWC image to RGB using an HSV colormap."""
 
     _category = NodeCategory.VISUALIZER
-    _tags = frozenset({NodeTag.RGB})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.RGB})
 
     INPUT_SPECS = {
         "data": PortSpec(
@@ -131,7 +131,7 @@ class ClassMapToRGB(Node):
     """
 
     _category = NodeCategory.VISUALIZER
-    _tags = frozenset({NodeTag.MASK, NodeTag.RGB})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.MASK, NodeTag.RGB})
 
     INPUT_SPECS = {
         "class_map": PortSpec(

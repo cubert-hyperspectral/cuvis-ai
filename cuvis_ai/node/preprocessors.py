@@ -156,7 +156,7 @@ class SpatialRotateNode(Node):
     """
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.IMAGE, NodeTag.PREPROCESSING, NodeTag.NUMPY})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.IMAGE, NodeTag.PREPROCESSING, NodeTag.NUMPY})
 
     INPUT_SPECS = {
         "cube": PortSpec(
@@ -359,7 +359,7 @@ class SaturatedPixelDetector(Node):
     """
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.PREPROCESSING, NodeTag.TORCH})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.HYPERSPECTRAL, NodeTag.PREPROCESSING, NodeTag.TORCH})
 
     INPUT_SPECS = {
         "cube": PortSpec(
@@ -480,7 +480,7 @@ class SpectralValidity(Node):
     """
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.MASK, NodeTag.TORCH})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.HYPERSPECTRAL, NodeTag.MASK, NodeTag.TORCH})
 
     INPUT_SPECS = {
         "cube": PortSpec(

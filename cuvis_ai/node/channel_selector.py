@@ -662,6 +662,46 @@ _UNIT_RANGE_RGB_IMAGE_SPEC = PortSpec(
 )
 
 
+class _BandLookupExportAdapter(torch.nn.Module):
+    """Export stand-in for a selector whose ``wavelengths`` port is declared numpy.
+
+    ``PipelineSpanModule`` feeds a node's own ``forward`` a numpy array on every input
+    port declared with a numpy dtype (``wavelengths`` here, matching the cu3s loaders),
+    so a traced copy of ``forward`` itself never sees a tensor to resolve bands from (see
+    ``PipelineSpanModule._call``). An adapter is called with tensors on every port
+    instead, numpy dtype or not, so this one runs the same tensor-only band resolution
+    the node's own ``forward`` uses internally, with ``wavelengths`` as a tensor.
+
+    It holds the node itself (not a copy): the exporter already deep-copies the whole
+    span before adapting it, and only calls the node's tensor-only helpers
+    (``_compute_index_image`` / ``_compute_raw_rgb`` / ``_render_rgb_from_index`` /
+    ``_normalize_rgb``), which read weights and buffers without mutating them.
+    """
+
+    def __init__(self, node: ChannelSelectorBase) -> None:
+        super().__init__()
+        self.node = node
+        self._has_index_image = hasattr(node, "_compute_index_image") and hasattr(
+            node, "_render_rgb_from_index"
+        )
+
+    def forward(self, cube: torch.Tensor, wavelengths: torch.Tensor) -> dict[str, torch.Tensor]:
+        """Run the node's tensor-only band resolution and return its tensor outputs."""
+        if self._has_index_image:
+            index_image = self.node._compute_index_image(cube, wavelengths)
+            rgb = self.node._render_rgb_from_index(index_image)
+            return {"index_image": index_image, "rgb_image": rgb}
+        raw_rgb = self.node._compute_raw_rgb(cube, wavelengths)
+        if (
+            isinstance(self.node, FixedWavelengthSelector)
+            and not self.node._effective_normalize_output
+        ):
+            rgb = raw_rgb
+        else:
+            rgb = self.node._normalize_rgb(raw_rgb)
+        return {"rgb_image": rgb}
+
+
 class _NormalizedDifferenceIndexBase(ChannelSelectorBase, ABC):
     """Abstract base for two-band normalized-difference indices.
 
@@ -861,6 +901,16 @@ class _NormalizedDifferenceIndexBase(ChannelSelectorBase, ABC):
             "band_info": band_info,
         }
 
+    def export_module(self) -> torch.nn.Module:
+        """Adapter taking ``wavelengths`` as a tensor; see ``_BandLookupExportAdapter``.
+
+        The span exporter feeds a node's own ``forward`` a numpy array on the
+        ``wavelengths`` port (its declared dtype), which the base class's nearest-band
+        lookup cannot trace even though it is tensor ops otherwise; the adapter runs
+        the same lookup with a tensor instead.
+        """
+        return _BandLookupExportAdapter(self)
+
 
 class NDVISelector(_NormalizedDifferenceIndexBase):
     """Normalized Difference Vegetation Index renderer.
@@ -877,7 +927,13 @@ class NDVISelector(_NormalizedDifferenceIndexBase):
 
     _category = NodeCategory.TRANSFORM
     _tags = frozenset(
-        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+        {
+            NodeTag.ONNX,
+            NodeTag.HYPERSPECTRAL,
+            NodeTag.DIM_REDUCTION,
+            NodeTag.PREPROCESSING,
+            NodeTag.NUMPY,
+        }
     )
 
     def __init__(
@@ -1024,7 +1080,13 @@ class NDWISelector(_ColormappedNormalizedDifferenceSelector):
 
     _category = NodeCategory.TRANSFORM
     _tags = frozenset(
-        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+        {
+            NodeTag.ONNX,
+            NodeTag.HYPERSPECTRAL,
+            NodeTag.DIM_REDUCTION,
+            NodeTag.PREPROCESSING,
+            NodeTag.NUMPY,
+        }
     )
 
     def __init__(
@@ -1079,7 +1141,13 @@ class NBRSelector(_ColormappedNormalizedDifferenceSelector):
 
     _category = NodeCategory.TRANSFORM
     _tags = frozenset(
-        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+        {
+            NodeTag.ONNX,
+            NodeTag.HYPERSPECTRAL,
+            NodeTag.DIM_REDUCTION,
+            NodeTag.PREPROCESSING,
+            NodeTag.NUMPY,
+        }
     )
 
     def __init__(
@@ -1134,7 +1202,13 @@ class GNDVISelector(_ColormappedNormalizedDifferenceSelector):
 
     _category = NodeCategory.TRANSFORM
     _tags = frozenset(
-        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+        {
+            NodeTag.ONNX,
+            NodeTag.HYPERSPECTRAL,
+            NodeTag.DIM_REDUCTION,
+            NodeTag.PREPROCESSING,
+            NodeTag.NUMPY,
+        }
     )
 
     def __init__(
@@ -1190,7 +1264,13 @@ class NDRESelector(_ColormappedNormalizedDifferenceSelector):
 
     _category = NodeCategory.TRANSFORM
     _tags = frozenset(
-        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+        {
+            NodeTag.ONNX,
+            NodeTag.HYPERSPECTRAL,
+            NodeTag.DIM_REDUCTION,
+            NodeTag.PREPROCESSING,
+            NodeTag.NUMPY,
+        }
     )
 
     def __init__(
@@ -1388,6 +1468,16 @@ class _VegetationIndexBase(ChannelSelectorBase, ABC):
             "band_info": band_info,
         }
 
+    def export_module(self) -> torch.nn.Module:
+        """Adapter taking ``wavelengths`` as a tensor; see ``_BandLookupExportAdapter``.
+
+        The span exporter feeds a node's own ``forward`` a numpy array on the
+        ``wavelengths`` port (its declared dtype), which the base class's nearest-band
+        lookup cannot trace even though it is tensor ops otherwise; the adapter runs
+        the same lookup with a tensor instead.
+        """
+        return _BandLookupExportAdapter(self)
+
 
 class EVISelector(_VegetationIndexBase):
     """Enhanced Vegetation Index renderer.
@@ -1402,7 +1492,13 @@ class EVISelector(_VegetationIndexBase):
 
     _category = NodeCategory.TRANSFORM
     _tags = frozenset(
-        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+        {
+            NodeTag.ONNX,
+            NodeTag.HYPERSPECTRAL,
+            NodeTag.DIM_REDUCTION,
+            NodeTag.PREPROCESSING,
+            NodeTag.NUMPY,
+        }
     )
 
     def __init__(
@@ -1456,7 +1552,13 @@ class EVI2Selector(_VegetationIndexBase):
 
     _category = NodeCategory.TRANSFORM
     _tags = frozenset(
-        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+        {
+            NodeTag.ONNX,
+            NodeTag.HYPERSPECTRAL,
+            NodeTag.DIM_REDUCTION,
+            NodeTag.PREPROCESSING,
+            NodeTag.NUMPY,
+        }
     )
 
     def __init__(
@@ -1508,7 +1610,13 @@ class SAVISelector(_VegetationIndexBase):
 
     _category = NodeCategory.TRANSFORM
     _tags = frozenset(
-        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+        {
+            NodeTag.ONNX,
+            NodeTag.HYPERSPECTRAL,
+            NodeTag.DIM_REDUCTION,
+            NodeTag.PREPROCESSING,
+            NodeTag.NUMPY,
+        }
     )
 
     def __init__(
@@ -1563,7 +1671,13 @@ class MSAVISelector(_VegetationIndexBase):
 
     _category = NodeCategory.TRANSFORM
     _tags = frozenset(
-        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+        {
+            NodeTag.ONNX,
+            NodeTag.HYPERSPECTRAL,
+            NodeTag.DIM_REDUCTION,
+            NodeTag.PREPROCESSING,
+            NodeTag.NUMPY,
+        }
     )
 
     def __init__(
@@ -1610,7 +1724,13 @@ class CIRedEdgeSelector(_VegetationIndexBase):
 
     _category = NodeCategory.TRANSFORM
     _tags = frozenset(
-        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+        {
+            NodeTag.ONNX,
+            NodeTag.HYPERSPECTRAL,
+            NodeTag.DIM_REDUCTION,
+            NodeTag.PREPROCESSING,
+            NodeTag.NUMPY,
+        }
     )
 
     def __init__(
@@ -1657,7 +1777,13 @@ class MCARISelector(_VegetationIndexBase):
 
     _category = NodeCategory.TRANSFORM
     _tags = frozenset(
-        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+        {
+            NodeTag.ONNX,
+            NodeTag.HYPERSPECTRAL,
+            NodeTag.DIM_REDUCTION,
+            NodeTag.PREPROCESSING,
+            NodeTag.NUMPY,
+        }
     )
 
     def __init__(
@@ -1706,7 +1832,13 @@ class PRISelector(_VegetationIndexBase):
 
     _category = NodeCategory.TRANSFORM
     _tags = frozenset(
-        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+        {
+            NodeTag.ONNX,
+            NodeTag.HYPERSPECTRAL,
+            NodeTag.DIM_REDUCTION,
+            NodeTag.PREPROCESSING,
+            NodeTag.NUMPY,
+        }
     )
 
     def __init__(
@@ -1785,7 +1917,13 @@ class FixedWavelengthSelector(ChannelSelectorBase):
 
     _category = NodeCategory.TRANSFORM
     _tags = frozenset(
-        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+        {
+            NodeTag.ONNX,
+            NodeTag.HYPERSPECTRAL,
+            NodeTag.DIM_REDUCTION,
+            NodeTag.PREPROCESSING,
+            NodeTag.NUMPY,
+        }
     )
 
     # Override the base class's tight 3-channel contract so this selector can
@@ -1926,6 +2064,16 @@ class FixedWavelengthSelector(ChannelSelectorBase):
             band_info = {}
 
         return {"rgb_image": rgb, "band_info": band_info}
+
+    def export_module(self) -> torch.nn.Module:
+        """Adapter taking ``wavelengths`` as a tensor; see ``_BandLookupExportAdapter``.
+
+        The span exporter feeds a node's own ``forward`` a numpy array on the
+        ``wavelengths`` port (its declared dtype), which the base class's nearest-band
+        lookup cannot trace even though it is tensor ops otherwise; the adapter runs
+        the same lookup with a tensor instead.
+        """
+        return _BandLookupExportAdapter(self)
 
 
 class RangeAverageFalseRGBSelector(ChannelSelectorBase):
@@ -2358,7 +2506,13 @@ class CIRSelector(ChannelSelectorBase):
 
     _category = NodeCategory.TRANSFORM
     _tags = frozenset(
-        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+        {
+            NodeTag.ONNX,
+            NodeTag.HYPERSPECTRAL,
+            NodeTag.DIM_REDUCTION,
+            NodeTag.PREPROCESSING,
+            NodeTag.NUMPY,
+        }
     )
 
     def __init__(
@@ -2437,6 +2591,16 @@ class CIRSelector(ChannelSelectorBase):
 
         return {"rgb_image": rgb, "band_info": band_info}
 
+    def export_module(self) -> torch.nn.Module:
+        """Adapter taking ``wavelengths`` as a tensor; see ``_BandLookupExportAdapter``.
+
+        The span exporter feeds a node's own ``forward`` a numpy array on the
+        ``wavelengths`` port (its declared dtype), which the base class's nearest-band
+        lookup cannot trace even though it is tensor ops otherwise; the adapter runs
+        the same lookup with a tensor instead.
+        """
+        return _BandLookupExportAdapter(self)
+
 
 class CIETristimulusRGBSelector(ChannelSelectorBase):
     """CIE 1931 tristimulus-based RGB rendering.
@@ -2504,7 +2668,13 @@ class CIETristimulusRGBSelector(ChannelSelectorBase):
 
     _category = NodeCategory.TRANSFORM
     _tags = frozenset(
-        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+        {
+            NodeTag.ONNX,
+            NodeTag.HYPERSPECTRAL,
+            NodeTag.DIM_REDUCTION,
+            NodeTag.PREPROCESSING,
+            NodeTag.NUMPY,
+        }
     )
 
     # CIE 1931 2-degree observer CMFs at 5 nm intervals, 380-780 nm.
@@ -2708,7 +2878,23 @@ class CIETristimulusRGBSelector(ChannelSelectorBase):
         )  # (3, C)
 
     def _ensure_cmf_weights(self, wavelengths: Any, device: torch.device) -> None:
-        """Lazily compute & cache CMF integration weights when wavelengths change."""
+        """Lazily compute & cache CMF integration weights when wavelengths change.
+
+        The interpolation (``np.interp`` against the CIE tables) is numpy-only and
+        keyed by the exact wavelength values, which ``torch.export`` cannot trace.
+        A deployed sensor's wavelength grid is fixed, so under compilation this
+        reuses whatever weights an earlier eager call already cached instead of
+        recomputing them; the span exporter always runs that eager call first on
+        the same wavelengths before it traces the copy (see
+        ``cuvis_ai_core.pipeline.export.PipelineSpanModule``).
+        """
+        if torch.compiler.is_compiling():
+            if self._cmf_weights is None:
+                raise RuntimeError(
+                    "CIETristimulusRGBSelector: no cached CMF weights to export; run the node "
+                    "eagerly on the deployment wavelengths before exporting its span."
+                )
+            return
         wavelengths_np = np.asarray(wavelengths, dtype=np.float64).ravel()
         wl_key = tuple(wavelengths_np.tolist())
         if self._cmf_weights is None or self._cached_wl_key != wl_key:
@@ -2806,23 +2992,29 @@ class CIETristimulusRGBSelector(ChannelSelectorBase):
         dict[str, Any]
             Dictionary with "rgb_image" [B, H, W, 3] and "band_info".
         """
-        wavelengths_np = np.asarray(wavelengths, dtype=np.float64).ravel()
         # Compute unnormalized linear sRGB, then normalize + gamma via base class.
         rgb = self._normalize_rgb(self._compute_raw_rgb(cube, wavelengths))
 
-        band_info = {
-            "strategy": "cie_tristimulus",
-            "illuminant": self.illuminant,
-            "white_normalised": self.illuminant == "D65",
-            "white_adapted": self._cached_white_adapted,
-            "white_xyz_coverage": self._cached_white_xyz_coverage,
-            # The gamma that was applied: none when the normalisation is switched off.
-            "apply_gamma": self.apply_gamma and self.normalize_output,
-            "normalized_output": self.normalize_output,
-            "sensor_bands_total": len(wavelengths_np),
-            "sensor_bands_visible": self._cached_n_visible,
-            "wavelength_range_nm": [float(wavelengths_np[0]), float(wavelengths_np[-1])],
-        }
+        # Eager-only: band_info reads Python scalars out of wavelengths, which
+        # torch.export cannot trace; it is not a tensor output, so skipping it
+        # under compilation changes nothing the traced graph produces.
+        if not torch.compiler.is_compiling():
+            wavelengths_np = np.asarray(wavelengths, dtype=np.float64).ravel()
+            band_info = {
+                "strategy": "cie_tristimulus",
+                "illuminant": self.illuminant,
+                "white_normalised": self.illuminant == "D65",
+                "white_adapted": self._cached_white_adapted,
+                "white_xyz_coverage": self._cached_white_xyz_coverage,
+                # The gamma that was applied: none when the normalisation is switched off.
+                "apply_gamma": self.apply_gamma and self.normalize_output,
+                "normalized_output": self.normalize_output,
+                "sensor_bands_total": len(wavelengths_np),
+                "sensor_bands_visible": self._cached_n_visible,
+                "wavelength_range_nm": [float(wavelengths_np[0]), float(wavelengths_np[-1])],
+            }
+        else:
+            band_info = {}
 
         return {"rgb_image": rgb, "band_info": band_info}
 
@@ -2860,7 +3052,13 @@ class CameraEmulationFalseRGBSelector(ChannelSelectorBase):
 
     _category = NodeCategory.TRANSFORM
     _tags = frozenset(
-        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+        {
+            NodeTag.ONNX,
+            NodeTag.HYPERSPECTRAL,
+            NodeTag.DIM_REDUCTION,
+            NodeTag.PREPROCESSING,
+            NodeTag.NUMPY,
+        }
     )
 
     def __init__(
@@ -2901,7 +3099,24 @@ class CameraEmulationFalseRGBSelector(ChannelSelectorBase):
         return w
 
     def _ensure_channel_weights(self, wavelengths: Any, device: torch.device) -> None:
-        """Lazily compute & cache Gaussian weights when wavelengths change."""
+        """Lazily compute & cache Gaussian weights when wavelengths change.
+
+        The Gaussian weights are numpy-only and keyed by the exact wavelength
+        values, which ``torch.export`` cannot trace. A deployed sensor's
+        wavelength grid is fixed, so under compilation this reuses whatever
+        weights an earlier eager call already cached instead of recomputing
+        them; the span exporter always runs that eager call first on the same
+        wavelengths before it traces the copy (see
+        ``cuvis_ai_core.pipeline.export.PipelineSpanModule``).
+        """
+        if torch.compiler.is_compiling():
+            if self._channel_weights is None:
+                raise RuntimeError(
+                    "CameraEmulationFalseRGBSelector: no cached channel weights to export; "
+                    "run the node eagerly on the deployment wavelengths before exporting its "
+                    "span."
+                )
+            return
         wavelengths_np = np.asarray(wavelengths, dtype=np.float64).ravel()
         wl_key = tuple(wavelengths_np.tolist())
         if self._channel_weights is None or self._cached_wl_key != wl_key:
@@ -2935,10 +3150,15 @@ class CameraEmulationFalseRGBSelector(ChannelSelectorBase):
         dict[str, Any]
             Dictionary with "rgb_image" [B, H, W, 3] and "band_info".
         """
-        wavelengths_np = np.asarray(wavelengths, dtype=np.float64).ravel()
-
         rgb = self._compute_raw_rgb(cube, wavelengths)
         rgb = self._normalize_rgb(rgb)
+
+        # Eager-only: band_info reads a Python scalar out of wavelengths, which
+        # torch.export cannot trace; it is not a tensor output, so skipping it
+        # under compilation changes nothing the traced graph produces.
+        if torch.compiler.is_compiling():
+            return {"rgb_image": rgb, "band_info": {}}
+        wavelengths_np = np.asarray(wavelengths, dtype=np.float64).ravel()
 
         band_info = {
             "strategy": "camera_emulation",
@@ -3705,6 +3925,7 @@ class SoftChannelSelector(Node):
     _category = NodeCategory.MODEL
     _tags = frozenset(
         {
+            NodeTag.ONNX,
             NodeTag.HYPERSPECTRAL,
             NodeTag.DIM_REDUCTION,
             NodeTag.PREPROCESSING,
@@ -3934,7 +4155,13 @@ class TopKIndices(Node):
 
     _category = NodeCategory.TRANSFORM
     _tags = frozenset(
-        {NodeTag.HYPERSPECTRAL, NodeTag.DIM_REDUCTION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
+        {
+            NodeTag.ONNX,
+            NodeTag.HYPERSPECTRAL,
+            NodeTag.DIM_REDUCTION,
+            NodeTag.PREPROCESSING,
+            NodeTag.NUMPY,
+        }
     )
 
     INPUT_SPECS = {

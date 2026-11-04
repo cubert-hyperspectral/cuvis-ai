@@ -134,7 +134,7 @@ class IdentityNormalizer(_NormalizerBase):
     """No-op normalizer; preserves incoming scores."""
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
@@ -220,7 +220,7 @@ class MinMaxNormalizer(_NormalizerBase):
     """
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
 
     TRAINABLE_BUFFERS = ("running_min", "running_max")
 
@@ -435,7 +435,7 @@ class SigmoidTransform(Node):
     """
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.POSTPROCESSING, NodeTag.TORCH})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.POSTPROCESSING, NodeTag.TORCH})
 
     INPUT_SPECS = {
         "data": PortSpec(
@@ -476,7 +476,7 @@ class PerPixelUnitNorm(_NormalizerBase):
     """Per-pixel mean-centering and L2 normalization across channels."""
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
 
     def __init__(self, eps: float = 1e-8, **kwargs) -> None:
         self.eps = float(eps)
@@ -606,7 +606,7 @@ class PercentileNormalizer(_NormalizerBase):
     """
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
 
     def __init__(
         self,
@@ -920,7 +920,7 @@ class DisplayNormalizer(_NormalizerBase):
     """
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
 
     def _normalize(self, tensor: Tensor) -> Tensor:
         """sRGB companding: linear ``[0, 1]`` -> gamma-encoded ``[0, 1]``."""

@@ -147,6 +147,7 @@ class TrainablePCA(PCA):
     _category = NodeCategory.MODEL
     _tags = frozenset(
         {
+            NodeTag.ONNX,
             NodeTag.HYPERSPECTRAL,
             NodeTag.DIM_REDUCTION,
             NodeTag.PREPROCESSING,

@@ -1089,7 +1089,7 @@ class MaskOverlayNode(Node):
     """
 
     _category = NodeCategory.VISUALIZER
-    _tags = frozenset({NodeTag.MASK, NodeTag.RGB})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.MASK, NodeTag.RGB})
 
     INPUT_SPECS = {
         "rgb_image": PortSpec(
