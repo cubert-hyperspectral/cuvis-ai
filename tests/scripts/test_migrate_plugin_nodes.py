@@ -353,7 +353,7 @@ def test_migrated_yaml_keeps_the_key_order(tmp_path):
     assert list(gate["hparams"]) == ["topk_frac", "threshold"]
 
 
-@pytest.mark.parametrize("width", [80, math.inf])
+@pytest.mark.parametrize("width", [80, 100, math.inf])  # 100: the script's own earlier outputs
 def test_migrated_yaml_keeps_the_source_line_width(tmp_path, width):
     """A long description stays folded, or on one line, as the source wrote it."""
     description = " ".join(["a long description of the preset"] * 8)

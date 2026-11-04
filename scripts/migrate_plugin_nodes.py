@@ -320,7 +320,8 @@ def prune_plugins(doc: dict[str, Any], plugins_dir: Path, report: Report) -> Non
 
 # --------------------------------------------------------------------- files
 
-# Line widths the catalog's presets were written with: yaml.safe_dump's default and no limit.
+# Line widths the catalog's presets were written with: yaml.safe_dump's default, the 100 this
+# script used before it kept the source's width, and no limit.
 _WIDTHS = (80, 100, math.inf)
 
 
