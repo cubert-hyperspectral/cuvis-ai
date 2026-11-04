@@ -8,7 +8,7 @@
   the name `MinMaxNormalizer` uses) and applies the frozen stats at inference. Per-sample normalization stays the
   default.
 - `migrate-plugin-nodes` (`scripts/migrate_plugin_nodes.py`) rewrites a pipeline yaml and its fitted `.pt` from the node copies of cuvis-ai-patchcore, cuvis-ai-steervit and cuvis-ai-rfdetr to the built-ins that took them over in 0.19.
-  - Fourteen classes only change `class_name`.
+  - Sixteen classes only change `class_name`.
   - `ScoreRangeNormalizer` becomes `PercentileNormalizer` with the pooled statistical fit: `low` / `high` become fractions, `floor` becomes `clamp`, the input port `scores` becomes `data`, the buffers `lo` / `hi` become `running_min` / `running_max`.
   - `JointPercentileStretch` becomes `PercentileNormalizer` with the per-frame options; the channel count comes from the source node's fitted bounds.
   - `ScoreFusion` and `ScoreIntersection` become `ScoreMapFusion`: the inputs `a` and `b` become two connections to `scores`, `a` first, or one when both come from the same port. Only `mean`, `min` and `max` are rewritten, the modes the built-in reproduces bit for bit.

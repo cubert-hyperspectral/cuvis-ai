@@ -5,7 +5,7 @@ cuvis-ai-patchcore, cuvis-ai-steervit and cuvis-ai-rfdetr carried. This tool rew
 pipeline yaml and its fitted ``.pt`` so that every such node runs on the built-in class,
 with the same outputs:
 
-- Fourteen classes keep their hparams and ports and only change ``class_name``
+- Sixteen classes keep their hparams and ports and only change ``class_name``
   (the fusion, mask, objectness, spatial, gate and tiling nodes, ``FixedPCAProjection``).
 - ``ScoreRangeNormalizer`` (patchcore) becomes ``PercentileNormalizer`` in ``statistical``
   mode with the pooled fit: ``low`` / ``high`` (percent) become ``quantile_low`` /
