@@ -97,3 +97,48 @@ PyPI builds that package with CUDA 13 from 1.27 on, so on x86_64 the extra takes
 CUDA libraries; Linux aarch64 (torch cu130) keeps the PyPI build. One environment holds
 one onnxruntime flavour: do not add `cuvis-ai-core[onnx]`, the CPU wheel, on top of this
 extra.
+
+## Standing checks
+
+Three checks keep the export path and a deployed folder honest between releases.
+
+**The weekly sweep.** `.github/workflows/onnx_export_sweep.yml` runs
+`tests/node/test_onnx_export_contract.py -m slow` on a schedule (Monday, early UTC) and
+on demand (`workflow_dispatch`), so a node that silently regresses between releases is
+caught without running the full sweep on every PR. The test writes one JSON line per
+node (name, outcome, max abs diff, seconds) when `CUVIS_ONNX_CONTRACT_REPORT` names a
+file; the workflow turns that file into the job summary and uploads it as an artifact.
+Run it locally the same way:
+
+```bash
+CUDA_VISIBLE_DEVICES=-1 PYTHONUTF8=1 CUVIS_ONNX_CONTRACT_REPORT=report.jsonl \
+  uv run pytest tests/node/test_onnx_export_contract.py -m slow -q
+```
+
+**`compare-deploy`.** Checks a deploy folder against its canonical pipeline on real
+frames: the max abs diff per exported-span output port, pixel decisions differing when a
+decider sits downstream, and the per-frame median time for both pipelines. Frames come
+from `.npz` files or a data module's predict split, the way `export-pipeline` takes them:
+
+```bash
+uv run compare-deploy \
+  --canonical pipeline.yaml --deploy deploy/pipeline_deploy.yaml \
+  --data-module cu3s --data-arg cu3s_file_path=sample.cu3s \
+  --num-frames 5 --device cpu --out compare_report.json
+```
+
+The canonical node defaults to the one the deploy yaml's sidecar names as the span's
+output (`--canonical-node` overrides it); `--span-node` overrides the exported-span
+node's name when it is not `exported_span`.
+
+**The gRPC deploy-folder test.** `tests/grpc/test_deploy_folder_grpc.py` drives
+cuvis-ai-core's production servicers in process (the in-memory orchestrator: no
+subprocess, no composed venv) over an exported deploy folder: `LoadPipeline`,
+`LoadPipelineWeights` and `Inference` reproduce the canonical pipeline's own forward
+pass, and a load with no `CUVIS_AI_DEPLOY_DIR` configured and no pipeline-file folder
+(gRPC passes the pipeline as bytes, not a path) fails with a message naming the three
+places `ExportedSpan` can resolve the ONNX file from. It is the reference for a client
+that loads a deploy folder the same way CuvisNEXT does: register every manifest the
+deploy yaml names with `LoadPlugin`, then `LoadPipeline` with the yaml as JSON bytes,
+`LoadPipelineWeights` with the sibling `.pt`, and `Inference` with `CUVIS_AI_DEPLOY_DIR`
+set to the deploy folder.
