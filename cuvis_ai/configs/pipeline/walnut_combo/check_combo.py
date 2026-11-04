@@ -28,12 +28,19 @@ from pathlib import Path
 import numpy as np
 
 HERE = Path(__file__).resolve().parent
-EXTRA = ("gate.scores", "gate_effad.scores", "fuse.scores", "SegRGB.scores", "SegCIR.scores", "ShellFuse.scores",
-         "Fuse.scores")
+EXTRA = (
+    "gate.scores",
+    "gate_effad.scores",
+    "fuse.scores",
+    "SegRGB.scores",
+    "SegCIR.scores",
+    "ShellFuse.scores",
+    "Fuse.scores",
+)
 SEG_RENAME = {"ShellFuse": "Fuse"}  # combined -> standalone SEG node name
 
 
-def frames(ref_cubes: str, seg_ref: str):
+def frames(ref_cubes: str, seg_ref: str) -> list[tuple[str, np.ndarray, np.ndarray]]:
     s = np.load(seg_ref)
     out = [("seg_live_f0", s["cube"].astype(np.float32), s["wavelengths"].astype(np.int32))]
     r = np.load(ref_cubes)
@@ -48,9 +55,10 @@ def cmd_dump(a) -> None:
         # `import rfdetr` sets float32 matmul precision "high".
         import rfdetr  # noqa: F401
     import torch
-    from cuvis_ai_core.utils.restore import restore_pipeline
     from cuvis_ai_schemas.enums import ExecutionStage
     from cuvis_ai_schemas.execution import Context
+
+    from cuvis_ai_core.utils.restore import restore_pipeline
 
     y = Path(a.yaml).resolve()
     pipe = restore_pipeline(str(y), weights_path=str(y.with_suffix(".pt")), device="cuda")
@@ -59,15 +67,23 @@ def cmd_dump(a) -> None:
     saved = {}
     with torch.no_grad():
         for tag, cube, wl in frames(a.ref_cubes, a.seg_ref):
-            o = pipe.forward(batch={"cube": torch.from_numpy(cube)[None].cuda(),
-                                    "wavelengths": torch.from_numpy(wl)[None].cuda()}, context=ctx)
+            o = pipe.forward(
+                batch={
+                    "cube": torch.from_numpy(cube)[None].cuda(),
+                    "wavelengths": torch.from_numpy(wl)[None].cuda(),
+                },
+                context=ctx,
+            )
             for (node, port), v in o.items():
                 key = f"{node}.{port}"
                 if key in wanted and isinstance(v, torch.Tensor):
                     saved[f"{tag}|{key}"] = v.detach().cpu().numpy()
     np.savez_compressed(a.out, **saved)
-    print(f"dumped {y.name}: {len(saved)} arrays, float32 matmul precision "
-          f"{torch.get_float32_matmul_precision()!r} -> {a.out}", flush=True)
+    print(
+        f"dumped {y.name}: {len(saved)} arrays, float32 matmul precision "
+        f"{torch.get_float32_matmul_precision()!r} -> {a.out}",
+        flush=True,
+    )
 
 
 def _cmp(x: np.ndarray, y: np.ndarray) -> tuple[bool, float, str]:
@@ -85,7 +101,13 @@ def _cmp(x: np.ndarray, y: np.ndarray) -> tuple[bool, float, str]:
 def cmd_compare(a) -> None:
     c, fo, seg = np.load(a.combo), np.load(a.fo), np.load(a.seg)
     own = np.load(a.fo_own) if a.fo_own else None
-    rows, count, ok, own_ok, unmatched = [], {"FO": 0, "SEG": 0}, {"FO": True, "SEG": True}, True, []
+    rows, count, ok, own_ok, unmatched = (
+        [],
+        {"FO": 0, "SEG": 0},
+        {"FO": True, "SEG": True},
+        True,
+        [],
+    )
     for key in sorted(c.files):
         tag, port = key.split("|")
         node, pname = port.split(".", 1)
@@ -107,8 +129,16 @@ def cmd_compare(a) -> None:
             s2, d2, n2 = _cmp(c[key], own[key])
             own_ok &= s2
             own_txt = "identical" if s2 else f"max |d| {d2:.3g} {n2}".strip()
-        rows.append((branch, tag, port, "identical" if same else f"max |d| {d:.3g} {note}".strip(), own_txt,
-                     _val(c[key])))
+        rows.append(
+            (
+                branch,
+                tag,
+                port,
+                "identical" if same else f"max |d| {d:.3g} {note}".strip(),
+                own_txt,
+                _val(c[key]),
+            )
+        )
     # Coverage the other way round: every standalone array (the SEG data node aside) has a combined counterpart.
     back = {v: k for k, v in SEG_RENAME.items()}
     missing = [k for k in fo.files if k not in c.files]
@@ -117,20 +147,33 @@ def cmd_compare(a) -> None:
         node, pname = port.split(".", 1)
         if node != "DataSource" and f"{tag}|{back.get(node, node)}.{pname}" not in c.files:
             missing.append(k)
-    verdict = (f"FO {count['FO']} arrays {'bit-identical' if ok['FO'] else 'DIFFER'}; SEG {count['SEG']} arrays "
-               f"{'bit-identical' if ok['SEG'] else 'DIFFER'}"
-               + (f"; FO vs its own env {'bit-identical' if own_ok else 'differs (see column)'}" if own is not None
-                  else ""))
+    verdict = (
+        f"FO {count['FO']} arrays {'bit-identical' if ok['FO'] else 'DIFFER'}; SEG {count['SEG']} arrays "
+        f"{'bit-identical' if ok['SEG'] else 'DIFFER'}"
+        + (
+            f"; FO vs its own env {'bit-identical' if own_ok else 'differs (see column)'}"
+            if own is not None
+            else ""
+        )
+    )
     lines = [f"# {a.name}: combined vs standalone", "", f"**{verdict}.**", ""]
     if missing or unmatched:
-        lines += [f"- standalone arrays missing in the combined dump: {missing}",
-                  f"- combined arrays without a standalone counterpart: {unmatched}", ""]
-    lines += ["| branch | frame | port | vs standalone (same process) | vs FO own env | value |",
-              "|---|---|---|---|---|---|"]
+        lines += [
+            f"- standalone arrays missing in the combined dump: {missing}",
+            f"- combined arrays without a standalone counterpart: {unmatched}",
+            "",
+        ]
+    lines += [
+        "| branch | frame | port | vs standalone (same process) | vs FO own env | value |",
+        "|---|---|---|---|---|---|",
+    ]
     lines += [f"| {b} | {t} | {p} | {r} | {o} | {v} |" for b, t, p, r, o, v in rows]
     Path(a.md).write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print(f"{a.name}: {verdict}" + (f"; missing {len(missing)}, unmatched {len(unmatched)}"
-                                    if missing or unmatched else ""), flush=True)
+    print(
+        f"{a.name}: {verdict}"
+        + (f"; missing {len(missing)}, unmatched {len(unmatched)}" if missing or unmatched else ""),
+        flush=True,
+    )
 
 
 def _val(x: np.ndarray) -> str:
@@ -147,10 +190,18 @@ def main() -> None:
     d = sub.add_parser("dump")
     d.add_argument("--yaml", required=True)
     d.add_argument("--ref-cubes", required=True)
-    d.add_argument("--seg-ref", default=str(HERE.parent / "walnut_seg" / "ref" / "real_world_live_000_f0000_reflectance.npz"))
+    d.add_argument(
+        "--seg-ref",
+        default=str(
+            HERE.parent / "walnut_seg" / "ref" / "real_world_live_000_f0000_reflectance.npz"
+        ),
+    )
     d.add_argument("--out", required=True)
-    d.add_argument("--import-rfdetr", action="store_true",
-                   help="import rfdetr first (a standalone FO run in the combined process's global state)")
+    d.add_argument(
+        "--import-rfdetr",
+        action="store_true",
+        help="import rfdetr first (a standalone FO run in the combined process's global state)",
+    )
     c = sub.add_parser("compare")
     c.add_argument("--combo", required=True)
     c.add_argument("--fo", required=True)

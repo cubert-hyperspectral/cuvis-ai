@@ -25,6 +25,8 @@ Usage (stack env / Thor child env, + cu3s reader overlay):
                                 [--variants legacy_paste,default,...]  (legacy_paste is always included)
 """
 
+from __future__ import annotations
+
 import argparse
 import gc
 import json
@@ -32,20 +34,28 @@ import os
 import platform
 import statistics
 import time
+from typing import Any
 
 import torch
+from cuvis_ai_dataloader.data.datamodule_cu3s import Cu3sDataModule
+
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_core.training import Predictor
-from cuvis_ai_dataloader.data.datamodule_cu3s import Cu3sDataModule
 
 SEG = os.path.dirname(os.path.abspath(__file__))
 WARMUP = 3
-VARIANTS = [("legacy_paste", "", {"fast_paste": False}), ("default", "", {}),
-            ("exact", "_exact", {}), ("fp16", "_fp16", {}), ("fast", "_fast", {}),
-            ("trt_fp32", "_trt_fp32", {}), ("trt_fp16", "_trt_fp16", {})]
+VARIANTS = [
+    ("legacy_paste", "", {"fast_paste": False}),
+    ("default", "", {}),
+    ("exact", "_exact", {}),
+    ("fp16", "_fp16", {}),
+    ("fast", "_fast", {}),
+    ("trt_fp32", "_trt_fp32", {}),
+    ("trt_fp16", "_trt_fp16", {}),
+]
 
 
-def load(short, suffix, flips):
+def load(short: str, suffix: str, flips: dict[str, Any]) -> CuvisPipeline:
     y = os.path.join(SEG, f"walnut_seg_{short}{suffix}_cuvisnext_cube.yaml")
     p = CuvisPipeline.load_pipeline(y, weights_path=y[:-5] + ".pt", device="cuda")
     for n in p.nodes:
@@ -55,21 +65,23 @@ def load(short, suffix, flips):
     return p
 
 
-def read_frames(paths):
+def read_frames(paths: list[str]) -> list[dict[str, torch.Tensor]]:
     frames = []
     for c in paths:
-        dm = Cu3sDataModule(cu3s_file_path=c, processing_mode="Reflectance", batch_size=1, num_workers=0)
+        dm = Cu3sDataModule(
+            cu3s_file_path=c, processing_mode="Reflectance", batch_size=1, num_workers=0
+        )
         dm.setup(stage="predict")
         for batch in Predictor._iter_batches(dm.predict_dataloader()):
             frames.append({"cube": batch["cube"].float(), "wavelengths": batch["wavelengths"]})
     return frames
 
 
-def on_gpu(fr):
+def on_gpu(fr: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
     return {"cube": fr["cube"].cuda(non_blocking=False), "wavelengths": fr["wavelengths"]}
 
 
-def run(p, fr):
+def run(p: CuvisPipeline, fr: dict[str, torch.Tensor]) -> tuple[float, torch.Tensor]:
     torch.cuda.synchronize()
     t0 = time.perf_counter()
     with torch.no_grad():
@@ -78,7 +90,7 @@ def run(p, fr):
     return (time.perf_counter() - t0) * 1000.0, o[("ShellMask", "decisions")].bool()
 
 
-def main():
+def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--cu3s", action="append", required=True)
     ap.add_argument("--pipelines", default="rgb_v2,cir_v2,ens_rgb_cir_mean_v2")
@@ -88,7 +100,11 @@ def main():
     args = ap.parse_args()
     wanted = {"legacy_paste", *args.variants.split(",")}
     variants = [v for v in VARIANTS if v[0] in wanted]
-    env = {"host": platform.node(), "gpu": torch.cuda.get_device_name(0), "torch": torch.__version__}
+    env = {
+        "host": platform.node(),
+        "gpu": torch.cuda.get_device_name(0),
+        "torch": torch.__version__,
+    }
     print("ENV", json.dumps(env), flush=True)
     frames = read_frames(args.cu3s)
     print(f"{len(frames)} frames in memory, {args.reps} reps", flush=True)
@@ -101,8 +117,8 @@ def main():
             for fr in frames[1:WARMUP]:
                 run(p, on_gpu(fr))
         ms = {name: [] for name in pipes}
-        inter = {name: 0 for name in pipes}
-        union = {name: 0 for name in pipes}
+        inter = dict.fromkeys(pipes, 0)
+        union = dict.fromkeys(pipes, 0)
         order = list(pipes)
         for rep in range(args.reps):
             for i, fr_host in enumerate(frames):
@@ -121,22 +137,37 @@ def main():
         for name, v in ms.items():
             v = sorted(v)
             med = statistics.median(v)
-            row = dict(pipeline=short, variant=name, n=len(v), median_ms=round(med, 1),
-                       mean_ms=round(statistics.fmean(v), 1), p90_ms=round(v[int(0.9 * (len(v) - 1))], 1),
-                       fps=round(1000.0 / med, 1), speedup_vs_legacy=round(base / med, 2),
-                       mask_iou_vs_legacy=round(inter[name] / max(1, union[name]), 5),
-                       first_frame_ms=round(first[name]), **env)
+            row = dict(
+                pipeline=short,
+                variant=name,
+                n=len(v),
+                median_ms=round(med, 1),
+                mean_ms=round(statistics.fmean(v), 1),
+                p90_ms=round(v[int(0.9 * (len(v) - 1))], 1),
+                fps=round(1000.0 / med, 1),
+                speedup_vs_legacy=round(base / med, 2),
+                mask_iou_vs_legacy=round(inter[name] / max(1, union[name]), 5),
+                first_frame_ms=round(first[name]),
+                **env,
+            )
             rows.append(row)
             print("BENCH", json.dumps({k: row[k] for k in list(row)[:10]}), flush=True)
         del pipes
         gc.collect()  # pipelines hold reference cycles; without this the models stay on the GPU
         torch.cuda.empty_cache()
-        print(f"  after {short}: {torch.cuda.memory_allocated() / 2**20:.0f} MiB still allocated", flush=True)
-    print("\n| pipeline | variant | median ms | fps | x vs legacy paste | p90 ms | mask IoU vs legacy | first frame ms |")
+        print(
+            f"  after {short}: {torch.cuda.memory_allocated() / 2**20:.0f} MiB still allocated",
+            flush=True,
+        )
+    print(
+        "\n| pipeline | variant | median ms | fps | x vs legacy paste | p90 ms | mask IoU vs legacy | first frame ms |"
+    )
     print("|---|---|---|---|---|---|---|---|")
     for r in rows:
-        print(f"| {r['pipeline']} | {r['variant']} | {r['median_ms']} | {r['fps']} | {r['speedup_vs_legacy']} | "
-              f"{r['p90_ms']} | {r['mask_iou_vs_legacy']} | {r['first_frame_ms']} |")
+        print(
+            f"| {r['pipeline']} | {r['variant']} | {r['median_ms']} | {r['fps']} | {r['speedup_vs_legacy']} | "
+            f"{r['p90_ms']} | {r['mask_iou_vs_legacy']} | {r['first_frame_ms']} |"
+        )
     if args.out:
         json.dump(rows, open(args.out, "w"), indent=1)
     print("BENCH DONE", flush=True)
