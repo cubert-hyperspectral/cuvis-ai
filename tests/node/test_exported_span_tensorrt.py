@@ -22,6 +22,7 @@ from cuvis_ai_schemas.enums import ExecutionStage
 from cuvis_ai_schemas.execution import Context
 from torch import nn
 
+from cuvis_ai.node.exported_span import TRT_NAMESPACE
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_core.utils import trt_engine
 
@@ -441,6 +442,51 @@ def test_another_shape_is_refused(deploy, fake_trt, engine_dir, monkeypatch):
 
     with pytest.raises(ValueError, match=r"\(1, 4, 4, 3\)"):
         node(data=torch.rand(1, 5, 5, 3), wavelengths=_wavelengths(), context=_inference())
+
+
+# ----- the engine key never takes path text from the sidecar -----------------------
+
+
+def _poison_sidecar(deploy: Path, **fields) -> None:
+    sidecar_path = deploy / "span.onnx.json"
+    sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
+    sidecar.update(fields)
+    sidecar_path.write_text(json.dumps(sidecar), encoding="utf-8")
+
+
+def test_a_fingerprint_with_path_traversal_is_refused(deploy, fake_trt, engine_dir):
+    _poison_sidecar(deploy, fingerprint="../../../../etc/evil")
+    node = _node(deploy)
+
+    with pytest.raises(ValueError, match="fingerprint"):
+        node.prepare_inference()
+    assert fake_trt.built["count"] == 0
+
+
+def test_an_onnx_md5_with_path_traversal_is_refused(deploy, fake_trt, engine_dir):
+    _poison_sidecar(deploy, onnx_md5="../../../../etc/evil")
+    node = _node(deploy)
+
+    with pytest.raises(RuntimeError, match="onnx_md5"):
+        node.prepare_inference()  # the md5 check in _check_files runs first and catches it
+    assert fake_trt.built["count"] == 0
+
+
+def test_the_engine_path_stays_under_the_engine_root_even_with_a_crafted_fingerprint(
+    deploy, fake_trt, engine_dir, monkeypatch
+):
+    """A fingerprint that is valid hex but attacker-chosen still cannot steer the path:
+    the key folded into the engine file name comes from locally computed hashes only."""
+    _poison_sidecar(deploy, fingerprint="deadbeefdeadbeef")
+    node = _node(deploy)
+
+    node.prepare_inference()
+
+    built = list(engine_dir.rglob("*.engine"))
+    assert len(built) == 1
+    assert trt_engine.engine_root(TRT_NAMESPACE) in built[0].parents
+    for part in built[0].relative_to(engine_dir).parts:
+        assert part not in ("..", ".")
 
 
 # ----- the runner module directly ---------------------------------------------------

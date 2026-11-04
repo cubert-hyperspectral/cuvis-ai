@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import re
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -28,6 +30,8 @@ from cuvis_ai_core.utils.trt_engine import (
 
 #: The plugin namespace engines are cached under (see ``engine_root`` in cuvis-ai-core).
 TRT_NAMESPACE = "exported_span"
+#: A sidecar's ``fingerprint`` and ``onnx_md5`` must match this before they name a folder.
+_HEX_DIGITS = re.compile(r"^[0-9a-f]+$")
 
 #: A relative ``onnx_path`` is looked up under this folder first.
 DEPLOY_DIR_ENV = "CUVIS_AI_DEPLOY_DIR"
@@ -283,6 +287,33 @@ class ExportedSpan(Node):
         self.session = session
         self._session_device = device
 
+    def _engine_key(self) -> str:
+        """A folder-safe key for this sidecar's engine: local hashes only, never its text.
+
+        The sidecar's ``fingerprint`` and ``onnx_md5`` are untrusted JSON read from disk;
+        folding them into a file name directly would let a crafted sidecar steer the
+        engine path (``../`` segments). ``onnx_md5`` is never used for the key: it is
+        recomputed locally with :func:`cached_file_md5` on the file this node already
+        checked against the sidecar in :meth:`_check_files`. The sidecar's declared
+        values are still required to be hex, so a mismatch is caught early with a clear
+        message instead of surfacing as a path error later.
+        """
+        fingerprint = self.sidecar.get("fingerprint", "")
+        onnx_md5 = self.sidecar.get("onnx_md5", "")
+        if not _HEX_DIGITS.match(fingerprint):
+            raise ValueError(
+                f"Node {self.name!r}: the sidecar's fingerprint {fingerprint!r} is not hex; "
+                "export the pipeline again with a matching cuvis-ai-core."
+            )
+        if not _HEX_DIGITS.match(onnx_md5):
+            raise ValueError(
+                f"Node {self.name!r}: the sidecar's onnx_md5 {onnx_md5!r} is not hex; "
+                "export the pipeline again with a matching cuvis-ai-core."
+            )
+        local_md5 = cached_file_md5(self.resolved_onnx_path)
+        digest = hashlib.sha256(fingerprint.encode("ascii")).hexdigest()[:16]
+        return f"{local_md5}{digest}"
+
     def _prepare_tensorrt(self, device: torch.device) -> None:
         """Find or build the engine for the sidecar's fingerprint, then bind the constants."""
         if device.type != "cuda":
@@ -293,7 +324,7 @@ class ExportedSpan(Node):
         trt = import_tensorrt(f"ExportedSpan {self.name!r} backend tensorrt")
         with torch.cuda.device(device):
             fingerprint = self.sidecar.get("fingerprint", "")
-            key = f"{fingerprint}_{self.sidecar.get('onnx_md5', '')}"[:32]
+            key = self._engine_key()
             file_name = engine_file_name("fp32", key, device=device, trt=trt)
             location = engine_location(file_name, TRT_NAMESPACE, key)
             expected = {"fingerprint": fingerprint, "onnx_md5": self.sidecar.get("onnx_md5")}
