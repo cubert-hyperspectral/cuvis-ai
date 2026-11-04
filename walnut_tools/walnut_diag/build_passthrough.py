@@ -17,7 +17,7 @@ from cuvis_ai.node.data import CU3SDataNode
 from cuvis_ai_core.pipeline.factory import PipelineBuilder
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
-HERE = Path(__file__).resolve().parent
+HERE = Path(__file__).resolve().parents[2] / "cuvis_ai" / "configs" / "pipeline" / "walnut_diag"
 NAME = "walnut_diag_passthrough_cuvisnext_cube"
 
 pipe = CuvisPipeline(NAME)

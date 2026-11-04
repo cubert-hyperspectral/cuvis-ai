@@ -31,7 +31,17 @@ import yaml
 import cuvis_ai_core
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
-SEG = os.path.dirname(os.path.abspath(__file__)).replace("\\", "/")
+SEG = os.path.normpath(
+    os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "..",
+        "..",
+        "cuvis_ai",
+        "configs",
+        "pipeline",
+        "walnut_seg",
+    )
+).replace("\\", "/")
 W = f"{SEG}/weights"
 THR = 1.0 / (
     1.0 + math.exp(-0.5)

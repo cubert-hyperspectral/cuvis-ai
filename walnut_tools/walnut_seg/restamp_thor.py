@@ -26,7 +26,7 @@ def main() -> None:
     args = ap.parse_args()
     new = args.root.replace("\\", "/").rstrip("/")
 
-    configs = Path(__file__).resolve().parents[2]  # .../cuvis_ai/configs
+    configs = Path(__file__).resolve().parents[2] / "cuvis_ai" / "configs"
     targets = sorted(configs.glob("plugins/*.yaml")) + sorted(configs.glob("pipeline/**/*.yaml"))
     if not targets:
         print(f"no yamls found under {configs}")

@@ -100,10 +100,10 @@ lists `ShellHeatmap.scores · heatmap` next to `ShellMask.decisions · mask` (ch
 `walnut_seg_ens_rgb_cir_mean_v2`; all 16 pipelines end in the same two output nodes). Pick the output explicitly
 rather than "Automatic".
 
-Built by `add_heatmap_output.py` from `_backup_pre_heatmap_2026-09-24/` for all 10 pipelines; verified on the
+Built by `walnut_tools/walnut_seg/add_heatmap_output.py` from `_backup_pre_heatmap_2026-09-24/` for all 10 pipelines; verified on the
 reference frame: heatmap == scores and mask unchanged, bit for bit; both ports in `get_output_specs()`. The
-IdentityNormalizer versions are in `_backup_identity_heatmap_2026-09-24/` (ShellMask history: `add_shell_mask.py`,
-`_backup_pre_mask_2026-09-23/`).
+IdentityNormalizer versions are in `_backup_identity_heatmap_2026-09-24/` (ShellMask history:
+`walnut_tools/walnut_seg/add_shell_mask.py`; its `_backup_pre_mask_2026-09-23/` copies are in the git history only).
 
 ## Parity (validated on this stack)
 Built + forwarded in `cuvis-ai\.venv` (core **0.17.2** — cuvis.next's version). Shell px on the old float16 `.npy`

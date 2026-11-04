@@ -42,7 +42,7 @@ from pathlib import Path
 import torch
 import yaml
 
-HERE = Path(__file__).resolve().parent
+HERE = Path(__file__).resolve().parents[2] / "cuvis_ai" / "configs" / "pipeline" / "walnut_combo"
 PIPE = HERE.parent
 FO_DIR = PIPE / "walnut_fo"
 SEG_DIR = PIPE / "walnut_seg"

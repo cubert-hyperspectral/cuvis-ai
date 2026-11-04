@@ -46,7 +46,7 @@ from pathlib import Path
 import torch
 import yaml
 
-HERE = Path(__file__).resolve().parent
+HERE = Path(__file__).resolve().parents[2] / "cuvis_ai" / "configs" / "pipeline" / "walnut_fo"
 BASE = "walnut_fo_multiscale_gated"
 FAMILY = "walnut_fo_multiscale_gmm_or_gated"
 TIERS = ("", "_tf32", "_fp16", "_fp16trt")
