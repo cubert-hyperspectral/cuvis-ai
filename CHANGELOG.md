@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Bumped the `unet` manifest pin v0.3.0 to v0.4.0: `DynUNet` tiles with cuvis-ai-core's `utils.tiling` (core 0.18.5 or later) and the plugin's own `cuvis_ai_unet.tiling` module is removed; the nodes and their ports are unchanged.
 - `ZScoreNormalizer` has a global running-statistics mode. `use_running_stats=True` fits per-band or scalar
   mean/std over the training set during statistical initialization (Welford, capped by `max_initialization_frames`,
   the name `MinMaxNormalizer` uses) and applies the frozen stats at inference. Per-sample normalization stays the
