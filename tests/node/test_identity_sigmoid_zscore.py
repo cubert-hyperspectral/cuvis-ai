@@ -31,4 +31,12 @@ def test_zscore_normalizer_standardizes_over_its_dims() -> None:
     mean = data.mean(dim=[1, 2], keepdim=True)
     std = data.std(dim=[1, 2], keepdim=True, unbiased=False)
     torch.testing.assert_close(out, (data - mean) / (std + 1e-6))
-    assert dict(node.hparams) == {"dims": [1, 2], "eps": 1e-6, "keepdim": True}
+    assert dict(node.hparams) == {
+        "dims": [1, 2],
+        "eps": 1e-6,
+        "keepdim": True,
+        "use_running_stats": False,
+        "per_band": False,
+        "num_channels": None,
+        "max_init_frames": None,
+    }
