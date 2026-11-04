@@ -47,10 +47,9 @@ nodes:
   hparams:
     threshold: 0.6224593312018546
 - name: ShellHeatmap
-  class_name: cuvis_ai_rfdetr.node.score_fusion.ScoreFusion
+  class_name: cuvis_ai.node.fusion.ScoreMapFusion
   hparams:
     mode: max
-    weight: 0.5
 connections:
 - source: DataSource.outputs.cube
   target: Selector.inputs.cube
@@ -61,9 +60,7 @@ connections:
 - source: Seg.outputs.scores
   target: ShellMask.inputs.logits
 - source: Seg.outputs.scores
-  target: ShellHeatmap.inputs.a
-- source: Seg.outputs.scores
-  target: ShellHeatmap.inputs.b
+  target: ShellHeatmap.inputs.scores
 metadata:
   name: walnut_seg_rgb_v2_exact_cuvisnext_cube
   description: 'Walnut shell segmentation (rgb_v2 EXACT: B = RGB 640/550/470 single,

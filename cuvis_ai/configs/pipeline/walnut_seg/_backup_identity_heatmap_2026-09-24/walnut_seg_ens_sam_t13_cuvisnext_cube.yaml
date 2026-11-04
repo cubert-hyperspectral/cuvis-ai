@@ -71,10 +71,9 @@ nodes:
     top_frac: 0.001
     checkpoint_loader: constructor
 - name: Fuse
-  class_name: cuvis_ai_rfdetr.node.score_fusion.ScoreFusion
+  class_name: cuvis_ai.node.fusion.ScoreMapFusion
   hparams:
     mode: mean
-    weight: 0.5
 - name: Gate
   class_name: cuvis_ai_rfdetr.node.sam_shell_gate.SamShellGate
   hparams:
@@ -163,11 +162,11 @@ connections:
 - source: SelRGB.outputs.rgb_image
   target: SegRGB.inputs.rgb_image
 - source: SegRGB.outputs.scores
-  target: Fuse.inputs.a
+  target: Fuse.inputs.scores
+- source: SegCIR.outputs.scores
+  target: Fuse.inputs.scores
 - source: SelCIR.outputs.rgb_image
   target: SegCIR.inputs.rgb_image
-- source: SegCIR.outputs.scores
-  target: Fuse.inputs.b
 - source: Fuse.outputs.scores
   target: Gate.inputs.scores
 - source: Gate.outputs.scores

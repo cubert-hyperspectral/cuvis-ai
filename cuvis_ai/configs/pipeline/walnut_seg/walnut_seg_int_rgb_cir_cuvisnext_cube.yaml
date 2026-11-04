@@ -71,17 +71,17 @@ nodes:
     top_frac: 0.001
     checkpoint_loader: constructor
 - name: Inter
-  class_name: cuvis_ai_rfdetr.node.score_intersection.ScoreIntersection
-  hparams: {}
+  class_name: cuvis_ai.node.fusion.ScoreMapFusion
+  hparams:
+    mode: min
 - name: ShellMask
   class_name: cuvis_ai.node.deciders.binary_decider.BinaryDecider
   hparams:
     threshold: 0.6224593312018546
 - name: ShellHeatmap
-  class_name: cuvis_ai_rfdetr.node.score_fusion.ScoreFusion
+  class_name: cuvis_ai.node.fusion.ScoreMapFusion
   hparams:
     mode: max
-    weight: 0.5
 connections:
 - source: DataSource.outputs.cube
   target: SelRGB.inputs.cube
@@ -94,17 +94,15 @@ connections:
 - source: SelRGB.outputs.rgb_image
   target: SegRGB.inputs.rgb_image
 - source: SegRGB.outputs.scores
-  target: Inter.inputs.a
+  target: Inter.inputs.scores
+- source: SegCIR.outputs.scores
+  target: Inter.inputs.scores
 - source: SelCIR.outputs.rgb_image
   target: SegCIR.inputs.rgb_image
-- source: SegCIR.outputs.scores
-  target: Inter.inputs.b
 - source: Inter.outputs.scores
   target: ShellMask.inputs.logits
 - source: Inter.outputs.scores
-  target: ShellHeatmap.inputs.a
-- source: Inter.outputs.scores
-  target: ShellHeatmap.inputs.b
+  target: ShellHeatmap.inputs.scores
 metadata:
   name: walnut_seg_int_rgb_cir_cuvisnext_cube
   description: 'Walnut shell segmentation (int_rgb_cir). Outputs (both selectable

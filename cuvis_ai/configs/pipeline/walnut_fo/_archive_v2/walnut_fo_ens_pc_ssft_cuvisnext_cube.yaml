@@ -18,7 +18,6 @@ plugins:
 - cuvis_ai_builtin
 - ssft
 - patchcore
-- rfdetr
 nodes:
 - name: cu3s_data
   class_name: cuvis_ai.node.data.CU3SDataNode
@@ -73,10 +72,9 @@ nodes:
     use_running_stats: true
     max_initialization_frames: null
 - name: fuse
-  class_name: cuvis_ai_rfdetr.node.score_fusion.ScoreFusion
+  class_name: cuvis_ai.node.fusion.ScoreMapFusion
   hparams:
     mode: mean
-    weight: 0.5
 connections:
 - source: cu3s_data.outputs.cube
   target: patchcore.inputs.cube
@@ -87,6 +85,6 @@ connections:
 - source: ssft_ad.outputs.scores
   target: norm_ssft.inputs.data
 - source: norm_patchcore.outputs.normalized
-  target: fuse.inputs.a
+  target: fuse.inputs.scores
 - source: norm_ssft.outputs.normalized
-  target: fuse.inputs.b
+  target: fuse.inputs.scores

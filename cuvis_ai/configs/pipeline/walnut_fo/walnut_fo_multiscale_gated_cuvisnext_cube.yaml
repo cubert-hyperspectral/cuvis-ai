@@ -1,11 +1,6 @@
 metadata:
   name: walnut_fo_multiscale_gated_cuvisnext_cube
-  description: 'Gated multi-scale feature banks: fuse.scores through FrameScoreGate (threshold
-    1.3373, top-0.001 frame score, log_scores on). The gate is stateless; the weights are those of
-    the ungated walnut_fo_multiscale pipeline. Set the threshold per session with calibrate_live.py
-    --pipeline multiscale. Multi-scale SteerViT feature banks (t1 + t2 tiles) fitted from the v3
-    cache on 200 clean TRAIN frames (seed 0); normalisers on the 34 clean VAL frames; CIR
-    870/640/550, feature prompt ''the anomaly in the walnuts''.'
+  description: 'Gated multi-scale feature banks: fuse.scores through FrameScoreGate (threshold 1.3373, top-0.001 frame score, log_scores on). The gate is stateless; the weights are those of the ungated walnut_fo_multiscale pipeline. Set the threshold per session with calibrate_live.py --pipeline multiscale. Multi-scale SteerViT feature banks (t1 + t2 tiles) fitted from the v3 cache on 200 clean TRAIN frames (seed 0); normalisers on the 34 clean VAL frames; CIR 870/640/550, feature prompt ''the anomaly in the walnuts''.'
   created: ''
   tags:
   - anomaly
@@ -34,11 +29,14 @@ nodes:
     - 550.0
     normalize_output: false
 - name: stretch
-  class_name: cuvis_ai_steervit.node.stretch.JointPercentileStretch
+  class_name: cuvis_ai.node.normalization.PercentileNormalizer
   hparams:
-    low: 2.0
-    high: 98.0
-    per_channel: false
+    n_channels: 3
+    norm_mode: per_frame
+    per_frame_quantiles: true
+    joint_channels: true
+    quantile_low: 0.02
+    quantile_high: 0.98
     quantize_levels: 255
     eps: 1.0e-06
 - name: steervit_t1
@@ -68,7 +66,7 @@ nodes:
     coreset_projection: null
     projection_eps: 0.9
 - name: tiler_t2
-  class_name: cuvis_ai_steervit.node.tiling.ImageTiler
+  class_name: cuvis_ai.node.tiling.ImageTiler
   hparams:
     tiles: 2
 - name: steervit_t2
@@ -81,7 +79,7 @@ nodes:
     topk_frac: 0.001
     score_activation: sigmoid
 - name: stitch_t2
-  class_name: cuvis_ai_steervit.node.tiling.GridStitcher
+  class_name: cuvis_ai.node.tiling.GridStitcher
   hparams:
     tiles: 2
 - name: patchcore_t2
@@ -102,34 +100,40 @@ nodes:
     coreset_projection: null
     projection_eps: 0.9
 - name: norm_t1
-  class_name: cuvis_ai_patchcore.node.calibration.ScoreRangeNormalizer
+  class_name: cuvis_ai.node.normalization.PercentileNormalizer
   hparams:
     n_channels: 1
-    low: 1.0
-    high: 99.0
-    floor: true
+    norm_mode: statistical
+    statistical_fit: pooled
+    quantile_low: 0.01
+    quantile_high: 0.99
+    clamp: floor
+    eps: 1.0e-09
     fit_subsample: 4
     max_fit_values: 4000000
     seed: 0
-    eps: 1.0e-09
+    invert: false
 - name: norm_t2
-  class_name: cuvis_ai_patchcore.node.calibration.ScoreRangeNormalizer
+  class_name: cuvis_ai.node.normalization.PercentileNormalizer
   hparams:
     n_channels: 1
-    low: 1.0
-    high: 99.0
-    floor: true
+    norm_mode: statistical
+    statistical_fit: pooled
+    quantile_low: 0.01
+    quantile_high: 0.99
+    clamp: floor
+    eps: 1.0e-09
     fit_subsample: 4
     max_fit_values: 4000000
     seed: 0
-    eps: 1.0e-09
+    invert: false
 - name: fuse
-  class_name: cuvis_ai_patchcore.node.fusion.ScoreMapFusion
+  class_name: cuvis_ai.node.fusion.ScoreMapFusion
   hparams:
     mode: mean
     weights: null
 - name: gate
-  class_name: cuvis_ai_patchcore.node.gate.FrameScoreGate
+  class_name: cuvis_ai.node.deciders.frame_score_gate.FrameScoreGate
   hparams:
     threshold: 1.3373
     mask_threshold: 1.2642
@@ -154,7 +158,7 @@ connections:
 - source: steervit_t1.outputs.features
   target: patchcore_t1.inputs.cube
 - source: patchcore_t1.outputs.scores
-  target: norm_t1.inputs.scores
+  target: norm_t1.inputs.data
 - source: tiler_t2.outputs.tiles
   target: steervit_t2.inputs.rgb_image
 - source: steervit_t2.outputs.features
@@ -162,7 +166,7 @@ connections:
 - source: stitch_t2.outputs.grid
   target: patchcore_t2.inputs.cube
 - source: patchcore_t2.outputs.scores
-  target: norm_t2.inputs.scores
+  target: norm_t2.inputs.data
 - source: norm_t1.outputs.normalized
   target: fuse.inputs.scores
 - source: norm_t2.outputs.normalized
