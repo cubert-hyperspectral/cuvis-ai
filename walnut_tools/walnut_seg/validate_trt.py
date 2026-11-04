@@ -36,7 +36,17 @@ from cuvis_ai_rfdetr.functional import to_unit_frames
 
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
-SEG = os.path.dirname(os.path.abspath(__file__))
+SEG = os.path.normpath(
+    os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "..",
+        "..",
+        "cuvis_ai",
+        "configs",
+        "pipeline",
+        "walnut_seg",
+    )
+)
 LOGGER = trt.Logger(trt.Logger.WARNING)
 TORCH_DTYPE = {
     trt.float32: torch.float32,

@@ -30,7 +30,17 @@ from cuvis_ai_dataloader.data.datamodule_cu3s import Cu3sDataModule
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_core.training import Predictor
 
-SEG = os.path.dirname(os.path.abspath(__file__))
+SEG = os.path.normpath(
+    os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "..",
+        "..",
+        "cuvis_ai",
+        "configs",
+        "pipeline",
+        "walnut_seg",
+    )
+)
 SETS = {
     "sep01_gt": "D:/Cubert/2026_09_01",
     "sep15_gt": "D:/Cubert/2026_09_15",

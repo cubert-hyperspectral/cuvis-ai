@@ -31,7 +31,17 @@ from cuvis_ai_dataloader.data.datamodule_cu3s import Cu3sDataModule
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_core.training import Predictor
 
-SEG = os.path.dirname(os.path.abspath(__file__))
+SEG = os.path.normpath(
+    os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "..",
+        "..",
+        "cuvis_ai",
+        "configs",
+        "pipeline",
+        "walnut_seg",
+    )
+)
 WARMUP = 2
 PIPES = ["rgb_v2", "cir_v2", "ens_rgb_cir_mean_v2"]
 

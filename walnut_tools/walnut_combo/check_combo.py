@@ -27,7 +27,7 @@ from pathlib import Path
 
 import numpy as np
 
-HERE = Path(__file__).resolve().parent
+HERE = Path(__file__).resolve().parents[2] / "cuvis_ai" / "configs" / "pipeline" / "walnut_combo"
 EXTRA = (
     "gate.scores",
     "gate_effad.scores",

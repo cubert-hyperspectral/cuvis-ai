@@ -29,7 +29,17 @@ from cuvis_ai_rfdetr.node.score_fusion import ScoreFusion
 
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
-SEG = os.path.dirname(os.path.abspath(__file__))
+SEG = os.path.normpath(
+    os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "..",
+        "..",
+        "cuvis_ai",
+        "configs",
+        "pipeline",
+        "walnut_seg",
+    )
+)
 BK = os.path.join(SEG, "_backup_pre_heatmap_2026-09-24")
 REF = np.load(os.path.join(SEG, "ref", "real_world_live_000_f0000_reflectance.npz"))
 cube = torch.from_numpy(REF["cube"].astype(np.float32))[None]

@@ -114,7 +114,7 @@ ssh dev@<thor>
 bash /home/dev/walnut_run_thor_profile.sh      # the exact launcher used (copy: SEG_V2_PROFILING_2026-09-24/thor/run_thor.sh)
 # core of it:
 export CUVIS=/etc/cuvis
-/snap/bin/uv run --no-project --no-sources --python ~/.cuvis_runs/0b55f16fc78a1178/.venv/bin/python   --with "cuvis-ai-dataloader[cu3s,coco] @ file:///home/dev/walnut_fo_stack/cuvis-ai-dataloader" --with "cuvis==3.6.0"   python /home/dev/walnut_fo_stack/cuvis-ai/cuvis_ai/configs/pipeline/walnut_seg/profile_seg_cu3s.py --out <dir>   --cu3s /home/dev/walnut_data/2026_09_01/12-16-58/real_world_live_000.cu3s   --cu3s "/home/dev/walnut_data/2026_09_22/14-39-28/kernel_shell_hand_other_d_000+03.cu3s"
+/snap/bin/uv run --no-project --no-sources --python ~/.cuvis_runs/0b55f16fc78a1178/.venv/bin/python   --with "cuvis-ai-dataloader[cu3s,coco] @ file:///home/dev/walnut_fo_stack/cuvis-ai-dataloader" --with "cuvis==3.6.0"   python /home/dev/walnut_fo_stack/cuvis-ai/walnut_tools/walnut_seg/profile_seg_cu3s.py --out <dir>   --cu3s /home/dev/walnut_data/2026_09_01/12-16-58/real_world_live_000.cu3s   --cu3s "/home/dev/walnut_data/2026_09_22/14-39-28/kernel_shell_hand_other_d_000+03.cu3s"
 ```
 The seg child env id (`0b55f16fc78a1178`) is the one cuvis.next composed for the seg family; if cuvis.next
 recomposes it (new id), point `--python` at the new `~/.cuvis_runs/<id>/.venv/bin/python`.
@@ -130,7 +130,7 @@ uv run --no-sync --with "$WITH" restore-pipeline \
   --device cuda --data-module cu3s --data-arg cu3s_file_path=D:/Cubert/2026_09_01/12-16-58/real_world_live_000.cu3s \
   --data-arg processing_mode=Reflectance
 # Path 3 (synchronised steady state), all three pipelines, both cu3s:
-uv run --no-sync --with "$WITH" python cuvis_ai/configs/pipeline/walnut_seg/profile_seg_cu3s.py --out <dir> \
+uv run --no-sync --with "$WITH" python walnut_tools/walnut_seg/profile_seg_cu3s.py --out <dir> \
   --cu3s D:/Cubert/2026_09_01/12-16-58/real_world_live_000.cu3s \
   --cu3s "D:/Cubert/2026_09_22/14-39-28/kernel_shell_hand_other_d_000+03.cu3s"
 ```
@@ -286,9 +286,9 @@ laptop fp32 reference; the other pipelines as on 24 Sep (v2 0.9989–0.9999); on
 ```bash
 # stack env + cu3s reader overlay (laptop); on Thor the child-env python + --no-sources overlay (THOR_RUN_SEG.md)
 uv run --no-sync --with "cuvis-ai-dataloader[cu3s,coco] @ file:///D:/walnuts/walnut_fo_stack/cuvis-ai-dataloader" \
-  python cuvis_ai/configs/pipeline/walnut_seg/bench_node_options.py --cu3s <live.cu3s> --cu3s <hand.cu3s> --reps 3 --out bench.json
-python cuvis_ai/configs/pipeline/walnut_seg/verify_node_speed_options.py --cache <frame_cache.pt>   # or --cu3s ...
-python cuvis_ai/configs/pipeline/walnut_seg/build_fast_pipelines.py exact,fast
+  python walnut_tools/walnut_seg/bench_node_options.py --cu3s <live.cu3s> --cu3s <hand.cu3s> --reps 3 --out bench.json
+python walnut_tools/walnut_seg/verify_node_speed_options.py --cache <frame_cache.pt>   # or --cu3s ...
+python walnut_tools/walnut_seg/build_fast_pipelines.py exact,fast
 ```
 
 **Laptop cu3s profiler passes (16:38–17:00, GPU idle; `profile_seg_cu3s.py`, per-node tables in

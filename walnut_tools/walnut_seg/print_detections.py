@@ -13,7 +13,17 @@ import torch
 
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
-SEG = os.path.dirname(os.path.abspath(__file__))
+SEG = os.path.normpath(
+    os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "..",
+        "..",
+        "cuvis_ai",
+        "configs",
+        "pipeline",
+        "walnut_seg",
+    )
+)
 name = sys.argv[1]
 device = sys.argv[sys.argv.index("--device") + 1] if "--device" in sys.argv else None
 d = np.load(os.path.join(SEG, "ref", "real_world_live_000_f0000_reflectance.npz"))

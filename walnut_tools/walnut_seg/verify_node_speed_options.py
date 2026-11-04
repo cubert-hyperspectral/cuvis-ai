@@ -27,7 +27,17 @@ import torch
 
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
-SEG = os.path.dirname(os.path.abspath(__file__))
+SEG = os.path.normpath(
+    os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "..",
+        "..",
+        "cuvis_ai",
+        "configs",
+        "pipeline",
+        "walnut_seg",
+    )
+)
 NODES = {
     "rgb_v2": {"Seg": "rgb"},
     "cir_v2": {"Seg": "cir"},
