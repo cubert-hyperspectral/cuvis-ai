@@ -124,6 +124,14 @@ def test_given_stats_need_no_fit():
         {"axis": "spatial", "max_initialization_frames": 4},
         {"max_initialization_frames": 0},
         {"mean": [0.1]},
+        {"eps_mode": "mul"},
+        # A fit has to pool over H and W, or the statistics are tied to one frame size.
+        {"axis": "spectrum", "stats": "fit"},
+        {"axis": [3], "stats": "fit"},
+        {"axis": [1, 3], "stats": "fit"},
+        {"axis": [2, 3], "stats": "fit"},
+        {"axis": "spectrum", "stats": "fit", "layout": "nchw"},
+        {"axis": [1, 2], "stats": "fit", "layout": "nchw"},
     ],
 )
 def test_invalid_configurations_are_rejected(kwargs):
@@ -135,7 +143,7 @@ def test_invalid_configurations_are_rejected(kwargs):
 
 
 @pytest.mark.parametrize("layout", ["bhwc", "nchw"])
-@pytest.mark.parametrize("axis", ["channel", "global", [3]])
+@pytest.mark.parametrize("axis", ["channel", "spatial", "global"])
 @pytest.mark.parametrize("ddof", [0, 1])
 @torch.no_grad()
 def test_fit_matches_the_pooled_reference(layout, axis, ddof):
@@ -209,10 +217,51 @@ def test_with_mean_false_only_scales():
     assert _close(node(cube=x)["cube"], x / std)
 
 
+@pytest.mark.parametrize("axis", [[1, 2], [1, 2, 3]])
 @torch.no_grad()
-def test_flat_spectrum_is_clamped_not_nan():
+def test_fit_on_a_dim_list_matches_the_pooled_reference(axis):
+    frames = _frames()
+    node = _fitted(frames, axis=axis, stats="fit")
+    x = _cube(seed=98)
+    assert _close(node(cube=x)["cube"], _ref_fit(frames, x, axis, 1))
+
+
+@torch.no_grad()
+def test_fitted_statistics_apply_to_another_frame_size():
+    node = _fitted(axis="channel")
+    assert node.mean.shape == (1, 1, 1, 6)
+    out = node(cube=torch.rand(1, 20, 9, 6))["cube"]
+    assert out.shape == (1, 20, 9, 6)
+
+
+@torch.no_grad()
+def test_eps_mode_add_reproduces_the_added_eps_bit_for_bit():
+    # Reflectance-like cube; the old per-sample z-score divided by (std + eps), ddof 0.
+    x = 0.1 + 0.4 * torch.rand(2, 64, 64, 61, generator=torch.Generator().manual_seed(12))
+    mean = x.mean(dim=[1, 2], keepdim=True)
+    std = x.std(dim=[1, 2], keepdim=True, unbiased=False)
+    expected = (x - mean) / (std + 1e-6)
+    node = Standardize(axis="spatial", ddof=0, eps=1e-6, eps_mode="add")
+    assert torch.equal(node(cube=x)["cube"], expected)
+    floored = Standardize(axis="spatial", ddof=0, eps=1e-6)(cube=x)["cube"]
+    assert not torch.equal(floored, expected)
+
+
+@torch.no_grad()
+def test_eps_mode_add_with_fitted_and_given_statistics():
+    frames = _frames()
+    node = _fitted(frames, axis="channel", eps=1e-3, eps_mode="add")
+    x = _cube(seed=13)
+    assert torch.equal(node(cube=x)["cube"], (x - node.mean) / (node.std + 1e-3))
+    given = Standardize(stats="given", axis="global", mean=[0.5], std=[2.0], eps_mode="add")
+    assert _close(given(cube=x)["cube"], (x - 0.5) / (2.0 + EPS))
+
+
+@pytest.mark.parametrize("eps_mode", ["floor", "add"])
+@torch.no_grad()
+def test_flat_spectrum_is_clamped_not_nan(eps_mode):
     x = torch.full((1, 2, 2, 6), 0.5)  # exact in float32, so the centred values are exactly 0
-    out = Standardize(axis="spectrum")(cube=x)["cube"]
+    out = Standardize(axis="spectrum", eps_mode=eps_mode)(cube=x)["cube"]
     assert torch.isfinite(out).all() and torch.equal(out, torch.zeros_like(x))
 
 
@@ -273,7 +322,7 @@ _MODES = [
     {"axis": "channel"},
     {"axis": "global", "ddof": 0, "exclude_folds": [1], "max_initialization_frames": 8},
     {"axis": "spectrum"},
-    {"axis": "spatial", "ddof": 0},
+    {"axis": "spatial", "ddof": 0, "eps": 1e-6, "eps_mode": "add"},
     {"axis": [1, 2, 3]},
     {"stats": "given", "layout": "nchw", "mean": list(IMAGENET_MEAN), "std": list(IMAGENET_STD)},
     {"axis": "channel", "with_std": False},

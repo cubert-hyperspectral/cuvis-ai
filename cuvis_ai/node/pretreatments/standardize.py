@@ -22,12 +22,14 @@ IMAGENET_STD = (0.229, 0.224, 0.225)
 _AXES = ("channel", "spectrum", "global", "spatial")
 _STATS = ("fit", "sample", "given")
 _LAYOUTS = ("bhwc", "nchw")
+_EPS_MODES = ("floor", "add")
 # Dims each named axis reduces within one sample; fitted statistics also reduce the batch dim.
 _AXIS_DIMS = {
     "bhwc": {"channel": (1, 2), "spatial": (1, 2), "spectrum": (3,), "global": (1, 2, 3)},
     "nchw": {"channel": (2, 3), "spatial": (2, 3), "spectrum": (1,), "global": (1, 2, 3)},
 }
 _CHANNEL_DIM = {"bhwc": 3, "nchw": 1}
+_SPATIAL_DIMS = {"bhwc": {1, 2}, "nchw": {2, 3}}
 
 
 class Standardize(Node):
@@ -56,10 +58,16 @@ class Standardize(Node):
     sqrt((N - 1) / N), a uniform scalar on the data that PLS predictions and component selection
     are invariant to, but reproduced numbers depend on it. The default is 1.
 
-    ``eps`` is a floor on the standard deviation, so a flat spectrum or a constant band maps to
-    zero instead of NaN. With ``stats="fit"``, ``exclude_folds`` leaves the frames whose ``fold``
-    id is listed out of the fit (the node then has a ``fold [B]`` input), and
-    ``max_initialization_frames`` stops the fit after that many frames.
+    ``eps`` keeps the division finite, so a flat spectrum or a constant band maps to zero instead
+    of NaN. By default (``eps_mode="floor"``) it is a floor on the standard deviation and leaves
+    every other value untouched; ``eps_mode="add"`` divides by ``std + eps`` instead, the formula
+    of the removed z-score nodes, for pipelines that have to reproduce their numbers bit for bit.
+
+    A fit pools over the height and width of every frame, so ``stats="fit"`` takes ``channel``,
+    ``spatial``, ``global`` or a list of dims that contains both spatial dims; per-spectrum
+    statistics (``spectrum``) are computed per sample. With ``stats="fit"``, ``exclude_folds``
+    leaves the frames whose ``fold`` id is listed out of the fit (the node then has a
+    ``fold [B]`` input), and ``max_initialization_frames`` stops the fit after that many frames.
 
     ``mean`` and ``std`` are listed in ``TRAINABLE_BUFFERS``, so a trainrun that unfreezes the
     node fine-tunes them by gradient.
@@ -67,9 +75,9 @@ class Standardize(Node):
     Replaces: ``MeanCenter`` is ``Standardize(axis="channel", with_std=False)``,
     ``UnitVarianceScaling`` is ``Standardize(axis="channel", with_mean=False)``,
     ``SNVCorrection`` is ``Standardize(axis="spectrum")``, ``ZScoreNormalizer`` is
-    ``Standardize(axis="spatial", ddof=0)``, ``ChannelNormalizeNode`` is
-    ``Standardize(stats="given", layout="nchw", mean=IMAGENET_MEAN, std=IMAGENET_STD)`` and
-    ``ZScoreNormalizerGlobal`` is ``Standardize(axis="channel")``.
+    ``Standardize(axis="spatial", ddof=0, eps=1e-6, eps_mode="add")``, ``ChannelNormalizeNode``
+    is ``Standardize(stats="given", layout="nchw", mean=IMAGENET_MEAN, std=IMAGENET_STD)`` and
+    ``ZScoreNormalizerGlobal`` is ``Standardize(axis="channel", eps_mode="add")``.
 
     Parameters
     ----------
@@ -87,7 +95,9 @@ class Standardize(Node):
     ddof : int, optional
         Delta degrees of freedom, 0 or 1 (default 1).
     eps : float, optional
-        Floor on the standard deviation (default 1e-8).
+        Keeps the division finite (default 1e-8); how it applies is set by ``eps_mode``.
+    eps_mode : str, optional
+        ``"floor"`` (default) divides by ``max(std, eps)``, ``"add"`` by ``std + eps``.
     exclude_folds : list[int] or None, optional
         Fold ids left out of the fit (``stats="fit"`` only).
     max_initialization_frames : int or None, optional
@@ -141,6 +151,7 @@ class Standardize(Node):
         std: list[float] | None = None,
         ddof: int = 1,
         eps: float = 1e-8,
+        eps_mode: str = "floor",
         exclude_folds: list[int] | None = None,
         max_initialization_frames: int | None = None,
         layout: str = "bhwc",
@@ -157,6 +168,14 @@ class Standardize(Node):
             raise ValueError("with_mean and with_std are both False; the node would do nothing")
         if ddof not in (0, 1):
             raise ValueError(f"ddof must be 0 or 1, got {ddof!r}")
+        if eps_mode not in _EPS_MODES:
+            raise ValueError(f"eps_mode must be one of {_EPS_MODES}, got {eps_mode!r}")
+        dims = tuple(axis) if isinstance(axis, list) else _AXIS_DIMS[layout][axis]
+        if stats == "fit" and not _SPATIAL_DIMS[layout] <= set(dims):
+            raise ValueError(
+                f"stats='fit' needs an axis that reduces height and width, got {axis!r}; "
+                "the statistics would be tied to one frame size (use stats='sample')"
+            )
         if stats != "fit" and (exclude_folds is not None or max_initialization_frames is not None):
             raise ValueError("exclude_folds and max_initialization_frames need stats='fit'")
         if max_initialization_frames is not None and int(max_initialization_frames) <= 0:
@@ -172,12 +191,13 @@ class Standardize(Node):
         self.stats = stats
         self.ddof = int(ddof)
         self.eps = float(eps)
+        self.eps_mode = eps_mode
         self.exclude_folds = None if exclude_folds is None else [int(f) for f in exclude_folds]
         self.max_initialization_frames = (
             None if max_initialization_frames is None else int(max_initialization_frames)
         )
         self.layout = layout
-        self._dims = tuple(axis) if isinstance(axis, list) else _AXIS_DIMS[layout][axis]
+        self._dims = dims
         self._requires_initial_fit_override = stats == "fit"
         if self.exclude_folds is None:
             self.INPUT_SPECS = {"cube": type(self).INPUT_SPECS["cube"]}
@@ -191,6 +211,7 @@ class Standardize(Node):
             std=std,
             ddof=self.ddof,
             eps=self.eps,
+            eps_mode=eps_mode,
             exclude_folds=self.exclude_folds,
             max_initialization_frames=self.max_initialization_frames,
             layout=layout,
@@ -352,7 +373,7 @@ class Standardize(Node):
         if self.with_mean:
             out = out - mean
         if self.with_std:
-            out = out / std.clamp_min(self.eps)
+            out = out / (std.clamp_min(self.eps) if self.eps_mode == "floor" else std + self.eps)
         return {"cube": out}
 
     def _load_from_state_dict(  # noqa: D102 (inherited torch hook)
