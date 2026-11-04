@@ -447,10 +447,11 @@ class ZScoreNormalizer(_NormalizerBase):
     num_channels : int, optional
         Number of spectral channels; required when ``per_band=True`` so the
         stat buffers can be pre-allocated with a fixed, serializable shape
-    max_init_frames : int, optional
+    max_initialization_frames : int, optional
         Global mode only: cap on the number of frames (batch samples) consumed
         by ``statistical_initialization()``; ``None`` uses the whole training
-        stream (default: None)
+        stream (default: None). Same name and meaning as on
+        :class:`MinMaxNormalizer`
 
     Attributes
     ----------
@@ -466,7 +467,7 @@ class ZScoreNormalizer(_NormalizerBase):
     >>>
     >>> # Global per-band statistics, fit on the first 20 training frames
     >>> zscore_global = ZScoreNormalizer(
-    ...     use_running_stats=True, per_band=True, num_channels=61, max_init_frames=20
+    ...     use_running_stats=True, per_band=True, num_channels=61, max_initialization_frames=20
     ... )
     >>> stat_trainer = StatisticalTrainer(pipeline=pipeline, datamodule=datamodule)
     >>> stat_trainer.fit()  # fills zscore_mean / zscore_std
@@ -489,7 +490,7 @@ class ZScoreNormalizer(_NormalizerBase):
         use_running_stats: bool = False,
         per_band: bool = False,
         num_channels: int | None = None,
-        max_init_frames: int | None = None,
+        max_initialization_frames: int | None = None,
         **kwargs,
     ) -> None:
         self.dims = dims if dims is not None else [1, 2]
@@ -498,11 +499,16 @@ class ZScoreNormalizer(_NormalizerBase):
         self.use_running_stats = bool(use_running_stats)
         self.per_band = bool(per_band)
         self.num_channels = None if num_channels is None else int(num_channels)
-        self.max_init_frames = None if max_init_frames is None else int(max_init_frames)
+        self.max_initialization_frames = (
+            None if max_initialization_frames is None else int(max_initialization_frames)
+        )
         if self.use_running_stats and self.per_band and not self.num_channels:
             raise ValueError("per_band=True requires num_channels")
-        if self.max_init_frames is not None and self.max_init_frames <= 0:
-            raise ValueError(f"max_init_frames must be positive, got {max_init_frames}")
+        if self.max_initialization_frames is not None and self.max_initialization_frames <= 0:
+            raise ValueError(
+                "max_initialization_frames must be None or a positive integer, "
+                f"got {max_initialization_frames}"
+            )
         super().__init__(
             dims=self.dims,
             eps=eps,
@@ -510,7 +516,7 @@ class ZScoreNormalizer(_NormalizerBase):
             use_running_stats=self.use_running_stats,
             per_band=self.per_band,
             num_channels=self.num_channels,
-            max_init_frames=self.max_init_frames,
+            max_initialization_frames=self.max_initialization_frames,
             **kwargs,
         )
 
@@ -529,8 +535,8 @@ class ZScoreNormalizer(_NormalizerBase):
         ----------
         input_stream : InputStream
             Iterator yielding dicts matching INPUT_SPECS (port-based format).
-            Consumes the whole stream, or the first ``max_init_frames`` frames
-            when that cap is set.
+            Consumes the whole stream, or the first ``max_initialization_frames``
+            frames when that cap is set.
         """
         from cuvis_ai.utils.welford import WelfordAccumulator
 
@@ -542,8 +548,8 @@ class ZScoreNormalizer(_NormalizerBase):
             x = batch_data.get("data")
             if x is None:
                 continue
-            if self.max_init_frames is not None:
-                remaining = self.max_init_frames - frames
+            if self.max_initialization_frames is not None:
+                remaining = self.max_initialization_frames - frames
                 if remaining <= 0:
                     break
                 x = x[:remaining]

@@ -3,8 +3,9 @@
 ## Unreleased
 
 - `ZScoreNormalizer` has a global running-statistics mode. `use_running_stats=True` fits per-band or scalar
-  mean/std over the training set during statistical initialization (Welford, capped by `max_init_frames`) and applies
-  the frozen stats at inference. Per-sample normalization stays the default.
+  mean/std over the training set during statistical initialization (Welford, capped by `max_initialization_frames`,
+  the name `MinMaxNormalizer` uses) and applies the frozen stats at inference. Per-sample normalization stays the
+  default.
 
 ## 0.20.1 - 2026-11-03
 

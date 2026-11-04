@@ -69,12 +69,12 @@ def test_running_per_band_statistics() -> None:
 
 
 @torch.no_grad()
-def test_max_init_frames_caps_the_stream() -> None:
+def test_max_initialization_frames_caps_the_stream() -> None:
     """Only the first N frames feed the statistics; a shifted tail is ignored."""
     g = torch.Generator().manual_seed(2)
     head = [torch.randn(2, 4, 4, 2, generator=g) for _ in range(2)]  # 4 frames
     tail = [torch.randn(2, 4, 4, 2, generator=g) + 100.0]  # would wreck the mean
-    node = ZScoreNormalizer(use_running_stats=True, max_init_frames=4)
+    node = ZScoreNormalizer(use_running_stats=True, max_initialization_frames=4)
     node.statistical_initialization(_stream(head + tail))
 
     head_values = torch.cat([f.reshape(-1) for f in head])
@@ -83,11 +83,11 @@ def test_max_init_frames_caps_the_stream() -> None:
 
 
 @torch.no_grad()
-def test_max_init_frames_slices_partial_batch() -> None:
+def test_max_initialization_frames_slices_partial_batch() -> None:
     """A cap that lands mid-batch consumes only the needed leading samples."""
     frames = [torch.zeros(4, 2, 2, 1), torch.ones(4, 2, 2, 1) * 8.0]
     # Cap of 6 frames = all of batch 1 (zeros) + first 2 samples of batch 2 (8s).
-    node = ZScoreNormalizer(use_running_stats=True, max_init_frames=6)
+    node = ZScoreNormalizer(use_running_stats=True, max_initialization_frames=6)
     node.statistical_initialization(_stream(frames))
     expected_mean = (0.0 * 16 + 8.0 * 8) / 24  # 16 zero pixels + 8 eight-pixels
     assert torch.allclose(node.zscore_mean, torch.tensor(expected_mean), atol=1e-6)
@@ -102,11 +102,11 @@ def test_forward_raises_before_initialization() -> None:
 
 
 def test_constructor_validation() -> None:
-    """per_band needs num_channels; max_init_frames must be positive."""
+    """per_band needs num_channels; max_initialization_frames must be positive."""
     with pytest.raises(ValueError, match="num_channels"):
         ZScoreNormalizer(use_running_stats=True, per_band=True)
-    with pytest.raises(ValueError, match="max_init_frames"):
-        ZScoreNormalizer(use_running_stats=True, max_init_frames=0)
+    with pytest.raises(ValueError, match="max_initialization_frames"):
+        ZScoreNormalizer(use_running_stats=True, max_initialization_frames=0)
 
 
 @torch.no_grad()
@@ -120,3 +120,35 @@ def test_state_dict_round_trip_restores_buffers() -> None:
     n2.load_state_dict(n1.state_dict())
     assert torch.equal(n1.zscore_mean, n2.zscore_mean)
     assert torch.equal(n1.zscore_std, n2.zscore_std)
+
+
+@torch.no_grad()
+def test_batches_without_data_are_skipped() -> None:
+    """A batch that carries no ``data`` port (another node's inputs) does not count as a frame."""
+    frames = [torch.full((2, 2, 2, 1), 3.0), torch.full((2, 2, 2, 1), 5.0)]
+
+    def stream():
+        yield {"mask": torch.ones(2, 2, 2, 1)}
+        yield from _stream(frames)
+
+    node = ZScoreNormalizer(use_running_stats=True, max_initialization_frames=2)
+    node.statistical_initialization(stream())
+    assert torch.allclose(node.zscore_mean, torch.tensor(3.0))  # the cap still sees frame 1 first
+
+
+def test_per_band_channel_mismatch_raises() -> None:
+    """Per-band statistics are sized by num_channels; another channel count is refused."""
+    node = ZScoreNormalizer(use_running_stats=True, per_band=True, num_channels=3)
+    with pytest.raises(ValueError, match="Channel mismatch: expected 3, got 2"):
+        node.statistical_initialization(_stream([torch.randn(1, 4, 4, 2)]))
+    assert node._statistically_initialized is False
+
+
+def test_empty_stream_raises_and_leaves_the_node_unfitted() -> None:
+    """No frame at all (or none with data) is an error, not a silent zero/one fit."""
+    node = ZScoreNormalizer(use_running_stats=True)
+    with pytest.raises(RuntimeError, match="did not receive any data"):
+        node.statistical_initialization(iter([{"mask": torch.ones(1, 2, 2, 1)}]))
+    assert node._statistically_initialized is False
+    with pytest.raises(RuntimeError, match="statistical_initialization"):
+        node.forward(data=torch.randn(1, 2, 2, 1))

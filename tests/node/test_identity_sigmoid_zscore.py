@@ -38,5 +38,5 @@ def test_zscore_normalizer_standardizes_over_its_dims() -> None:
         "use_running_stats": False,
         "per_band": False,
         "num_channels": None,
-        "max_init_frames": None,
+        "max_initialization_frames": None,
     }
