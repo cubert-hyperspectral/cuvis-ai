@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.21.0 - 2026-11-04
 
 - Bumped the `unet` manifest pin v0.3.0 to v0.4.0: `DynUNet` tiles with cuvis-ai-core's `utils.tiling` (core 0.18.5 or later) and the plugin's own `cuvis_ai_unet.tiling` module is removed; the nodes and their ports are unchanged.
 - `migrate-plugin-nodes` (`scripts/migrate_plugin_nodes.py`) rewrites a pipeline yaml and its fitted `.pt` from the node copies of cuvis-ai-patchcore, cuvis-ai-steervit and cuvis-ai-rfdetr to the built-ins that took them over in 0.19.
