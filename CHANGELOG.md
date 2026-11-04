@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Bumped the `unet` manifest pin v0.3.0 to v0.4.0: `DynUNet` tiles with cuvis-ai-core's `utils.tiling` (core 0.18.5 or later) and the plugin's own `cuvis_ai_unet.tiling` module is removed; the nodes and their ports are unchanged.
+
 ## 0.20.2 - 2026-11-04
 
 - `ExportedSpan` declares each port with the dtype the sidecar records as `port_dtype` (cuvis-ai-core 0.19.2: the dtype the original port declared, `numpy.int32` for a wavelength grid), so a deploy yaml connects a data node's numpy-typed output the way the canonical yaml did instead of failing the port check with a torch dtype; a sidecar without the field keeps the tensor dtype. The node takes a numpy array on an input or a constant port and converts it, so the wavelength grid the cu3s loaders emit runs through it.
