@@ -286,9 +286,11 @@ def test_a_relative_path_resolves_against_the_deploy_dir_variable(deploy, monkey
     assert node.resolved_onnx_path == deploy / "span.onnx"
 
 
-def test_the_tensorrt_backend_is_not_available_yet(deploy):
-    with pytest.raises(NotImplementedError, match="tensorrt"):
-        _node(deploy, backend="tensorrt")
+def test_the_tensorrt_backend_is_accepted_at_construction(deploy):
+    """``backend="tensorrt"`` is covered end to end in test_exported_span_tensorrt.py."""
+    node = _node(deploy, backend="tensorrt", device="cpu")
+
+    assert node.backend == "tensorrt"
 
 
 def test_an_unknown_backend_is_refused(deploy):
