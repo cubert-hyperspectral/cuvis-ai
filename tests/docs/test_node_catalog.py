@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
 pytest.importorskip("mkdocs_gen_files", reason="docs extra not installed")
 
@@ -142,8 +143,10 @@ def test_zero_collected_capabilities_raises(catalog, monkeypatch, tmp_path):
     reproduced here by excluding every capability the manifests declare.
     """
     src = catalog.PLUGIN_MANIFEST_DIR
-    picked = sorted(src.glob("*.yaml"), key=lambda p: p.stat().st_size)[:2]
-    assert len(picked) >= 2, "need at least two manifests to exercise the guard"
+    # Only git-sourced manifests reach the catalog; local-path ones are skipped as prototypes.
+    git_sourced = [p for p in src.glob("*.yaml") if "repo" in yaml.safe_load(p.read_text("utf-8"))]
+    picked = sorted(git_sourced, key=lambda p: p.stat().st_size)[:2]
+    assert len(picked) >= 2, "need at least two git-sourced manifests to exercise the guard"
     for manifest in picked:
         (tmp_path / manifest.name).write_bytes(manifest.read_bytes())
 
