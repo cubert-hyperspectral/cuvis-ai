@@ -1,0 +1,115 @@
+name: ONNX Export Sweep
+
+# Weekly standing check of the ONNX export contract: every builtin node tagged
+# NodeTag.ONNX is built from its registry contract defaults, exported with the dynamo
+# exporter and checked against ONNX Runtime. Catches a node that silently regresses
+# between releases, without running the sweep on every PR.
+
+on:
+  schedule:
+    - cron: "17 3 * * 1" # Monday, early UTC morning
+  workflow_dispatch:
+
+concurrency:
+  group: onnx-export-sweep-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  sweep:
+    name: ONNX export contract (slow)
+    runs-on: ubuntu-latest
+    container:
+      image: cubertgmbh/cuvis_pyil:3.5.0-ubuntu24.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Mark workspace as safe for Git versioning
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        run: uv sync --locked --all-extras
+
+      - name: Install system dependencies for plugin imports
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends libgl1 libglib2.0-0 ffmpeg
+          rm -rf /var/lib/apt/lists/*
+
+      - name: Run the ONNX export contract sweep
+        env:
+          CUDA_VISIBLE_DEVICES: "-1"
+          PYTHONUTF8: "1"
+          CUVIS_ONNX_CONTRACT_REPORT: ${{ github.workspace }}/onnx_contract_report.jsonl
+        run: |
+          uv run pytest tests/node/test_onnx_export_contract.py -m slow -q
+
+      - name: Write the job summary from the report
+        if: always()
+        run: |
+          uv run --no-project --python 3.11 python - <<'PYEOF'
+          import json
+          import os
+          from pathlib import Path
+
+          report_path = Path("onnx_contract_report.jsonl")
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+          records = []
+          if report_path.is_file():
+              for line in report_path.read_text(encoding="utf-8").splitlines():
+                  line = line.strip()
+                  if line:
+                      records.append(json.loads(line))
+
+          lines = ["# ONNX export contract sweep", ""]
+          if not records:
+              lines.append("No report was written; the sweep likely failed before it ran.")
+          else:
+              passed = sum(1 for r in records if r["outcome"] == "passed")
+              failed = [r for r in records if r["outcome"] == "failed"]
+              skipped = sum(1 for r in records if r["outcome"] == "skipped")
+              lines.append(
+                  f"{len(records)} nodes, {passed} passed, {len(failed)} failed, "
+                  f"{skipped} skipped."
+              )
+              lines.append("")
+              lines.append("| node | outcome | max abs diff | seconds |")
+              lines.append("|---|---|---|---|")
+              for r in records:
+                  diff = "" if r["max_abs_diff"] is None else f"{r['max_abs_diff']:.2e}"
+                  lines.append(f"| {r['name']} | {r['outcome']} | {diff} | {r['seconds']:.2f} |")
+              if failed:
+                  lines.append("")
+                  lines.append("## Failures")
+                  for r in failed:
+                      lines.append(f"- **{r['name']}**: {r.get('error', 'unknown error')}")
+
+          text = "\n".join(lines) + "\n"
+          print(text)
+          if summary_path:
+              Path(summary_path).open("a", encoding="utf-8").write(text)
+          PYEOF
+
+      - name: Upload the report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: onnx-export-sweep-report
+          path: onnx_contract_report.jsonl
+          if-no-files-found: ignore
