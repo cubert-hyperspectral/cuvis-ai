@@ -2,7 +2,7 @@
 
 Every pipeline here is a copy of the one with the same name in `walnut_final/`, with one node after the gate:
 **FOBlobFilter** (MaskBlobFilter). A mark stays only if it has at least 100 pixels and at least 16 of them are not
-empty belt (spectrum more than 6 degrees from the frame's own belt). Compared with `walnut_final_robust/`:
+empty belt (spectrum more than 6 degrees from the frame's own belt). Compared with the 2 Oct robust presets (since removed):
 - **no flicker filter.** On every recording it hid more real FOs than false marks it removed;
 - **100 px size test for both models.** The original's 250 px lost small FOs on the older sessions;
 - **refit mask threshold 1.2178 instead of 1.2732:** mask margin 1.10 instead of 1.15, so more of each FO is marked.
