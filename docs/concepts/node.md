@@ -173,23 +173,23 @@ from cuvis_ai.node.anomaly.deep_svdd import (
     DeepSVDDProjection,
     DeepSVDDCenterTracker,
     DeepSVDDScores,
-    ZScoreNormalizerGlobal,
 )
 from cuvis_ai.node.losses import DeepSVDDSoftBoundaryLoss
 from cuvis_ai.node.data import LentilsAnomalyDataNode
+from cuvis_ai.node.pretreatments import Standardize
 
 # Create pipeline with deep learning nodes
 pipeline = CuvisPipeline("DeepSVDD")
 data_node = LentilsAnomalyDataNode(normal_class_ids=[0, 1])
-encoder = ZScoreNormalizerGlobal(num_channels=61, hidden=32)
+encoder = Standardize(name="standardize", axis="channel")
 projection = DeepSVDDProjection(in_channels=61, rep_dim=16, hidden=[32, 16])
 center_tracker = DeepSVDDCenterTracker(rep_dim=16)
 loss_node = DeepSVDDSoftBoundaryLoss(name="deepsvdd_loss")
 
 # Connect the pipeline
 pipeline.connect(
-    (data_node.outputs.cube, encoder.data),
-    (encoder.normalized, projection.data),
+    (data_node.outputs.cube, encoder.cube),
+    (encoder.outputs.cube, projection.data),
     (projection.embeddings, center_tracker.embeddings),
     (projection.embeddings, loss_node.embeddings),
     (center_tracker.center, loss_node.center),
@@ -391,7 +391,7 @@ acc.cov    # (61, 61), float32 -- covariance mode only
 | Non-persistent buffers | `_n`, `_mean`, `_M2` excluded from `state_dict()` |
 | Batch-merge algorithm | Processes entire batches at once, not sample-by-sample |
 
-**Used by:** `ZScoreNormalizerGlobal`, `RXGlobal`, `SoftChannelSelector`
+**Used by:** `RXGlobal`, `SoftChannelSelector`
 
 ---
 

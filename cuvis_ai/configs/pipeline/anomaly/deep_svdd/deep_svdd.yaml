@@ -29,12 +29,11 @@ nodes:
   class_name: cuvis_ai.node.normalization.PerPixelUnitNorm
   hparams:
     eps: 1.0e-08
-- name: ZScoreNormalizerGlobal
-  class_name: cuvis_ai.node.anomaly.deep_svdd.ZScoreNormalizerGlobal
+- name: standardize
+  class_name: cuvis_ai.node.pretreatments.standardize.Standardize
   hparams:
-    num_channels: 27
+    axis: channel
     eps: 1.0e-08
-    hidden: 128
 - name: DeepSVDDProjection
   class_name: cuvis_ai.node.anomaly.deep_svdd.DeepSVDDProjection
   hparams:
@@ -99,8 +98,8 @@ connections:
 - source: BandpassByWavelength.outputs.filtered
   target: PerPixelUnitNorm.inputs.data
 - source: PerPixelUnitNorm.outputs.normalized
-  target: ZScoreNormalizerGlobal.inputs.data
-- source: ZScoreNormalizerGlobal.outputs.normalized
+  target: standardize.inputs.cube
+- source: standardize.outputs.cube
   target: DeepSVDDProjection.inputs.data
 - source: DeepSVDDProjection.outputs.embeddings
   target: DeepSVDDCenterTracker.inputs.embeddings

@@ -5,7 +5,6 @@ from cuvis_ai.node.anomaly import (
     LADGlobal,
     RXGlobal,
     RXPerBatch,
-    ZScoreNormalizerGlobal,
 )
 from cuvis_ai.node.anomaly_visualization import (
     AnomalyMask,
@@ -125,7 +124,6 @@ from cuvis_ai.node.pipeline_visualization import (
 from cuvis_ai.node.preprocessors import (
     BandpassByWavelength,
     BBoxRoiCropNode,
-    ChannelNormalizeNode,
     SaturatedPixelDetector,
     SpatialRotateNode,
     SpectralValidity,
@@ -133,11 +131,9 @@ from cuvis_ai.node.preprocessors import (
 from cuvis_ai.node.pretreatments import (
     ContinuumRemoval,
     Logarithm,
-    MeanCenter,
     SavitzkyGolay,
-    SNVCorrection,
     SpectralDerivative,
-    UnitVarianceScaling,
+    Standardize,
 )
 from cuvis_ai.node.prompts import BBoxPrompt, MaskPrompt, PointPrompt, TextPrompt
 from cuvis_ai.node.segmentation import IntensityThresholdSegmenter
@@ -177,7 +173,6 @@ __all__ = [
     "BBoxSpectralExtractor",
     "BBoxPrompt",
     "BinaryAnomalyLabelMapper",
-    "ChannelNormalizeNode",
     "CameraEmulationFalseRGBSelector",
     "ChannelSelectorBase",
     "ChannelSelectorFalseRGBViz",
@@ -276,14 +271,11 @@ __all__ = [
     "TwoStageBinaryDecider",
     "FrameScoreGate",
     "ScoreThreshold",
-    "ZScoreNormalizerGlobal",
     "SavitzkyGolay",
     "ContinuumRemoval",
     "SpectralDerivative",
-    "SNVCorrection",
     "Logarithm",
-    "MeanCenter",
-    "UnitVarianceScaling",
+    "Standardize",
     "EVISelector",
     "EVI2Selector",
     "SAVISelector",

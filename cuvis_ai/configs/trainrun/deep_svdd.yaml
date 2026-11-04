@@ -69,7 +69,7 @@ training:
       log_momentum: false
 output_dir: outputs/deepsvdd
 unfreeze_nodes:
-- ZScoreNormalizerGlobal
+- standardize
 freeze_nodes: []
 metric_nodes:
 - metrics_anomaly
