@@ -78,6 +78,8 @@ metadata:
     in the env and this machine''s engine: python -m cuvis_ai_rfdetr.trt_engine build-pipeline
     <this yaml>. Same weights and outputs as walnut_seg_rgb_v2_cuvisnext_cube.'
   created: '2026-09-24T13:39:31.391886'
-  tags: []
+  tags:
+  - segmentation
+  - walnut
   author: raj@cubert-gmbh.de
   cuvis_ai_version: 0.17.2

@@ -75,6 +75,8 @@ metadata:
     GPU (precision fp16, jit_trace, gpu_input); first frame takes a few seconds longer
     (trace). Same weights and outputs as walnut_seg_cir_v2_cuvisnext_cube.'
   created: '2026-09-24T13:39:06.712084'
-  tags: []
+  tags:
+  - segmentation
+  - walnut
   author: raj@cubert-gmbh.de
   cuvis_ai_version: 0.17.2
