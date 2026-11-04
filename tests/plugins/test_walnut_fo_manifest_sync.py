@@ -65,9 +65,13 @@ def test_manifest_names_its_plugin(name: str) -> None:
 def test_manifest_matches_expected_release(name: str) -> None:
     plugin = load_plugin_manifest(CATALOG / f"{name}.yaml")
 
-    assert getattr(plugin, "repo", None) == (
-        f"https://github.com/cubert-hyperspectral/cuvis-ai-{name}.git"
+    # Deployment checkout: the manifest points at the plugin clone next to it, not a tag.
+    if getattr(plugin, "path", None) is None:
+        assert getattr(plugin, "repo", None) == (
+            f"https://github.com/cubert-hyperspectral/cuvis-ai-{name}.git"
+        )
+        tag = getattr(plugin, "tag", None)
+        assert tag is not None and SEMVER_TAG.fullmatch(tag), f"unexpected tag: {tag!r}"
+    assert sorted(node.class_name for node in plugin.capabilities) == sorted(
+        EXPECTED_PROVIDES[name]
     )
-    tag = getattr(plugin, "tag", None)
-    assert tag is not None and SEMVER_TAG.fullmatch(tag), f"unexpected tag: {tag!r}"
-    assert [node.class_name for node in plugin.capabilities] == EXPECTED_PROVIDES[name]
