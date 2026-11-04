@@ -35,7 +35,8 @@ page `onnx_export.md`.
 
 ## What the node does
 
-- **Ports from the sidecar.** One input per span input, one input per constant baked into the graph, one output per span output. The port names are the span's own port names when they are unique, else `<node>_<port>`. Shapes are the export's example shapes with a free batch dimension.
+- **Ports from the sidecar.** One input per span input, one input per constant baked into the graph, one output per span output. The port names are the span's own port names when they are unique, else `<node>_<port>`. Shapes are the export's example shapes with a free batch dimension. Each port declares the dtype the sidecar's `port_dtype` names (what the original port declared, a numpy type for a wavelength grid), so the deploy yaml connects where the canonical yaml did; a numpy array on an input or constant port is converted on the way in.
+- **Numerics on CUDA.** The session runs with TF32 off (`use_tf32: 0` on the CUDA provider), so the outputs match the CPU provider and the export's parity check within 1e-5; the provider's TF32 default moved a PatchCore distance by 0.4.
 - **One run per batch element.** The graph was traced at batch size 1; the node loops over the batch and concatenates the outputs.
 - **Device.** ONNX Runtime runs where `pipeline.to(device)` moved the node; the `device` hparam overrides it. On CUDA the torch tensors are bound to the session directly, so frames do not pass through host memory.
 - **Stages.** Inference, validation and test run. A training stage is refused with a pointer to the canonical yaml.
