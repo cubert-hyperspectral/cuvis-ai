@@ -20,13 +20,12 @@ cuvis_ai.node.anomaly.lad_detector : LAD anomaly detection
 cuvis_ai.node.anomaly.deep_svdd : Deep SVDD neural network detector
 """
 
-from cuvis_ai.node.anomaly.deep_svdd import DeepSVDDProjection, ZScoreNormalizerGlobal
+from cuvis_ai.node.anomaly.deep_svdd import DeepSVDDProjection
 from cuvis_ai.node.anomaly.lad_detector import LADGlobal
 from cuvis_ai.node.anomaly.rx_detector import RXGlobal, RXPerBatch
 from cuvis_ai.node.conversion import ScoreToLogit
 
 __all__ = [
-    "ZScoreNormalizerGlobal",
     "DeepSVDDProjection",
     "LADGlobal",
     "RXGlobal",

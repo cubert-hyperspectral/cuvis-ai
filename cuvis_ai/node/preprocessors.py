@@ -331,81 +331,6 @@ class BBoxRoiCropNode(Node):
         return {"crops": crops}
 
 
-class ChannelNormalizeNode(Node):
-    """Per-channel mean/std normalization for NCHW tensors.
-
-    Defaults to ImageNet statistics but accepts any per-channel values.
-
-    Parameters
-    ----------
-    mean : tuple[float, ...]
-        Per-channel mean.
-    std : tuple[float, ...]
-        Per-channel std.
-    """
-
-    _category = NodeCategory.TRANSFORM
-    _tags = frozenset(
-        {NodeTag.HYPERSPECTRAL, NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
-    )
-
-    IMAGENET_MEAN = (0.485, 0.456, 0.406)
-    IMAGENET_STD = (0.229, 0.224, 0.225)
-
-    INPUT_SPECS = {
-        "images": PortSpec(
-            dtype=torch.float32,
-            shape=(-1, -1, -1, -1),
-            description="Input images [N, C, H, W] in NCHW format.",
-        ),
-    }
-
-    OUTPUT_SPECS = {
-        "normalized": PortSpec(
-            dtype=torch.float32,
-            shape=(-1, -1, -1, -1),
-            description="Normalized images [N, C, H, W] in NCHW format.",
-        ),
-    }
-
-    def __init__(
-        self,
-        mean: tuple[float, ...] = IMAGENET_MEAN,
-        std: tuple[float, ...] = IMAGENET_STD,
-        **kwargs: Any,
-    ) -> None:
-        self._mean_vals = tuple(float(v) for v in mean)
-        self._std_vals = tuple(float(v) for v in std)
-
-        super().__init__(mean=list(self._mean_vals), std=list(self._std_vals), **kwargs)
-
-        # Register as buffers so they auto-move with .to(device)
-        self.register_buffer(
-            "_mean_buf",
-            torch.tensor(self._mean_vals, dtype=torch.float32).view(1, -1, 1, 1),
-        )
-        self.register_buffer(
-            "_std_buf",
-            torch.tensor(self._std_vals, dtype=torch.float32).view(1, -1, 1, 1),
-        )
-
-    def forward(self, images: Tensor, **_: Any) -> dict[str, Tensor]:
-        """Normalize images per channel.
-
-        Parameters
-        ----------
-        images : Tensor
-            ``[N, C, H, W]`` float32.
-
-        Returns
-        -------
-        dict
-            ``{"normalized": Tensor [N, C, H, W]}``
-        """
-        normalized = (images - self._mean_buf) / self._std_buf
-        return {"normalized": normalized}
-
-
 class SaturatedPixelDetector(Node):
     """Flag pixels whose channels reach the sensor saturation value.
 
@@ -736,7 +661,6 @@ class SpectralValidity(Node):
 __all__ = [
     "BandpassByWavelength",
     "BBoxRoiCropNode",
-    "ChannelNormalizeNode",
     "SaturatedPixelDetector",
     "SpatialRotateNode",
     "SpectralValidity",

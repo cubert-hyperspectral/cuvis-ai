@@ -12,7 +12,6 @@ from cuvis_ai_schemas.enums import ExecutionStage, NodeCategory, NodeTag
 from cuvis_ai_schemas.execution import Context, InputStream, Metric
 from cuvis_ai_schemas.pipeline import PortSpec
 
-from cuvis_ai.utils.welford import WelfordAccumulator
 from cuvis_ai_core.node.node import Node
 
 
@@ -186,121 +185,6 @@ class DeepSVDDProjection(Node):
         z = torch.cat(embeddings, dim=0).reshape(B, H, W, self.rep_dim)
 
         return {"embeddings": z}
-
-
-class ZScoreNormalizerGlobal(Node):
-    """Port-based Deep SVDD z-score normalizer for BHWC cubes."""
-
-    _category = NodeCategory.TRANSFORM
-    _tags = frozenset(
-        {NodeTag.HYPERSPECTRAL, NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY}
-    )
-
-    TRAINABLE_BUFFERS = ("zscore_mean", "zscore_std")
-
-    INPUT_SPECS = {
-        "data": PortSpec(
-            dtype=torch.float32,
-            shape=(-1, -1, -1, -1),
-            description="Input hyperspectral cube [B, H, W, C]",
-        )
-    }
-
-    OUTPUT_SPECS = {
-        "normalized": PortSpec(
-            dtype=torch.float32,
-            shape=(-1, -1, -1, -1),
-            description="Per-pixel z-score normalized cube [B, H, W, C]",
-        )
-    }
-
-    def __init__(
-        self,
-        *,
-        num_channels: int,
-        eps: float = 1e-8,
-        **kwargs: Any,
-    ) -> None:
-        if num_channels <= 0:
-            raise ValueError(f"num_channels must be positive, got {num_channels}")
-        self.num_channels = int(num_channels)
-        self.eps = float(eps)
-
-        super().__init__(
-            num_channels=self.num_channels,
-            eps=self.eps,
-            **kwargs,
-        )
-
-        # Pre-allocate buffers with known dimensions
-        self.register_buffer(
-            "zscore_mean", torch.zeros(num_channels, dtype=torch.get_default_dtype())
-        )
-        self.register_buffer(
-            "zscore_std", torch.ones(num_channels, dtype=torch.get_default_dtype())
-        )
-
-    def statistical_initialization(self, input_stream: InputStream) -> None:
-        """Estimate per-band z-score statistics from the provided stream."""
-        acc = WelfordAccumulator(self.num_channels)
-        for batch in input_stream:
-            data = batch.get("data")
-            if data is None:
-                continue
-            data = data.contiguous()
-
-            B, H, W, C = data.shape
-            if C != self.num_channels:
-                raise ValueError(f"Channel mismatch: expected {self.num_channels}, got {C}")
-            acc.update(data.reshape(B * H * W, C))
-
-        if acc.count == 0:
-            raise RuntimeError(
-                "DeepSVDDEncoder.statistical_initialization() did not receive any data"
-            )
-
-        self.zscore_mean.copy_(acc.mean)
-        self.zscore_std.copy_(acc.std + self.eps)
-        self._statistically_initialized = True
-
-    def forward(self, data: torch.Tensor, **_: Any) -> dict[str, torch.Tensor]:
-        """Apply per-channel Z-score normalization.
-
-        Parameters
-        ----------
-        data : torch.Tensor
-            Input feature tensor [B, H, W, C].
-        **_ : Any
-            Additional unused keyword arguments.
-
-        Returns
-        -------
-        dict[str, torch.Tensor]
-            Dictionary with "normalized" key containing Z-score normalized data [B, H, W, C].
-
-        Raises
-        ------
-        RuntimeError
-            If statistical_initialization() has not been called.
-        ValueError
-            If input channel count doesn't match initialized num_channels.
-        """
-        if not self._statistically_initialized:
-            raise RuntimeError(
-                "DeepSVDDEncoder requires statistical_initialization() before forward()"
-            )
-
-        B, H, W, C = data.shape
-        if C != self.num_channels:
-            raise ValueError(f"Channel mismatch: expected {self.num_channels}, got {C}")
-
-        flat = data.contiguous().reshape(B * H * W, C)
-        mean = self.zscore_mean.to(dtype=flat.dtype, copy=False).unsqueeze(0)
-        std = self.zscore_std.to(dtype=flat.dtype, copy=False).unsqueeze(0)
-        flat = (flat - mean) / std
-
-        normalized = flat.reshape(B, H, W, C)
-        return {"normalized": normalized}
 
 
 class DeepSVDDScores(Node):
@@ -523,7 +407,6 @@ class DeepSVDDCenterTracker(Node):
 
 
 __all__ = [
-    "ZScoreNormalizerGlobal",
     "DeepSVDDProjection",
     "DeepSVDDScores",
     "DeepSVDDCenterTracker",

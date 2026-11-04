@@ -90,10 +90,10 @@ from cuvis_ai.node.anomaly.deep_svdd import (
     DeepSVDDProjection,
     DeepSVDDCenterTracker,
     DeepSVDDScores,
-    ZScoreNormalizerGlobal
 )
 from cuvis_ai.node.preprocessors import BandpassByWavelength
 from cuvis_ai.node.normalization import PerPixelUnitNorm
+from cuvis_ai.node.pretreatments import Standardize
 
 pipeline = CuvisPipeline("parallel_processing")
 
@@ -103,8 +103,8 @@ bandpass_node = BandpassByWavelength(min_wavelength_nm=450, max_wavelength_nm=90
 unit_norm_node = PerPixelUnitNorm(eps=1e-8)
 
 # Processing branches
-encoder = ZScoreNormalizerGlobal(num_channels=50, hidden=128)
-projection = DeepSVDDProjection(in_channels=128, rep_dim=64, hidden=256)
+encoder = Standardize(name="standardize", axis="channel")
+projection = DeepSVDDProjection(in_channels=50, rep_dim=64, hidden=256)
 center_tracker = DeepSVDDCenterTracker(rep_dim=64, alpha=0.1)
 score_node = DeepSVDDScores()
 
@@ -117,12 +117,12 @@ pipeline.connect(
     (data_node.outputs.cube, bandpass_node.data),
     (data_node.outputs.wavelengths, bandpass_node.wavelengths),
     (bandpass_node.filtered, unit_norm_node.data),
-    (unit_norm_node.normalized, encoder.data),
+    (unit_norm_node.normalized, encoder.cube),
 )
 
 # Connect parallel branches from encoder
 pipeline.connect(
-    (encoder.normalized, projection.data),
+    (encoder.outputs.cube, projection.data),
     (projection.embeddings, center_tracker.embeddings),
     (projection.embeddings, score_node.embeddings),
     (center_tracker.center, score_node.center),

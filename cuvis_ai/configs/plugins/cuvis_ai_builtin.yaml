@@ -72,23 +72,6 @@ capabilities:
       optional: false
       description: Squared distance scores [B, H, W, 1]
   doc_summary: Convert Deep SVDD embeddings + center vector into anomaly scores.
-- class_name: cuvis_ai.node.anomaly.deep_svdd.ZScoreNormalizerGlobal
-  category: transform
-  tags: [hyperspectral, normalization, numpy, preprocessing]
-  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
-  input_specs:
-    data:
-      dtype: float32
-      shape: [-1, -1, -1, -1]
-      optional: false
-      description: Input hyperspectral cube [B, H, W, C]
-  output_specs:
-    normalized:
-      dtype: float32
-      shape: [-1, -1, -1, -1]
-      optional: false
-      description: Per-pixel z-score normalized cube [B, H, W, C]
-  doc_summary: Port-based Deep SVDD z-score normalizer for BHWC cubes.
 - class_name: cuvis_ai.node.anomaly.lad_detector.LADGlobal
   category: model
   tags: [anomaly, hyperspectral, learnable, numpy]
@@ -2322,23 +2305,6 @@ capabilities:
       optional: false
       description: Sigmoid-transformed tensor
   doc_summary: Applies sigmoid transformation to convert logits to probabilities [0,1].
-- class_name: cuvis_ai.node.normalization.ZScoreNormalizer
-  category: transform
-  tags: [normalization, numpy, preprocessing]
-  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
-  input_specs:
-    data:
-      dtype: float32
-      shape: [-1, -1, -1, -1]
-      optional: false
-      description: Input data tensor to normalize (BHWC format)
-  output_specs:
-    normalized:
-      dtype: float32
-      shape: [-1, -1, -1, -1]
-      optional: false
-      description: Normalized output tensor
-  doc_summary: Z-score (standardization) normalization along specified dimensions.
 - class_name: cuvis_ai.node.numpy_file.NpyReader
   category: source
   tags: [metadata]
@@ -2600,23 +2566,6 @@ capabilities:
       optional: false
       description: Filtered hyperspectral cube with selected channels [B, H, W, C_filtered]
   doc_summary: Select channels by wavelength interval from BHWC tensors.
-- class_name: cuvis_ai.node.preprocessors.ChannelNormalizeNode
-  category: transform
-  tags: [hyperspectral, normalization, numpy, preprocessing]
-  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
-  input_specs:
-    images:
-      dtype: float32
-      shape: [-1, -1, -1, -1]
-      optional: false
-      description: Input images [N, C, H, W] in NCHW format.
-  output_specs:
-    normalized:
-      dtype: float32
-      shape: [-1, -1, -1, -1]
-      optional: false
-      description: Normalized images [N, C, H, W] in NCHW format.
-  doc_summary: Per-channel mean/std normalization for NCHW tensors.
 - class_name: cuvis_ai.node.preprocessors.SpatialRotateNode
   category: transform
   tags: [image, numpy, preprocessing]
@@ -3066,23 +3015,6 @@ capabilities:
       optional: false
       description: Spectral derivative cube [B, H, W, C]
   doc_summary: First- or second-order spectral derivative along the band axis.
-- class_name: cuvis_ai.node.pretreatments.snv.SNVCorrection
-  category: transform
-  tags: [hyperspectral, normalization, preprocessing, torch]
-  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
-  input_specs:
-    cube:
-      dtype: float32
-      shape: [-1, -1, -1, -1]
-      optional: false
-      description: Input hyperspectral cube [B, H, W, C]
-  output_specs:
-    cube:
-      dtype: float32
-      shape: [-1, -1, -1, -1]
-      optional: false
-      description: SNV-corrected cube [B, H, W, C]
-  doc_summary: Standard Normal Variate correction along the spectral axis.
 - class_name: cuvis_ai.node.pretreatments.logarithm.Logarithm
   category: transform
   tags: [hyperspectral, preprocessing, torch]
@@ -3100,40 +3032,28 @@ capabilities:
       optional: false
       description: Log-transformed cube [B, H, W, C]
   doc_summary: Element-wise logarithm of the cube.
-- class_name: cuvis_ai.node.pretreatments.scaling.MeanCenter
+- class_name: cuvis_ai.node.pretreatments.standardize.Standardize
   category: transform
-  tags: [hyperspectral, normalization, preprocessing, torch]
+  tags: [hyperspectral, normalization, onnx, preprocessing, torch]
   icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
   input_specs:
     cube:
       dtype: float32
       shape: [-1, -1, -1, -1]
       optional: false
-      description: Input hyperspectral cube [B, H, W, C]
+      description: Input cube [B, H, W, C] (or [N, C, H, W] with layout nchw)
+    fold:
+      dtype: int32
+      shape: [-1]
+      optional: true
+      description: Per-frame fold id; present only when exclude_folds is set
   output_specs:
     cube:
       dtype: float32
       shape: [-1, -1, -1, -1]
       optional: false
-      description: Mean-centred cube [B, H, W, C]
-  doc_summary: Subtract a globally-fitted per-channel mean from the cube.
-- class_name: cuvis_ai.node.pretreatments.scaling.UnitVarianceScaling
-  category: transform
-  tags: [hyperspectral, normalization, preprocessing, torch]
-  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
-  input_specs:
-    cube:
-      dtype: float32
-      shape: [-1, -1, -1, -1]
-      optional: false
-      description: Input hyperspectral cube [B, H, W, C]
-  output_specs:
-    cube:
-      dtype: float32
-      shape: [-1, -1, -1, -1]
-      optional: false
-      description: Unit-variance-scaled cube [B, H, W, C]
-  doc_summary: Divide the cube by a globally-fitted per-channel standard deviation.
+      description: Standardized cube, same shape and layout as the input
+  doc_summary: Subtract a mean and divide by a standard deviation along a chosen axis.
 - class_name: cuvis_ai.node.channel_selector.EVISelector
   category: transform
   tags: [dim_reduction, hyperspectral, numpy, preprocessing]

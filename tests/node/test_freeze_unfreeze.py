@@ -123,7 +123,7 @@ _NODE_CONFIGS: list[tuple[str, dict]] = [
     ("cuvis_ai.node.conversion:ScoreToLogit", {"init_scale": 1.0, "init_bias": 0.0}),
     ("cuvis_ai.node.anomaly.lad_detector:LADGlobal", {"num_channels": 10}),
     ("cuvis_ai.node.anomaly.rx_detector:RXGlobal", {"num_channels": 10}),
-    ("cuvis_ai.node.anomaly.deep_svdd:ZScoreNormalizerGlobal", {"num_channels": 10}),
+    ("cuvis_ai.node.pretreatments.standardize:Standardize", {"axis": "channel"}),
     ("cuvis_ai.node.anomaly.deep_svdd:DeepSVDDCenterTracker", {"rep_dim": 10}),
     ("cuvis_ai.node.normalization:MinMaxNormalizer", {"eps": 1e-6, "use_running_stats": True}),
     (

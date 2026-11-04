@@ -3,7 +3,7 @@
 import pytest
 import torch
 
-from cuvis_ai.node.anomaly.deep_svdd import DeepSVDDCenterTracker, ZScoreNormalizerGlobal
+from cuvis_ai.node.anomaly.deep_svdd import DeepSVDDCenterTracker
 from cuvis_ai.node.anomaly.lad_detector import LADGlobal
 from cuvis_ai.node.anomaly.rx_detector import RXGlobal
 from cuvis_ai.node.channel_mixer import LearnableChannelMixer
@@ -11,6 +11,7 @@ from cuvis_ai.node.channel_selector import FastRGBSelector, SoftChannelSelector
 from cuvis_ai.node.conversion import ScoreToLogit
 from cuvis_ai.node.dimensionality_reduction import TrainablePCA
 from cuvis_ai.node.normalization import MinMaxNormalizer
+from cuvis_ai.node.pretreatments.standardize import Standardize
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
 pytestmark = pytest.mark.unit
@@ -137,7 +138,7 @@ def test_score_to_logit_empty_initialization_raises_and_blocks_forward():
     [
         lambda: RXGlobal(num_channels=5),
         lambda: LADGlobal(num_channels=5),
-        lambda: ZScoreNormalizerGlobal(num_channels=5),
+        lambda: Standardize(axis="channel"),
         lambda: TrainablePCA(num_channels=5, n_components=3),
     ],
 )
@@ -209,7 +210,7 @@ def test_minmax_cap_recorded_in_hparams():
     [
         ("RXGlobal", lambda: RXGlobal(num_channels=5)),
         ("LADGlobal", lambda: LADGlobal(num_channels=5)),
-        ("ZScoreNormalizerGlobal", lambda: ZScoreNormalizerGlobal(num_channels=5)),
+        ("Standardize[channel]", lambda: Standardize(axis="channel")),
         ("TrainablePCA", lambda: TrainablePCA(num_channels=5, n_components=3)),
         ("DeepSVDDCenterTracker", lambda: DeepSVDDCenterTracker(rep_dim=4)),
         (

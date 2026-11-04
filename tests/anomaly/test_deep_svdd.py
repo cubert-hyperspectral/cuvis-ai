@@ -7,9 +7,9 @@ from cuvis_ai.node.anomaly.deep_svdd import (
     DeepSVDDCenterTracker,
     DeepSVDDProjection,
     DeepSVDDScores,
-    ZScoreNormalizerGlobal,
 )
 from cuvis_ai.node.losses import DeepSVDDSoftBoundaryLoss
+from cuvis_ai.node.pretreatments.standardize import Standardize
 
 pytestmark = pytest.mark.unit
 
@@ -24,9 +24,9 @@ def _make_stream(tensor: torch.Tensor):
 def test_deep_svdd_fit_and_forward_shapes():
     num_channels = 6
     x = torch.randn(2, 8, 9, num_channels)
-    encoder = ZScoreNormalizerGlobal(num_channels=num_channels)
-    encoder.statistical_initialization(_make_stream(x))
-    normalized = encoder.forward(x)["normalized"]
+    encoder = Standardize(axis="channel")
+    encoder.statistical_initialization(iter([{"cube": x}]))
+    normalized = encoder.forward(x)["cube"]
     # Explicit in_channels path (no statistical fit needed for projection)
     projector = DeepSVDDProjection(in_channels=normalized.shape[-1], rep_dim=4, hidden=16)
     out = projector.forward(normalized)["embeddings"]
@@ -36,7 +36,7 @@ def test_deep_svdd_fit_and_forward_shapes():
 
 def test_deep_svdd_forward_requires_fit():
     num_channels = 3
-    encoder = ZScoreNormalizerGlobal(num_channels=num_channels)
+    encoder = Standardize(axis="channel")
     x = torch.randn(1, 4, 4, num_channels)
     with pytest.raises(RuntimeError, match="statistical_initialization"):
         encoder.forward(x)
@@ -67,13 +67,13 @@ def test_deep_svdd_end_to_end_training_loop():
     num_channels = 5
     rep_dim = 3
     x = torch.randn(1, 6, 6, num_channels)
-    encoder = ZScoreNormalizerGlobal(num_channels=num_channels)
-    encoder.statistical_initialization(_make_stream(x))
+    encoder = Standardize(axis="channel")
+    encoder.statistical_initialization(iter([{"cube": x}]))
 
     # Use statistical initialization path for projection (infer in_channels in statistical_initialization)
     projector = DeepSVDDProjection(in_channels=num_channels, rep_dim=rep_dim, hidden=8)
     tracker = DeepSVDDCenterTracker(rep_dim=rep_dim, alpha=0.5)
-    embeddings_init = projector.forward(encoder.forward(x)["normalized"])["embeddings"]
+    embeddings_init = projector.forward(encoder.forward(x)["cube"])["embeddings"]
     tracker.statistical_initialization(_make_stream(embeddings_init))
     loss_node = DeepSVDDSoftBoundaryLoss(nu=0.05)
 
@@ -84,7 +84,7 @@ def test_deep_svdd_end_to_end_training_loop():
 
     losses = []
     for _ in range(5):
-        embeddings = projector.forward(encoder.forward(x)["normalized"])["embeddings"]
+        embeddings = projector.forward(encoder.forward(x)["cube"])["embeddings"]
         center_out = tracker.forward(embeddings, context=Context(stage=ExecutionStage.TRAIN))
         loss = loss_node.forward(embeddings, center=center_out["center"])["loss"]
 

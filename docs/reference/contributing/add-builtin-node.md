@@ -681,7 +681,7 @@ class SquareTransform(Node):
 For nodes with learned statistics:
 
 ```python
-class ZScoreNormalizer(Node):
+class LearnedBandScaler(Node):
     """Normalizes using learned mean and std."""
 
     def __init__(self, num_channels: int, eps: float = 1e-8, **kwargs):
