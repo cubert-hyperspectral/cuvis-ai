@@ -38,6 +38,7 @@ Several pipelines, with the plugin manifests to prune the ``plugins:`` list::
 
 from __future__ import annotations
 
+import difflib
 import math
 import os
 from dataclasses import dataclass, field
@@ -319,11 +320,36 @@ def prune_plugins(doc: dict[str, Any], plugins_dir: Path, report: Report) -> Non
 
 # --------------------------------------------------------------------- files
 
+# Line widths the catalog's presets were written with: yaml.safe_dump's default and no limit.
+_WIDTHS = (80, 100, math.inf)
+
+
+def _dump(doc: dict[str, Any], width: float) -> str:
+    """The pipeline document as yaml, in its own key order, folded at ``width``."""
+    return yaml.safe_dump(doc, sort_keys=False, allow_unicode=True, width=width)
+
+
+def _source_width(text: str, doc: dict[str, Any]) -> float:
+    """The line width whose dump of ``doc`` comes closest to ``text``, the file it was read from.
+
+    Writing the migrated preset at that width keeps long strings folded or unfolded as they
+    were, so the diff against the source shows only the rewrite.
+    """
+    lines = text.splitlines()
+
+    def changed(width: float) -> int:
+        diff = difflib.unified_diff(lines, _dump(doc, width).splitlines(), n=0, lineterm="")
+        return sum(1 for line in diff if line[:1] in "+-" and line[:3] not in ("+++", "---"))
+
+    return min(_WIDTHS, key=changed)
+
 
 def migrate_file(yaml_path: Path, out_dir: Path, plugins_dir: Path | None = None) -> Report:
     """Migrate one pipeline yaml (and its ``.pt`` sibling, when present) into ``out_dir``."""
     report = Report(yaml_path)
-    doc = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+    text = yaml_path.read_text(encoding="utf-8")
+    doc = yaml.safe_load(text)
+    width = _source_width(text, doc)
     pt_path = yaml_path.with_suffix(".pt")
     checkpoint = (
         torch.load(pt_path, map_location="cpu", weights_only=True) if pt_path.is_file() else None
@@ -334,9 +360,7 @@ def migrate_file(yaml_path: Path, out_dir: Path, plugins_dir: Path | None = None
         prune_plugins(new_doc, plugins_dir, report)
     out_dir.mkdir(parents=True, exist_ok=True)
     out_yaml = out_dir / yaml_path.name
-    out_yaml.write_text(
-        yaml.safe_dump(new_doc, sort_keys=False, allow_unicode=True, width=100), encoding="utf-8"
-    )
+    out_yaml.write_text(_dump(new_doc, width), encoding="utf-8")
     if checkpoint is not None:
         torch.save({**checkpoint, "state_dict": new_state}, out_dir / pt_path.name)
     else:

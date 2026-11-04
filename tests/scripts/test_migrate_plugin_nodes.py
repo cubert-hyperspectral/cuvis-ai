@@ -3,6 +3,7 @@ migrated pipeline builds from the built-ins and reproduces the former arithmetic
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
 import pytest
@@ -350,3 +351,15 @@ def test_migrated_yaml_keeps_the_key_order(tmp_path):
     gate = next(n for n in out["nodes"] if n["name"] == "gate")
     assert list(gate) == ["name", "class_name", "hparams"]
     assert list(gate["hparams"]) == ["topk_frac", "threshold"]
+
+
+@pytest.mark.parametrize("width", [80, math.inf])
+def test_migrated_yaml_keeps_the_source_line_width(tmp_path, width):
+    """A long description stays folded, or on one line, as the source wrote it."""
+    description = " ".join(["a long description of the preset"] * 8)
+    doc = {"metadata": {"name": "p", "description": description}, **_doc()}
+    src = tmp_path / "p.yaml"
+    src.write_text(yaml.safe_dump(doc, sort_keys=False, width=width))
+    migrate_file(src, tmp_path / "out")
+    migrated = (tmp_path / "out" / "p.yaml").read_text()
+    assert migrated.split("plugins:")[0] == src.read_text().split("plugins:")[0]
