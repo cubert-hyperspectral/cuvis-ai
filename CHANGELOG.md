@@ -13,6 +13,7 @@
   - `JointPercentileStretch` becomes `PercentileNormalizer` with the per-frame options; the channel count comes from the source node's fitted bounds.
   - `ScoreFusion` and `ScoreIntersection` become `ScoreMapFusion`: the inputs `a` and `b` become two connections to `scores`, `a` first, or one when both come from the same port. Only `mean`, `min` and `max` are rewritten, the modes the built-in reproduces bit for bit.
   - Classes without a built-in stay on their plugin and are listed in the report; with `--plugins-dir` a plugin none of whose classes remains leaves the `plugins:` list.
+  - Each output keeps its folder below the pipelines' common parent, so same-named pipelines of different catalog folders do not overwrite each other in `--out-dir`. A stretch whose channel count could not be read from its source's fitted bounds gets 3 and a report note.
 
 ## 0.20.2 - 2026-11-04
 

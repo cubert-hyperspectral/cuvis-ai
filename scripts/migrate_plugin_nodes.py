@@ -38,14 +38,13 @@ Several pipelines, with the plugin manifests to prune the ``plugins:`` list::
 
 from __future__ import annotations
 
-import argparse
 import math
-import sys
-from collections.abc import Iterable
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+import click
 import torch
 import yaml
 
@@ -187,8 +186,8 @@ def _split(endpoint: str) -> tuple[str, str, str]:
     return node, kind, port
 
 
-def _stretch_channels(doc: dict[str, Any], node: str, state: dict[str, Any] | None) -> int:
-    """Channels of the tensor feeding a stretch: from its source node's fitted bounds."""
+def _stretch_channels(doc: dict[str, Any], node: str, state: dict[str, Any] | None) -> int | None:
+    """Channels of the tensor feeding a stretch, from its source node's fitted bounds, if any."""
     for conn in doc.get("connections", []):
         target, _, port = _split(conn["target"])
         if target == node and port == "data":
@@ -197,7 +196,7 @@ def _stretch_channels(doc: dict[str, Any], node: str, state: dict[str, Any] | No
             if bounds is not None:
                 return int(bounds.shape[0])
             break
-    return 3
+    return None
 
 
 def migrate_doc(
@@ -232,6 +231,12 @@ def migrate_doc(
                 }
         elif cls == STRETCH:
             channels = _stretch_channels(doc, name, state)
+            if channels is None:
+                channels = 3
+                report.notes.append(
+                    f"{name}: n_channels=3 guessed (its source has no fitted bounds); "
+                    "the normalizer refuses another channel count on the first frame"
+                )
             node["class_name"] = PERCENTILE
             node["hparams"] = _stretch_hparams(hp, channels)
             report.rewritten[name] = (
@@ -339,29 +344,37 @@ def migrate_file(yaml_path: Path, out_dir: Path, plugins_dir: Path | None = None
     return report
 
 
-def main(argv: Iterable[str] | None = None) -> int:
+@click.command(name="migrate-plugin-nodes", help=__doc__.split("\n\n")[0])
+@click.argument("pipelines", nargs=-1, required=True, type=click.Path(exists=True, path_type=Path))
+@click.option(
+    "--out-dir",
+    required=True,
+    type=click.Path(file_okay=False, path_type=Path),
+    help="Where the migrated pairs go, in the folders the pipelines share below their common parent.",
+)
+@click.option(
+    "--plugins-dir",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=None,
+    help="Plugin manifests; with it, plugins none of whose classes remain are dropped.",
+)
+def main(pipelines: tuple[Path, ...], out_dir: Path, plugins_dir: Path | None) -> None:
     """Command-line entry point (``migrate-plugin-nodes``)."""
-    ap = argparse.ArgumentParser(prog="migrate-plugin-nodes", description=__doc__.split("\n\n")[0])
-    ap.add_argument("pipelines", nargs="+", type=Path, help="pipeline yaml files")
-    ap.add_argument("--out-dir", type=Path, required=True, help="where the migrated pairs go")
-    ap.add_argument(
-        "--plugins-dir",
-        type=Path,
-        default=None,
-        help="plugin manifests; with it, plugins none of whose classes remain are dropped",
-    )
-    args = ap.parse_args(list(argv) if argv is not None else None)
+    # The catalog repeats file names across folders, so each output keeps its folder.
+    root = Path(os.path.commonpath([p.resolve().parent for p in pipelines]))
     failed = 0
-    for path in args.pipelines:
+    for path in pipelines:
+        target_dir = out_dir / path.resolve().parent.relative_to(root)
         try:
-            report = migrate_file(path, args.out_dir, args.plugins_dir)
+            report = migrate_file(path, target_dir, plugins_dir)
         except MigrationError as exc:
-            print(f"{path.name}: NOT migrated: {exc}", file=sys.stderr)
+            click.echo(f"{path.name}: NOT migrated: {exc}", err=True)
             failed += 1
             continue
-        print("\n".join(report.lines()))
-    return 1 if failed else 0
+        click.echo("\n".join(report.lines()))
+    if failed:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    main()

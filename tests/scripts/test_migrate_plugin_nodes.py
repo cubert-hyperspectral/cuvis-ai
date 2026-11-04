@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 import torch
 import yaml
+from click.testing import CliRunner
 
 from cuvis_ai.node.fusion import ScoreMapFusion
 from cuvis_ai.node.normalization import PercentileNormalizer
@@ -282,15 +283,55 @@ def test_fusion_without_both_inputs_is_refused():
         migrate_doc(doc, None, Report(yaml_path=Path("p.yaml")))
 
 
-def test_cli_writes_the_pair_and_reports(tmp_path, capsys):
-    src = tmp_path / "p.yaml"
-    src.write_text(yaml.safe_dump(_doc()))
+def test_a_guessed_stretch_channel_count_is_reported():
+    """Without fitted bounds on the stretch's source the channel count is a guess; say so."""
+    report = Report(yaml_path=Path("p.yaml"))
+    doc, _ = migrate_doc(_doc(), None, report)
+    stretch = next(n for n in doc["nodes"] if n["name"] == "stretch")
+    assert stretch["hparams"]["n_channels"] == 3
+    assert any(note.startswith("stretch: n_channels=3 guessed") for note in report.notes)
+    _, _, fitted, _ = _migrate()
+    assert not any("guessed" in note for note in fitted.notes)
+
+
+def _write(folder: Path, doc: dict) -> Path:
+    folder.mkdir(parents=True, exist_ok=True)
+    src = folder / "p.yaml"
+    src.write_text(yaml.safe_dump(doc))
+    return src
+
+
+def test_cli_writes_the_pair_and_reports(tmp_path):
+    src = _write(tmp_path, _doc())
     torch.save({"state_dict": _state(), "metadata": {"name": "p"}}, tmp_path / "p.pt")
-    assert main([str(src), "--out-dir", str(tmp_path / "out")]) == 0
+    result = CliRunner().invoke(main, [str(src), "--out-dir", str(tmp_path / "out")])
+    assert result.exit_code == 0, result.output
     saved = torch.load(tmp_path / "out" / "p.pt", weights_only=True)
     assert saved["metadata"] == {"name": "p"} and "running_min" in saved["state_dict"]["norm"]
-    assert "rewritten: norm" in capsys.readouterr().out
+    assert "rewritten: norm" in result.output
     bad = _doc()
     bad["nodes"][4]["hparams"]["mode"] = "gmean"
     src.write_text(yaml.safe_dump(bad))
-    assert main([str(src), "--out-dir", str(tmp_path / "out2")]) == 1
+    result = CliRunner().invoke(main, [str(src), "--out-dir", str(tmp_path / "out2")])
+    assert result.exit_code == 1
+    assert "NOT migrated" in result.output
+
+
+def test_cli_keeps_same_named_pipelines_of_different_folders_apart(tmp_path):
+    """The catalog repeats file names across folders; each output keeps its folder."""
+    other = _doc()
+    other["nodes"][4]["hparams"]["mode"] = "max"
+    a = _write(tmp_path / "catalog" / "best", _doc())
+    b = _write(tmp_path / "catalog" / "best_80ms", other)
+    out = tmp_path / "out"
+    result = CliRunner().invoke(main, [str(a), str(b), "--out-dir", str(out)])
+    assert result.exit_code == 0, result.output
+    modes = {
+        folder: next(
+            n["hparams"]["mode"]
+            for n in yaml.safe_load((out / folder / "p.yaml").read_text())["nodes"]
+            if n["name"] == "fuse"
+        )
+        for folder in ("best", "best_80ms")
+    }
+    assert modes == {"best": "mean", "best_80ms": "max"}
