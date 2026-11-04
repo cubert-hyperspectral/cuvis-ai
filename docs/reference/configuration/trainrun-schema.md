@@ -74,9 +74,12 @@ data:
     read_ahead: 1               # frames read ahead of the model step
 ```
 
-`max_open_sessions` near the number of recordings a split reads avoids reopening them during a
-shuffled epoch, `read_ahead` overlaps the read with the model step at batch 1, and `cuda_cubes: true`
-keeps the cubes on the GPU; the cuvis-ai-dataloader README covers each option.
+More open recordings mean fewer reopens during a shuffled epoch, `read_ahead` overlaps the read
+with the model step at batch 1, and `cuda_cubes: true` keeps the cubes on the GPU; the
+cuvis-ai-dataloader README covers each option. Every loader (train, val, test) keeps its own open
+recordings, so their GPU memory adds up: 3 open with `read_ahead: 1` fit an 8 GB GPU. With all
+recordings open, `read_ahead` and `cuda_cubes` together crashed the Cuvis SDK in longer runs
+(cuvis-ai-dataloader 0.8.2, SDK 3.6.1).
 
 ## Current Patterns
 
