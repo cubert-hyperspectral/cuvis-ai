@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.20.2 - 2026-11-04
 
 - `ExportedSpan` declares each port with the dtype the sidecar records as `port_dtype` (cuvis-ai-core 0.19.2: the dtype the original port declared, `numpy.int32` for a wavelength grid), so a deploy yaml connects a data node's numpy-typed output the way the canonical yaml did instead of failing the port check with a torch dtype; a sidecar without the field keeps the tensor dtype. The node takes a numpy array on an input or a constant port and converts it, so the wavelength grid the cu3s loaders emit runs through it.
 - `ExportedSpan` opens the CUDA session with `use_tf32: 0`: ONNX Runtime's CUDA provider runs matmuls in TF32 by default, which moved the nearest-coreset distance of a PatchCore graph by 0.4 and Dinomaly scores by 7e-5 against the CPU provider; with TF32 off both sit within 1e-5 and the speed is the same.
