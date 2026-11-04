@@ -62,6 +62,8 @@ An absolute `onnx_path` is used as given, which suits a folder that never moves.
 | A CUDA device whose session lands on the CPU provider | the providers ONNX Runtime opened; set `device: cpu` to run on the CPU on purpose |
 | A training stage | the canonical yaml |
 | ONNX Runtime not installed | `uv sync --extra onnx`, or the `cuvis_ai_onnx` plugin in the pipeline |
+| `backend: tensorrt` on a CPU device | use `backend: onnxruntime` to run on the CPU |
+| The TensorRT package not installed | the install command matching torch's CUDA build |
 | A sidecar of another format | the format this release reads |
 
 ## Which nodes export
@@ -97,6 +99,39 @@ PyPI builds that package with CUDA 13 from 1.27 on, so on x86_64 the extra takes
 CUDA libraries; Linux aarch64 (torch cu130) keeps the PyPI build. One environment holds
 one onnxruntime flavour: do not add `cuvis-ai-core[onnx]`, the CPU wheel, on top of this
 extra.
+
+## TensorRT backend
+
+```yaml
+- name: exported_span
+  class_name: cuvis_ai.node.exported_span.ExportedSpan
+  hparams:
+    onnx_path: dinomaly.onnx
+    backend: tensorrt
+```
+
+`backend: tensorrt` compiles the span's ONNX graph into a TensorRT engine instead of
+running it through ONNX Runtime. Reach for it on a device where ONNX Runtime has no CUDA
+kernel for the graph (the Jetson Thor's PyPI `onnxruntime-gpu` wheel is one such device:
+TensorRT is its GPU path) or where TensorRT measurably outruns the ONNX Runtime CUDA
+provider for the exported graph; otherwise `backend: onnxruntime` needs nothing beyond
+the `onnx` extra and is the simpler default.
+
+The engine is found or built the first time `prepare_inference()` runs, keyed by the
+sidecar's `fingerprint` and `onnx_md5` plus the GPU and the installed TensorRT version, so
+retraining or exporting again always builds a fresh engine. It lands under
+`CUVIS_AI_TRT_ENGINE_DIR/exported_span` when that variable is set, else under the
+cuvis-ai model cache (`trt_engines/exported_span`); a build takes a few minutes the first
+time on a given machine and is instant on every later load. Several span nodes, or the
+same node across restarts, reuse the same engine file once it exists.
+
+Requirements: a CUDA device (`backend: tensorrt` on `device: cpu` is refused) and the
+TensorRT Python package for the platform, matching torch's CUDA build
+(`pip install tensorrt-cu12` or `tensorrt-cu13`), plus `onnx` to build an engine from
+scratch. Neither ships as a pip extra of this package: on the Thor, TensorRT comes with
+JetPack; on x86_64, install it by hand or through the environment that composes the
+pipeline. The same file checks (`onnx_md5`), shape checks, constant checks and training
+refusal as the ONNX Runtime backend apply.
 
 ## Standing checks
 
