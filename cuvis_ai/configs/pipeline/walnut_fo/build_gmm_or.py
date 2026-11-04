@@ -52,11 +52,27 @@ FAMILY = "walnut_fo_multiscale_gmm_or_gated"
 TIERS = ("", "_tf32", "_fp16", "_fp16trt")
 BETA = 10.0
 PATCHCORE = "cuvis_ai_patchcore.node."
-NORM = {"n_channels": 1, "low": 1.0, "high": 99.0, "floor": True, "fit_subsample": 4, "max_fit_values": 4000000,
-        "seed": 0, "eps": 1e-09}  # norm_t1's hparams; lo / hi are set from the VAL maps, not fitted here
+NORM = {
+    "n_channels": 1,
+    "low": 1.0,
+    "high": 99.0,
+    "floor": True,
+    "fit_subsample": 4,
+    "max_fit_values": 4000000,
+    "seed": 0,
+    "eps": 1e-09,
+}  # norm_t1's hparams; lo / hi are set from the VAL maps, not fitted here
 # how the experiment fitted the mixture (inference needs only its buffers)
-MIXTURE = {"n_components": 32, "covariance_type": "full", "reg_covar": 0.001, "max_iter": 300, "n_init": 1,
-           "random_state": 0, "max_fit_pixels": 400000, "fit_seed": 0}
+MIXTURE = {
+    "n_components": 32,
+    "covariance_type": "full",
+    "reg_covar": 0.001,
+    "max_iter": 300,
+    "n_init": 1,
+    "random_state": 0,
+    "max_fit_pixels": 400000,
+    "fit_seed": 0,
+}
 GMM_KEYS = ("_initialized", "means", "precisions_chol", "weights")
 
 
@@ -72,17 +88,27 @@ def conn(src: str, dst: str) -> dict:
     return {"source": src, "target": dst}
 
 
-def spectral_nodes(gate_hp: dict, thr: float, mask_thr: float, k: int) -> tuple[list[dict], list[dict]]:
+def spectral_nodes(
+    gate_hp: dict, thr: float, mask_thr: float, k: int
+) -> tuple[list[dict], list[dict]]:
     """The new nodes before `gate` and after it, the fused gate a copy of `gate`'s hparams with its own values."""
     fused_hp = {**gate_hp, "threshold": thr, "mask_threshold": mask_thr}
     before = [
         node("ms_norm", PATCHCORE + "calibration.ScoreRangeNormalizer", dict(NORM)),
         node("mix_grid", PATCHCORE + "spatial.GridSubsample", {"stride": 4}),
         node("mix_snv", "cuvis_ai.node.pretreatments.snv.SNVCorrection", {"eps": 1e-08}),
-        node("mix_gmm", "cuvis_ai.node.clustering.gmm.GaussianMixtureClusterer", {**MIXTURE, "n_components": k}),
+        node(
+            "mix_gmm",
+            "cuvis_ai.node.clustering.gmm.GaussianMixtureClusterer",
+            {**MIXTURE, "n_components": k},
+        ),
         node("mix_up", PATCHCORE + "spatial.ScoreUpsample", {"mode": "bilinear"}),
         node("mix_norm", PATCHCORE + "calibration.ScoreRangeNormalizer", {**NORM, "invert": True}),
-        node("fused", PATCHCORE + "fusion.ScoreMapFusion", {"mode": "softmin", "weights": None, "beta": BETA}),
+        node(
+            "fused",
+            PATCHCORE + "fusion.ScoreMapFusion",
+            {"mode": "softmin", "weights": None, "beta": BETA},
+        ),
         node("gate_fused", PATCHCORE + "gate.FrameScoreGate", fused_hp),
     ]
     after = [
@@ -147,12 +173,21 @@ def build_cfg(base: dict, tier: str, thr: float, mask_thr: float, k: int) -> dic
         "(ScoreMapFusion first; zeros when neither passes); FO mask: display_mask.decisions (DecisionFusion first, "
         "same order). Ungated inspection maps: fused_map.scores, mixture_map.scores. Thresholds: max clean x 1.10 "
         "per gate, set per session with calibrate_live.py --pipeline gmm_or (a pooled threshold misses fakes on "
-        "another day). The mixture runs in float32 with TF32 off." + tier_text(base["metadata"]["description"])
+        "another day). The mixture runs in float32 with TF32 off."
+        + tier_text(base["metadata"]["description"])
     )
     meta = dict(base["metadata"])
-    meta.update(name=stem(FAMILY, tier), description=desc,
-                tags=sorted(set(meta.get("tags") or []) | {"gaussian_mixture", "or_gate", "snv"}))
-    cfg = {"metadata": meta, "plugins": list(base["plugins"]), "nodes": nodes, "connections": connections}
+    meta.update(
+        name=stem(FAMILY, tier),
+        description=desc,
+        tags=sorted(set(meta.get("tags") or []) | {"gaussian_mixture", "or_gate", "snv"}),
+    )
+    cfg = {
+        "metadata": meta,
+        "plugins": list(base["plugins"]),
+        "nodes": nodes,
+        "connections": connections,
+    }
     if set(cfg["plugins"]) != {"cuvis_ai_builtin", "patchcore", "steervit"}:
         raise SystemExit(f"unexpected plugins {cfg['plugins']}")
     return cfg
@@ -160,17 +195,25 @@ def build_cfg(base: dict, tier: str, thr: float, mask_thr: float, k: int) -> dic
 
 def write_yaml(path: Path, cfg: dict) -> None:
     text = yaml.safe_dump(cfg, sort_keys=False, allow_unicode=True)
-    path.write_bytes(text.replace("\r\n", "\n").replace("\n", "\r\n").encode("utf-8"))  # CRLF like the stack yamls
+    path.write_bytes(
+        text.replace("\r\n", "\n").replace("\n", "\r\n").encode("utf-8")
+    )  # CRLF like the stack yamls
 
 
-def family_state(base_pt: Path, gmm: Path, lohi: dict, meta: dict, k: int, names: list[str]) -> dict:
+def family_state(
+    base_pt: Path, gmm: Path, lohi: dict, meta: dict, k: int, names: list[str]
+) -> dict:
     """The base .pt's node states plus the new nodes', in the yaml's node order (`names`); the stateless nodes the
     base .pt lacks (its `gate`: the gated family loads the ungated .pt) get an empty entry, as save_to_file writes."""
     ck = torch.load(base_pt, map_location="cpu", weights_only=False)
     g = torch.load(gmm, map_location="cpu", weights_only=False)
     if int(g["hparams"]["k"]) != k or g["hparams"]["prep"] != "snv":
-        raise SystemExit(f"{gmm}: a {g['hparams']['prep']} K {g['hparams']['k']} mixture, expected snv K {k}")
-    if tuple(sorted(g["state_dict"])) != GMM_KEYS or not bool(g["state_dict"]["_initialized"].all()):
+        raise SystemExit(
+            f"{gmm}: a {g['hparams']['prep']} K {g['hparams']['k']} mixture, expected snv K {k}"
+        )
+    if tuple(sorted(g["state_dict"])) != GMM_KEYS or not bool(
+        g["state_dict"]["_initialized"].all()
+    ):
         raise SystemExit(f"{gmm}: unexpected mixture state {sorted(g['state_dict'])}")
     sd = ck["state_dict"]
     lohi_key = f"k{k}"
@@ -179,13 +222,24 @@ def family_state(base_pt: Path, gmm: Path, lohi: dict, meta: dict, k: int, names
         lo, hi = (float(v) for v in lohi[key])
         if not hi > lo:
             raise SystemExit(f"lohi {key}: hi {hi} <= lo {lo}")
-        return OrderedDict(lo=torch.tensor([lo], dtype=torch.float32), hi=torch.tensor([hi], dtype=torch.float32))
+        return OrderedDict(
+            lo=torch.tensor([lo], dtype=torch.float32), hi=torch.tensor([hi], dtype=torch.float32)
+        )
 
     new = OrderedDict(
-        ms_norm=lh("ms"), mix_grid=OrderedDict(), mix_snv=OrderedDict(),
+        ms_norm=lh("ms"),
+        mix_grid=OrderedDict(),
+        mix_snv=OrderedDict(),
         mix_gmm=OrderedDict((key, g["state_dict"][key].clone()) for key in GMM_KEYS),
-        mix_up=OrderedDict(), mix_norm=lh(lohi_key), fused=OrderedDict(), gate_fused=OrderedDict(),
-        display=OrderedDict(), display_mask=OrderedDict(), fused_map=OrderedDict(), mixture_map=OrderedDict())
+        mix_up=OrderedDict(),
+        mix_norm=lh(lohi_key),
+        fused=OrderedDict(),
+        gate_fused=OrderedDict(),
+        display=OrderedDict(),
+        display_mask=OrderedDict(),
+        fused_map=OrderedDict(),
+        mixture_map=OrderedDict(),
+    )
     clash = set(new) & set(sd)
     if clash:
         raise SystemExit(f"{base_pt.name} already has state for {sorted(clash)}")
@@ -206,8 +260,19 @@ def check_nodes(cfg: dict, state: dict) -> None:
 
     make = {}
     for n in cfg["nodes"]:
-        if n["name"] in ("ms_norm", "mix_grid", "mix_snv", "mix_gmm", "mix_up", "mix_norm", "fused", "gate_fused",
-                         "gate", "display", "display_mask"):
+        if n["name"] in (
+            "ms_norm",
+            "mix_grid",
+            "mix_snv",
+            "mix_gmm",
+            "mix_up",
+            "mix_norm",
+            "fused",
+            "gate_fused",
+            "gate",
+            "display",
+            "display_mask",
+        ):
             mod, _, cls = n["class_name"].rpartition(".")
             obj = getattr(importlib.import_module(mod), cls)(**n["hparams"])
             obj.load_state_dict(state["state_dict"][n["name"]])
@@ -223,7 +288,9 @@ def check_nodes(cfg: dict, state: dict) -> None:
     ms = make["ms_norm"](scores=fuse)["normalized"]
     fused = make["fused"](scores=[ms, mix])["scores"]
     lo = torch.minimum(ms, mix)
-    if not (torch.isfinite(fused).all() and (fused >= lo - 1e-6).all() and (fused <= lo + 0.0694).all()):
+    if not (
+        torch.isfinite(fused).all() and (fused >= lo - 1e-6).all() and (fused <= lo + 0.0694).all()
+    ):
         raise SystemExit("fused map outside [min, min + log(2) / beta]")
     # display order: both gates open -> the fused gated map; only gate -> the multi-scale gated map
     make["gate_fused"].threshold, make["gate"].threshold = -1.0, -1.0
@@ -234,23 +301,40 @@ def check_nodes(cfg: dict, state: dict) -> None:
     gf2 = make["gate_fused"](scores=fused)
     only = make["display"](scores=[gf2["scores"], gm["scores"]])["scores"]
     mask = make["display_mask"](decisions=[gf["decisions"], gm["decisions"]])["decisions"]
-    if not (torch.equal(both, fused) and torch.equal(only, fuse) and torch.equal(mask, fused > 0.5)):
+    if not (
+        torch.equal(both, fused) and torch.equal(only, fuse) and torch.equal(mask, fused > 0.5)
+    ):
         raise SystemExit("display / display_mask priority wrong")
-    print(f"  node check OK: grid {tuple(grid.shape)}, log-lik {float(ll.min()):.1f}..{float(ll.max()):.1f}, "
-          f"mixture map {float(mix.min()):.2f}..{float(mix.max()):.2f}, fused {float(fused.min()):.3f}.."
-          f"{float(fused.max()):.3f}", flush=True)
+    print(
+        f"  node check OK: grid {tuple(grid.shape)}, log-lik {float(ll.min()):.1f}..{float(ll.max()):.1f}, "
+        f"mixture map {float(mix.min()):.2f}..{float(mix.max()):.2f}, fused {float(fused.min()):.3f}.."
+        f"{float(fused.max()):.3f}",
+        flush=True,
+    )
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
-    ap.add_argument("--gmm", required=True, help="the experiment's fitted.pt of the mixture (gmm_snv_k32)")
+    ap.add_argument(
+        "--gmm", required=True, help="the experiment's fitted.pt of the mixture (gmm_snv_k32)"
+    )
     ap.add_argument("--lohi", required=True, help="g4_checks.json with lohi_VAL (ms, k32)")
     ap.add_argument("--k", type=int, default=32)
-    ap.add_argument("--out", default=str(HERE), help="output folder (default: this walnut_fo folder)")
-    ap.add_argument("--tiers", default=",".join(TIERS), help="comma list of tier suffixes; '' = float32")
-    ap.add_argument("--fused-threshold", type=float, required=True, help="gate_fused threshold until calibrated")
-    ap.add_argument("--fused-mask-threshold", type=float, required=True, help="gate_fused mask_threshold")
-    ap.add_argument("--no-check", action="store_true", help="skip the node check (plugins not importable)")
+    ap.add_argument(
+        "--out", default=str(HERE), help="output folder (default: this walnut_fo folder)"
+    )
+    ap.add_argument(
+        "--tiers", default=",".join(TIERS), help="comma list of tier suffixes; '' = float32"
+    )
+    ap.add_argument(
+        "--fused-threshold", type=float, required=True, help="gate_fused threshold until calibrated"
+    )
+    ap.add_argument(
+        "--fused-mask-threshold", type=float, required=True, help="gate_fused mask_threshold"
+    )
+    ap.add_argument(
+        "--no-check", action="store_true", help="skip the node check (plugins not importable)"
+    )
     a = ap.parse_args()
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -268,7 +352,9 @@ def main() -> None:
         write_yaml(out / f"{stem(FAMILY, tier)}.yaml", cfg)
         if i == 0:
             meta = {k: cfg["metadata"][k] for k in ("name", "description", "tags")}
-            state = family_state(ref, Path(a.gmm), lohi, meta, a.k, [n["name"] for n in cfg["nodes"]])
+            state = family_state(
+                ref, Path(a.gmm), lohi, meta, a.k, [n["name"] for n in cfg["nodes"]]
+            )
             torch.save(state, family_pt)
             if not a.no_check:
                 check_nodes(cfg, state)
@@ -278,9 +364,13 @@ def main() -> None:
                 target.unlink()
             os.link(family_pt, target)
         gate = next(n for n in cfg["nodes"] if n["name"] == "gate")["hparams"]
-        print(f"built {stem(FAMILY, tier)}: {len(cfg['nodes'])} nodes, {len(cfg['connections'])} connections; gate "
-              f"{gate['threshold']} / {gate.get('mask_threshold')}, gate_fused {a.fused_threshold} / "
-              f"{a.fused_mask_threshold}" + ("" if i == 0 else f"; .pt = hardlink of {family_pt.name}"), flush=True)
+        print(
+            f"built {stem(FAMILY, tier)}: {len(cfg['nodes'])} nodes, {len(cfg['connections'])} connections; gate "
+            f"{gate['threshold']} / {gate.get('mask_threshold')}, gate_fused {a.fused_threshold} / "
+            f"{a.fused_mask_threshold}"
+            + ("" if i == 0 else f"; .pt = hardlink of {family_pt.name}"),
+            flush=True,
+        )
     print("BUILD DONE")
 
 

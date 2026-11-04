@@ -66,8 +66,14 @@ def seg_envs(root: Path, include_fo: bool = False) -> list[tuple[float, Path]]:
 
 
 def run_in(env: Path, code: str) -> tuple[bool, str]:
-    r = subprocess.run([str(env_python(env)), "-c", code], capture_output=True, text=True, timeout=300)
-    out = (r.stdout.strip().splitlines() or [""])[-1] if r.returncode == 0 else (r.stderr.strip().splitlines() or ["?"])[-1]
+    r = subprocess.run(
+        [str(env_python(env)), "-c", code], capture_output=True, text=True, timeout=300
+    )
+    out = (
+        (r.stdout.strip().splitlines() or [""])[-1]
+        if r.returncode == 0
+        else (r.stderr.strip().splitlines() or ["?"])[-1]
+    )
     return r.returncode == 0, out
 
 
@@ -76,39 +82,62 @@ def install(env: Path) -> bool:
     if uv is None:
         print("  uv not found on PATH")
         return False
-    cmd = [uv, "pip", "install", "--no-config", "--python", str(env_python(env)), f"{trt_package()}=={TRT_VERSION}"]
+    cmd = [
+        uv,
+        "pip",
+        "install",
+        "--no-config",
+        "--python",
+        str(env_python(env)),
+        f"{trt_package()}=={TRT_VERSION}",
+    ]
     print("  $", " ".join(cmd), flush=True)
     return subprocess.run(cmd, cwd=Path.home()).returncode == 0
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--fix", action="store_true", help="install the pinned TensorRT into the current seg env")
-    ap.add_argument("--root", default=os.environ.get("CUVIS_RUN_CACHE_ROOT") or str(Path.home() / ".cuvis_runs"))
-    ap.add_argument("--include-fo", action="store_true",
-                    help="also consider envs with FO plugins (the env of a combined FO + SEG pipeline)")
-    ap.add_argument("--env", default=None, help="check this env (directory name under --root) instead")
+    ap.add_argument(
+        "--fix", action="store_true", help="install the pinned TensorRT into the current seg env"
+    )
+    ap.add_argument(
+        "--root", default=os.environ.get("CUVIS_RUN_CACHE_ROOT") or str(Path.home() / ".cuvis_runs")
+    )
+    ap.add_argument(
+        "--include-fo",
+        action="store_true",
+        help="also consider envs with FO plugins (the env of a combined FO + SEG pipeline)",
+    )
+    ap.add_argument(
+        "--env", default=None, help="check this env (directory name under --root) instead"
+    )
     args = ap.parse_args()
     root = Path(args.root)
     envs = seg_envs(root, args.include_fo)
     if args.env:
         envs = [(mtime, env) for mtime, env in envs if env.name == args.env]
         if not envs:
-            print(f"MISSING: {args.env} is not a ready env with cuvis-ai-rfdetr under {root}"
-                  + ("" if args.include_fo else " (add --include-fo for an env with FO plugins)"))
+            print(
+                f"MISSING: {args.env} is not a ready env with cuvis-ai-rfdetr under {root}"
+                + ("" if args.include_fo else " (add --include-fo for an env with FO plugins)")
+            )
             return 1
     kind = "rfdetr (incl. FO)" if args.include_fo else "walnut seg"
     print(f"{len(envs)} {kind} env(s) under {root} (most recently used first):")
     for mtime, env in envs:
         print(f"  {env.name}  last used {time.strftime('%Y-%m-%d %H:%M', time.localtime(mtime))}")
     if not envs:
-        print("MISSING: no seg env yet - load any walnut_seg pipeline in cuvis.next once, then run this again.")
+        print(
+            "MISSING: no seg env yet - load any walnut_seg pipeline in cuvis.next once, then run this again."
+        )
         return 1
     env = envs[0][1]
     ok, version = run_in(env, "import tensorrt; print(tensorrt.__version__)")
     trt_ok = ok and version == TRT_VERSION
-    print(f"current seg env {env.name}: tensorrt {version if ok else 'NOT INSTALLED'}"
-          + ("" if trt_ok else f" (need {trt_package()}=={TRT_VERSION})"))
+    print(
+        f"current seg env {env.name}: tensorrt {version if ok else 'NOT INSTALLED'}"
+        + ("" if trt_ok else f" (need {trt_package()}=={TRT_VERSION})")
+    )
     if not trt_ok and args.fix:
         if install(env):
             ok, version = run_in(env, "import tensorrt; print(tensorrt.__version__)")
@@ -122,14 +151,26 @@ def main() -> int:
     else:
         for ckpt in CHECKPOINTS:
             for precision in ("fp32", "fp16"):
-                engine = SEG / "weights" / f"{ckpt}.trt" / f"{precision}_r504_{tag}_trt{TRT_VERSION}.engine"
+                engine = (
+                    SEG
+                    / "weights"
+                    / f"{ckpt}.trt"
+                    / f"{precision}_r504_{tag}_trt{TRT_VERSION}.engine"
+                )
                 if not engine.is_file():
                     missing.append(str(engine))
-        print(f"engines for {tag} / TensorRT {TRT_VERSION}: " + ("all 4 present" if not missing else "MISSING"))
+        print(
+            f"engines for {tag} / TensorRT {TRT_VERSION}: "
+            + ("all 4 present" if not missing else "MISSING")
+        )
         for m in missing:
-            print(f"  missing {m} -> python build_fast_pipelines.py trt_fp32,trt_fp16 (in an env with tensorrt)")
+            print(
+                f"  missing {m} -> python build_fast_pipelines.py trt_fp32,trt_fp16 (in an env with tensorrt)"
+            )
     good = trt_ok and not missing
-    print("TRT ENV OK" if good else ("TRT ENV NOT READY" + ("" if args.fix else " - run with --fix")))
+    print(
+        "TRT ENV OK" if good else ("TRT ENV NOT READY" + ("" if args.fix else " - run with --fix"))
+    )
     return 0 if good else 1
 
 

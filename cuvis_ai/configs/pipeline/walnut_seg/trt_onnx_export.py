@@ -18,8 +18,9 @@ import sys
 import numpy as np
 import torch
 import torchvision.transforms.functional as F
-from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_rfdetr.functional import to_unit_frames
+
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
 seg_dir, out_dir = sys.argv[1], sys.argv[2]
 os.makedirs(out_dir, exist_ok=True)
@@ -40,16 +41,36 @@ net = copy.deepcopy(m.model.model).to(m.model.device).eval()
 net.export()
 with torch.no_grad():
     out = net(x.cuda())
-outs = list(out) if isinstance(out, (tuple, list)) else [out[k] for k in ("pred_boxes", "pred_logits", "pred_masks")]
+outs = (
+    list(out)
+    if isinstance(out, (tuple, list))
+    else [out[k] for k in ("pred_boxes", "pred_logits", "pred_masks")]
+)
 print("network outputs:", [tuple(o.shape) for o in outs], flush=True)
-torch.save({"outputs": [o.detach().cpu() for o in outs], "hw": (int(rgb.shape[1]), int(rgb.shape[2])),
-            "threshold": float(seg.threshold), "class_filter": int(seg.class_filter or 0), "resolution": res},
-           os.path.join(out_dir, "ref.pt"))
+torch.save(
+    {
+        "outputs": [o.detach().cpu() for o in outs],
+        "hw": (int(rgb.shape[1]), int(rgb.shape[2])),
+        "threshold": float(seg.threshold),
+        "class_filter": int(seg.class_filter or 0),
+        "resolution": res,
+    },
+    os.path.join(out_dir, "ref.pt"),
+)
 x.cpu().numpy().astype(np.float32).tofile(os.path.join(out_dir, "input.bin"))
 
 net_cpu = net.cpu()
 onnx_path = os.path.join(out_dir, f"rgb_v2_{res}.onnx")
 kwargs = {"dynamo": False} if "dynamo" in torch.onnx.export.__code__.co_varnames else {}
-torch.onnx.export(net_cpu, (x.cpu(),), onnx_path, input_names=["input"], output_names=["dets", "labels", "masks"],
-                  dynamic_axes=None, opset_version=17, do_constant_folding=True, **kwargs)
+torch.onnx.export(
+    net_cpu,
+    (x.cpu(),),
+    onnx_path,
+    input_names=["input"],
+    output_names=["dets", "labels", "masks"],
+    dynamic_axes=None,
+    opset_version=17,
+    do_constant_folding=True,
+    **kwargs,
+)
 print("ONNX written:", onnx_path, round(os.path.getsize(onnx_path) / 2**20, 1), "MiB", flush=True)

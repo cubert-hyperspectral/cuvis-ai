@@ -16,39 +16,56 @@ Usage (stack env, CUDA):
   python verify_node_speed_options.py --cu3s <a.cu3s> [--cu3s <b.cu3s>] [--out out.json]   # + cu3s reader overlay
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import os
+from typing import Any
 
 import torch
+
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
 SEG = os.path.dirname(os.path.abspath(__file__))
-NODES = {"rgb_v2": {"Seg": "rgb"}, "cir_v2": {"Seg": "cir"},
-         "ens_rgb_cir_mean_v2": {"SegRGB": "rgb", "SegCIR": "cir"}}
-VARIANTS = {"A_per_instance_paste": (False, False), "B_fast_paste": (True, False),
-            "C_fast_paste_gpu_input": (True, True)}
+NODES = {
+    "rgb_v2": {"Seg": "rgb"},
+    "cir_v2": {"Seg": "cir"},
+    "ens_rgb_cir_mean_v2": {"SegRGB": "rgb", "SegCIR": "cir"},
+}
+VARIANTS = {
+    "A_per_instance_paste": (False, False),
+    "B_fast_paste": (True, False),
+    "C_fast_paste_gpu_input": (True, True),
+}
 
 
-def cu3s_frames(paths, pipe):
+def cu3s_frames(paths: list[str], pipe: CuvisPipeline) -> list[dict[str, Any]]:
     """The 3-band model inputs of every frame, from the ensemble pipeline's own selector nodes."""
-    from cuvis_ai_core.training import Predictor
     from cuvis_ai_dataloader.data.datamodule_cu3s import Cu3sDataModule
+
+    from cuvis_ai_core.training import Predictor
 
     sel = {n.name: n for n in pipe.nodes}
     frames = []
     for c in paths:
-        dm = Cu3sDataModule(cu3s_file_path=c, processing_mode="Reflectance", batch_size=1, num_workers=0)
+        dm = Cu3sDataModule(
+            cu3s_file_path=c, processing_mode="Reflectance", batch_size=1, num_workers=0
+        )
         dm.setup(stage="predict")
         for batch in Predictor._iter_batches(dm.predict_dataloader()):
             cube, wl = batch["cube"].float().cuda(), batch["wavelengths"][0].cpu().numpy()
             with torch.no_grad():
-                frames.append({k: sel[n].forward(cube=cube, wavelengths=wl)["rgb_image"]
-                               for k, n in (("rgb", "SelRGB"), ("cir", "SelCIR"))})
+                frames.append(
+                    {
+                        k: sel[n].forward(cube=cube, wavelengths=wl)["rgb_image"]
+                        for k, n in (("rgb", "SelRGB"), ("cir", "SelCIR"))
+                    }
+                )
     return frames
 
 
-def main():
+def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--cache", default=None)
     ap.add_argument("--cu3s", action="append", default=[])
@@ -64,11 +81,18 @@ def main():
             segs[f"{short}:{nm}"] = (nodes[nm], band)
         ens = p if short.startswith("ens") else ens
     # cached uint8 inputs are moved to the GPU one frame at a time; the node re-quantizes to uint8, so u8/255 is exact
-    frames = torch.load(args.cache, weights_only=False) if args.cache else cu3s_frames(args.cu3s, ens)
-    stats = {f"{v}:{k}": {"equal": 0, "max_abs": 0.0} for v in VARIANTS if v[0] != "A" for k in segs}
+    frames = (
+        torch.load(args.cache, weights_only=False) if args.cache else cu3s_frames(args.cu3s, ens)
+    )
+    stats = {
+        f"{v}:{k}": {"equal": 0, "max_abs": 0.0} for v in VARIANTS if v[0] != "A" for k in segs
+    }
     stats.update({f"{v}:ens_mask": {"equal": 0, "max_abs": 0.0} for v in VARIANTS if v[0] != "A"})
     for i, fr in enumerate(frames):
-        img = {k: fr[k].cuda().float() / 255.0 if fr[k].dtype == torch.uint8 else fr[k] for k in ("rgb", "cir")}
+        img = {
+            k: fr[k].cuda().float() / 255.0 if fr[k].dtype == torch.uint8 else fr[k]
+            for k in ("rgb", "cir")
+        }
         res = {}
         for v, (fast, gpu_in) in VARIANTS.items():
             res[v] = {}
@@ -76,15 +100,19 @@ def main():
                 node.fast_paste, node.gpu_input = fast, gpu_in
                 with torch.no_grad():
                     res[v][key] = node.forward(rgb_image=img[band])["scores"][0, :, :, 0].cpu()
-            res[v]["ens_mask"] = (0.5 * (res[v]["ens_rgb_cir_mean_v2:SegRGB"]
-                                         + res[v]["ens_rgb_cir_mean_v2:SegCIR"]) >= 0.5).float()
+            res[v]["ens_mask"] = (
+                0.5 * (res[v]["ens_rgb_cir_mean_v2:SegRGB"] + res[v]["ens_rgb_cir_mean_v2:SegCIR"])
+                >= 0.5
+            ).float()
         for v in VARIANTS:
             if v[0] == "A":
                 continue
             for key, t in res[v].items():
                 s = stats[f"{v}:{key}"]
                 s["equal"] += int(torch.equal(t, res["A_per_instance_paste"][key]))
-                s["max_abs"] = max(s["max_abs"], float((t - res["A_per_instance_paste"][key]).abs().max()))
+                s["max_abs"] = max(
+                    s["max_abs"], float((t - res["A_per_instance_paste"][key]).abs().max())
+                )
         if (i + 1) % 40 == 0:
             print(f"  {i + 1}/{len(frames)} frames", flush=True)
     for node, _ in segs.values():  # restore the yaml defaults

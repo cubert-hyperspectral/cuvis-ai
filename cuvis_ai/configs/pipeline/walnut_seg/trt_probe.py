@@ -12,6 +12,8 @@ Usage (an overlay env with torch-tensorrt; never install into the stack or cuvis
   python trt_probe.py <walnut_seg dir> [--out result.json] [--skip-trt]
 """
 
+from __future__ import annotations
+
 import argparse
 import copy
 import json
@@ -20,17 +22,20 @@ import platform
 import statistics
 import time
 import traceback
+from collections.abc import Callable
+from typing import Any
 
 import numpy as np
 import torch
 import torchvision.transforms.functional as F
-from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_rfdetr.functional import to_unit_frames
+
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
 N, WARM = 50, 10
 
 
-def bench(fn, x):
+def bench(fn: Callable, x: torch.Tensor) -> tuple[float, Any]:
     with torch.no_grad():
         for _ in range(WARM):
             fn(x)
@@ -44,7 +49,7 @@ def bench(fn, x):
     return statistics.median(ts), out
 
 
-def as_dict(out):
+def as_dict(out: Any) -> dict[str, torch.Tensor]:
     """Network tuple -> the dict rfdetr's postprocess expects (same mapping as RFDETR.predict)."""
     if isinstance(out, dict):
         return {k: v.float() for k, v in out.items()}
@@ -54,8 +59,12 @@ def as_dict(out):
     return d
 
 
-def score_map(m, out, hw, threshold, class_id):
-    res = m.model.postprocess(as_dict(out), target_sizes=torch.tensor([hw], device="cuda"), score_threshold=threshold)[0]
+def score_map(
+    m: Any, out: Any, hw: tuple[int, int], threshold: float, class_id: int
+) -> tuple[torch.Tensor, int]:
+    res = m.model.postprocess(
+        as_dict(out), target_sizes=torch.tensor([hw], device="cuda"), score_threshold=threshold
+    )[0]
     keep = (res["scores"] > threshold) & (res["labels"] == class_id)
     canvas = torch.zeros(hw, device="cuda")
     if int(keep.sum()) and "masks" in res:
@@ -65,17 +74,22 @@ def score_map(m, out, hw, threshold, class_id):
     return canvas, int(keep.sum())
 
 
-def main():
+def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("seg_dir")
     ap.add_argument("--out", default=None)
     ap.add_argument("--skip-trt", action="store_true")
     args = ap.parse_args()
-    env = {"host": platform.node(), "gpu": torch.cuda.get_device_name(0), "torch": torch.__version__,
-           "python": platform.python_version()}
+    env = {
+        "host": platform.node(),
+        "gpu": torch.cuda.get_device_name(0),
+        "torch": torch.__version__,
+        "python": platform.python_version(),
+    }
     try:
-        import torch_tensorrt
         import tensorrt
+        import torch_tensorrt
+
         env.update(torch_tensorrt=torch_tensorrt.__version__, tensorrt=tensorrt.__version__)
     except Exception as exc:  # noqa: BLE001 - report, do not hide
         env["torch_tensorrt_import_error"] = f"{type(exc).__name__}: {exc}"[:400]
@@ -95,7 +109,7 @@ def main():
     x = to_unit_frames(rgb)[0].permute(2, 0, 1).contiguous()
     x = F.normalize(F.resize(x, [res, res], antialias=False), m.means, m.stds)[None].cuda()
 
-    def exported(dtype):
+    def exported(dtype: torch.dtype) -> torch.nn.Module:
         net = copy.deepcopy(m.model.model).to(m.model.device).eval()
         net.export()
         return net.to(dtype=dtype)
@@ -104,17 +118,21 @@ def main():
     net32 = exported(torch.float32)
     ms, out = bench(net32, x)
     ref, n_ref = score_map(m, out, hw, seg.threshold, seg.class_filter or 0)
-    rows["fp32 eager"] = dict(ms=round(ms, 2), detections=n_ref, iou=1.0)
+    rows["fp32 eager"] = {"ms": round(ms, 2), "detections": n_ref, "iou": 1.0}
     del net32
     net16 = exported(torch.float16)
     x16 = x.half()
 
-    def record(name, fn, t_build=None):
+    def record(name, fn, t_build=None) -> None:
         ms, out = bench(fn, x16)
         sm, n = score_map(m, out, hw, seg.threshold, seg.class_filter or 0)
         a, b = sm >= 0.5, ref >= 0.5
-        rows[name] = dict(ms=round(ms, 2), detections=n, iou=round(float((a & b).sum()) / max(1, int((a | b).sum())), 5),
-                          build_s=None if t_build is None else round(t_build, 1))
+        rows[name] = {
+            "ms": round(ms, 2),
+            "detections": n,
+            "iou": round(float((a & b).sum()) / max(1, int((a | b).sum())), 5),
+            "build_s": None if t_build is None else round(t_build, 1),
+        }
         print(name, json.dumps(rows[name]), flush=True)
 
     record("fp16 eager", net16)
@@ -130,49 +148,75 @@ def main():
             ("torch-tensorrt fp16 (dynamo)", {}),
             # torch-tensorrt 2.14's SDPA converter passes a constant `value` straight to add_attention_v2
             # (TypeError); either decompose attention into matmul + softmax before conversion ...
-            ("torch-tensorrt fp16, attention decomposed", {"enable_experimental_decompositions": True}),
+            (
+                "torch-tensorrt fp16, attention decomposed",
+                {"enable_experimental_decompositions": True},
+            ),
             # ... or keep only the attention op in PyTorch (graph breaks around every attention block).
             # (torch 2.14 exports aten.scaled_dot_product_attention, torch 2.11 its _efficient overload; the
             # failing `value` operand is a frozen parameter of the network)
-            ("torch-tensorrt fp16, attention in PyTorch",
-             {"torch_executed_ops": {"torch.ops.aten.scaled_dot_product_attention.default",
-                                     "torch.ops.aten._scaled_dot_product_efficient_attention.default",
-                                     "torch.ops.aten._scaled_dot_product_flash_attention.default",
-                                     "torch.ops.aten._scaled_dot_product_cudnn_attention.default"}}),
+            (
+                "torch-tensorrt fp16, attention in PyTorch",
+                {
+                    "torch_executed_ops": {
+                        "torch.ops.aten.scaled_dot_product_attention.default",
+                        "torch.ops.aten._scaled_dot_product_efficient_attention.default",
+                        "torch.ops.aten._scaled_dot_product_flash_attention.default",
+                        "torch.ops.aten._scaled_dot_product_cudnn_attention.default",
+                    }
+                },
+            ),
             # explicit typing (default in some releases) forces every layer to the model dtype (fp16); weak typing
             # lets TensorRT keep precision-sensitive layers in fp32 - same as the torch-tensorrt 2.14 default
-            ("torch-tensorrt fp16 weak typing, attention in PyTorch",
-             {"use_explicit_typing": False,
-              "torch_executed_ops": {"torch.ops.aten.scaled_dot_product_attention.default",
-                                     "torch.ops.aten._scaled_dot_product_efficient_attention.default",
-                                     "torch.ops.aten._scaled_dot_product_flash_attention.default",
-                                     "torch.ops.aten._scaled_dot_product_cudnn_attention.default"}}),
+            (
+                "torch-tensorrt fp16 weak typing, attention in PyTorch",
+                {
+                    "use_explicit_typing": False,
+                    "torch_executed_ops": {
+                        "torch.ops.aten.scaled_dot_product_attention.default",
+                        "torch.ops.aten._scaled_dot_product_efficient_attention.default",
+                        "torch.ops.aten._scaled_dot_product_flash_attention.default",
+                        "torch.ops.aten._scaled_dot_product_cudnn_attention.default",
+                    },
+                },
+            ),
         )
         for label, kwargs in variants:
             t = time.perf_counter()
             try:
                 with torch.no_grad():
                     try:
-                        trt_mod = torch_tensorrt.compile(net16, ir="dynamo", inputs=[x16],
-                                                         enabled_precisions={torch.half}, **kwargs)
+                        trt_mod = torch_tensorrt.compile(
+                            net16,
+                            ir="dynamo",
+                            inputs=[x16],
+                            enabled_precisions={torch.half},
+                            **kwargs,
+                        )
                     except AssertionError as exc:
                         # releases with explicit typing on by default reject enabled_precisions; the fp16
                         # model's own dtypes then decide the precision
                         if "use_explicit_typing" not in str(exc):
                             raise
-                        trt_mod = torch_tensorrt.compile(net16, ir="dynamo", inputs=[x16],
-                                                         use_explicit_typing=True, **kwargs)
+                        trt_mod = torch_tensorrt.compile(
+                            net16, ir="dynamo", inputs=[x16], use_explicit_typing=True, **kwargs
+                        )
                 record(label, trt_mod, time.perf_counter() - t)
                 del trt_mod
             except Exception as exc:  # noqa: BLE001
-                rows[label] = dict(error=f"{type(exc).__name__}: {exc}"[:600], build_s=round(time.perf_counter() - t, 1))
+                rows[label] = {
+                    "error": f"{type(exc).__name__}: {exc}"[:600],
+                    "build_s": round(time.perf_counter() - t, 1),
+                }
                 print(label, "FAILED", rows[label]["error"], flush=True)
                 traceback.print_exc()
     print("\n| variant | network ms | detections | shell-mask IoU vs fp32 | build s |")
     print("|---|---|---|---|---|")
     for k, r in rows.items():
-        print(f"| {k} | {r.get('ms', '-')} | {r.get('detections', '-')} | {r.get('iou', '-')} | {r.get('build_s') or '-'} |"
-              + (f" {r['error'][:120]}" if "error" in r else ""))
+        print(
+            f"| {k} | {r.get('ms', '-')} | {r.get('detections', '-')} | {r.get('iou', '-')} | {r.get('build_s') or '-'} |"
+            + (f" {r['error'][:120]}" if "error" in r else "")
+        )
     if args.out:
         json.dump({"env": env, "rows": rows}, open(args.out, "w"), indent=1)
     print("TRT PROBE DONE", flush=True)
