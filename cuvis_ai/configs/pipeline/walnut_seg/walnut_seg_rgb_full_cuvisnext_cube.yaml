@@ -68,6 +68,8 @@ metadata:
     ShellMask.decisions = boolean shell mask (scores >= 0.5; BinaryDecider threshold
     = sigmoid(0.5)).'
   created: '2026-09-24T13:39:29.387104'
-  tags: []
+  tags:
+  - segmentation
+  - walnut
   author: ''
   cuvis_ai_version: 0.17.2

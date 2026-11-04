@@ -48,6 +48,9 @@ metadata:
   name: WaferThicknessMapping500nmCuvisNextCube
   description: ''
   created: '2026-09-22T16:59:41.468636'
-  tags: []
+  tags:
+  - wafer
+  - thin-film
+  - thickness
   author: ''
   cuvis_ai_version: 0.17.2
