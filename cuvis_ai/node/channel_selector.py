@@ -362,6 +362,22 @@ class ChannelSelectorBase(Node):
         """Find the index of the band nearest to the target wavelength."""
         return int(np.argmin(np.abs(wavelengths - target_nm)))
 
+    @staticmethod
+    def _nearest_band_indices_tensor(
+        wavelengths: torch.Tensor, targets: torch.Tensor
+    ) -> torch.Tensor:
+        """Index of the nearest band to each of ``targets``, as tensor ops only.
+
+        ``wavelengths`` is ``[C]`` and ``targets`` is ``[K]``; returns ``[K]`` int64
+        indices. Same nearest-band semantics as :meth:`_nearest_band_index`
+        (``argmin`` of the absolute distance, ties broken toward the lower index),
+        traceable by ``torch.export`` since nothing here reads a Python scalar out
+        of a tensor.
+        """
+        wavelengths = wavelengths.reshape(-1).to(torch.float32)
+        targets = targets.reshape(-1).to(torch.float32)
+        return (wavelengths[None, :] - targets[:, None]).abs().argmin(dim=1)
+
     def _warn_bands_out_of_tolerance(
         self,
         wavelengths: np.ndarray,
@@ -608,15 +624,19 @@ class ChannelSelectorBase(Node):
     # Convenience helpers
     # ------------------------------------------------------------------
 
-    def _compose_rgb(self, cube: torch.Tensor, indices: Sequence[int]) -> torch.Tensor:
+    def _compose_rgb(
+        self, cube: torch.Tensor, indices: Sequence[int] | torch.Tensor
+    ) -> torch.Tensor:
         """Compose and normalize RGB from selected band indices.
 
         Parameters
         ----------
         cube : torch.Tensor
             Hyperspectral cube [B, H, W, C].
-        indices : Sequence[int]
-            Indices of bands to use for R, G, B channels.
+        indices : Sequence[int] or torch.Tensor
+            Indices of bands to use for R, G, B channels, in order. A tensor of
+            indices goes through ``index_select`` (traceable); a plain sequence
+            goes through per-index gather, for callers that only have Python ints.
 
         Returns
         -------
@@ -624,8 +644,11 @@ class ChannelSelectorBase(Node):
             RGB image [B, H, W, 3] in 0-1 range (the raw composed bands when
             ``normalize_output`` is False), on the same device as input.
         """
-        bands = [cube[..., idx] for idx in indices]  # each [B, H, W]
-        rgb = torch.stack(bands, dim=-1)  # [B, H, W, 3]
+        if isinstance(indices, torch.Tensor):
+            rgb = torch.index_select(cube, -1, indices.to(torch.long))
+        else:
+            bands = [cube[..., idx] for idx in indices]  # each [B, H, W]
+            rgb = torch.stack(bands, dim=-1)  # [B, H, W, 3]
         return self._normalize_rgb(rgb)
 
 
@@ -760,11 +783,18 @@ class _NormalizedDifferenceIndexBase(ChannelSelectorBase, ABC):
     def _render_rgb_from_index(self, index_image: torch.Tensor) -> torch.Tensor:
         """Render the scalar index image into an RGB image [B, H, W, 3]."""
 
+    def _resolve_band_indices_tensor(self, wavelengths: Any) -> tuple[torch.Tensor, torch.Tensor]:
+        """Resolve the two operand indices as a ``[2]`` int64 tensor (tensor ops only)."""
+        wavelengths_t = _wavelengths_tensor(wavelengths, device=torch.device("cpu"))
+        targets = torch.tensor([self.primary_nm, self.secondary_nm], dtype=torch.float32)
+        indices = self._nearest_band_indices_tensor(wavelengths_t, targets)
+        return wavelengths_t, indices
+
     def _resolve_band_indices(
         self,
         wavelengths: Any,
     ) -> tuple[np.ndarray, int, int]:
-        """Resolve nearest spectral indices for the two operands."""
+        """Resolve nearest spectral indices for the two operands (eager, numpy)."""
         wavelengths_np = _wavelengths_array(wavelengths)
 
         primary_idx = self._nearest_band_index(wavelengths_np, self.primary_nm)
@@ -773,9 +803,9 @@ class _NormalizedDifferenceIndexBase(ChannelSelectorBase, ABC):
 
     def _compute_index_image(self, cube: torch.Tensor, wavelengths: Any) -> torch.Tensor:
         """Compute the raw normalized-difference image [B, H, W, 1]."""
-        _, primary_idx, secondary_idx = self._resolve_band_indices(wavelengths)
-        primary = cube[..., primary_idx]
-        secondary = cube[..., secondary_idx]
+        _, indices = self._resolve_band_indices_tensor(wavelengths)
+        primary = torch.index_select(cube, -1, indices[0:1]).squeeze(-1)
+        secondary = torch.index_select(cube, -1, indices[1:2]).squeeze(-1)
         numerator = primary - secondary
         denominator = primary + secondary
         mask = denominator.abs() > self.eps
@@ -795,26 +825,36 @@ class _NormalizedDifferenceIndexBase(ChannelSelectorBase, ABC):
         **_: Any,
     ) -> dict[str, Any]:
         """Compute raw index image plus RGB render."""
-        wavelengths_np, primary_idx, secondary_idx = self._resolve_band_indices(wavelengths)
-        self._warn_bands_out_of_tolerance(
-            wavelengths_np,
-            [self.primary_label, self.secondary_label],
-            [self.primary_nm, self.secondary_nm],
-            [primary_idx, secondary_idx],
-        )
-        index_image = self._compute_index_image(cube, wavelengths_np)
+        wavelengths_t, indices = self._resolve_band_indices_tensor(wavelengths)
+        index_image = self._compute_index_image(cube, wavelengths_t)
         rgb = self._render_rgb_from_index(index_image)
 
-        band_info = {
-            "strategy": self.index_name,
-            "band_labels": [self.primary_label, self.secondary_label],
-            "band_indices": [primary_idx, secondary_idx],
-            "requested_wavelengths_nm": [self.primary_nm, self.secondary_nm],
-            "resolved_wavelengths_nm": [
-                float(wavelengths_np[primary_idx]),
-                float(wavelengths_np[secondary_idx]),
-            ],
-        }
+        # Eager-only: the out-of-tolerance warning and the band_info metadata read
+        # Python scalars out of tensors, which torch.export cannot trace. None of
+        # it feeds a traced output (band_info is not a tensor), so it is safe to
+        # skip under compilation; forward itself stays one code path otherwise.
+        if not torch.compiler.is_compiling():
+            wavelengths_np = wavelengths_t.detach().cpu().numpy()
+            primary_idx = int(indices[0].item())
+            secondary_idx = int(indices[1].item())
+            self._warn_bands_out_of_tolerance(
+                wavelengths_np,
+                [self.primary_label, self.secondary_label],
+                [self.primary_nm, self.secondary_nm],
+                [primary_idx, secondary_idx],
+            )
+            band_info = {
+                "strategy": self.index_name,
+                "band_labels": [self.primary_label, self.secondary_label],
+                "band_indices": [primary_idx, secondary_idx],
+                "requested_wavelengths_nm": [self.primary_nm, self.secondary_nm],
+                "resolved_wavelengths_nm": [
+                    float(wavelengths_np[primary_idx]),
+                    float(wavelengths_np[secondary_idx]),
+                ],
+            }
+        else:
+            band_info = {}
         return {
             "index_image": index_image,
             "rgb_image": rgb,
@@ -1263,7 +1303,7 @@ class _VegetationIndexBase(ChannelSelectorBase, ABC):
         """Compute the scalar index map [B, H, W] from resolved band tensors."""
 
     def _resolve_band_indices(self, wavelengths: Any) -> tuple[np.ndarray, dict[str, int]]:
-        """Resolve nearest spectral indices for every named band."""
+        """Resolve nearest spectral indices for every named band (eager, numpy)."""
         wavelengths_np = _wavelengths_array(wavelengths)
 
         indices = {
@@ -1271,10 +1311,27 @@ class _VegetationIndexBase(ChannelSelectorBase, ABC):
         }
         return wavelengths_np, indices
 
+    def _resolve_band_indices_tensor(
+        self, wavelengths: Any
+    ) -> tuple[torch.Tensor, list[str], torch.Tensor]:
+        """Resolve every named band's index as one tensor (tensor ops only).
+
+        Returns the wavelength tensor, the band names in a fixed order and the
+        ``[len(names)]`` int64 indices in that order.
+        """
+        wavelengths_t = _wavelengths_tensor(wavelengths, device=torch.device("cpu"))
+        names = list(self.band_nm.keys())
+        targets = torch.tensor([self.band_nm[name] for name in names], dtype=torch.float32)
+        indices = self._nearest_band_indices_tensor(wavelengths_t, targets)
+        return wavelengths_t, names, indices
+
     def _compute_index_image(self, cube: torch.Tensor, wavelengths: Any) -> torch.Tensor:
         """Compute the raw scalar index image [B, H, W, 1]."""
-        _, indices = self._resolve_band_indices(wavelengths)
-        bands = {name: cube[..., idx] for name, idx in indices.items()}
+        _, names, indices = self._resolve_band_indices_tensor(wavelengths)
+        bands = {
+            name: torch.index_select(cube, -1, indices[i : i + 1]).squeeze(-1)
+            for i, name in enumerate(names)
+        }
         index = self._compute_index(bands)
         return index.unsqueeze(-1)
 
@@ -1295,30 +1352,36 @@ class _VegetationIndexBase(ChannelSelectorBase, ABC):
         **_: Any,
     ) -> dict[str, Any]:
         """Compute the vegetation index plus a colour-mapped RGB output."""
-        wavelengths_np, indices = self._resolve_band_indices(wavelengths)
-        band_labels = list(indices.keys())
-        band_indices = [indices[name] for name in band_labels]
-        self._warn_bands_out_of_tolerance(
-            wavelengths_np,
-            band_labels,
-            [self.band_nm[name] for name in band_labels],
-            band_indices,
-        )
-        index_image = self._compute_index_image(cube, wavelengths_np)
+        wavelengths_t, names, indices = self._resolve_band_indices_tensor(wavelengths)
+        index_image = self._compute_index_image(cube, wavelengths_t)
         rgb = self._render_rgb_from_index(index_image)
-        band_info = {
-            "strategy": self.index_name,
-            "band_labels": band_labels,
-            "band_indices": band_indices,
-            "requested_wavelengths_nm": [self.band_nm[name] for name in band_labels],
-            "resolved_wavelengths_nm": [
-                float(wavelengths_np[indices[name]]) for name in band_labels
-            ],
-            "rendering": f"{self.colormap}_colormap",
-            "colormap": self.colormap,
-            "colormap_min": self.colormap_min,
-            "colormap_max": self.colormap_max,
-        }
+
+        # Eager-only: the out-of-tolerance warning and band_info read Python
+        # scalars out of tensors, which torch.export cannot trace, and band_info
+        # is not a tensor output so skipping it under compilation changes nothing
+        # the traced graph produces.
+        if not torch.compiler.is_compiling():
+            wavelengths_np = wavelengths_t.detach().cpu().numpy()
+            band_indices = [int(i) for i in indices.tolist()]
+            self._warn_bands_out_of_tolerance(
+                wavelengths_np,
+                names,
+                [self.band_nm[name] for name in names],
+                band_indices,
+            )
+            band_info = {
+                "strategy": self.index_name,
+                "band_labels": names,
+                "band_indices": band_indices,
+                "requested_wavelengths_nm": [self.band_nm[name] for name in names],
+                "resolved_wavelengths_nm": [float(wavelengths_np[idx]) for idx in band_indices],
+                "rendering": f"{self.colormap}_colormap",
+                "colormap": self.colormap,
+                "colormap_min": self.colormap_min,
+                "colormap_max": self.colormap_max,
+            }
+        else:
+            band_info = {}
         return {
             "index_image": index_image,
             "rgb_image": rgb,
@@ -1798,12 +1861,17 @@ class FixedWavelengthSelector(ChannelSelectorBase):
                 n,
             )
 
+    def _resolve_band_indices_tensor(self, wavelengths: Any) -> tuple[torch.Tensor, torch.Tensor]:
+        """Resolve every target wavelength's index as one tensor (tensor ops only)."""
+        wavelengths_t = _wavelengths_tensor(wavelengths, device=torch.device("cpu"))
+        targets = torch.tensor(list(self.target_wavelengths), dtype=torch.float32)
+        indices = self._nearest_band_indices_tensor(wavelengths_t, targets)
+        return wavelengths_t, indices
+
     def _compute_raw_rgb(self, cube: torch.Tensor, wavelengths: Any) -> torch.Tensor:
         """Select the nearest spectral band for each target wavelength."""
-        wavelengths_np = np.asarray(wavelengths, dtype=np.float32)
-        indices = [self._nearest_band_index(wavelengths_np, nm) for nm in self.target_wavelengths]
-        bands = [cube[..., idx] for idx in indices]
-        return torch.stack(bands, dim=-1)
+        _, indices = self._resolve_band_indices_tensor(wavelengths)
+        return torch.index_select(cube, -1, indices)
 
     def forward(
         self,
@@ -1826,10 +1894,7 @@ class FixedWavelengthSelector(ChannelSelectorBase):
         dict[str, Any]
             Dictionary with "rgb_image" and "band_info" keys.
         """
-        wavelengths_np = np.asarray(wavelengths, dtype=np.float32)
-
-        # Find nearest bands
-        indices = [self._nearest_band_index(wavelengths_np, nm) for nm in self.target_wavelengths]
+        wavelengths_t, indices = self._resolve_band_indices_tensor(wavelengths)
 
         # 3-channel path goes through the (running / statistical / per-frame)
         # normalisation machinery in ChannelSelectorBase. For n != 3 we always
@@ -1839,19 +1904,26 @@ class FixedWavelengthSelector(ChannelSelectorBase):
         if self._effective_normalize_output:
             rgb = self._compose_rgb(cube, indices)
         else:
-            bands = [cube[..., idx] for idx in indices]
-            rgb = torch.stack(bands, dim=-1)
+            rgb = torch.index_select(cube, -1, indices)
 
-        n = len(self.target_wavelengths)
-        band_info = {
-            "strategy": "baseline_false_rgb" if n == 3 else "stacked_bands",
-            "band_indices": indices,
-            "band_wavelengths_nm": [float(wavelengths_np[i]) for i in indices],
-            "target_wavelengths_nm": list(self.target_wavelengths),
-            # Mirror what actually happened — `normalize_output=True` with
-            # n != 3 returns raw bands, so this MUST be False there.
-            "normalized_output": self._effective_normalize_output,
-        }
+        # Eager-only: band_info reads Python scalars out of tensors, which
+        # torch.export cannot trace; it is not a tensor output, so skipping it
+        # under compilation changes nothing the traced graph produces.
+        if not torch.compiler.is_compiling():
+            wavelengths_np = wavelengths_t.detach().cpu().numpy()
+            index_list = [int(i) for i in indices.tolist()]
+            n = len(self.target_wavelengths)
+            band_info = {
+                "strategy": "baseline_false_rgb" if n == 3 else "stacked_bands",
+                "band_indices": index_list,
+                "band_wavelengths_nm": [float(wavelengths_np[i]) for i in index_list],
+                "target_wavelengths_nm": list(self.target_wavelengths),
+                # Mirror what actually happened — `normalize_output=True` with
+                # n != 3 returns raw bands, so this MUST be False there.
+                "normalized_output": self._effective_normalize_output,
+            }
+        else:
+            band_info = {}
 
         return {"rgb_image": rgb, "band_info": band_info}
 
@@ -2302,7 +2374,7 @@ class CIRSelector(ChannelSelectorBase):
         self.green_nm = green_nm
 
     def _resolve_band_indices(self, wavelengths: Any) -> tuple[int, int, int]:
-        """Resolve nearest spectral indices for CIR channel mapping."""
+        """Resolve nearest spectral indices for CIR channel mapping (eager, numpy)."""
         wavelengths_np = np.asarray(wavelengths, dtype=np.float32).ravel()
         # CIR mapping: NIR -> R, Red -> G, Green -> B
         nir_idx = self._nearest_band_index(wavelengths_np, self.nir_nm)
@@ -2310,13 +2382,17 @@ class CIRSelector(ChannelSelectorBase):
         green_idx = self._nearest_band_index(wavelengths_np, self.green_nm)
         return nir_idx, red_idx, green_idx
 
+    def _resolve_band_indices_tensor(self, wavelengths: Any) -> tuple[torch.Tensor, torch.Tensor]:
+        """Resolve the NIR/Red/Green indices as a ``[3]`` int64 tensor (tensor ops only)."""
+        wavelengths_t = _wavelengths_tensor(wavelengths, device=torch.device("cpu"))
+        targets = torch.tensor([self.nir_nm, self.red_nm, self.green_nm], dtype=torch.float32)
+        indices = self._nearest_band_indices_tensor(wavelengths_t, targets)
+        return wavelengths_t, indices
+
     def _compute_raw_rgb(self, cube: torch.Tensor, wavelengths: Any) -> torch.Tensor:
         """Compose unnormalized CIR RGB tensor [B, H, W, 3]."""
-        nir_idx, red_idx, green_idx = self._resolve_band_indices(wavelengths)
-        return torch.stack(
-            [cube[..., nir_idx], cube[..., red_idx], cube[..., green_idx]],
-            dim=-1,
-        )
+        _, indices = self._resolve_band_indices_tensor(wavelengths)
+        return torch.index_select(cube, -1, indices)
 
     def forward(
         self,
@@ -2339,19 +2415,25 @@ class CIRSelector(ChannelSelectorBase):
         dict[str, Any]
             Dictionary with "rgb_image" and "band_info" keys.
         """
-        wavelengths_np = np.asarray(wavelengths, dtype=np.float32).ravel()
-        nir_idx, red_idx, green_idx = self._resolve_band_indices(wavelengths_np)
-        indices = [nir_idx, red_idx, green_idx]
-        rgb = self._normalize_rgb(self._compute_raw_rgb(cube, wavelengths_np))
+        wavelengths_t, indices = self._resolve_band_indices_tensor(wavelengths)
+        rgb = self._normalize_rgb(self._compute_raw_rgb(cube, wavelengths_t))
 
-        band_info = {
-            "strategy": "cir_false_color",
-            "band_indices": indices,
-            "band_wavelengths_nm": [float(wavelengths_np[i]) for i in indices],
-            "target_wavelengths_nm": [self.nir_nm, self.red_nm, self.green_nm],
-            "channel_mapping": {"R": "NIR", "G": "Red", "B": "Green"},
-            "normalized_output": self.normalize_output,
-        }
+        # Eager-only: band_info reads Python scalars out of tensors, which
+        # torch.export cannot trace; it is not a tensor output, so skipping it
+        # under compilation changes nothing the traced graph produces.
+        if not torch.compiler.is_compiling():
+            wavelengths_np = wavelengths_t.detach().cpu().numpy()
+            index_list = [int(i) for i in indices.tolist()]
+            band_info = {
+                "strategy": "cir_false_color",
+                "band_indices": index_list,
+                "band_wavelengths_nm": [float(wavelengths_np[i]) for i in index_list],
+                "target_wavelengths_nm": [self.nir_nm, self.red_nm, self.green_nm],
+                "channel_mapping": {"R": "NIR", "G": "Red", "B": "Green"},
+                "normalized_output": self.normalize_output,
+            }
+        else:
+            band_info = {}
 
         return {"rgb_image": rgb, "band_info": band_info}
 

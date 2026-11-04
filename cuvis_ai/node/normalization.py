@@ -317,9 +317,18 @@ class MinMaxNormalizer(_NormalizerBase):
         B, H, W, C = tensor.shape
         flat = tensor.reshape(B, -1, C)
 
-        # Running-stats mode is strict: statistical initialization is required.
         if self.use_running_stats:
-            if not self._is_initialized() or not self._statistically_initialized:
+            # Running-stats mode is strict: statistical initialization is required.
+            # The check reads a Python bool out of a tensor (`.item()`), which
+            # torch.export cannot trace; it only raises, so skipping it under
+            # compilation changes nothing the traced graph computes. A node
+            # exported before it was fitted bakes in NaN bounds instead of
+            # raising; the exporter's own eager-versus-traced parity check
+            # catches that case by comparing against this same raise on the
+            # live node.
+            if not torch.compiler.is_compiling() and (
+                not self._is_initialized() or not self._statistically_initialized
+            ):
                 raise RuntimeError(
                     "MinMaxNormalizer requires statistical_initialization() before forward() "
                     "when use_running_stats=True."
@@ -810,7 +819,13 @@ class PercentileNormalizer(_NormalizerBase):
                 f"PercentileNormalizer expected {self.n_channels} channels, got {tensor.shape[-1]}"
             )
         if self.norm_mode == NormMode.STATISTICAL:
-            if not self._fitted():
+            # The fitted check reads the bounds' NaN state into a Python bool, which
+            # torch.export cannot trace; it only raises, so skipping it under
+            # compilation changes nothing the traced graph computes. Exporting
+            # before the node is fitted bakes in NaN bounds instead of raising; the
+            # exporter's own eager-versus-traced parity check catches that case by
+            # comparing against this same raise on the live node.
+            if not torch.compiler.is_compiling() and not self._fitted():
                 raise RuntimeError(
                     "PercentileNormalizer: statistical mode requires "
                     "statistical_initialization() before forward()"
