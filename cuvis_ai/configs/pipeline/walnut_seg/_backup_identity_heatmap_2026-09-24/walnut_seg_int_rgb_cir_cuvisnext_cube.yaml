@@ -108,6 +108,8 @@ metadata:
     passthrough of Inter.scores); ShellMask.decisions = boolean shell mask (scores
     >= 0.5; BinaryDecider threshold = sigmoid(0.5)).'
   created: '2026-09-24T10:32:56.291664'
-  tags: []
+  tags:
+  - segmentation
+  - walnut
   author: ''
   cuvis_ai_version: 0.17.2

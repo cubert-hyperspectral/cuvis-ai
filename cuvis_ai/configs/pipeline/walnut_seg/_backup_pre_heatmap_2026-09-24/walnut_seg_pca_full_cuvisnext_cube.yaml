@@ -55,6 +55,8 @@ metadata:
     probability heatmap; ShellMask.decisions = boolean shell mask (scores >= 0.5;
     BinaryDecider threshold = sigmoid(0.5)).'
   created: '2026-09-23T15:00:11.845383'
-  tags: []
+  tags:
+  - segmentation
+  - walnut
   author: ''
   cuvis_ai_version: 0.17.2

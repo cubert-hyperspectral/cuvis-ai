@@ -104,6 +104,8 @@ metadata:
     v2 mean ensemble). Outputs: Fuse.scores = shell probability heatmap; ShellMask.decisions
     = boolean shell mask (scores >= 0.5; BinaryDecider threshold = sigmoid(0.5)).'
   created: '2026-09-24T09:51:52.752056'
-  tags: []
+  tags:
+  - segmentation
+  - walnut
   author: raj@cubert-gmbh.de
   cuvis_ai_version: 0.17.2

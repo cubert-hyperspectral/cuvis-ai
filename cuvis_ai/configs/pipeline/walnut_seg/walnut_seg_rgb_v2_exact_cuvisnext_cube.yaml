@@ -74,6 +74,8 @@ metadata:
     EXACT variant: RF-DETR gets the frame on the GPU (gpu_input) - bit-identical to
     walnut_seg_rgb_v2_cuvisnext_cube.'
   created: '2026-09-24T13:39:31.391886'
-  tags: []
+  tags:
+  - segmentation
+  - walnut
   author: raj@cubert-gmbh.de
   cuvis_ai_version: 0.17.2

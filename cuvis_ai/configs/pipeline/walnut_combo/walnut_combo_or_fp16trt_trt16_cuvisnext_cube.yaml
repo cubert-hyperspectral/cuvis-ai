@@ -21,7 +21,6 @@ metadata:
   - multiscale
   - or_gate
   - patchcore
-  - segmentation
   - split_v3
   - steervit
   - walnut
