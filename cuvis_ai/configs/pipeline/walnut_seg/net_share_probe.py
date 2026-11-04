@@ -5,38 +5,48 @@ times with CUDA sync: the whole pipeline, the RF-DETR node, and inside it the ne
 traced module rfdetr calls in predict, wrapped with a timer). Median of N runs after warm-up.
 Usage: python net_share_probe.py <seg dir> [suffix,...]   e.g. "_fast,_fp16,_exact"
 """
+
+from __future__ import annotations
+
 import os
 import statistics
 import sys
 import time
+from collections.abc import Callable
+from typing import Any
 
 import numpy as np
 import torch
+
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
 SEG = sys.argv[1]
 SUFFIXES = sys.argv[2].split(",") if len(sys.argv) > 2 else ["_fast", "_fp16", "_exact"]
 N, WARM = 40, 5
 d = np.load(os.path.join(SEG, "ref", "real_world_live_000_f0000_reflectance.npz"))
-batch = {"cube": torch.from_numpy(d["cube"].astype(np.float32))[None].cuda(),
-         "wavelengths": torch.from_numpy(d["wavelengths"].astype(np.int32))[None]}
+batch = {
+    "cube": torch.from_numpy(d["cube"].astype(np.float32))[None].cuda(),
+    "wavelengths": torch.from_numpy(d["wavelengths"].astype(np.int32))[None],
+}
 
 
 class Timed(torch.nn.Module):
     """Wraps the network module rfdetr calls; records its CUDA-synchronised wall time."""
 
-    def __init__(self, inner, log):
+    def __init__(self, inner, log) -> None:
         super().__init__()
         self.inner, self.log = inner, log
 
-    def forward(self, *a, **k):
-        torch.cuda.synchronize(); t = time.perf_counter()
+    def forward(self, *a, **k) -> Any:
+        torch.cuda.synchronize()
+        t = time.perf_counter()
         out = self.inner(*a, **k)
-        torch.cuda.synchronize(); self.log.append(1000 * (time.perf_counter() - t))
+        torch.cuda.synchronize()
+        self.log.append(1000 * (time.perf_counter() - t))
         return out
 
 
-def med(v):
+def med(v: list[float]) -> float:
     return round(statistics.median(v), 1)
 
 
@@ -51,22 +61,34 @@ for suf in SUFFIXES:
     setattr(holder, attr, Timed(getattr(holder, attr), net_log))
     orig_fwd = seg.forward
 
-    def timed_forward(*a, **k):
-        torch.cuda.synchronize(); t = time.perf_counter()
-        out = orig_fwd(*a, **k)
-        torch.cuda.synchronize(); node_log.append(1000 * (time.perf_counter() - t))
+    def timed_forward(
+        *a,
+        _orig_fwd: Callable[..., Any] = orig_fwd,
+        _node_log: list[float] = node_log,
+        **k,
+    ) -> Any:
+        torch.cuda.synchronize()
+        t = time.perf_counter()
+        out = _orig_fwd(*a, **k)
+        torch.cuda.synchronize()
+        _node_log.append(1000 * (time.perf_counter() - t))
         return out
 
     seg.forward = timed_forward
-    for i in range(WARM + N):
-        torch.cuda.synchronize(); t = time.perf_counter()
+    for _i in range(WARM + N):
+        torch.cuda.synchronize()
+        t = time.perf_counter()
         with torch.no_grad():
             p.forward(batch=batch)
-        torch.cuda.synchronize(); pipe_log.append(1000 * (time.perf_counter() - t))
+        torch.cuda.synchronize()
+        pipe_log.append(1000 * (time.perf_counter() - t))
     net, node, pipe = net_log[WARM:], node_log[WARM:], pipe_log[WARM:]
-    print(f"rgb_v2{suf or ' (default)'}: pipeline {med(pipe)} ms | RF-DETR node {med(node)} ms | network alone "
-          f"{med(net)} ms ({100 * statistics.median(net) / statistics.median(pipe):.0f} % of the pipeline) | "
-          f"rest of the node (pre/post-processing, mask transfer + paste) {med(node) - med(net):.1f} ms | "
-          f"other nodes {med(pipe) - med(node):.1f} ms | network module {attr}", flush=True)
+    print(
+        f"rgb_v2{suf or ' (default)'}: pipeline {med(pipe)} ms | RF-DETR node {med(node)} ms | network alone "
+        f"{med(net)} ms ({100 * statistics.median(net) / statistics.median(pipe):.0f} % of the pipeline) | "
+        f"rest of the node (pre/post-processing, mask transfer + paste) {med(node) - med(net):.1f} ms | "
+        f"other nodes {med(pipe) - med(node):.1f} ms | network module {attr}",
+        flush=True,
+    )
     del p, seg, m
     torch.cuda.empty_cache()

@@ -25,8 +25,9 @@ import shutil
 import numpy as np
 import torch
 import yaml
-from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_rfdetr.node.score_fusion import ScoreFusion
+
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
 SEG = os.path.dirname(os.path.abspath(__file__))
 BK = os.path.join(SEG, "_backup_pre_heatmap_2026-09-24")
@@ -36,7 +37,7 @@ wl = torch.from_numpy(REF["wavelengths"].astype(np.int32))[None]
 os.makedirs(BK, exist_ok=True)
 
 
-def run(p):
+def run(p: CuvisPipeline) -> dict[tuple[str, str], torch.Tensor]:
     with torch.no_grad():
         return p.forward(batch={"cube": cube, "wavelengths": wl})
 
@@ -50,9 +51,17 @@ for yml in sorted(glob.glob(os.path.join(SEG, "walnut_seg_*_cuvisnext_cube.yaml"
             shutil.copy2(f, BK)
     src = yaml.safe_load(open(os.path.join(BK, name + ".yaml")))
     if any(n.get("name") == "ShellHeatmap" for n in src["nodes"]):
-        raise SystemExit(f"{name}: backup already has ShellHeatmap - refusing to stack a second one")
-    term = next(c["source"].split(".")[0] for c in src["connections"] if c["target"] == "ShellMask.inputs.logits")
-    p = CuvisPipeline.load_pipeline(os.path.join(BK, name + ".yaml"), weights_path=os.path.join(BK, name + ".pt"))
+        raise SystemExit(
+            f"{name}: backup already has ShellHeatmap - refusing to stack a second one"
+        )
+    term = next(
+        c["source"].split(".")[0]
+        for c in src["connections"]
+        if c["target"] == "ShellMask.inputs.logits"
+    )
+    p = CuvisPipeline.load_pipeline(
+        os.path.join(BK, name + ".yaml"), weights_path=os.path.join(BK, name + ".pt")
+    )
     o0 = run(p)
     s0, d0 = o0[(term, "scores")].detach().cpu(), o0[("ShellMask", "decisions")].detach().cpu()
     node = next(n for n in p.nodes if getattr(n, "name", None) == term)
@@ -65,17 +74,28 @@ for yml in sorted(glob.glob(os.path.join(SEG, "walnut_seg_*_cuvisnext_cube.yaml"
         f"{src['metadata'].get('description', name).split(' Outputs:')[0]} Outputs (both selectable in cuvis.next): "
         f"ShellHeatmap.scores = shell probability heatmap (exact copy of {term}.scores: ScoreFusion max of the map "
         f"with itself, so the port is terminal and named 'scores'); ShellMask.decisions = boolean shell mask "
-        f"(scores >= 0.5; BinaryDecider threshold = sigmoid(0.5)).")
+        f"(scores >= 0.5; BinaryDecider threshold = sigmoid(0.5))."
+    )
     yaml.safe_dump(doc, open(yml, "w"), sort_keys=False)
     p2 = CuvisPipeline.load_pipeline(yml, weights_path=pt)
     o1 = run(p2)
-    h1, d1 = o1[("ShellHeatmap", "scores")].detach().cpu(), o1[("ShellMask", "decisions")].detach().cpu()
+    h1, d1 = (
+        o1[("ShellHeatmap", "scores")].detach().cpu(),
+        o1[("ShellMask", "decisions")].detach().cpu(),
+    )
     outs = sorted(p2.get_output_specs())
-    ok = (torch.equal(h1, s0) and torch.equal(d1, d0) and "ShellHeatmap.scores" in outs
-          and "ShellMask.decisions" in outs)
+    ok = (
+        torch.equal(h1, s0)
+        and torch.equal(d1, d0)
+        and "ShellHeatmap.scores" in outs
+        and "ShellMask.decisions" in outs
+    )
     allok &= ok
     shutil.copy2(pt, os.path.join(SEG, f"cuvis_picker_{name}.pt"))
-    print(f"{'OK  ' if ok else 'FAIL'} {name}: term={term} heatmap==scores {torch.equal(h1, s0)} "
-          f"mask unchanged {torch.equal(d1, d0)} mask px={int(d1.sum())} outputs={outs}", flush=True)
+    print(
+        f"{'OK  ' if ok else 'FAIL'} {name}: term={term} heatmap==scores {torch.equal(h1, s0)} "
+        f"mask unchanged {torch.equal(d1, d0)} mask px={int(d1.sum())} outputs={outs}",
+        flush=True,
+    )
     del p, p2
 print("ADD HEATMAP OUTPUT DONE", "ALL OK" if allok else "WITH FAILURES")

@@ -20,22 +20,39 @@ import shutil
 import numpy as np
 import torch
 import yaml
+
 from cuvis_ai.node.deciders.binary_decider import BinaryDecider
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
 SEG = os.path.dirname(os.path.abspath(__file__))
 BK = os.path.join(SEG, "_backup_pre_mask_2026-09-23")
-TERM = {"rgb_full": "Seg", "cir_full": "Seg", "pca_full": "Seg", "ens_rgb_cir_mean": "Fuse",
-        "int_rgb_cir": "Inter", "ens_sam_t13": "Gate", "ens_sam_t11": "Gate"}
-PARITY = {"rgb_full": 72424, "cir_full": 63257, "pca_full": 62712, "ens_rgb_cir_mean": 71899,
-          "int_rgb_cir": 62394, "ens_sam_t13": 69100, "ens_sam_t11": 66232}
+TERM = {
+    "rgb_full": "Seg",
+    "cir_full": "Seg",
+    "pca_full": "Seg",
+    "ens_rgb_cir_mean": "Fuse",
+    "int_rgb_cir": "Inter",
+    "ens_sam_t13": "Gate",
+    "ens_sam_t11": "Gate",
+}
+PARITY = {
+    "rgb_full": 72424,
+    "cir_full": 63257,
+    "pca_full": 62712,
+    "ens_rgb_cir_mean": 71899,
+    "int_rgb_cir": 62394,
+    "ens_sam_t13": 69100,
+    "ens_sam_t11": 66232,
+}
 THR = 1.0 / (1.0 + math.exp(-0.5))  # sigmoid(0.5)
-cube = torch.from_numpy(np.load(r"D:/walnuts/deploy_wise08/real_world_live_000_f0000.npy").astype(np.float32))[None]
+cube = torch.from_numpy(
+    np.load(r"D:/walnuts/deploy_wise08/real_world_live_000_f0000.npy").astype(np.float32)
+)[None]
 wl = torch.from_numpy((430 + 8 * np.arange(61)).astype(np.int32))[None]
 os.makedirs(BK, exist_ok=True)
 
 
-def run(p, term):
+def run(p: CuvisPipeline, term: str) -> tuple[torch.Tensor, torch.Tensor | None]:
     with torch.no_grad():
         out = p.forward(batch={"cube": cube, "wavelengths": wl})
     return out[(term, "scores")].detach().cpu(), out.get(("ShellMask", "decisions"))
@@ -60,7 +77,8 @@ for short, term in TERM.items():
     doc = yaml.safe_load(open(yml))
     doc.setdefault("metadata", {})["description"] = (
         f"Walnut shell segmentation ({short}). Outputs: {term}.scores = shell probability heatmap; "
-        f"ShellMask.decisions = boolean shell mask (scores >= 0.5; BinaryDecider threshold = sigmoid(0.5)).")
+        f"ShellMask.decisions = boolean shell mask (scores >= 0.5; BinaryDecider threshold = sigmoid(0.5))."
+    )
     yaml.safe_dump(doc, open(yml, "w"), sort_keys=False)
     p2 = CuvisPipeline.load_pipeline(yml, weights_path=pt)
     s1, dec = run(p2, term)
@@ -68,6 +86,9 @@ for short, term in TERM.items():
     pxm = int(dec.sum()) if dec is not None else -1
     ok = same and pxm == px0 == PARITY[short] and dec.dtype == torch.bool
     shutil.copy2(pt, os.path.join(SEG, f"cuvis_picker_{name}.pt"))
-    print(f"{'OK  ' if ok else 'FAIL'} {name}: scores bit-identical={same} px(scores>=0.5)={px0} "
-          f"ShellMask px={pxm} parity={PARITY[short]} dtype={getattr(dec, 'dtype', None)}", flush=True)
+    print(
+        f"{'OK  ' if ok else 'FAIL'} {name}: scores bit-identical={same} px(scores>=0.5)={px0} "
+        f"ShellMask px={pxm} parity={PARITY[short]} dtype={getattr(dec, 'dtype', None)}",
+        flush=True,
+    )
 print("ADD SHELL MASK DONE")

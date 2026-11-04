@@ -30,17 +30,20 @@ import platform
 import time
 
 import torch
-from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
-from cuvis_ai_core.training import Predictor
 from cuvis_ai_dataloader.data.datamodule_cu3s import Cu3sDataModule
 from cuvis_ai_schemas.enums import ExecutionStage
+
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from cuvis_ai_core.training import Predictor
 
 SEG = os.path.dirname(os.path.abspath(__file__))
 WARMUP = 2
 
 
 def data_only_ms(cu3s: str) -> tuple[float, int]:
-    dm = Cu3sDataModule(cu3s_file_path=cu3s, processing_mode="Reflectance", batch_size=1, num_workers=0)
+    dm = Cu3sDataModule(
+        cu3s_file_path=cu3s, processing_mode="Reflectance", batch_size=1, num_workers=0
+    )
     dm.setup(stage="predict")
     times, t = [], time.perf_counter()
     for _ in dm.predict_dataloader():
@@ -77,11 +80,19 @@ def main() -> None:
     variants = [(v.split(":", 1) + [""])[:2] for v in (args.variant or ["default"])]
     os.makedirs(args.out, exist_ok=True)
     gpu = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "cpu"
-    env = {"host": platform.node(), "gpu": gpu, "torch": torch.__version__, "python": platform.python_version()}
+    env = {
+        "host": platform.node(),
+        "gpu": gpu,
+        "torch": torch.__version__,
+        "python": platform.python_version(),
+    }
     print("ENV", json.dumps(env), flush=True)
     data = {c: data_only_ms(c) for c in args.cu3s}
     for c, (ms, n) in data.items():
-        print(f"DATA {os.path.basename(c)}: {n} frames, cu3s decode + reflectance {ms:.1f} ms/frame", flush=True)
+        print(
+            f"DATA {os.path.basename(c)}: {n} frames, cu3s decode + reflectance {ms:.1f} ms/frame",
+            flush=True,
+        )
     results = []
     for short, (vname, vspec) in [(s, v) for s in args.pipelines.split(",") for v in variants]:
         name = f"walnut_seg_{short}_cuvisnext_cube"
@@ -92,9 +103,13 @@ def main() -> None:
         for c in args.cu3s:
             torch.cuda.reset_peak_memory_stats() if torch.cuda.is_available() else None
             pipe.set_profiling(enabled=True, synchronize_cuda=True, reset=True, skip_first_n=WARMUP)
-            dm = Cu3sDataModule(cu3s_file_path=c, processing_mode="Reflectance", batch_size=1, num_workers=0)
+            dm = Cu3sDataModule(
+                cu3s_file_path=c, processing_mode="Reflectance", batch_size=1, num_workers=0
+            )
             t0 = time.perf_counter()
-            outs = Predictor(pipeline=pipe, datamodule=dm).predict(collect_outputs=True, collect_ports={"decisions"})
+            outs = Predictor(pipeline=pipe, datamodule=dm).predict(
+                collect_outputs=True, collect_ports={"decisions"}
+            )
             wall = time.perf_counter() - t0
             nfr = len(outs)
             stats = pipe.get_profiling_summary(stage=ExecutionStage.INFERENCE)
@@ -102,14 +117,34 @@ def main() -> None:
             mask0 = int(next(v for (n, p), v in outs[0].items() if p == "decisions").sum())
             peak = torch.cuda.max_memory_allocated() / 2**20 if torch.cuda.is_available() else 0.0
             table = pipe.format_profiling_summary(stage=ExecutionStage.INFERENCE, total_frames=nfr)
-            print(f"\n=== {name} [{vname}] on {os.path.basename(c)} ({nfr} frames) ===\n{table}", flush=True)
-            row = dict(pipeline=short, variant=vname, flips=flips, cu3s=os.path.basename(c), frames=nfr,
-                       pipeline_ms=round(pipe_ms, 1),
-                       pipeline_fps=round(1000.0 / pipe_ms, 2), data_ms=round(data[c][0], 1),
-                       e2e_ms=round(1000.0 * wall / nfr, 1), e2e_fps=round(nfr / wall, 2),
-                       peak_cuda_mib=round(peak), mask_px_frame0=mask0,
-                       nodes={s.node_name: dict(mean=round(s.mean_ms, 2), median=round(s.median_ms, 2),
-                                                std=round(s.std_ms, 2), count=s.count) for s in stats}, **env)
+            print(
+                f"\n=== {name} [{vname}] on {os.path.basename(c)} ({nfr} frames) ===\n{table}",
+                flush=True,
+            )
+            row = dict(
+                pipeline=short,
+                variant=vname,
+                flips=flips,
+                cu3s=os.path.basename(c),
+                frames=nfr,
+                pipeline_ms=round(pipe_ms, 1),
+                pipeline_fps=round(1000.0 / pipe_ms, 2),
+                data_ms=round(data[c][0], 1),
+                e2e_ms=round(1000.0 * wall / nfr, 1),
+                e2e_fps=round(nfr / wall, 2),
+                peak_cuda_mib=round(peak),
+                mask_px_frame0=mask0,
+                nodes={
+                    s.node_name: {
+                        "mean": round(s.mean_ms, 2),
+                        "median": round(s.median_ms, 2),
+                        "std": round(s.std_ms, 2),
+                        "count": s.count,
+                    }
+                    for s in stats
+                },
+                **env,
+            )
             results.append(row)
             print("RESULT", json.dumps({k: v for k, v in row.items() if k != "nodes"}), flush=True)
         pipe.set_profiling(enabled=False)
