@@ -21,7 +21,7 @@ EfficientAD) and `fp16trt_trt16` (SteerViT + EfficientAD fp16 engines). Engines 
 Build: both standalone pipelines are restored with their weights (CPU, no forward). The SEG nodes are connected into
 the FO pipeline following the SEG yaml's own connection list:
 - one CU3SDataNode, FO's `cu3s_data`; SEG's `DataSource` is dropped;
-- SEG `Fuse` becomes `ShellFuse` (a fresh ScoreFusion with the same hparams; it holds no state), because FO already
+- SEG `Fuse` becomes `ShellFuse` (a fresh node of the same class with the same hparams; it holds no state), because FO already
   has a `fuse` node and the names differ only by case.
 The pipeline is saved (yaml + .pt) and post-processed like the FO deploy yamls: bare plugin names, empty
 CU3SDataNode hparams, canonical key order. No forward runs before the save, so the SEG selectors keep their fresh
@@ -151,8 +151,6 @@ def source_hparams(node: dict, source: dict) -> dict:
 
 def build(family: str, tier: str, out_yaml: Path) -> None:
     """Restore the two standalone pipelines, join them and save `out_yaml` (+ its sibling .pt)."""
-    from cuvis_ai_rfdetr.node.score_fusion import ScoreFusion
-
     from cuvis_ai_core.training.config import PipelineMetadata
     from cuvis_ai_core.utils.restore import restore_pipeline
 
@@ -181,7 +179,8 @@ def build(family: str, tier: str, out_yaml: Path) -> None:
     if clash:
         raise SystemExit(f"node names in both pipelines: {sorted(clash)}")
     nodes["cu3s_data"] = fo_nodes["cu3s_data"]
-    nodes["ShellFuse"] = ScoreFusion(name="ShellFuse", **fuse_hp)
+    # The same class as SEG's Fuse: ScoreMapFusion in a migrated catalog, the plugin's ScoreFusion before.
+    nodes["ShellFuse"] = type(seg_nodes["Fuse"])(name="ShellFuse", **fuse_hp)
     for c in seg_cfg["connections"]:
         src_node, _, src_port = c["source"].split(".")
         dst_node, _, dst_port = c["target"].split(".")
