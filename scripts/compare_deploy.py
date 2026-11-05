@@ -37,9 +37,9 @@ def _load_frame(path: Path, device: str | None) -> dict[str, torch.Tensor]:
     return frame
 
 
-def _default_canonical_node(deploy_yaml_path: Path, span_node: str) -> str:
-    """The node a deploy yaml's span replaced, read from the sidecar next to the ONNX
-    file the span node names (``<onnx_path>.json``), via ``span.outputs[0].port``."""
+def _load_sidecar(deploy_yaml_path: Path, span_node: str) -> tuple[Path, dict]:
+    """The sidecar next to the ONNX file the span node of a deploy yaml names
+    (``<onnx_path>.json``), as its path and parsed content."""
     config = yaml.safe_load(deploy_yaml_path.read_text(encoding="utf-8"))
     nodes = {n["name"]: n for n in config.get("nodes", [])}
     span = nodes.get(span_node)
@@ -55,13 +55,17 @@ def _default_canonical_node(deploy_yaml_path: Path, span_node: str) -> str:
     sidecar_path = (deploy_yaml_path.parent / onnx_path).with_suffix(".onnx.json")
     if not sidecar_path.is_file():
         raise click.ClickException(f"{sidecar_path}: sidecar not found next to the deploy yaml.")
-    sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
+    return sidecar_path, json.loads(sidecar_path.read_text(encoding="utf-8"))
+
+
+def _default_canonical_node(deploy_yaml_path: Path, span_node: str) -> str:
+    """The node a deploy yaml's span replaced: the node of ``span.outputs[0].port`` in the
+    sidecar."""
+    sidecar_path, sidecar = _load_sidecar(deploy_yaml_path, span_node)
     outputs = sidecar.get("span", {}).get("outputs") or []
     if not outputs:
         raise click.ClickException(f"{sidecar_path}: the sidecar names no span outputs.")
-    port = outputs[0]["port"]
-    node_name = port.split(".", 1)[0]
-    return node_name
+    return outputs[0]["port"].split(".", 1)[0]
 
 
 def _run(pipeline, batch: dict[str, Any], device: str) -> tuple[dict, float]:
@@ -77,14 +81,8 @@ def _run(pipeline, batch: dict[str, Any], device: str) -> tuple[dict, float]:
 
 
 def _output_ports(deploy_yaml_path: Path, span_node: str) -> list[str]:
-    """The exported span's output port names (bare, e.g. ``scores``), read from the
-    sidecar the way :func:`_default_canonical_node` locates it."""
-    config = yaml.safe_load(deploy_yaml_path.read_text(encoding="utf-8"))
-    nodes = {n["name"]: n for n in config.get("nodes", [])}
-    span = nodes[span_node]
-    onnx_path = span["hparams"]["onnx_path"]
-    sidecar_path = (deploy_yaml_path.parent / onnx_path).with_suffix(".onnx.json")
-    sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
+    """The exported span's output port names (bare, e.g. ``scores``), from the sidecar."""
+    _, sidecar = _load_sidecar(deploy_yaml_path, span_node)
     return [entry["name"] for entry in sidecar["span"]["outputs"]]
 
 
