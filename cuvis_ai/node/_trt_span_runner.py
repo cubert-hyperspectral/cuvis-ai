@@ -150,8 +150,3 @@ class TrtSpanRunner:
         current.wait_stream(self._stream)  # everything queued after this sees the outputs
         self._held.update(bound)  # the engine read these asynchronously; keep until reused
         return {name: buf.clone() for name, buf in self._outputs.items()}
-
-    @property
-    def output_names(self) -> tuple[str, ...]:
-        """The engine's output tensor names, in no particular order."""
-        return tuple(self._outputs)
