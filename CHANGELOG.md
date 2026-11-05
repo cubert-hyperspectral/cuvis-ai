@@ -1,8 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.22.1 - 2026-11-05
 
-- `Standardize` with per-sample statistics (`stats: sample`) keeps no state: its `mean` and `std` placeholders are no longer saved, and its weights entry loads strictly whether it is empty (a pipeline `.pt` written with a removed per-sample class, `ZScoreNormalizer` or `SNVCorrection`) or holds the two empty placeholders that 0.21.0 and 0.22.0 saved. Before, such a pipeline failed to load with `Missing key(s): "mean", "std"`. Fitted and given statistics are unchanged.
+- `Standardize` with per-sample statistics (`stats: sample`) keeps no state: its `mean` and `std` placeholders are no longer saved, and its weights entry loads strictly whether it is empty (a pipeline `.pt` written with a removed per-sample class, `ZScoreNormalizer` or `SNVCorrection`) or holds the two empty placeholders that 0.21.0 and 0.22.0 saved. Before, such a pipeline failed to load with `Missing key(s): "mean", "std"`. It stays that way after `unfreeze()`, which no longer turns the two placeholders into parameters. Fitted and given statistics are unchanged.
+- Manifest pins: `cuvis_ai_dataloader` v0.8.1 to v0.9.1 (`cu3s_multi` takes `crop` margins; the cu3s reader reads a recording's frame rate on first use), `augment` v0.4.3 to v0.5.0 (`RandomForegroundBiasedCrop` takes `samples_per_input`), `dinomaly` v0.9.0 to v0.10.0 (`PerClassAnomalyAUROC` takes the class ids on an optional `category_mask` port, `class_mask` becomes optional), `sam3` v0.5.2 to v0.5.3 and `adaclip` v0.6.0 to v0.6.1. The dataloader, sam3, adaclip and dinomaly releases install on Python 3.12 and 3.13, which Colab now runs, so the Colab notebooks that provision these plugins from the packaged manifests no longer need `--ignore-requires-python`. The `adaclip` and `dinomaly` manifests are regenerated with `emit_metadata`, so the Weights Compatibility check passes again: `AdaCLIPDetector` and `DinomalyDetector` carry the `onnx` tag, `AdaCLIPSemanticFusion` its icon and the summary from its docstring.
 
 ## 0.22.0 - 2026-11-05
 
