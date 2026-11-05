@@ -58,7 +58,7 @@ jobs:
           PYTHONUTF8: "1"
           CUVIS_ONNX_CONTRACT_REPORT: ${{ github.workspace }}/onnx_contract_report.jsonl
         run: |
-          uv run pytest tests/node/test_onnx_export_contract.py -m slow -q
+          uv run pytest tests/node/test_onnx_export_contract.py -m slow --runslow -q
 
       - name: Write the job summary from the report
         if: always()
@@ -104,6 +104,10 @@ jobs:
           print(text)
           if summary_path:
               Path(summary_path).open("a", encoding="utf-8").write(text)
+          if not records:
+              raise SystemExit("no report was written: the sweep did not run")
+          if failed:
+              raise SystemExit(f"{len(failed)} node(s) failed to export")
           PYEOF
 
       - name: Upload the report artifact

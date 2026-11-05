@@ -3,6 +3,7 @@
 ## Unreleased
 
 - `Standardize` with per-sample statistics (`stats: sample`) keeps no state: its `mean` and `std` placeholders are no longer saved, and its weights entry loads strictly whether it is empty (a pipeline `.pt` written with a removed per-sample class, `ZScoreNormalizer` or `SNVCorrection`) or holds the two empty placeholders that 0.21.0 and 0.22.0 saved. Before, such a pipeline failed to load with `Missing key(s): "mean", "std"`. Fitted and given statistics are unchanged.
+- The weekly ONNX export sweep (`.github/workflows/onnx_export_sweep.yml`) runs the contract: its first run on 2026-11-05 skipped all 67 tests (`-m slow` without `--runslow`) and reported green; the job now passes `--runslow` and fails when no report was written or a node failed. The contract test registers the node subpackages too (`anomaly`, `deciders`, `pretreatments`, `unmixing`, `clustering`, `segmentation`), which brings `Standardize` into the set (66 nodes; it exports and matches ONNX Runtime), and `tests/node/test_onnx_export_contract_coverage.py` refuses on every PR an ONNX-tagged export of `cuvis_ai.node` that the contract does not cover.
 
 ## 0.22.0 - 2026-11-05
 

@@ -138,16 +138,18 @@ refusal as the ONNX Runtime backend apply.
 Three checks keep the export path and a deployed folder honest between releases.
 
 **The weekly sweep.** `.github/workflows/onnx_export_sweep.yml` runs
-`tests/node/test_onnx_export_contract.py -m slow` on a schedule (Monday, early UTC) and
+`tests/node/test_onnx_export_contract.py -m slow --runslow` on a schedule (Monday, early UTC) and
 on demand (`workflow_dispatch`), so a node that silently regresses between releases is
 caught without running the full sweep on every PR. The test writes one JSON line per
 node (name, outcome, max abs diff, seconds) when `CUVIS_ONNX_CONTRACT_REPORT` names a
-file; the workflow turns that file into the job summary and uploads it as an artifact.
-Run it locally the same way:
+file; the workflow turns that file into the job summary, uploads it as an artifact and fails
+the job when no report was written or a node failed. The contract registers every node
+subpackage, and `tests/node/test_onnx_export_contract_coverage.py` refuses on every PR an
+ONNX-tagged node that the contract would not export. Run it locally the same way:
 
 ```bash
 CUDA_VISIBLE_DEVICES=-1 PYTHONUTF8=1 CUVIS_ONNX_CONTRACT_REPORT=report.jsonl \
-  uv run pytest tests/node/test_onnx_export_contract.py -m slow -q
+  uv run pytest tests/node/test_onnx_export_contract.py -m slow --runslow -q
 ```
 
 **`compare-deploy`.** Checks a deploy folder against its canonical pipeline on real
