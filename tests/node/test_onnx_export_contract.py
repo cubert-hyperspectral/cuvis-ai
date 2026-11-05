@@ -25,7 +25,10 @@ from cuvis_ai_schemas.enums import ExecutionStage, NodeTag
 from cuvis_ai_schemas.execution.context import Context
 
 from cuvis_ai_core.utils.node_registry import NodeRegistry
-from tests.training.test_node_registry_statistical_contract import _minimal_constructor_kwargs
+from tests.training.test_node_registry_statistical_contract import (
+    REGISTRY_PACKAGES,
+    _minimal_constructor_kwargs,
+)
 
 pytestmark = [pytest.mark.unit, pytest.mark.slow]
 
@@ -116,7 +119,10 @@ class _Probe(torch.nn.Module):
 
 
 def _onnx_tagged_node_names() -> list[str]:
-    NodeRegistry.auto_register_package("cuvis_ai.node")
+    # auto_register_package scans one package folder; the subpackages (pretreatments,
+    # anomaly, deciders, ...) are registered one by one, as the registry contract tests do.
+    for package_name in REGISTRY_PACKAGES:
+        NodeRegistry.auto_register_package(package_name)
     names = []
     for name in sorted(NodeRegistry.list_builtin_nodes()):
         cls = NodeRegistry.get_builtin_class(name)
