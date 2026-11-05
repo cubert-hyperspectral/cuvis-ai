@@ -174,8 +174,9 @@ nodes:
   hparams:
     stride: 4
 - name: mix_snv
-  class_name: cuvis_ai.node.pretreatments.snv.SNVCorrection
+  class_name: cuvis_ai.node.pretreatments.standardize.Standardize
   hparams:
+    axis: spectrum
     eps: 1.0e-08
 - name: mix_gmm
   class_name: cuvis_ai.node.clustering.gmm.GaussianMixtureClusterer
