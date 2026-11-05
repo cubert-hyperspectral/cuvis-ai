@@ -7,7 +7,7 @@
 name: sam3
 # SAM3-based video object tracking plugin.
 repo: "https://github.com/cubert-hyperspectral/cuvis-ai-sam3.git"
-tag: "v0.5.2"  # autocast state restored after the model build; outputs on the input device
+tag: "v0.5.3"  # installs on Python 3.12 and 3.13 (Colab); keeps the 0.5.2 autocast fix
 package_name: "cuvis-ai-sam3"
 capabilities:
 - class_name: cuvis_ai_sam3.node.SAM3TextPropagation
