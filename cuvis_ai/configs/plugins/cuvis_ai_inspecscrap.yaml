@@ -4,7 +4,7 @@
 # Generic colourise/overlay/cleanup viz nodes live in the cuvis-ai node catalog, not here.
 name: cuvis_ai_inspecscrap
 repo: "https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap.git"
-tag: "v0.3.0"
+tag: "v0.4.0"
 package_name: cuvis-ai-inspecscrap
 capabilities:
 - class_name: cuvis_ai_inspecscrap.node.data.TiffDataNode
@@ -73,23 +73,6 @@ capabilities:
       optional: false
       description: Per-pixel class index [B, H, W]; background/unknown = ignore_index
   doc_summary: Map a colorized RGB label map to integer paper-class targets (fail-closed).
-- class_name: cuvis_ai_inspecscrap.node.normalization.PerChannelStandardizer
-  category: transform
-  tags: [hyperspectral, normalization, preprocessing]
-  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
-  input_specs:
-    patches:
-      dtype: float32
-      shape: [-1, -1, -1, -1]
-      optional: false
-      description: Center-pixel patches [N, P, P, C]
-  output_specs:
-    normalized:
-      dtype: float32
-      shape: [-1, -1, -1, -1]
-      optional: false
-      description: Per-band standardized patches [N, P, P, C]
-  doc_summary: Standardize patches per spectral band with global training stats fitted in Phase 1.
 - class_name: cuvis_ai_inspecscrap.node.patch_sampler.PatchSampler
   category: transform
   tags: [hyperspectral, preprocessing, stochastic]
