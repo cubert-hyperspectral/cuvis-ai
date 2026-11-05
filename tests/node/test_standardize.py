@@ -376,6 +376,16 @@ def test_a_per_sample_node_keeps_no_state(axis):
     assert Standardize(axis=axis).state_dict() == {}
 
 
+def test_a_per_sample_node_keeps_no_state_through_unfreeze_and_freeze():
+    """A trainrun that unfreezes the node gets nothing to train and saves nothing."""
+    node = Standardize(axis="spatial")
+    node.unfreeze()
+    assert node.state_dict() == {}
+    assert list(node.parameters()) == []
+    node.freeze()
+    assert node.state_dict() == {}
+
+
 @torch.no_grad()
 @pytest.mark.parametrize(
     "saved",

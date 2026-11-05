@@ -270,6 +270,19 @@ class Standardize(Node):
             raise ValueError("mean and std need the same length (1 with axis='global')")
         return mean, std
 
+    def unfreeze(self) -> None:
+        """Make fitted or given statistics trainable; a per-sample instance has none to train.
+
+        The base class turns every ``TRAINABLE_BUFFERS`` entry into a Parameter, which would put
+        the per-sample placeholders back into ``state_dict()``. They stay unsaved buffers here.
+        """
+        super().unfreeze()
+        if self.stats == "sample":
+            for name in self.TRAINABLE_BUFFERS:
+                placeholder = getattr(self, name).detach()
+                delattr(self, name)
+                self.register_buffer(name, placeholder, persistent=False)
+
     def _set_stat(self, name: str, value: Tensor) -> None:
         """Write a statistic, keeping it a Parameter when the node is unfrozen."""
         value = value.detach().to(torch.float32)
