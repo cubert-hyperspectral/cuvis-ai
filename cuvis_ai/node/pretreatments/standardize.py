@@ -227,8 +227,11 @@ class Standardize(Node):
             self.register_buffer("mean", torch.tensor(mean or [0.0] * n).view(shape))
             self.register_buffer("std", torch.tensor(std or [1.0] * n).view(shape))
         else:
-            self.register_buffer("mean", torch.zeros(0))
-            self.register_buffer("std", torch.zeros(0))
+            # Fitted statistics travel with the weights; per-sample ones are computed in forward,
+            # so their placeholders are not saved.
+            persistent = stats == "fit"
+            self.register_buffer("mean", torch.zeros(0), persistent=persistent)
+            self.register_buffer("std", torch.zeros(0), persistent=persistent)
 
     @staticmethod
     def _check_axis(axis: str | list[int]) -> str | list[int]:
@@ -266,6 +269,19 @@ class Standardize(Node):
         if len(lengths) != 1 or (axis == "global" and lengths != {1}):
             raise ValueError("mean and std need the same length (1 with axis='global')")
         return mean, std
+
+    def unfreeze(self) -> None:
+        """Make fitted or given statistics trainable; a per-sample instance has none to train.
+
+        The base class turns every ``TRAINABLE_BUFFERS`` entry into a Parameter, which would put
+        the per-sample placeholders back into ``state_dict()``. They stay unsaved buffers here.
+        """
+        super().unfreeze()
+        if self.stats == "sample":
+            for name in self.TRAINABLE_BUFFERS:
+                placeholder = getattr(self, name).detach()
+                delattr(self, name)
+                self.register_buffer(name, placeholder, persistent=False)
 
     def _set_stat(self, name: str, value: Tensor) -> None:
         """Write a statistic, keeping it a Parameter when the node is unfrozen."""
@@ -386,10 +402,27 @@ class Standardize(Node):
         unexpected_keys: list[str],
         error_msgs: list[str],
     ) -> None:
+        keys = [prefix + name for name in self.TRAINABLE_BUFFERS]
+        if self.stats == "sample":
+            # Nothing to restore: an entry from a removed per-sample class (ZScoreNormalizer,
+            # SNVCorrection) is empty, and 0.21.0 saved the two empty placeholders.
+            for key in keys:
+                state_dict.pop(key, None)
+            super()._load_from_state_dict(
+                state_dict,
+                prefix,
+                local_metadata,
+                strict,
+                missing_keys,
+                unexpected_keys,
+                error_msgs,
+            )
+            missing_keys[:] = [key for key in missing_keys if key not in keys]
+            return
         # The statistics start as [0] placeholders until fit; size them (buffer or Parameter)
         # to the saved shape so the strict copy below succeeds.
-        for name in self.TRAINABLE_BUFFERS:
-            saved = state_dict.get(prefix + name)
+        for name, key in zip(self.TRAINABLE_BUFFERS, keys, strict=True):
+            saved = state_dict.get(key)
             current = getattr(self, name)
             if saved is not None and saved.shape != current.shape:
                 self._set_stat(name, torch.zeros(saved.shape))

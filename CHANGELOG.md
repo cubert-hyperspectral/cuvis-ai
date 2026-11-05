@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `Standardize` with per-sample statistics (`stats: sample`) keeps no state: its `mean` and `std` placeholders are no longer saved, and its weights entry loads strictly whether it is empty (a pipeline `.pt` written with a removed per-sample class, `ZScoreNormalizer` or `SNVCorrection`) or holds the two empty placeholders that 0.21.0 and 0.22.0 saved. Before, such a pipeline failed to load with `Missing key(s): "mean", "std"`. Fitted and given statistics are unchanged.
+
 ## 0.22.0 - 2026-11-05
 
 - `ExportedSpan(backend="tensorrt")` runs the exported span through a TensorRT engine instead of ONNX Runtime: the engine is found or built at `prepare_inference()`, keyed by the sidecar's fingerprint and the GPU, and cached under the cuvis-ai model cache (or `CUVIS_AI_TRT_ENGINE_DIR`) for reuse across runs. Needs a CUDA device and the TensorRT Python package matching torch's CUDA build; the ONNX Runtime backend is unchanged. See `docs/deployment/onnx-span.md`.
