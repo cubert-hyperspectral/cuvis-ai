@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import re
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -15,8 +17,21 @@ from cuvis_ai_schemas.execution import Context
 from cuvis_ai_schemas.pipeline import PortSpec
 from torch import Tensor
 
+from cuvis_ai.node._trt_span_runner import TrtSpanRunner
 from cuvis_ai_core.node import Node
-from cuvis_ai_core.utils.trt_engine import cached_file_md5
+from cuvis_ai_core.utils.trt_engine import (
+    build_engine_once,
+    cached_file_md5,
+    engine_file_name,
+    engine_location,
+    find_engine,
+    import_tensorrt,
+)
+
+#: The plugin namespace engines are cached under (see ``engine_root`` in cuvis-ai-core).
+TRT_NAMESPACE = "exported_span"
+#: A sidecar's ``fingerprint`` and ``onnx_md5`` must match this before they name a folder.
+_HEX_DIGITS = re.compile(r"^[0-9a-f]+$")
 
 #: A relative ``onnx_path`` is looked up under this folder first.
 DEPLOY_DIR_ENV = "CUVIS_AI_DEPLOY_DIR"
@@ -199,12 +214,10 @@ class ExportedSpan(Node):
         device: str | None = None,
         **kwargs: Any,
     ) -> None:
-        if backend == "tensorrt":
-            raise NotImplementedError(
-                "ExportedSpan backend 'tensorrt' is not available yet; use 'onnxruntime'."
+        if backend not in ("onnxruntime", "tensorrt"):
+            raise ValueError(
+                f"ExportedSpan backend must be 'onnxruntime' or 'tensorrt', got {backend!r}."
             )
-        if backend != "onnxruntime":
-            raise ValueError(f"ExportedSpan backend must be 'onnxruntime', got {backend!r}.")
         resolved = resolve_deploy_path(onnx_path)
         sidecar = read_sidecar(resolved)
         span = sidecar["span"]
@@ -223,6 +236,7 @@ class ExportedSpan(Node):
         self.sidecar = sidecar
         self._inputs: list[dict[str, Any]] = list(span["inputs"])
         self._outputs: list[dict[str, Any]] = list(span["outputs"])
+        self._constant_entries: list[dict[str, Any]] = list(span["constants"])
         self._constants: dict[str, tuple[str, Tensor]] = {
             entry["name"]: (
                 entry["port"],
@@ -242,6 +256,9 @@ class ExportedSpan(Node):
         self._check_files()
         device = self._target_device()
         if self.session is not None and self._session_device == device:
+            return
+        if self.backend == "tensorrt":
+            self._prepare_tensorrt(device)
             return
         ort = _onnxruntime()
         if device.type == "cuda":
@@ -269,6 +286,83 @@ class ExportedSpan(Node):
             )
         self.session = session
         self._session_device = device
+
+    def _engine_key(self) -> str:
+        """A folder-safe key for this sidecar's engine: local hashes only, never its text.
+
+        The sidecar's ``fingerprint`` and ``onnx_md5`` are untrusted JSON read from disk;
+        folding them into a file name directly would let a crafted sidecar steer the
+        engine path (``../`` segments). ``onnx_md5`` is never used for the key: it is
+        recomputed locally with :func:`cached_file_md5` on the file this node already
+        checked against the sidecar in :meth:`_check_files`. The sidecar's declared
+        values are still required to be hex, so a mismatch is caught early with a clear
+        message instead of surfacing as a path error later.
+        """
+        fingerprint = self.sidecar.get("fingerprint", "")
+        onnx_md5 = self.sidecar.get("onnx_md5", "")
+        if not _HEX_DIGITS.match(fingerprint):
+            raise ValueError(
+                f"Node {self.name!r}: the sidecar's fingerprint {fingerprint!r} is not hex; "
+                "export the pipeline again with a matching cuvis-ai-core."
+            )
+        if not _HEX_DIGITS.match(onnx_md5):
+            raise ValueError(
+                f"Node {self.name!r}: the sidecar's onnx_md5 {onnx_md5!r} is not hex; "
+                "export the pipeline again with a matching cuvis-ai-core."
+            )
+        local_md5 = cached_file_md5(self.resolved_onnx_path)
+        digest = hashlib.sha256(fingerprint.encode("ascii")).hexdigest()[:16]
+        return f"{local_md5}{digest}"
+
+    def _prepare_tensorrt(self, device: torch.device) -> None:
+        """Find or build the engine for the sidecar's fingerprint, then bind the constants."""
+        if device.type != "cuda":
+            raise RuntimeError(
+                f"Node {self.name!r}: backend='tensorrt' needs a CUDA device, got {device}. "
+                "Use backend='onnxruntime' to run on the CPU."
+            )
+        trt = import_tensorrt(f"ExportedSpan {self.name!r} backend tensorrt")
+        with torch.cuda.device(device):
+            fingerprint = self.sidecar.get("fingerprint", "")
+            key = self._engine_key()
+            file_name = engine_file_name("fp32", key, device=device, trt=trt)
+            location = engine_location(file_name, TRT_NAMESPACE, key)
+            expected = {"fingerprint": fingerprint, "onnx_md5": self.sidecar.get("onnx_md5")}
+            path = find_engine(location, expected)
+            if path is None:
+                command = (
+                    f"trtexec --onnx={self.resolved_onnx_path} "
+                    f"--saveEngine=<engine path> (see engine_location for the folder)"
+                )
+                path = build_engine_once(
+                    location,
+                    file_name,
+                    lambda: self._build_tensorrt_engine(trt),
+                    command=command,
+                    expected=expected,
+                    what=f"ExportedSpan {self.name!r} TensorRT engine",
+                )
+        rebuild_hint = f"Export the pipeline again, or delete {path} and rebuild it."
+        runner = TrtSpanRunner(path, device=device, rebuild_hint=rebuild_hint)
+        for entry in self._constant_entries:
+            _, baked = self._constants[entry["name"]]
+            runner.bind_constant(entry["tensor"], baked)
+        self.session = runner
+        self._session_device = device
+
+    def _build_tensorrt_engine(self, trt: Any) -> tuple[Any, dict[str, Any]]:
+        """Compile the span's ONNX graph for the current GPU; returns the blob and its record."""
+        from cuvis_ai_core.utils.trt_engine import build_serialized_network
+
+        blob, info = build_serialized_network(
+            self.resolved_onnx_path, fp16=False, tf32=False, trt=trt
+        )
+        record = {
+            **info,
+            "fingerprint": self.sidecar.get("fingerprint", ""),
+            "onnx_md5": self.sidecar.get("onnx_md5"),
+        }
+        return blob, record
 
     def cleanup(self) -> None:
         """Drop the session."""
@@ -373,6 +467,8 @@ class ExportedSpan(Node):
 
     def _run_one(self, parts: list[Tensor], device: torch.device) -> list[Tensor]:
         """One batch element through the session, outputs on the input tensors' device."""
+        if self.backend == "tensorrt":
+            return self._run_tensorrt(parts, device)
         if device.type == "cuda":
             return self._run_bound(parts, device)
         feeds = {
@@ -414,3 +510,10 @@ class ExportedSpan(Node):
             )
         self.session.run_with_iobinding(binding)
         return outputs
+
+    def _run_tensorrt(self, parts: list[Tensor], device: torch.device) -> list[Tensor]:
+        """One batch element through the TensorRT runner; outputs copied out before return."""
+        home = parts[0].device if parts else torch.device("cpu")
+        inputs = {entry["tensor"]: part for entry, part in zip(self._inputs, parts, strict=True)}
+        outputs = self.session(inputs)
+        return [outputs[entry["tensor"]].to(home) for entry in self._outputs]
