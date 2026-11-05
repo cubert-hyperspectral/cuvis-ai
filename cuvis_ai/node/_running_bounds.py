@@ -129,20 +129,6 @@ class RunningBounds:
             self._fitted = not bool(torch.isnan(self.running_min).any())
         return self._fitted
 
-    def settled(self) -> bool:
-        """Whether every later frame takes the same branch: fitted, past warmup and freeze.
-
-        Once true, :func:`running_normalize` and :func:`_frozen_normalize` compute the same
-        thing for any new frame, which is what lets ``torch.export`` trace the frozen branch
-        in place of the full accumulator (see the ``is_compiling()`` guard there).
-        """
-        if self.freeze_after_frames is None:
-            return False
-        count = int(self.frame_count.item())
-        return (
-            self._is_fitted() and count >= self.warmup_frames and count >= self.freeze_after_frames
-        )
-
 
 def per_frame_quantiles(data: Tensor, low: float, high: float) -> tuple[Tensor, Tensor]:
     """Per-frame, per-channel quantiles of a BHWC tensor as two ``[B, C]`` float tensors.
@@ -203,13 +189,11 @@ def running_normalize(
 
     Under ``torch.export`` this traces the frozen branch unconditionally: the frame
     counter's own ``.item()`` cannot be traced at all, so the full accumulator never runs
-    under compilation. Exporting a node whose bounds are not yet settled (see
-    :meth:`RunningBounds.settled`) silently bakes in whatever the current bounds are instead
-    of raising; the exporter's own eager-versus-traced parity check
-    (:func:`cuvis_ai_core.pipeline.export.export_deployment`) is what catches that case, by
-    comparing this traced branch against the node's live, unsettled forward on the given
-    examples and failing the export when they disagree. Callers that export a node directly
-    (outside that parity check) should confirm ``settled()`` themselves first.
+    under compilation. Exporting a node whose bounds are not yet settled silently bakes in
+    whatever the current bounds are instead of raising; the exporter's own eager-versus-traced
+    parity check (:func:`cuvis_ai_core.pipeline.export.export_deployment`) is what catches
+    that case, by comparing this traced branch against the node's live, unsettled forward on
+    the given examples and failing the export when they disagree.
     """
     if torch.compiler.is_compiling():
         return _frozen_normalize(data, bounds, eps)
