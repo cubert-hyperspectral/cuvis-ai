@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `lentils_dinomaly`, `object_selection_point_expansion` and `object_tracking_passive` install the Cuvis SDK on Colab (Cubert's public 3.6.1 packages for the image's Ubuntu release, the bootstrap `channel_selector_lentils` uses) and `cuvis-ai>=0.22.1`, whose plugin pins install on Colab's Python 3.13. Their cu3s data module could not read a recording on Colab without the SDK.
+
 ## 0.22.1 - 2026-11-05
 
 - `Standardize` with per-sample statistics (`stats: sample`) keeps no state: its `mean` and `std` placeholders are no longer saved, and its weights entry loads strictly whether it is empty (a pipeline `.pt` written with a removed per-sample class, `ZScoreNormalizer` or `SNVCorrection`) or holds the two empty placeholders that 0.21.0 and 0.22.0 saved. Before, such a pipeline failed to load with `Missing key(s): "mean", "std"`. It stays that way after `unfreeze()`, which no longer turns the two placeholders into parameters. Fitted and given statistics are unchanged.
