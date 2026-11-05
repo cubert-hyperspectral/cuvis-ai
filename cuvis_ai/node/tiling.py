@@ -40,6 +40,7 @@ class ImageTiler(Node):
     _category = NodeCategory.TRANSFORM
     _tags = frozenset(
         {
+            NodeTag.ONNX,
             NodeTag.IMAGE,
             NodeTag.PREPROCESSING,
             NodeTag.BATCHED,

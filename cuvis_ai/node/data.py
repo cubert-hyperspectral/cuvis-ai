@@ -22,7 +22,7 @@ class CU3SDataNode(Node):
     """
 
     _category = NodeCategory.SOURCE
-    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.METADATA})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.HYPERSPECTRAL, NodeTag.METADATA})
 
     INPUT_SPECS = {
         "cube": PortSpec(
@@ -107,7 +107,7 @@ class AnomalyDataNode(CU3SDataNode):
     """
 
     _category = NodeCategory.SOURCE
-    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.METADATA})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.HYPERSPECTRAL, NodeTag.METADATA})
 
     INPUT_SPECS = {
         **CU3SDataNode.INPUT_SPECS,
@@ -187,4 +187,4 @@ class LentilsAnomalyDataNode(AnomalyDataNode):
     """
 
     _category = NodeCategory.SOURCE
-    _tags = frozenset({NodeTag.HYPERSPECTRAL, NodeTag.METADATA})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.HYPERSPECTRAL, NodeTag.METADATA})

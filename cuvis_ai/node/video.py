@@ -626,7 +626,7 @@ class VideoFrameNode(Node):
     """Passthrough source node that receives RGB frames from the batch."""
 
     _category = NodeCategory.SOURCE
-    _tags = frozenset({NodeTag.VIDEO, NodeTag.STREAMING})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.VIDEO, NodeTag.STREAMING})
 
     INPUT_SPECS = {
         "rgb_image": PortSpec(

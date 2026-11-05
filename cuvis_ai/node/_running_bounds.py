@@ -151,6 +151,22 @@ def normalize_with_bounds(data: Tensor, lo: Tensor, hi: Tensor, eps: float) -> T
     return ((data - lo) / denom).clamp_(0.0, 1.0)
 
 
+def _frozen_normalize(data: Tensor, bounds: RunningBounds, eps: float) -> Tensor:
+    """Scale ``data`` with the bounds as they stand, touching neither buffer.
+
+    The traceable stand-in for :func:`running_normalize` once a node is past both warmup
+    and freeze: every later frame takes this same branch (``phase.in_warmup`` is false and
+    ``should_update`` stops folding new frames in), so the two are equivalent for a node
+    that has already settled. ``torch.export`` cannot carry the frame-counter bookkeeping
+    (its own ``.item()``), so a span exported from a node already in this state traces this
+    branch directly instead; see the ``is_compiling()`` guard in ``running_normalize``.
+    """
+    channels = data.shape[-1]
+    lo = bounds.running_min.expand(data.shape[0], channels)
+    hi = bounds.running_max.expand(data.shape[0], channels)
+    return normalize_with_bounds(data, lo, hi, eps)
+
+
 @torch.no_grad()
 def running_normalize(
     data: Tensor,
@@ -170,7 +186,17 @@ def running_normalize(
     still inside the warmup or before the freeze (see
     :meth:`RunningBounds.frames_needing_quantiles`). The frames after them are scaled with the
     bounds as they stand, which no longer move.
+
+    Under ``torch.export`` this traces the frozen branch unconditionally: the frame
+    counter's own ``.item()`` cannot be traced at all, so the full accumulator never runs
+    under compilation. Exporting a node whose bounds are not yet settled silently bakes in
+    whatever the current bounds are instead of raising; the exporter's own eager-versus-traced
+    parity check (:func:`cuvis_ai_core.pipeline.export.export_deployment`) is what catches
+    that case, by comparing this traced branch against the node's live, unsettled forward on
+    the given examples and failing the export when they disagree.
     """
+    if torch.compiler.is_compiling():
+        return _frozen_normalize(data, bounds, eps)
     batch, channels = data.shape[0], data.shape[-1]
     count0 = int(bounds.frame_count.item())
     leading = bounds.frames_needing_quantiles(count0, batch)

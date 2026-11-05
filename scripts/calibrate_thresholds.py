@@ -84,7 +84,7 @@ from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 from cuvis_ai_core.training.config import TrainRunConfig
 from cuvis_ai_core.utils.node_registry import NodeRegistry
 from cuvis_ai_core.utils.plugin_resolver import resolve_pipeline_plugins
-from cuvis_ai_core.utils.restore import _create_datamodule_from_config, _discover_plugins_dirs
+from cuvis_ai_core.utils.restore import _create_datamodule_from_config, discover_plugins_dirs
 
 #: Decider classes whose decision rule the sweeps model, keyed by class name tail.
 _SUPPORTED_DECIDERS = {
@@ -210,7 +210,7 @@ def _plugins_candidates(anchor: Path, plugins_dirs: list[str] | None) -> list[Pa
     with cuvis-ai as the weakest fallback - a CuvisNEXT run directory has no
     ``configs/plugins`` ancestor to discover.
     """
-    candidates = _discover_plugins_dirs(anchor, plugins_dirs)
+    candidates = discover_plugins_dirs(anchor, plugins_dirs)
     packaged = CONFIG_ROOT / "plugins"
     if packaged.is_dir() and packaged not in candidates:
         candidates.insert(0, packaged)

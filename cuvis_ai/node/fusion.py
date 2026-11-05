@@ -61,7 +61,13 @@ class ScoreMapFusion(Node):
 
     _category = NodeCategory.TRANSFORM
     _tags = frozenset(
-        {NodeTag.ANOMALY, NodeTag.POSTPROCESSING, NodeTag.DIFFERENTIABLE, NodeTag.TORCH}
+        {
+            NodeTag.ONNX,
+            NodeTag.ANOMALY,
+            NodeTag.POSTPROCESSING,
+            NodeTag.DIFFERENTIABLE,
+            NodeTag.TORCH,
+        }
     )
 
     INPUT_SPECS = {
@@ -181,7 +187,7 @@ class DecisionFusion(Node):
     """Fuse N boolean masks of one shape into one mask by ``mode`` (any, all or first)."""
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.MASK, NodeTag.POSTPROCESSING, NodeTag.TORCH})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.MASK, NodeTag.POSTPROCESSING, NodeTag.TORCH})
 
     INPUT_SPECS = {
         "decisions": PortSpec(

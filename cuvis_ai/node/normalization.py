@@ -7,7 +7,6 @@ and maintain gradient flow for end-to-end training.
 Normalization strategies:
 
 - **MinMaxNormalizer**: Scales data to [0, 1] range using min-max statistics
-- **ZScoreNormalizer**: Standardizes data to zero mean and unit variance
 - **SigmoidNormalizer**: Applies sigmoid transformation with median centering
 - **PerPixelUnitNorm**: L2 normalization per pixel across channels
 - **IdentityNormalizer**: No-op passthrough for testing or baseline comparisons
@@ -135,7 +134,7 @@ class IdentityNormalizer(_NormalizerBase):
     """No-op normalizer; preserves incoming scores."""
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
@@ -209,7 +208,7 @@ class MinMaxNormalizer(_NormalizerBase):
 
     See Also
     --------
-    ZScoreNormalizer : Z-score standardization
+    cuvis_ai.node.pretreatments.standardize.Standardize : Z-score standardization
     SigmoidNormalizer : Sigmoid-based normalization
     docs/usecases/rx-statistical.md : RX pipeline with MinMaxNormalizer
 
@@ -221,7 +220,7 @@ class MinMaxNormalizer(_NormalizerBase):
     """
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
 
     TRAINABLE_BUFFERS = ("running_min", "running_max")
 
@@ -318,9 +317,18 @@ class MinMaxNormalizer(_NormalizerBase):
         B, H, W, C = tensor.shape
         flat = tensor.reshape(B, -1, C)
 
-        # Running-stats mode is strict: statistical initialization is required.
         if self.use_running_stats:
-            if not self._is_initialized() or not self._statistically_initialized:
+            # Running-stats mode is strict: statistical initialization is required.
+            # The check reads a Python bool out of a tensor (`.item()`), which
+            # torch.export cannot trace; it only raises, so skipping it under
+            # compilation changes nothing the traced graph computes. A node
+            # exported before it was fitted bakes in NaN bounds instead of
+            # raising; the exporter's own eager-versus-traced parity check
+            # catches that case by comparing against this same raise on the
+            # live node.
+            if not torch.compiler.is_compiling() and (
+                not self._is_initialized() or not self._statistically_initialized
+            ):
                 raise RuntimeError(
                     "MinMaxNormalizer requires statistical_initialization() before forward() "
                     "when use_running_stats=True."
@@ -371,7 +379,7 @@ class SigmoidNormalizer(_NormalizerBase):
     See Also
     --------
     MinMaxNormalizer : Min-max scaling to [0, 1]
-    ZScoreNormalizer : Z-score standardization
+    cuvis_ai.node.pretreatments.standardize.Standardize : Z-score standardization
 
     Notes
     -----
@@ -409,59 +417,6 @@ class SigmoidNormalizer(_NormalizerBase):
         return normalized.reshape(B, H, W, C)
 
 
-class ZScoreNormalizer(_NormalizerBase):
-    """Z-score (standardization) normalization along specified dimensions.
-
-    Computes: (x - mean) / (std + eps) along specified dims.
-    Per-sample normalization with no statistical initialization required.
-
-    Parameters
-    ----------
-    dims : list[int], optional
-        Dimensions to compute statistics over (default: [1,2] for H,W in BHWC format)
-    eps : float, optional
-        Small constant for numerical stability (default: 1e-6)
-    keepdim : bool, optional
-        Whether to keep reduced dimensions (default: True)
-
-    Examples
-    --------
-    >>> # Normalize over spatial dimensions (H, W)
-    >>> zscore = ZScoreNormalizer(dims=[1, 2])
-    >>>
-    >>> # Normalize over all spatial and channel dimensions
-    >>> zscore_all = ZScoreNormalizer(dims=[1, 2, 3])
-    """
-
-    _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
-
-    def __init__(
-        self, dims: list[int] | None = None, eps: float = 1e-6, keepdim: bool = True, **kwargs
-    ) -> None:
-        self.dims = dims if dims is not None else [1, 2]
-        self.eps = float(eps)
-        self.keepdim = keepdim
-        super().__init__(dims=self.dims, eps=eps, keepdim=keepdim, **kwargs)
-
-    def _normalize(self, tensor: Tensor) -> Tensor:
-        """Apply z-score normalization.
-
-        Parameters
-        ----------
-        tensor : Tensor
-            Input tensor in BHWC format
-
-        Returns
-        -------
-        Tensor
-            Z-score normalized tensor
-        """
-        mean = tensor.mean(dim=self.dims, keepdim=self.keepdim)
-        std = tensor.std(dim=self.dims, keepdim=self.keepdim, unbiased=False)
-        return (tensor - mean) / (std + self.eps)
-
-
 class SigmoidTransform(Node):
     """Applies sigmoid transformation to convert logits to probabilities [0,1].
 
@@ -480,7 +435,7 @@ class SigmoidTransform(Node):
     """
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.POSTPROCESSING, NodeTag.TORCH})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.POSTPROCESSING, NodeTag.TORCH})
 
     INPUT_SPECS = {
         "data": PortSpec(
@@ -521,7 +476,7 @@ class PerPixelUnitNorm(_NormalizerBase):
     """Per-pixel mean-centering and L2 normalization across channels."""
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
 
     def __init__(self, eps: float = 1e-8, **kwargs) -> None:
         self.eps = float(eps)
@@ -651,7 +606,7 @@ class PercentileNormalizer(_NormalizerBase):
     """
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
 
     def __init__(
         self,
@@ -864,7 +819,13 @@ class PercentileNormalizer(_NormalizerBase):
                 f"PercentileNormalizer expected {self.n_channels} channels, got {tensor.shape[-1]}"
             )
         if self.norm_mode == NormMode.STATISTICAL:
-            if not self._fitted():
+            # The fitted check reads the bounds' NaN state into a Python bool, which
+            # torch.export cannot trace; it only raises, so skipping it under
+            # compilation changes nothing the traced graph computes. Exporting
+            # before the node is fitted bakes in NaN bounds instead of raising; the
+            # exporter's own eager-versus-traced parity check catches that case by
+            # comparing against this same raise on the live node.
+            if not torch.compiler.is_compiling() and not self._fitted():
                 raise RuntimeError(
                     "PercentileNormalizer: statistical mode requires "
                     "statistical_initialization() before forward()"
@@ -959,7 +920,7 @@ class DisplayNormalizer(_NormalizerBase):
     """
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
 
     def _normalize(self, tensor: Tensor) -> Tensor:
         """sRGB companding: linear ``[0, 1]`` -> gamma-encoded ``[0, 1]``."""
@@ -975,7 +936,6 @@ __all__ = [
     "NormMode",
     "PercentileNormalizer",
     "SigmoidNormalizer",
-    "ZScoreNormalizer",
     "SigmoidTransform",
     "PerPixelUnitNorm",
 ]

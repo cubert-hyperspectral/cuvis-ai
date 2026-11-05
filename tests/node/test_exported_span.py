@@ -13,6 +13,7 @@ import shutil
 import sys
 from pathlib import Path
 
+import numpy as np
 import pytest
 import torch
 import yaml
@@ -44,8 +45,13 @@ class _Span(nn.Module):
         return scores, scores.flatten(1).max(dim=1).values
 
 
-def _write_deploy(folder: Path, name: str = "span") -> dict:
-    """An ONNX file plus a format 1 sidecar for ``_Span``, like export-pipeline writes."""
+def _write_deploy(
+    folder: Path, name: str = "span", port_dtypes: dict[str, str] | None = None
+) -> dict:
+    """An ONNX file plus a format 1 sidecar for ``_Span``, like export-pipeline writes.
+
+    ``port_dtypes`` adds the declared dtype (``port_dtype``) to the entries it names.
+    """
     folder.mkdir(parents=True, exist_ok=True)
     onnx_path = folder / f"{name}.onnx"
     torch.onnx.export(
@@ -113,6 +119,13 @@ def _write_deploy(folder: Path, name: str = "span") -> dict:
         "onnx_md5": hashlib.md5(onnx_path.read_bytes()).hexdigest(),  # noqa: S324
         "parity": {"examples": 1, "atol": 1e-5, "rtol": 1e-4, "max_abs_diff": {}},
     }
+    for entry in (
+        *sidecar["span"]["inputs"],
+        *sidecar["span"]["outputs"],
+        *sidecar["span"]["constants"],
+    ):
+        if port_dtypes and entry["port"] in port_dtypes:
+            entry["port_dtype"] = port_dtypes[entry["port"]]
     (folder / f"{name}.onnx.json").write_text(json.dumps(sidecar, indent=2), encoding="utf-8")
     return sidecar
 
@@ -273,9 +286,11 @@ def test_a_relative_path_resolves_against_the_deploy_dir_variable(deploy, monkey
     assert node.resolved_onnx_path == deploy / "span.onnx"
 
 
-def test_the_tensorrt_backend_is_not_available_yet(deploy):
-    with pytest.raises(NotImplementedError, match="tensorrt"):
-        _node(deploy, backend="tensorrt")
+def test_the_tensorrt_backend_is_accepted_at_construction(deploy):
+    """``backend="tensorrt"`` is covered end to end in test_exported_span_tensorrt.py."""
+    node = _node(deploy, backend="tensorrt", device="cpu")
+
+    assert node.backend == "tensorrt"
 
 
 def test_an_unknown_backend_is_refused(deploy):
@@ -355,6 +370,16 @@ class _Source(Node):
         return {"cube": sample["cube"], "wavelengths": sample["wavelengths"]}
 
 
+class _NumpySource(_Source):
+    """``_Source`` with the wavelength grid as a numpy array, as the cu3s loaders emit it."""
+
+    OUTPUT_SPECS = {"cube": _CUBE, "wavelengths": PortSpec(dtype=np.float32, shape=(-1,))}
+
+    def forward(self, **_) -> dict:
+        sample = super().forward()
+        return {"cube": sample["cube"], "wavelengths": sample["wavelengths"].numpy()}
+
+
 class _Decide(Node):
     """``decisions = scores > threshold``."""
 
@@ -369,8 +394,10 @@ class _Decide(Node):
         return {"decisions": scores > self.threshold}
 
 
-def _write_deploy_yaml(folder: Path, *, onnx_path: str = "span.onnx") -> tuple[Path, Path]:
-    """A deploy yaml next to the ONNX file: source, the span node, a decider."""
+def _write_deploy_yaml(
+    folder: Path, *, onnx_path: str = "span.onnx", source: str = "_Source"
+) -> tuple[Path, Path]:
+    """A deploy yaml next to the ONNX file: a source, the span node, a decider."""
     torch.manual_seed(1)
     sample_path = folder / "sample.pt"
     torch.save({"cube": torch.rand(2, 4, 4, 3), "wavelengths": _wavelengths()}, sample_path)
@@ -381,7 +408,7 @@ def _write_deploy_yaml(folder: Path, *, onnx_path: str = "span.onnx") -> tuple[P
         "nodes": [
             {
                 "name": "source",
-                "class_name": f"{module}._Source",
+                "class_name": f"{module}.{source}",
                 "hparams": {"sample_path": str(sample_path)},
             },
             {
@@ -530,3 +557,82 @@ def test_the_exporter_output_runs_through_the_node(tmp_path, monkeypatch):
         out[("exported_span", "scores")], reference[("score", "scores")], atol=1e-5, rtol=1e-4
     )
     assert torch.equal(out[("decide", "decisions")], reference[("decide", "decisions")])
+
+
+# ----- declared port dtypes and numpy values ---------------------------
+
+
+def test_ports_follow_the_declared_port_dtype(tmp_path):
+    from typing import Any
+
+    _write_deploy(
+        tmp_path,
+        port_dtypes={
+            "norm.data": "torch.Tensor",
+            "sel.wavelengths": "numpy.float32",
+            "det.scores": "Any",
+        },
+    )
+    node = _node(tmp_path)
+
+    assert node.INPUT_SPECS["data"].dtype is torch.Tensor
+    assert node.INPUT_SPECS["wavelengths"].dtype is np.float32
+    assert node.OUTPUT_SPECS["scores"].dtype is Any
+    assert node.OUTPUT_SPECS["anomaly_score"].dtype == torch.float32
+
+
+def test_a_numpy_constant_and_input_are_accepted(deploy):
+    node = _node(deploy)
+    torch.manual_seed(3)
+    data = torch.rand(2, 4, 4, 3)
+
+    out = node(
+        data=data.numpy(),
+        wavelengths=np.asarray(WAVELENGTHS, dtype=np.float32),
+        context=_inference(),
+    )
+
+    scores, anomaly_score = _Span().eval()(data)
+    torch.testing.assert_close(out["scores"], scores, atol=1e-5, rtol=1e-4)
+    torch.testing.assert_close(out["anomaly_score"], anomaly_score, atol=1e-5, rtol=1e-4)
+
+
+def test_a_deploy_yaml_connects_to_a_numpy_typed_source(tmp_path, monkeypatch):
+    """The sidecar's ``port_dtype`` makes the span node declare what the source does."""
+    from cuvis_ai.node.exported_span import DEPLOY_DIR_ENV
+
+    _write_deploy(tmp_path, port_dtypes={"sel.wavelengths": "numpy.float32"})
+    yaml_path, sample_path = _write_deploy_yaml(tmp_path, source="_NumpySource")
+    monkeypatch.setenv(DEPLOY_DIR_ENV, str(tmp_path))
+
+    pipeline = CuvisPipeline.load_pipeline(yaml_path, device="cpu")
+    out = pipeline.forward(batch={}, stage=ExecutionStage.INFERENCE)
+
+    scores, decisions = _expected(sample_path)
+    torch.testing.assert_close(out[("exported_span", "scores")], scores, atol=1e-5, rtol=1e-4)
+    assert torch.equal(out[("decide", "decisions")], decisions)
+
+
+def test_the_cuda_session_turns_tf32_off(deploy, monkeypatch):
+    """TF32 matmuls on the CUDA provider move a nearest-neighbour distance by 0.4 on a
+    PatchCore graph; the span keeps the full fp32 the export was checked with."""
+    import onnxruntime as ort
+
+    seen: dict[str, object] = {}
+
+    class _Session:
+        def __init__(self, path, providers=None, **_):
+            seen["providers"] = providers
+
+        def get_providers(self):
+            return ["CUDAExecutionProvider", "CPUExecutionProvider"]
+
+    monkeypatch.setattr(ort, "InferenceSession", _Session)
+    monkeypatch.setattr(ort, "preload_dlls", lambda **_: None, raising=False)
+    node = _node(deploy, device="cuda")
+
+    node.prepare_inference()
+
+    [(name, options), *_] = seen["providers"]
+    assert name == "CUDAExecutionProvider"
+    assert options["use_tf32"] == 0

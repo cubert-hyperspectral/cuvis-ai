@@ -4,9 +4,9 @@ import torch
 from cuvis_ai.node.anomaly.deep_svdd import (
     DeepSVDDCenterTracker,
     DeepSVDDProjection,
-    ZScoreNormalizerGlobal,
 )
 from cuvis_ai.node.losses import DeepSVDDSoftBoundaryLoss
+from cuvis_ai.node.pretreatments.standardize import Standardize
 
 pytestmark = pytest.mark.unit
 
@@ -16,23 +16,30 @@ def _make_stream(tensor: torch.Tensor, key: str) -> list[dict[str, torch.Tensor]
 
 
 def test_deepsvdd_encoder_round_trip() -> None:
-    """Test DeepSVDDEncoder serialization with pre-allocated buffers."""
+    """The fitted standardization reloads into a fresh node whose statistics start empty."""
     num_channels = 3
-    encoder = ZScoreNormalizerGlobal(num_channels=num_channels, eps=1e-6)
+    encoder = Standardize(axis="channel", eps=1e-6)
 
     # Fit the encoder
     data = torch.randn(1, 2, 2, num_channels)
-    encoder.statistical_initialization(iter(_make_stream(data, "data")))
+    encoder.statistical_initialization(iter(_make_stream(data, "cube")))
 
     # Get state and create new encoder
     state = encoder.state_dict()
-    reloaded = ZScoreNormalizerGlobal(num_channels=num_channels, eps=1e-6)
+    reloaded = Standardize(axis="channel", eps=1e-6)
     reloaded.load_state_dict(state)
 
     # Test forward pass
     output = reloaded.forward(data)
-    assert output["normalized"].shape == data.shape
-    assert torch.allclose(encoder.forward(data)["normalized"], output["normalized"])
+    assert output["cube"].shape == data.shape
+    assert torch.allclose(encoder.forward(data)["cube"], output["cube"])
+
+    # A node unfrozen for gradient training before the load takes the fitted shape too.
+    unfrozen = Standardize(axis="channel", eps=1e-6)
+    unfrozen.unfreeze()
+    unfrozen.load_state_dict(state)
+    assert isinstance(unfrozen.mean, torch.nn.Parameter)
+    assert torch.allclose(unfrozen.forward(data)["cube"], output["cube"])
 
 
 def test_deepsvdd_projection_round_trip() -> None:
@@ -124,9 +131,9 @@ def test_deepsvdd_end_to_end_round_trip(tmp_path) -> None:
     data = torch.randn(2, 200, 200, num_channels)
 
     # Create and fit encoder
-    encoder = ZScoreNormalizerGlobal(num_channels=num_channels, eps=1e-6)
-    encoder.statistical_initialization(iter(_make_stream(data, "data")))
-    normalized = encoder.forward(data)["normalized"]
+    encoder = Standardize(axis="channel", eps=1e-6)
+    encoder.statistical_initialization(iter(_make_stream(data, "cube")))
+    normalized = encoder.forward(data)["cube"]
 
     # Create and test projection
     projection = DeepSVDDProjection(in_channels=num_channels, rep_dim=rep_dim, hidden=8)
@@ -155,9 +162,9 @@ def test_deepsvdd_end_to_end_round_trip(tmp_path) -> None:
 
     # Load and verify encoder
     state = torch.load(checkpoint_path)
-    encoder_loaded = ZScoreNormalizerGlobal(num_channels=num_channels, eps=1e-6)
+    encoder_loaded = Standardize(axis="channel", eps=1e-6)
     encoder_loaded.load_state_dict(state["encoder"])
-    normalized_loaded = encoder_loaded.forward(data)["normalized"]
+    normalized_loaded = encoder_loaded.forward(data)["cube"]
     assert torch.allclose(normalized, normalized_loaded)
 
     # Load and verify projection

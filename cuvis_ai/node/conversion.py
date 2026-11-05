@@ -47,7 +47,7 @@ class ScoreToLogit(Node):
     """
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.POSTPROCESSING, NodeTag.MASK, NodeTag.TORCH})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.POSTPROCESSING, NodeTag.MASK, NodeTag.TORCH})
 
     INPUT_SPECS = {
         "scores": PortSpec(
@@ -185,7 +185,7 @@ class DecisionToMask(Node):
     """
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.POSTPROCESSING, NodeTag.MASK, NodeTag.TORCH})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.POSTPROCESSING, NodeTag.MASK, NodeTag.TORCH})
 
     INPUT_SPECS = {
         "decisions": PortSpec(

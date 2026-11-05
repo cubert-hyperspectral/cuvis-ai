@@ -310,7 +310,7 @@ class ImageConcatenator(Node):
     """
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.IMAGE, NodeTag.RGB})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.IMAGE, NodeTag.RGB})
 
     INPUT_SPECS = {
         "images": PortSpec(
@@ -431,7 +431,7 @@ class LabelOverlay(Node):
     """
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.IMAGE, NodeTag.RGB})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.IMAGE, NodeTag.RGB})
 
     INPUT_SPECS = {
         "rgb_image": PortSpec(
@@ -510,7 +510,7 @@ class TitleOverlay(Node):
     """
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.IMAGE, NodeTag.RGB})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.IMAGE, NodeTag.RGB})
 
     INPUT_SPECS = {
         "frame": PortSpec(
@@ -653,7 +653,7 @@ class LegendStrip(Node):
     """
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.IMAGE, NodeTag.RGB})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.IMAGE, NodeTag.RGB})
 
     INPUT_SPECS = {
         "frame": PortSpec(

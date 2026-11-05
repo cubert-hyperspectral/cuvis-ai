@@ -714,7 +714,7 @@ class LabelOffset(Node):
     """
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.MASK, NodeTag.SEGMENTATION, NodeTag.CLASSIFICATION})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.MASK, NodeTag.SEGMENTATION, NodeTag.CLASSIFICATION})
 
     INPUT_SPECS = {
         "class_map": PortSpec(
@@ -1083,7 +1083,7 @@ class MaskComposite(Node):
     """Merge N boolean masks [B, H, W, C] into one label map and one level map for display."""
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.MASK, NodeTag.TORCH})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.MASK, NodeTag.TORCH})
 
     INPUT_SPECS = {
         "decisions": PortSpec(
@@ -1171,7 +1171,7 @@ class ScoreMapSuppression(Node):
     """Down-weight a score map [B, H, W, 1] inside a boolean mask shrunk by ``erode_px``."""
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.ANOMALY, NodeTag.MASK, NodeTag.TORCH})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.ANOMALY, NodeTag.MASK, NodeTag.TORCH})
 
     INPUT_SPECS = {
         "scores": PortSpec(

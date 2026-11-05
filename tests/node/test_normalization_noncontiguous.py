@@ -16,7 +16,6 @@ from cuvis_ai.node.normalization import (
     MinMaxNormalizer,
     PerPixelUnitNorm,
     SigmoidNormalizer,
-    ZScoreNormalizer,
 )
 
 pytestmark = pytest.mark.unit
@@ -28,7 +27,6 @@ pytestmark = pytest.mark.unit
     [
         (MinMaxNormalizer, {"use_running_stats": False}),
         (SigmoidNormalizer, {}),
-        (ZScoreNormalizer, {}),
         (PerPixelUnitNorm, {}),
     ],
 )

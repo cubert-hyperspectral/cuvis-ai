@@ -10,7 +10,7 @@ name: patchcore
 # Local development override (optional):
 # path: "../../../cuvis-ai-patchcore"
 repo: "https://github.com/cubert-hyperspectral/cuvis-ai-patchcore.git"
-tag: "v0.3.0"
+tag: "v0.4.0"
 package_name: "cuvis-ai-patchcore"
 capabilities:
 - class_name: cuvis_ai_patchcore.node.patchcore.PatchCoreDetector
