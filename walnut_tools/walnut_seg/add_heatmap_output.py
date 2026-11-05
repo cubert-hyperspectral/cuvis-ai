@@ -5,8 +5,8 @@ by PORT NAME: `decisions` / `*.mask` -> mask, `*scores` -> heatmap, `*_thickness
 `*rgb_image` / `false_color` -> image; ports with other names are not offered. Since ShellMask (BinaryDecider) was
 added on 23 Sep it consumes the model's `scores`, so the heatmap (`Seg.scores` / `Fuse.scores` / `Inter.scores` /
 `Gate.scores`) is no longer terminal and only `ShellMask.decisions` was selectable. A first fix (IdentityNormalizer
-tap, port `normalized`) stayed invisible because of the port name. Fix: fan the scores out to a `ScoreFusion` node
-named `ShellHeatmap` with mode `max` and BOTH inputs on the same scores (max(x, x) == x, bit-identical); its
+tap, port `normalized`) stayed invisible because of the port name. Fix: feed the scores to a `ScoreMapFusion` node
+named `ShellHeatmap` with mode `max` and that one input (the max of one map is the map, bit-identical); its
 `scores` port stays unconnected, so cuvis.next offers `ShellHeatmap.scores` (heatmap) next to `ShellMask.decisions`
 (mask).
 
@@ -25,8 +25,8 @@ import shutil
 import numpy as np
 import torch
 import yaml
-from cuvis_ai_rfdetr.node.score_fusion import ScoreFusion
 
+from cuvis_ai.node.fusion import ScoreMapFusion
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
 SEG = os.path.normpath(
@@ -75,15 +75,14 @@ for yml in sorted(glob.glob(os.path.join(SEG, "walnut_seg_*_cuvisnext_cube.yaml"
     o0 = run(p)
     s0, d0 = o0[(term, "scores")].detach().cpu(), o0[("ShellMask", "decisions")].detach().cpu()
     node = next(n for n in p.nodes if getattr(n, "name", None) == term)
-    heat = ScoreFusion(mode="max", name="ShellHeatmap")
-    p.connect(node.outputs.scores, heat.inputs.a)
-    p.connect(node.outputs.scores, heat.inputs.b)
+    heat = ScoreMapFusion(mode="max", name="ShellHeatmap")
+    p.connect(node.outputs.scores, heat.inputs.scores)
     p.save_to_file(yml)
     doc = yaml.safe_load(open(yml))
     doc["metadata"]["description"] = (
         f"{src['metadata'].get('description', name).split(' Outputs:')[0]} Outputs (both selectable in cuvis.next): "
-        f"ShellHeatmap.scores = shell probability heatmap (exact copy of {term}.scores: ScoreFusion max of the map "
-        f"with itself, so the port is terminal and named 'scores'); ShellMask.decisions = boolean shell mask "
+        f"ShellHeatmap.scores = shell probability heatmap (exact copy of {term}.scores: ScoreMapFusion max over "
+        f"that one map, so the port is terminal and named 'scores'); ShellMask.decisions = boolean shell mask "
         f"(scores >= 0.5; BinaryDecider threshold = sigmoid(0.5))."
     )
     yaml.safe_dump(doc, open(yml, "w"), sort_keys=False)

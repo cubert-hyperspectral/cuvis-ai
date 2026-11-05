@@ -2,7 +2,7 @@
 
   walnut_seg_cir_v2_cuvisnext_cube              C: CIR 850/660/550 single            (weights/cir_v2_ema.pth)
   walnut_seg_rgb_v2_cuvisnext_cube              B: RGB 640/550/470 single            (weights/rgb_v2_ema.pth)
-  walnut_seg_ens_rgb_cir_mean_v2_cuvisnext_cube B+C: members at 0.05 + ScoreFusion(mean)
+  walnut_seg_ens_rgb_cir_mean_v2_cuvisnext_cube B+C: members at 0.05 + ScoreMapFusion(mean)
 
 Same node recipe as the deployed *_full pipelines (repro/build_seg_stack.py) + the ShellMask output from
 add_shell_mask.py (builtin BinaryDecider, threshold sigmoid(0.5) = scores >= 0.5). Each pipeline is built, saved
@@ -123,16 +123,16 @@ PIPES = {
             seg("SegCIR", f"{W}/cir_v2_ema.pth", 0.05),
             {
                 "name": "Fuse",
-                "class_name": "cuvis_ai_rfdetr.node.score_fusion.ScoreFusion",
-                "hparams": {"mode": "mean", "weight": 0.5},
+                "class_name": "cuvis_ai.node.fusion.ScoreMapFusion",
+                "hparams": {"mode": "mean"},
             },
             MASK,
         ],
         "connections": wire("SelRGB", "SegRGB")
         + wire("SelCIR", "SegCIR")
         + [
-            {"source": "SegRGB.outputs.scores", "target": "Fuse.inputs.a"},
-            {"source": "SegCIR.outputs.scores", "target": "Fuse.inputs.b"},
+            {"source": "SegRGB.outputs.scores", "target": "Fuse.inputs.scores"},
+            {"source": "SegCIR.outputs.scores", "target": "Fuse.inputs.scores"},
         ]
         + to_mask("Fuse"),
     },
