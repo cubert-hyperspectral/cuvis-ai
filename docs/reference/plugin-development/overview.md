@@ -106,7 +106,7 @@ All official plugins ship as git-tagged releases (bare name resolves to the matc
 - [`adaclip.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/plugins/adaclip.yaml): AdaCLIP anomaly detection, pinned to `v0.2.0`
 - [`augment.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/plugins/augment.yaml): data-augmentation nodes, pinned to `v0.3.3`
 - [`cuvis_ai_dataloader.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/plugins/cuvis_ai_dataloader.yaml): cu3s / cu3 / paired-TIFF data-module plugin, pinned to `v0.4.0`
-- [`cuvis_ai_inspecscrap.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/plugins/cuvis_ai_inspecscrap.yaml): metal-scrap inspection nodes, pinned to `v0.2.2`
+- [`cuvis_ai_inspecscrap.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/plugins/cuvis_ai_inspecscrap.yaml): metal-scrap inspection nodes, pinned to `v0.4.0`
 - [`deepeiou.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/plugins/deepeiou.yaml): DeepEIoU tracking plugin, pinned to `v0.2.1`
 - [`dinomaly.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/plugins/dinomaly.yaml): Dinomaly anomaly detection, pinned to `v0.4.1`
 - [`rtsam2.yaml`](https://github.com/cubert-hyperspectral/cuvis-ai/blob/main/cuvis_ai/configs/plugins/rtsam2.yaml): real-time SAM 2 / EfficientTAM plugin, pinned to `v0.3.0`

@@ -371,6 +371,55 @@ def test_pipeline_round_trips_through_yaml_and_weights(tmp_path, kwargs):
     assert torch.equal(after, before)
 
 
+@pytest.mark.parametrize("axis", ["spatial", "spectrum", [1, 2, 3]])
+def test_a_per_sample_node_keeps_no_state(axis):
+    assert Standardize(axis=axis).state_dict() == {}
+
+
+def test_a_per_sample_node_keeps_no_state_through_unfreeze_and_freeze():
+    """A trainrun that unfreezes the node gets nothing to train and saves nothing."""
+    node = Standardize(axis="spatial")
+    node.unfreeze()
+    assert node.state_dict() == {}
+    assert list(node.parameters()) == []
+    node.freeze()
+    assert node.state_dict() == {}
+
+
+@torch.no_grad()
+@pytest.mark.parametrize(
+    "saved",
+    [{}, {"mean": torch.zeros(0), "std": torch.zeros(0)}],
+    ids=["removed-class-entry", "0.21.0-placeholders"],
+)
+def test_saved_per_sample_entries_load_strictly(saved):
+    """A removed per-sample class left an empty entry, 0.21.0 two empty placeholders."""
+    node = Standardize(axis="spatial", ddof=0, eps=1e-6, eps_mode="add")
+    node.load_state_dict(saved, strict=True)
+    x = _cube(seed=17)
+    reference = Standardize(axis="spatial", ddof=0, eps=1e-6, eps_mode="add")
+    assert torch.equal(node(cube=x)["cube"], reference(cube=x)["cube"])
+
+
+@torch.no_grad()
+def test_pipeline_weights_with_an_empty_per_sample_entry_load(tmp_path):
+    """A pipeline .pt written with ZScoreNormalizer holds {} for the node; it loads strictly."""
+    pipe = CuvisPipeline("standardize_legacy")
+    src = _CubeSource(name="src")
+    std = Standardize(name="standardize", axis="spatial", ddof=0, eps=1e-6, eps_mode="add")
+    pipe.connect(src.outputs.cube, std.inputs.cube)
+    before = pipe.forward(batch={}, stage=ExecutionStage.INFERENCE)[("standardize", "cube")]
+    path = tmp_path / "legacy.yaml"
+    pipe.save_to_file(str(path))
+    weights = path.with_suffix(".pt")
+    checkpoint = torch.load(weights, weights_only=True)
+    checkpoint["state_dict"]["standardize"] = {}
+    torch.save(checkpoint, weights)
+    rebuilt = CuvisPipeline.load_pipeline(str(path), weights_path=str(weights))
+    after = rebuilt.forward(batch={}, stage=ExecutionStage.INFERENCE)[("standardize", "cube")]
+    assert torch.equal(after, before)
+
+
 @torch.no_grad()
 def test_fitted_weights_load_into_a_fresh_node():
     node = _fitted(axis="channel")
