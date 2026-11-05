@@ -64,6 +64,30 @@ An absolute `onnx_path` is used as given, which suits a folder that never moves.
 | ONNX Runtime not installed | `uv sync --extra onnx`, or the `cuvis_ai_onnx` plugin in the pipeline |
 | A sidecar of another format | the format this release reads |
 
+## Which nodes export
+
+A node carries `NodeTag.ONNX` when it exports with the dynamo exporter in its registry
+contract default configuration: `torch.export` can trace `forward` as is, or the node
+supplies an equivalent through `export_module()`. The tag is a statement about that one
+default configuration; a node can still refuse another configuration of its own hparams
+(a mode that takes a Python branch on tensor values), in which case its class docstring
+says so.
+
+`tests/node/test_onnx_export_contract.py` builds every `NodeTag.ONNX` node from its
+registry contract defaults, exports it alone with the dynamo exporter and checks ONNX
+Runtime against the eager output. A node that is exportable but not yet tagged, or a node
+whose default configuration regresses, fails that test.
+
+To make a node exportable:
+
+- Keep the computation inside `forward` as tensor ops. A numpy lookup, `.item()` or a Python branch on a tensor's value stops `torch.export` outright.
+
+- A check that only ever raises (an unfitted node, an invalid configuration) can stay: guard it with `if not torch.compiler.is_compiling():` so it runs eagerly but never enters the traced graph. The exporter's own eager-versus-traced parity check in `export_deployment` is what catches a node exported in the state the guard would have rejected; it does not need to be caught a second time inside the traced path.
+
+- A wavelength-dependent lookup table (nearest-band indices, a CMF or sensitivity weight matrix) stays numpy when the table only depends on the span's own constant inputs (a sensor's wavelength grid does not change per frame): cache it on first eager call and, under `is_compiling()`, reuse the cached tensor instead of recomputing it.
+
+- When `forward` truly cannot be traced (a numpy or OpenCV round-trip whose shape of computation has no tensor equivalent, such as connected-component labelling), override `export_module()` to return a module that computes the same thing from the node's own weights and buffers; see the docstring of `Node.export_module` for the contract.
+
 ## Installing ONNX Runtime
 
 `uv sync --extra onnx` in a checkout, or `cuvis_ai_onnx` under `plugins:` for a composed

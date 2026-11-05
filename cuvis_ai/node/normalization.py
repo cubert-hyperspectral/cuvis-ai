@@ -134,7 +134,7 @@ class IdentityNormalizer(_NormalizerBase):
     """No-op normalizer; preserves incoming scores."""
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
@@ -220,7 +220,7 @@ class MinMaxNormalizer(_NormalizerBase):
     """
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
 
     TRAINABLE_BUFFERS = ("running_min", "running_max")
 
@@ -317,9 +317,18 @@ class MinMaxNormalizer(_NormalizerBase):
         B, H, W, C = tensor.shape
         flat = tensor.reshape(B, -1, C)
 
-        # Running-stats mode is strict: statistical initialization is required.
         if self.use_running_stats:
-            if not self._is_initialized() or not self._statistically_initialized:
+            # Running-stats mode is strict: statistical initialization is required.
+            # The check reads a Python bool out of a tensor (`.item()`), which
+            # torch.export cannot trace; it only raises, so skipping it under
+            # compilation changes nothing the traced graph computes. A node
+            # exported before it was fitted bakes in NaN bounds instead of
+            # raising; the exporter's own eager-versus-traced parity check
+            # catches that case by comparing against this same raise on the
+            # live node.
+            if not torch.compiler.is_compiling() and (
+                not self._is_initialized() or not self._statistically_initialized
+            ):
                 raise RuntimeError(
                     "MinMaxNormalizer requires statistical_initialization() before forward() "
                     "when use_running_stats=True."
@@ -426,7 +435,7 @@ class SigmoidTransform(Node):
     """
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.POSTPROCESSING, NodeTag.TORCH})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.POSTPROCESSING, NodeTag.TORCH})
 
     INPUT_SPECS = {
         "data": PortSpec(
@@ -467,7 +476,7 @@ class PerPixelUnitNorm(_NormalizerBase):
     """Per-pixel mean-centering and L2 normalization across channels."""
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
 
     def __init__(self, eps: float = 1e-8, **kwargs) -> None:
         self.eps = float(eps)
@@ -597,7 +606,7 @@ class PercentileNormalizer(_NormalizerBase):
     """
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
 
     def __init__(
         self,
@@ -810,7 +819,13 @@ class PercentileNormalizer(_NormalizerBase):
                 f"PercentileNormalizer expected {self.n_channels} channels, got {tensor.shape[-1]}"
             )
         if self.norm_mode == NormMode.STATISTICAL:
-            if not self._fitted():
+            # The fitted check reads the bounds' NaN state into a Python bool, which
+            # torch.export cannot trace; it only raises, so skipping it under
+            # compilation changes nothing the traced graph computes. Exporting
+            # before the node is fitted bakes in NaN bounds instead of raising; the
+            # exporter's own eager-versus-traced parity check catches that case by
+            # comparing against this same raise on the live node.
+            if not torch.compiler.is_compiling() and not self._fitted():
                 raise RuntimeError(
                     "PercentileNormalizer: statistical mode requires "
                     "statistical_initialization() before forward()"
@@ -905,7 +920,7 @@ class DisplayNormalizer(_NormalizerBase):
     """
 
     _category = NodeCategory.TRANSFORM
-    _tags = frozenset({NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
 
     def _normalize(self, tensor: Tensor) -> Tensor:
         """sRGB companding: linear ``[0, 1]`` -> gamma-encoded ``[0, 1]``."""

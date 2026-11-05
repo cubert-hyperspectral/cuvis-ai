@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- The wavelength-lookup selectors (`NDVISelector`, `NDWISelector`, `NBRSelector`, `GNDVISelector`, `NDRESelector`, `EVISelector`, `EVI2Selector`, `SAVISelector`, `MSAVISelector`, `CIRedEdgeSelector`, `MCARISelector`, `PRISelector`, `CIRSelector`, `FixedWavelengthSelector`), `CIETristimulusRGBSelector`, `CameraEmulationFalseRGBSelector`, `MinMaxNormalizer` and `PercentileNormalizer` export with the dynamo exporter: band resolution, the fitted-state guards and the running-bounds accumulator now go through tensor ops or an `export_module()` adapter that a traced graph can carry, with the same band choice, tolerance warnings and output values as before. `NodeTag.ONNX` now marks every one of them plus the 47 builtin nodes that already exported cleanly (65 total). `ShapeMorphology` and `HighContrastSelector` stay untagged; their docstrings say why.
+- `tests/node/test_onnx_export_contract.py` checks every `NodeTag.ONNX` node against ONNX Runtime from its registry contract defaults. `docs/deployment/onnx-span.md` documents the tag and how to make a node exportable.
+
 ## 0.21.0 - 2026-11-04
 
 - Bumped the `unet` manifest pin v0.3.0 to v0.4.0: `DynUNet` tiles with cuvis-ai-core's `utils.tiling` (core 0.18.5 or later) and the plugin's own `cuvis_ai_unet.tiling` module is removed; the nodes and their ports are unchanged.

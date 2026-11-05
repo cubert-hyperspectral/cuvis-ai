@@ -696,7 +696,7 @@ class DistinctLabelCount(Node):
     """
 
     _category = NodeCategory.METRIC
-    _tags = frozenset({NodeTag.EVALUATION, NodeTag.INFERENCE, NodeTag.MASK})
+    _tags = frozenset({NodeTag.ONNX, NodeTag.EVALUATION, NodeTag.INFERENCE, NodeTag.MASK})
     EXECUTION_STAGES = {ExecutionStage.ALWAYS}
 
     INPUT_SPECS = {
