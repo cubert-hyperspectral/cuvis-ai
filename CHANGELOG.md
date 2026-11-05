@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.22.0 - 2026-11-05
 
 - `ExportedSpan(backend="tensorrt")` runs the exported span through a TensorRT engine instead of ONNX Runtime: the engine is found or built at `prepare_inference()`, keyed by the sidecar's fingerprint and the GPU, and cached under the cuvis-ai model cache (or `CUVIS_AI_TRT_ENGINE_DIR`) for reuse across runs. Needs a CUDA device and the TensorRT Python package matching torch's CUDA build; the ONNX Runtime backend is unchanged. See `docs/deployment/onnx-span.md`.
 - `tests/node/test_onnx_export_contract.py` writes a per-node JSON line (name, outcome, max abs diff, seconds) when `CUVIS_ONNX_CONTRACT_REPORT` names a file, and `.github/workflows/onnx_export_sweep.yml` runs the sweep weekly (and on demand), turning the report into the job summary and uploading it as an artifact.
@@ -8,6 +8,8 @@
 - `compare-deploy` (`scripts/compare_deploy.py`) checks a deploy folder against its canonical pipeline on real frames: per exported-span output port the max abs diff against the canonical node, pixel decisions differing when a decider sits downstream, and the per-frame median time for each pipeline. Frames come from `--frame` (`.npz` files) or a data module (`--data-module` / `--data-arg`, the way `export-pipeline` takes them); the canonical node defaults to the one the deploy yaml's sidecar names. Prints a short table and writes the full report as json.
 - The wavelength-lookup selectors (`NDVISelector`, `NDWISelector`, `NBRSelector`, `GNDVISelector`, `NDRESelector`, `EVISelector`, `EVI2Selector`, `SAVISelector`, `MSAVISelector`, `CIRedEdgeSelector`, `MCARISelector`, `PRISelector`, `CIRSelector`, `FixedWavelengthSelector`), `CIETristimulusRGBSelector`, `CameraEmulationFalseRGBSelector`, `MinMaxNormalizer` and `PercentileNormalizer` export with the dynamo exporter: band resolution, the fitted-state guards and the running-bounds accumulator now go through tensor ops or an `export_module()` adapter that a traced graph can carry, with the same band choice, tolerance warnings and output values as before. `NodeTag.ONNX` now marks every one of them plus the 47 builtin nodes that already exported cleanly (65 total). `ShapeMorphology` and `HighContrastSelector` stay untagged; their docstrings say why.
 - `tests/node/test_onnx_export_contract.py` checks every `NodeTag.ONNX` node against ONNX Runtime from its registry contract defaults. `docs/deployment/onnx-span.md` documents the tag and how to make a node exportable.
+- Manifest pins: `dinomaly` v0.8.0 to v0.9.0 (export adapter, exact antialiased resize, image score top-k in rounds), `patchcore` v0.3.0 to v0.4.0 (exact nearest-coreset distance, export at the default tolerance), `unet` v0.4.0 to v0.5.0 (`DynUNet.export_module()` for untiled configurations), `adaclip` v0.5.1 to v0.6.0 (`semantic_fusion` and `integer_preprocess` hparams, export adapter). The `adaclip` manifest gains the `AdaCLIPSemanticFusion` node and the detector's `patch_tokens`, `image_feature` and `text_feature` outputs.
+- Requires cuvis-ai-core 0.20.0: `calibrate-thresholds` discovers plugin directories through the public `discover_plugins_dirs`, and a pipeline that connects two incompatible ports now answers `FAILED_PRECONDITION` over gRPC.
 
 ## 0.21.0 - 2026-11-04
 

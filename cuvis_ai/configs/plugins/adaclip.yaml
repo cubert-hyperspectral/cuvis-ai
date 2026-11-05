@@ -7,7 +7,7 @@
 name: adaclip
 # AdaCLIP-based anomaly detection with advanced band selection
 repo: "https://github.com/cubert-hyperspectral/cuvis-ai-adaclip.git"
-tag: "v0.5.1"
+tag: "v0.6.0"
 package_name: "cuvis-ai-adaclip"
 capabilities:
 - class_name: cuvis_ai_adaclip.node.adaclip_node.AdaCLIPDetector
@@ -41,6 +41,21 @@ capabilities:
       shape: [-1, -1]
       optional: true
       description: Image-level 2-channel score [B, 2] (softmaxed [normal, anomaly]). Only populated during training when training_aggregation=False.
+    patch_tokens:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: true
+      description: Projected patch tokens for every output layer, stacked as [B, num_layers, N, D] (N patches, D the text embedding width). At image_size=518 with the default backbone this is about 17 MB per frame in float32. Only populated when semantic_fusion=False; empty (1x1x1x1) tensor otherwise.
+    image_feature:
+      dtype: float32
+      shape: [-1, -1]
+      optional: true
+      description: Pooled and projected image feature [B, D], before the k-means semantic fusion. Only populated when semantic_fusion=False; empty (1x1) tensor otherwise.
+    text_feature:
+      dtype: float32
+      shape: [-1, -1, -1]
+      optional: true
+      description: Text embedding [1, D, 2] (normal, anomaly) shared across the image batch, in the shape AdaCLIP's visual_text_similarity expects. Only populated when semantic_fusion=False; empty (1x1x1) tensor otherwise.
   doc_summary: AdaCLIP zero-shot anomaly detector node (plugin version).
 - class_name: cuvis_ai_adaclip.node.losses.AdaCLIPFocalDiceLoss
   category: loss
@@ -74,6 +89,32 @@ capabilities:
       optional: false
       description: Combined focal + dice loss
   doc_summary: Combined Focal + Dice loss for AdaCLIP training.
+- class_name: cuvis_ai_adaclip.node.semantic_fusion.AdaCLIPSemanticFusion
+  category: model
+  tags: [anomaly, inference, torch]
+  input_specs:
+    patch_tokens:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Projected patch tokens [B, num_layers, N, D], from AdaCLIPDetector.
+    image_feature:
+      dtype: float32
+      shape: [-1, -1]
+      optional: false
+      description: Pooled and projected image feature [B, D], from AdaCLIPDetector.
+    text_feature:
+      dtype: float32
+      shape: [-1, -1, -1]
+      optional: false
+      description: Text embedding [1, D, 2] (normal, anomaly), from AdaCLIPDetector.
+  output_specs:
+    anomaly_score:
+      dtype: float32
+      shape: [-1]
+      optional: false
+      description: Image-level anomaly score [B], with the k-means fusion applied.
+  doc_summary: Fuses AdaCLIP's k-means hybrid semantic feature into the image score; pairs with AdaCLIPDetector run with semantic_fusion=False.
 weights:
 - name: adaclip_mvtec_colondb
   display_name: AdaCLIP head (MVTec AD, ColonDB)
