@@ -4,6 +4,7 @@
 
 - `lentils_dinomaly.ipynb` finds the dinomaly plugin manifest on Colab: `utils.resolve_default_config` takes the manifest packaged with cuvis-ai instead of building the path from the repository root, which is `/` when Colab fetches `utils.py` on its own. The Colab cells of `lentils_dinomaly` and `channel_selector_lentils` fetch `utils.py` from that commit.
 - The provisioning cells of `lentils_dinomaly`, `object_selection_point_expansion` and `object_tracking_passive` ask for a restart only when they installed or changed a package, as `channel_selector_lentils` does. Before, Colab printed "Installed N plugin(s) ... Restart the kernel" on every run: the data module's spec carries extras, so it is installed on every run.
+- docs.cuvis.ai keeps one docs folder per minor release (a patch release replaces its minor's docs; an older patch is refused), and the manual `docs-prune-patch-versions` workflow folds the old patch folders into symlinks to the newest version of each minor. The `mike` floor is 2.0.
 
 ## 0.22.4 - 2026-11-06
 

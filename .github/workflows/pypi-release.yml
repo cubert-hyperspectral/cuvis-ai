@@ -260,4 +260,4 @@ jobs:
         run: |
           echo "Documentation deployed to:"
           echo "https://docs.cuvis.ai/latest/"
-          echo "Version: ${{ steps.get_version.outputs.VERSION }}"
+          echo "Version: ${{ steps.get_version.outputs.VERSION }} (in its minor folder)"

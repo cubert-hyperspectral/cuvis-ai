@@ -1,13 +1,15 @@
 name: Deploy versioned docs to gh-pages
 description: >
-  mike deploy + set-default (local commits only), SEO post-process of
-  gh-pages (noindex outdated versions, outdated banner, robots.txt), single
-  push. Shared by the release workflow and the manual redeploy workflow so
-  the two never drift.
+  mike deploy into the release's minor folder X.Y, titled with the full
+  X.Y.Z, so a patch release replaces its minor's docs and an older patch than
+  the published one is refused; set-default (local commits only); SEO
+  post-process of gh-pages (noindex outdated versions, outdated banner,
+  robots.txt); single push. Shared by the release workflow and the manual
+  redeploy workflow so the two never drift.
 
 inputs:
   version:
-    description: "Version to deploy as `latest` (e.g. 0.17.0)"
+    description: "Release version X.Y.Z (e.g. 0.22.3), deployed into its minor folder X.Y as `latest`"
     required: true
 
 runs:
@@ -55,12 +57,29 @@ runs:
       # concurrency queue behind another deploy.
       run: git fetch origin gh-pages
 
+    - name: Refuse a patch older than the one published for its minor
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+      run: |
+        VERSIONS_JSON="$RUNNER_TEMP/gh-pages-versions.json"
+        # Only a gh-pages without versions.json (no docs yet) counts as empty;
+        # any other git failure fails the step instead of skipping the guard.
+        if git cat-file -e origin/gh-pages:versions.json 2>/dev/null; then
+          git show origin/gh-pages:versions.json > "$VERSIONS_JSON"
+        else
+          echo '[]' > "$VERSIONS_JSON"
+        fi
+        uv run python scripts/docs_versions.py check-deploy "$VERSION" --versions-json "$VERSIONS_JSON"
+
     - name: Build and commit docs with mike (no push yet)
       shell: bash
       env:
         VERSION: ${{ inputs.version }}
       run: |
-        uv run mike deploy --update-aliases "$VERSION" latest
+        # One folder per minor release: 0.22.3 replaces the 0.22 docs and
+        # shows as "0.22.3" in the version selector.
+        uv run mike deploy --update-aliases --title "$VERSION" "${VERSION%.*}" latest
         uv run mike set-default latest
 
     - name: Post-process gh-pages (noindex outdated versions, banner, robots.txt)
@@ -89,14 +108,23 @@ runs:
       env:
         VERSION: ${{ inputs.version }}
       run: |
-        if ! git show gh-pages:"$VERSION/index.html" | grep -qF 'rel="canonical" href="https://docs.cuvis.ai/latest/"'; then
-          echo "::error::$VERSION/index.html does not canonicalize to https://docs.cuvis.ai/latest/ -- check mkdocs.yml site_url and the mike canonical_version plugin option"
+        MINOR="${VERSION%.*}"
+        if ! git show gh-pages:"$MINOR/index.html" | grep -qF 'rel="canonical" href="https://docs.cuvis.ai/latest/"'; then
+          echo "::error::$MINOR/index.html does not canonicalize to https://docs.cuvis.ai/latest/; check mkdocs.yml site_url and the mike canonical_version plugin option"
           exit 1
         fi
-        if git show gh-pages:"$VERSION/sitemap.xml" | grep -qF 'github.io'; then
-          echo "::error::$VERSION/sitemap.xml still references github.io -- check mkdocs.yml site_url"
+        if git show gh-pages:"$MINOR/sitemap.xml" | grep -qF 'github.io'; then
+          echo "::error::$MINOR/sitemap.xml still references github.io; check mkdocs.yml site_url"
           exit 1
         fi
+        git show gh-pages:versions.json | uv run python -c '
+        import json, sys
+        minor, version = sys.argv[1], sys.argv[2]
+        entry = next((e for e in json.load(sys.stdin) if e["version"] == minor), None)
+        if entry is None or entry["title"] != version or "latest" not in entry["aliases"]:
+            print(f"::error::versions.json entry for {minor} is {entry!r}; expected title {version} with alias latest")
+            sys.exit(1)
+        ' "$MINOR" "$VERSION"
 
     - name: Push gh-pages
       shell: bash

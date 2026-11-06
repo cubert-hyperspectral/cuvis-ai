@@ -4,12 +4,13 @@ name: Redeploy docs (manual)
 # pipeline. Use to refresh the `latest` docs without cutting a release — e.g.
 # after a docs-only fix. Shares its deploy steps with the deploy-docs job in
 # pypi-release.yml via .github/actions/deploy-docs so the two never drift.
+# The docs keep one folder per minor release: the version goes into X.Y.
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to (re)deploy as `latest` (e.g. 0.7.3)"
+        description: "Release version X.Y.Z to (re)deploy into its minor folder X.Y as `latest` (e.g. 0.22.3); a patch older than the published one is refused"
         required: true
         type: string
 

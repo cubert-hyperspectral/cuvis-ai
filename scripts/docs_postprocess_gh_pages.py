@@ -3,6 +3,11 @@ that is not the current `latest` alias, backfill the Material "outdated
 version" banner into pages built without one, strip non-HTML files that
 cannot carry a noindex tag, and write a root `robots.txt`.
 
+Versions are minor folders (`0.22`, one per minor release, titled with the
+full patch version) or the patch folders of older releases (`0.21.0`). Only
+the `version` entries of versions.json are walked; alias directories (`latest`
+and the symlinks that replace pruned patch folders) are never touched.
+
 Runs after `mike deploy` / `mike set-default` (both without `--push`) against
 a `git worktree` of the local `gh-pages` branch, before that worktree is
 committed and pushed. See `.github/actions/deploy-docs/action.yml`.
@@ -32,7 +37,18 @@ from pathlib import Path
 DEFAULT_ALIAS = "latest"
 DEFAULT_SITE_URL = "https://docs.cuvis.ai"
 
-VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
+VERSION_RE = re.compile(r"^\d+\.\d+(\.\d+)?$")
+
+
+def version_key(version: str) -> tuple[int, int, int, int]:
+    """Sort key for a `VERSION_RE` version: a minor folder `X.Y` holds the
+    newest patch of its minor, so it ranks above every `X.Y.Z` of that minor
+    and below the next minor."""
+    major, minor, *patch = (int(p) for p in version.split("."))
+    if not patch:
+        return (major, minor, 1, 0)
+    return (major, minor, 0, patch[0])
+
 
 # The exact tag we inject and key idempotency on. A foreign
 # `<meta name="robots" content="index,follow">` (if one ever appears) does
@@ -145,7 +161,7 @@ def _validate(root: Path, versions: list[dict], alias: str) -> tuple[list[str], 
     if len(current) > 1:
         raise PostprocessError(f"more than one version carries alias {alias!r}: {current!r}")
 
-    highest = max(all_versions, key=lambda v: tuple(int(p) for p in v.split(".")))
+    highest = max(all_versions, key=version_key)
     if current[0] != highest:
         raise PostprocessError(
             f"alias {alias!r} is on {current[0]!r}, but the highest version present is "
