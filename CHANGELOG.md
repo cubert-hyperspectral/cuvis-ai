@@ -3,6 +3,7 @@
 ## Unreleased
 
 - `object_selection_point_expansion.ipynb` puts its default positive point on the person walking left of the sign post in frame 11 (at 0.41, 0.51 of the frame) instead of the frame centre. The centre lies on the pavement beside the sign post, so SAM3 expanded the paved ground into the object mask and step B propagated that instead of a person.
+- `object_tracking_passive.ipynb` has an `SDK_ON_GPU` variable in its configuration cell that reaches all five of its cu3s data modules, as in `channel_selector_lentils`; `False` processes the cubes on the CPU and leaves the GPU to SAM3.
 
 ## 0.22.5 - 2026-11-06
 
