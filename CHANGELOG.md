@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.22.6 - 2026-11-06
+
+- cuvis-ai-core floor 0.20.2 (was 0.20.0); the lock moves to 0.20.2. `download-model` fetches the three `dinomaly_lentils_*` trained pipelines from the Hub revision whose yamls name `cuvis_ai.node.deciders.two_stage_decider.TwoStageBinaryDecider` (at the old revision they named the `cuvis_ai.deciders` path that 0.18.0 retired and failed to load), and counts them present after a download. `weights.index.json` is regenerated against it: the three rows point at `2b6d2164` with the new yaml sizes and sha256.
+- `cuvis_ai_builtin.yaml` and `cuvis_ai_onnx.yaml` pin v0.22.6.
+
 ## 0.22.5 - 2026-11-06
 
 - `lentils_dinomaly.ipynb` finds the dinomaly plugin manifest on Colab: `utils.resolve_default_config` takes the manifest packaged with cuvis-ai instead of building the path from the repository root, which is `/` when Colab fetches `utils.py` on its own. The Colab cells of `lentils_dinomaly` and `channel_selector_lentils` fetch `utils.py` from that commit.
