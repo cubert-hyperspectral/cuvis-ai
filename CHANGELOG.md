@@ -3,7 +3,7 @@
 ## 0.22.2 - 2026-11-06
 
 - `lentils_dinomaly`, `object_selection_point_expansion` and `object_tracking_passive` install the Cuvis SDK on Colab (Cubert's public 3.6.1 packages for the image's Ubuntu release) and `cuvis-ai>=0.22.1`, whose plugin pins install on Colab's Python 3.13. Their cu3s data module could not read a recording on Colab without the SDK.
-- The `huggingface-hub` floor is 1.27.0, as `cuvis-ai-core[hf]` requires (the lock moves from 1.12.0 to 1.33.0). Provisioning `dinomaly` v0.10.0 into an env synced from the old lock installed huggingface-hub 2.4.0, and `transformers` 5.16.1 then refused to import.
+- The `huggingface-hub` floor is 1.33.0 (`hf-xet` 1.8.0), above the 1.27.0 that `cuvis-ai-core[hf]` requires. Provisioning `dinomaly` v0.10.0 into an env synced from the old 1.12.0 lock installed huggingface-hub 2.4.0, and `transformers` 5.16.1 then refused to import.
 - `cuvis_ai_builtin.yaml` and `cuvis_ai_onnx.yaml` pin v0.22.2.
 
 ## 0.22.1 - 2026-11-05
