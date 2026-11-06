@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
+from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
@@ -136,9 +137,6 @@ def resolve_default_config() -> dict[str, Any]:
     today. RGB and CIR are attempted but skipped with a warning if their
     HF subfolders do not exist yet.
     """
-    use_cases = Path(__file__).resolve().parent
-    repo_root = use_cases.parent.parent
-
     methods: list[MethodSpec] = []
     for name, assets in METHOD_HF_ASSETS.items():
         try:
@@ -174,7 +172,9 @@ def resolve_default_config() -> dict[str, Any]:
     return {
         "cu3s_path": cu3s_path,
         "annotation_json_path": annotation_json_path,
-        "plugins_manifest": repo_root / "cuvis_ai" / "configs" / "plugins" / "dinomaly.yaml",
+        # The manifest packaged with cuvis-ai: on Colab this file is fetched on its own, outside
+        # a checkout.
+        "plugins_manifest": Path(str(files("cuvis_ai") / "configs" / "plugins" / "dinomaly.yaml")),
         "methods": methods,
     }
 
@@ -183,8 +183,8 @@ def assert_paths_exist(config: dict[str, Any]) -> None:
     """Verify locally-resolvable paths in *config* exist.
 
     HF-fetched paths are validated by ``hf_hub_download`` itself; we only
-    re-check the ones we resolve from the repo (the plugin manifest) and any
-    paths the caller may have overridden.
+    re-check the ones we resolve from the installed package (the plugin manifest)
+    and any paths the caller may have overridden.
     """
     required = [
         config["cu3s_path"],
