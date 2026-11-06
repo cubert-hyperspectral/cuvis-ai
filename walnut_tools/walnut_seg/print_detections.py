@@ -2,7 +2,7 @@
 
 Diagnoses cross-machine mask differences: an instance whose confidence sits at the segmenter's `threshold`
 (0.5 for the singles) appears on one machine and not on the other.
-  python print_detections.py walnut_seg_pca_full_cuvisnext_cube [--device cuda]
+  python print_detections.py walnut_seg_rgb_v2_cuvisnext_cube [--device cuda]
 """
 
 import os

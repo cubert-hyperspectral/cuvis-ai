@@ -1,5 +1,11 @@
 # walnut SEG pipelines (consolidated into walnut_fo_stack)
 
+**Since 6 Nov 2026 three pipelines stay here:** `walnut_seg_ens_rgb_cir_mean_v2`, `walnut_seg_cir_v2` and
+`walnut_seg_rgb_v2` (the v2 models at their default precision), with `weights/` and `ref/`. The first pipelines below,
+the speed variants (`build_fast_pipelines.py` builds them again from the v2 pipelines), the two `_backup_*` folders
+and the PCA and SAM reference files are kept in the tag `backup/walnut-catalog-before-prune`. The tables below
+describe the full set; `STACK_SEG_PARITY.md`, `THOR_RUN_SEG.md` and `docs/` record it as it was.
+
 Self-contained in-pipeline RF-DETR walnut SHELL segmentation, packaged into this stack alongside the FO-anomaly
 pipelines so cuvis.next can pick **either** family from one place. Trained end-to-end in cuvis-ai (240-frame full
 set, native split + kernels-only negatives); details/metrics in `D:\walnuts\walnut_deploy_v2\RESULTS.md`.

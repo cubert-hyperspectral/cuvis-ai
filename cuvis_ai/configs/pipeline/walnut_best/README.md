@@ -1,7 +1,8 @@
 # walnut_best: the pipelines to load (5 Oct 2026)
 
-Six pipelines: both FO models plain, shell-aware and with the pixel cut. Everything else in `configs/pipeline/` stays
-where it was, for comparison only.
+Six pipelines: both FO models plain, shell-aware and with the pixel cut. Since 6 Nov 2026 the walnut catalog holds only
+the pipelines in use: this folder, `walnut_best_80ms_2026-10-05/smooth3/`, `walnut_final_robust_v2/`, `walnut_combo/`
+and `walnut_seg/` (each README lists its files). The tag `backup/walnut-catalog-before-prune` keeps the others.
 
 | file | model | mask | use |
 |---|---|---|---|

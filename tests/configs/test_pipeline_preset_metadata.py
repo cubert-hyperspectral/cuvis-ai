@@ -35,14 +35,6 @@ CUVISNEXT_PRESETS = {
     "wafer_thickness/wafer_thickness_pipeline_1000nm_cuvisnext_cube.yaml",
     "wafer_thickness/wafer_thickness_pipeline_300nm_cuvisnext_cube.yaml",
     "wafer_thickness/wafer_thickness_pipeline_500nm_cuvisnext_cube.yaml",
-    # Walnut deployment: the archived two-bank and ensemble presets stay in the app's default list.
-    "walnut_fo/_archive_v2/walnut_fo_ens_pc_ssft_cuvisnext_cube.yaml",
-    "walnut_fo/_archive_v2/walnut_fo_ens_pc_ssft_gated_cuvisnext_cube.yaml",
-    "walnut_fo/_archive_v2/walnut_fo_twobank_cir_cuvisnext_cube.yaml",
-    "walnut_fo/_archive_v2/walnut_fo_twobank_cir_gated_cuvisnext_cube.yaml",
-    "walnut_fo/_archive_v2/walnut_fo_twobank_featgated_cuvisnext_cube.yaml",
-    "walnut_fo/_archive_v2/walnut_fo_twobank_rgb_cuvisnext_cube.yaml",
-    "walnut_fo/_archive_v2/walnut_fo_twobank_rgb_gated_cuvisnext_cube.yaml",
 }
 # Kept beside ``anomaly``: core's discovery filters by exact tag, so removing it would empty
 # existing ``filter_tag="anomaly_detection"`` queries.

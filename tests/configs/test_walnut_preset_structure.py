@@ -69,7 +69,7 @@ def _problems(path: Path) -> list[str]:
 
 
 def test_the_walnut_catalog_is_there():
-    assert len(PRESETS) >= 132
+    assert len(PRESETS) >= 14
 
 
 @pytest.mark.parametrize("path", PRESETS, ids=lambda p: p.relative_to(PIPELINES).as_posix())
