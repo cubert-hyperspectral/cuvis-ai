@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `object_selection_point_expansion.ipynb` puts its default positive point on the person walking left of the sign post in frame 11 (at 0.41, 0.51 of the frame) instead of the frame centre. The centre lies on the pavement beside the sign post, so SAM3 expanded the paved ground into the object mask and step B propagated that instead of a person.
+
 ## 0.22.5 - 2026-11-06
 
 - `lentils_dinomaly.ipynb` finds the dinomaly plugin manifest on Colab: `utils.resolve_default_config` takes the manifest packaged with cuvis-ai instead of building the path from the repository root, which is `/` when Colab fetches `utils.py` on its own. The Colab cells of `lentils_dinomaly` and `channel_selector_lentils` fetch `utils.py` from that commit.
