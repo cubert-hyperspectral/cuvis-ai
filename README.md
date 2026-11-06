@@ -27,9 +27,9 @@ Cuvis.AI is split across three repositories:
 
 | Repository | Role |
 |---|---|
-| [cuvis-ai-core](https://github.com/cubert-hyperspectral/cuvis-ai-core) | Framework — base `Node` class, pipeline orchestration, two-phase training, gRPC services, plugin system |
+| [cuvis-ai-core](https://github.com/cubert-hyperspectral/cuvis-ai-core) | Framework: base `Node` class, pipeline orchestration, two-phase training, gRPC services, plugin system |
 | [cuvis-ai-schemas](https://github.com/cubert-hyperspectral/cuvis-ai-schemas) | Shared Protobuf / gRPC schema definitions and generated types |
-| **cuvis-ai** (this repo) | Catalog — 40+ domain-specific nodes for anomaly detection, preprocessing, band selection, and more |
+| **cuvis-ai** (this repo) | Catalog: 160+ built-in nodes for anomaly detection, preprocessing, band selection, and more |
 
 Data I/O lives in the [cuvis-ai-dataloader](https://github.com/cubert-hyperspectral/cuvis-ai-dataloader) plugin: pluggable hyperspectral DataModules (cu3s + COCO, TIFF + paired PNG). It owns the Cuvis SDK dependency, so install it there if you need `.cu3s` / `.cu3` reads.
 

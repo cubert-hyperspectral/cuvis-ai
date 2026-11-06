@@ -310,14 +310,22 @@ capabilities:
   kind: data_module
   data_module_name: metal_scrap
   extras: [tiff]
+  category: source
+  doc_summary: Four TIFF datasets with paired PNG labels and a dataset-level train/val/test split.
 - class_name: cuvis_ai_inspecscrap.data.metal_scrap_patch_datamodule.MetalScrapPatchDataModule
   kind: data_module
   data_module_name: metal_scrap_patch
   extras: [tiff]
+  category: source
+  doc_summary: Cached center-pixel patches served as batch_size-wide cube and targets batches.
 - class_name: cuvis_ai_inspecscrap.data.dense_patch_datamodule.DensePatchDataModule
   kind: data_module
   data_module_name: metal_scrap_dense_patch
   extras: [tiff]
+  category: source
+  doc_summary: Every labelled pixel of the selected frames, served lazily as batch_size-wide patch batches.
 - class_name: cuvis_ai_inspecscrap.data.montage_column_datamodule.MontageColumnDataModule
   kind: data_module
   data_module_name: metal_scrap_montage_columns
+  category: source
+  doc_summary: Pre-computed montage columns, one per item (a batch holds all columns, in order).

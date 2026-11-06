@@ -7,12 +7,27 @@ must dedupe against the live built-in import.
 """
 
 import importlib.util
+import inspect
 import sys
+from importlib import import_module
 from pathlib import Path
 
 import pytest
+from cuvis_ai_schemas.plugin import load_plugin_manifest
+
+from cuvis_ai_core.data.public_datasets import PublicDatasets
 
 pytest.importorskip("mkdocs_gen_files", reason="docs extra not installed")
+
+# Plugin classes that share a short name with a built-in but are separate implementations, so
+# the catalog lists both.
+NAME_ONLY_MATCHES = {"DiceLoss", "CrossEntropyLoss", "ClassMapAccumulator", "PatchSampler"}
+
+
+def _class_of(dotted_path: str) -> type:
+    module_path, name = dotted_path.rsplit(".", 1)
+    return getattr(import_module(module_path), name)
+
 
 SCRIPT = Path(__file__).parent.parent.parent / "scripts" / "generate_node_catalog.py"
 
@@ -85,8 +100,8 @@ def test_browse_url_normalizes_git_remotes(catalog):
 def test_plugin_collection_counts_have_a_floor(catalog):
     """Pin count floors so a silent regression to a handful of nodes fails.
 
-    Current manifest-driven collection is ~39 plugin nodes across 11 plugins,
-    7 data modules, and ~147 built-in mirror entries. These are floors, not
+    Current manifest-driven collection is ~70 plugin nodes across 16 plugins,
+    8 data modules, and ~165 built-in mirror entries. These are floors, not
     exact counts, so adding or dropping a plugin does not break the test while a
     collapse back to "0 from plugins" (the bug this generator fixes) does.
     """
@@ -218,3 +233,65 @@ def test_plugin_card_renders_source_and_ports(catalog):
     dm_html = catalog._render_card(cu3s)
     assert 'data-source="data-module"' in dm_html
     assert "datamodule-pill" in dm_html
+
+
+def test_builtin_entries_are_public_and_concrete(catalog):
+    """Private helpers and abstract bases are walked but never listed."""
+    entries, walked = catalog.collect_builtin_nodes()
+    assert "RXGlobal" in {e.name for e in entries}
+    assert not [e.name for e in entries if e.name.startswith("_")]
+    assert not [e.name for e in entries if inspect.isabstract(_class_of(e.dotted_path))]
+    listed = {e.dotted_path for e in entries}
+    assert listed < walked, "the walk should also report the skipped base classes"
+
+
+def test_abstract_mirror_bases_do_not_return_as_plugin_rows(catalog):
+    """The built-in mirror is deduped against every walked class, not just the listed ones."""
+    entries, walked = catalog.collect_builtin_nodes()
+    plugins = catalog.collect_plugin_nodes(exclude_dotted=walked)
+    assert not [e.dotted_path for e in plugins if e.plugin_name == "cuvis_ai_builtin"]
+
+    mirror = load_plugin_manifest(catalog.PLUGIN_MANIFEST_DIR / "cuvis_ai_builtin.yaml")
+    concrete = {
+        cap.class_name
+        for cap in mirror.capabilities
+        if not inspect.isabstract(_class_of(cap.class_name))
+    }
+    missing = sorted(concrete - {e.dotted_path for e in entries})
+    assert not missing, f"concrete built-ins dropped from the catalog: {missing}"
+
+
+def test_superseded_plugin_copies_are_hidden(catalog):
+    """A plugin class that migrate-plugin-nodes maps to a built-in gets no row of its own."""
+    assert catalog.SUPERSEDED, "the migrate-plugin-nodes map came back empty"
+    entries = catalog.collect_entries()
+    assert not [e.dotted_path for e in entries if e.dotted_path in catalog.SUPERSEDED]
+
+    builtin_names = {e.name for e in entries if not e.is_plugin}
+    twins = {
+        e.name for e in entries if e.is_plugin and e.kind == "node" and e.name in builtin_names
+    }
+    assert not sorted(twins - NAME_ONLY_MATCHES), "plugin rows duplicate a built-in"
+
+
+def test_every_plugin_entry_has_a_summary(catalog):
+    entries = catalog.collect_entries()
+    missing = [e.dotted_path for e in entries if e.is_plugin and not e.summary.strip()]
+    assert not missing, f"catalog rows without a description: {missing}"
+
+
+def test_catalogs_overview_counts_and_text(catalog):
+    entries = catalog.collect_entries()
+    page = catalog._render_catalogs_overview(entries)
+
+    nodes = [e for e in entries if e.kind == "node"]
+    plugins = {e.plugin_name for e in entries if e.is_plugin}
+    assert f"**{len(nodes)} nodes**" in page
+    assert f"{sum(1 for e in nodes if not e.is_plugin)} built-in" in page
+    assert f"**{len(plugins)} plugins**" in page
+    assert f"**{len(PublicDatasets.list_specs())} datasets**" in page
+    assert "—" not in page and "→" not in page
+
+    intro = catalog._render_index_page(entries).split('<div class="node-filter">')[0]
+    assert "migrate-plugin-nodes" in intro
+    assert "—" not in intro and "→" not in intro
