@@ -1,0 +1,92 @@
+name: Prune docs patch versions (manual)
+
+# The docs keep one folder per minor release (see .github/actions/deploy-docs).
+# Releases before that deployed every patch into its own folder. This workflow
+# keeps the newest version of each minor on gh-pages and turns every other patch
+# of that minor into a symlink alias of it, so old URLs keep resolving.
+#
+# dry_run (the default) prints the plan, applies it to the runner's local
+# gh-pages branch, runs the checks and prints versions.json before and after,
+# but pushes nothing. Only dry_run=false pushes. Idempotent: once every minor
+# has one folder there is nothing to prune.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Plan, apply and verify on the runner only; push nothing"
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: docs-deploy
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    name: Prune docs patch versions on gh-pages
+    runs-on: ubuntu-latest
+    container:
+      image: cubertgmbh/cuvis_pyil:3.5.0-ubuntu24.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0  # Full history for mike
+
+      - name: Mark workspace as safe for Git versioning
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install documentation dependencies
+        run: uv sync --locked --extra docs
+
+      - name: Configure git for deployment
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch gh-pages
+        run: git fetch origin gh-pages
+
+      - name: Show the plan
+        run: |
+          git show origin/gh-pages:versions.json > "$RUNNER_TEMP/versions-before.json"
+          uv run python scripts/docs_versions.py prune --versions-json "$RUNNER_TEMP/versions-before.json"
+
+      - name: Prune on the local gh-pages branch (no push)
+        run: uv run python scripts/docs_versions.py prune --versions-json "$RUNNER_TEMP/versions-before.json" --apply
+
+      - name: Check the pruned tree with the post-process
+        run: |
+          WORKTREE="$RUNNER_TEMP/gh-pages-wt"
+          git worktree add "$WORKTREE" gh-pages
+          uv run python scripts/docs_postprocess_gh_pages.py --check "$WORKTREE"
+
+      - name: Remove the check worktree
+        if: always()
+        run: git worktree remove --force "$RUNNER_TEMP/gh-pages-wt" 2>/dev/null || true
+
+      - name: Show the result
+        run: |
+          echo "versions.json before:"
+          cat "$RUNNER_TEMP/versions-before.json"
+          echo "versions.json after:"
+          git show gh-pages:versions.json
+          git diff --stat origin/gh-pages gh-pages | tail -1
+
+      - name: Push gh-pages
+        if: ${{ !inputs.dry_run }}
+        run: git push origin gh-pages

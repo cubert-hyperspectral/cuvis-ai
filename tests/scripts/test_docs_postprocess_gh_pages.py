@@ -375,6 +375,96 @@ class TestValidation:
             pp.postprocess(gh_pages, alias=ALIAS, site_url=SITE_URL)
 
 
+@pytest.fixture
+def minor_gh_pages(tmp_path: Path) -> Path:
+    """gh-pages after the switch to one folder per minor: the `0.22` folder
+    (titled with its full patch version) carries latest, next to the old
+    `0.22.2` patch folder and the kept `0.21.0` of an older minor."""
+    root = tmp_path / "gh-pages"
+    root.mkdir()
+    (root / "CNAME").write_text("docs.cuvis.ai", encoding="utf-8")
+    (root / ".nojekyll").write_text("", encoding="utf-8")
+    for version in ("0.22", "0.22.2", "0.21.0"):
+        _write_version(root, version, _default_pages())
+    _write_versions_json(
+        root,
+        [
+            {"version": "0.22.2", "title": "0.22.2", "aliases": []},
+            {"version": "0.22", "title": "0.22.3", "aliases": ["latest"]},
+            {"version": "0.21.0", "title": "0.21.0", "aliases": []},
+        ],
+    )
+    _link_or_copy_latest(root, "0.22")
+    return root
+
+
+class TestMinorFolders:
+    def test_minor_folder_with_latest_stays_indexable(self, minor_gh_pages: Path) -> None:
+        pp.postprocess(minor_gh_pages, alias=ALIAS, site_url=SITE_URL)
+
+        assert pp.NOINDEX_TAG not in (minor_gh_pages / "0.22" / "index.html").read_bytes()
+        for outdated in ("0.22.2", "0.21.0"):
+            assert pp.NOINDEX_TAG in (minor_gh_pages / outdated / "index.html").read_bytes()
+            assert not (minor_gh_pages / outdated / "sitemap.xml").exists()
+
+    def test_minor_folder_outranks_patch_folders_of_its_minor(self) -> None:
+        assert pp.version_key("0.22") > pp.version_key("0.22.3")
+        assert pp.version_key("0.22") < pp.version_key("0.23.0")
+        assert pp.version_key("0.13.10") > pp.version_key("0.13.9")
+
+    def test_refuses_latest_on_a_lower_minor_folder(self, minor_gh_pages: Path) -> None:
+        _write_version(minor_gh_pages, "0.23.0", _default_pages())
+        _write_versions_json(
+            minor_gh_pages,
+            [
+                {"version": "0.23.0", "title": "0.23.0", "aliases": []},
+                {"version": "0.22", "title": "0.22.3", "aliases": ["latest"]},
+            ],
+        )
+        with pytest.raises(SystemExit):
+            pp.postprocess(minor_gh_pages, alias=ALIAS, site_url=SITE_URL)
+
+    @pytest.mark.parametrize("bad", ["0.22.x", "v0.22", "0", "0.22.3.1"])
+    def test_refuses_invalid_version_entries(self, minor_gh_pages: Path, bad: str) -> None:
+        _write_version(minor_gh_pages, bad, _default_pages())
+        _write_versions_json(
+            minor_gh_pages,
+            [
+                {"version": "0.22", "title": "0.22.3", "aliases": ["latest"]},
+                {"version": bad, "title": bad, "aliases": []},
+            ],
+        )
+        with pytest.raises(SystemExit):
+            pp.postprocess(minor_gh_pages, alias=ALIAS, site_url=SITE_URL)
+
+    def test_symlinked_patch_alias_is_never_walked(self, minor_gh_pages: Path) -> None:
+        # The prune turns each deleted patch into a symlink alias of the kept
+        # version. Its files are the kept version's files, processed once.
+        alias_dir = minor_gh_pages / "0.21.1"
+        try:
+            os.symlink("0.21.0", alias_dir, target_is_directory=True)
+        except OSError:
+            pytest.skip("symlinks not supported/permitted on this platform")
+        _write_versions_json(
+            minor_gh_pages,
+            [
+                {"version": "0.22", "title": "0.22.3", "aliases": ["latest"]},
+                {"version": "0.21.0", "title": "0.21.0", "aliases": ["0.21.1"]},
+            ],
+        )
+
+        pp.postprocess(minor_gh_pages, alias=ALIAS, site_url=SITE_URL)
+
+        assert alias_dir.is_symlink()
+        page = (minor_gh_pages / "0.21.0" / "index.html").read_bytes()
+        assert page.count(pp.NOINDEX_TAG) == 1
+        assert page.count(pp.BANNER_MARKER) == 1
+        # served through the alias, the kept version's pages still resolve
+        assert (alias_dir / "concepts" / "node" / "index.html").read_bytes() == (
+            minor_gh_pages / "0.21.0" / "concepts" / "node" / "index.html"
+        ).read_bytes()
+
+
 class TestCheckMode:
     def test_check_mode_reports_without_writing(self, gh_pages: Path) -> None:
         before = _all_html_bytes(gh_pages)
