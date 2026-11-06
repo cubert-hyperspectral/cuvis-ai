@@ -169,8 +169,7 @@ def format_plan(versions: list[dict], groups: list[PruneGroup]) -> str:
 
 
 def _load(path: Path) -> list[dict]:
-    data: list[dict] = json.loads(path.read_text(encoding="utf-8"))
-    return data
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 @click.group()
