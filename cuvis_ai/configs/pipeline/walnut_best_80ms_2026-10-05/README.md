@@ -1,5 +1,9 @@
 # walnut_best_80ms_2026-10-05: walnut_best calibrated for the 5 Oct live setup (80 ms)
 
+**Since 6 Nov 2026 three files of `smooth3/` stay here:** `walnut_best_original_shellaware_smooth3_px135` (the stand
+pipeline) and `walnut_best_original_shellaware_smooth3` / `walnut_best_refit_shellaware_smooth3` (the fair kit's
+templates). The other pipelines below are kept in the tag `backup/walnut-catalog-before-prune`.
+
 The six walnut_best pipelines with the stand thresholds of 5 Oct 2026: camera at 80 ms, white and dark taken that
 morning at 80 ms, clean turn `Cubert/2026_10_05/10-55-26/Auto_clean_without_fake_80ms_005.cu3s` (93 frames: real
 walnuts, shells and kernels only; corner covered). Rule: threshold = 1.10 x the highest clean frame score; mask

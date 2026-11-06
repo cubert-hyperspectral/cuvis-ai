@@ -1,5 +1,9 @@
 # walnut_final_robust_v2: the robust FO mask without the flicker filter (4 Oct 2026, for testing)
 
+**Since 6 Nov 2026 only `walnut_final_refit_1oct_robust_v2_cuvisnext_cube.yaml` stays here** (the refit stand
+pipeline). The other seven files below and their sources in `walnut_final/` are kept in the tag
+`backup/walnut-catalog-before-prune`.
+
 Every pipeline here is a copy of the one with the same name in `walnut_final/`, with one node after the gate:
 **FOBlobFilter** (MaskBlobFilter). A mark stays only if it has at least 100 pixels and at least 16 of them are not
 empty belt (spectrum more than 6 degrees from the frame's own belt). Compared with the 2 Oct robust presets (since removed):

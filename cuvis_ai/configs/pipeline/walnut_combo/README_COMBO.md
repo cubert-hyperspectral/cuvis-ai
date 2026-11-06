@@ -1,5 +1,11 @@
 # walnut combined pipelines: FO anomaly + SEG shells on one cube (cuvis.next cube mode)
 
+**Since 6 Nov 2026 one file stays here:**
+`composite/smooth3/walnut_combo_gated_fp16trt_trt16_composite_smooth3_cuvisnext_cube.yaml`, the earlier fair pipeline
+(number 5 in the stand guide). The other combined pipelines, their FO sources in `walnut_fo/` and the scripts of
+`walnut_tools/walnut_combo/` are kept in the tag `backup/walnut-catalog-before-prune`; the tables below describe that
+set.
+
 One pipeline runs the foreign-object (FO) anomaly detector and the shell segmentation (SEG) ensemble on the same cube.
 The FO output and the SEG outputs are separately selectable in cuvis.next's Displayed Output. Built by `build_combo.py`
 from the deployed standalone pipelines, and checked by `check_combo.py` and `bench_combo.py`.
