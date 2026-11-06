@@ -121,6 +121,25 @@ class TestPlanPrune:
         with pytest.raises(dv.DocsVersionsError, match="0.22.1"):
             dv.plan_prune(entries)
 
+    def test_moves_the_patch_aliases_of_a_pruned_keeper(self) -> None:
+        # A prune before the first minor-folder deploy left 0.22.0 to 0.22.2 on 0.22.3.
+        entries = [
+            _minor_entry("0.22", "0.22.4", ["latest"]),
+            _minor_entry("0.22.3", "0.22.3", ["0.22.2", "0.22.0", "0.22.1"]),
+        ]
+
+        groups = dv.plan_prune(entries)
+
+        assert groups == [dv.PruneGroup("0.22", ("0.22.3",), ("0.22.0", "0.22.1", "0.22.2"))]
+        assert "0.22.0" in dv.format_plan(entries, groups)
+
+    @pytest.mark.parametrize("alias", ["stable", "0.21.0", "0.22"])
+    def test_refuses_to_move_an_alias_that_is_not_a_patch_of_its_minor(self, alias: str) -> None:
+        entries = [_minor_entry("0.22", "0.22.4"), _minor_entry("0.22.3", "0.22.3", [alias])]
+
+        with pytest.raises(dv.DocsVersionsError, match=alias):
+            dv.plan_prune(entries)
+
     def test_refuses_invalid_entries(self) -> None:
         with pytest.raises(dv.DocsVersionsError):
             dv.plan_prune(_entries(["0.22.2", "dev"]))
@@ -154,6 +173,14 @@ class TestApplyPlan:
         ]
         assert not any("--push" in call or "-p" in call for call in mike_calls)
 
+    def test_moved_aliases_follow_the_pruned_names(self, mike_calls: list) -> None:
+        dv.apply_plan([dv.PruneGroup("0.22", ("0.22.3",), ("0.22.0", "0.22.1"))])
+
+        assert mike_calls == [
+            ["mike", "delete", "0.22.3"],
+            ["mike", "alias", "--alias-type", "symlink", "0.22", "0.22.3", "0.22.0", "0.22.1"],
+        ]
+
     def test_empty_plan_runs_nothing(self, mike_calls: list) -> None:
         dv.apply_plan([])
 
@@ -185,6 +212,12 @@ class TestVerify:
     def test_missing_alias_fails(self) -> None:
         with pytest.raises(dv.DocsVersionsError, match="0.22.1"):
             dv.verify([_minor_entry("0.22", "0.22.3", ["latest", "0.22.0"])], self.GROUPS)
+
+    def test_missing_moved_alias_fails(self) -> None:
+        groups = [dv.PruneGroup("0.22", ("0.22.3",), ("0.22.0",))]
+
+        with pytest.raises(dv.DocsVersionsError, match="0.22.0"):
+            dv.verify([_minor_entry("0.22", "0.22.4", ["latest", "0.22.3"])], groups)
 
 
 class TestCheckSymlinkAliases:
@@ -222,6 +255,14 @@ class TestCheckSymlinkAliases:
 
         with pytest.raises(dv.DocsVersionsError, match="0.13.1"):
             dv.check_symlink_aliases(self.GROUPS, "gh-pages")
+
+    def test_moved_aliases_are_checked_too(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        groups = [dv.PruneGroup("0.13.8", ("0.13.7",), ("0.13.0",))]
+        tree = {"0.13.7": ("120000", "0.13.8"), "0.13.0": ("040000", "")}
+        monkeypatch.setattr(dv, "_run", self._git(tree))
+
+        with pytest.raises(dv.DocsVersionsError, match="0.13.0"):
+            dv.check_symlink_aliases(groups, "gh-pages")
 
 
 class TestCli:

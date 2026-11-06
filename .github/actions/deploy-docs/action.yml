@@ -63,7 +63,13 @@ runs:
         VERSION: ${{ inputs.version }}
       run: |
         VERSIONS_JSON="$RUNNER_TEMP/gh-pages-versions.json"
-        git show origin/gh-pages:versions.json > "$VERSIONS_JSON" 2>/dev/null || echo '[]' > "$VERSIONS_JSON"
+        # Only a gh-pages without versions.json (no docs yet) counts as empty;
+        # any other git failure fails the step instead of skipping the guard.
+        if git cat-file -e origin/gh-pages:versions.json 2>/dev/null; then
+          git show origin/gh-pages:versions.json > "$VERSIONS_JSON"
+        else
+          echo '[]' > "$VERSIONS_JSON"
+        fi
         uv run python scripts/docs_versions.py check-deploy "$VERSION" --versions-json "$VERSIONS_JSON"
 
     - name: Build and commit docs with mike (no push yet)

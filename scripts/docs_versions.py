@@ -35,6 +35,8 @@ import click
 from docs_postprocess_gh_pages import VERSION_RE, version_key
 
 PATCH_RE = re.compile(r"^\d+\.\d+\.\d+$")
+# mike's branch: the mike plugin in mkdocs.yml keeps its default, gh-pages.
+BRANCH = "gh-pages"
 
 
 class DocsVersionsError(Exception):
@@ -43,10 +45,17 @@ class DocsVersionsError(Exception):
 
 @dataclass(frozen=True)
 class PruneGroup:
-    """One minor: the version that stays and the patch folders that become its aliases."""
+    """One minor: the version that stays, the patch folders that become its aliases,
+    and the patch aliases an earlier prune left on a pruned version, which move to it."""
 
     keeper: str
     pruned: tuple[str, ...]
+    moved: tuple[str, ...] = ()
+
+    @property
+    def aliased(self) -> tuple[str, ...]:
+        """Every name that ends up as a symlink alias of the keeper."""
+        return self.pruned + self.moved
 
 
 def _run(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess:
@@ -94,24 +103,37 @@ def check_deploy(versions: list[dict], version: str) -> None:
 
 
 def plan_prune(versions: list[dict]) -> list[PruneGroup]:
-    """Keep the newest version of each minor; every other one of that minor is pruned."""
+    """Keep the newest version of each minor; every other one of that minor is pruned.
+
+    A pruned version may carry the patch aliases of an earlier prune (a prune that
+    ran before the minor's first folder deploy); those move to the new keeper. Any
+    other alias on a pruned version (`latest` among them) is refused.
+    """
     by_minor: dict[str, list[str]] = defaultdict(list)
     for name in _checked_versions(versions):
         by_minor[_minor(name)].append(name)
     aliases = {entry["version"]: entry.get("aliases", []) for entry in versions}
 
     groups = []
-    for names in by_minor.values():
+    for minor, names in by_minor.items():
         keeper, *pruned = sorted(names, key=version_key, reverse=True)
         if not pruned:
             continue
+        moved = []
         for name in pruned:
-            if aliases[name]:
+            foreign = [a for a in aliases[name] if not PATCH_RE.match(a) or _minor(a) != minor]
+            if foreign:
                 raise DocsVersionsError(
-                    f"{name} carries aliases {aliases[name]!r} but would be pruned "
-                    f"in favour of {keeper}"
+                    f"{name} carries aliases {foreign!r} but would be pruned in favour of {keeper}"
                 )
-        groups.append(PruneGroup(keeper, tuple(sorted(pruned, key=version_key))))
+            moved.extend(aliases[name])
+        groups.append(
+            PruneGroup(
+                keeper,
+                tuple(sorted(pruned, key=version_key)),
+                tuple(sorted(moved, key=version_key)),
+            )
+        )
     return sorted(groups, key=lambda g: version_key(g.keeper), reverse=True)
 
 
@@ -121,7 +143,7 @@ def apply_plan(groups: list[PruneGroup]) -> None:
         return
     _run(["mike", "delete", *(name for g in groups for name in g.pruned)])
     for g in groups:
-        _run(["mike", "alias", "--alias-type", "symlink", g.keeper, *g.pruned])
+        _run(["mike", "alias", "--alias-type", "symlink", g.keeper, *g.aliased])
 
 
 def verify(versions: list[dict], groups: list[PruneGroup]) -> None:
@@ -134,7 +156,7 @@ def verify(versions: list[dict], groups: list[PruneGroup]) -> None:
         raise DocsVersionsError(f"more than one version per minor: {doubled!r}")
     aliases = {entry["version"]: set(entry.get("aliases", [])) for entry in versions}
     for g in groups:
-        missing = set(g.pruned) - aliases.get(g.keeper, set())
+        missing = set(g.aliased) - aliases.get(g.keeper, set())
         if missing:
             raise DocsVersionsError(f"{g.keeper} lacks the aliases {sorted(missing)!r}")
 
@@ -142,7 +164,7 @@ def verify(versions: list[dict], groups: list[PruneGroup]) -> None:
 def check_symlink_aliases(groups: list[PruneGroup], branch: str) -> None:
     """Every pruned name on `branch` is a git symlink to its keeper's folder."""
     for g in groups:
-        for name in g.pruned:
+        for name in g.aliased:
             listed = _run(["git", "ls-tree", branch, "--", name], capture_output=True, text=True)
             mode = listed.stdout.split(maxsplit=1)[0] if listed.stdout else ""
             target = ""
@@ -159,7 +181,11 @@ def check_symlink_aliases(groups: list[PruneGroup], branch: str) -> None:
 def format_plan(versions: list[dict], groups: list[PruneGroup]) -> str:
     if not groups:
         return f"nothing to prune: {len(versions)} versions, one per minor"
-    lines = [f"keep {g.keeper}; delete and alias to it: {' '.join(g.pruned)}" for g in groups]
+    lines = [
+        f"keep {g.keeper}; delete and alias to it: {' '.join(g.pruned)}"
+        + (f"; move its aliases: {' '.join(g.moved)}" if g.moved else "")
+        for g in groups
+    ]
     pruned = sum(len(g.pruned) for g in groups)
     lines.append(
         f"{pruned} patch folders to delete in {len(groups)} minors; "
@@ -201,9 +227,8 @@ def check_deploy_command(version: str, versions_json: Path) -> None:
     required=True,
     help="versions.json of the gh-pages branch before the prune.",
 )
-@click.option("--apply", is_flag=True, help="Run mike on the local branch (never pushes).")
-@click.option("--branch", default="gh-pages", show_default=True, help="Branch mike writes.")
-def prune_command(versions_json: Path, apply: bool, branch: str) -> None:
+@click.option("--apply", is_flag=True, help="Run mike on the local gh-pages (never pushes).")
+def prune_command(versions_json: Path, apply: bool) -> None:
     """Print the prune plan; with --apply, run it and verify the branch."""
     versions = _load(versions_json)
     try:
@@ -212,16 +237,16 @@ def prune_command(versions_json: Path, apply: bool, branch: str) -> None:
         if not apply or not groups:
             return
         apply_plan(groups)
-        shown = _run(["git", "show", f"{branch}:versions.json"], capture_output=True, text=True)
+        shown = _run(["git", "show", f"{BRANCH}:versions.json"], capture_output=True, text=True)
         after = json.loads(shown.stdout)
         verify(after, groups)
-        check_symlink_aliases(groups, branch)
+        check_symlink_aliases(groups, BRANCH)
     except DocsVersionsError as exc:
         raise click.ClickException(str(exc)) from exc
-    pruned = sum(len(g.pruned) for g in groups)
+    aliased = sum(len(g.aliased) for g in groups)
     click.echo(
-        f"verified: {len(after)} versions on {branch}, one per minor; "
-        f"{pruned} patch names are symlinks to their kept version"
+        f"verified: {len(after)} versions on {BRANCH}, one per minor; "
+        f"{aliased} patch names are symlinks to their kept version"
     )
 
 
