@@ -5,11 +5,11 @@
 multi-scale pipeline of the same tier (`walnut_fo_multiscale_gated<tier>`: SteerViT t1 + t2 feature banks -> `fuse`
 -> `gate`, node for node and threshold for threshold) plus, on the same cube:
 
-    cu3s_data.cube -> mix_grid (GridSubsample, every 4th pixel) -> mix_snv (SNVCorrection)
+    cu3s_data.cube -> mix_grid (GridSubsample, every 4th pixel) -> mix_snv (Standardize over the spectrum: SNV)
       -> mix_gmm (GaussianMixtureClusterer, 32 full-covariance components, per-pixel log-likelihood)
-      -> mix_up (ScoreUpsample to the cube, bilinear) -> mix_norm (ScoreRangeNormalizer, invert: the negative
+      -> mix_up (ScoreUpsample to the cube, bilinear) -> mix_norm (PercentileNormalizer, invert: the negative
          log-likelihood onto the 1-99 % range of the 34 clean VAL frames)
-    fuse -> ms_norm (ScoreRangeNormalizer onto the same frames' 1-99 % range of the multi-scale map)
+    fuse -> ms_norm (PercentileNormalizer onto the same frames' 1-99 % range of the multi-scale map)
     [ms_norm, mix_norm] -> fused (ScoreMapFusion softmin, beta 10) -> gate_fused (FrameScoreGate)
     [gate_fused, gate] -> display (ScoreMapFusion first);  [gate_fused, gate].decisions -> display_mask (DecisionFusion)
     fused -> fused_map, mix_norm -> mixture_map (one-input ScoreMapFusion taps: the ungated maps in Displayed Output)
@@ -26,12 +26,14 @@ options set TF32 around their own matmuls and restore it), not next to `import r
 
 State: the gated tier's .pt (identical for every tier) plus the mixture (`--gmm`, the experiment's
 runs/gmm_v1/gmm_snv_k32/fitted.pt: SNV spectra of the 200 v3 TRAIN frames, 400k pixels, seed 0) and the two
-normalisers (lo / hi = `--lohi`, the experiment's g4_checks.json `lohi_VAL`). One .pt for the family, hardlinked
-under the other tiers' names. The gates are stateless: `gate` keeps the tier's calibrated values; `gate_fused` gets
-`--fused-threshold` / `--fused-mask-threshold` until calibrate_live.py --pipeline gmm_or sets them per session.
+normalisers (running_min / running_max = `--lohi`, the experiment's g4_checks.json `lohi_VAL`). One .pt for the
+family, hardlinked under the other tiers' names. The gates are stateless: `gate` keeps the tier's calibrated values;
+`gate_fused` gets `--fused-threshold` / `--fused-mask-threshold` until calibrate_live.py --pipeline gmm_or sets them
+per session. The gated tier's yaml and .pt are on the cuvis-ai built-ins (a catalog from before them: run
+migrate-plugin-nodes over it first).
 
-Needs torch + PyYAML; with the plugins importable (cuvis-ai + cuvis-ai-patchcore >= the softmin / invert / spatial
-nodes) it also builds the new nodes from their hparams, loads their state and runs them on a random cube.
+Needs torch + PyYAML; with cuvis-ai importable (0.22.1 or later: every new node is a built-in) it also builds the
+new nodes from their hparams, loads their state and runs them on a random cube.
     python build_gmm_or.py --gmm <fitted.pt> --lohi <g4_checks.json> --out <dir> [--tiers ,_tf32,_fp16,_fp16trt]
 """
 
@@ -51,17 +53,20 @@ BASE = "walnut_fo_multiscale_gated"
 FAMILY = "walnut_fo_multiscale_gmm_or_gated"
 TIERS = ("", "_tf32", "_fp16", "_fp16trt")
 BETA = 10.0
-PATCHCORE = "cuvis_ai_patchcore.node."
+NODE = "cuvis_ai.node."
 NORM = {
     "n_channels": 1,
-    "low": 1.0,
-    "high": 99.0,
-    "floor": True,
+    "norm_mode": "statistical",
+    "statistical_fit": "pooled",
+    "quantile_low": 0.01,
+    "quantile_high": 0.99,
+    "clamp": "floor",
+    "eps": 1e-09,
     "fit_subsample": 4,
     "max_fit_values": 4000000,
     "seed": 0,
-    "eps": 1e-09,
-}  # norm_t1's hparams; lo / hi are set from the VAL maps, not fitted here
+    "invert": False,
+}  # norm_t1's hparams; running_min / running_max are set from the VAL maps, not fitted here
 # how the experiment fitted the mixture (inference needs only its buffers)
 MIXTURE = {
     "n_components": 32,
@@ -94,40 +99,44 @@ def spectral_nodes(
     """The new nodes before `gate` and after it, the fused gate a copy of `gate`'s hparams with its own values."""
     fused_hp = {**gate_hp, "threshold": thr, "mask_threshold": mask_thr}
     before = [
-        node("ms_norm", PATCHCORE + "calibration.ScoreRangeNormalizer", dict(NORM)),
-        node("mix_grid", PATCHCORE + "spatial.GridSubsample", {"stride": 4}),
-        node("mix_snv", "cuvis_ai.node.pretreatments.snv.SNVCorrection", {"eps": 1e-08}),
+        node("ms_norm", NODE + "normalization.PercentileNormalizer", dict(NORM)),
+        node("mix_grid", NODE + "spatial.GridSubsample", {"stride": 4}),
+        node(
+            "mix_snv",
+            NODE + "pretreatments.standardize.Standardize",
+            {"axis": "spectrum", "eps": 1e-08},
+        ),
         node(
             "mix_gmm",
-            "cuvis_ai.node.clustering.gmm.GaussianMixtureClusterer",
+            NODE + "clustering.gmm.GaussianMixtureClusterer",
             {**MIXTURE, "n_components": k},
         ),
-        node("mix_up", PATCHCORE + "spatial.ScoreUpsample", {"mode": "bilinear"}),
-        node("mix_norm", PATCHCORE + "calibration.ScoreRangeNormalizer", {**NORM, "invert": True}),
+        node("mix_up", NODE + "spatial.ScoreUpsample", {"mode": "bilinear"}),
+        node("mix_norm", NODE + "normalization.PercentileNormalizer", {**NORM, "invert": True}),
         node(
             "fused",
-            PATCHCORE + "fusion.ScoreMapFusion",
+            NODE + "fusion.ScoreMapFusion",
             {"mode": "softmin", "weights": None, "beta": BETA},
         ),
-        node("gate_fused", PATCHCORE + "gate.FrameScoreGate", fused_hp),
+        node("gate_fused", NODE + "deciders.frame_score_gate.FrameScoreGate", fused_hp),
     ]
     after = [
-        node("display", PATCHCORE + "fusion.ScoreMapFusion", {"mode": "first", "weights": None}),
-        node("display_mask", PATCHCORE + "fusion.DecisionFusion", {"mode": "first"}),
-        node("fused_map", PATCHCORE + "fusion.ScoreMapFusion", {"mode": "mean", "weights": None}),
-        node("mixture_map", PATCHCORE + "fusion.ScoreMapFusion", {"mode": "mean", "weights": None}),
+        node("display", NODE + "fusion.ScoreMapFusion", {"mode": "first", "weights": None}),
+        node("display_mask", NODE + "fusion.DecisionFusion", {"mode": "first"}),
+        node("fused_map", NODE + "fusion.ScoreMapFusion", {"mode": "mean", "weights": None}),
+        node("mixture_map", NODE + "fusion.ScoreMapFusion", {"mode": "mean", "weights": None}),
     ]
     return before, after
 
 
 SPECTRAL_CONNECTIONS = [  # before fuse -> gate: gate_fused enters the graph first
-    conn("fuse.outputs.scores", "ms_norm.inputs.scores"),
+    conn("fuse.outputs.scores", "ms_norm.inputs.data"),
     conn("cu3s_data.outputs.cube", "mix_grid.inputs.cube"),
     conn("mix_grid.outputs.cube", "mix_snv.inputs.cube"),
     conn("mix_snv.outputs.cube", "mix_gmm.inputs.cube"),
     conn("mix_gmm.outputs.scores", "mix_up.inputs.scores"),
     conn("cu3s_data.outputs.cube", "mix_up.inputs.reference"),
-    conn("mix_up.outputs.scores", "mix_norm.inputs.scores"),
+    conn("mix_up.outputs.scores", "mix_norm.inputs.data"),
     conn("ms_norm.outputs.normalized", "fused.inputs.scores"),
     conn("mix_norm.outputs.normalized", "fused.inputs.scores"),
     conn("fused.outputs.scores", "gate_fused.inputs.scores"),
@@ -188,7 +197,8 @@ def build_cfg(base: dict, tier: str, thr: float, mask_thr: float, k: int) -> dic
         "nodes": nodes,
         "connections": connections,
     }
-    if set(cfg["plugins"]) != {"cuvis_ai_builtin", "patchcore", "steervit"}:
+    # the fp16trt tier also lists steervit_trt, the manifest with the TensorRT extra
+    if set(cfg["plugins"]) - {"steervit_trt"} != {"cuvis_ai_builtin", "patchcore", "steervit"}:
         raise SystemExit(f"unexpected plugins {cfg['plugins']}")
     return cfg
 
@@ -216,6 +226,9 @@ def family_state(
     ):
         raise SystemExit(f"{gmm}: unexpected mixture state {sorted(g['state_dict'])}")
     sd = ck["state_dict"]
+    plugin_state = sorted(n for n, s in sd.items() if {"lo", "hi"} <= set(s))
+    if plugin_state:  # a ScoreRangeNormalizer's lo / hi: the .pt predates the built-ins
+        raise SystemExit(f"{base_pt.name}: {plugin_state} hold lo / hi; migrate-plugin-nodes first")
     lohi_key = f"k{k}"
 
     def lh(key: str) -> OrderedDict:
@@ -223,7 +236,9 @@ def family_state(
         if not hi > lo:
             raise SystemExit(f"lohi {key}: hi {hi} <= lo {lo}")
         return OrderedDict(
-            lo=torch.tensor([lo], dtype=torch.float32), hi=torch.tensor([hi], dtype=torch.float32)
+            running_min=torch.tensor([lo], dtype=torch.float32),
+            running_max=torch.tensor([hi], dtype=torch.float32),
+            _norm_frame_count=torch.zeros((), dtype=torch.long),
         )
 
     new = OrderedDict(
@@ -283,9 +298,9 @@ def check_nodes(cfg: dict, state: dict) -> None:
     grid = make["mix_grid"](cube=cube)["cube"]
     ll = make["mix_gmm"](cube=make["mix_snv"](cube=grid)["cube"])["scores"]
     up = make["mix_up"](scores=ll, reference=cube)["scores"]
-    mix = make["mix_norm"](scores=up)["normalized"]
+    mix = make["mix_norm"](data=up)["normalized"]
     fuse = torch.rand(1, 40, 44, 1, generator=gen) * 2
-    ms = make["ms_norm"](scores=fuse)["normalized"]
+    ms = make["ms_norm"](data=fuse)["normalized"]
     fused = make["fused"](scores=[ms, mix])["scores"]
     lo = torch.minimum(ms, mix)
     if not (
@@ -333,7 +348,7 @@ def main() -> None:
         "--fused-mask-threshold", type=float, required=True, help="gate_fused mask_threshold"
     )
     ap.add_argument(
-        "--no-check", action="store_true", help="skip the node check (plugins not importable)"
+        "--no-check", action="store_true", help="skip the node check (cuvis-ai not importable)"
     )
     a = ap.parse_args()
     out = Path(a.out)
