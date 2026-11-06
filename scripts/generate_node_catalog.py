@@ -445,7 +445,9 @@ with the `cuvis_ai` package. Plugin nodes and data modules come from plugin
 packages installed separately; see
 [Plugin Development](../../reference/plugin-development/overview.md).
 Plugin copies of nodes that are now built-ins are not listed:
-`migrate-plugin-nodes` rewrites a pipeline that still names them.
+`migrate-plugin-nodes` rewrites a pipeline that still names them. It refuses a
+`ScoreFusion` in `gmean` or `wmean` mode, which needs a manual rewrite to
+`ScoreMapFusion`.
 
 <div class="node-filter">
 <div class="node-filter-toolbar">

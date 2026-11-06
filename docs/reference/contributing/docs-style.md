@@ -217,10 +217,13 @@ For a built-in `cuvis_ai.node.<module>.ClassName`:
 1. Add `_category = NodeCategory.<X>` and `_tags = frozenset({NodeTag.<...>})` on the class — the generator reads these via live `cls.get_category()` / `cls.get_tags()` calls (no doc edit required).
 2. Make sure the class has a docstring whose first non-empty line summarises what it does. That line becomes the row's collapsed summary; the full docstring is rendered inside the row by mkdocstrings when expanded.
 
+Private classes (a leading `_`) and abstract bases get no row, since a pipeline cannot use them.
+
 For a plugin node or data module:
 
 1. Nothing catalog-specific — plugin capabilities are read automatically from the repo's plugin manifest YAMLs (the same files the pipeline loader and the gRPC server consume). The generator parses them with `cuvis_ai_schemas.plugin.load_plugin_manifest` and never imports the plugin package — so torch / ultralytics / SAM3 dependencies stay out of the docs venv.
 2. Each capability's `category`, `tags`, `doc_summary`, and `input_specs` / `output_specs` drive the row's chips, summary line, and port tables. Those fields are emitted by the plugin repo's metadata tooling; to fix catalog content, update the manifest (usually by regenerating it in the plugin repo), not this repo's docs.
+3. A plugin class that `migrate-plugin-nodes` maps to a built-in (`RENAMED` and the four special cases in `scripts/migrate_plugin_nodes.py`) gets no row; the built-in row stands for it.
 
 ### Don't edit the catalog page on disk
 
