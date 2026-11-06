@@ -1,0 +1,270 @@
+# RF-DETR plugin manifest
+#
+# RF-DETR (Roboflow, Apache-2.0 tier) object detection and segmentation for Cuvis.AI, plus the
+# score and mask nodes the walnut pipelines use with it.
+#
+# To use it, declare `plugins: [rfdetr]` in the pipeline yaml and point
+# the loader at the catalog directory that holds this manifest:
+#   uv run restore-pipeline --pipeline-path <pipeline>.yaml --plugins-dir cuvis_ai/configs/plugins
+
+name: rfdetr
+# Local development override (optional):
+# path: "../../../cuvis-ai-rfdetr"
+repo: "https://github.com/cubert-hyperspectral/cuvis-ai-rfdetr.git"
+tag: "v0.5.2"
+package_name: "cuvis-ai-rfdetr"
+capabilities:
+- class_name: cuvis_ai_rfdetr.node.rfdetr_detector.RFDETRDetector
+  category: model
+  tags: [anomaly, bbox, detection, image, inference, rgb, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\n</svg>\n"
+  input_specs:
+    rgb_image:
+      dtype: float32
+      shape: [-1, -1, -1, 3]
+      optional: false
+      description: RGB / false-color image [B, H, W, 3] in float32 (value range 0–1 or 0–255; auto-detected).
+  output_specs:
+    scores:
+      dtype: float32
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: 'Rasterized detection map [B, H, W, 1]: box regions filled with max(existing, confidence), background 0.'
+    detections:
+      dtype: ''
+      shape: []
+      optional: false
+      description: "Per-image list of detection dicts {'xyxy': [x1, y1, x2, y2], 'confidence': float, 'class_id': int}."
+    anomaly_score:
+      dtype: float32
+      shape: [-1]
+      optional: false
+      description: "Image-level score [B]: max box confidence (default), or the mean of the top-fraction pixels of the rasterized map when score_reduction='top_frac_mean' (0.0 when empty)."
+  doc_summary: Single-frame object detection using the official Roboflow RF-DETR.
+- class_name: cuvis_ai_rfdetr.node.rfdetr_segmenter.RFDETRSegmenter
+  category: model
+  tags: [anomaly, detection, image, inference, rgb, segmentation, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\n</svg>\n"
+  input_specs:
+    rgb_image:
+      dtype: float32
+      shape: [-1, -1, -1, 3]
+      optional: false
+      description: RGB / false-color image [B, H, W, 3] in float32 (value range 0-1 or 0-255; auto-detected).
+  output_specs:
+    scores:
+      dtype: float32
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: 'Per-pixel instance-mask score map [B, H, W, 1]: max(mask_i * confidence_i) over instances, background 0.'
+    detections:
+      dtype: ''
+      shape: []
+      optional: false
+      description: "Per-image list of detection dicts {'xyxy': [x1, y1, x2, y2], 'confidence': float, 'class_id': int}."
+    anomaly_score:
+      dtype: float32
+      shape: [-1]
+      optional: false
+      description: "Image-level score [B]: max instance confidence (default), or the mean of the top-fraction pixels of the score map when score_reduction='top_frac_mean' (0.0 when empty)."
+  doc_summary: Single-frame instance segmentation using the official Roboflow RF-DETR-Seg.
+- class_name: cuvis_ai_rfdetr.node.rfdetr_trainable.RFDETRTrainable
+  category: model
+  tags: [bbox, detection, differentiable, image, rgb, segmentation, torch, training]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\n</svg>\n"
+  input_specs:
+    rgb_image:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: False-colour image [B, H, W, num_channels] float32 in [0, 1] (3 by default; set num_channels for >3-band composites).
+    targets_mask:
+      dtype: int32
+      shape: [-1, -1, -1]
+      optional: true
+      description: Integer class/instance mask [B, H, W], 0 = background. Connected components become DETR targets — one FO class by default, or per-class labels (id - 1) when multiclass_targets=True. Required in TRAIN (denoising queries need targets).
+    context:
+      dtype: ''
+      shape: []
+      optional: true
+      description: ''
+  output_specs:
+    outputs:
+      dtype: ''
+      shape: []
+      optional: false
+      description: Raw RF-DETR outputs dict (pred_logits, pred_boxes, aux_outputs, ... ; pred_masks for segmentation variants).
+    targets:
+      dtype: ''
+      shape: []
+      optional: false
+      description: DETR targets built from targets_mask (per-image dicts with normalized cxcywh boxes + labels [+ masks]); empty list when no mask was provided.
+  doc_summary: RF-DETR (LW-DETR) as a *trainable* cuvis-ai node.
+- class_name: cuvis_ai_rfdetr.node.rfdetr_loss.RFDETRCriterionLoss
+  category: loss
+  tags: [detection, differentiable, torch, training]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M10 14v40h44\"/>\n  <path d=\"M14 18c8 0 12 8 18 18s12 14 22 14\"/>\n  <path d=\"M48 44l6 6-6 6\" transform=\"translate(0 -6)\"/>\n</svg>\n"
+  input_specs:
+    outputs:
+      dtype: ''
+      shape: []
+      optional: false
+      description: Raw RF-DETR outputs dict from RFDETRTrainable.
+    targets:
+      dtype: ''
+      shape: []
+      optional: false
+      description: DETR targets list from RFDETRTrainable.
+  output_specs:
+    loss:
+      dtype: float32
+      shape: []
+      optional: false
+      description: Scalar weighted DETR loss.
+  doc_summary: "Wraps RF-DETR's ``SetCriterion`` (Hungarian matcher + weighted DETR losses: cls / bbox / giou, plus mask CE / Dice for segmentation variants) as a cuvis-ai loss node."
+- class_name: cuvis_ai_rfdetr.node.percentile_composite.PercentileComposite
+  category: transform
+  tags: [hyperspectral, image, rgb]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    cube:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Hyperspectral cube [B, H, W, C] (float32; raw counts or reflectance — the percentile stretch is scale-invariant).
+    wavelengths:
+      dtype: int32
+      shape: [-1, -1]
+      optional: false
+      description: Per-frame channel wavelengths in nm [B, C].
+  output_specs:
+    rgb_image:
+      dtype: float32
+      shape: [-1, -1, -1, 3]
+      optional: false
+      description: Integer-valued float32 composite [B, H, W, 3] in [0, 255], band order = bands_nm order.
+  doc_summary: Three-band false-color composite with per-band percentile stretch.
+- class_name: cuvis_ai_rfdetr.node.scalar_minmax_bandslice.ScalarMinMaxBandSlice
+  category: transform
+  tags: [hyperspectral, preprocessing]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    cube:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Hyperspectral cube [B,H,W,C].
+    wavelengths:
+      dtype: int32
+      shape: [-1]
+      optional: false
+      description: Channel wavelengths in nm, shape (C,) as emitted by CU3SDataNode (a [B, C] tensor is also accepted).
+  output_specs:
+    rgb_image:
+      dtype: float32
+      shape: [-1, -1, -1, 3]
+      optional: false
+      description: 3-band scalar-min-max composite [B,H,W,3] in [0,1], band order = bands_nm.
+  doc_summary: Whole-cube min-max normalise, then slice the 3 bands nearest ``bands_nm`` -> [B, H, W, 3].
+- class_name: cuvis_ai_rfdetr.node.score_intersection.ScoreIntersection
+  category: transform
+  tags: [segmentation, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    a:
+      dtype: float32
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: Score map A [B, H, W, 1].
+    b:
+      dtype: float32
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: Score map B [B, H, W, 1].
+  output_specs:
+    scores:
+      dtype: float32
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: 'min(A, B) [B, H, W, 1]: >= t exactly where both inputs are >= t.'
+  doc_summary: 'Elementwise minimum of two score maps: the intersection (AND) of two segmenters.'
+- class_name: cuvis_ai_rfdetr.node.score_fusion.ScoreFusion
+  category: transform
+  tags: [segmentation, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    a:
+      dtype: float32
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: Score map A [B, H, W, 1].
+    b:
+      dtype: float32
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: Score map B [B, H, W, 1].
+  output_specs:
+    scores:
+      dtype: float32
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: Fused score map [B, H, W, 1] per ``mode``.
+  doc_summary: Fuse two score maps by ``mode`` (min | max | mean | gmean | wmean).
+- class_name: cuvis_ai_rfdetr.node.fixed_pca_projection.FixedPCAProjection
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#AAAAAA\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <circle cx=\"32\" cy=\"32\" r=\"22\" stroke-dasharray=\"4 3\"/>\n  <path d=\"M25 26a7 7 0 0 1 14 0c0 4-3.5 4.5-7 8v3\"/>\n  <circle cx=\"32\" cy=\"45\" r=\"1.2\" fill=\"#AAAAAA\" stroke=\"none\"/>\n</svg>\n"
+  output_specs:
+    projected:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Fixed-PCA projection, scaled to [0, 1] [B, H, W, K].
+  doc_summary: Project cubes with a fixed, file-loaded PCA (mean/components/percentile scale) — never refit at inference.
+- class_name: cuvis_ai_rfdetr.node.carl_segmenter.CarlSegmenter
+  category: model
+  tags: [hyperspectral, inference, segmentation, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\n</svg>\n"
+  input_specs:
+    cube:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Hyperspectral cube [B, H, W, C].
+    wavelengths:
+      dtype: int32
+      shape: [-1]
+      optional: false
+      description: Channel wavelengths in nm, shape (C,) as emitted by CU3SDataNode ([B, C] also accepted).
+  output_specs:
+    scores:
+      dtype: float32
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: Softmax probability of ``score_class`` per pixel [B, H, W, 1] at input resolution.
+    labels:
+      dtype: int32
+      shape: [-1, -1, -1]
+      optional: false
+      description: Argmax class map [B, H, W] (class ids of the checkpoint).
+  doc_summary: CARL hyperspectral semantic segmentation -> per-pixel score map of one class.
+- class_name: cuvis_ai_rfdetr.node.sam_shell_gate.SamShellGate
+  category: transform
+  tags: [hyperspectral, segmentation, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    cube:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Hyperspectral cube [B, H, W, C].
+    scores:
+      dtype: float32
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: Shell score map [B, H, W, 1] to be gated.
+  output_specs:
+    scores:
+      dtype: float32
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: 'Gated score map [B, H, W, 1]: input where angle<=T, else 0.'
+  doc_summary: Keep score-map pixels only where the spectral angle to the reference is <= threshold_deg.

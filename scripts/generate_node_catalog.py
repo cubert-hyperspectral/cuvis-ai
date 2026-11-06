@@ -4,18 +4,21 @@ Two data sources, both used at mkdocs build time:
 
 * **Built-in nodes** are imported live from the local ``cuvis_ai.node`` package
   (already installed in the docs venv) and introspected via
-  ``cls.get_category()`` / ``cls.get_tags()``. This handles inheritance — a
+  ``cls.get_category()`` / ``cls.get_tags()``. This handles inheritance: a
   subclass that doesn't redefine ``_category`` still reports its parent's
-  value.
+  value. Private helpers (``_`` prefix) and abstract bases are skipped, since
+  a pipeline cannot use them.
 
 * **Plugin capabilities** (nodes and data modules) are read from the plugin
-  manifest YAMLs in the repo's plugins directory — the same files the
+  manifest YAMLs in the repo's plugins directory, the same files the
   pipeline loader and the gRPC server consume. Each capability entry already
   carries its category, tags, doc summary, and port specs, so the docs build
   never installs or imports torch / ultralytics / SAM3 / etc. Released (git
   ``repo`` + ``tag``) manifests are catalogued; the ``cuvis_ai_builtin.yaml``
-  self-mirror is deduped against the live import above. Other local ``path:``
-  manifests (unreleased dev prototypes) have no installable pin and are skipped.
+  self-mirror is deduped against every class the live import walked. Other
+  local ``path:`` manifests (unreleased dev prototypes) have no installable pin
+  and are skipped. Plugin classes that ``migrate-plugin-nodes`` maps to a
+  built-in are skipped as well, so each node appears once.
 
 Output: a single ``catalogs/nodes/index.md`` rendered as a list of
 collapsible rows. Each row's body either includes a mkdocstrings
@@ -40,6 +43,15 @@ from cuvis_ai_schemas.enums import NodeCategory, NodeTag
 from cuvis_ai_schemas.extensions.ui.node_display import TAG_STYLES
 from cuvis_ai_schemas.plugin import GitPluginSource, NodePortSpec, load_plugin_manifest
 
+from cuvis_ai_core.data.public_datasets import PublicDatasets
+from scripts.migrate_plugin_nodes import (
+    RENAMED,
+    SCORE_FUSION,
+    SCORE_INTERSECTION,
+    SCORE_RANGE,
+    STRETCH,
+)
+
 log = logging.getLogger("generate_node_catalog")
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -50,6 +62,10 @@ BUILTIN_PACKAGE = "cuvis_ai.node"
 BUILTIN_MANIFEST_NAME = "cuvis_ai_builtin"
 
 _SOURCE_LABELS = {"builtin": "Built-in", "plugin": "Plugin", "data-module": "Data module"}
+
+# Plugin classes that cuvis-ai 0.19 replaced with built-ins. ``migrate-plugin-nodes`` rewrites a
+# pipeline that still names them; the catalog lists only the built-in.
+SUPERSEDED = frozenset(RENAMED) | {SCORE_RANGE, STRETCH, SCORE_FUSION, SCORE_INTERSECTION}
 
 
 @dataclass
@@ -95,16 +111,22 @@ def _is_node_subclass(obj: Any) -> bool:
         return False
 
 
-def collect_builtin_nodes() -> list[NodeEntry]:
-    """Walk ``cuvis_ai.node`` and yield every concrete Node subclass."""
+def collect_builtin_nodes() -> tuple[list[NodeEntry], set[str]]:
+    """Walk ``cuvis_ai.node`` and collect every public, concrete Node subclass.
+
+    Returns ``(entries, walked)``. ``entries`` are the classes a pipeline can use;
+    ``walked`` holds the dotted path of every Node subclass the walk saw, private
+    helpers and abstract bases included, so the built-in mirror manifest can be
+    deduped against all of them.
+    """
     entries: list[NodeEntry] = []
-    seen: set[str] = set()
+    walked: set[str] = set()
 
     try:
         pkg = import_module(BUILTIN_PACKAGE)
-    except Exception as exc:  # pragma: no cover — docs venv must have cuvis_ai
+    except Exception as exc:  # pragma: no cover (the docs venv must have cuvis_ai)
         log.warning("could not import %s: %s", BUILTIN_PACKAGE, exc)
-        return entries
+        return entries, walked
 
     for mod_info in pkgutil.walk_packages(pkg.__path__, prefix=f"{BUILTIN_PACKAGE}."):
         try:
@@ -118,9 +140,11 @@ def collect_builtin_nodes() -> list[NodeEntry]:
             if obj.__module__ != mod_info.name:
                 continue  # avoid re-export duplicates
             dotted = f"{obj.__module__}.{obj.__name__}"
-            if dotted in seen:
+            if dotted in walked:
                 continue
-            seen.add(dotted)
+            walked.add(dotted)
+            if obj.__name__.startswith("_") or inspect.isabstract(obj):
+                continue
             try:
                 cat = obj.get_category().value
             except Exception:
@@ -139,7 +163,7 @@ def collect_builtin_nodes() -> list[NodeEntry]:
                     is_plugin=False,
                 )
             )
-    return entries
+    return entries, walked
 
 
 _VALID_CATEGORIES = {c.value for c in NodeCategory}
@@ -417,9 +441,13 @@ hide:
 # Nodes Catalog
 
 Every node available in cuvis-ai pipelines, in one place. Built-in nodes ship
-with the `cuvis_ai` package; plugin nodes and data modules come from
-separately-installable plugin manifests — see
+with the `cuvis_ai` package. Plugin nodes and data modules come from plugin
+packages installed separately; see
 [Plugin Development](../../reference/plugin-development/overview.md).
+Plugin copies of nodes that are now built-ins are not listed:
+`migrate-plugin-nodes` rewrites a pipeline that still names them. It refuses a
+`ScoreFusion` in `gmean` or `wmean` mode, which needs a manual rewrite to
+`ScoreMapFusion`.
 
 <div class="node-filter">
 <div class="node-filter-toolbar">
@@ -448,14 +476,6 @@ separately-installable plugin manifests — see
 """
 
 
-def _count_datasets() -> int:
-    """Number of dataset pages under ``docs/catalogs/datasets/`` (excluding index)."""
-    datasets_dir = REPO_ROOT / "docs" / "catalogs" / "datasets"
-    if not datasets_dir.exists():
-        return 0
-    return sum(1 for p in datasets_dir.glob("*.md") if p.name != "index.md")
-
-
 def _render_catalogs_overview(entries: list[NodeEntry]) -> str:
     categories = sorted({e.category for e in entries})
     n_categories = len(categories)
@@ -463,13 +483,15 @@ def _render_catalogs_overview(entries: list[NodeEntry]) -> str:
     n_plugin_nodes = sum(1 for e in entries if e.is_plugin and e.kind == "node")
     n_nodes = len(entries) - n_data_modules
     n_builtin = n_nodes - n_plugin_nodes
-    n_datasets = _count_datasets()
+    n_plugins = len({e.plugin_name for e in entries if e.is_plugin})
+    # The registry the datasets index renders from, so both pages give the same number.
+    n_datasets = len(PublicDatasets.list_specs())
 
     # Continuation lines must not start with "+", "-", or "*": markdown would
     # parse them as nested list bullets.
     data_module_bullet = (
         f"- **{n_data_modules} data modules** from plugins, listed in the same\n"
-        f"  catalog and filterable via the Source chips.\n"
+        f"  catalog and filterable with the Source chips.\n"
         if n_data_modules
         else ""
     )
@@ -492,11 +514,13 @@ hide:
 The cuvis-ai catalogs are the inventory of every building block available
 for hyperspectral pipelines:
 
-- **{n_nodes} nodes** across **{n_categories} categories** — {n_builtin} built-in
-  and {n_plugin_nodes} from plugins — see the filterable list at
-  [Catalogs → Nodes](nodes/index.md).
-{data_module_bullet}- **{n_datasets} datasets** (cu3s recordings + annotations) — see the index
-  at [Catalogs → Datasets](datasets/index.md).
+- **{n_nodes} nodes** across **{n_categories} categories**: {n_builtin} built-in
+  and {n_plugin_nodes} from plugins. The filterable list is in the
+  [Nodes catalog](nodes/index.md).
+- **{n_plugins} plugins**, each a separately installed package that adds nodes
+  or data modules.
+{data_module_bullet}- **{n_datasets} datasets** (cu3s recordings with annotations), indexed in the
+  [Datasets catalog](datasets/index.md).
 
 ## Nodes by category
 
@@ -504,26 +528,31 @@ for hyperspectral pipelines:
 {cat_grid}
 </div>
 
-[Open the full Nodes catalog →](nodes/index.md){{ .md-button .md-button--primary }}
+[Open the full Nodes catalog](nodes/index.md){{ .md-button .md-button--primary }}
 
 ## Datasets
 
-Reference datasets used by tutorials and benchmarks. Each is published to
-HuggingFace under [cubert-gmbh](https://huggingface.co/cubert-gmbh) and
-mirrored locally on first run.
+Reference datasets used by tutorials and benchmarks. Each is published on
+Hugging Face under [cubert-gmbh](https://huggingface.co/cubert-gmbh) and
+downloaded to a local folder on first use.
 
-[Open the Datasets catalog →](datasets/index.md){{ .md-button }}
+[Open the Datasets catalog](datasets/index.md){{ .md-button }}
 """
 
 
-def main() -> None:
-    builtins = collect_builtin_nodes()
-    plugins = collect_plugin_nodes(exclude_dotted={e.dotted_path for e in builtins})
-    all_entries: list[NodeEntry] = sorted(builtins + plugins, key=lambda e: (e.category, e.name))
-    for entry in all_entries:
+def collect_entries() -> list[NodeEntry]:
+    """Every catalog row (built-ins, plugin nodes, data modules), sorted by category and name."""
+    builtins, walked = collect_builtin_nodes()
+    plugins = collect_plugin_nodes(exclude_dotted=walked | SUPERSEDED)
+    entries = sorted(builtins + plugins, key=lambda e: (e.category, e.name))
+    for entry in entries:
         entry.search_text = _build_search_text(entry)
-
     log.info("built-in nodes: %d, plugin capabilities: %d", len(builtins), len(plugins))
+    return entries
+
+
+def main() -> None:
+    all_entries = collect_entries()
 
     page = _render_index_page(all_entries)
     with mkdocs_gen_files.open("catalogs/nodes/index.md", "w") as fh:
