@@ -12,8 +12,9 @@ builds a pipeline, runs it on a Hugging Face dataset, and renders a result
 | [`object_selection_point_expansion.ipynb`](./object_selection_point_expansion.ipynb) | SAM3 point expansion: click points into a mask, then propagate it 100 frames | `cuvis-ai-sam3` | `XMR_Demo_Object_Tracking` | yes |
 | [`lentils_dinomaly.ipynb`](./lentils_dinomaly.ipynb) | Dinomaly anomaly detection (RGB / CIR / custom selector) | `cuvis-ai-dinomaly` | fetched per method from the demo model repo | yes |
 | [`channel_selector_lentils.ipynb`](./channel_selector_lentils.ipynb) | Learn the 3-band custom selector: a Gumbel-Softmax `ConcreteChannelMixer` trained through frozen AdaCLIP on the full lentils split (multi-hour GPU training; ~57 GB download plus ~155 GB of converted frames) | `cuvis-ai-adaclip` + `cuvis-ai-dinomaly` (AUROC metric node) | `XMR_Industrial_Foreign_Object_Detection_Lentils` (~57 GB) | yes |
+| [`lentils_gmm.ipynb`](./lentils_gmm.ipynb) | Normal-only foreign-object detection: a Gaussian mixture over unit-normalised spectra, scored per pixel, thresholded per recording day | none (builtin nodes) | `XMR_Industrial_Foreign_Object_Detection_Lentils` (~57 GB; this notebook reads four recordings) | recommended |
 
-Six of the seven notebooks read `.cu3s` sessions, so they need the
+Seven of the eight notebooks read `.cu3s` sessions, so they need the
 **`cuvis-ai-dataloader` plugin** (the cu3s reader + the cuvis SDK binding);
 `metal_scrap_classification` reads SWIR TIFFs through the same plugin's `[tiff]`
 extra. It is **not** a dependency of `cuvis-ai`: builtin/RGB pipelines pull no SDK,
