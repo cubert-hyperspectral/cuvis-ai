@@ -266,7 +266,7 @@ def _short_label(tag: str) -> str:
 
 def _render_card(entry: NodeEntry) -> str:
     chips = "".join(
-        f'<span class="tag-chip" data-tag="{t}" title="{t}">{_short_label(t)}</span>'
+        f'<span class="tag-chip tag-text" data-tag="{t}" title="{t}">{_short_label(t)}</span>'
         for t in entry.tags
     )
     plugin_title = f"From plugin {entry.plugin_name}"
@@ -291,18 +291,18 @@ def _render_card(entry: NodeEntry) -> str:
     summary_text = html.escape(entry.summary, quote=False) if entry.summary else ""
     module_path = entry.dotted_path.rsplit(".", 1)[0]
 
+    # The stylesheet lays these four children out as a grid; on wide lists the head
+    # dissolves (display: contents) so name and pills take their own columns.
     summary_html = (
-        f'<img class="row-icon" src="../../images/node-categories/{entry.category}.svg" '
-        f'alt="{entry.category}" title="{entry.category}" loading="lazy">'
-        f'<span class="row-header">'
+        f'<span class="row-head">'
         f'<code class="row-name">{entry.name}</code>'
-        f'<span class="row-module">{module_path}</span>'
+        f'<span class="row-pills">{datamodule_pill}{plugin_pill}{repo_link}'
         f'<span class="row-category category-chip" data-category="{entry.category}">'
-        f"{entry.category}</span>"
-        f'<span class="row-tags">{chips}</span>'
-        f'<span class="row-meta">{datamodule_pill}{plugin_pill}{repo_link}</span>'
+        f"{entry.category}</span></span>"
         f"</span>"
+        f'<span class="row-module">{module_path}</span>'
         f'<span class="row-summary">{summary_text}</span>'
+        f'<span class="row-tags">{chips}</span>'
     )
 
     body = _render_body(entry)

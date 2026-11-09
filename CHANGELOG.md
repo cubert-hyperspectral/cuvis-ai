@@ -4,6 +4,13 @@
 
 - The Hydra configuration pages (`config-groups.md`, `hydra-basics.md`, `hydra-inheritance.md`, `hydra-sweeps.md`) and the trainrun example in `docs/workflows/monitoring.md` name the pipeline yaml by path (`pipeline: ../pipeline/<area>/<name>.yaml`) instead of composing it through a Hydra `@pipeline` default, which `TrainRunConfig` refuses. The examples that chose or swept the pipeline through Hydra (`pipeline=` sweeps, a `pipeline_name` variable, hierarchical pipeline groups, generated experiments) give way to a note: `pipeline=` on the command line is read as a config group override and refused, so each pipeline gets its own trainrun, and the sweeps page shows a base trainrun with one variant per pipeline. The pipeline override example on the config groups page and the `${pipeline.metadata.name}` references are gone, since `pipeline` is a path string.
 
+## 0.22.7 - 2026-11-09
+
+- The docs Nodes catalog is compact on phones and desktops: each row shows the name with its plugin and category pills, the module path, the summary and the tags as one line of coloured words, and becomes three columns on wide lists. Rows lose the admonition border, gaps and empty icon column Material gave every `<details>`, and an opened row shows its docstring at full width.
+- Category colours reach the catalog rows and the Catalogs overview tiles again: `scripts/_node_catalog_assets.py` targeted `.node-card`, a class no page has. Tag text and tile labels reach 4.5:1 contrast in light and dark.
+- `BinaryDecider`, `QuantileBinaryDecider`, `HighContrastSelector` and `ShapeMorphology` docstrings put their trailing paragraph under `Notes`, so `mkdocs build --strict` passes again.
+- `cuvis_ai_builtin.yaml` and `cuvis_ai_onnx.yaml` pin v0.22.7.
+
 ## 0.22.6 - 2026-11-06
 
 - cuvis-ai-core floor 0.20.2 (was 0.20.0); the lock moves to 0.20.2. `download-model` fetches the three `dinomaly_lentils_*` trained pipelines from the Hub revision whose yamls name `cuvis_ai.node.deciders.two_stage_decider.TwoStageBinaryDecider` (at the old revision they named the `cuvis_ai.deciders` path that 0.18.0 retired and failed to load), and counts them present after a download. `weights.index.json` is regenerated against it: the three rows point at `2b6d2164` with the new yaml sizes and sha256.
