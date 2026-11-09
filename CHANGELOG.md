@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- The reduce-on-plateau scheduler of `concrete_adaclip.yaml` watches the validation IoU loss (`val/iou_loss`, mode `min`) instead of `metrics_anomaly/iou`. The `TwoStageBinaryDecider` of the pipeline it trains (`concrete_adaclip_gradient_two_stage.yaml`) sets the image gate but no pixel threshold, so since 0.20 it gives no decisions until the trainer calibrates it on val after the fit; during training `AnomalyDetectionMetrics` then reports only `average_precision`, and Lightning stopped after the first validation because the monitored metric did not exist. The other trainruns that monitor `metrics_anomaly/iou` (`channel_selector`, `deep_svdd`, `drcnn_adaclip`, `drcnn_adaclip_trainrun`, `pca_adaclip_baseline`) keep it: their `BinaryDecider` or `QuantileBinaryDecider` decides at every stage. The training concept page now says that a decider with only the image gate set holds back its decisions too.
+
 ## 0.22.6 - 2026-11-06
 
 - cuvis-ai-core floor 0.20.2 (was 0.20.0); the lock moves to 0.20.2. `download-model` fetches the three `dinomaly_lentils_*` trained pipelines from the Hub revision whose yamls name `cuvis_ai.node.deciders.two_stage_decider.TwoStageBinaryDecider` (at the old revision they named the `cuvis_ai.deciders` path that 0.18.0 retired and failed to load), and counts them present after a download. `weights.index.json` is regenerated against it: the three rows point at `2b6d2164` with the new yaml sizes and sha256.
