@@ -4,7 +4,7 @@
 
 - `object_selection_point_expansion.ipynb` puts its default positive point on the person walking left of the sign post in frame 11 (at 0.41, 0.51 of the frame) instead of the frame centre. The centre lies on the pavement beside the sign post, so SAM3 expanded the paved ground into the object mask and step B propagated that instead of a person.
 - The last cell of `lentils_dinomaly.ipynb` shows the three overlay videos on Colab: it passes each path to `Video` positionally. Colab's IPython 7.34 called `os.path.exists(None)` for `Video(filename=...)` and the cell stopped with a `TypeError`.
-- `object_tracking_passive.ipynb` has an `SDK_ON_GPU` variable in its configuration cell that reaches all five of its cu3s data modules, as in `channel_selector_lentils`; `False` processes the cubes on the CPU and leaves the GPU to SAM3.
+- `object_tracking_passive.ipynb` says that it needs a GPU with more than 15 GB (an L4 or A100 on Colab), in its prerequisites and in section 7, and its Colab bootstrap warns on a smaller GPU instead of recommending the T4. On Colab's free T4 the SAM3 text propagation of section 7 runs out of GPU memory at frame 6 of 90, also with the Cuvis SDK on the CPU, so a shorter run does not help either. The new `SDK_ON_GPU` variable reaches all five cu3s data modules, as in `channel_selector_lentils`; `False` moves about 2 GB of SDK memory off the GPU. Sections 3 and 7 give the 90 frames the run processes (they said 200).
 
 ## 0.22.5 - 2026-11-06
 
