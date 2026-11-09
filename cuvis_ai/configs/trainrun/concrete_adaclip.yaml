@@ -9,12 +9,8 @@ name: concrete_adaclip
 
 output_dir: ./outputs/${name}
 
-# Debug settings - save intermediate tensors for inspection
-debug:
-  save_intermediates: false  # Set to false to disable debug saving
-  save_dir: ${output_dir}/debug_intermediates
-
-# Pipeline configuration is hardcoded in the script to avoid YAML serialization issues.
+# Pipeline reference, resolved relative to this trainrun's directory.
+pipeline: ../pipeline/anomaly/adaclip/concrete_adaclip_gradient_two_stage.yaml
 
 training:
   seed: 42
