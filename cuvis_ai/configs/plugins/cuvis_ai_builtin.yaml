@@ -3507,11 +3507,11 @@ capabilities:
       shape: [-1, -1, -1, -1]
       optional: false
       description: Input hyperspectral cube [B, H, W, C]
-    mask:
+    fit_mask:
       dtype: int32
       shape: [-1, -1, -1]
       optional: true
-      description: Optional foreground mask [B, H, W]; when connected the fit uses only pixels where mask > 0 (inference still labels every pixel).
+      description: Optional foreground mask [B, H, W]; when connected the fit uses only pixels where fit_mask > 0 (inference still labels every pixel). Not named `mask`, the batch key of the loaders' annotation mask, which a pipeline would route here.
   output_specs:
     class_mask:
       dtype: int32
@@ -3539,11 +3539,11 @@ capabilities:
       shape: [-1, -1, -1, -1]
       optional: false
       description: Input hyperspectral cube [B, H, W, C]
-    mask:
+    fit_mask:
       dtype: int32
       shape: [-1, -1, -1]
       optional: true
-      description: Optional foreground mask [B, H, W]; when connected the fit uses only pixels where mask > 0 (inference still labels every pixel).
+      description: Optional foreground mask [B, H, W]; when connected the fit uses only pixels where fit_mask > 0 (inference still labels every pixel). Not named `mask`, the batch key of the loaders' annotation mask, which a pipeline would route here.
   output_specs:
     class_mask:
       dtype: int32

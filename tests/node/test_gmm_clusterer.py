@@ -108,3 +108,11 @@ def test_gmm_state_dict_roundtrip_identical() -> None:
     assert torch.equal(before["class_mask"], after["class_mask"])
     assert torch.equal(before["abundances"], after["abundances"])
     assert torch.equal(before["scores"], after["scores"])
+
+
+def test_gmm_fit_mask_is_optional_and_no_input_is_named_mask() -> None:
+    """The cu3s loaders send their annotation mask as batch key ``mask`` (all zero on normal
+    frames); a pipeline fills an unconnected input of that name, so the fit mask has its own
+    name."""
+    assert GaussianMixtureClusterer.INPUT_SPECS["fit_mask"].optional is True
+    assert "mask" not in GaussianMixtureClusterer.INPUT_SPECS

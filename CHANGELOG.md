@@ -3,6 +3,7 @@
 ## Unreleased
 
 - `KMeansClusterer` emits its fitted centroids on a new `spectral_signature` port, `[K, 1, 1, C]` float32 on the cube's device, the layout `SpectralAngleMapper.spectral_signature` reads. A pipeline can now fit k-means on normal frames with the statistical trainer and use the centroids as spectral angle references, with no reference file. `class_mask`, `scores` and the saved state are unchanged.
+- `KMeansClusterer` and `GaussianMixtureClusterer` take their optional fit mask on `fit_mask` instead of `mask`. A pipeline fills every unconnected input whose name is a batch key, and the cu3s loaders send their annotation mask as `mask`, all zero on normal frames, so a fit on normal frames got no pixels at all and a fit on annotated frames used only the annotated objects. A pipeline that connected `<clusterer>.inputs.mask` connects `<clusterer>.inputs.fit_mask` now.
 
 ## 0.22.7 - 2026-11-09
 

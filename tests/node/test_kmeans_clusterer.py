@@ -113,15 +113,33 @@ def test_mask_restricts_fit_to_foreground_pixels() -> None:
     mask[0, :150, 0] = 1  # only the first blob is foreground
 
     node = KMeansClusterer(n_clusters=3, random_state=0)
-    # No mask -> all pixels; with a connected mask -> only the foreground rows.
+    # No fit mask -> all pixels; with a connected fit mask -> only the foreground rows.
     assert node._collect_pixels([{"cube": cube}]).shape[0] == n
-    assert node._collect_pixels([{"cube": cube, "mask": mask}]).shape[0] == 150
+    assert node._collect_pixels([{"cube": cube, "fit_mask": mask}]).shape[0] == 150
 
 
 @torch.no_grad()
-def test_mask_is_declared_as_optional_input() -> None:
-    spec = KMeansClusterer.INPUT_SPECS["mask"]
+def test_fit_mask_is_declared_as_optional_input() -> None:
+    spec = KMeansClusterer.INPUT_SPECS["fit_mask"]
     assert spec.optional is True
+
+
+def test_no_input_port_is_named_like_the_loaders_annotation_mask() -> None:
+    """A pipeline fills every unconnected input whose name is a batch key; the cu3s loaders send
+    their annotation mask as ``mask`` (all zero on normal frames), so a port of that name would
+    silently restrict the fit to annotated pixels."""
+    assert "mask" not in KMeansClusterer.INPUT_SPECS
+
+
+@torch.no_grad()
+def test_an_annotation_mask_in_the_batch_does_not_restrict_the_fit() -> None:
+    pixels = _three_blob_pixels()
+    cube = _as_cube(pixels)
+    zeros = torch.zeros(
+        1, pixels.shape[0], 1, dtype=torch.int32
+    )  # a normal frame's annotation mask
+    node = KMeansClusterer(n_clusters=3, random_state=0)
+    assert node._collect_pixels([{"cube": cube, "mask": zeros}]).shape[0] == pixels.shape[0]
 
 
 @torch.no_grad()
