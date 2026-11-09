@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `DistinctnessLoss` averages the pairwise cosines over all C * (C - 1) / 2 pairs i < j, the formula in its docstring, instead of over the nonzero ones. A hard one-hot selection of different bands, which `ConcreteChannelMixer(use_hard_inference=True)` gives at VAL and TEST, has every cosine at 0, so the loss was NaN and with it the total `val_loss` of the Concrete band selector + AdaCLIP pipeline; it is 0 now. A pair with cosine 0 next to nonzero ones no longer drops out of the mean. The soft selection during training has no cosine at 0, so its loss and gradient are unchanged.
+
 ## 0.22.6 - 2026-11-06
 
 - cuvis-ai-core floor 0.20.2 (was 0.20.0); the lock moves to 0.20.2. `download-model` fetches the three `dinomaly_lentils_*` trained pipelines from the Hub revision whose yamls name `cuvis_ai.node.deciders.two_stage_decider.TwoStageBinaryDecider` (at the old revision they named the `cuvis_ai.deciders` path that 0.18.0 retired and failed to load), and counts them present after a download. `weights.index.json` is regenerated against it: the three rows point at `2b6d2164` with the new yaml sizes and sha256.
