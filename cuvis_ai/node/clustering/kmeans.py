@@ -27,7 +27,10 @@ class KMeansClusterer(_StatisticalFitNode):
     space, emitting the 0-based cluster id and the distance to that centroid.
 
     Cluster ids are emitted directly in the range ``0 .. n_clusters - 1`` (no
-    background / ``-1`` sentinel is used).
+    background / ``-1`` sentinel is used). The fitted centroids are also
+    emitted on the ``spectral_signature`` port, in the ``[K, 1, 1, C]`` layout
+    ``SpectralAngleMapper.spectral_signature`` reads, so a pipeline can wire
+    them in directly as spectral angle references.
 
     Parameters
     ----------
@@ -82,6 +85,13 @@ class KMeansClusterer(_StatisticalFitNode):
             dtype=torch.float32,
             shape=(-1, -1, -1, 1),
             description="Euclidean distance to the assigned centroid [B, H, W, 1]",
+        ),
+        "spectral_signature": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, 1, 1, -1),
+            description="Fitted cluster centroids [K, 1, 1, C], in the reference layout "
+            "SpectralAngleMapper.spectral_signature reads, so they can be wired in directly as "
+            "spectral angle references.",
         ),
     }
 
@@ -144,14 +154,21 @@ class KMeansClusterer(_StatisticalFitNode):
         Returns
         -------
         dict[str, torch.Tensor]
-            ``class_mask`` int32 ``[B, H, W]`` (0-based cluster id) and
+            ``class_mask`` int32 ``[B, H, W]`` (0-based cluster id),
             ``scores`` float32 ``[B, H, W, 1]`` (distance to the assigned
-            centroid).
+            centroid), and ``spectral_signature`` float32 ``[K, 1, 1, C]`` (the fitted
+            centroids, on the cube's device).
         """
         self._require_initialized()
         B, H, W, C = cube.shape
+        centroids = self.centroids.to(device=cube.device, dtype=torch.float32)
         flat = cube.reshape(-1, C).to(torch.float32)
-        d = torch.cdist(flat, self.centroids.to(device=flat.device, dtype=flat.dtype))
+        d = torch.cdist(flat, centroids)
         class_mask = d.argmin(dim=1).reshape(B, H, W).to(torch.int32)
         scores = d.min(dim=1).values.reshape(B, H, W, 1).to(torch.float32)
-        return {"class_mask": class_mask, "scores": scores}
+        k = centroids.shape[0]
+        return {
+            "class_mask": class_mask,
+            "scores": scores,
+            "spectral_signature": centroids.reshape(k, 1, 1, C),
+        }

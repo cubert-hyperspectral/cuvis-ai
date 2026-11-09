@@ -3523,6 +3523,11 @@ capabilities:
       shape: [-1, -1, -1, 1]
       optional: false
       description: Euclidean distance to the assigned centroid [B, H, W, 1]
+    spectral_signature:
+      dtype: float32
+      shape: [-1, 1, 1, -1]
+      optional: false
+      description: Fitted cluster centroids [K, 1, 1, C], in the reference layout SpectralAngleMapper.spectral_signature reads, so they can be wired in directly as spectral angle references.
   doc_summary: Partition pixel spectra into ``n_clusters`` groups by nearest centroid.
 - class_name: cuvis_ai.node.clustering.gmm.GaussianMixtureClusterer
   category: model
