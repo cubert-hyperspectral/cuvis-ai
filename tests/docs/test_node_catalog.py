@@ -235,6 +235,86 @@ def test_plugin_card_renders_source_and_ports(catalog):
     assert "datamodule-pill" in dm_html
 
 
+def _summary_of(card_html: str) -> str:
+    return card_html.split("<summary>", 1)[1].split("</summary>", 1)[0]
+
+
+def test_row_summary_layout_markup(catalog):
+    """The row summary is head (name + pills), module, summary, tags; the CSS grid relies on it."""
+    entries = catalog.collect_plugin_nodes(exclude_dotted=set())
+    dm = next(e for e in entries if e.kind == "data_module" and e.repo_url)
+    dm.search_text = catalog._build_search_text(dm)
+    summary = _summary_of(catalog._render_card(dm))
+
+    order = [
+        'class="row-head"',
+        'class="row-name"',
+        'class="row-pills"',
+        'class="row-module"',
+        'class="row-summary"',
+        'class="row-tags"',
+    ]
+    positions = [summary.index(marker) for marker in order]
+    assert positions == sorted(positions)
+
+    head = summary.split('class="row-head"', 1)[1].split('class="row-module"', 1)[0]
+    pills = head.split('class="row-pills"', 1)[1]
+    pill_order = ["datamodule-pill", "plugin-pill", "card-repo", "row-category"]
+    pill_positions = [pills.index(marker) for marker in pill_order]
+    assert pill_positions == sorted(pill_positions), "category pill comes last"
+
+    assert "row-icon" not in summary
+    assert "<img" not in summary
+
+
+def test_row_tags_render_as_tag_text(catalog):
+    builtins, _walked = catalog.collect_builtin_nodes()
+    tagged = next(e for e in builtins if len(e.tags) >= 2)
+    tagged.search_text = catalog._build_search_text(tagged)
+    summary = _summary_of(catalog._render_card(tagged))
+    tags = summary.split('class="row-tags"', 1)[1]
+    for tag in tagged.tags:
+        assert f'class="tag-chip tag-text" data-tag="{tag}"' in tags
+
+
+def test_row_keeps_filter_data_attributes(catalog):
+    """The filter JS reads these attributes from the <details> element."""
+    builtins, _walked = catalog.collect_builtin_nodes()
+    entry = next(e for e in builtins if e.tags)
+    entry.search_text = catalog._build_search_text(entry)
+    opening = catalog._render_card(entry).split(">", 1)[0]
+    assert opening.startswith('<details class="node-row"')
+    assert f'data-category="{entry.category}"' in opening
+    assert f'data-tags="{" ".join(entry.tags)}"' in opening
+    assert 'data-source="builtin"' in opening
+    assert f'data-search="{entry.search_text}"' in opening
+
+
+ASSETS_SCRIPT = SCRIPT.parent / "_node_catalog_assets.py"
+
+
+def test_category_colours_target_rows_and_tiles(tmp_path, monkeypatch):
+    """Every category's colour variables reach catalog rows and overview tiles."""
+    from cuvis_ai_schemas.enums import NodeCategory
+
+    spec = importlib.util.spec_from_file_location("_node_catalog_assets", ASSETS_SCRIPT)
+    assets = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(assets)
+    css_path = tmp_path / "node_categories.css"
+    monkeypatch.setattr(assets, "CSS_DST", css_path)
+
+    assets.emit_css()
+    css = css_path.read_text(encoding="utf-8")
+
+    assert ".node-card" not in css
+    for cat in NodeCategory:
+        selector = f':is(.node-row, .cat-tile)[data-category="{cat.value}"]'
+        assert selector in css, cat.value
+        rule = css.split(selector, 1)[1].split("}", 1)[0]
+        assert f"--card-fill: var(--node-cat-{cat.value}-fill);" in rule
+        assert f"--card-border: var(--node-cat-{cat.value}-border);" in rule
+
+
 def test_builtin_entries_are_public_and_concrete(catalog):
     """Private helpers and abstract bases are walked but never listed."""
     entries, walked = catalog.collect_builtin_nodes()
