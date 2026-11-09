@@ -3300,7 +3300,7 @@ anomaugbatchedbboxcalibclassdetdiffdim-redembevalhsiimginferkplearnmaskmetanormn
 
 Built-inPluginData module
 
-`AdaCLIPFocalDiceLoss`cuvis_ai_adaclip.node.losseslossdifftorchtrainadaclip[↗](https://github.com/cubert-hyperspectral/cuvis-ai-adaclip "Open plugin repo")Combined Focal + Dice loss for AdaCLIP training.
+`AdaCLIPFocalDiceLoss`adaclip[↗](https://github.com/cubert-hyperspectral/cuvis-ai-adaclip "Open plugin repo")losscuvis_ai_adaclip.node.lossesCombined Focal + Dice loss for AdaCLIP training.difftorchtrain
 
 Combined Focal + Dice loss for AdaCLIP training.
 
@@ -3321,7 +3321,7 @@ Outputs
 
 [View plugin repo (v0.6.1)](https://github.com/cubert-hyperspectral/cuvis-ai-adaclip/tree/v0.6.1)
 
-`AnomalyBCEWithLogits`cuvis_ai.node.losseslossanomdiffonnxtorchtrainBinary cross-entropy loss for anomaly detection with logits.
+`AnomalyBCEWithLogits`losscuvis_ai.node.lossesBinary cross-entropy loss for anomaly detection with logits.anomdiffonnxtorchtrain
 
 #### AnomalyBCEWithLogits
 
@@ -3426,7 +3426,7 @@ def forward(self, predictions: Tensor, targets: Tensor, **_: Any) -> dict[str, T
     return {"loss": self.weight * loss}
 ```
 
-`CrossEntropyLoss`cuvis_ai.node.losseslossdiffonnxsegtorchtrainPixel-wise cross-entropy over dense segmentation logits (`K >= 2`).
+`CrossEntropyLoss`losscuvis_ai.node.lossesPixel-wise cross-entropy over dense segmentation logits (`K >= 2`).diffonnxsegtorchtrain
 
 #### CrossEntropyLoss
 
@@ -3544,7 +3544,7 @@ def forward(self, logits: Tensor, targets: Tensor, **_: Any) -> dict[str, Tensor
     return {"loss": self.weight * loss}
 ```
 
-`CrossEntropyLoss`cuvis_ai_unet.node.losseslossdiffsegtorchtrainunet[↗](https://github.com/cubert-hyperspectral/cuvis-ai-unet "Open plugin repo")Pixel-wise cross-entropy over the DynUNet logits (multiclass, `K >= 2`).
+`CrossEntropyLoss`unet[↗](https://github.com/cubert-hyperspectral/cuvis-ai-unet "Open plugin repo")losscuvis_ai_unet.node.lossesPixel-wise cross-entropy over the DynUNet logits (multiclass, `K >= 2`).diffsegtorchtrain
 
 Pixel-wise cross-entropy over the DynUNet logits (multiclass, `K &gt;= 2`).
 
@@ -3563,7 +3563,7 @@ Outputs
 
 [View plugin repo (v0.5.0)](https://github.com/cubert-hyperspectral/cuvis-ai-unet/tree/v0.5.0)
 
-`DeepSVDDSoftBoundaryLoss`cuvis_ai.node.losseslossanomdiffonnxtorchtrainSoft-boundary Deep SVDD objective operating on BHWD embeddings.
+`DeepSVDDSoftBoundaryLoss`losscuvis_ai.node.lossesSoft-boundary Deep SVDD objective operating on BHWD embeddings.anomdiffonnxtorchtrain
 
 #### DeepSVDDSoftBoundaryLoss
 
@@ -3657,7 +3657,7 @@ def forward(self, embeddings: Tensor, center: Tensor, **_: Any) -> dict[str, Ten
     return {"loss": loss}
 ```
 
-`DiceLoss`cuvis_ai.node.losseslossdiffonnxsegtorchtrainSoft Dice loss over dense segmentation logits.
+`DiceLoss`losscuvis_ai.node.lossesSoft Dice loss over dense segmentation logits.diffonnxsegtorchtrain
 
 #### DiceLoss
 
@@ -3768,7 +3768,7 @@ def forward(self, logits: Tensor, targets: Tensor, **_: Any) -> dict[str, Tensor
     return {"loss": self.weight * loss}
 ```
 
-`DiceLoss`cuvis_ai_unet.node.losseslossdiffsegtorchtrainunet[↗](https://github.com/cubert-hyperspectral/cuvis-ai-unet "Open plugin repo")Soft Dice loss over the DynUNet logits.
+`DiceLoss`unet[↗](https://github.com/cubert-hyperspectral/cuvis-ai-unet "Open plugin repo")losscuvis_ai_unet.node.lossesSoft Dice loss over the DynUNet logits.diffsegtorchtrain
 
 Soft Dice loss over the DynUNet logits.
 
@@ -3787,7 +3787,7 @@ Outputs
 
 [View plugin repo (v0.5.0)](https://github.com/cubert-hyperspectral/cuvis-ai-unet/tree/v0.5.0)
 
-`DinomalyTrainLossBridge`cuvis_ai_dinomaly.node.dinomaly_train_loss_bridgelossdifftorchtraindinomaly[↗](https://github.com/cubert-hyperspectral/cuvis-ai-dinomaly "Open plugin repo")Passes through the scalar reconstruction loss from :class:`DinomalyDetector`.
+`DinomalyTrainLossBridge`dinomaly[↗](https://github.com/cubert-hyperspectral/cuvis-ai-dinomaly "Open plugin repo")losscuvis_ai_dinomaly.node.dinomaly_train_loss_bridgePasses through the scalar reconstruction loss from :class:`DinomalyDetector`.difftorchtrain
 
 Passes through the scalar reconstruction loss from :class:`DinomalyDetector`.
 
@@ -3805,7 +3805,7 @@ Outputs
 
 [View plugin repo (v0.10.0)](https://github.com/cubert-hyperspectral/cuvis-ai-dinomaly/tree/v0.10.0)
 
-`DistinctnessLoss`cuvis_ai.node.losseslossdiffonnxtorchtrainRepulsion loss encouraging different selectors to choose different bands.
+`DistinctnessLoss`losscuvis_ai.node.lossesRepulsion loss encouraging different selectors to choose different bands.diffonnxtorchtrain
 
 #### DistinctnessLoss
 
@@ -3904,7 +3904,7 @@ def forward(self, selection_weights: Tensor, **_: Any) -> dict[str, Tensor]:
     return {"loss": loss}
 ```
 
-`ForegroundContrastLoss`cuvis_ai.node.losseslossdifftorchtrainMaximize visual separation between foreground and background mean colors.
+`ForegroundContrastLoss`losscuvis_ai.node.lossesMaximize visual separation between foreground and background mean colors.difftorchtrain
 
 #### ForegroundContrastLoss
 
@@ -4077,7 +4077,7 @@ def forward(self, rgb: Tensor, mask: Tensor, **_: Any) -> dict[str, Tensor]:
     return {"loss": loss}
 ```
 
-`IoULoss`cuvis_ai.node.losseslossdiffonnxsegtorchtrainDifferentiable IoU (Intersection over Union) loss.
+`IoULoss`losscuvis_ai.node.lossesDifferentiable IoU (Intersection over Union) loss.diffonnxsegtorchtrain
 
 #### IoULoss
 
@@ -4220,7 +4220,7 @@ def forward(self, predictions: Tensor, targets: Tensor, **_: Any) -> dict[str, T
     return {"loss": self.weight * loss}
 ```
 
-`MSEReconstructionLoss`cuvis_ai.node.losseslossdiffonnxrecontorchtrainMean squared error reconstruction loss.
+`MSEReconstructionLoss`losscuvis_ai.node.lossesMean squared error reconstruction loss.diffonnxrecontorchtrain
 
 #### MSEReconstructionLoss
 
@@ -4312,7 +4312,7 @@ def forward(self, reconstruction: Tensor, target: Tensor, **_: Any) -> dict[str,
     return {"loss": self.weight * loss}
 ```
 
-`OHEMCrossEntropyLoss`cuvis_ai_unet.node.losseslossdiffsegtorchtrainunet[↗](https://github.com/cubert-hyperspectral/cuvis-ai-unet "Open plugin repo")Cross-entropy with online hard-example mining (OHEM) on the background.
+`OHEMCrossEntropyLoss`unet[↗](https://github.com/cubert-hyperspectral/cuvis-ai-unet "Open plugin repo")losscuvis_ai_unet.node.lossesCross-entropy with online hard-example mining (OHEM) on the background.diffsegtorchtrain
 
 Cross-entropy with online hard-example mining (OHEM) on the background.
 
@@ -4331,7 +4331,7 @@ Outputs
 
 [View plugin repo (v0.5.0)](https://github.com/cubert-hyperspectral/cuvis-ai-unet/tree/v0.5.0)
 
-`RFDETRCriterionLoss`cuvis_ai_rfdetr.node.rfdetr_losslossdetdifftorchtrainrfdetr[↗](https://github.com/cubert-hyperspectral/cuvis-ai-rfdetr "Open plugin repo")Wraps RF-DETR's `SetCriterion` (Hungarian matcher + weighted DETR losses: cls / bbox / giou, plus mask CE / Dice for segmentation variants) as a cuvis-ai loss node.
+`RFDETRCriterionLoss`rfdetr[↗](https://github.com/cubert-hyperspectral/cuvis-ai-rfdetr "Open plugin repo")losscuvis_ai_rfdetr.node.rfdetr_lossWraps RF-DETR's `SetCriterion` (Hungarian matcher + weighted DETR losses: cls / bbox / giou, plus mask CE / Dice for segmentation variants) as a cuvis-ai loss node.detdifftorchtrain
 
 Wraps RF-DETR's `SetCriterion` (Hungarian matcher + weighted DETR losses: cls / bbox / giou, plus mask CE / Dice for segmentation variants) as a cuvis-ai loss node.
 
@@ -4350,7 +4350,7 @@ Outputs
 
 [View plugin repo (v0.5.2)](https://github.com/cubert-hyperspectral/cuvis-ai-rfdetr/tree/v0.5.2)
 
-`WeightedCrossEntropyLoss`cuvis_ai_inspecscrap.node.losseslossclassdifftorchtraincuvis_ai_inspecscrap[↗](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap "Open plugin repo")Class-weighted multi-class cross-entropy over flattened logits + integer targets.
+`WeightedCrossEntropyLoss`cuvis_ai_inspecscrap[↗](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap "Open plugin repo")losscuvis_ai_inspecscrap.node.lossesClass-weighted multi-class cross-entropy over flattened logits + integer targets.classdifftorchtrain
 
 Class-weighted multi-class cross-entropy over flattened logits + integer targets.
 
@@ -4370,7 +4370,7 @@ Outputs
 
 [View plugin repo (v0.4.0)](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap/tree/v0.4.0)
 
-`AnomalyAUROCMetrics`cuvis_ai_dinomaly.node.auroc_metricsmetricanomevaldinomaly[↗](https://github.com/cubert-hyperspectral/cuvis-ai-dinomaly "Open plugin repo")Streaming pixel/image AUROC via torchmetrics (val/test only).
+`AnomalyAUROCMetrics`dinomaly[↗](https://github.com/cubert-hyperspectral/cuvis-ai-dinomaly "Open plugin repo")metriccuvis_ai_dinomaly.node.auroc_metricsStreaming pixel/image AUROC via torchmetrics (val/test only).anomeval
 
 Streaming pixel/image AUROC via torchmetrics (val/test only).
 
@@ -4390,7 +4390,7 @@ Outputs
 
 [View plugin repo (v0.10.0)](https://github.com/cubert-hyperspectral/cuvis-ai-dinomaly/tree/v0.10.0)
 
-`AnomalyDetectionMetrics`cuvis_ai.node.metricsmetricanomevalCompute anomaly detection metrics (precision, recall, F1, etc.).
+`AnomalyDetectionMetrics`metriccuvis_ai.node.metricsCompute anomaly detection metrics (precision, recall, F1, etc.).anomeval
 
 #### AnomalyDetectionMetrics
 
@@ -4629,7 +4629,7 @@ def pooled_metrics(self) -> dict[str, TorchMetric]:
     return pooled
 ```
 
-`AnomalyPixelStatisticsMetric`cuvis_ai.node.metricsmetricanomevalCompute anomaly pixel statistics from binary decisions.
+`AnomalyPixelStatisticsMetric`metriccuvis_ai.node.metricsCompute anomaly pixel statistics from binary decisions.anomeval
 
 #### AnomalyPixelStatisticsMetric
 
@@ -4718,7 +4718,7 @@ def forward(self, context: Context, decisions: Tensor | None = None) -> dict[str
     return {"metrics": metrics}
 ```
 
-`CLEARMetricNode`cuvis_ai_trackeval.nodemetricbboxevalnumpytracktrackeval[↗](https://github.com/cubert-hyperspectral/cuvis-ai-trackeval "Open plugin repo")Accumulate per-frame tracking data and compute CLEAR metrics in finalize().
+`CLEARMetricNode`trackeval[↗](https://github.com/cubert-hyperspectral/cuvis-ai-trackeval "Open plugin repo")metriccuvis_ai_trackeval.nodeAccumulate per-frame tracking data and compute CLEAR metrics in finalize().bboxevalnumpytrack
 
 Accumulate per-frame tracking data and compute CLEAR metrics in finalize().
 
@@ -4745,7 +4745,7 @@ Outputs
 
 [View plugin repo (v0.1.4)](https://github.com/cubert-hyperspectral/cuvis-ai-trackeval/tree/v0.1.4)
 
-`ComponentOrthogonalityMetric`cuvis_ai.node.metricsmetricdim-redevalTrack orthogonality of PCA components during training.
+`ComponentOrthogonalityMetric`metriccuvis_ai.node.metricsTrack orthogonality of PCA components during training.dim-redeval
 
 #### ComponentOrthogonalityMetric
 
@@ -4843,7 +4843,7 @@ def forward(self, components: Tensor, context: Context) -> dict[str, Any]:
     return {"metrics": metrics}
 ```
 
-`DistinctLabelCount`cuvis_ai.node.metricsmetricevalinfermaskonnxCount the distinct non-zero labels per frame in an integer label map.
+`DistinctLabelCount`metriccuvis_ai.node.metricsCount the distinct non-zero labels per frame in an integer label map.evalinfermaskonnx
 
 #### DistinctLabelCount
 
@@ -4918,7 +4918,7 @@ def forward(self, mask: Tensor, context: Context) -> dict[str, Any]:
     return {"count": count, "metrics": metrics}
 ```
 
-`ExplainedVarianceMetric`cuvis_ai.node.metricsmetricdim-redevalTrack explained variance ratio for PCA components.
+`ExplainedVarianceMetric`metriccuvis_ai.node.metricsTrack explained variance ratio for PCA components.dim-redeval
 
 #### ExplainedVarianceMetric
 
@@ -5006,7 +5006,7 @@ def forward(self, explained_variance_ratio: Tensor, context: Context) -> dict[st
     return {"metrics": metrics}
 ```
 
-`HOTAMetricNode`cuvis_ai_trackeval.nodemetricbboxevalnumpytracktrackeval[↗](https://github.com/cubert-hyperspectral/cuvis-ai-trackeval "Open plugin repo")Accumulate per-frame tracking data and compute HOTA in finalize().
+`HOTAMetricNode`trackeval[↗](https://github.com/cubert-hyperspectral/cuvis-ai-trackeval "Open plugin repo")metriccuvis_ai_trackeval.nodeAccumulate per-frame tracking data and compute HOTA in finalize().bboxevalnumpytrack
 
 Accumulate per-frame tracking data and compute HOTA in finalize().
 
@@ -5033,7 +5033,7 @@ Outputs
 
 [View plugin repo (v0.1.4)](https://github.com/cubert-hyperspectral/cuvis-ai-trackeval/tree/v0.1.4)
 
-`IdentityMetricNode`cuvis_ai_trackeval.nodemetricbboxevalnumpytracktrackeval[↗](https://github.com/cubert-hyperspectral/cuvis-ai-trackeval "Open plugin repo")Accumulate per-frame tracking data and compute ID metrics in finalize().
+`IdentityMetricNode`trackeval[↗](https://github.com/cubert-hyperspectral/cuvis-ai-trackeval "Open plugin repo")metriccuvis_ai_trackeval.nodeAccumulate per-frame tracking data and compute ID metrics in finalize().bboxevalnumpytrack
 
 Accumulate per-frame tracking data and compute ID metrics in finalize().
 
@@ -5058,7 +5058,7 @@ Outputs
 
 [View plugin repo (v0.1.4)](https://github.com/cubert-hyperspectral/cuvis-ai-trackeval/tree/v0.1.4)
 
-`MulticlassSegmentationMetrics`cuvis_ai_inspecscrap.node.metricsmetricclassevalcuvis_ai_inspecscrap[↗](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap "Open plugin repo")Pixel accuracy + macro precision/recall/F1 + per-class recall from logits or predictions.
+`MulticlassSegmentationMetrics`cuvis_ai_inspecscrap[↗](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap "Open plugin repo")metriccuvis_ai_inspecscrap.node.metricsPixel accuracy + macro precision/recall/F1 + per-class recall from logits or predictions.classeval
 
 Pixel accuracy + macro precision/recall/F1 + per-class recall from logits or predictions.
 
@@ -5078,7 +5078,7 @@ Outputs
 
 [View plugin repo (v0.4.0)](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap/tree/v0.4.0)
 
-`PerClassAnomalyAUROC`cuvis_ai_dinomaly.node.per_class_aurocmetricanomevaldinomaly[↗](https://github.com/cubert-hyperspectral/cuvis-ai-dinomaly "Open plugin repo")Streaming one-vs-background pixel AUROC per class (val/test only).
+`PerClassAnomalyAUROC`dinomaly[↗](https://github.com/cubert-hyperspectral/cuvis-ai-dinomaly "Open plugin repo")metriccuvis_ai_dinomaly.node.per_class_aurocStreaming one-vs-background pixel AUROC per class (val/test only).anomeval
 
 Streaming one-vs-background pixel AUROC per class (val/test only).
 
@@ -5098,7 +5098,7 @@ Outputs
 
 [View plugin repo (v0.10.0)](https://github.com/cubert-hyperspectral/cuvis-ai-dinomaly/tree/v0.10.0)
 
-`ScoreStatisticsMetric`cuvis_ai.node.metricsmetricanomevalCompute statistical properties of score distributions.
+`ScoreStatisticsMetric`metriccuvis_ai.node.metricsCompute statistical properties of score distributions.anomeval
 
 #### ScoreStatisticsMetric
 
@@ -5186,7 +5186,7 @@ def forward(self, scores: Tensor, context: Context) -> dict[str, Any]:
     return {"metrics": metrics}
 ```
 
-`SegMetrics`cuvis_ai_unet.node.seg_metricsmetricevalsegunet[↗](https://github.com/cubert-hyperspectral/cuvis-ai-unet "Open plugin repo")Foreground IoU / Dice / pixel-accuracy over per-pixel class logits.
+`SegMetrics`unet[↗](https://github.com/cubert-hyperspectral/cuvis-ai-unet "Open plugin repo")metriccuvis_ai_unet.node.seg_metricsForeground IoU / Dice / pixel-accuracy over per-pixel class logits.evalseg
 
 Foreground IoU / Dice / pixel-accuracy over per-pixel class logits.
 
@@ -5205,7 +5205,7 @@ Outputs
 
 [View plugin repo (v0.5.0)](https://github.com/cubert-hyperspectral/cuvis-ai-unet/tree/v0.5.0)
 
-`SelectorDiversityMetric`cuvis_ai.node.metricsmetricdim-redevalTrack diversity of channel selection.
+`SelectorDiversityMetric`metriccuvis_ai.node.metricsTrack diversity of channel selection.dim-redeval
 
 #### SelectorDiversityMetric
 
@@ -5298,7 +5298,7 @@ def forward(self, weights: Tensor, context: Context) -> dict[str, Any]:
     return {"metrics": metrics}
 ```
 
-`SelectorEntropyMetric`cuvis_ai.node.metricsmetricdim-redevalTrack entropy of channel selection distribution.
+`SelectorEntropyMetric`metriccuvis_ai.node.metricsTrack entropy of channel selection distribution.dim-redeval
 
 #### SelectorEntropyMetric
 
@@ -5380,7 +5380,7 @@ def forward(self, weights: Tensor, context: Context) -> dict[str, Any]:
     return {"metrics": metrics}
 ```
 
-`ValNormalAnomalyMean`cuvis_ai_dinomaly.node.val_anomaly_meanmetricanomevaldinomaly[↗](https://github.com/cubert-hyperspectral/cuvis-ai-dinomaly "Open plugin repo")Running mean of the image-level `anomaly_score` per `(stage, epoch)`.
+`ValNormalAnomalyMean`dinomaly[↗](https://github.com/cubert-hyperspectral/cuvis-ai-dinomaly "Open plugin repo")metriccuvis_ai_dinomaly.node.val_anomaly_meanRunning mean of the image-level `anomaly_score` per `(stage, epoch)`.anomeval
 
 Running mean of the image-level `anomaly_score` per `(stage, epoch)`.
 
@@ -5398,7 +5398,7 @@ Outputs
 
 [View plugin repo (v0.10.0)](https://github.com/cubert-hyperspectral/cuvis-ai-dinomaly/tree/v0.10.0)
 
-`AdaCLIPDetector`cuvis_ai_adaclip.node.adaclip_nodemodelanomimginferlearnmaskonnxrgbtorchadaclip[↗](https://github.com/cubert-hyperspectral/cuvis-ai-adaclip "Open plugin repo")AdaCLIP zero-shot anomaly detector node (plugin version).
+`AdaCLIPDetector`adaclip[↗](https://github.com/cubert-hyperspectral/cuvis-ai-adaclip "Open plugin repo")modelcuvis_ai_adaclip.node.adaclip_nodeAdaCLIP zero-shot anomaly detector node (plugin version).anomimginferlearnmaskonnxrgbtorch
 
 AdaCLIP zero-shot anomaly detector node (plugin version).
 
@@ -5422,7 +5422,7 @@ Outputs
 
 [View plugin repo (v0.6.1)](https://github.com/cubert-hyperspectral/cuvis-ai-adaclip/tree/v0.6.1)
 
-`AdaCLIPSemanticFusion`cuvis_ai_adaclip.node.semantic_fusionmodelanominfertorchadaclip[↗](https://github.com/cubert-hyperspectral/cuvis-ai-adaclip "Open plugin repo")Fuse AdaCLIP's k-means hybrid semantic feature into the image score.
+`AdaCLIPSemanticFusion`adaclip[↗](https://github.com/cubert-hyperspectral/cuvis-ai-adaclip "Open plugin repo")modelcuvis_ai_adaclip.node.semantic_fusionFuse AdaCLIP's k-means hybrid semantic feature into the image score.anominfertorch
 
 Fuse AdaCLIP's k-means hybrid semantic feature into the image score.
 
@@ -5442,7 +5442,7 @@ Outputs
 
 [View plugin repo (v0.6.1)](https://github.com/cubert-hyperspectral/cuvis-ai-adaclip/tree/v0.6.1)
 
-`CarlSegmenter`cuvis_ai_rfdetr.node.carl_segmentermodelhsiinfersegtorchrfdetr[↗](https://github.com/cubert-hyperspectral/cuvis-ai-rfdetr "Open plugin repo")CARL hyperspectral semantic segmentation -> per-pixel score map of one class.
+`CarlSegmenter`rfdetr[↗](https://github.com/cubert-hyperspectral/cuvis-ai-rfdetr "Open plugin repo")modelcuvis_ai_rfdetr.node.carl_segmenterCARL hyperspectral semantic segmentation -> per-pixel score map of one class.hsiinfersegtorch
 
 CARL hyperspectral semantic segmentation -> per-pixel score map of one class.
 
@@ -5462,7 +5462,7 @@ Outputs
 
 [View plugin repo (v0.5.2)](https://github.com/cubert-hyperspectral/cuvis-ai-rfdetr/tree/v0.5.2)
 
-`ConcreteChannelMixer`cuvis_ai.node.channel_mixermodeldim-redhsilearnonnxpretorchConcrete/Gumbel-Softmax channel mixer for hyperspectral cubes.
+`ConcreteChannelMixer`modelcuvis_ai.node.channel_mixerConcrete/Gumbel-Softmax channel mixer for hyperspectral cubes.dim-redhsilearnonnxpretorch
 
 #### ConcreteChannelMixer
 
@@ -5692,7 +5692,7 @@ def forward(
     }
 ```
 
-`DeepSVDDProjection`cuvis_ai.node.anomaly.deep_svddmodelanomhsiinferlearntorchProjection head that maps per-pixel features to Deep SVDD embeddings.
+`DeepSVDDProjection`modelcuvis_ai.node.anomaly.deep_svddProjection head that maps per-pixel features to Deep SVDD embeddings.anomhsiinferlearntorch
 
 #### DeepSVDDProjection
 
@@ -5783,7 +5783,7 @@ def forward(self, data: torch.Tensor, **_: Any) -> dict[str, torch.Tensor]:
     return {"embeddings": z}
 ```
 
-`DeepSVDDScores`cuvis_ai.node.anomaly.deep_svddmodelanominferlearntorchConvert Deep SVDD embeddings + center vector into anomaly scores.
+`DeepSVDDScores`modelcuvis_ai.node.anomaly.deep_svddConvert Deep SVDD embeddings + center vector into anomaly scores.anominferlearntorch
 
 #### DeepSVDDScores
 
@@ -5839,7 +5839,7 @@ def forward(
     return {"scores": scores}
 ```
 
-`DinomalyDetector`cuvis_ai_dinomaly.node.dinomaly_detectormodelanomhsilearnonnxrecontorchdinomaly[↗](https://github.com/cubert-hyperspectral/cuvis-ai-dinomaly "Open plugin repo")Pixel-level anomaly detection using Anomalib's `DinomalyModel`.
+`DinomalyDetector`dinomaly[↗](https://github.com/cubert-hyperspectral/cuvis-ai-dinomaly "Open plugin repo")modelcuvis_ai_dinomaly.node.dinomaly_detectorPixel-level anomaly detection using Anomalib's `DinomalyModel`.anomhsilearnonnxrecontorch
 
 Pixel-level anomaly detection using Anomalib's `DinomalyModel`.
 
@@ -5859,7 +5859,7 @@ Outputs
 
 [View plugin repo (v0.10.0)](https://github.com/cubert-hyperspectral/cuvis-ai-dinomaly/tree/v0.10.0)
 
-`DynUNet`cuvis_ai_unet.node.dynunetmodeldiffhsiinferlearnsegtorchunet[↗](https://github.com/cubert-hyperspectral/cuvis-ai-unet "Open plugin repo")Configurable U-Net for hyperspectral segmentation (2D / factorised 2.5D / 3D).
+`DynUNet`unet[↗](https://github.com/cubert-hyperspectral/cuvis-ai-unet "Open plugin repo")modelcuvis_ai_unet.node.dynunetConfigurable U-Net for hyperspectral segmentation (2D / factorised 2.5D / 3D).diffhsiinferlearnsegtorch
 
 Configurable U-Net for hyperspectral segmentation (2D / factorised 2.5D / 3D).
 
@@ -5877,7 +5877,7 @@ Outputs
 
 [View plugin repo (v0.5.0)](https://github.com/cubert-hyperspectral/cuvis-ai-unet/tree/v0.5.0)
 
-`EfficientAdDetector`cuvis_ai_efficientad.node.efficientadmodelanomimgtorchefficientad[↗](https://github.com/cubert-hyperspectral/cuvis-ai-efficientad "Open plugin repo")EfficientAD student-teacher + autoencoder anomaly map and image score of an RGB frame.
+`EfficientAdDetector`efficientad[↗](https://github.com/cubert-hyperspectral/cuvis-ai-efficientad "Open plugin repo")modelcuvis_ai_efficientad.node.efficientadEfficientAD student-teacher + autoencoder anomaly map and image score of an RGB frame.anomimgtorch
 
 EfficientAD student-teacher + autoencoder anomaly map and image score of an RGB frame.
 
@@ -5896,7 +5896,7 @@ Outputs
 
 [View plugin repo (v0.3.0)](https://github.com/cubert-hyperspectral/cuvis-ai-efficientad/tree/v0.3.0)
 
-`ExportedSpan`cuvis_ai.node.exported_spanmodelinferRun a span exported to ONNX in place of the nodes it was cut from.
+`ExportedSpan`modelcuvis_ai.node.exported_spanRun a span exported to ONNX in place of the nodes it was cut from.infer
 
 #### ExportedSpan
 
@@ -6057,7 +6057,7 @@ def forward(self, *, context: Context | None = None, **ports: Any) -> dict[str, 
     }
 ```
 
-`GaussianMixtureClusterer`cuvis_ai.node.clustering.gmmmodelclasshsistatefultorchCluster pixel spectra with a Gaussian mixture model.
+`GaussianMixtureClusterer`modelcuvis_ai.node.clustering.gmmCluster pixel spectra with a Gaussian mixture model.classhsistatefultorch
 
 #### GaussianMixtureClusterer
 
@@ -6202,7 +6202,7 @@ def forward(self, cube: torch.Tensor, **_: Any) -> dict[str, torch.Tensor]:
     return {"class_mask": class_mask, "abundances": abundances, "scores": scores}
 ```
 
-`KMeansClusterer`cuvis_ai.node.clustering.kmeansmodelclasshsistatefultorchPartition pixel spectra into `n_clusters` groups by nearest centroid.
+`KMeansClusterer`modelcuvis_ai.node.clustering.kmeansPartition pixel spectra into `n_clusters` groups by nearest centroid.classhsistatefultorch
 
 #### KMeansClusterer
 
@@ -6324,7 +6324,7 @@ def forward(self, cube: torch.Tensor, **_: Any) -> dict[str, torch.Tensor]:
     return {"class_mask": class_mask, "scores": scores}
 ```
 
-`LADGlobal`cuvis_ai.node.anomaly.lad_detectormodelanomhsilearnnumpyLaplacian Anomaly Detector (global), variant 'C' (Cauchy), port-based.
+`LADGlobal`modelcuvis_ai.node.anomaly.lad_detectorLaplacian Anomaly Detector (global), variant 'C' (Cauchy), port-based.anomhsilearnnumpy
 
 #### LADGlobal
 
@@ -6611,7 +6611,7 @@ def forward(self, data: torch.Tensor, **_: Any) -> dict[str, torch.Tensor]:
     return {"scores": scores}
 ```
 
-`LearnableChannelMixer`cuvis_ai.node.channel_mixermodeldim-redhsilearnpretorchLearnable channel mixer for hyperspectral data reduction (DRCNN-style).
+`LearnableChannelMixer`modelcuvis_ai.node.channel_mixerLearnable channel mixer for hyperspectral data reduction (DRCNN-style).dim-redhsilearnpretorch
 
 #### LearnableChannelMixer
 
@@ -7027,7 +7027,7 @@ def forward(self, data: Tensor, context: Context | None = None, **_: Any) -> dic
     return {"rgb": mixed_bhwc, "weights": last_layer_weights}
 ```
 
-`NMFUnmixing`cuvis_ai.node.unmixing.nmfmodelhsistatefultorchBlind unmixing: learn endmembers by NMF, then solve per-pixel abundances.
+`NMFUnmixing`modelcuvis_ai.node.unmixing.nmfBlind unmixing: learn endmembers by NMF, then solve per-pixel abundances.hsistatefultorch
 
 #### NMFUnmixing
 
@@ -7160,7 +7160,7 @@ def forward(self, cube: torch.Tensor, **_: Any) -> dict[str, torch.Tensor]:
     }
 ```
 
-`NNLSUnmixing`cuvis_ai.node.unmixing.nnlsmodelhsitorchUnmix each pixel into non-negative abundances of known endmembers.
+`NNLSUnmixing`modelcuvis_ai.node.unmixing.nnlsUnmix each pixel into non-negative abundances of known endmembers.hsitorch
 
 #### NNLSUnmixing
 
@@ -7286,7 +7286,7 @@ def forward(
     }
 ```
 
-`OSNetExtractor`cuvis_ai_deepeiou.nodemodelbatchedembimginferlearnrgbtorchdeepeiou[↗](https://github.com/cubert-hyperspectral/cuvis-ai-deepeiou "Open plugin repo")OSNet x1.0 feature extractor (512-dim embeddings).
+`OSNetExtractor`deepeiou[↗](https://github.com/cubert-hyperspectral/cuvis-ai-deepeiou "Open plugin repo")modelcuvis_ai_deepeiou.nodeOSNet x1.0 feature extractor (512-dim embeddings).batchedembimginferlearnrgbtorch
 
 OSNet x1.0 feature extractor (512-dim embeddings).
 
@@ -7304,7 +7304,7 @@ Outputs
 
 [View plugin repo (v0.2.2)](https://github.com/cubert-hyperspectral/cuvis-ai-deepeiou/tree/v0.2.2)
 
-`OneClassSVMDetector`cuvis_ai.node.svmmodelanomhsistatefultorchOne-class SVM novelty detector (sklearn fit, pure-torch RBF forward).
+`OneClassSVMDetector`modelcuvis_ai.node.svmOne-class SVM novelty detector (sklearn fit, pure-torch RBF forward).anomhsistatefultorch
 
 #### OneClassSVMDetector
 
@@ -7491,7 +7491,7 @@ def forward(self, cube: torch.Tensor, **_: Any) -> dict[str, torch.Tensor]:
     return {"scores": scores, "decisions": decisions}
 ```
 
-`PatchCoreDetector`cuvis_ai_patchcore.node.patchcoremodelanomhsistatefultorchpatchcore[↗](https://github.com/cubert-hyperspectral/cuvis-ai-patchcore "Open plugin repo")Nearest-coreset distance anomaly detector on spectra or dense feature grids (PatchCore).
+`PatchCoreDetector`patchcore[↗](https://github.com/cubert-hyperspectral/cuvis-ai-patchcore "Open plugin repo")modelcuvis_ai_patchcore.node.patchcoreNearest-coreset distance anomaly detector on spectra or dense feature grids (PatchCore).anomhsistatefultorch
 
 Nearest-coreset distance anomaly detector on spectra or dense feature grids (PatchCore).
 
@@ -7511,7 +7511,7 @@ Outputs
 
 [View plugin repo (v0.4.0)](https://github.com/cubert-hyperspectral/cuvis-ai-patchcore/tree/v0.4.0)
 
-`RFDETRDetector`cuvis_ai_rfdetr.node.rfdetr_detectormodelanombboxdetimginferrgbtorchrfdetr[↗](https://github.com/cubert-hyperspectral/cuvis-ai-rfdetr "Open plugin repo")Single-frame object detection using the official Roboflow RF-DETR.
+`RFDETRDetector`rfdetr[↗](https://github.com/cubert-hyperspectral/cuvis-ai-rfdetr "Open plugin repo")modelcuvis_ai_rfdetr.node.rfdetr_detectorSingle-frame object detection using the official Roboflow RF-DETR.anombboxdetimginferrgbtorch
 
 Single-frame object detection using the official Roboflow RF-DETR.
 
@@ -7531,7 +7531,7 @@ Outputs
 
 [View plugin repo (v0.5.2)](https://github.com/cubert-hyperspectral/cuvis-ai-rfdetr/tree/v0.5.2)
 
-`RFDETRSegmenter`cuvis_ai_rfdetr.node.rfdetr_segmentermodelanomdetimginferrgbsegtorchrfdetr[↗](https://github.com/cubert-hyperspectral/cuvis-ai-rfdetr "Open plugin repo")Single-frame instance segmentation using the official Roboflow RF-DETR-Seg.
+`RFDETRSegmenter`rfdetr[↗](https://github.com/cubert-hyperspectral/cuvis-ai-rfdetr "Open plugin repo")modelcuvis_ai_rfdetr.node.rfdetr_segmenterSingle-frame instance segmentation using the official Roboflow RF-DETR-Seg.anomdetimginferrgbsegtorch
 
 Single-frame instance segmentation using the official Roboflow RF-DETR-Seg.
 
@@ -7551,7 +7551,7 @@ Outputs
 
 [View plugin repo (v0.5.2)](https://github.com/cubert-hyperspectral/cuvis-ai-rfdetr/tree/v0.5.2)
 
-`RFDETRTrainable`cuvis_ai_rfdetr.node.rfdetr_trainablemodelbboxdetdiffimgrgbsegtorchtrainrfdetr[↗](https://github.com/cubert-hyperspectral/cuvis-ai-rfdetr "Open plugin repo")RF-DETR (LW-DETR) as a \*trainable\* cuvis-ai node.
+`RFDETRTrainable`rfdetr[↗](https://github.com/cubert-hyperspectral/cuvis-ai-rfdetr "Open plugin repo")modelcuvis_ai_rfdetr.node.rfdetr_trainableRF-DETR (LW-DETR) as a \*trainable\* cuvis-ai node.bboxdetdiffimgrgbsegtorchtrain
 
 RF-DETR (LW-DETR) as a *trainable* cuvis-ai node.
 
@@ -7572,7 +7572,7 @@ Outputs
 
 [View plugin repo (v0.5.2)](https://github.com/cubert-hyperspectral/cuvis-ai-rfdetr/tree/v0.5.2)
 
-`RTSAM2BboxPropagation`cuvis_ai_rtsam2.node.rtsam2_streaming_propagationmodelbatchedbboxinferlearnmaskrgbsegstatefultorchtrackvidrtsam2[↗](https://github.com/cubert-hyperspectral/cuvis-ai-rtsam2 "Open plugin repo")RTSAM2 propagation with runtime bbox prompts.
+`RTSAM2BboxPropagation`rtsam2[↗](https://github.com/cubert-hyperspectral/cuvis-ai-rtsam2 "Open plugin repo")modelcuvis_ai_rtsam2.node.rtsam2_streaming_propagationRTSAM2 propagation with runtime bbox prompts.batchedbboxinferlearnmaskrgbsegstatefultorchtrackvid
 
 RTSAM2 propagation with runtime bbox prompts.
 
@@ -7594,7 +7594,7 @@ Outputs
 
 [View plugin repo (v0.5.0)](https://github.com/cubert-hyperspectral/cuvis-ai-rtsam2/tree/v0.5.0)
 
-`RTSAM2MaskPropagation`cuvis_ai_rtsam2.node.rtsam2_streaming_propagationmodelbatchedinferlearnmaskrgbsegstatefultorchtrackvidrtsam2[↗](https://github.com/cubert-hyperspectral/cuvis-ai-rtsam2 "Open plugin repo")RTSAM2 propagation with runtime label-map prompts.
+`RTSAM2MaskPropagation`rtsam2[↗](https://github.com/cubert-hyperspectral/cuvis-ai-rtsam2 "Open plugin repo")modelcuvis_ai_rtsam2.node.rtsam2_streaming_propagationRTSAM2 propagation with runtime label-map prompts.batchedinferlearnmaskrgbsegstatefultorchtrackvid
 
 RTSAM2 propagation with runtime label-map prompts.
 
@@ -7616,7 +7616,7 @@ Outputs
 
 [View plugin repo (v0.5.0)](https://github.com/cubert-hyperspectral/cuvis-ai-rtsam2/tree/v0.5.0)
 
-`RTSAM2PointExpansion`cuvis_ai_rtsam2.node.rtsam2_point_expansionmodelbatchedimginferkplearnmaskrgbsegtorchrtsam2[↗](https://github.com/cubert-hyperspectral/cuvis-ai-rtsam2 "Open plugin repo")Expand positive/negative click points into one object mask on a single frame.
+`RTSAM2PointExpansion`rtsam2[↗](https://github.com/cubert-hyperspectral/cuvis-ai-rtsam2 "Open plugin repo")modelcuvis_ai_rtsam2.node.rtsam2_point_expansionExpand positive/negative click points into one object mask on a single frame.batchedimginferkplearnmaskrgbsegtorch
 
 Expand positive/negative click points into one object mask on a single frame.
 
@@ -7638,7 +7638,7 @@ Outputs
 
 [View plugin repo (v0.5.0)](https://github.com/cubert-hyperspectral/cuvis-ai-rtsam2/tree/v0.5.0)
 
-`RXGlobal`cuvis_ai.node.anomaly.rx_detectormodelanomhsilearnnumpyRX anomaly detector with global background statistics.
+`RXGlobal`modelcuvis_ai.node.anomaly.rx_detectorRX anomaly detector with global background statistics.anomhsilearnnumpy
 
 #### RXGlobal
 
@@ -7964,7 +7964,7 @@ def forward(self, data: torch.Tensor, **_) -> dict[str, torch.Tensor]:
     return {"scores": scores}
 ```
 
-`RXPerBatch`cuvis_ai.node.anomaly.rx_detectormodelanomhsilearnnumpyComputes μ, Σ per image in the batch on the fly; no fit/finalize.
+`RXPerBatch`modelcuvis_ai.node.anomaly.rx_detectorComputes μ, Σ per image in the batch on the fly; no fit/finalize.anomhsilearnnumpy
 
 #### RXPerBatch
 
@@ -8033,7 +8033,7 @@ def forward(self, data: torch.Tensor, **_) -> dict[str, torch.Tensor]:
     return {"scores": scores.unsqueeze(-1)}
 ```
 
-`ResNetExtractor`cuvis_ai_deepeiou.nodemodelbatchedembimginferlearnrgbtorchdeepeiou[↗](https://github.com/cubert-hyperspectral/cuvis-ai-deepeiou "Open plugin repo")ResNet-50 feature extractor (2048-dim embeddings).
+`ResNetExtractor`deepeiou[↗](https://github.com/cubert-hyperspectral/cuvis-ai-deepeiou "Open plugin repo")modelcuvis_ai_deepeiou.nodeResNet-50 feature extractor (2048-dim embeddings).batchedembimginferlearnrgbtorch
 
 ResNet-50 feature extractor (2048-dim embeddings).
 
@@ -8051,7 +8051,7 @@ Outputs
 
 [View plugin repo (v0.2.2)](https://github.com/cubert-hyperspectral/cuvis-ai-deepeiou/tree/v0.2.2)
 
-`SAM3BboxPropagation`cuvis_ai_sam3.nodemodelbatchedbboxinferlearnmaskrgbsegstatefultorchtrackvidsam3[↗](https://github.com/cubert-hyperspectral/cuvis-ai-sam3 "Open plugin repo")SAM3 streaming propagation with runtime bbox prompts.
+`SAM3BboxPropagation`sam3[↗](https://github.com/cubert-hyperspectral/cuvis-ai-sam3 "Open plugin repo")modelcuvis_ai_sam3.nodeSAM3 streaming propagation with runtime bbox prompts.batchedbboxinferlearnmaskrgbsegstatefultorchtrackvid
 
 SAM3 streaming propagation with runtime bbox prompts.
 
@@ -8073,7 +8073,7 @@ Outputs
 
 [View plugin repo (v0.5.3)](https://github.com/cubert-hyperspectral/cuvis-ai-sam3/tree/v0.5.3)
 
-`SAM3MaskPropagation`cuvis_ai_sam3.nodemodelbatchedinferlearnmaskrgbsegstatefultorchtrackvidsam3[↗](https://github.com/cubert-hyperspectral/cuvis-ai-sam3 "Open plugin repo")SAM3 streaming propagation with runtime label-map prompts.
+`SAM3MaskPropagation`sam3[↗](https://github.com/cubert-hyperspectral/cuvis-ai-sam3 "Open plugin repo")modelcuvis_ai_sam3.nodeSAM3 streaming propagation with runtime label-map prompts.batchedinferlearnmaskrgbsegstatefultorchtrackvid
 
 SAM3 streaming propagation with runtime label-map prompts.
 
@@ -8096,7 +8096,7 @@ Outputs
 
 [View plugin repo (v0.5.3)](https://github.com/cubert-hyperspectral/cuvis-ai-sam3/tree/v0.5.3)
 
-`SAM3PointExpansion`cuvis_ai_sam3.nodemodelbatchedimginferkplearnmaskrgbsegtorchsam3[↗](https://github.com/cubert-hyperspectral/cuvis-ai-sam3 "Open plugin repo")Expand positive/negative click points into one object mask on a single frame.
+`SAM3PointExpansion`sam3[↗](https://github.com/cubert-hyperspectral/cuvis-ai-sam3 "Open plugin repo")modelcuvis_ai_sam3.nodeExpand positive/negative click points into one object mask on a single frame.batchedimginferkplearnmaskrgbsegtorch
 
 Expand positive/negative click points into one object mask on a single frame.
 
@@ -8118,7 +8118,7 @@ Outputs
 
 [View plugin repo (v0.5.3)](https://github.com/cubert-hyperspectral/cuvis-ai-sam3/tree/v0.5.3)
 
-`SAM3PointPropagation`cuvis_ai_sam3.nodemodelbatchedinferkplearnmaskrgbsegstatefultorchtrackvidsam3[↗](https://github.com/cubert-hyperspectral/cuvis-ai-sam3 "Open plugin repo")SAM3 streaming propagation with a point prompt.
+`SAM3PointPropagation`sam3[↗](https://github.com/cubert-hyperspectral/cuvis-ai-sam3 "Open plugin repo")modelcuvis_ai_sam3.nodeSAM3 streaming propagation with a point prompt.batchedinferkplearnmaskrgbsegstatefultorchtrackvid
 
 SAM3 streaming propagation with a point prompt.
 
@@ -8139,7 +8139,7 @@ Outputs
 
 [View plugin repo (v0.5.3)](https://github.com/cubert-hyperspectral/cuvis-ai-sam3/tree/v0.5.3)
 
-`SAM3SegmentEverything`cuvis_ai_sam3.nodemodelbatchedimginferlearnmaskrgbsegtorchsam3[↗](https://github.com/cubert-hyperspectral/cuvis-ai-sam3 "Open plugin repo")Segment everything on one RGB frame using SAM3 point-grid prompting.
+`SAM3SegmentEverything`sam3[↗](https://github.com/cubert-hyperspectral/cuvis-ai-sam3 "Open plugin repo")modelcuvis_ai_sam3.nodeSegment everything on one RGB frame using SAM3 point-grid prompting.batchedimginferlearnmaskrgbsegtorch
 
 Segment everything on one RGB frame using SAM3 point-grid prompting.
 
@@ -8160,7 +8160,7 @@ Outputs
 
 [View plugin repo (v0.5.3)](https://github.com/cubert-hyperspectral/cuvis-ai-sam3/tree/v0.5.3)
 
-`SAM3TextPropagation`cuvis_ai_sam3.nodemodelbatchedinferlearnmaskrgbsegstatefultexttorchtrackvidsam3[↗](https://github.com/cubert-hyperspectral/cuvis-ai-sam3 "Open plugin repo")SAM3 streaming propagation with a text/concept prompt.
+`SAM3TextPropagation`sam3[↗](https://github.com/cubert-hyperspectral/cuvis-ai-sam3 "Open plugin repo")modelcuvis_ai_sam3.nodeSAM3 streaming propagation with a text/concept prompt.batchedinferlearnmaskrgbsegstatefultexttorchtrackvid
 
 SAM3 streaming propagation with a text/concept prompt.
 
@@ -8184,7 +8184,7 @@ Outputs
 
 [View plugin repo (v0.5.3)](https://github.com/cubert-hyperspectral/cuvis-ai-sam3/tree/v0.5.3)
 
-`SoftChannelSelector`cuvis_ai.node.channel_selectormodeldim-redhsilearnonnxpretorchSoft channel selector with temperature-based Gumbel-Softmax selection.
+`SoftChannelSelector`modelcuvis_ai.node.channel_selectorSoft channel selector with temperature-based Gumbel-Softmax selection.dim-redhsilearnonnxpretorch
 
 #### SoftChannelSelector
 
@@ -8503,7 +8503,7 @@ def forward(self, data: Tensor, **_: Any) -> dict[str, Tensor]:
     return outputs
 ```
 
-`SpatialSpectralCNN2D`cuvis_ai_inspecscrap.node.classification.cnn2dmodelclasshsilearntorchcuvis_ai_inspecscrap[↗](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap "Open plugin repo")Spatial-spectral 2D-CNN over a patch (bands as input channels).
+`SpatialSpectralCNN2D`cuvis_ai_inspecscrap[↗](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap "Open plugin repo")modelcuvis_ai_inspecscrap.node.classification.cnn2dSpatial-spectral 2D-CNN over a patch (bands as input channels).classhsilearntorch
 
 Spatial-spectral 2D-CNN over a patch (bands as input channels).
 
@@ -8521,7 +8521,7 @@ Outputs
 
 [View plugin repo (v0.4.0)](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap/tree/v0.4.0)
 
-`SpectralAngleMapper`cuvis_ai.node.spectral_angle_mappermodelclasshsinumpystatefulCompute per-pixel spectral angle against one or more reference spectra.
+`SpectralAngleMapper`modelcuvis_ai.node.spectral_angle_mapperCompute per-pixel spectral angle against one or more reference spectra.classhsinumpystateful
 
 #### SpectralAngleMapper
 
@@ -8608,7 +8608,7 @@ def forward(
     }
 ```
 
-`SpectralMLPClassifier`cuvis_ai_inspecscrap.node.classification.mlpmodelclasshsilearntorchcuvis_ai_inspecscrap[↗](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap "Open plugin repo")Three-layer per-pixel spectral MLP over the patch center pixel.
+`SpectralMLPClassifier`cuvis_ai_inspecscrap[↗](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap "Open plugin repo")modelcuvis_ai_inspecscrap.node.classification.mlpThree-layer per-pixel spectral MLP over the patch center pixel.classhsilearntorch
 
 Three-layer per-pixel spectral MLP over the patch center pixel.
 
@@ -8626,7 +8626,7 @@ Outputs
 
 [View plugin repo (v0.4.0)](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap/tree/v0.4.0)
 
-`SpectralSpatialCNN3D`cuvis_ai_inspecscrap.node.classification.cnn3dmodelclasshsilearntorchcuvis_ai_inspecscrap[↗](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap "Open plugin repo")Spectral-spatial 3D-CNN over a patch, classifying the center pixel.
+`SpectralSpatialCNN3D`cuvis_ai_inspecscrap[↗](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap "Open plugin repo")modelcuvis_ai_inspecscrap.node.classification.cnn3dSpectral-spatial 3D-CNN over a patch, classifying the center pixel.classhsilearntorch
 
 Spectral-spatial 3D-CNN over a patch, classifying the center pixel.
 
@@ -8644,7 +8644,7 @@ Outputs
 
 [View plugin repo (v0.4.0)](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap/tree/v0.4.0)
 
-`SteerViTExtractor`cuvis_ai_steervit.node.steervitmodelanomtorchsteervit[↗](https://github.com/cubert-hyperspectral/cuvis-ai-steervit "Open plugin repo")Prompt-steered SteerViT patch features and the zero-shot anomaly map of an RGB frame.
+`SteerViTExtractor`steervit[↗](https://github.com/cubert-hyperspectral/cuvis-ai-steervit "Open plugin repo")modelcuvis_ai_steervit.node.steervitPrompt-steered SteerViT patch features and the zero-shot anomaly map of an RGB frame.anomtorch
 
 Prompt-steered SteerViT patch features and the zero-shot anomaly map of an RGB frame.
 
@@ -8664,7 +8664,7 @@ Outputs
 
 [View plugin repo (v0.3.1)](https://github.com/cubert-hyperspectral/cuvis-ai-steervit/tree/v0.3.1)
 
-`SupervisedCIRSelector`cuvis_ai.node.channel_selectormodeldim-redhsilearnpretorchSupervised CIR/NIR band selection with window constraints.
+`SupervisedCIRSelector`modelcuvis_ai.node.channel_selectorSupervised CIR/NIR band selection with window constraints.dim-redhsilearnpretorch
 
 #### SupervisedCIRSelector
 
@@ -8713,7 +8713,7 @@ def __init__(
     )
 ```
 
-`SupervisedFullSpectrumSelector`cuvis_ai.node.channel_selectormodeldim-redhsilearnpretorchSupervised selection without window constraints.
+`SupervisedFullSpectrumSelector`modelcuvis_ai.node.channel_selectorSupervised selection without window constraints.dim-redhsilearnpretorch
 
 #### SupervisedFullSpectrumSelector
 
@@ -8743,7 +8743,7 @@ def __init__(
     super().__init__(score_weights=score_weights, lambda_penalty=lambda_penalty, **kwargs)
 ```
 
-`SupervisedSelectorBase`cuvis_ai.node.channel_selectormodeldim-redhsilearnpretorchBase class for supervised band selection strategies.
+`SupervisedSelectorBase`modelcuvis_ai.node.channel_selectorBase class for supervised band selection strategies.dim-redhsilearnpretorch
 
 #### SupervisedSelectorBase
 
@@ -8990,7 +8990,7 @@ def forward(
     return {"rgb_image": rgb, "band_info": band_info}
 ```
 
-`SupervisedWindowedSelector`cuvis_ai.node.channel_selectormodeldim-redhsilearnpretorchSupervised band selection constrained to visible RGB windows.
+`SupervisedWindowedSelector`modelcuvis_ai.node.channel_selectorSupervised band selection constrained to visible RGB windows.dim-redhsilearnpretorch
 
 #### SupervisedWindowedSelector
 
@@ -9039,7 +9039,7 @@ def __init__(
     )
 ```
 
-`TrainablePCA`cuvis_ai.node.dimensionality_reductionmodeldim-redhsilearnonnxprestatefultorchTrainable PCA node with orthogonality regularization.
+`TrainablePCA`modelcuvis_ai.node.dimensionality_reductionTrainable PCA node with orthogonality regularization.dim-redhsilearnonnxprestatefultorch
 
 #### TrainablePCA
 
@@ -9173,7 +9173,7 @@ def forward(self, data: Tensor, **_: Any) -> dict[str, Tensor]:
     return outputs
 ```
 
-`YOLO26Detection`cuvis_ai_ultralytics.nodemodelbatchedbboxdetimginferlearnrgbtorchultralytics[↗](https://github.com/cubert-hyperspectral/cuvis-ai-ultralytics "Open plugin repo")Run YOLO26 raw tensor inference on a stride-aligned CHW RGB batch.
+`YOLO26Detection`ultralytics[↗](https://github.com/cubert-hyperspectral/cuvis-ai-ultralytics "Open plugin repo")modelcuvis_ai_ultralytics.nodeRun YOLO26 raw tensor inference on a stride-aligned CHW RGB batch.batchedbboxdetimginferlearnrgbtorch
 
 Run YOLO26 raw tensor inference on a stride-aligned CHW RGB batch.
 
@@ -9191,7 +9191,7 @@ Outputs
 
 [View plugin repo (v0.1.5)](https://github.com/cubert-hyperspectral/cuvis-ai-ultralytics/tree/v0.1.5)
 
-`OrthogonalityLoss`cuvis_ai.node.lossesregularizerdiffonnxtorchtrainOrthogonality regularization loss for TrainablePCA.
+`OrthogonalityLoss`regularizercuvis_ai.node.lossesOrthogonality regularization loss for TrainablePCA.diffonnxtorchtrain
 
 #### OrthogonalityLoss
 
@@ -9266,7 +9266,7 @@ def forward(self, components: Tensor, **_: Any) -> dict[str, Tensor]:
     return {"loss": self.weight * orth_loss}
 ```
 
-`SelectorDiversityRegularizer`cuvis_ai.node.lossesregularizerdiffonnxtorchtrainDiversity regularization for SoftChannelSelector.
+`SelectorDiversityRegularizer`regularizercuvis_ai.node.lossesDiversity regularization for SoftChannelSelector.diffonnxtorchtrain
 
 #### SelectorDiversityRegularizer
 
@@ -9337,7 +9337,7 @@ def forward(self, weights: Tensor, **_: Any) -> dict[str, Tensor]:
     return {"loss": -self.weight * weights.var(correction=0)}
 ```
 
-`SelectorEntropyRegularizer`cuvis_ai.node.lossesregularizerdiffonnxtorchtrainEntropy regularization for SoftChannelSelector.
+`SelectorEntropyRegularizer`regularizercuvis_ai.node.lossesEntropy regularization for SoftChannelSelector.diffonnxtorchtrain
 
 #### SelectorEntropyRegularizer
 
@@ -9440,7 +9440,7 @@ def forward(self, weights: Tensor, **_: Any) -> dict[str, Tensor]:
     return {"loss": self.weight * loss}
 ```
 
-`ClassMapAccumulator`cuvis_ai.node.patch_inferencesinkclassmaskpostScatter chunked patch predictions back into per-frame `[H, W]` class maps (sink).
+`ClassMapAccumulator`sinkcuvis_ai.node.patch_inferenceScatter chunked patch predictions back into per-frame `[H, W]` class maps (sink).classmaskpost
 
 #### ClassMapAccumulator
 
@@ -9601,7 +9601,7 @@ def close(self) -> None:
     """No external resource to release; maps stay available via :attr:`class_maps`."""
 ```
 
-`ClassMapAccumulator`cuvis_ai_inspecscrap.node.class_map_accumulatorsinkclassmaskpostcuvis_ai_inspecscrap[↗](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap "Open plugin repo")Scatter chunked patch predictions back into per-frame `[H, W]` class maps (sink).
+`ClassMapAccumulator`cuvis_ai_inspecscrap[↗](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap "Open plugin repo")sinkcuvis_ai_inspecscrap.node.class_map_accumulatorScatter chunked patch predictions back into per-frame `[H, W]` class maps (sink).classmaskpost
 
 Scatter chunked patch predictions back into per-frame `[H, W]` class maps (sink).
 
@@ -9618,7 +9618,7 @@ Inputs
 
 [View plugin repo (v0.4.0)](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap/tree/v0.4.0)
 
-`CocoTrackBBoxWriter`cuvis_ai.node.json_filesinkbboxmetatrackWrite tracked bbox outputs into COCO tracking JSON.
+`CocoTrackBBoxWriter`sinkcuvis_ai.node.json_fileWrite tracked bbox outputs into COCO tracking JSON.bboxmetatrack
 
 #### CocoTrackBBoxWriter
 
@@ -9722,7 +9722,7 @@ def forward(
     return {}
 ```
 
-`CocoTrackMaskWriter`cuvis_ai.node.json_filesinkmaskmetatrackWrite mask tracking outputs as COCO JSON in one of two dialects.
+`CocoTrackMaskWriter`sinkcuvis_ai.node.json_fileWrite mask tracking outputs as COCO JSON in one of two dialects.maskmetatrack
 
 #### CocoTrackMaskWriter
 
@@ -9900,7 +9900,7 @@ def forward(
     return {}
 ```
 
-`DetectionCocoJsonNode`cuvis_ai.node.json_filesinkbboxdetmetaWrite frame-wise detections into COCO detection JSON.
+`DetectionCocoJsonNode`sinkcuvis_ai.node.json_fileWrite frame-wise detections into COCO detection JSON.bboxdetmeta
 
 #### DetectionCocoJsonNode
 
@@ -10000,7 +10000,7 @@ def forward(
     return {}
 ```
 
-`MontageColumnSink`cuvis_ai_inspecscrap.node.montage_sinksinkimgpostrgbcuvis_ai_inspecscrap[↗](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap "Open plugin repo")Stitch captioned montage columns into one side-by-side image with a legend (sink).
+`MontageColumnSink`cuvis_ai_inspecscrap[↗](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap "Open plugin repo")sinkcuvis_ai_inspecscrap.node.montage_sinkStitch captioned montage columns into one side-by-side image with a legend (sink).imgpostrgb
 
 Stitch captioned montage columns into one side-by-side image with a legend (sink).
 
@@ -10014,7 +10014,7 @@ Inputs
 
 [View plugin repo (v0.4.0)](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap/tree/v0.4.0)
 
-`NumpyFeatureWriterNode`cuvis_ai.node.numpy_filesinkembmetaSave per-frame feature tensors to `.npy` files.
+`NumpyFeatureWriterNode`sinkcuvis_ai.node.numpy_fileSave per-frame feature tensors to `.npy` files.embmeta
 
 #### NumpyFeatureWriterNode
 
@@ -10105,7 +10105,7 @@ def forward(self, features: Tensor, frame_id: Tensor, **_: Any) -> dict[str, Ten
     return {}
 ```
 
-`PngWriter`cuvis_ai.node.image_filesinkimgrgbWrite RGB frames to PNG files on disk.
+`PngWriter`sinkcuvis_ai.node.image_fileWrite RGB frames to PNG files on disk.imgrgb
 
 #### PngWriter
 
@@ -10198,7 +10198,7 @@ def forward(
     return {}
 ```
 
-`TensorBoardMonitorNode`cuvis_ai.node.monitorsinkevalmetatrainTensorBoard monitoring node for logging artifacts and metrics.
+`TensorBoardMonitorNode`sinkcuvis_ai.node.monitorTensorBoard monitoring node for logging artifacts and metrics.evalmetatrain
 
 #### TensorBoardMonitorNode
 
@@ -10417,7 +10417,7 @@ def cleanup(self) -> None:
         logger.error(f"Failed to close TensorBoard writer: {e}")
 ```
 
-`ToImage`cuvis_ai.node.videosinkimgWrite incoming RGB frames to individual image files, one file per frame.
+`ToImage`sinkcuvis_ai.node.videoWrite incoming RGB frames to individual image files, one file per frame.img
 
 #### ToImage
 
@@ -10536,7 +10536,7 @@ def forward(
     return {}
 ```
 
-`ToVideoNode`cuvis_ai.node.videosinkvidWrite incoming RGB frames directly to a video file via ffmpeg.
+`ToVideoNode`sinkcuvis_ai.node.videoWrite incoming RGB frames directly to a video file via ffmpeg.vid
 
 #### ToVideoNode
 
@@ -10809,7 +10809,7 @@ def cleanup(self) -> None:
         super().cleanup()
 ```
 
-`AnomalyDataNode`cuvis_ai.node.datasourcehsimetaonnxCU3S data node with binary anomaly label mapping.
+`AnomalyDataNode`sourcecuvis_ai.node.dataCU3S data node with binary anomaly label mapping.hsimetaonnx
 
 #### AnomalyDataNode
 
@@ -10880,7 +10880,7 @@ def forward(
     return result
 ```
 
-`BBoxPrompt`cuvis_ai.node.promptssourcebboxinfermetaEmit scheduled runtime bbox prompts plus overlay-friendly debug tensors.
+`BBoxPrompt`sourcecuvis_ai.node.promptsEmit scheduled runtime bbox prompts plus overlay-friendly debug tensors.bboxinfermeta
 
 #### BBoxPrompt
 
@@ -10960,7 +10960,7 @@ def forward(
     }
 ```
 
-`CU3SDataNode`cuvis_ai.node.datasourcehsimetaonnxGeneral-purpose data node for CU3S hyperspectral sequences.
+`CU3SDataNode`sourcecuvis_ai.node.dataGeneral-purpose data node for CU3S hyperspectral sequences.hsimetaonnx
 
 #### CU3SDataNode
 
@@ -11011,7 +11011,7 @@ def forward(
     return result
 ```
 
-`Cu3sDataModule`cuvis_ai_dataloader.data.datamodule_cu3ssourcedata modulecuvis_ai_dataloader[↗](https://github.com/cubert-hyperspectral/cuvis-ai-dataloader "Open plugin repo")Single cu3s recording with optional COCO annotations.
+`Cu3sDataModule`data modulecuvis_ai_dataloader[↗](https://github.com/cubert-hyperspectral/cuvis-ai-dataloader "Open plugin repo")sourcecuvis_ai_dataloader.data.datamodule_cu3sSingle cu3s recording with optional COCO annotations.
 
 Single cu3s recording with optional COCO annotations.
 
@@ -11019,7 +11019,7 @@ Data module `cu3s` — pip extras: `cu3s`, `coco`.
 
 [View plugin repo (v0.9.1)](https://github.com/cubert-hyperspectral/cuvis-ai-dataloader/tree/v0.9.1)
 
-`DensePatchDataModule`cuvis_ai_inspecscrap.data.dense_patch_datamodulesourcedata modulecuvis_ai_inspecscrap[↗](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap "Open plugin repo")Every labelled pixel of the selected frames, served lazily as batch_size-wide patch batches.
+`DensePatchDataModule`data modulecuvis_ai_inspecscrap[↗](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap "Open plugin repo")sourcecuvis_ai_inspecscrap.data.dense_patch_datamoduleEvery labelled pixel of the selected frames, served lazily as batch_size-wide patch batches.
 
 Every labelled pixel of the selected frames, served lazily as batch_size-wide patch batches.
 
@@ -11027,7 +11027,7 @@ Data module `metal_scrap_dense_patch` — pip extras: `tiff`.
 
 [View plugin repo (v0.4.0)](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap/tree/v0.4.0)
 
-`DetectionJsonReader`cuvis_ai.node.json_filesourcebboxdetmetaRead COCO detection JSON and emit tensors per frame.
+`DetectionJsonReader`sourcecuvis_ai.node.json_fileRead COCO detection JSON and emit tensors per frame.bboxdetmeta
 
 #### DetectionJsonReader
 
@@ -11137,7 +11137,7 @@ def forward(self, context: Context | None = None, **_: Any) -> dict[str, Any]:
     }
 ```
 
-`LentilsAnomalyDataNode`cuvis_ai.node.datasourcehsimetaonnxDeprecated alias of :class:`AnomalyDataNode` (nothing lentils-specific inside).
+`LentilsAnomalyDataNode`sourcecuvis_ai.node.dataDeprecated alias of :class:`AnomalyDataNode` (nothing lentils-specific inside).hsimetaonnx
 
 #### LentilsAnomalyDataNode
 
@@ -11169,7 +11169,7 @@ def __init__(
     )
 ```
 
-`MaskPrompt`cuvis_ai.node.promptssourceinfermaskmetaEmit a scheduled label-map prompt mask for the requested frame.
+`MaskPrompt`sourcecuvis_ai.node.promptsEmit a scheduled label-map prompt mask for the requested frame.infermaskmeta
 
 #### MaskPrompt
 
@@ -11239,7 +11239,7 @@ def forward(
     return {"mask": mask_t}
 ```
 
-`MetalScrapDataModule`cuvis_ai_inspecscrap.data.metal_scrap_datamodulesourcedata modulecuvis_ai_inspecscrap[↗](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap "Open plugin repo")Four TIFF datasets with paired PNG labels and a dataset-level train/val/test split.
+`MetalScrapDataModule`data modulecuvis_ai_inspecscrap[↗](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap "Open plugin repo")sourcecuvis_ai_inspecscrap.data.metal_scrap_datamoduleFour TIFF datasets with paired PNG labels and a dataset-level train/val/test split.
 
 Four TIFF datasets with paired PNG labels and a dataset-level train/val/test split.
 
@@ -11247,7 +11247,7 @@ Data module `metal_scrap` — pip extras: `tiff`.
 
 [View plugin repo (v0.4.0)](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap/tree/v0.4.0)
 
-`MetalScrapPatchDataModule`cuvis_ai_inspecscrap.data.metal_scrap_patch_datamodulesourcedata modulecuvis_ai_inspecscrap[↗](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap "Open plugin repo")Cached center-pixel patches served as batch_size-wide cube and targets batches.
+`MetalScrapPatchDataModule`data modulecuvis_ai_inspecscrap[↗](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap "Open plugin repo")sourcecuvis_ai_inspecscrap.data.metal_scrap_patch_datamoduleCached center-pixel patches served as batch_size-wide cube and targets batches.
 
 Cached center-pixel patches served as batch_size-wide cube and targets batches.
 
@@ -11255,7 +11255,7 @@ Data module `metal_scrap_patch` — pip extras: `tiff`.
 
 [View plugin repo (v0.4.0)](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap/tree/v0.4.0)
 
-`MontageColumnDataModule`cuvis_ai_inspecscrap.data.montage_column_datamodulesourcedata modulecuvis_ai_inspecscrap[↗](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap "Open plugin repo")Pre-computed montage columns, one per item (a batch holds all columns, in order).
+`MontageColumnDataModule`data modulecuvis_ai_inspecscrap[↗](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap "Open plugin repo")sourcecuvis_ai_inspecscrap.data.montage_column_datamodulePre-computed montage columns, one per item (a batch holds all columns, in order).
 
 Pre-computed montage columns, one per item (a batch holds all columns, in order).
 
@@ -11263,7 +11263,7 @@ Data module `metal_scrap_montage_columns` — pip extras: none.
 
 [View plugin repo (v0.4.0)](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap/tree/v0.4.0)
 
-`MultiCu3sDataModule`cuvis_ai_dataloader.data.datamodule_cu3s_multisourcedata modulecuvis_ai_dataloader[↗](https://github.com/cubert-hyperspectral/cuvis-ai-dataloader "Open plugin repo")Multiple cu3s recordings over a universe.csv (source, index; optional split).
+`MultiCu3sDataModule`data modulecuvis_ai_dataloader[↗](https://github.com/cubert-hyperspectral/cuvis-ai-dataloader "Open plugin repo")sourcecuvis_ai_dataloader.data.datamodule_cu3s_multiMultiple cu3s recordings over a universe.csv (source, index; optional split).
 
 Multiple cu3s recordings over a universe.csv (source, index; optional split).
 
@@ -11271,7 +11271,7 @@ Data module `cu3s_multi` — pip extras: `cu3s`, `coco`.
 
 [View plugin repo (v0.9.1)](https://github.com/cubert-hyperspectral/cuvis-ai-dataloader/tree/v0.9.1)
 
-`MultiNpzDataModule`cuvis_ai_dataloader.data.datamodule_npz_multisourcedata modulecuvis_ai_dataloader[↗](https://github.com/cubert-hyperspectral/cuvis-ai-dataloader "Open plugin repo")Per-frame .npz over a universe.csv (source, index, materialized_path), split by a splits.json.
+`MultiNpzDataModule`data modulecuvis_ai_dataloader[↗](https://github.com/cubert-hyperspectral/cuvis-ai-dataloader "Open plugin repo")sourcecuvis_ai_dataloader.data.datamodule_npz_multiPer-frame .npz over a universe.csv (source, index, materialized_path), split by a splits.json.
 
 Per-frame .npz over a universe.csv (source, index, materialized_path), split by a splits.json.
 
@@ -11279,7 +11279,7 @@ Data module `npz_multi` — pip extras: none.
 
 [View plugin repo (v0.9.1)](https://github.com/cubert-hyperspectral/cuvis-ai-dataloader/tree/v0.9.1)
 
-`NpyReader`cuvis_ai.node.numpy_filesourcemetaLoad a `.npy` file once and return the same tensor every forward call.
+`NpyReader`sourcecuvis_ai.node.numpy_fileLoad a `.npy` file once and return the same tensor every forward call.meta
 
 #### NpyReader
 
@@ -11329,7 +11329,7 @@ def forward(
     return {"data": self._data_buf}
 ```
 
-`PointPrompt`cuvis_ai.node.promptssourceinferkpmetaEmit a scheduled list of point prompts for the requested frame.
+`PointPrompt`sourcecuvis_ai.node.promptsEmit a scheduled list of point prompts for the requested frame.inferkpmeta
 
 #### PointPrompt
 
@@ -11398,7 +11398,7 @@ def forward(
     return {"points": [dict(point) for point in self._points]}
 ```
 
-`TextPrompt`cuvis_ai.node.promptssourceinfermetatextEmit a runtime text prompt for the requested frame.
+`TextPrompt`sourcecuvis_ai.node.promptsEmit a runtime text prompt for the requested frame.infermetatext
 
 #### TextPrompt
 
@@ -11462,7 +11462,7 @@ def forward(
     }
 ```
 
-`TiffDataNode`cuvis_ai_inspecscrap.node.datasourcehsicuvis_ai_inspecscrap[↗](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap "Open plugin repo")Adapt `tiff_paired` batch keys to the dtypes the channel selectors expect.
+`TiffDataNode`cuvis_ai_inspecscrap[↗](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap "Open plugin repo")sourcecuvis_ai_inspecscrap.node.dataAdapt `tiff_paired` batch keys to the dtypes the channel selectors expect.hsi
 
 Adapt `tiff_paired` batch keys to the dtypes the channel selectors expect.
 
@@ -11482,7 +11482,7 @@ Outputs
 
 [View plugin repo (v0.4.0)](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap/tree/v0.4.0)
 
-`TiffPairedDataModule`cuvis_ai_dataloader.data.datamodule_tiff_pairedsourcedata modulecuvis_ai_dataloader[↗](https://github.com/cubert-hyperspectral/cuvis-ai-dataloader "Open plugin repo")TIFF cubes with paired PNG label images.
+`TiffPairedDataModule`data modulecuvis_ai_dataloader[↗](https://github.com/cubert-hyperspectral/cuvis-ai-dataloader "Open plugin repo")sourcecuvis_ai_dataloader.data.datamodule_tiff_pairedTIFF cubes with paired PNG label images.
 
 TIFF cubes with paired PNG label images.
 
@@ -11490,7 +11490,7 @@ Data module `tiff_paired` — pip extras: `tiff`.
 
 [View plugin repo (v0.9.1)](https://github.com/cubert-hyperspectral/cuvis-ai-dataloader/tree/v0.9.1)
 
-`TrackingResultsReader`cuvis_ai.node.json_filesourcebboxmetatrackRead tracking results JSON (bbox or mask format) and emit per-frame tensors.
+`TrackingResultsReader`sourcecuvis_ai.node.json_fileRead tracking results JSON (bbox or mask format) and emit per-frame tensors.bboxmetatrack
 
 #### TrackingResultsReader
 
@@ -11636,7 +11636,7 @@ def forward(
         return self._emit_video_coco(fid)
 ```
 
-`VideoFrameNode`cuvis_ai.node.videosourceonnxstreamvidPassthrough source node that receives RGB frames from the batch.
+`VideoFrameNode`sourcecuvis_ai.node.videoPassthrough source node that receives RGB frames from the batch.onnxstreamvid
 
 #### VideoFrameNode
 
@@ -11668,7 +11668,7 @@ def forward(
     return result
 ```
 
-`AugmentationCompose`cuvis_ai_augment.node.composetransformaugmasktorchtrainaugment[↗](https://github.com/cubert-hyperspectral/cuvis-ai-augment "Open plugin repo")Applies a sequence of stochastic augmentation transforms to a cube and paired mask during training only.
+`AugmentationCompose`augment[↗](https://github.com/cubert-hyperspectral/cuvis-ai-augment "Open plugin repo")transformcuvis_ai_augment.node.composeApplies a sequence of stochastic augmentation transforms to a cube and paired mask during training only.augmasktorchtrain
 
 Applies a sequence of stochastic augmentation transforms to a cube and paired mask during training only.
 
@@ -11688,7 +11688,7 @@ Outputs
 
 [View plugin repo (v0.5.0)](https://github.com/cubert-hyperspectral/cuvis-ai-augment/tree/v0.5.0)
 
-`BBoxRoiCropNode`cuvis_ai.node.preprocessorstransformbboxnumpypreDifferentiable bbox cropping via torchvision roi_align.
+`BBoxRoiCropNode`transformcuvis_ai.node.preprocessorsDifferentiable bbox cropping via torchvision roi_align.bboxnumpypre
 
 #### BBoxRoiCropNode
 
@@ -11804,7 +11804,7 @@ def forward(self, images: Tensor, bboxes: Tensor, **_: Any) -> dict[str, Tensor]
     return {"crops": crops}
 ```
 
-`BBoxSpectralExtractor`cuvis_ai.node.spectral_extractortransformembhsinumpyExtract per-bbox spectral signatures with trimmed median/mean and std.
+`BBoxSpectralExtractor`transformcuvis_ai.node.spectral_extractorExtract per-bbox spectral signatures with trimmed median/mean and std.embhsinumpy
 
 #### BBoxSpectralExtractor
 
@@ -11954,7 +11954,7 @@ def forward(
     }
 ```
 
-`BandpassByWavelength`cuvis_ai.node.preprocessorstransformhsipreSelect channels by wavelength interval from BHWC tensors.
+`BandpassByWavelength`transformcuvis_ai.node.preprocessorsSelect channels by wavelength interval from BHWC tensors.hsipre
 
 #### BandpassByWavelength
 
@@ -12089,7 +12089,7 @@ def forward(self, data: Tensor, wavelengths: Tensor, **kwargs: Any) -> dict[str,
     return {"filtered": filtered}
 ```
 
-`BinaryAnomalyLabelMapper`cuvis_ai.node.labelstransformanommasknumpyonnxpostConvert multi-class segmentation masks to binary anomaly targets.
+`BinaryAnomalyLabelMapper`transformcuvis_ai.node.labelsConvert multi-class segmentation masks to binary anomaly targets.anommasknumpyonnxpost
 
 #### BinaryAnomalyLabelMapper
 
@@ -12212,7 +12212,7 @@ def forward(self, cube: Tensor, mask: Tensor, **_: Any) -> dict[str, Tensor]:
     return {"cube": cube, "mask": mask_anomaly}
 ```
 
-`BinaryDecider`cuvis_ai.node.deciders.binary_decidertransformcalibclassnumpypostSimple decider node using a static threshold to classify data.
+`BinaryDecider`transformcuvis_ai.node.deciders.binary_deciderSimple decider node using a static threshold to classify data.calibclassnumpypost
 
 #### BinaryDecider
 
@@ -12228,14 +12228,15 @@ Accepts logits as input, applies sigmoid transformation to convert to probabilit
 
 Parameters:
 
-| Name        | Type    | Description                                                                                                                 | Default    |
-| ----------- | ------- | --------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| `threshold` | `float` | The threshold to use for classification after sigmoid. Values >= threshold are classified as anomalies (True). Default: 0.5 | `0.5`      |
-| `The`       |         |                                                                                                                             | *required* |
-| `the`       |         |                                                                                                                             | *required* |
-| `the`       |         |                                                                                                                             | *required* |
-| `as`        |         |                                                                                                                             | *required* |
-| `trainrun`  |         |                                                                                                                             | *required* |
+| Name        | Type    | Description                                                                                                                 | Default |
+| ----------- | ------- | --------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `threshold` | `float` | The threshold to use for classification after sigmoid. Values >= threshold are classified as anomalies (True). Default: 0.5 | `0.5`   |
+
+Notes
+
+The threshold is also an optional input of shape `[1]`: a value on the port replaces the hparam for that call only, so a GUI slider needs no pipeline reload and the yaml keeps the hparam.
+
+:meth:`calibrate` fits the F1 optimum unless the trainrun's calibration block, handed in as `objective`, names a target: `"precision"` or `"recall"` with a `target` in [0, 1], measured at the `"pixels"` or `"frames"` level. The block stays in the trainrun; the pipeline yaml carries only the threshold it produced.
 
 Examples:
 
@@ -12327,7 +12328,7 @@ def forward(
     return {"decisions": torch.sigmoid(logits) >= cut}
 ```
 
-`BlobDetector`cuvis_ai.node.blob_detectortransformhsimasksegLocalize bright blobs (e.g. pills, granules, tray compartments) in a cube.
+`BlobDetector`transformcuvis_ai.node.blob_detectorLocalize bright blobs (e.g. pills, granules, tray compartments) in a cube.hsimaskseg
 
 #### BlobDetector
 
@@ -12502,7 +12503,7 @@ def forward(
     }
 ```
 
-`BlobMajorityVote`cuvis_ai_inspecscrap.node.deciderstransformclassmaskpostcuvis_ai_inspecscrap[↗](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap "Open plugin repo")Relabel each object (instance / connected component) to its majority predicted class.
+`BlobMajorityVote`cuvis_ai_inspecscrap[↗](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap "Open plugin repo")transformcuvis_ai_inspecscrap.node.decidersRelabel each object (instance / connected component) to its majority predicted class.classmaskpost
 
 Relabel each object (instance / connected component) to its majority predicted class.
 
@@ -12522,7 +12523,7 @@ Outputs
 
 [View plugin repo (v0.4.0)](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap/tree/v0.4.0)
 
-`CIETristimulusRGBSelector`cuvis_ai.node.channel_selectortransformdim-redhsinumpyonnxpreCIE 1931 tristimulus-based RGB rendering.
+`CIETristimulusRGBSelector`transformcuvis_ai.node.channel_selectorCIE 1931 tristimulus-based RGB rendering.dim-redhsinumpyonnxpre
 
 #### CIETristimulusRGBSelector
 
@@ -12676,7 +12677,7 @@ def forward(
     return {"rgb_image": rgb, "band_info": band_info}
 ```
 
-`CIRSelector`cuvis_ai.node.channel_selectortransformdim-redhsinumpyonnxpreColor Infrared (CIR) false color composition.
+`CIRSelector`transformcuvis_ai.node.channel_selectorColor Infrared (CIR) false color composition.dim-redhsinumpyonnxpre
 
 #### CIRSelector
 
@@ -12809,7 +12810,7 @@ def export_module(self) -> torch.nn.Module:
     return _BandLookupExportAdapter(self)
 ```
 
-`CIRedEdgeSelector`cuvis_ai.node.channel_selectortransformdim-redhsinumpyonnxpreChlorophyll Index Red Edge renderer.
+`CIRedEdgeSelector`transformcuvis_ai.node.channel_selectorChlorophyll Index Red Edge renderer.dim-redhsinumpyonnxpre
 
 #### CIRedEdgeSelector
 
@@ -12863,7 +12864,7 @@ index_name
 
 Canonical CIRedEdge strategy name.
 
-`CameraEmulationFalseRGBSelector`cuvis_ai.node.channel_selectortransformdim-redhsinumpyonnxpreCamera-emulation false RGB using smooth Gaussian sensitivity curves.
+`CameraEmulationFalseRGBSelector`transformcuvis_ai.node.channel_selectorCamera-emulation false RGB using smooth Gaussian sensitivity curves.dim-redhsinumpyonnxpre
 
 #### CameraEmulationFalseRGBSelector
 
@@ -12995,7 +12996,7 @@ def forward(
     return {"rgb_image": rgb, "band_info": band_info}
 ```
 
-`ClassMapRobustifier`cuvis_ai.node.mask_opstransformclassmasknumpypostsegPer-class morphological cleanup of an integer label map.
+`ClassMapRobustifier`transformcuvis_ai.node.mask_opsPer-class morphological cleanup of an integer label map.classmasknumpypostseg
 
 #### ClassMapRobustifier
 
@@ -13093,7 +13094,7 @@ def forward(self, class_map: torch.Tensor, **_: Any) -> dict[str, torch.Tensor]:
     return {"class_map": out, "source": class_map.clone()}
 ```
 
-`ContinuumRemoval`cuvis_ai.node.pretreatments.continuum_removaltransformhsipretorchPer-pixel continuum (upper convex hull) removal across the spectral axis.
+`ContinuumRemoval`transformcuvis_ai.node.pretreatments.continuum_removalPer-pixel continuum (upper convex hull) removal across the spectral axis.hsipretorch
 
 #### ContinuumRemoval
 
@@ -13171,7 +13172,7 @@ def forward(self, cube: torch.Tensor, wavelengths, **_) -> dict[str, torch.Tenso
     return {"cube": removed.reshape(B, H, W, C)}
 ```
 
-`Crop`cuvis_ai_augment.node.croptransformhsipretorchaugment[↗](https://github.com/cubert-hyperspectral/cuvis-ai-augment "Open plugin repo")Deterministic fixed-rectangle spatial crop of a cube and optional paired mask, applied identically at every execution stage.
+`Crop`augment[↗](https://github.com/cubert-hyperspectral/cuvis-ai-augment "Open plugin repo")transformcuvis_ai_augment.node.cropDeterministic fixed-rectangle spatial crop of a cube and optional paired mask, applied identically at every execution stage.hsipretorch
 
 Deterministic fixed-rectangle spatial crop of a cube and optional paired mask, applied identically at every execution stage.
 
@@ -13191,7 +13192,7 @@ Outputs
 
 [View plugin repo (v0.5.0)](https://github.com/cubert-hyperspectral/cuvis-ai-augment/tree/v0.5.0)
 
-`DecisionFusion`cuvis_ai.node.fusiontransformmaskonnxposttorchFuse N boolean masks of one shape into one mask by `mode` (any, all or first).
+`DecisionFusion`transformcuvis_ai.node.fusionFuse N boolean masks of one shape into one mask by `mode` (any, all or first).maskonnxposttorch
 
 #### DecisionFusion
 
@@ -13278,7 +13279,7 @@ def forward(self, decisions: list[Tensor] | Tensor, **_: Any) -> dict[str, Tenso
     return {"decisions": out}
 ```
 
-`DecisionToMask`cuvis_ai.node.conversiontransformmaskonnxposttorchCombine binary decisions and identity labels into a single int32 mask.
+`DecisionToMask`transformcuvis_ai.node.conversionCombine binary decisions and identity labels into a single int32 mask.maskonnxposttorch
 
 #### DecisionToMask
 
@@ -13311,7 +13312,7 @@ def forward(
     return {"mask": mask}
 ```
 
-`DeepEIoUTrack`cuvis_ai_deepeiou.nodetransformbboxinferstatefultorchtrackdeepeiou[↗](https://github.com/cubert-hyperspectral/cuvis-ai-deepeiou "Open plugin repo")DeepEIoU multi-object tracker node.
+`DeepEIoUTrack`deepeiou[↗](https://github.com/cubert-hyperspectral/cuvis-ai-deepeiou "Open plugin repo")transformcuvis_ai_deepeiou.nodeDeepEIoU multi-object tracker node.bboxinferstatefultorchtrack
 
 DeepEIoU multi-object tracker node.
 
@@ -13335,7 +13336,7 @@ Outputs
 
 [View plugin repo (v0.2.2)](https://github.com/cubert-hyperspectral/cuvis-ai-deepeiou/tree/v0.2.2)
 
-`DeepSVDDCenterTracker`cuvis_ai.node.anomaly.deep_svddtransformanominferstatefultorchtrainTrack and expose Deep SVDD center statistics with optional logging.
+`DeepSVDDCenterTracker`transformcuvis_ai.node.anomaly.deep_svddTrack and expose Deep SVDD center statistics with optional logging.anominferstatefultorchtrain
 
 #### DeepSVDDCenterTracker
 
@@ -13549,7 +13550,7 @@ def forward(
     return {"center": center_value, "metrics": metrics}
 ```
 
-`DisplayNormalizer`cuvis_ai.node.normalizationtransformnormnumpyonnxpreApply sRGB gamma companding (IEC 61966-2-1) to a `[0, 1]` BHWC tensor.
+`DisplayNormalizer`transformcuvis_ai.node.normalizationApply sRGB gamma companding (IEC 61966-2-1) to a `[0, 1]` BHWC tensor.normnumpyonnxpre
 
 #### DisplayNormalizer
 
@@ -13574,7 +13575,7 @@ def __init__(self, *args, **kwargs) -> None:
     super().__init__(*args, **kwargs)
 ```
 
-`EVI2Selector`cuvis_ai.node.channel_selectortransformdim-redhsinumpyonnxpreTwo-band Enhanced Vegetation Index renderer.
+`EVI2Selector`transformcuvis_ai.node.channel_selectorTwo-band Enhanced Vegetation Index renderer.dim-redhsinumpyonnxpre
 
 #### EVI2Selector
 
@@ -13630,7 +13631,7 @@ index_name
 
 Canonical EVI2 strategy name.
 
-`EVISelector`cuvis_ai.node.channel_selectortransformdim-redhsinumpyonnxpreEnhanced Vegetation Index renderer.
+`EVISelector`transformcuvis_ai.node.channel_selectorEnhanced Vegetation Index renderer.dim-redhsinumpyonnxpre
 
 #### EVISelector
 
@@ -13690,7 +13691,7 @@ index_name
 
 Canonical EVI strategy name.
 
-`FastRGBSelector`cuvis_ai.node.channel_selectortransformdim-redhsinumpyprecuvis-next parity FastRGB renderer.
+`FastRGBSelector`transformcuvis_ai.node.channel_selectorcuvis-next parity FastRGB renderer.dim-redhsinumpypre
 
 #### FastRGBSelector
 
@@ -13815,7 +13816,7 @@ def forward(
     return {"rgb_image": rgb, "band_info": band_info}
 ```
 
-`FixedPCAProjection`cuvis_ai.node.dimensionality_reductiontransformdim-redhsiprestatefultorchProject cubes with a fixed PCA loaded from an `.npz` file; the projection is never refit.
+`FixedPCAProjection`transformcuvis_ai.node.dimensionality_reductionProject cubes with a fixed PCA loaded from an `.npz` file; the projection is never refit.dim-redhsiprestatefultorch
 
 #### FixedPCAProjection
 
@@ -13942,7 +13943,7 @@ def forward(self, data: Tensor, **_: Any) -> dict[str, Tensor]:
     return {"projected": p}
 ```
 
-`FixedWavelengthSelector`cuvis_ai.node.channel_selectortransformdim-redhsinumpyonnxpreFixed wavelength band selection — picks the nearest band for each target wavelength.
+`FixedWavelengthSelector`transformcuvis_ai.node.channel_selectorFixed wavelength band selection — picks the nearest band for each target wavelength.dim-redhsinumpyonnxpre
 
 #### FixedWavelengthSelector
 
@@ -14137,7 +14138,7 @@ def export_module(self) -> torch.nn.Module:
     return _BandLookupExportAdapter(self)
 ```
 
-`FrameScoreGate`cuvis_ai.node.deciders.frame_score_gatetransformanomposttorchZero a display map unless its per-frame top-k score exceeds a threshold (heatmap or mask).
+`FrameScoreGate`transformcuvis_ai.node.deciders.frame_score_gateZero a display map unless its per-frame top-k score exceeds a threshold (heatmap or mask).anomposttorch
 
 #### FrameScoreGate
 
@@ -14338,7 +14339,7 @@ def forward(
     }
 ```
 
-`GNDVISelector`cuvis_ai.node.channel_selectortransformdim-redhsinumpyonnxpreGreen Normalized Difference Vegetation Index renderer.
+`GNDVISelector`transformcuvis_ai.node.channel_selectorGreen Normalized Difference Vegetation Index renderer.dim-redhsinumpyonnxpre
 
 #### GNDVISelector
 
@@ -14412,7 +14413,7 @@ secondary_label
 
 GNDVI secondary operand label.
 
-`GridStitcher`cuvis_ai.node.tilingtransformbatcheddiffembposttorchReassemble per-tile grids produced in ImageTiler order into one grid per image.
+`GridStitcher`transformcuvis_ai.node.tilingReassemble per-tile grids produced in ImageTiler order into one grid per image.batcheddiffembposttorch
 
 #### GridStitcher
 
@@ -14458,7 +14459,7 @@ def forward(self, tiles: Tensor, **_: Any) -> dict[str, Tensor]:
     return {"grid": x.reshape(b, t * gh, t * gw, d)}
 ```
 
-`GridSubsample`cuvis_ai.node.spatialtransformhsionnxpretorchKeep every `stride`-th pixel of a cube in both spatial axes: `cube[:, ::s, ::s, :]`.
+`GridSubsample`transformcuvis_ai.node.spatialKeep every `stride`-th pixel of a cube in both spatial axes: `cube[:, ::s, ::s, :]`.hsionnxpretorch
 
 #### GridSubsample
 
@@ -14510,7 +14511,7 @@ def forward(self, cube: Tensor, **_: Any) -> dict[str, Tensor]:
     return {"cube": subsample_hw(cube, self.stride)}
 ```
 
-`HighContrastSelector`cuvis_ai.node.channel_selectortransformdim-redhsinumpypreData-driven band selection using spatial variance + Laplacian energy.
+`HighContrastSelector`transformcuvis_ai.node.channel_selectorData-driven band selection using spatial variance + Laplacian energy.dim-redhsinumpypre
 
 #### HighContrastSelector
 
@@ -14537,13 +14538,10 @@ Parameters:
 | `windows`  | `Sequence[tuple[float, float]]` | Wavelength windows for Blue, Green, Red channels. Default: ((440, 500), (500, 580), (610, 700)) for visible spectrum.                           | `((440, 500), (500, 580), (610, 700))` |
 | `alpha`    | `float`                         | Weight for Laplacian energy term. Default: 0.1                                                                                                  | `0.1`                                  |
 | `**kwargs` | `Any`                           | ChannelSelectorBase settings (norm_mode, apply_gamma, ...); normalize_output=False returns the three selected bands without rescaling or gamma. | `{}`                                   |
-| `Does`     |                                 |                                                                                                                                                 | *required*                             |
-| `per`      |                                 |                                                                                                                                                 | *required*                             |
-| `numpy`    |                                 |                                                                                                                                                 | *required*                             |
-| `other`    |                                 |                                                                                                                                                 | *required*                             |
-| `of`       |                                 |                                                                                                                                                 | *required*                             |
-| `would`    |                                 |                                                                                                                                                 | *required*                             |
-| `No`       |                                 |                                                                                                                                                 | *required*                             |
+
+Notes
+
+Does not export with the dynamo exporter: `_select_indices` picks the band per window from the batch's own pixel values (variance, Laplacian energy) with numpy and scipy, round-tripping through `cube[0].cpu().numpy()`. Unlike the other selectors' band lookup, the choice is content-dependent, not a function of `wavelengths` alone, so caching a traced lookup from one eager call (as :class:`CIETristimulusRGBSelector` does for its wavelength-dependent weights) would freeze the band choice to whatever the priming frame happened to select. No `NodeTag.ONNX`.
 
 Source code in `cuvis_ai/node/channel_selector.py`
 
@@ -14620,7 +14618,7 @@ def forward(
     return {"rgb_image": rgb, "band_info": band_info}
 ```
 
-`IdentityNormalizer`cuvis_ai.node.normalizationtransformnormnumpyonnxpreNo-op normalizer; preserves incoming scores.
+`IdentityNormalizer`transformcuvis_ai.node.normalizationNo-op normalizer; preserves incoming scores.normnumpyonnxpre
 
 #### IdentityNormalizer
 
@@ -14639,7 +14637,7 @@ def __init__(self, **kwargs) -> None:
     super().__init__(**kwargs)
 ```
 
-`ImageConcatenator`cuvis_ai.node.compositingtransformimgonnxrgbConcatenate several RGB frames into one side-by-side or stacked strip.
+`ImageConcatenator`transformcuvis_ai.node.compositingConcatenate several RGB frames into one side-by-side or stacked strip.imgonnxrgb
 
 #### ImageConcatenator
 
@@ -14702,7 +14700,7 @@ def __init__(
     )
 ```
 
-`ImageTiler`cuvis_ai.node.tilingtransformbatcheddiffimgonnxpretorchSplit every image of a batch into a T x T grid of equal tiles stacked along the batch.
+`ImageTiler`transformcuvis_ai.node.tilingSplit every image of a batch into a T x T grid of equal tiles stacked along the batch.batcheddiffimgonnxpretorch
 
 #### ImageTiler
 
@@ -14750,7 +14748,7 @@ def forward(self, image: Tensor, **_: Any) -> dict[str, Tensor]:
     return {"tiles": x.reshape(b * t * t, h // t, w // t, c)}
 ```
 
-`InsetComposer`cuvis_ai.node.compositingtransformimgnumpyprePaste a fixed-size inset frame into a corner of a larger base frame.
+`InsetComposer`transformcuvis_ai.node.compositingPaste a fixed-size inset frame into a corner of a larger base frame.imgnumpypre
 
 #### InsetComposer
 
@@ -14813,7 +14811,7 @@ def __init__(
     )
 ```
 
-`IntensityThresholdSegmenter`cuvis_ai.node.segmentation.intensitytransformhsimaskposttorchSegment foreground by thresholding a per-pixel reduced intensity.
+`IntensityThresholdSegmenter`transformcuvis_ai.node.segmentation.intensitySegment foreground by thresholding a per-pixel reduced intensity.hsimaskposttorch
 
 #### IntensityThresholdSegmenter
 
@@ -14929,7 +14927,7 @@ def forward(self, cube: Tensor, **_: Any) -> dict[str, Tensor]:
     return {"mask": mask}
 ```
 
-`InverseFrequencyClassWeights`cuvis_ai_inspecscrap.node.lossestransformclasstorchtraincuvis_ai_inspecscrap[↗](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap "Open plugin repo")Entry node that fits inverse-frequency class weights from the training-label distribution.
+`InverseFrequencyClassWeights`cuvis_ai_inspecscrap[↗](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap "Open plugin repo")transformcuvis_ai_inspecscrap.node.lossesEntry node that fits inverse-frequency class weights from the training-label distribution.classtorchtrain
 
 Entry node that fits inverse-frequency class weights from the training-label distribution.
 
@@ -14947,7 +14945,7 @@ Outputs
 
 [View plugin repo (v0.4.0)](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap/tree/v0.4.0)
 
-`LabelOffset`cuvis_ai.node.mask_opstransformclassmaskonnxsegAdd a constant offset to every label in an integer label map.
+`LabelOffset`transformcuvis_ai.node.mask_opsAdd a constant offset to every label in an integer label map.classmaskonnxseg
 
 #### LabelOffset
 
@@ -14992,7 +14990,7 @@ def forward(self, class_map: torch.Tensor, **_: Any) -> dict[str, torch.Tensor]:
     return {"class_map": class_map.to(torch.int32) + self.offset}
 ```
 
-`LabelOverlay`cuvis_ai.node.compositingtransformimgonnxrgbAlpha-blend a colourised label map onto an RGB image on its foreground pixels.
+`LabelOverlay`transformcuvis_ai.node.compositingAlpha-blend a colourised label map onto an RGB image on its foreground pixels.imgonnxrgb
 
 #### LabelOverlay
 
@@ -15063,7 +15061,7 @@ def forward(
     return {"frame": frame.clamp(0.0, 1.0)}
 ```
 
-`LegendStrip`cuvis_ai.node.compositingtransformimgonnxrgbAppend a horizontal class-colour legend strip below the input frame.
+`LegendStrip`transformcuvis_ai.node.compositingAppend a horizontal class-colour legend strip below the input frame.imgonnxrgb
 
 #### LegendStrip
 
@@ -15179,7 +15177,7 @@ def forward(
     return {"frame": torch.cat([frame, strip], dim=1).clamp(0.0, 1.0)}
 ```
 
-`LegendStripNode`cuvis_ai_inspecscrap.node.legendtransformvidcuvis_ai_inspecscrap[↗](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap "Open plugin repo")Append a horizontal class-colour legend strip below the input frame.
+`LegendStripNode`cuvis_ai_inspecscrap[↗](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap "Open plugin repo")transformcuvis_ai_inspecscrap.node.legendAppend a horizontal class-colour legend strip below the input frame.vid
 
 Append a horizontal class-colour legend strip below the input frame.
 
@@ -15198,7 +15196,7 @@ Outputs
 
 [View plugin repo (v0.4.0)](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap/tree/v0.4.0)
 
-`Logarithm`cuvis_ai.node.pretreatments.logarithmtransformhsipretorchElement-wise logarithm of the cube.
+`Logarithm`transformcuvis_ai.node.pretreatments.logarithmElement-wise logarithm of the cube.hsipretorch
 
 #### Logarithm
 
@@ -15277,7 +15275,7 @@ def forward(self, cube: torch.Tensor, **_) -> dict[str, torch.Tensor]:
     return {"cube": result}
 ```
 
-`MCARISelector`cuvis_ai.node.channel_selectortransformdim-redhsinumpyonnxpreModified Chlorophyll Absorption in Reflectance Index renderer.
+`MCARISelector`transformcuvis_ai.node.channel_selectorModified Chlorophyll Absorption in Reflectance Index renderer.dim-redhsinumpyonnxpre
 
 #### MCARISelector
 
@@ -15335,7 +15333,7 @@ index_name
 
 Canonical MCARI strategy name.
 
-`MSAVISelector`cuvis_ai.node.channel_selectortransformdim-redhsinumpyonnxpreModified Soil Adjusted Vegetation Index renderer.
+`MSAVISelector`transformcuvis_ai.node.channel_selectorModified Soil Adjusted Vegetation Index renderer.dim-redhsinumpyonnxpre
 
 #### MSAVISelector
 
@@ -15391,7 +15389,7 @@ index_name
 
 Canonical MSAVI strategy name.
 
-`MajorityVoteByBlob`cuvis_ai.node.mask_opstransformclassmasksegAssign each blob the majority per-pixel label found inside it.
+`MajorityVoteByBlob`transformcuvis_ai.node.mask_opsAssign each blob the majority per-pixel label found inside it.classmaskseg
 
 #### MajorityVoteByBlob
 
@@ -15464,7 +15462,7 @@ def forward(
     return {"mask": out.unsqueeze(0)}
 ```
 
-`MaskBlobFilter`cuvis_ai.node.mask_opstransformhsimasknumpypostKeep the blobs of a boolean mask that are large enough and lie on non-background material.
+`MaskBlobFilter`transformcuvis_ai.node.mask_opsKeep the blobs of a boolean mask that are large enough and lie on non-background material.hsimasknumpypost
 
 #### MaskBlobFilter
 
@@ -15587,7 +15585,7 @@ def forward(self, decisions: Tensor, cube: Tensor | None = None, **_: Any) -> di
     return {"decisions": expand_cells(kk, decisions, self.cell)}
 ```
 
-`MaskBlobGate`cuvis_ai.node.mask_opstransformmasknumpypostKeep the blobs of a boolean mask that hold enough pixels of a second (gating) mask.
+`MaskBlobGate`transformcuvis_ai.node.mask_opsKeep the blobs of a boolean mask that hold enough pixels of a second (gating) mask.masknumpypost
 
 #### MaskBlobGate
 
@@ -15672,7 +15670,7 @@ def forward(self, decisions: Tensor, mask: Tensor, **_: Any) -> dict[str, Tensor
     return {"decisions": out.permute(0, 2, 3, 1)}
 ```
 
-`MaskComposite`cuvis_ai.node.mask_opstransformmaskonnxtorchMerge N boolean masks [B, H, W, C] into one label map and one level map for display.
+`MaskComposite`transformcuvis_ai.node.mask_opsMerge N boolean masks [B, H, W, C] into one label map and one level map for display.maskonnxtorch
 
 #### MaskComposite
 
@@ -15765,7 +15763,7 @@ def forward(self, decisions: list[Tensor] | Tensor, **_: Any) -> dict[str, Tenso
     return {"mask": label_map, "scores": level_map}
 ```
 
-`MaskMinArea`cuvis_ai.node.mask_opstransformmasknumpypostDrop the 8-connected blobs of a boolean mask [B, H, W, C] below `min_area` pixels.
+`MaskMinArea`transformcuvis_ai.node.mask_opsDrop the 8-connected blobs of a boolean mask [B, H, W, C] below `min_area` pixels.masknumpypost
 
 #### MaskMinArea
 
@@ -15828,7 +15826,7 @@ def forward(self, decisions: Tensor, **_: Any) -> dict[str, Tensor]:
     return {"decisions": out.permute(0, 2, 3, 1)}
 ```
 
-`MaskPeakGate`cuvis_ai.node.mask_opstransformmasknumpypostKeep the blobs of a mask whose peak score reaches a share of their reference blob's peak.
+`MaskPeakGate`transformcuvis_ai.node.mask_opsKeep the blobs of a mask whose peak score reaches a share of their reference blob's peak.masknumpypost
 
 #### MaskPeakGate
 
@@ -15918,7 +15916,7 @@ def forward(
     return {"decisions": expand_cells(kk, decisions, self.cell)}
 ```
 
-`MaskPersistence`cuvis_ai_patchcore.node.temporaltransformmaskpoststatefultorchpatchcore[↗](https://github.com/cubert-hyperspectral/cuvis-ai-patchcore "Open plugin repo")Keep the pixels of a boolean mask [B, H, W, C] that the previous frame's mask has nearby.
+`MaskPersistence`patchcore[↗](https://github.com/cubert-hyperspectral/cuvis-ai-patchcore "Open plugin repo")transformcuvis_ai_patchcore.node.temporalKeep the pixels of a boolean mask [B, H, W, C] that the previous frame's mask has nearby.maskpoststatefultorch
 
 Keep the pixels of a boolean mask [B, H, W, C] that the previous frame's mask has nearby.
 
@@ -15936,7 +15934,7 @@ Outputs
 
 [View plugin repo (v0.4.0)](https://github.com/cubert-hyperspectral/cuvis-ai-patchcore/tree/v0.4.0)
 
-`MaskRobustifier`cuvis_ai.node.mask_opstransformmasknumpypostsegClean a binary/labelled mask with morphology + largest-component filter.
+`MaskRobustifier`transformcuvis_ai.node.mask_opsClean a binary/labelled mask with morphology + largest-component filter.masknumpypostseg
 
 #### MaskRobustifier
 
@@ -16051,7 +16049,7 @@ def forward(self, mask: torch.Tensor, **_: Any) -> dict[str, torch.Tensor]:
     return {"mask": (mask * surviving_t.to(mask.dtype))}
 ```
 
-`MaskToBBoxKalman`cuvis_ai.node.mask_opstransformbboxmasknumpypoststatefultrackMask -> bounding box with constant-velocity Kalman smoothing.
+`MaskToBBoxKalman`transformcuvis_ai.node.mask_opsMask -> bounding box with constant-velocity Kalman smoothing.bboxmasknumpypoststatefultrack
 
 #### MaskToBBoxKalman
 
@@ -16225,7 +16223,7 @@ def forward(self, mask: torch.Tensor, **_: Any) -> dict[str, torch.Tensor]:
     }
 ```
 
-`MaskedMeanSpectrum`cuvis_ai.node.spectral_extractortransformembhsinumpyonnxPer-frame mean spectrum of a hyperspectral cube over a binary mask.
+`MaskedMeanSpectrum`transformcuvis_ai.node.spectral_extractorPer-frame mean spectrum of a hyperspectral cube over a binary mask.embhsinumpyonnx
 
 #### MaskedMeanSpectrum
 
@@ -16265,7 +16263,7 @@ def forward(
     return {"mean_spectrum": mean.to(torch.float32), "valid": valid}
 ```
 
-`MinMaxNormalizer`cuvis_ai.node.normalizationtransformnormnumpyonnxpreMin-max normalization per sample and channel (keeps gradients).
+`MinMaxNormalizer`transformcuvis_ai.node.normalizationMin-max normalization per sample and channel (keeps gradients).normnumpyonnxpre
 
 #### MinMaxNormalizer
 
@@ -16430,7 +16428,7 @@ def statistical_initialization(self, input_stream) -> None:
     self._statistically_initialized = True
 ```
 
-`MultiRangeSlicer`cuvis_ai.node.deciders.multi_range_decidertransformclassposttorchBucket a per-pixel score map into ordered class indices by edges.
+`MultiRangeSlicer`transformcuvis_ai.node.deciders.multi_range_deciderBucket a per-pixel score map into ordered class indices by edges.classposttorch
 
 #### MultiRangeSlicer
 
@@ -16522,7 +16520,7 @@ def forward(self, scores: Tensor, **_: Any) -> dict[str, Tensor]:
     return {"class_mask": idx.to(torch.int32)}
 ```
 
-`NBRSelector`cuvis_ai.node.channel_selectortransformdim-redhsinumpyonnxpreNormalized Burn Ratio renderer.
+`NBRSelector`transformcuvis_ai.node.channel_selectorNormalized Burn Ratio renderer.dim-redhsinumpyonnxpre
 
 #### NBRSelector
 
@@ -16596,7 +16594,7 @@ secondary_label
 
 NBR secondary operand label.
 
-`NDRESelector`cuvis_ai.node.channel_selectortransformdim-redhsinumpyonnxpreNormalized Difference Red Edge index renderer.
+`NDRESelector`transformcuvis_ai.node.channel_selectorNormalized Difference Red Edge index renderer.dim-redhsinumpyonnxpre
 
 #### NDRESelector
 
@@ -16670,7 +16668,7 @@ secondary_label
 
 NDRE secondary operand label.
 
-`NDVISelector`cuvis_ai.node.channel_selectortransformdim-redhsinumpyonnxpreNormalized Difference Vegetation Index renderer.
+`NDVISelector`transformcuvis_ai.node.channel_selectorNormalized Difference Vegetation Index renderer.dim-redhsinumpyonnxpre
 
 #### NDVISelector
 
@@ -16785,7 +16783,7 @@ def forward(
     return result
 ```
 
-`NDWISelector`cuvis_ai.node.channel_selectortransformdim-redhsinumpyonnxpreNormalized Difference Water Index renderer.
+`NDWISelector`transformcuvis_ai.node.channel_selectorNormalized Difference Water Index renderer.dim-redhsinumpyonnxpre
 
 #### NDWISelector
 
@@ -16859,7 +16857,7 @@ secondary_label
 
 NDWI secondary operand label.
 
-`NearestLabelFill`cuvis_ai.node.mask_opstransformclassmaskpostsegFill morphology-removed gaps in a label map with the nearest surviving label.
+`NearestLabelFill`transformcuvis_ai.node.mask_opsFill morphology-removed gaps in a label map with the nearest surviving label.classmaskpostseg
 
 #### NearestLabelFill
 
@@ -16925,7 +16923,7 @@ def forward(
     return {"class_map": out}
 ```
 
-`PCA`cuvis_ai.node.dimensionality_reductiontransformdim-redhsipretorchProject each frame independently onto its principal components.
+`PCA`transformcuvis_ai.node.dimensionality_reductionProject each frame independently onto its principal components.dim-redhsipretorch
 
 #### PCA
 
@@ -16997,7 +16995,7 @@ def forward(self, data: Tensor, **_: Any) -> dict[str, Tensor]:
     }
 ```
 
-`PRISelector`cuvis_ai.node.channel_selectortransformdim-redhsinumpyonnxprePhotochemical Reflectance Index renderer.
+`PRISelector`transformcuvis_ai.node.channel_selectorPhotochemical Reflectance Index renderer.dim-redhsinumpyonnxpre
 
 #### PRISelector
 
@@ -17051,7 +17049,7 @@ index_name
 
 Canonical PRI strategy name.
 
-`PatchSampler`cuvis_ai.node.patch_inferencetransformhsiprestochExtract labeled center-pixel patches from a cube and an integer target map.
+`PatchSampler`transformcuvis_ai.node.patch_inferenceExtract labeled center-pixel patches from a cube and an integer target map.hsiprestoch
 
 #### PatchSampler
 
@@ -17210,7 +17208,7 @@ def forward(
     return {"patches": torch.cat(out_patches), "labels": torch.cat(out_labels).to(torch.int64)}
 ```
 
-`PatchSampler`cuvis_ai_inspecscrap.node.patch_samplertransformhsiprestochcuvis_ai_inspecscrap[↗](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap "Open plugin repo")Extract labeled center-pixel patches from a cube + integer target map.
+`PatchSampler`cuvis_ai_inspecscrap[↗](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap "Open plugin repo")transformcuvis_ai_inspecscrap.node.patch_samplerExtract labeled center-pixel patches from a cube + integer target map.hsiprestoch
 
 Extract labeled center-pixel patches from a cube + integer target map.
 
@@ -17230,7 +17228,7 @@ Outputs
 
 [View plugin repo (v0.4.0)](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap/tree/v0.4.0)
 
-`PerPixelUnitNorm`cuvis_ai.node.normalizationtransformnormnumpyonnxprePer-pixel mean-centering and L2 normalization across channels.
+`PerPixelUnitNorm`transformcuvis_ai.node.normalizationPer-pixel mean-centering and L2 normalization across channels.normnumpyonnxpre
 
 #### PerPixelUnitNorm
 
@@ -17250,7 +17248,7 @@ def __init__(self, eps: float = 1e-8, **kwargs) -> None:
     super().__init__(eps=self.eps, **kwargs)
 ```
 
-`PercentileComposite`cuvis_ai_rfdetr.node.percentile_compositetransformhsiimgrgbrfdetr[↗](https://github.com/cubert-hyperspectral/cuvis-ai-rfdetr "Open plugin repo")Three-band false-color composite with per-band percentile stretch.
+`PercentileComposite`rfdetr[↗](https://github.com/cubert-hyperspectral/cuvis-ai-rfdetr "Open plugin repo")transformcuvis_ai_rfdetr.node.percentile_compositeThree-band false-color composite with per-band percentile stretch.hsiimgrgb
 
 Three-band false-color composite with per-band percentile stretch.
 
@@ -17269,7 +17267,7 @@ Outputs
 
 [View plugin repo (v0.5.2)](https://github.com/cubert-hyperspectral/cuvis-ai-rfdetr/tree/v0.5.2)
 
-`PercentileNormalizer`cuvis_ai.node.normalizationtransformnormnumpyonnxprePer-channel normalization to `[0, 1]` for BHWC data of any channel count.
+`PercentileNormalizer`transformcuvis_ai.node.normalizationPer-channel normalization to `[0, 1]` for BHWC data of any channel count.normnumpyonnxpre
 
 #### PercentileNormalizer
 
@@ -17518,7 +17516,7 @@ def statistical_initialization(self, input_stream: InputStream) -> None:
         raise RuntimeError("PercentileNormalizer.statistical_initialization received no data")
 ```
 
-`PoissonCubeOcclusionNode`cuvis_ai.node.occlusiontransformaugnumpystochtrainDeprecated alias of PoissonOcclusionNode with cube-only ports.
+`PoissonCubeOcclusionNode`transformcuvis_ai.node.occlusionDeprecated alias of PoissonOcclusionNode with cube-only ports.augnumpystochtrain
 
 #### PoissonCubeOcclusionNode
 
@@ -17659,7 +17657,7 @@ def forward(
     return super().forward(frame_id=frame_id, cube=cube)
 ```
 
-`PoissonOcclusionNode`cuvis_ai.node.occlusiontransformaugnumpystochtrainPure-PyTorch occlusion node for either RGB frames or hyperspectral cubes.
+`PoissonOcclusionNode`transformcuvis_ai.node.occlusionPure-PyTorch occlusion node for either RGB frames or hyperspectral cubes.augnumpystochtrain
 
 #### PoissonOcclusionNode
 
@@ -17822,7 +17820,7 @@ def forward(
     return self._forward_tensor(data=cube, output_key="cube", frame_id=frame_id)
 ```
 
-`QuantileBinaryDecider`cuvis_ai.node.deciders.binary_decidertransformcalibclassnumpypostQuantile-based thresholding node operating on BHWC logits or scores.
+`QuantileBinaryDecider`transformcuvis_ai.node.deciders.binary_deciderQuantile-based thresholding node operating on BHWC logits or scores.calibclassnumpypost
 
 #### QuantileBinaryDecider
 
@@ -17844,10 +17842,12 @@ Parameters:
 | ------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `quantile`    | `float`         | Quantile in the closed interval [0, 1] used for the threshold computation (default: 0.995). Higher values (e.g., 0.99, 0.995) are typical for anomaly detection to capture rare events. | `0.995`                                                                                                                                                                                                             |
 | `reduce_dims` | \`Sequence[int] | None\`                                                                                                                                                                                  | Axes (relative to the input tensor) over which to compute the quantile. When None (default), all non-batch dimensions (H, W, C) are reduced. For per-channel thresholds, use reduce_dims=[1, 2] (reduce H, W only). |
-| `The`         |                 |                                                                                                                                                                                         | *required*                                                                                                                                                                                                          |
-| `the`         |                 |                                                                                                                                                                                         | *required*                                                                                                                                                                                                          |
-| `the`         |                 |                                                                                                                                                                                         | *required*                                                                                                                                                                                                          |
-| `as`          |                 |                                                                                                                                                                                         | *required*                                                                                                                                                                                                          |
+
+Notes
+
+The quantile is also an optional input of shape `[1]`: a value on the port replaces the hparam for that call only, so a GUI slider needs no pipeline reload and the yaml keeps the hparam.
+
+:meth:`calibrate` fits the F1 optimum unless the trainrun's calibration block, handed in as `objective`, names a target: `"precision"` or `"recall"` with a `target` in [0, 1]. The node flags pixels in every frame, so it serves the `"pixels"` level only.
 
 Examples:
 
@@ -18014,7 +18014,7 @@ def forward(
     return {"decisions": decisions}
 ```
 
-`ROIZoomNode`cuvis_ai.node.compositingtransformimgnumpypreCrop a region defined by a bbox and resize it to a fixed output frame.
+`ROIZoomNode`transformcuvis_ai.node.compositingCrop a region defined by a bbox and resize it to a fixed output frame.imgnumpypre
 
 #### ROIZoomNode
 
@@ -18068,7 +18068,7 @@ def __init__(
     )
 ```
 
-`RangeAverageFalseRGBSelector`cuvis_ai.node.channel_selectortransformdim-redhsinumpypreRange-based false RGB selection by averaging bands per channel.
+`RangeAverageFalseRGBSelector`transformcuvis_ai.node.channel_selectorRange-based false RGB selection by averaging bands per channel.dim-redhsinumpypre
 
 #### RangeAverageFalseRGBSelector
 
@@ -18189,7 +18189,7 @@ def forward(
     return {"rgb_image": rgb, "band_info": band_info}
 ```
 
-`RgbLabelToClassIndex`cuvis_ai_inspecscrap.node.labelstransformclassmaskprecuvis_ai_inspecscrap[↗](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap "Open plugin repo")Map a colorized RGB label map to integer paper-class targets (fail-closed).
+`RgbLabelToClassIndex`cuvis_ai_inspecscrap[↗](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap "Open plugin repo")transformcuvis_ai_inspecscrap.node.labelsMap a colorized RGB label map to integer paper-class targets (fail-closed).classmaskpre
 
 Map a colorized RGB label map to integer paper-class targets (fail-closed).
 
@@ -18207,7 +18207,7 @@ Outputs
 
 [View plugin repo (v0.4.0)](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap/tree/v0.4.0)
 
-`SAVISelector`cuvis_ai.node.channel_selectortransformdim-redhsinumpyonnxpreSoil Adjusted Vegetation Index renderer.
+`SAVISelector`transformcuvis_ai.node.channel_selectorSoil Adjusted Vegetation Index renderer.dim-redhsinumpyonnxpre
 
 #### SAVISelector
 
@@ -18267,7 +18267,7 @@ index_name
 
 Canonical SAVI strategy name.
 
-`SamShellGate`cuvis_ai_rfdetr.node.sam_shell_gatetransformhsisegtorchrfdetr[↗](https://github.com/cubert-hyperspectral/cuvis-ai-rfdetr "Open plugin repo")Keep score-map pixels only where the spectral angle to the reference is \<= threshold_deg.
+`SamShellGate`rfdetr[↗](https://github.com/cubert-hyperspectral/cuvis-ai-rfdetr "Open plugin repo")transformcuvis_ai_rfdetr.node.sam_shell_gateKeep score-map pixels only where the spectral angle to the reference is \<= threshold_deg.hsisegtorch
 
 Keep score-map pixels only where the spectral angle to the reference is \<= threshold_deg.
 
@@ -18286,7 +18286,7 @@ Outputs
 
 [View plugin repo (v0.5.2)](https://github.com/cubert-hyperspectral/cuvis-ai-rfdetr/tree/v0.5.2)
 
-`SaturatedPixelDetector`cuvis_ai.node.preprocessorstransformhsionnxpretorchFlag pixels whose channels reach the sensor saturation value.
+`SaturatedPixelDetector`transformcuvis_ai.node.preprocessorsFlag pixels whose channels reach the sensor saturation value.hsionnxpretorch
 
 #### SaturatedPixelDetector
 
@@ -18379,7 +18379,7 @@ def forward(self, cube: Tensor, **_: Any) -> dict[str, Tensor]:
     return {"scores": scores, "decisions": decisions}
 ```
 
-`SavitzkyGolay`cuvis_ai.node.pretreatments.savitzky_golaytransformhsipretorchSavitzky-Golay smoothing / derivative filter over the spectral axis.
+`SavitzkyGolay`transformcuvis_ai.node.pretreatments.savitzky_golaySavitzky-Golay smoothing / derivative filter over the spectral axis.hsipretorch
 
 #### SavitzkyGolay
 
@@ -18508,7 +18508,7 @@ def forward(self, cube: torch.Tensor, wavelengths=None, **_) -> dict[str, torch.
     return {"cube": filtered}
 ```
 
-`ScalarMinMaxBandSlice`cuvis_ai_rfdetr.node.scalar_minmax_bandslicetransformhsiprerfdetr[↗](https://github.com/cubert-hyperspectral/cuvis-ai-rfdetr "Open plugin repo")Whole-cube min-max normalise, then slice the 3 bands nearest `bands_nm` -> [B, H, W, 3].
+`ScalarMinMaxBandSlice`rfdetr[↗](https://github.com/cubert-hyperspectral/cuvis-ai-rfdetr "Open plugin repo")transformcuvis_ai_rfdetr.node.scalar_minmax_bandsliceWhole-cube min-max normalise, then slice the 3 bands nearest `bands_nm` -> [B, H, W, 3].hsipre
 
 Whole-cube min-max normalise, then slice the 3 bands nearest `bands_nm` -> [B, H, W, 3].
 
@@ -18527,7 +18527,7 @@ Outputs
 
 [View plugin repo (v0.5.2)](https://github.com/cubert-hyperspectral/cuvis-ai-rfdetr/tree/v0.5.2)
 
-`ScoreMapFusion`cuvis_ai.node.fusiontransformanomdiffonnxposttorchFuse N score maps of one shape into one map by a fixed elementwise rule (`mode`).
+`ScoreMapFusion`transformcuvis_ai.node.fusionFuse N score maps of one shape into one map by a fixed elementwise rule (`mode`).anomdiffonnxposttorch
 
 #### ScoreMapFusion
 
@@ -18667,7 +18667,7 @@ def forward(self, scores: list[Tensor] | Tensor, **_: Any) -> dict[str, Tensor]:
     return {"scores": out}
 ```
 
-`ScoreMapSmoothing`cuvis_ai.node.spatialtransformanomonnxposttorchSmooth a score map [B, H, W, C] with a Gaussian of `sigma_px` pixels.
+`ScoreMapSmoothing`transformcuvis_ai.node.spatialSmooth a score map [B, H, W, C] with a Gaussian of `sigma_px` pixels.anomonnxposttorch
 
 #### ScoreMapSmoothing
 
@@ -18742,7 +18742,7 @@ def forward(self, scores: Tensor, **_: Any) -> dict[str, Tensor]:
     return {"scores": x.reshape(b, c, h, w).permute(0, 2, 3, 1)}
 ```
 
-`ScoreMapSuppression`cuvis_ai.node.mask_opstransformanommaskonnxtorchDown-weight a score map [B, H, W, 1] inside a boolean mask shrunk by `erode_px`.
+`ScoreMapSuppression`transformcuvis_ai.node.mask_opsDown-weight a score map [B, H, W, 1] inside a boolean mask shrunk by `erode_px`.anommaskonnxtorch
 
 #### ScoreMapSuppression
 
@@ -18825,7 +18825,7 @@ def forward(self, scores: Tensor, mask: Tensor, **_: Any) -> dict[str, Tensor]:
     return {"scores": scores * keep.unsqueeze(-1)}
 ```
 
-`ScoreThreshold`cuvis_ai.node.deciders.binary_decidertransformclassposttorchMark the pixels whose raw score lies below or above a threshold (no sigmoid).
+`ScoreThreshold`transformcuvis_ai.node.deciders.binary_deciderMark the pixels whose raw score lies below or above a threshold (no sigmoid).classposttorch
 
 #### ScoreThreshold
 
@@ -18886,7 +18886,7 @@ def forward(
     return {"decisions": scores > value}
 ```
 
-`ScoreToLogit`cuvis_ai.node.conversiontransformmaskonnxposttorchTrainable head that converts RX scores to anomaly logits.
+`ScoreToLogit`transformcuvis_ai.node.conversionTrainable head that converts RX scores to anomaly logits.maskonnxposttorch
 
 #### ScoreToLogit
 
@@ -19127,7 +19127,7 @@ def forward(self, scores: torch.Tensor, **_) -> dict[str, torch.Tensor]:
     return {"logits": logits}
 ```
 
-`ScoreUpsample`cuvis_ai.node.spatialtransformanomonnxposttorchResize a score map [B, h, w, C] to the height and width of a reference tensor.
+`ScoreUpsample`transformcuvis_ai.node.spatialResize a score map [B, h, w, C] to the height and width of a reference tensor.anomonnxposttorch
 
 #### ScoreUpsample
 
@@ -19184,7 +19184,7 @@ def forward(self, scores: Tensor, reference: Tensor, **_: Any) -> dict[str, Tens
     return {"scores": out.permute(0, 2, 3, 1)}
 ```
 
-`SegmentationAnomalyScore`cuvis_ai_unet.node.scoringtransformevalsegtorchunet[↗](https://github.com/cubert-hyperspectral/cuvis-ai-unet "Open plugin repo")Adapt segmentation logits to anomaly-detection score maps + a per-image score.
+`SegmentationAnomalyScore`unet[↗](https://github.com/cubert-hyperspectral/cuvis-ai-unet "Open plugin repo")transformcuvis_ai_unet.node.scoringAdapt segmentation logits to anomaly-detection score maps + a per-image score.evalsegtorch
 
 Adapt segmentation logits to anomaly-detection score maps + a per-image score.
 
@@ -19205,7 +19205,7 @@ Outputs
 
 [View plugin repo (v0.5.0)](https://github.com/cubert-hyperspectral/cuvis-ai-unet/tree/v0.5.0)
 
-`ShapeMorphology`cuvis_ai.node.morphologytransformmasktorchPer-object shape descriptors from a binary or labeled mask.
+`ShapeMorphology`transformcuvis_ai.node.morphologyPer-object shape descriptors from a binary or labeled mask.masktorch
 
 #### ShapeMorphology
 
@@ -19236,19 +19236,16 @@ Rows are padded to `max_objects`; `valid` marks the first `N` rows True (real ob
 
 Parameters:
 
-| Name           | Type          | Description                                                                                                                                                                                          | Default    |
-| -------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| `properties`   | `list of str` | Descriptor names to emit, in order along the P axis. Defaults to all supported descriptors.                                                                                                          | `None`     |
-| `max_objects`  | `int`         | Number of object rows in the output; objects beyond this are dropped and fewer objects are zero-padded. Default 256.                                                                                 | `256`      |
-| `connectivity` | `int`         | Pixel connectivity (4 or 8) for connected-component labeling when binarize is True. Default 8.                                                                                                       | `8`        |
-| `binarize`     | `bool`        | If True, treat any nonzero pixel as foreground and run connected- component labeling. If False, treat the input as an already-labeled mask and use its nonzero values as instance ids. Default True. | `True`     |
-| `Does`         |               |                                                                                                                                                                                                      | *required* |
-| `through`      |               |                                                                                                                                                                                                      | *required* |
-| `no`           |               |                                                                                                                                                                                                      | *required* |
-| `data`         |               |                                                                                                                                                                                                      | *required* |
-| `Python`       |               |                                                                                                                                                                                                      | *required* |
-| `An`           |               |                                                                                                                                                                                                      | *required* |
-| `labelling`    |               |                                                                                                                                                                                                      | *required* |
+| Name           | Type          | Description                                                                                                                                                                                          | Default |
+| -------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `properties`   | `list of str` | Descriptor names to emit, in order along the P axis. Defaults to all supported descriptors.                                                                                                          | `None`  |
+| `max_objects`  | `int`         | Number of object rows in the output; objects beyond this are dropped and fewer objects are zero-padded. Default 256.                                                                                 | `256`   |
+| `connectivity` | `int`         | Pixel connectivity (4 or 8) for connected-component labeling when binarize is True. Default 8.                                                                                                       | `8`     |
+| `binarize`     | `bool`        | If True, treat any nonzero pixel as foreground and run connected- component labeling. If False, treat the input as an already-labeled mask and use its nonzero values as instance ids. Default True. | `True`  |
+
+Notes
+
+Does not export with the dynamo exporter: labelling round-trips each frame through OpenCV (`cv2.connectedComponents` via `cuvis_ai.utils.connected_components.label_connected_components`), which has no torch equivalent in this repo, and the per-frame object count is itself data-dependent (`labels.max().item()`), so neither the numpy call nor the Python-level loop it drives can be guarded the way a validation-only check can. An `export_module()` adapter would need a pure-torch connected-component labelling implementation, which is out of scope here. No `NodeTag.ONNX`.
 
 Source code in `cuvis_ai/node/morphology.py`
 
@@ -19333,7 +19330,7 @@ def forward(self, mask: torch.Tensor, **_: Any) -> dict[str, torch.Tensor]:
     }
 ```
 
-`SigmoidNormalizer`cuvis_ai.node.normalizationtransformnormnumpypreMedian-centered sigmoid squashing per sample and channel.
+`SigmoidNormalizer`transformcuvis_ai.node.normalizationMedian-centered sigmoid squashing per sample and channel.normnumpypre
 
 #### SigmoidNormalizer
 
@@ -19391,7 +19388,7 @@ def __init__(self, std_floor: float = 1e-6, **kwargs) -> None:
     super().__init__(std_floor=std_floor, **kwargs)
 ```
 
-`SigmoidTransform`cuvis_ai.node.normalizationtransformonnxposttorchApplies sigmoid transformation to convert logits to probabilities [0,1].
+`SigmoidTransform`transformcuvis_ai.node.normalizationApplies sigmoid transformation to convert logits to probabilities [0,1].onnxposttorch
 
 #### SigmoidTransform
 
@@ -19463,7 +19460,7 @@ def forward(self, data: Tensor, **_: Any) -> dict[str, Tensor]:
     return {"transformed": torch.sigmoid(data)}
 ```
 
-`SignaturesToReferences`cuvis_ai.node.spectral_extractortransformclasshsionnxTreat each object's signature as its own Spectral Angle Mapper reference.
+`SignaturesToReferences`transformcuvis_ai.node.spectral_extractorTreat each object's signature as its own Spectral Angle Mapper reference.classhsionnx
 
 #### SignaturesToReferences
 
@@ -19545,7 +19542,7 @@ def forward(self, signatures: torch.Tensor, **_: Any) -> dict[str, torch.Tensor]
     return {"spectral_signature": sig.view(num_refs, 1, 1, channels)}
 ```
 
-`SolidOcclusionNode`cuvis_ai.node.occlusiontransformaugnumpystochtrainDeprecated alias of PoissonOcclusionNode.
+`SolidOcclusionNode`transformcuvis_ai.node.occlusionDeprecated alias of PoissonOcclusionNode.augnumpystochtrain
 
 #### SolidOcclusionNode
 
@@ -19664,7 +19661,7 @@ def __init__(
         )
 ```
 
-`SpatialRotateNode`cuvis_ai.node.preprocessorstransformimgnumpyonnxpreRotate spatial dimensions of cubes, masks, and RGB images.
+`SpatialRotateNode`transformcuvis_ai.node.preprocessorsRotate spatial dimensions of cubes, masks, and RGB images.imgnumpyonnxpre
 
 #### SpatialRotateNode
 
@@ -19727,7 +19724,7 @@ def forward(
     return result
 ```
 
-`SpectralDerivative`cuvis_ai.node.pretreatments.spectral_derivativetransformhsipretorchFirst- or second-order spectral derivative along the band axis.
+`SpectralDerivative`transformcuvis_ai.node.pretreatments.spectral_derivativeFirst- or second-order spectral derivative along the band axis.hsipretorch
 
 #### SpectralDerivative
 
@@ -19802,7 +19799,7 @@ def forward(self, cube: torch.Tensor, wavelengths, **_) -> dict[str, torch.Tenso
     return {"cube": out}
 ```
 
-`SpectralObjectMask`cuvis_ai.node.spectral_angle_mappertransformhsimasksegtorchMark the pixels whose spectral angle to the frame's median spectrum exceeds a threshold.
+`SpectralObjectMask`transformcuvis_ai.node.spectral_angle_mapperMark the pixels whose spectral angle to the frame's median spectrum exceeds a threshold.hsimasksegtorch
 
 #### SpectralObjectMask
 
@@ -19959,7 +19956,7 @@ def forward(self, cube: Tensor, **_: Any) -> dict[str, Tensor]:
     return {"decisions": full.permute(0, 2, 3, 1) > 0.5, "angle": angle.permute(0, 2, 3, 1)}
 ```
 
-`SpectralSignatureExtractor`cuvis_ai.node.spectral_extractortransformembhsinumpyExtract per-object spectral signatures from SAM-style label masks.
+`SpectralSignatureExtractor`transformcuvis_ai.node.spectral_extractorExtract per-object spectral signatures from SAM-style label masks.embhsinumpy
 
 #### SpectralSignatureExtractor
 
@@ -20081,7 +20078,7 @@ def forward(
     }
 ```
 
-`SpectralValidity`cuvis_ai.node.preprocessorstransformhsimaskonnxtorchFlag non-finite, faint, saturated, and out-of-ROI pixels per frame.
+`SpectralValidity`transformcuvis_ai.node.preprocessorsFlag non-finite, faint, saturated, and out-of-ROI pixels per frame.hsimaskonnxtorch
 
 #### SpectralValidity
 
@@ -20247,7 +20244,7 @@ def forward(
     }
 ```
 
-`Standardize`cuvis_ai.node.pretreatments.standardizetransformhsinormonnxpretorchSubtract a mean and divide by a standard deviation along a chosen axis.
+`Standardize`transformcuvis_ai.node.pretreatments.standardizeSubtract a mean and divide by a standard deviation along a chosen axis.hsinormonnxpretorch
 
 #### Standardize
 
@@ -20574,7 +20571,7 @@ def forward(self, cube: Tensor, fold: Tensor | None = None, **_: Any) -> dict[st
     return {"cube": out}
 ```
 
-`TitleOverlay`cuvis_ai.node.compositingtransformimgonnxrgbBurn a text caption into the top-left of each RGB frame, over a translucent box.
+`TitleOverlay`transformcuvis_ai.node.compositingBurn a text caption into the top-left of each RGB frame, over a translucent box.imgonnxrgb
 
 #### TitleOverlay
 
@@ -20718,7 +20715,7 @@ def forward(
     return {"frame": out}
 ```
 
-`TopKIndices`cuvis_ai.node.channel_selectortransformdim-redhsinumpyonnxpreUtility node that surfaces the top-k channel indices from selector weights.
+`TopKIndices`transformcuvis_ai.node.channel_selectorUtility node that surfaces the top-k channel indices from selector weights.dim-redhsinumpyonnxpre
 
 #### TopKIndices
 
@@ -20796,7 +20793,7 @@ def forward(self, weights: torch.Tensor, **_: Any) -> dict[str, torch.Tensor]:
     return {"indices": indices}
 ```
 
-`TwoStageBinaryDecider`cuvis_ai.node.deciders.two_stage_decidertransformcalibclassnumpypostTwo-stage binary decider: optional image-level gate + pixel mask.
+`TwoStageBinaryDecider`transformcuvis_ai.node.deciders.two_stage_deciderTwo-stage binary decider: optional image-level gate + pixel mask.calibclassnumpypost
 
 #### TwoStageBinaryDecider
 
@@ -21091,7 +21088,7 @@ def forward(
     }
 ```
 
-`WaferSegmentation`cuvis_ai_wafer_thickness.node.wafer_segmentationtransformhsimasknumpysegtorchwafer_thickness[↗](https://github.com/cubert-hyperspectral/cuvis-ai-wafer-thickness "Open plugin repo")Segment a wafer from a flat background by spectral contrast.
+`WaferSegmentation`wafer_thickness[↗](https://github.com/cubert-hyperspectral/cuvis-ai-wafer-thickness "Open plugin repo")transformcuvis_ai_wafer_thickness.node.wafer_segmentationSegment a wafer from a flat background by spectral contrast.hsimasknumpysegtorch
 
 Segment a wafer from a flat background by spectral contrast.
 
@@ -21110,7 +21107,7 @@ Outputs
 
 [View plugin repo (v0.3.2)](https://github.com/cubert-hyperspectral/cuvis-ai-wafer-thickness/tree/v0.3.2)
 
-`WaferThickness`cuvis_ai_wafer_thickness.node.wafer_thicknesstransformhsinumpyregtorchwafer_thickness[↗](https://github.com/cubert-hyperspectral/cuvis-ai-wafer-thickness "Open plugin repo")Per-pixel film thickness [nm] from interference-order peak positions.
+`WaferThickness`wafer_thickness[↗](https://github.com/cubert-hyperspectral/cuvis-ai-wafer-thickness "Open plugin repo")transformcuvis_ai_wafer_thickness.node.wafer_thicknessPer-pixel film thickness [nm] from interference-order peak positions.hsinumpyregtorch
 
 Per-pixel film thickness [nm] from interference-order peak positions.
 
@@ -21131,7 +21128,7 @@ Outputs
 
 [View plugin repo (v0.3.2)](https://github.com/cubert-hyperspectral/cuvis-ai-wafer-thickness/tree/v0.3.2)
 
-`YOLOPostprocess`cuvis_ai_ultralytics.nodetransformbboxdetposttorchultralytics[↗](https://github.com/cubert-hyperspectral/cuvis-ai-ultralytics "Open plugin repo")Ultralytics NMS + box scaling postprocess for YOLO raw tensors.
+`YOLOPostprocess`ultralytics[↗](https://github.com/cubert-hyperspectral/cuvis-ai-ultralytics "Open plugin repo")transformcuvis_ai_ultralytics.nodeUltralytics NMS + box scaling postprocess for YOLO raw tensors.bboxdetposttorch
 
 Ultralytics NMS + box scaling postprocess for YOLO raw tensors.
 
@@ -21153,7 +21150,7 @@ Outputs
 
 [View plugin repo (v0.1.5)](https://github.com/cubert-hyperspectral/cuvis-ai-ultralytics/tree/v0.1.5)
 
-`YOLOPreprocess`cuvis_ai_ultralytics.nodetransformimgprergbtorchultralytics[↗](https://github.com/cubert-hyperspectral/cuvis-ai-ultralytics "Open plugin repo")Convert RGB images to stride-aligned channel-first tensors for YOLO.
+`YOLOPreprocess`ultralytics[↗](https://github.com/cubert-hyperspectral/cuvis-ai-ultralytics "Open plugin repo")transformcuvis_ai_ultralytics.nodeConvert RGB images to stride-aligned channel-first tensors for YOLO.imgprergbtorch
 
 Convert RGB images to stride-aligned channel-first tensors for YOLO.
 
@@ -21173,7 +21170,7 @@ Outputs
 
 [View plugin repo (v0.1.5)](https://github.com/cubert-hyperspectral/cuvis-ai-ultralytics/tree/v0.1.5)
 
-`AnomalyMask`cuvis_ai.node.anomaly_visualizationvisualizeranomevalmaskVisualize anomaly detection with GT and predicted masks.
+`AnomalyMask`visualizercuvis_ai.node.anomaly_visualizationVisualize anomaly detection with GT and predicted masks.anomevalmask
 
 #### AnomalyMask
 
@@ -21505,7 +21502,7 @@ def forward(
     return {"artifacts": artifacts}
 ```
 
-`BBoxesOverlayNode`cuvis_ai.node.anomaly_visualizationvisualizerbboxrgbTorch-only bounding-box overlay renderer for YOLO-style detections.
+`BBoxesOverlayNode`visualizercuvis_ai.node.anomaly_visualizationTorch-only bounding-box overlay renderer for YOLO-style detections.bboxrgb
 
 #### BBoxesOverlayNode
 
@@ -21605,7 +21602,7 @@ def forward(
     }
 ```
 
-`ChannelSelectorFalseRGBViz`cuvis_ai.node.anomaly_visualizationvisualizerevalhsirgbtrainVisualize false RGB output from channel selectors with optional mask overlay.
+`ChannelSelectorFalseRGBViz`visualizercuvis_ai.node.anomaly_visualizationVisualize false RGB output from channel selectors with optional mask overlay.evalhsirgbtrain
 
 #### ChannelSelectorFalseRGBViz
 
@@ -21750,7 +21747,7 @@ def forward(
     return {"artifacts": artifacts}
 ```
 
-`ChannelWeightsViz`cuvis_ai.node.anomaly_visualizationvisualizerevalhsirgbtrainVisualize channel mixer weights as a heatmap.
+`ChannelWeightsViz`visualizercuvis_ai.node.anomaly_visualizationVisualize channel mixer weights as a heatmap.evalhsirgbtrain
 
 #### ChannelWeightsViz
 
@@ -21962,7 +21959,7 @@ def forward(
     }
 ```
 
-`ClassMapToRGB`cuvis_ai.node.colormapvisualizermaskonnxrgbColourise an integer class-index map `[B, H, W]` into an RGB image `[B, H, W, 3]`.
+`ClassMapToRGB`visualizercuvis_ai.node.colormapColourise an integer class-index map `[B, H, W]` into an RGB image `[B, H, W, 3]`.maskonnxrgb
 
 #### ClassMapToRGB
 
@@ -22029,7 +22026,7 @@ def forward(self, class_map: Tensor, mask: Tensor | None = None, **_: Any) -> di
     return {"label_rgb": torch.where(valid.unsqueeze(-1), rgb, torch.zeros_like(rgb))}
 ```
 
-`CubeRGBVisualizer`cuvis_ai.node.pipeline_visualizationvisualizerevalhsirgbCreates false-color RGB images from hyperspectral cube using channel weights.
+`CubeRGBVisualizer`visualizercuvis_ai.node.pipeline_visualizationCreates false-color RGB images from hyperspectral cube using channel weights.evalhsirgb
 
 #### CubeRGBVisualizer
 
@@ -22168,7 +22165,7 @@ def forward(
     return {"artifacts": artifacts}
 ```
 
-`MaskOverlayNode`cuvis_ai.node.anomaly_visualizationvisualizermaskonnxrgbAlpha-blend a coloured mask overlay onto RGB frames.
+`MaskOverlayNode`visualizercuvis_ai.node.anomaly_visualizationAlpha-blend a coloured mask overlay onto RGB frames.maskonnxrgb
 
 #### MaskOverlayNode
 
@@ -22244,7 +22241,7 @@ def forward(
     }
 ```
 
-`PCAVisualization`cuvis_ai.node.pipeline_visualizationvisualizerevalhsirgbVisualize PCA-projected data with scatter and image plots.
+`PCAVisualization`visualizercuvis_ai.node.pipeline_visualizationVisualize PCA-projected data with scatter and image plots.evalhsirgb
 
 #### PCAVisualization
 
@@ -22476,7 +22473,7 @@ def forward(self, data: torch.Tensor, context: Context) -> dict:
     return {"artifacts": artifacts}
 ```
 
-`PipelineComparisonVisualizer`cuvis_ai.node.pipeline_visualizationvisualizerevalhsirgbtrainTensorBoard visualization node for comparing pipeline stages.
+`PipelineComparisonVisualizer`visualizercuvis_ai.node.pipeline_visualizationTensorBoard visualization node for comparing pipeline stages.evalhsirgbtrain
 
 #### PipelineComparisonVisualizer
 
@@ -22657,7 +22654,7 @@ def forward(
     return {"artifacts": artifacts}
 ```
 
-`RGBAnomalyMask`cuvis_ai.node.anomaly_visualizationvisualizeranomevalmaskrgbVisualize anomaly detection with GT and predicted masks on RGB images.
+`RGBAnomalyMask`visualizercuvis_ai.node.anomaly_visualizationVisualize anomaly detection with GT and predicted masks on RGB images.anomevalmaskrgb
 
 #### RGBAnomalyMask
 
@@ -22864,7 +22861,7 @@ def forward(
     return {"artifacts": artifacts}
 ```
 
-`ScalarHSVColormapNode`cuvis_ai.node.colormapvisualizeronnxrgbMap a scalar BHWC image to RGB using an HSV colormap.
+`ScalarHSVColormapNode`visualizercuvis_ai.node.colormapMap a scalar BHWC image to RGB using an HSV colormap.onnxrgb
 
 #### ScalarHSVColormapNode
 
@@ -22911,7 +22908,7 @@ def forward(self, data: Tensor, **_: Any) -> dict[str, Tensor]:
     return {"rgb_image": render_scalar_hsv_colormap(normalized)}
 ```
 
-`ScoreHeatmapVisualizer`cuvis_ai.node.anomaly_visualizationvisualizeranomevalrgbLog LAD/RX score heatmaps as TensorBoard artifacts.
+`ScoreHeatmapVisualizer`visualizercuvis_ai.node.anomaly_visualizationLog LAD/RX score heatmaps as TensorBoard artifacts.anomevalrgb
 
 #### ScoreHeatmapVisualizer
 
@@ -23025,7 +23022,7 @@ def forward(self, scores: torch.Tensor, context: Context) -> dict[str, list[Arti
     return {"artifacts": artifacts}
 ```
 
-`SpectraPlot`cuvis_ai.node.spectrum_plotvisualizerhsirgbRender a multi-series line plot of per-class mean spectra into an RGB frame.
+`SpectraPlot`visualizercuvis_ai.node.spectrum_plotRender a multi-series line plot of per-class mean spectra into an RGB frame.hsirgb
 
 #### SpectraPlot
 
@@ -23152,7 +23149,7 @@ def forward(
     }
 ```
 
-`SpectrumPlotNode`cuvis_ai.node.spectrum_plotvisualizerhsiRender a per-frame line plot of tracked vs reference spectrum.
+`SpectrumPlotNode`visualizercuvis_ai.node.spectrum_plotRender a per-frame line plot of tracked vs reference spectrum.hsi
 
 #### SpectrumPlotNode
 
@@ -23352,7 +23349,7 @@ def forward(
     return {"rgb_image": torch.from_numpy(frames).to(device=device, dtype=torch.float32)}
 ```
 
-`TrackingOverlayNode`cuvis_ai.node.anomaly_visualizationvisualizerbboxrgbtrackAlpha-blend per-object coloured masks onto RGB frames.
+`TrackingOverlayNode`visualizercuvis_ai.node.anomaly_visualizationAlpha-blend per-object coloured masks onto RGB frames.bboxrgbtrack
 
 #### TrackingOverlayNode
 
@@ -23488,7 +23485,7 @@ def forward(
     return {"rgb_with_overlay": out.unsqueeze(0)}  # [1, H, W, 3]
 ```
 
-`TrackingPointerOverlayNode`cuvis_ai.node.anomaly_visualizationvisualizerbboxrgbtrackDraw downward triangle pointers for all tracked objects.
+`TrackingPointerOverlayNode`visualizercuvis_ai.node.anomaly_visualizationDraw downward triangle pointers for all tracked objects.bboxrgbtrack
 
 #### TrackingPointerOverlayNode
 
