@@ -67,6 +67,8 @@ class BinaryDecider(BaseDecider):
         Values >= threshold are classified as anomalies (True).
         Default: 0.5
 
+    Notes
+    -----
     The threshold is also an optional input of shape ``[1]``: a value on the port replaces
     the hparam for that call only, so a GUI slider needs no pipeline reload and the yaml keeps
     the hparam.
@@ -186,6 +188,8 @@ class QuantileBinaryDecider(BaseDecider):
         When ``None`` (default), all non-batch dimensions (H, W, C) are reduced.
         For per-channel thresholds, use reduce_dims=[1, 2] (reduce H, W only).
 
+    Notes
+    -----
     The quantile is also an optional input of shape ``[1]``: a value on the port replaces
     the hparam for that call only, so a GUI slider needs no pipeline reload and the yaml keeps
     the hparam.
