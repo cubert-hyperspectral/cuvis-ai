@@ -297,3 +297,200 @@ def test_status_live_region_catches_up_after_pause(catalog):
     catalog.locator("#node-filter-search").fill("sam")
     count_text = catalog.locator("#node-filter-count").inner_text()
     expect(status).to_have_text(count_text)  # auto-waits past the ~400ms debounce
+
+
+# ─── Row layout ──────────────────────────────────────────────────────────────
+
+# Colour helpers evaluated in the page: Chromium reports color-mix() results as
+# "color(srgb r g b)" and plain colours as "rgb(...)"; both parse to 0..1 channels.
+_COLOR_JS = r"""
+window.__cat = window.__cat || (() => {
+  const parse = (s) => {
+    let m = s.match(/^color\(srgb ([\d.e-]+) ([\d.e-]+) ([\d.e-]+)(?: \/ ([\d.e-]+))?\)$/);
+    if (m) return [+m[1], +m[2], +m[3], m[4] === undefined ? 1 : +m[4]];
+    m = s.match(/^rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)(?:,\s*([\d.]+))?\)$/);
+    if (m) return [m[1] / 255, m[2] / 255, m[3] / 255, m[4] === undefined ? 1 : +m[4]];
+    throw new Error("unparsed colour " + s);
+  };
+  const lum = (c) => {
+    const ch = c.slice(0, 3).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
+  };
+  const background = (el) => {
+    for (let n = el; n; n = n.parentElement) {
+      const c = parse(getComputedStyle(n).backgroundColor);
+      if (c[3] > 0.5) return c;
+    }
+    return [1, 1, 1, 1];
+  };
+  const contrast = (fg, bg) => {
+    const a = lum(fg), b = lum(bg);
+    return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+  };
+  const resolve = (value) => {
+    const probe = document.createElement("span");
+    probe.style.color = value;
+    document.body.appendChild(probe);
+    const out = getComputedStyle(probe).color;
+    probe.remove();
+    return out;
+  };
+  return { parse, background, contrast, resolve };
+})();
+"""
+
+
+def _open(page, site_url, width, scheme=None, path=CATALOG_PATH):
+    page.set_viewport_size({"width": width, "height": 900})
+    page.set_default_timeout(10_000)
+    page.goto(site_url + path)
+    if path == CATALOG_PATH:
+        page.wait_for_selector("#node-catalog-grid[data-filter-bound]")
+    if scheme:
+        page.evaluate(f"document.body.setAttribute('data-md-color-scheme', '{scheme}')")
+    page.evaluate(_COLOR_JS)
+    return page
+
+
+def test_phone_rows_are_compact_and_coloured(page, site_url):
+    """No admonition margin, padding or blue border on catalog rows at phone width."""
+    _open(page, site_url, 390)
+    geo = page.evaluate(
+        """() => {
+          const list = document.querySelector('#node-catalog-grid').getBoundingClientRect();
+          const rows = Array.from(document.querySelectorAll('details.node-row')).slice(0, 2);
+          const name = rows[0].querySelector('.row-name').getBoundingClientRect();
+          const cat = rows[0].dataset.category;
+          return {
+            nameInset: name.left - list.left,
+            gap: rows[1].getBoundingClientRect().top - rows[0].getBoundingClientRect().bottom,
+            edge: getComputedStyle(rows[0]).borderLeftColor,
+            expected: window.__cat.resolve(`var(--node-cat-${cat}-border)`),
+          };
+        }"""
+    )
+    assert geo["nameInset"] <= 24, geo
+    assert abs(geo["gap"]) <= 1.5, geo
+    assert geo["edge"] == geo["expected"], geo
+
+
+def test_phone_rows_do_not_clip_content(page, site_url):
+    """Long names and data-module pills wrap inside the row instead of overflowing it.
+
+    The list clips overflow, so the check reads every summary descendant's box,
+    not the row's width. The module path is the one element meant to truncate.
+    """
+    _open(page, site_url, 375)
+    report = page.evaluate(
+        """() => {
+          const bad = [];
+          for (const row of document.querySelectorAll('details.node-row')) {
+            const summary = row.querySelector('summary');
+            const box = summary.getBoundingClientRect();
+            const inner = box.right - parseFloat(getComputedStyle(summary).paddingRight) + 0.5;
+            for (const el of summary.querySelectorAll('*')) {
+              if (el.closest('.row-module')) continue;
+              const r = el.getBoundingClientRect();
+              if (r.width && r.right > inner) {
+                bad.push(row.querySelector('.row-name').textContent + ' ' + el.className);
+                break;
+              }
+            }
+          }
+          const doc = document.documentElement;
+          return { bad, pageScroll: doc.scrollWidth - doc.clientWidth };
+        }"""
+    )
+    assert report["bad"] == [], report["bad"][:10]
+    assert report["pageScroll"] <= 0, report
+
+
+def test_desktop_rows_use_three_columns(page, site_url):
+    _open(page, site_url, 1280)
+    geo = page.evaluate(
+        """() => {
+          const row = document.querySelector('details.node-row');
+          const top = (sel) => row.querySelector(sel).getBoundingClientRect();
+          return { name: top('.row-name'), sum: top('.row-summary'), pill: top('.row-category') };
+        }"""
+    )
+    assert abs(geo["name"]["y"] - geo["sum"]["y"]) <= 8, geo
+    assert abs(geo["name"]["y"] - geo["pill"]["y"]) <= 8, geo
+    assert geo["name"]["x"] < geo["sum"]["x"] < geo["pill"]["x"], geo
+
+
+def test_opened_row_body_is_not_indented(page, site_url):
+    _open(page, site_url, 390)
+    row = page.locator('details.node-row[data-source="builtin"]').first
+    row.locator(":scope > summary").click()
+    expect(row.locator(".row-body")).to_be_visible()
+    geo = row.evaluate(
+        """(row) => {
+          const rowBox = row.getBoundingClientRect();
+          const body = row.querySelector('.row-body');
+          const text = body.querySelector('p, .doc-signature, pre, h4') || body;
+          const pre = body.querySelector('pre');
+          return {
+            inset: text.getBoundingClientRect().left - rowBox.left,
+            preRight: pre ? pre.getBoundingClientRect().right : null,
+            rowRight: rowBox.right,
+          };
+        }"""
+    )
+    assert geo["inset"] <= 28, geo
+    if geo["preRight"] is not None:
+        assert geo["preRight"] <= geo["rowRight"] + 0.5, geo
+
+
+@pytest.mark.parametrize("scheme", ["default", "slate"])
+def test_tag_text_meets_contrast(page, site_url, scheme):
+    _open(page, site_url, 390, scheme=scheme)
+    worst = page.evaluate(
+        """() => {
+          const seen = {};
+          for (const el of document.querySelectorAll('.row-tags .tag-text')) {
+            const tag = el.dataset.tag;
+            if (tag in seen) continue;
+            const fg = window.__cat.parse(getComputedStyle(el).color);
+            seen[tag] = window.__cat.contrast(fg, window.__cat.background(el));
+          }
+          return Object.entries(seen).sort((a, b) => a[1] - b[1]).slice(0, 3);
+        }"""
+    )
+    assert worst, "no tag text rendered"
+    assert worst[0][1] >= 4.5, worst
+
+
+@pytest.mark.parametrize("scheme", ["default", "slate"])
+def test_overview_tiles_are_coloured_and_readable(page, site_url, scheme):
+    _open(page, site_url, 1280, scheme=scheme, path="/catalogs/")
+    tiles = page.evaluate(
+        """() => Array.from(document.querySelectorAll('.cat-tile')).map((t) => {
+          const label = t.querySelector('.cat-tile-label');
+          const fg = window.__cat.parse(getComputedStyle(label).color);
+          return {
+            cat: t.dataset.category,
+            border: getComputedStyle(t).borderTopColor,
+            expected: window.__cat.resolve(`var(--node-cat-${t.dataset.category}-border)`),
+            contrast: window.__cat.contrast(fg, window.__cat.background(t)),
+          };
+        })"""
+    )
+    assert tiles
+    for tile in tiles:
+        assert tile["border"] == tile["expected"], tile
+        assert tile["contrast"] >= 4.5, tile
+
+
+def test_deep_link_category_and_tag_values(page, site_url):
+    """The hash takes stored tag values (``anomaly``), not the short chip labels."""
+    _open(page, site_url, 1280)
+    expected = page.evaluate(
+        """() => Array.from(document.querySelectorAll('details.node-row')).filter((r) =>
+          r.dataset.category === 'model' && r.dataset.tags.split(' ').includes('anomaly')).length"""
+    )
+    assert expected > 0
+    page.goto(site_url + CATALOG_PATH + "#category=model&tag=anomaly")
+    page.reload()
+    page.wait_for_selector("#node-catalog-grid[data-filter-bound]")
+    assert _count(page) == expected
