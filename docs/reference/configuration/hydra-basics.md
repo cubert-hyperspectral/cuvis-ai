@@ -29,14 +29,18 @@ Key capabilities:
 # @package _global_
 
 defaults:
-  - /pipeline/anomaly/rx@pipeline: rx_statistical
   - /data@data: lentils
   - /training@training: default
   - _self_
 
 name: my_experiment
+# Pipeline reference, resolved relative to this trainrun's directory.
+pipeline: ../pipeline/anomaly/rx/channel_selector.yaml
 output_dir: ./outputs/${name}
 ```
+
+The data and training settings are config groups; the pipeline is not. A trainrun names its
+pipeline yaml by path, and `TrainRunConfig` refuses a pipeline composed into the config.
 
 **Usage:**
 ```python
@@ -56,16 +60,17 @@ Merges config at the root level. **Most common for trainrun configs:**
 # @package _global_
 
 defaults:
-  - /pipeline/anomaly/rx@pipeline: rx_statistical
+  - /data@data: lentils
+  - _self_
+
 name: experiment_1
 ```
 
 **Result:**
 ```yaml
-pipeline:
-  metadata:
-    name: RX_Statistical
-  nodes: [...]
+data:
+  data_module: cu3s
+  splits: {...}
 name: experiment_1  # ← Merged at root
 ```
 
@@ -86,12 +91,13 @@ seed: 42
 
 ```yaml
 defaults:
-  - /pipeline/anomaly/rx@pipeline: rx_statistical       # → pipeline: {...}
   - /data@data: lentils                      # → data: {...}
   - /training@training: default              # → training: {...}
 ```
 
 **Path format:** `/source_group@target_key: config_name`
+
+The pipeline does not go through the defaults list: `pipeline:` is the path of the pipeline yaml.
 
 ---
 
@@ -103,10 +109,12 @@ defaults:
 # @package _global_
 
 defaults:
-  - /pipeline/anomaly/rx@pipeline: rx_statistical   # Load first
-  - /data@data: lentils                  # Load second
-  - /training@training: default          # Load third
+  - /data@data: lentils                  # Load first
+  - /training@training: default          # Load second
   - _self_                               # THIS CONFIG (must be last)
+
+name: my_experiment
+pipeline: ../pipeline/anomaly/rx/channel_selector.yaml
 
 # Overrides below (only applied because _self_ is last)
 data:
@@ -120,8 +128,8 @@ data:
 **Absolute paths** (start with `/`):
 ```yaml
 defaults:
-  - /pipeline/anomaly/rx@pipeline: rx_statistical
-  # Searches: cuvis_ai/configs/pipeline/anomaly/rx/rx_statistical.yaml
+  - /data@data: lentils
+  # Searches: cuvis_ai/configs/data/lentils.yaml
 ```
 
 **Relative paths** (no leading `/`):
@@ -136,10 +144,12 @@ defaults:
 
 ```yaml
 defaults:
-  - /pipeline@pipeline: ${pipeline_name}
   - /training/scheduler@training.scheduler: ${scheduler_name}
   - optional /augmentation@data.augmentation: ${augmentation}
 ```
+
+The pipeline cannot be chosen this way: it is a path, not a config group. Give each pipeline its
+own trainrun, as the packaged ones in `cuvis_ai/configs/trainrun/` do.
 
 ---
 
