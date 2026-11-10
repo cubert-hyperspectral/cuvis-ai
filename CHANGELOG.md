@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `KMeansClusterer` emits its fitted centroids on a new `spectral_signature` port, `[K, 1, 1, C]` float32 on the cube's device, the layout `SpectralAngleMapper.spectral_signature` reads. A pipeline can now fit k-means on normal frames with the statistical trainer and use the centroids as spectral angle references, with no reference file. `class_mask`, `scores` and the saved state are unchanged.
+- `KMeansClusterer` and `GaussianMixtureClusterer` take their optional fit mask on `fit_mask` instead of `mask`. A pipeline fills every unconnected input whose name is a batch key, and the cu3s loaders send their annotation mask as `mask`, all zero on normal frames, so a fit on normal frames got no pixels at all and a fit on annotated frames used only the annotated objects. A pipeline that connected `<clusterer>.inputs.mask` connects `<clusterer>.inputs.fit_mask` now.
 - `DistinctnessLoss` averages the pairwise cosines over all C * (C - 1) / 2 pairs i < j, the formula in its docstring, instead of over the nonzero ones. A hard one-hot selection of different bands, which `ConcreteChannelMixer(use_hard_inference=True)` gives at VAL and TEST, has every cosine at 0, so the loss was NaN and with it the total `val_loss` of the Concrete band selector + AdaCLIP pipeline; it is 0 now. A pair with cosine 0 next to nonzero ones no longer drops out of the mean. The soft selection during training has no cosine at 0, so its loss and gradient are unchanged.
 
 ## 0.22.7 - 2026-11-09
