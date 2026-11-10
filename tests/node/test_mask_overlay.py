@@ -135,10 +135,11 @@ def test_mask_overlay_node_white_color_affects_all_channels():
         (1.0, 0.0, 0.0, 1.0),
         (-0.1, 0.0, 0.0),
         (0.0, 1.1, 0.0),
+        (float("nan"), 0.0, 0.0),
     ],
 )
 def test_mask_overlay_node_rejects_invalid_overlay_color(overlay_color):
-    """MaskOverlayNode validates overlay_color length and channel range."""
+    """MaskOverlayNode validates overlay_color length and channel range, NaN included."""
     with pytest.raises(ValueError, match="overlay_color"):
         MaskOverlayNode(overlay_color=overlay_color)
 
