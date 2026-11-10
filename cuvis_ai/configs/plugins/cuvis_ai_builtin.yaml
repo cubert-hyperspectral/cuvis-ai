@@ -456,6 +456,33 @@ capabilities:
       optional: false
       description: RGB frames with mask overlay [B, H, W, 3] in [0, 1]
   doc_summary: Alpha-blend a coloured mask overlay onto RGB frames.
+- class_name: cuvis_ai.node.anomaly_visualization.DecisionOutcomeOverlay
+  category: visualizer
+  tags: [anomaly, mask, onnx, rgb]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#9A5DD4\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <rect x=\"8\" y=\"10\" width=\"48\" height=\"44\" rx=\"2\"/>\n  <path d=\"M14 44l10-12 8 6 12-16\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"24\" cy=\"32\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"32\" cy=\"38\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n  <circle cx=\"44\" cy=\"22\" r=\"1.5\" fill=\"#9A5DD4\" stroke=\"none\"/>\n</svg>\n"
+  input_specs:
+    rgb_image:
+      dtype: float32
+      shape: [-1, -1, -1, 3]
+      optional: false
+      description: RGB frames [B, H, W, 3] in [0, 1]
+    decisions:
+      dtype: bool
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: Binary decisions [B, H, W, 1]
+    targets:
+      dtype: bool
+      shape: [-1, -1, -1, 1]
+      optional: true
+      description: Ground-truth mask [B, H, W, 1]; without it every decision is a false alarm
+  output_specs:
+    rgb_image:
+      dtype: float32
+      shape: [-1, -1, -1, 3]
+      optional: false
+      description: RGB frames [B, H, W, 3] in [0, 1] with the outcome colours blended in
+  doc_summary: Paint each pixel's detection outcome (hit, false alarm, miss) onto RGB frames.
 - class_name: cuvis_ai.node.anomaly_visualization.RGBAnomalyMask
   category: visualizer
   tags: [anomaly, evaluation, mask, rgb]
