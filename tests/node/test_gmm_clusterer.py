@@ -3,8 +3,12 @@ from __future__ import annotations
 import numpy as np
 import pytest
 import torch
+from cuvis_ai_schemas.enums import NodeCategory, NodeTag
+from cuvis_ai_schemas.pipeline import PortSpec
 
 from cuvis_ai.node.clustering import GaussianMixtureClusterer
+from cuvis_ai_core.node.node import Node
+from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
 
 pytestmark = pytest.mark.unit
 
@@ -116,3 +120,37 @@ def test_gmm_fit_mask_is_optional_and_no_input_is_named_mask() -> None:
     name."""
     assert GaussianMixtureClusterer.INPUT_SPECS["fit_mask"].optional is True
     assert "mask" not in GaussianMixtureClusterer.INPUT_SPECS
+
+
+class _ClassMaskSink(Node):
+    """Module-scope test sink that consumes a clusterer's ``class_mask``."""
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.TORCH})
+    INPUT_SPECS = {"class_mask": PortSpec(dtype=torch.int32, shape=(-1, -1, -1))}
+    OUTPUT_SPECS: dict[str, PortSpec] = {}
+
+    def forward(self, **_) -> dict[str, torch.Tensor]:
+        return {}
+
+
+def test_statistical_trainer_fit_ignores_an_all_zero_batch_mask(
+    synthetic_anomaly_datamodule,
+) -> None:
+    """A batch ``mask`` that is all zero (the loaders' annotation mask on normal frames) does not
+    reach the fit: with one component the mixture mean is the mean of every train pixel."""
+    from cuvis_ai_core.training.trainers import StatisticalTrainer
+
+    datamodule = synthetic_anomaly_datamodule(
+        batch_size=2, num_samples=4, height=4, width=4, channels=4, dtype=torch.float32
+    )
+    datamodule._train_dataset._masks.zero_()
+
+    gmm = GaussianMixtureClusterer(n_components=1, random_state=0, name="gmm")
+    pipe = CuvisPipeline("gmm_zero_mask")
+    pipe.connect(gmm.outputs.class_mask, _ClassMaskSink(name="sink").inputs.class_mask)
+
+    StatisticalTrainer(pipeline=pipe, datamodule=datamodule).fit()
+
+    train_pixels = datamodule._train_dataset._cubes.reshape(-1, 4)
+    torch.testing.assert_close(gmm.means[0], train_pixels.mean(dim=0), atol=1e-5, rtol=0)

@@ -286,3 +286,29 @@ def test_kmeans_centroids_wire_into_spectral_angle_mapper_as_the_minimum_angle()
 
     got = best_scores.reshape(-1).numpy()
     np.testing.assert_allclose(got, expected_best, atol=1e-4)
+
+
+def test_statistical_trainer_fit_ignores_an_all_zero_batch_mask(
+    synthetic_anomaly_datamodule,
+) -> None:
+    """The cu3s loaders send their annotation mask as batch key ``mask``, all zero on normal
+    frames, and a pipeline fills every unconnected input named like a batch key. The fit mask is
+    ``fit_mask``, so the fit through ``StatisticalTrainer`` still sees every train pixel: with one
+    cluster the centroid is the mean of all of them."""
+    from cuvis_ai_core.training.trainers import StatisticalTrainer
+
+    datamodule = synthetic_anomaly_datamodule(
+        batch_size=2, num_samples=4, height=4, width=4, channels=4, dtype=torch.float32
+    )
+    datamodule._train_dataset._masks.zero_()
+
+    kmeans = KMeansClusterer(n_clusters=1, random_state=0, name="kmeans")
+    sam = SpectralAngleMapper(name="sam")
+    pipe = CuvisPipeline("kmeans_zero_mask")
+    pipe.connect(kmeans.outputs.spectral_signature, sam.inputs.spectral_signature)
+
+    StatisticalTrainer(pipeline=pipe, datamodule=datamodule).fit()
+
+    train_pixels = datamodule._train_dataset._cubes.reshape(-1, 4)
+    assert kmeans.is_initialized
+    torch.testing.assert_close(kmeans.centroids[0], train_pixels.mean(dim=0), atol=1e-5, rtol=0)
