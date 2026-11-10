@@ -6,15 +6,18 @@ mirrors. This asserts the anomaly data nodes' declared ports match the live
 ``INPUT_SPECS`` / ``OUTPUT_SPECS`` key sets, catching a manifest that drifts
 behind a class change (e.g. a newly added port), and that every channel
 selector's port names and descriptions equal the live ``PortSpec`` entries,
-catching a description that changes on a base class without the manifest. The
-other direction is guarded too: every public ``Node`` subclass defined in
+catching a description that changes on a base class without the manifest. Every
+other entry's port names are checked against its class as well, so a renamed or
+added port on any built-in node fails here. The other direction is guarded too: every public ``Node`` subclass defined in
 ``cuvis_ai.node.channel_selector`` has a manifest entry, catching a new selector
 that ships unlisted.
 """
 
 from __future__ import annotations
 
+import importlib
 import inspect
+from functools import cache
 from pathlib import Path
 
 import pytest
@@ -151,3 +154,29 @@ def test_calibratable_decider_entries_match_the_live_class(class_name: str) -> N
     assert set(cap.output_specs) == set(cls.OUTPUT_SPECS), f"{class_name}: output ports out of sync"
     declared = {str(getattr(tag, "value", tag)) for tag in cap.tags}
     assert declared == {tag.value for tag in cls.get_tags()}, f"{class_name}: tags out of sync"
+
+
+@cache
+def _capabilities_by_class() -> dict:
+    """Every manifest capability keyed by class name, parsed once for the whole module."""
+    manifest = load_plugin_manifest(BUILTIN_MANIFEST_PATH)
+    return {cap.class_name: cap for cap in manifest.capabilities}
+
+
+def _all_capability_class_names() -> list[str]:
+    return list(_capabilities_by_class())
+
+
+@pytest.mark.parametrize("class_name", _all_capability_class_names())
+def test_every_entry_port_names_match_the_live_class(class_name: str) -> None:
+    """Each manifest entry declares the same input and output port names as its class."""
+    module_name, attr = class_name.rsplit(".", 1)
+    cls = getattr(importlib.import_module(module_name), attr)
+    cap = _capabilities_by_class()[class_name]
+
+    assert set(cap.input_specs) == set(cls.INPUT_SPECS), (
+        f"{class_name}: manifest input ports out of sync with the live class"
+    )
+    assert set(cap.output_specs) == set(cls.OUTPUT_SPECS), (
+        f"{class_name}: manifest output ports out of sync with the live class"
+    )
