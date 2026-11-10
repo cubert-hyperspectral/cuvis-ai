@@ -4,7 +4,7 @@ Every node available in cuvis-ai pipelines, in one place. Built-in nodes ship wi
 
 CategoryTagsSource
 
-230 items
+231 items
 
 Clear
 
@@ -2937,7 +2937,7 @@ Partition pixel spectra into `n_clusters` groups by nearest centroid.
 
 The node is fitted once via `statistical_initialization` (scikit-learn's `KMeans`); the resulting centroids are stored as a torch buffer. At inference each pixel is assigned to its nearest centroid in Euclidean space, emitting the 0-based cluster id and the distance to that centroid.
 
-Cluster ids are emitted directly in the range `0 .. n_clusters - 1` (no background / `-1` sentinel is used).
+Cluster ids are emitted directly in the range `0 .. n_clusters - 1` (no background / `-1` sentinel is used). The fitted centroids are also emitted on the `spectral_signature` port, in the `[K, 1, 1, C]` layout `SpectralAngleMapper.spectral_signature` reads, so a pipeline can wire them in directly as spectral angle references.
 
 Parameters:
 
@@ -3004,9 +3004,9 @@ Parameters:
 
 Returns:
 
-| Type                | Description                                                                                                          |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `dict[str, Tensor]` | class_mask int32 [B, H, W] (0-based cluster id) and scores float32 [B, H, W, 1] (distance to the assigned centroid). |
+| Type                | Description                                                                                                                                                                                                 |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dict[str, Tensor]` | class_mask int32 [B, H, W] (0-based cluster id), scores float32 [B, H, W, 1] (distance to the assigned centroid), and spectral_signature float32 [K, 1, 1, C] (the fitted centroids, on the cube's device). |
 
 Source code in `cuvis_ai/node/clustering/kmeans.py`
 
@@ -3025,17 +3025,26 @@ def forward(self, cube: torch.Tensor, **_: Any) -> dict[str, torch.Tensor]:
     Returns
     -------
     dict[str, torch.Tensor]
-        ``class_mask`` int32 ``[B, H, W]`` (0-based cluster id) and
+        ``class_mask`` int32 ``[B, H, W]`` (0-based cluster id),
         ``scores`` float32 ``[B, H, W, 1]`` (distance to the assigned
-        centroid).
+        centroid), and ``spectral_signature`` float32 ``[K, 1, 1, C]`` (the fitted
+        centroids, on the cube's device).
     """
     self._require_initialized()
     B, H, W, C = cube.shape
+    centroids = self.centroids.to(device=cube.device, dtype=torch.float32)
     flat = cube.reshape(-1, C).to(torch.float32)
-    d = torch.cdist(flat, self.centroids.to(device=flat.device, dtype=flat.dtype))
+    d = torch.cdist(flat, centroids)
     class_mask = d.argmin(dim=1).reshape(B, H, W).to(torch.int32)
     scores = d.min(dim=1).values.reshape(B, H, W, 1).to(torch.float32)
-    return {"class_mask": class_mask, "scores": scores}
+    k = centroids.shape[0]
+    return {
+        "class_mask": class_mask,
+        "scores": scores,
+        # A copy: on the buffer's own device and dtype .to() returns the buffer itself, and a
+        # downstream in-place edit of the references must not reach the fitted centroids.
+        "spectral_signature": centroids.reshape(k, 1, 1, C).clone(),
+    }
 ```
 
 `LADGlobal`modelcuvis_ai.node.anomaly.lad_detectorLaplacian Anomaly Detector (global), variant 'C' (Cauchy), port-based.anomhsilearnnumpy
@@ -18879,6 +18888,99 @@ def forward(
     return {"artifacts": artifacts}
 ```
 
+`DecisionOutcomeOverlay`visualizercuvis_ai.node.anomaly_visualizationPaint each pixel's detection outcome (hit, false alarm, miss) onto RGB frames.anommaskonnxrgb
+
+#### DecisionOutcomeOverlay
+
+```python
+DecisionOutcomeOverlay(
+    alpha=1.0,
+    hit_color=(0.0, 1.0, 0.0),
+    false_alarm_color=(1.0, 0.0, 0.0),
+    miss_color=(1.0, 1.0, 0.0),
+    **kwargs,
+)
+```
+
+Bases: `Node`
+
+Paint each pixel's detection outcome (hit, false alarm, miss) onto RGB frames.
+
+A pixel that is decided and annotated is a hit, decided and not annotated a false alarm, annotated and not decided a miss; the colour of its outcome is blended over the image with `alpha`, and every other pixel keeps the image. Without `targets` every decided pixel counts as not annotated and gets the false-alarm colour. The output is an image tensor, so the frames can go on to `ImageConcatenator` or `ToVideoNode`.
+
+Parameters:
+
+| Name                | Type                         | Description                                                                                                                   | Default           |
+| ------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| `alpha`             | `float`                      | Blend factor of the outcome colours in [0, 1]; 1.0 paints them solid (default).                                               | `1.0`             |
+| `hit_color`         | `tuple[float, float, float]` | RGB colours in [0, 1] (defaults: green, red, yellow, the colours of the confusion overlay the anomaly mask visualizers draw). | `(0.0, 1.0, 0.0)` |
+| `false_alarm_color` | `tuple[float, float, float]` | RGB colours in [0, 1] (defaults: green, red, yellow, the colours of the confusion overlay the anomaly mask visualizers draw). | `(0.0, 1.0, 0.0)` |
+| `miss_color`        | `tuple[float, float, float]` | RGB colours in [0, 1] (defaults: green, red, yellow, the colours of the confusion overlay the anomaly mask visualizers draw). | `(0.0, 1.0, 0.0)` |
+
+Source code in `cuvis_ai/node/anomaly_visualization.py`
+
+```python
+def __init__(
+    self,
+    alpha: float = 1.0,
+    hit_color: Sequence[float] = (0.0, 1.0, 0.0),
+    false_alarm_color: Sequence[float] = (1.0, 0.0, 0.0),
+    miss_color: Sequence[float] = (1.0, 1.0, 0.0),
+    **kwargs: Any,
+) -> None:
+    if not 0.0 <= float(alpha) <= 1.0:
+        raise ValueError(f"alpha must be within [0, 1], got {alpha}")
+    self.alpha = float(alpha)
+    self.hit_color = _unit_rgb("hit_color", hit_color)
+    self.false_alarm_color = _unit_rgb("false_alarm_color", false_alarm_color)
+    self.miss_color = _unit_rgb("miss_color", miss_color)
+    super().__init__(
+        alpha=self.alpha,
+        hit_color=self.hit_color,
+        false_alarm_color=self.false_alarm_color,
+        miss_color=self.miss_color,
+        **kwargs,
+    )
+    # Rows: hit, false alarm, miss. Not persistent: the hparams carry the colours.
+    self.register_buffer(
+        "_colours",
+        torch.tensor(
+            [self.hit_color, self.false_alarm_color, self.miss_color], dtype=torch.float32
+        ),
+        persistent=False,
+    )
+```
+
+##### forward
+
+```python
+forward(rgb_image, decisions, targets=None, **_)
+```
+
+Blend the outcome colour of every hit, false alarm and miss into `rgb_image`.
+
+Source code in `cuvis_ai/node/anomaly_visualization.py`
+
+```python
+@torch.no_grad()
+def forward(
+    self,
+    rgb_image: torch.Tensor,
+    decisions: torch.Tensor,
+    targets: torch.Tensor | None = None,
+    **_: Any,
+) -> dict[str, torch.Tensor]:
+    """Blend the outcome colour of every hit, false alarm and miss into ``rgb_image``."""
+    decided = decisions
+    annotated = targets if targets is not None else torch.zeros_like(decisions)
+    outcomes = (decided & annotated, decided & ~annotated, annotated & ~decided)
+    out = rgb_image
+    for row, outcome in enumerate(outcomes):
+        weight = outcome.to(rgb_image.dtype) * self.alpha
+        out = out * (1.0 - weight) + self._colours[row] * weight
+    return {"rgb_image": out}
+```
+
 `MaskOverlayNode`visualizercuvis_ai.node.anomaly_visualizationAlpha-blend a coloured mask overlay onto RGB frames.maskonnxrgb
 
 #### MaskOverlayNode
@@ -18911,18 +19013,7 @@ def __init__(
     overlay_color: Sequence[float] = (1.0, 0.0, 0.0),
     **kwargs,
 ) -> None:
-    if len(overlay_color) != 3:
-        raise ValueError(
-            f"overlay_color must contain exactly 3 channels (R, G, B), got {overlay_color}"
-        )
-
-    parsed_overlay_color = tuple(float(channel) for channel in overlay_color)
-    if any(channel < 0.0 or channel > 1.0 for channel in parsed_overlay_color):
-        raise ValueError(
-            f"overlay_color channels must be within [0, 1], got {parsed_overlay_color}"
-        )
-
-    self.overlay_color = parsed_overlay_color
+    self.overlay_color = _unit_rgb("overlay_color", overlay_color)
     self.alpha = alpha
     super().__init__(alpha=alpha, overlay_color=self.overlay_color, **kwargs)
 ```
