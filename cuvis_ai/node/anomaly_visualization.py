@@ -1119,18 +1119,7 @@ class MaskOverlayNode(Node):
         overlay_color: Sequence[float] = (1.0, 0.0, 0.0),
         **kwargs,
     ) -> None:
-        if len(overlay_color) != 3:
-            raise ValueError(
-                f"overlay_color must contain exactly 3 channels (R, G, B), got {overlay_color}"
-            )
-
-        parsed_overlay_color = tuple(float(channel) for channel in overlay_color)
-        if any(channel < 0.0 or channel > 1.0 for channel in parsed_overlay_color):
-            raise ValueError(
-                f"overlay_color channels must be within [0, 1], got {parsed_overlay_color}"
-            )
-
-        self.overlay_color = parsed_overlay_color
+        self.overlay_color = _unit_rgb("overlay_color", overlay_color)
         self.alpha = alpha
         super().__init__(alpha=alpha, overlay_color=self.overlay_color, **kwargs)
 
@@ -1149,6 +1138,114 @@ class MaskOverlayNode(Node):
                 rgb_image, mask, alpha=self.alpha, color=self.overlay_color
             )
         }
+
+
+def _unit_rgb(name: str, colour: Sequence[float]) -> tuple[float, float, float]:
+    """Return ``colour`` as three floats in [0, 1], or raise naming the argument."""
+    if len(colour) != 3:
+        raise ValueError(f"{name} must contain exactly 3 channels (R, G, B), got {colour}")
+    parsed = tuple(float(channel) for channel in colour)
+    # Written as "not within" so a NaN channel, which fails every comparison, is refused too.
+    if any(not 0.0 <= channel <= 1.0 for channel in parsed):
+        raise ValueError(f"{name} channels must be within [0, 1], got {parsed}")
+    return parsed  # type: ignore[return-value]
+
+
+class DecisionOutcomeOverlay(Node):
+    """Paint each pixel's detection outcome (hit, false alarm, miss) onto RGB frames.
+
+    A pixel that is decided and annotated is a hit, decided and not annotated a false alarm,
+    annotated and not decided a miss; the colour of its outcome is blended over the image
+    with ``alpha``, and every other pixel keeps the image. Without ``targets`` every decided
+    pixel counts as not annotated and gets the false-alarm colour. The output is an image
+    tensor, so the frames can go on to ``ImageConcatenator`` or ``ToVideoNode``.
+
+    Parameters
+    ----------
+    alpha : float, optional
+        Blend factor of the outcome colours in [0, 1]; 1.0 paints them solid (default).
+    hit_color, false_alarm_color, miss_color : tuple[float, float, float], optional
+        RGB colours in [0, 1] (defaults: green, red, yellow, the colours of the confusion
+        overlay the anomaly mask visualizers draw).
+    """
+
+    _category = NodeCategory.VISUALIZER
+    _tags = frozenset({NodeTag.ONNX, NodeTag.ANOMALY, NodeTag.MASK, NodeTag.RGB})
+
+    INPUT_SPECS = {
+        "rgb_image": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 3),
+            description="RGB frames [B, H, W, 3] in [0, 1]",
+        ),
+        "decisions": PortSpec(
+            dtype=torch.bool,
+            shape=(-1, -1, -1, 1),
+            description="Binary decisions [B, H, W, 1]",
+        ),
+        "targets": PortSpec(
+            dtype=torch.bool,
+            shape=(-1, -1, -1, 1),
+            description="Ground-truth mask [B, H, W, 1]; without it every decision is a false alarm",
+            optional=True,
+        ),
+    }
+
+    OUTPUT_SPECS = {
+        "rgb_image": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, 3),
+            description="RGB frames [B, H, W, 3] in [0, 1] with the outcome colours blended in",
+        ),
+    }
+
+    def __init__(
+        self,
+        alpha: float = 1.0,
+        hit_color: Sequence[float] = (0.0, 1.0, 0.0),
+        false_alarm_color: Sequence[float] = (1.0, 0.0, 0.0),
+        miss_color: Sequence[float] = (1.0, 1.0, 0.0),
+        **kwargs: Any,
+    ) -> None:
+        if not 0.0 <= float(alpha) <= 1.0:
+            raise ValueError(f"alpha must be within [0, 1], got {alpha}")
+        self.alpha = float(alpha)
+        self.hit_color = _unit_rgb("hit_color", hit_color)
+        self.false_alarm_color = _unit_rgb("false_alarm_color", false_alarm_color)
+        self.miss_color = _unit_rgb("miss_color", miss_color)
+        super().__init__(
+            alpha=self.alpha,
+            hit_color=self.hit_color,
+            false_alarm_color=self.false_alarm_color,
+            miss_color=self.miss_color,
+            **kwargs,
+        )
+        # Rows: hit, false alarm, miss. Not persistent: the hparams carry the colours.
+        self.register_buffer(
+            "_colours",
+            torch.tensor(
+                [self.hit_color, self.false_alarm_color, self.miss_color], dtype=torch.float32
+            ),
+            persistent=False,
+        )
+
+    @torch.no_grad()
+    def forward(
+        self,
+        rgb_image: torch.Tensor,
+        decisions: torch.Tensor,
+        targets: torch.Tensor | None = None,
+        **_: Any,
+    ) -> dict[str, torch.Tensor]:
+        """Blend the outcome colour of every hit, false alarm and miss into ``rgb_image``."""
+        decided = decisions
+        annotated = targets if targets is not None else torch.zeros_like(decisions)
+        outcomes = (decided & annotated, decided & ~annotated, annotated & ~decided)
+        out = rgb_image
+        for row, outcome in enumerate(outcomes):
+            weight = outcome.to(rgb_image.dtype) * self.alpha
+            out = out * (1.0 - weight) + self._colours[row] * weight
+        return {"rgb_image": out}
 
 
 class TrackingOverlayNode(Node):
@@ -1793,6 +1890,7 @@ __all__ = [
     "ScoreHeatmapVisualizer",
     "ChannelSelectorFalseRGBViz",
     "MaskOverlayNode",
+    "DecisionOutcomeOverlay",
     "TrackingOverlayNode",
     "TrackingPointerOverlayNode",
 ]
