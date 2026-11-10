@@ -3507,11 +3507,11 @@ capabilities:
       shape: [-1, -1, -1, -1]
       optional: false
       description: Input hyperspectral cube [B, H, W, C]
-    mask:
+    fit_mask:
       dtype: int32
       shape: [-1, -1, -1]
       optional: true
-      description: Optional foreground mask [B, H, W]; when connected the fit uses only pixels where mask > 0 (inference still labels every pixel).
+      description: Optional foreground mask [B, H, W]; when connected the fit uses only pixels where fit_mask > 0 (inference still labels every pixel). Not named `mask`, the batch key of the loaders' annotation mask, which a pipeline would route here.
   output_specs:
     class_mask:
       dtype: int32
@@ -3523,6 +3523,11 @@ capabilities:
       shape: [-1, -1, -1, 1]
       optional: false
       description: Euclidean distance to the assigned centroid [B, H, W, 1]
+    spectral_signature:
+      dtype: float32
+      shape: [-1, 1, 1, -1]
+      optional: false
+      description: Fitted cluster centroids [K, 1, 1, C], in the reference layout SpectralAngleMapper.spectral_signature reads, so they can be wired in directly as spectral angle references.
   doc_summary: Partition pixel spectra into ``n_clusters`` groups by nearest centroid.
 - class_name: cuvis_ai.node.clustering.gmm.GaussianMixtureClusterer
   category: model
@@ -3534,11 +3539,11 @@ capabilities:
       shape: [-1, -1, -1, -1]
       optional: false
       description: Input hyperspectral cube [B, H, W, C]
-    mask:
+    fit_mask:
       dtype: int32
       shape: [-1, -1, -1]
       optional: true
-      description: Optional foreground mask [B, H, W]; when connected the fit uses only pixels where mask > 0 (inference still labels every pixel).
+      description: Optional foreground mask [B, H, W]; when connected the fit uses only pixels where fit_mask > 0 (inference still labels every pixel). Not named `mask`, the batch key of the loaders' annotation mask, which a pipeline would route here.
   output_specs:
     class_mask:
       dtype: int32

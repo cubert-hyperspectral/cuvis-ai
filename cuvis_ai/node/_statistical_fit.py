@@ -118,10 +118,11 @@ class _StatisticalFitNode(Node):
         when ``max_fit_pixels`` is set and exceeded, draws a seeded random
         subsample so the returned matrix never exceeds the budget.
 
-        When a batch also carries ``"mask"`` (a ``[B, H, W]`` foreground
+        When a batch also carries ``"fit_mask"`` (a ``[B, H, W]`` foreground
         mask), only pixels where the mask is non-zero are kept, so a node that
-        declares and connects an optional ``mask`` input fits on the foreground
-        alone. Subclasses without a ``mask`` port never receive one, so this is
+        declares and connects an optional ``fit_mask`` input fits on the
+        foreground alone. A batch ``"mask"`` (the loaders' annotation mask) is
+        ignored. Subclasses without a ``fit_mask`` port never receive one, so this is
         a no-op for them.
 
         Parameters
@@ -140,7 +141,7 @@ class _StatisticalFitNode(Node):
             if x is None:
                 continue
             flat = x.reshape(-1, x.shape[-1]).to(torch.float32)
-            mask = batch.get("mask")
+            mask = batch.get("fit_mask")
             if mask is not None:
                 flat = flat[mask.reshape(-1) > 0]
             chunks.append(flat)
