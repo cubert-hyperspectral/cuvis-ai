@@ -19,7 +19,8 @@ pytestmark = pytest.mark.unit
 
 B, H, W = 1, 6, 10
 GREY = 0.5
-HIT, FALSE_ALARM, MISS = (1.0, 1.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)
+# The defaults follow the confusion overlay of the TensorBoard visualizers: hits green, misses yellow.
+HIT, FALSE_ALARM, MISS = (0.0, 1.0, 0.0), (1.0, 0.0, 0.0), (1.0, 1.0, 0.0)
 
 
 def _frame() -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:

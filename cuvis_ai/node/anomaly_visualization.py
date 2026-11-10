@@ -1165,7 +1165,8 @@ class DecisionOutcomeOverlay(Node):
     alpha : float, optional
         Blend factor of the outcome colours in [0, 1]; 1.0 paints them solid (default).
     hit_color, false_alarm_color, miss_color : tuple[float, float, float], optional
-        RGB colours in [0, 1] (defaults: yellow, red, green).
+        RGB colours in [0, 1] (defaults: green, red, yellow, the colours of the confusion
+        overlay the anomaly mask visualizers draw).
     """
 
     _category = NodeCategory.VISUALIZER
@@ -1201,9 +1202,9 @@ class DecisionOutcomeOverlay(Node):
     def __init__(
         self,
         alpha: float = 1.0,
-        hit_color: Sequence[float] = (1.0, 1.0, 0.0),
+        hit_color: Sequence[float] = (0.0, 1.0, 0.0),
         false_alarm_color: Sequence[float] = (1.0, 0.0, 0.0),
-        miss_color: Sequence[float] = (0.0, 1.0, 0.0),
+        miss_color: Sequence[float] = (1.0, 1.0, 0.0),
         **kwargs: Any,
     ) -> None:
         if not 0.0 <= float(alpha) <= 1.0:
