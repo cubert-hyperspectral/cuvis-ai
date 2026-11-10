@@ -312,3 +312,16 @@ def test_statistical_trainer_fit_ignores_an_all_zero_batch_mask(
     train_pixels = datamodule._train_dataset._cubes.reshape(-1, 4)
     assert kmeans.is_initialized
     torch.testing.assert_close(kmeans.centroids[0], train_pixels.mean(dim=0), atol=1e-5, rtol=0)
+
+
+@torch.no_grad()
+def test_spectral_signature_is_a_copy_so_editing_it_leaves_the_fit_alone() -> None:
+    """A downstream node that edits the references in place must not change the fitted
+    centroids, the next labels or a saved state dict."""
+    node = _fitted(n_clusters=3)
+    cube = _as_cube(_three_blob_pixels())
+    before = node.centroids.clone()
+
+    node.forward(cube=cube)["spectral_signature"].zero_()
+
+    assert torch.equal(node.centroids, before)

@@ -171,5 +171,7 @@ class KMeansClusterer(_StatisticalFitNode):
         return {
             "class_mask": class_mask,
             "scores": scores,
-            "spectral_signature": centroids.reshape(k, 1, 1, C),
+            # A copy: on the buffer's own device and dtype .to() returns the buffer itself, and a
+            # downstream in-place edit of the references must not reach the fitted centroids.
+            "spectral_signature": centroids.reshape(k, 1, 1, C).clone(),
         }
