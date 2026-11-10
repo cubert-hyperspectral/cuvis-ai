@@ -1119,18 +1119,7 @@ class MaskOverlayNode(Node):
         overlay_color: Sequence[float] = (1.0, 0.0, 0.0),
         **kwargs,
     ) -> None:
-        if len(overlay_color) != 3:
-            raise ValueError(
-                f"overlay_color must contain exactly 3 channels (R, G, B), got {overlay_color}"
-            )
-
-        parsed_overlay_color = tuple(float(channel) for channel in overlay_color)
-        if any(channel < 0.0 or channel > 1.0 for channel in parsed_overlay_color):
-            raise ValueError(
-                f"overlay_color channels must be within [0, 1], got {parsed_overlay_color}"
-            )
-
-        self.overlay_color = parsed_overlay_color
+        self.overlay_color = _unit_rgb("overlay_color", overlay_color)
         self.alpha = alpha
         super().__init__(alpha=alpha, overlay_color=self.overlay_color, **kwargs)
 
