@@ -1145,7 +1145,8 @@ def _unit_rgb(name: str, colour: Sequence[float]) -> tuple[float, float, float]:
     if len(colour) != 3:
         raise ValueError(f"{name} must contain exactly 3 channels (R, G, B), got {colour}")
     parsed = tuple(float(channel) for channel in colour)
-    if any(channel < 0.0 or channel > 1.0 for channel in parsed):
+    # Written as "not within" so a NaN channel, which fails every comparison, is refused too.
+    if any(not 0.0 <= channel <= 1.0 for channel in parsed):
         raise ValueError(f"{name} channels must be within [0, 1], got {parsed}")
     return parsed  # type: ignore[return-value]
 
