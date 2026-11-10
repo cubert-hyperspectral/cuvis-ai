@@ -2420,6 +2420,8 @@ class HighContrastSelector(ChannelSelectorBase):
         ``normalize_output=False`` returns the three selected bands without
         rescaling or gamma.
 
+    Notes
+    -----
     Does not export with the dynamo exporter: ``_select_indices`` picks the band
     per window from the batch's own pixel values (variance, Laplacian energy) with
     numpy and scipy, round-tripping through ``cube[0].cpu().numpy()``. Unlike the

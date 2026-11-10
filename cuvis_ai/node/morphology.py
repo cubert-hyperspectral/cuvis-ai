@@ -65,6 +65,8 @@ class ShapeMorphology(Node):
         component labeling.  If False, treat the input as an already-labeled
         mask and use its nonzero values as instance ids.  Default ``True``.
 
+    Notes
+    -----
     Does not export with the dynamo exporter: labelling round-trips each frame
     through OpenCV (``cv2.connectedComponents`` via
     ``cuvis_ai.utils.connected_components.label_connected_components``), which has

@@ -2,8 +2,6 @@
    Category/tag colors come from node_categories.css custom properties.
    This file owns layout and component skeletons only. */
 
-.node-catalog { display: flex; flex-direction: column; gap: 1rem; margin-top: 1rem; }
-
 /* ─── Filter bar ─────────────────────────────────────────────────────────── */
 
 .node-filter {
@@ -203,6 +201,10 @@
 
 /* ─── Collapsible list rows ─────────────────────────────────────────────── */
 
+/* Material styles every <details> in .md-typeset as an admonition (border,
+   margin, padding, icon, tinted summary). The rules below start with
+   .md-typeset so they outrank those, including [dir=ltr] .md-typeset summary. */
+
 .node-list {
   display: flex;
   flex-direction: column;
@@ -211,119 +213,115 @@
   border-radius: 0.45rem;
   overflow: hidden;
   background: var(--md-default-bg-color);
+  container-type: inline-size;
 }
 
-details.node-row {
+.md-typeset details.node-row {
   display: block;
+  margin: 0;
+  padding: 0;
+  border: 0;
   border-bottom: 1px solid var(--md-default-fg-color--lightest);
   border-left: 4px solid var(--card-border, var(--md-default-fg-color--lighter));
+  border-radius: 0;
+  box-shadow: none;
   background: var(--md-default-bg-color);
-  font-size: 0.83rem;
-  transition: background-color 0.08s ease;
+  color: var(--md-default-fg-color);
+  font-size: 0.8rem;
   min-width: 0;
 }
-/* :last-of-type, not :last-child — the empty-state div is the grid's last child */
-details.node-row:last-of-type { border-bottom: none; }
-details.node-row[open] { background: var(--md-default-fg-color--lightest); }
+.md-typeset details.node-row:focus-within { box-shadow: none; }
+/* :last-of-type, not :last-child — the empty-state div is the list's last child */
+.md-typeset details.node-row:last-of-type { border-bottom: none; }
+html .md-typeset details.node-row > :last-child { margin-bottom: 0; }
 
-/* Hide native disclosure marker, use a custom chevron */
-details.node-row > summary { list-style: none; cursor: pointer; }
-details.node-row > summary::-webkit-details-marker { display: none; }
-details.node-row > summary::marker { display: none; content: ''; }
-
-details.node-row > summary {
+.md-typeset details.node-row > summary {
   display: grid;
-  grid-template-columns: 18px 32px 1fr;
-  grid-template-areas:
-    "chev icon header"
-    "chev icon summary";
-  align-items: start;
-  column-gap: 0.6rem;
-  row-gap: 0.2rem;
-  padding: 0.55rem 0.85rem;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "head" "mod" "sum" "tags";
+  row-gap: 0.15rem;
+  margin: 0;
+  padding: 0.45rem 1.6rem 0.5rem 0.6rem;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  font-weight: 400;
+  list-style: none;
+  cursor: pointer;
   user-select: none;
 }
-details.node-row > summary::before {
-  grid-area: chev;
-  content: '';
-  width: 0;
-  height: 0;
-  margin-top: 0.5rem;
-  border-top: 4px solid transparent;
-  border-bottom: 4px solid transparent;
-  border-left: 6px solid var(--md-default-fg-color--light);
-  transition: transform 0.12s ease;
-  justify-self: center;
+.md-typeset details.node-row > summary::-webkit-details-marker { display: none; }
+.md-typeset details.node-row > summary::marker { content: ''; }
+.md-typeset details.node-row > summary::before { display: none; }
+/* Material's ::after is the one chevron; it sits in the right padding. */
+.md-typeset details.node-row > summary::after {
+  color: var(--md-default-fg-color--light);
+  top: 0.5rem;
 }
-details.node-row[open] > summary::before { transform: rotate(90deg); }
-details.node-row > summary:hover { background: var(--md-default-fg-color--lightest); }
+.md-typeset details.node-row > summary:hover { background: var(--md-default-fg-color--lightest); }
+.md-typeset details.node-row[open] > summary { background: var(--md-default-fg-color--lightest); }
+.md-typeset details.node-row > summary code { box-shadow: none; }
 
-.row-icon { grid-area: icon; width: 28px; height: 28px; margin-top: 0.1rem; flex-shrink: 0; }
-
-.row-header {
-  grid-area: header;
+/* Name, then the pill group; the pills drop under a long name instead of
+   squeezing it. */
+.row-head {
+  grid-area: head;
   display: flex;
-  align-items: center;
   flex-wrap: wrap;
-  gap: 0.4rem 0.5rem;
+  align-items: center;
+  gap: 0.2rem 0.5rem;
   min-width: 0;
 }
-.row-name {
+/* outranks the site's [data-md-color-scheme] .md-typeset code border */
+.md-typeset .row-head code.row-name {
   font-weight: 600;
-  font-size: 0.92rem;
+  font-size: 0.8rem;
   background: none;
+  border: 0;
+  border-radius: 0;
   padding: 0;
   color: var(--md-default-fg-color);
+  overflow-wrap: anywhere;
+}
+.row-pills {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: auto;
 }
 .row-module {
-  font-size: 0.72rem;
-  color: var(--md-default-fg-color--light);
+  grid-area: mod;
+  min-width: 0;
+  font-size: 0.62rem;
   font-family: var(--md-code-font-family);
+  color: var(--md-default-fg-color--light);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.row-summary {
+  grid-area: sum;
+  color: var(--md-default-fg-color--light);
+  font-size: 0.7rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .row-category {
-  font-size: 0.66rem;
-  padding: 0.12rem 0.55rem;
+  font-size: 0.6rem;
+  line-height: 1.5;
+  padding: 0 0.45rem;
   border-radius: 999px;
   background: var(--card-fill, var(--md-default-bg-color));
   border: 1px solid var(--card-border, var(--md-default-fg-color--lightest));
   color: #222;
   white-space: nowrap;
 }
-
-.row-tags {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 0.2rem;
-}
-.row-tags .tag-chip {
-  display: inline-block;
-  font-size: 0.62rem;
-  padding: 0.05rem 0.4rem;
-  border-radius: 999px;
-  color: #fff;
-  background: var(--chip-color, #888);
-  white-space: nowrap;
-}
-
-.row-summary {
-  grid-area: summary;
-  color: var(--md-default-fg-color--light);
-  font-size: 0.8rem;
-  line-height: 1.45;
-  white-space: normal;
-  word-break: break-word;
-}
-
-.row-meta {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
 .plugin-pill {
-  font-size: 0.62rem;
-  padding: 0.08rem 0.45rem;
+  font-size: 0.6rem;
+  line-height: 1.5;
+  padding: 0 0.45rem;
   border-radius: 999px;
   border: 1px dashed var(--md-default-fg-color--light);
   color: var(--md-default-fg-color--light);
@@ -331,32 +329,58 @@ details.node-row > summary:hover { background: var(--md-default-fg-color--lighte
   white-space: nowrap;
 }
 .datamodule-pill {
-  font-size: 0.62rem;
-  padding: 0.08rem 0.45rem;
+  font-size: 0.6rem;
+  line-height: 1.5;
+  padding: 0 0.45rem;
   border-radius: 999px;
   border: 1px solid var(--md-accent-fg-color);
   color: var(--md-accent-fg-color);
   background: var(--md-default-bg-color);
   white-space: nowrap;
 }
-.card-repo {
+.md-typeset .card-repo {
   text-decoration: none;
   font-weight: 700;
-  font-size: 0.95rem;
-  padding: 0 0.25rem;
-  color: var(--md-primary-fg-color);
+  font-size: 0.75rem;
+  line-height: 1;
+  color: var(--md-typeset-a-color);
 }
-.card-repo:hover { text-decoration: underline; }
+.md-typeset .card-repo:hover { text-decoration: underline; }
 
-/* Body — visible only when open. Indented under the name column. */
-.row-body {
-  padding: 0.4rem 1rem 0.9rem 3.2rem;
+/* Tags as one line of coloured words. The tag colour is mixed toward the text
+   colour so every tag stays at 4.5:1 against the row in both schemes. */
+.row-tags {
+  grid-area: tags;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  min-width: 0;
+  --tag-mix: 50%;
+}
+.row-tags .tag-text {
+  font-size: 0.6rem;
+  font-weight: 500;
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--chip-color, #888) var(--tag-mix), var(--md-default-fg-color));
+}
+.row-tags .tag-text + .tag-text::before {
+  content: '·';
+  margin: 0 0.3em;
+  color: var(--md-default-fg-color--light);
+}
+
+/* Body, visible only when open: full row width, no extra indent. */
+.md-typeset details.node-row > .row-body {
+  padding: 0.5rem 0.85rem 0.9rem 0.6rem;
   background: var(--md-default-bg-color);
   border-top: 1px solid var(--md-default-fg-color--lightest);
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   line-height: 1.5;
   color: var(--md-default-fg-color);
+  min-width: 0;
 }
+.md-typeset details.node-row .md-typeset__scrollwrap { margin: 1em 0; }
+.md-typeset details.node-row .md-typeset__table { padding: 0; }
 .row-body h4 { margin-top: 0; }
 .row-body :first-child { margin-top: 0; }
 .row-body :last-child { margin-bottom: 0; }
@@ -376,6 +400,8 @@ details.node-row > summary:hover { background: var(--md-default-fg-color--lighte
   color: var(--md-default-fg-color--light);
 }
 .row-body .ports-table {
+  display: block;
+  overflow-x: auto;
   width: 100%;
   border-collapse: collapse;
   font-size: 0.78rem;
@@ -400,11 +426,29 @@ details.node-row > summary:hover { background: var(--md-default-fg-color--lighte
   white-space: nowrap;
 }
 
-details.node-row.is-hidden { display: none; }
+.md-typeset details.node-row.is-hidden { display: none; }
+
+/* Wide lists: name and module | summary | pills over tags. The head dissolves
+   so the name and the pill group become grid items of their own. */
+@container (min-width: 40rem) {
+  .md-typeset details.node-row > summary {
+    grid-template-columns: minmax(11rem, 16rem) minmax(0, 1fr) minmax(8rem, 13rem);
+    grid-template-areas:
+      "name sum pills"
+      "mod  sum tags";
+    column-gap: 1rem;
+    align-items: start;
+  }
+  .row-head { display: contents; }
+  .md-typeset .row-head code.row-name { grid-area: name; }
+  .row-pills { grid-area: pills; justify-content: flex-end; margin-left: 0; }
+  .row-tags { justify-content: flex-end; }
+  .row-summary { padding-top: 0.05rem; }
+}
 
 /* Dark-mode tweaks */
-[data-md-color-scheme="slate"] details.node-row[open] {
-  background: rgba(255, 255, 255, 0.03);
+[data-md-color-scheme="slate"] .md-typeset details.node-row[open] > summary {
+  background: rgba(255, 255, 255, 0.04);
 }
 [data-md-color-scheme="slate"] .row-category {
   color: #f4f4f6;
@@ -429,13 +473,21 @@ details.node-row.is-hidden { display: none; }
   background: var(--card-fill, var(--md-default-bg-color));
   border-radius: 0.5rem;
   text-decoration: none;
-  color: #222;
   transition: transform 0.08s ease, box-shadow 0.08s ease;
 }
 .cat-tile:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); }
 .cat-tile-icon { width: 36px; height: 36px; }
-.cat-tile-label { font-weight: 600; font-size: 0.85rem; text-transform: capitalize; }
-[data-md-color-scheme="slate"] .cat-tile { color: #f4f4f6; filter: saturate(0.85); }
+/* Set on the label itself: the tile is a link and Material colours links. */
+.md-typeset .cat-tile-label {
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-transform: capitalize;
+  color: #222;
+}
+[data-md-color-scheme="slate"] .cat-tile {
+  background: color-mix(in srgb, var(--card-border, #888) 28%, var(--md-default-bg-color));
+}
+[data-md-color-scheme="slate"] .md-typeset .cat-tile-label { color: #f4f4f6; }
 
 /* Narrow screens: search + count on row 1, the three fold buttons share row 2.
    The button group comes before the count in DOM order, so without `order` the
@@ -445,7 +497,7 @@ details.node-row.is-hidden { display: none; }
   /* flex-wrap wraps before it shrinks: at 14rem basis the count would drop to
      its own line, so let the search flex from 0 into the space next to it */
   #node-filter-search { flex-basis: 0; }
-  .filter-group-buttons { order: 10; flex-basis: 100%; gap: 0.35rem; }
+  .filter-group-buttons { order: 10; flex-basis: 100%; min-width: 0; gap: 0.35rem; }
   /* min-width: 0 lifts the min-content floor so three buttons + badges fit 375px */
   .filter-group-buttons .filter-group-toggle {
     flex: 1 1 0;
@@ -453,6 +505,4 @@ details.node-row.is-hidden { display: none; }
     justify-content: center;
     padding: 0.25rem 0.4rem;
   }
-  details.node-row > summary { padding: 0.5rem 0.65rem; }
-  .row-body { padding-left: 2.4rem; }
 }

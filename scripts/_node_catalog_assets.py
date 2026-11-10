@@ -62,7 +62,7 @@ def emit_css() -> None:
     lines.append("")
     for cat, _style in CATEGORY_STYLES.items():
         lines.append(
-            f'.node-card[data-category="{cat.value}"] {{ '
+            f':is(.node-row, .cat-tile)[data-category="{cat.value}"] {{ '
             f"--card-fill: var(--node-cat-{cat.value}-fill); "
             f"--card-border: var(--node-cat-{cat.value}-border); }}"
         )

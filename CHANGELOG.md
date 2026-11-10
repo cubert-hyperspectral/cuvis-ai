@@ -6,6 +6,13 @@
 - The last cell of `lentils_dinomaly.ipynb` shows the three overlay videos on Colab: it passes each path to `Video` positionally. Colab's IPython 7.34 called `os.path.exists(None)` for `Video(filename=...)` and the cell stopped with a `TypeError`.
 - `object_tracking_passive.ipynb` says that it needs a GPU with more than 15 GB (an L4 or A100 on Colab), in its prerequisites and in section 7, and its Colab bootstrap warns on a smaller GPU instead of recommending the T4. On Colab's free T4 the SAM3 text propagation of section 7 runs out of GPU memory at frame 6 of 90, also with the Cuvis SDK on the CPU, so a shorter run does not help either. The new `SDK_ON_GPU` variable reaches all five cu3s data modules, as in `channel_selector_lentils`; `False` moves about 2 GB of SDK memory off the GPU. Sections 3 and 7 give the 90 frames the run processes (they said 200).
 
+## 0.22.7 - 2026-11-09
+
+- The docs Nodes catalog is compact on phones and desktops: each row shows the name with its plugin and category pills, the module path, the summary and the tags as one line of coloured words, and becomes three columns on wide lists. Rows lose the admonition border, gaps and empty icon column Material gave every `<details>`, and an opened row shows its docstring at full width.
+- Category colours reach the catalog rows and the Catalogs overview tiles again: `scripts/_node_catalog_assets.py` targeted `.node-card`, a class no page has. Tag text and tile labels reach 4.5:1 contrast in light and dark.
+- `BinaryDecider`, `QuantileBinaryDecider`, `HighContrastSelector` and `ShapeMorphology` docstrings put their trailing paragraph under `Notes`, so `mkdocs build --strict` passes again.
+- `cuvis_ai_builtin.yaml` and `cuvis_ai_onnx.yaml` pin v0.22.7.
+
 ## 0.22.6 - 2026-11-06
 
 - cuvis-ai-core floor 0.20.2 (was 0.20.0); the lock moves to 0.20.2. `download-model` fetches the three `dinomaly_lentils_*` trained pipelines from the Hub revision whose yamls name `cuvis_ai.node.deciders.two_stage_decider.TwoStageBinaryDecider` (at the old revision they named the `cuvis_ai.deciders` path that 0.18.0 retired and failed to load), and counts them present after a download. `weights.index.json` is regenerated against it: the three rows point at `2b6d2164` with the new yaml sizes and sha256.
