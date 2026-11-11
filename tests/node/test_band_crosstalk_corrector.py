@@ -248,6 +248,27 @@ def test_non_positive_eps_raises(eps: float) -> None:
         BandCrosstalkCorrector(input_channels=C, eps=eps)
 
 
+@pytest.mark.parametrize(("configured", "actual"), [(1, 2), (2, 1), (C, C - 1)])
+def test_cube_with_another_channel_count_raises(configured: int, actual: int) -> None:
+    """A single channel on either side would broadcast in the matrix product; it must raise."""
+    node = BandCrosstalkCorrector(input_channels=configured)
+    with pytest.raises(ValueError, match="input_channels"):
+        node.forward(cube=_cube(seed=23, c=actual))
+
+
+@pytest.mark.parametrize(("configured", "actual"), [(1, 2), (2, 1)])
+def test_export_adapter_rejects_another_channel_count(configured: int, actual: int) -> None:
+    adapter = BandCrosstalkCorrector(input_channels=configured).eval().export_module()
+    with pytest.raises(ValueError, match="input_channels"):
+        adapter(cube=_cube(seed=24, c=actual))
+
+
+def test_ports_bind_the_channel_dimension_to_input_channels() -> None:
+    node = BandCrosstalkCorrector(input_channels=C)
+    assert node.INPUT_SPECS["cube"].resolve_shape(node) == (-1, -1, -1, C)
+    assert node.OUTPUT_SPECS["cube"].resolve_shape(node) == (-1, -1, -1, C)
+
+
 # ---------------------------------------------------------------------------
 # 5. Freeze / unfreeze and gradients
 # ---------------------------------------------------------------------------

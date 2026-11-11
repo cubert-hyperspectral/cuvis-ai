@@ -37,6 +37,9 @@ class BandCrosstalkCorrector(Node):
     :meth:`export_module` returns an adapter that runs the same matrix mixing without
     the check.
 
+    A cube whose channel count differs from ``input_channels`` raises ``ValueError``;
+    both ports carry ``input_channels`` as their channel dimension.
+
     :class:`cuvis_ai.node.channel_mixer.LearnableChannelMixer` also mixes bands with
     learned weights and can be set up square. It is a model block built on 1x1
     convolutions with optional bias, activation and output normalization, and its
@@ -74,7 +77,7 @@ class BandCrosstalkCorrector(Node):
     INPUT_SPECS = {
         "cube": PortSpec(
             dtype=torch.float32,
-            shape=(-1, -1, -1, -1),
+            shape=(-1, -1, -1, "input_channels"),
             description="Hyperspectral cube [B, H, W, C]",
         )
     }
@@ -82,7 +85,7 @@ class BandCrosstalkCorrector(Node):
     OUTPUT_SPECS = {
         "cube": PortSpec(
             dtype=torch.float32,
-            shape=(-1, -1, -1, -1),
+            shape=(-1, -1, -1, "input_channels"),
             description="Crosstalk-corrected cube, same shape as the input",
         )
     }
@@ -132,7 +135,16 @@ class BandCrosstalkCorrector(Node):
 
     @staticmethod
     def _mix(cube: Tensor, matrix: Tensor, clip_negative: bool = True) -> Tensor:
-        """Apply ``matrix`` to every pixel spectrum of ``cube`` and optionally clip."""
+        """Apply ``matrix`` to every pixel spectrum of ``cube`` and optionally clip.
+
+        Raises ``ValueError`` when the cube's channel count differs from the matrix size:
+        the product would otherwise broadcast a single channel on either side.
+        """
+        if cube.shape[-1] != matrix.shape[1]:
+            raise ValueError(
+                f"BandCrosstalkCorrector was built for input_channels={matrix.shape[1]}, "
+                f"got a cube with {cube.shape[-1]} channels"
+            )
         out = torch.einsum("dc,bhwc->bhwd", matrix, cube)
         if clip_negative:
             out = torch.relu(out)
