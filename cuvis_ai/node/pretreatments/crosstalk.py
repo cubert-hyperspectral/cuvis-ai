@@ -187,6 +187,8 @@ class _ConstantMatrixAdapter(torch.nn.Module):
     as a constant in the exported program.
     """
 
+    matrix: Tensor
+
     def __init__(self, matrix: Tensor, clip_negative: bool) -> None:
         super().__init__()
         self.register_buffer("matrix", matrix.detach().clone())
