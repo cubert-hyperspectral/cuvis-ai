@@ -3,6 +3,7 @@
 ## Unreleased
 
 - `PerPixelUnitNorm` takes `center` (default `True`, as before). With `center=False` each pixel spectrum is divided by its own L2 norm without subtracting its mean first, so a positive gain drops out and a constant offset stays in.
+- `Standardize` takes `axis="location"`: one mean and one standard deviation per pixel position and band, fitted over the frames of the training stream (`stats="fit"` only). The statistics are tied to one frame size, so the fit and `forward` refuse a frame of another shape.
 
 ## 0.22.8 - 2026-11-10
 
