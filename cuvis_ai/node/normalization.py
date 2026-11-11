@@ -473,14 +473,35 @@ class SigmoidTransform(Node):
 
 
 class PerPixelUnitNorm(_NormalizerBase):
-    """Per-pixel mean-centering and L2 normalization across channels."""
+    """Per-pixel L2 normalization across channels, with or without mean-centering.
+
+    With ``center=True`` (the default) each pixel's spectrum is mean-centered across
+    channels before the division: ``z = x - mean(x)``, output ``z / max(||z||_2, eps)``.
+    The output then does not change under a positive gain or a constant offset on the
+    spectrum. With ``center=False`` the mean subtraction is skipped and the spectrum is
+    divided by its own norm: ``x / max(||x||_2, eps)``. The output then does not change
+    under a positive gain, and a constant offset stays in. Both statements hold for
+    spectra whose norm stays above ``eps``.
+
+    Parameters
+    ----------
+    eps : float, optional
+        Floor for the L2 norm in the denominator. It keeps the division finite for a
+        spectrum whose norm is zero: a constant spectrum with ``center=True``, an
+        all-zero spectrum with ``center=False`` (default: 1e-8).
+    center : bool, optional
+        Subtract each pixel's mean over the channels before the division (default: True).
+    **kwargs : dict
+        Additional arguments passed to Node base class.
+    """
 
     _category = NodeCategory.TRANSFORM
     _tags = frozenset({NodeTag.ONNX, NodeTag.NORMALIZATION, NodeTag.PREPROCESSING, NodeTag.NUMPY})
 
-    def __init__(self, eps: float = 1e-8, **kwargs) -> None:
+    def __init__(self, eps: float = 1e-8, center: bool = True, **kwargs) -> None:
         self.eps = float(eps)
-        super().__init__(eps=self.eps, **kwargs)
+        self.center = bool(center)
+        super().__init__(eps=self.eps, center=self.center, **kwargs)
 
     def _normalize(self, tensor: Tensor) -> Tensor:
         """Apply per-pixel L2 normalization across channels.
@@ -493,14 +514,18 @@ class PerPixelUnitNorm(_NormalizerBase):
         Returns
         -------
         Tensor
-            L2-normalized tensor with unit norm per pixel
+            L2-normalized tensor, mean-centered first when ``center`` is True.
         """
         B, H, W, C = tensor.shape
         flat = tensor.reshape(B, -1, C)
-        mu = flat.mean(dim=2, keepdim=True)
-        centered = flat - mu
-        l2 = centered.norm(p=2, dim=2, keepdim=True).clamp_min(self.eps)
-        normalized = (centered / l2).reshape(B, H, W, C)
+        if self.center:
+            mu = flat.mean(dim=2, keepdim=True)
+            centered = flat - mu
+            l2 = centered.norm(p=2, dim=2, keepdim=True).clamp_min(self.eps)
+            normalized = (centered / l2).reshape(B, H, W, C)
+        else:
+            l2 = flat.norm(p=2, dim=2, keepdim=True).clamp_min(self.eps)
+            normalized = (flat / l2).reshape(B, H, W, C)
         return normalized
 
 

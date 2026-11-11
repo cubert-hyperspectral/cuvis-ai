@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `PerPixelUnitNorm` takes `center` (default `True`, as before). With `center=False` each pixel spectrum is divided by its own L2 norm without subtracting its mean first, so a positive gain drops out and a constant offset stays in.
+
 ## 0.22.8 - 2026-11-10
 
 - `KMeansClusterer` emits its fitted centroids on a new `spectral_signature` port, `[K, 1, 1, C]` float32 on the cube's device, the layout `SpectralAngleMapper.spectral_signature` reads. A pipeline can now fit k-means on normal frames with the statistical trainer and use the centroids as spectral angle references, with no reference file. `class_mask`, `scores` and the saved state are unchanged.
