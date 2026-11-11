@@ -112,7 +112,7 @@ jobs:
 
       - name: Upload the report artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: onnx-export-sweep-report
           path: onnx_contract_report.jsonl
