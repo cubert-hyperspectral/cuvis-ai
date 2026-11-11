@@ -89,7 +89,7 @@ class Standardize(Node):
     ``forward`` call must match exactly (a mismatch, including a broadcastable singleton dim,
     raises ``ValueError``). Its fit holds two float64 accumulators the size of one frame (the
     running mean and the running sum of squared deviations), 16 bytes per value of a frame:
-    about 1 GB for a 1024 x 1024 x 61 frame, plus temporaries of the same order while a batch
+    about 1 GB for a 1024 x 1024 x 61 frame, and a few times that at the peak while a batch
     is merged. The fitted node keeps a float32 mean and std of that size. With ``stats="fit"``,
     ``exclude_folds`` leaves the frames whose ``fold`` id is listed out of the fit (the node then
     has a ``fold [B]`` input), and ``max_initialization_frames`` stops the fit after that many

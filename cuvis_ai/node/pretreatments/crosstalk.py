@@ -54,7 +54,7 @@ class BandCrosstalkCorrector(Node):
         Rescale the applied matrix to trace ``C`` on the fly (default False).
     eps : float, optional
         Floor on the absolute trace magnitude before :meth:`forward` raises when
-        ``normalize_trace`` is set (default 1e-8).
+        ``normalize_trace`` is set (default 1e-8). Must be positive.
     """
 
     _category = NodeCategory.TRANSFORM
@@ -97,6 +97,8 @@ class BandCrosstalkCorrector(Node):
     ) -> None:
         if int(input_channels) < 1:
             raise ValueError(f"input_channels must be a positive integer, got {input_channels!r}")
+        if float(eps) <= 0.0:
+            raise ValueError(f"eps must be positive, got {eps!r}")
         self.input_channels = int(input_channels)
         self.clip_negative = bool(clip_negative)
         self.normalize_trace = bool(normalize_trace)

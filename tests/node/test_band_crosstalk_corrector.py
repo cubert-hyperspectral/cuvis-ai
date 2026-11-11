@@ -28,6 +28,26 @@ def _nonsymmetric_matrix(c: int = C, seed: int = 1) -> torch.Tensor:
     return torch.eye(c) + 0.1 * torch.randn(c, c, generator=g)
 
 
+def _small_trace_matrix(c: int = C, seed: int = 5, trace: float = 0.05) -> torch.Tensor:
+    """A non-symmetric matrix whose trace is small but far from zero, so the trace
+    rescale multiplies it by a large factor (``c / trace``)."""
+    g = torch.Generator().manual_seed(seed)
+    off_diagonal = 0.1 * torch.randn(c, c, generator=g)
+    off_diagonal = off_diagonal - torch.diag(torch.diagonal(off_diagonal))
+    return off_diagonal + torch.eye(c) * (trace / c)
+
+
+def _float64_reference(
+    cube: torch.Tensor, matrix: torch.Tensor, normalize_trace: bool, clip_negative: bool
+) -> np.ndarray:
+    """The node's formula written out in numpy float64, independent of the node."""
+    m = matrix.double().numpy()
+    if normalize_trace:
+        m = m * (m.shape[0] / np.trace(m))
+    out = np.einsum("dc,bhwc->bhwd", m, cube.double().numpy())
+    return np.maximum(out, 0.0) if clip_negative else out
+
+
 # ---------------------------------------------------------------------------
 # 1. Golden reference
 # ---------------------------------------------------------------------------
@@ -103,6 +123,21 @@ def test_negative_trace_rescales_correctly() -> None:
     scale = C / torch.trace(matrix)
     expected = torch.einsum("dc,bhwc->bhwd", matrix * scale, cube)
     torch.testing.assert_close(out, expected, atol=1e-6, rtol=1e-5)
+
+
+def test_normalize_trace_with_a_small_trace_matches_the_float64_reference() -> None:
+    """A small trace far from zero multiplies the matrix by a large factor; the output
+    matches a float64 reference at an absolute tolerance scaled by that factor."""
+    node = BandCrosstalkCorrector(input_channels=C, clip_negative=False, normalize_trace=True)
+    matrix = _small_trace_matrix()
+    with torch.no_grad():
+        node.weights.copy_(matrix)
+    cube = _cube(seed=21)
+    factor = C / float(torch.trace(matrix))
+    assert factor > 50.0
+    out = node.forward(cube=cube)["cube"]
+    expected = _float64_reference(cube, matrix, normalize_trace=True, clip_negative=False)
+    np.testing.assert_allclose(out.numpy(), expected, rtol=1e-4, atol=1e-6 * factor)
 
 
 # ---------------------------------------------------------------------------
@@ -199,6 +234,18 @@ def test_port_contract_shape_and_dtype() -> None:
 def test_weights_buffer_is_identity_at_construction() -> None:
     node = BandCrosstalkCorrector(input_channels=C)
     torch.testing.assert_close(node.weights, torch.eye(C))
+
+
+@pytest.mark.parametrize("input_channels", [0, -1])
+def test_non_positive_input_channels_raises(input_channels: int) -> None:
+    with pytest.raises(ValueError, match="input_channels"):
+        BandCrosstalkCorrector(input_channels=input_channels)
+
+
+@pytest.mark.parametrize("eps", [0.0, -1e-8])
+def test_non_positive_eps_raises(eps: float) -> None:
+    with pytest.raises(ValueError, match="eps"):
+        BandCrosstalkCorrector(input_channels=C, eps=eps)
 
 
 # ---------------------------------------------------------------------------
@@ -316,3 +363,28 @@ def test_dynamo_export_matches_onnx_runtime(normalize_trace: bool, clip_negative
         session = ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
         (got,) = session.run(None, {session.get_inputs()[0].name: cube.numpy()})
     np.testing.assert_allclose(got, eager.numpy(), atol=1e-5, rtol=1e-4)
+    reference = _float64_reference(cube, _nonsymmetric_matrix(), normalize_trace, clip_negative)
+    np.testing.assert_allclose(got, reference, atol=1e-5, rtol=1e-4)
+
+
+@pytest.mark.slow
+def test_dynamo_export_with_a_small_trace_matches_the_float64_reference() -> None:
+    pytest.importorskip("onnxscript")
+    ort = pytest.importorskip("onnxruntime")
+
+    node = BandCrosstalkCorrector(input_channels=C, normalize_trace=True, clip_negative=True)
+    matrix = _small_trace_matrix()
+    with torch.no_grad():
+        node.weights.copy_(matrix)
+    node.eval()
+    probe = _ExportProbe(node).eval()
+    cube = _cube(seed=22) * 2.0 - 1.0
+    factor = C / float(torch.trace(matrix))
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "crosstalk_small_trace.onnx"
+        torch.onnx.export(probe, (cube,), str(path), dynamo=True, opset_version=18)
+        session = ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
+        (got,) = session.run(None, {session.get_inputs()[0].name: cube.numpy()})
+    reference = _float64_reference(cube, matrix, normalize_trace=True, clip_negative=True)
+    np.testing.assert_allclose(got, reference, rtol=1e-4, atol=1e-6 * factor)

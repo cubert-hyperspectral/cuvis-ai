@@ -481,7 +481,9 @@ class PerPixelUnitNorm(_NormalizerBase):
     spectrum. With ``center=False`` the mean subtraction is skipped and the spectrum is
     divided by its own norm: ``x / max(||x||_2, eps)``. The output then does not change
     under a positive gain, and a constant offset stays in. Both statements hold for
-    spectra whose norm stays above ``eps``.
+    spectra whose norm stays above ``eps``. With ``center=True`` that norm is taken after
+    the mean subtraction in float32, so a small spectral signal on a large constant level
+    can cancel to zero there.
 
     Parameters
     ----------
