@@ -521,6 +521,7 @@ def test_hue_of_values_whose_squares_leave_the_float32_range(hue_mode: str, fact
 _NEAR_MAXIMUM_SPECTRA = [
     ([0.0, 1e38, 0.0, 1e38, 0.0], [0.0, 1.0, 0.0, 1.0, 0.0]),
     ([3e38, -3e38, 3e38, -3e38], [1.0, -1.0, 1.0, -1.0]),
+    ([3.4028235e38, 0.0, 1.7014117e38], [2.0, 0.0, 1.0]),
 ]
 
 
@@ -559,6 +560,63 @@ def test_cartesian_floor_applies_to_the_norm_at_the_level_of_the_pixel(level: fl
     hue = SpectralHueSaturationValue(hue="cartesian", eps=1e-8).forward(cube=cube)["hue"]
     coefficients = SpectralHueSaturationValue._cartesian_coefficients(cube.double())
     torch.testing.assert_close(hue.double(), coefficients / 1e-8, rtol=1e-5, atol=0.0)
+
+
+@pytest.mark.parametrize("kind", ["counts", "reflectance", "small signal on an offset"])
+def test_scaling_changes_no_bit_in_the_normal_range(kind: str) -> None:
+    """The per-pixel scale is a power of two: hue and value equal the unscaled formulas."""
+    generator = torch.Generator().manual_seed(11)
+    shape = (2, 5, 6, 31)
+    if kind == "counts":
+        cube = torch.randint(0, 65536, shape, generator=generator).to(torch.float32)
+    elif kind == "reflectance":
+        cube = torch.rand(shape, generator=generator)
+    else:
+        steps = torch.randint(0, 4, shape, generator=generator).to(torch.float32)
+        cube = 3.0 + steps * 2.0**-22
+    out = SpectralHueSaturationValue(hue="cartesian", eps=1e-8).forward(cube=cube)
+
+    coefficients = SpectralHueSaturationValue._cartesian_coefficients(cube)
+    norm = coefficients.norm(p=2, dim=-1, keepdim=True).clamp_min(1e-8)
+    assert torch.equal(out["hue"], coefficients / norm)
+    assert torch.equal(out["value"], cube.mean(dim=-1, keepdim=True))
+
+
+@pytest.mark.parametrize("hue_mode", ["cartesian", "polar"])
+def test_hue_of_a_small_signal_survives_an_exactly_representable_offset(hue_mode: str) -> None:
+    """[0, 1, 2] float32 steps above 3 are stored exactly, so the offset must drop out."""
+    base = torch.tensor([0.0, 2.0**-22, 2.0**-21], dtype=torch.float32).reshape(1, 1, 1, -1)
+    node = SpectralHueSaturationValue(hue=hue_mode, eps=1e-8)
+    expected = node.forward(cube=base)["hue"]
+    got = node.forward(cube=base + 3.0)["hue"]
+    torch.testing.assert_close(got, expected, atol=1e-6, rtol=1e-6)
+
+
+def test_cartesian_floor_with_the_smallest_accepted_eps() -> None:
+    """eps over the level is a division, not a reciprocal that overflows for a tiny level."""
+    eps = float(torch.finfo(torch.float32).tiny)
+    cube = torch.tensor([0.0, 1e-40, 2e-40], dtype=torch.float32).reshape(1, 1, 1, -1)
+    hue = SpectralHueSaturationValue(hue="cartesian", eps=eps).forward(cube=cube)["hue"]
+    coefficients = SpectralHueSaturationValue._cartesian_coefficients(cube.double())
+    assert bool((hue != 0).all())
+    torch.testing.assert_close(hue.double(), coefficients / eps, rtol=1e-4, atol=0.0)
+
+
+@pytest.mark.parametrize("hue_mode", ["cartesian", "polar"])
+@pytest.mark.parametrize("level", [1e38, 1e30, 1e12, 1e-30, 1e-42])
+def test_gradients_are_finite_for_a_flat_spectrum_at_any_level(hue_mode: str, level: float) -> None:
+    cube = torch.full((1, 1, 1, 61), level, dtype=torch.float32, requires_grad=True)
+    SpectralHueSaturationValue(hue=hue_mode, eps=1e-8).forward(cube=cube)["hue"].sum().backward()
+    assert torch.isfinite(cube.grad).all()
+
+
+def test_gradient_of_a_flat_spectrum_is_that_of_the_floor() -> None:
+    """Below the floor the hue is the coefficients over eps, and so is its gradient."""
+    cube = torch.full((1, 1, 1, 7), 2.0, dtype=torch.float32, requires_grad=True)
+    SpectralHueSaturationValue(hue="cartesian", eps=1e-8).forward(cube=cube)["hue"].sum().backward()
+    reference = torch.full((1, 1, 1, 7), 2.0, dtype=torch.float64, requires_grad=True)
+    (SpectralHueSaturationValue._cartesian_coefficients(reference).sum() / 1e-8).backward()
+    torch.testing.assert_close(cube.grad.double(), reference.grad, rtol=1e-5, atol=0.0)
 
 
 def test_polar_coordinates_far_below_the_largest_one_count_as_zero() -> None:
@@ -603,6 +661,9 @@ def test_gradient_at_a_zero_y_is_zero(x_value: float) -> None:
         [0.0, 1e38, 0.0, 1e38, 0.0],
         [1e38, 1e38, 1e38, 1e38, 1e38],
         [1.0, 0.0, 0.0, 1e-25, 2e-25],
+        [3.0, 3.0 + 2.0**-22, 3.0 + 2.0**-21, 3.0, 3.0],
+        [0.0, 1e-40, 2e-40, 0.0, 1e-40],
+        [65535.0, 1.0, 2.0, 4.0, 3.0],
     ],
 )
 def test_dynamo_export_matches_eager_for_extreme_levels(
