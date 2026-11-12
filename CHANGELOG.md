@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- `PerPixelUnitNorm` takes `center` (default `True`, as before). With `center=False` each pixel spectrum is divided by its own L2 norm without subtracting its mean first, so a positive gain drops out and a constant offset stays in.
+- `Standardize` takes `axis="location"`: one mean and one standard deviation per pixel position and band, fitted over the frames of the training stream (`stats="fit"` only). The statistics are tied to one frame size, so the fit and `forward` refuse a frame of another shape.
+- New node `BandCrosstalkCorrector` (`cuvis_ai.node.pretreatments`): applies a learned square band-mixing matrix to every pixel spectrum, `cube` in and `cube` out. The matrix starts as the identity and trains after `unfreeze`. `normalize_trace=True` rescales the applied matrix so that its trace equals the band count, and `clip_negative` (on by default) clips the output at zero.
+
 ## 0.22.8 - 2026-11-10
 
 - `KMeansClusterer` emits its fitted centroids on a new `spectral_signature` port, `[K, 1, 1, C]` float32 on the cube's device, the layout `SpectralAngleMapper.spectral_signature` reads. A pipeline can now fit k-means on normal frames with the statistical trainer and use the centroids as spectral angle references, with no reference file. `class_mask`, `scores` and the saved state are unchanged.

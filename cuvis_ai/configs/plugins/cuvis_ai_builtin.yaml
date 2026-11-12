@@ -2283,7 +2283,7 @@ capabilities:
   doc_summary: Per-channel normalization to ``[0, 1]`` for BHWC data of any channel count.
 - class_name: cuvis_ai.node.normalization.PerPixelUnitNorm
   category: transform
-  tags: [normalization, numpy, preprocessing]
+  tags: [normalization, numpy, onnx, preprocessing]
   icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
   input_specs:
     data:
@@ -2297,7 +2297,7 @@ capabilities:
       shape: [-1, -1, -1, -1]
       optional: false
       description: Normalized output tensor
-  doc_summary: Per-pixel mean-centering and L2 normalization across channels.
+  doc_summary: Per-pixel L2 normalization across channels, with or without mean-centering.
 - class_name: cuvis_ai.node.normalization.SigmoidNormalizer
   category: transform
   tags: [normalization, numpy, preprocessing]
@@ -3081,6 +3081,23 @@ capabilities:
       optional: false
       description: Standardized cube, same shape and layout as the input
   doc_summary: Subtract a mean and divide by a standard deviation along a chosen axis.
+- class_name: cuvis_ai.node.pretreatments.crosstalk.BandCrosstalkCorrector
+  category: transform
+  tags: [calibration, hyperspectral, learnable, onnx, preprocessing, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    cube:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Hyperspectral cube [B, H, W, C]
+  output_specs:
+    cube:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Crosstalk-corrected cube, same shape as the input
+  doc_summary: Apply a learned square band-mixing matrix to every pixel spectrum.
 - class_name: cuvis_ai.node.channel_selector.EVISelector
   category: transform
   tags: [dim_reduction, hyperspectral, numpy, preprocessing]
