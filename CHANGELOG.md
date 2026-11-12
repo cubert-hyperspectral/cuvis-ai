@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- New node `SpectralHueSaturationValue` (`cuvis_ai.node.spectral_hue`): splits every pixel spectrum of `cube` into `hue`, `saturation` and `value`. Hue is the direction of the spectrum once its mean is removed, written in an orthonormal basis of the mean-free hyperplane: `C - 1` unit-length coordinates with `hue="cartesian"`, or their `C - 2` angles with `hue="polar"`. It does not change under a positive gain or a constant offset on the spectrum. Saturation is the maximum minus the minimum over the bands, value is their mean. Tagged ONNX.
+
 ## 0.22.9 - 2026-11-18
 
 - New pipelines `SAM31_Text_Propagation` (`cuvis_ai/configs/pipeline/sam3/sam31_text_propagation.yaml`, cu3s source) and `SAM31_Text_Propagation_Video` (`sam31_text_propagation_video.yaml`, RGB video frames): text-prompt tracking with `SAM31TextPropagation` of cuvis-ai-sam3 (new in its 0.6.0), the SAM 3.1 Object Multiplex node, where a frame costs about the same for one object as for sixteen (the model tracks the objects of a prompt in buckets of sixteen). The wiring is that of the SAM 3 text pipelines. The thresholds are the SAM 3.1 defaults (`score_threshold_detection: 0.4`, `new_det_thresh: 0.65`), `max_num_objects` is 64, and `weight_name: sam3.1` names the weights the node loads. The node needs a CUDA device.

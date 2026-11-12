@@ -147,6 +147,7 @@ from cuvis_ai.node.spectral_extractor import (
     SignaturesToReferences,
     SpectralSignatureExtractor,
 )
+from cuvis_ai.node.spectral_hue import SpectralHueSaturationValue
 from cuvis_ai.node.spectrum_plot import SpectraPlot, SpectrumPlotNode
 from cuvis_ai.node.svm import OneClassSVMDetector
 from cuvis_ai.node.tiling import GridStitcher, ImageTiler
@@ -265,6 +266,7 @@ __all__ = [
     "GridSubsample",
     "ScoreMapSmoothing",
     "ScoreUpsample",
+    "SpectralHueSaturationValue",
     "BinaryDecider",
     "DeepSVDDProjection",
     "LADGlobal",
