@@ -300,11 +300,12 @@ def test_all_zero_map_keeps_every_pixel_with_keep_plateaus():
     assert torch.equal(scores.grad, torch.ones(1, 4, 4, 1))
 
 
+@pytest.mark.parametrize("bad", [float("nan"), float("-inf")])
 @pytest.mark.parametrize("keep_plateaus", [False, True])
-def test_nan_score_counts_as_minus_infinity_and_becomes_zero(keep_plateaus):
-    """A NaN neither wins nor hides a neighbour: both peaks beside it survive."""
+def test_nan_or_minus_infinity_is_never_a_maximum_and_becomes_zero(keep_plateaus, bad):
+    """It neither wins nor hides a neighbour: both peaks beside it survive."""
     scores = torch.zeros(1, 3, 3, 1)
-    scores[0, 0, :, 0] = torch.tensor([1.0, float("nan"), 2.0])
+    scores[0, 0, :, 0] = torch.tensor([1.0, bad, 2.0])
     out = LocalMaximaSuppression(window=3, keep_plateaus=keep_plateaus)(scores=scores)["scores"]
     expected = torch.zeros(1, 3, 3, 1)
     expected[0, 0, 0, 0] = 1.0
@@ -312,11 +313,14 @@ def test_nan_score_counts_as_minus_infinity_and_becomes_zero(keep_plateaus):
     assert torch.equal(out, expected)
 
 
+@pytest.mark.parametrize("bad", [float("nan"), float("-inf")])
+@pytest.mark.parametrize("window", [1, 3])
 @pytest.mark.parametrize("keep_plateaus", [False, True])
-def test_all_nan_map_becomes_zero(keep_plateaus):
-    scores = torch.full((1, 3, 4, 1), float("nan"))
-    out = LocalMaximaSuppression(window=3, keep_plateaus=keep_plateaus)(scores=scores)["scores"]
-    assert torch.equal(out, torch.zeros(1, 3, 4, 1))
+def test_map_of_only_nan_or_minus_infinity_becomes_zero(keep_plateaus, window, bad):
+    """Both plateau modes agree, also for a window of one pixel."""
+    scores = torch.full((1, 3, 4, 1), bad)
+    node = LocalMaximaSuppression(window=window, keep_plateaus=keep_plateaus)
+    assert torch.equal(node(scores=scores)["scores"], torch.zeros(1, 3, 4, 1))
 
 
 # ---------------------------------------------------------------------------
@@ -483,15 +487,16 @@ def test_dynamo_export_matches_onnx_runtime(keep_plateaus):
 
 
 @pytest.mark.slow
+@pytest.mark.parametrize("bad", [float("nan"), float("-inf")])
 @pytest.mark.parametrize("keep_plateaus", [False, True])
-def test_dynamo_export_matches_eager_with_nan_scores(keep_plateaus):
+def test_dynamo_export_matches_eager_with_nan_or_minus_infinity_scores(keep_plateaus, bad):
     """Max pooling treats NaN differently in PyTorch and ONNX Runtime; the node hides that."""
     pytest.importorskip("onnxscript")
     ort = pytest.importorskip("onnxruntime")
 
     node = LocalMaximaSuppression(window=3, keep_plateaus=keep_plateaus).eval()
     scores = torch.zeros(1, 3, 3, 1)
-    scores[0, 0, :, 0] = torch.tensor([1.0, float("nan"), 2.0])
+    scores[0, 0, :, 0] = torch.tensor([1.0, bad, 2.0])
     eager = node(scores=scores)["scores"]
     assert float(eager[0, 0, 0, 0]) == 1.0
     assert float(eager[0, 0, 2, 0]) == 2.0

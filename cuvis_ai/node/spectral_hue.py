@@ -43,10 +43,16 @@ class SpectralHueSaturationValue(Node):
     exactly as :class:`cuvis_ai.node.normalization.PerPixelUnitNorm` documents
     for its own floor.
 
-    Norms are taken on the coordinates divided by their largest magnitude, so a
-    finite float32 spectrum keeps its hue although the square of its values
-    would overflow or underflow. ``hue="polar"`` costs roughly three times
-    ``hue="cartesian"`` on a CPU, because of the masks described next.
+    Each pixel spectrum is divided by its largest magnitude before the hue
+    arithmetic, and the value is the mean of that scaled spectrum times the
+    magnitude. A finite float32 spectrum therefore keeps its hue and its value
+    although sums or squares of its bands would leave the float range. The
+    polar angles keep float32 precision relative to the largest coordinate of
+    the pixel: trailing coordinates more than about ``1e-19`` times smaller
+    lose precision, and below about ``1e-23`` they count as zero. Non-finite
+    input is not repaired: a pixel with a NaN or infinite band has no defined
+    hue or value. ``hue="polar"`` costs roughly three times ``hue="cartesian"``
+    on a CPU, because of the masks described next.
 
     Every polar angle is an ``atan2(y, x)`` with a coordinate as ``x``. For all
     angles but the last, ``y`` is the norm of the coordinates after ``x`` and
@@ -148,19 +154,19 @@ class SpectralHueSaturationValue(Node):
         return scale * suffix
 
     @staticmethod
-    def _peak_scaled(coefficients: Tensor) -> tuple[Tensor, Tensor]:
-        """The coordinates divided by their largest magnitude per pixel, and that magnitude.
+    def _unit_level(cube: Tensor) -> tuple[Tensor, Tensor]:
+        """Each pixel spectrum divided by its largest magnitude, and that magnitude.
 
-        The scaled coordinates lie in ``[-1, 1]``, so their squares stay inside
-        the float range whatever the level of the spectrum. A zero vector keeps
-        a magnitude of one and stays zero. The magnitude is detached: dividing
-        by it as a constant leaves the gradients of the norm and of the angles
-        unchanged, since the norm is homogeneous and the angles do not depend
-        on the length.
+        The scaled spectrum lies in ``[-1, 1]``, so the differences and sums
+        behind the hue coordinates, and their squares, stay inside the float
+        range whatever the level of the pixel. An all-zero pixel keeps a
+        magnitude of one and stays zero. The magnitude is detached: the hue
+        does not depend on the level and the value is linear in it, so dividing
+        by it as a constant leaves every gradient unchanged.
         """
-        peak = coefficients.detach().abs().amax(dim=-1, keepdim=True)
-        peak = torch.where(peak > 0.0, peak, torch.ones_like(peak))
-        return coefficients / peak, peak
+        level = cube.detach().abs().amax(dim=-1, keepdim=True)
+        level = torch.where(level > 0.0, level, torch.ones_like(level))
+        return cube / level, level
 
     @staticmethod
     def _safe_atan2(y: Tensor, x: Tensor) -> Tensor:
@@ -242,15 +248,19 @@ class SpectralHueSaturationValue(Node):
                 f"{type(self).__name__} with hue={self.hue!r} needs at least {minimum} "
                 f"channels, got {channels}"
             )
-        coefficients = self._cartesian_coefficients(cube)
-        scaled, peak = self._peak_scaled(coefficients)
+        unit, level = self._unit_level(cube)
+        coefficients = self._cartesian_coefficients(unit)
         if self.hue == "cartesian":
-            norm = (peak * scaled.norm(p=2, dim=-1, keepdim=True)).clamp_min(self.eps)
-            hue = coefficients / norm
+            # The pixel's own coefficients are level * coefficients, so its floor is eps / level.
+            # At a very high level that quotient underflows; the smallest normal number stands
+            # in for it, so a flat spectrum still divides zero by a nonzero floor.
+            floor = (self.eps / level).clamp_min(torch.finfo(coefficients.dtype).tiny)
+            norm = coefficients.norm(p=2, dim=-1, keepdim=True)
+            hue = coefficients / torch.maximum(norm, floor)
         else:
-            hue = self._polar_angles(scaled)
+            hue = self._polar_angles(coefficients)
         saturation = cube.amax(dim=-1, keepdim=True) - cube.amin(dim=-1, keepdim=True)
-        value = cube.mean(dim=-1, keepdim=True)
+        value = level * unit.mean(dim=-1, keepdim=True)
         return {"hue": hue, "saturation": saturation, "value": value}
 
 
