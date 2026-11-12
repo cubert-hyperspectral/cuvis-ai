@@ -131,14 +131,19 @@ data:
 ### Cross-Group References
 
 ```yaml
+# @package _global_
 defaults:
-  - /pipeline/anomaly/rx@pipeline: rx_statistical
+  - /data@data: lentils
   - /training@training: default
   - _self_
 
-output_dir: ./outputs/${pipeline.metadata.name}
-experiment_seed: ${training.seed}
+name: channel_selector_demo
+pipeline: ../pipeline/anomaly/rx/channel_selector.yaml
+output_dir: ./outputs/${name}_seed${training.seed}_bs${data.batch_size}
 ```
+
+`pipeline` is the path string of the pipeline yaml, so `${pipeline.metadata.name}` and other
+references into the pipeline's content do not resolve in a trainrun.
 
 ---
 
@@ -147,16 +152,18 @@ experiment_seed: ${training.seed}
 ### 1. Config-Level Overrides
 
 ```yaml
+# @package _global_
 defaults:
-  - /pipeline/anomaly/rx@pipeline: rx_statistical
   - /data@data: lentils
   - /training@training: default
   - _self_  # ← Must be last
 
+name: channel_selector_demo
+pipeline: ../pipeline/anomaly/rx/channel_selector.yaml
 data:
   splits:
     train:
-      - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [0, 1, 2]}
+      - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [0, 2, 4]}
   batch_size: 16
 training:
   optimizer:
@@ -181,10 +188,13 @@ python train.py training.scheduler={name:reduce_on_plateau,patience:10}
 ### 3. Config Group Selection
 
 ```bash
-python train.py pipeline=channel_selector
 python train.py data=custom_dataset
 python train.py training=high_lr
 ```
+
+The pipeline is not selected this way: `pipeline` names the config directory, so Hydra reads
+`pipeline=...` as a group override and refuses it (`Could not override 'pipeline'. No match in the
+defaults list.`). Give each pipeline its own trainrun.
 
 ### 4. Programmatic Overrides
 

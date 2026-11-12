@@ -36,30 +36,32 @@ python train.py -m \
 
 Creates 4 runs (2 x 2).
 
-### Sweep Config Groups
+### Comparing Pipelines
+
+The pipeline is not swept. A trainrun names its pipeline yaml by path, and because `pipeline`
+also names the config directory, Hydra reads `pipeline=...` on the command line as a config group
+override and refuses it. Give each pipeline its own trainrun (Pattern 1 below), as the packaged
+ones in `cuvis_ai/configs/trainrun/` do, and sweep the parameters within each:
 
 ```bash
-python train.py -m pipeline=rx_statistical,channel_selector,deep_svdd
-
-# Combine with parameters:
-python train.py -m \
-    pipeline=rx_statistical,channel_selector \
-    training.optimizer.lr=0.001,0.0001
+python train.py --config-name=trainrun/channel_selector_experiment -m training.optimizer.lr=0.001,0.0001
+python train.py --config-name=trainrun/deep_svdd_experiment -m training.optimizer.lr=0.001,0.0001
 ```
 
 ### Custom Sweep Configurations
 
 ```yaml
-# cuvis_ai/configs/trainrun/sweep_base.yaml
 # @package _global_
+# cuvis_ai/configs/trainrun/sweep_base.yaml
 
 defaults:
-  - /pipeline@pipeline: ${pipeline_name}
   - /data@data: lentils
   - /training@training: default
   - _self_
 
-name: sweep_${pipeline_name}_lr_${training.optimizer.lr}
+name: sweep_lr_${training.optimizer.lr}
+# Pipeline reference, resolved relative to this trainrun's directory.
+pipeline: ../pipeline/anomaly/rx/channel_selector.yaml
 output_dir: ./outputs/sweeps/${name}
 ```
 
@@ -67,7 +69,6 @@ output_dir: ./outputs/sweeps/${name}
 python train.py \
     --config-name=trainrun/sweep_base \
     -m \
-    pipeline_name=rx_statistical,channel_selector \
     training.optimizer.lr=0.001,0.0001,0.00001
 ```
 
@@ -75,68 +76,49 @@ python train.py \
 
 ## Advanced Composition Patterns
 
-### Pattern 1: Base + Variants
+### Pattern 1: Base + One Trainrun per Pipeline
 
 **Base config:** `cuvis_ai/configs/trainrun/base_experiment.yaml`
 ```yaml
 # @package _global_
 
 defaults:
-  - /pipeline@pipeline: ${pipeline_name}
   - /data@data: lentils
   - /training@training: default
   - _self_
 
-name: ${pipeline_name}_experiment
 output_dir: ./outputs/${name}
 ```
 
-**Variant configs** inherit and set `pipeline_name`:
+**One variant per pipeline**, each inheriting the base and naming its pipeline, for example
+`cuvis_ai/configs/trainrun/channel_selector_experiment.yaml`:
 ```yaml
+# @package _global_
+
 defaults:
   - base_experiment
   - _self_
 
-pipeline_name: rx_statistical
+name: channel_selector_experiment
+# Pipeline reference, resolved relative to this trainrun's directory.
+pipeline: ../pipeline/anomaly/rx/channel_selector.yaml
 ```
 
-### Pattern 2: Hierarchical Configs
-
-```
-cuvis_ai/configs/
-├── pipeline/
-│   ├── statistical/
-│   │   ├── rx.yaml
-│   │   └── lad.yaml
-│   └── gradient/
-│       ├── channel_selector.yaml
-│       └── deep_svdd.yaml
-```
+### Pattern 2: Conditional Composition
 
 ```yaml
 defaults:
-  - /pipeline@pipeline: statistical/rx
-  # or
-  - /pipeline@pipeline: gradient/channel_selector
-```
-
-### Pattern 3: Conditional Composition
-
-```yaml
-defaults:
-  - /pipeline@pipeline: ${pipeline_name}
   - /training/optimizer@training.optimizer: ${optimizer_type}
   - /training/scheduler@training.scheduler: ${scheduler_type}
   - optional /training/callbacks@training.callbacks: ${callbacks_preset}
   - _self_
 
-pipeline_name: rx_statistical
 optimizer_type: adamw
 scheduler_type: reduce_on_plateau
 callbacks_preset: null  # Optional
 ```
 
-### Pattern 4: Config Recipes
+### Pattern 3: Config Recipes
 
 ```yaml
 # cuvis_ai/configs/recipes/fast_prototype.yaml
@@ -159,7 +141,7 @@ output_dir: ./outputs/quick_test
 python train.py --config-name=recipes/fast_prototype
 ```
 
-### Pattern 5: Mixin Configs
+### Pattern 4: Mixin Configs
 
 ```yaml
 # cuvis_ai/configs/mixins/debug.yaml
@@ -175,37 +157,12 @@ optimizer:
 ```yaml
 # Usage in trainrun
 defaults:
-  - /pipeline/anomaly/rx@pipeline: rx_statistical
   - /data@data: lentils
   - /training@training: default
   - /mixins/debug@training:_here_  # Merge debug settings
   - _self_
-```
 
-### Pattern 6: Dynamic Experiment Generation
-
-```yaml
-# cuvis_ai/configs/experiments/generate.yaml
-# @package _global_
-
-defaults:
-  - /pipeline@pipeline: ${experiment.pipeline}
-  - /data@data: ${experiment.dataset}
-  - /training@training: ${experiment.training_preset}
-  - _self_
-
-experiment:
-  pipeline: rx_statistical
-  dataset: lentils
-  training_preset: default
-```
-
-```bash
-python train.py \
-    --config-name=experiments/generate \
-    -m \
-    experiment.pipeline=rx_statistical,channel_selector \
-    experiment.dataset=lentils,tomatoes
+pipeline: ../pipeline/anomaly/rx/channel_selector.yaml
 ```
 
 ---
@@ -214,7 +171,7 @@ python train.py \
 
 1. **Always put `_self_` last** in defaults list
 2. **Use `@package _global_`** for trainrun configs
-3. **Use clear variable names** — `${pipeline.metadata.name}` not `${a}`
+3. **Use clear variable names** — `${training.optimizer.lr}` not `${a}`
 4. **Only override what you need** — don't duplicate entire configs
 5. **Document complex compositions** with header comments
 6. **Use `resolve=True`** when converting to dict: `OmegaConf.to_container(cfg, resolve=True)`
@@ -225,7 +182,8 @@ python train.py \
 
 | Problem | Cause | Fix |
 |---------|-------|-----|
-| `KeyError: 'pipeline'` | Missing `@pipeline` in defaults | Add `@pipeline` after path |
+| `Inline pipelines are no longer supported in a trainrun` | The pipeline was composed into the trainrun (a `@pipeline` default or a `pipeline:` mapping) | Set `pipeline:` to the path of the pipeline yaml |
+| `Could not override 'pipeline'. No match in the defaults list.` | `pipeline=...` on the command line is read as a config group override | Write one trainrun per pipeline |
 | `InterpolationResolutionError` | Referenced key doesn't exist | Define the key before referencing |
 | Override not applied | `_self_` not last | Move `_self_` to end of defaults |
 | Config at wrong level | Wrong package directive | Use `@package _global_` for trainruns |
