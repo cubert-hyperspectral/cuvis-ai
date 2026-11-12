@@ -220,9 +220,9 @@ class LocalMaximaSuppression(Node):
     value becomes zero (including a suppressed negative value: zero is only the fill, not a
     floor on what a surviving value can be). The window is treated as filled with minus
     infinity past the image border, so the border neither creates nor hides a maximum.
-    A NaN score counts as minus infinity in every comparison and becomes zero itself: it
-    neither wins nor hides a neighbour, and the result does not depend on how a backend's
-    max pooling treats NaN.
+    A NaN or minus-infinity score is never a maximum and becomes zero: it neither wins nor
+    hides a neighbour, both plateau modes agree on it, and the result does not depend on
+    how a backend's max pooling treats NaN.
 
     With ``keep_plateaus=False``, of several equal maxima inside one window only the first
     in row-major order (top row first, then left to right) stays: a value also needs to be
@@ -298,7 +298,7 @@ class LocalMaximaSuppression(Node):
         is_nan = torch.isnan(x)
         ranked = torch.where(is_nan, torch.full_like(x, float("-inf")), x)
         full_max = _block_max(ranked, rh, rh, rw, rw)
-        is_max = (ranked >= full_max) & ~is_nan
+        is_max = (ranked >= full_max) & (ranked > float("-inf"))
 
         if self.keep_plateaus:
             kept = torch.where(is_max, x, torch.zeros_like(x))

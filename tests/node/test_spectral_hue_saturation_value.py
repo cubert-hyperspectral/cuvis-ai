@@ -234,7 +234,7 @@ def test_polar_angles_rebuild_cartesian_unit_vector() -> None:
 
 
 @pytest.mark.parametrize("hue_mode", ["cartesian", "polar"])
-@pytest.mark.parametrize("level", [0.3, 1.0, 1000.0])
+@pytest.mark.parametrize("level", [0.3, 1.0, 1000.0, 1e38, -1e38, 1e-40])
 def test_flat_spectrum_gives_exactly_zero_hue_float32(hue_mode: str, level: float) -> None:
     """A float32 flat spectrum at several levels gives exactly zero hue in both modes."""
     c = 61
@@ -516,6 +516,59 @@ def test_hue_of_values_whose_squares_leave_the_float32_range(hue_mode: str, fact
     torch.testing.assert_close(got, expected, atol=1e-5, rtol=1e-5)
 
 
+# Finite float32 spectra whose band differences, or their weighted sums, overflow, next to
+# the same spectrum at unit level.
+_NEAR_MAXIMUM_SPECTRA = [
+    ([0.0, 1e38, 0.0, 1e38, 0.0], [0.0, 1.0, 0.0, 1.0, 0.0]),
+    ([3e38, -3e38, 3e38, -3e38], [1.0, -1.0, 1.0, -1.0]),
+]
+
+
+@pytest.mark.parametrize("hue_mode", ["cartesian", "polar"])
+@pytest.mark.parametrize(("spectrum", "at_unit_level"), _NEAR_MAXIMUM_SPECTRA)
+def test_hue_of_finite_spectra_near_the_float32_maximum(
+    hue_mode: str, spectrum: list[float], at_unit_level: list[float]
+) -> None:
+    """The arithmetic behind the coordinates must not overflow where the hue is representable."""
+    node = SpectralHueSaturationValue(hue=hue_mode, eps=1e-8)
+    expected = node.forward(cube=torch.tensor(at_unit_level).reshape(1, 1, 1, -1))["hue"]
+    got = node.forward(cube=torch.tensor(spectrum).reshape(1, 1, 1, -1))["hue"]
+    assert torch.isfinite(got).all()
+    torch.testing.assert_close(got, expected, atol=1e-5, rtol=1e-5)
+
+
+@pytest.mark.parametrize("level", [1e38, -3e38, 1e-44])
+def test_value_of_a_constant_spectrum_is_its_level(level: float) -> None:
+    """The mean of five bands at 1e38 is 1e38, although their sum is not a float32 number."""
+    cube = torch.full((1, 1, 1, 5), level, dtype=torch.float32)
+    value = SpectralHueSaturationValue().forward(cube=cube)["value"]
+    torch.testing.assert_close(value, cube[..., :1], rtol=1e-6, atol=0.0)
+
+
+def test_value_gradient_is_one_over_the_channel_count() -> None:
+    cube = torch.randn(1, 2, 3, 5, generator=torch.Generator().manual_seed(3)).requires_grad_(True)
+    SpectralHueSaturationValue().forward(cube=cube)["value"].sum().backward()
+    torch.testing.assert_close(cube.grad, torch.full_like(cube, 0.2))
+
+
+@pytest.mark.parametrize("level", [1e-12, 1e-30])
+def test_cartesian_floor_applies_to_the_norm_at_the_level_of_the_pixel(level: float) -> None:
+    """Below the floor the hue is the coefficients over eps, whatever the level of the pixel."""
+    cube = torch.tensor([0.0, 1.0, 2.0, 3.0, 1.5], dtype=torch.float32).reshape(1, 1, 1, -1)
+    cube = cube * level
+    hue = SpectralHueSaturationValue(hue="cartesian", eps=1e-8).forward(cube=cube)["hue"]
+    coefficients = SpectralHueSaturationValue._cartesian_coefficients(cube.double())
+    torch.testing.assert_close(hue.double(), coefficients / 1e-8, rtol=1e-5, atol=0.0)
+
+
+def test_polar_coordinates_far_below_the_largest_one_count_as_zero() -> None:
+    """The documented float32 limit: a tail 1e-25 times the largest coordinate has no angle."""
+    cube = torch.tensor([1.0, 0.0, 0.0, 1e-25, 2e-25], dtype=torch.float32).reshape(1, 1, 1, -1)
+    hue = SpectralHueSaturationValue(hue="polar").forward(cube=cube)["hue"]
+    assert torch.isfinite(hue).all()
+    assert hue[0, 0, 0, 1].item() == pytest.approx(np.pi, abs=1e-6)
+
+
 @pytest.mark.parametrize("factor", [1e20, 1e-25])
 def test_polar_gradient_scales_with_the_inverse_of_the_level(factor: float) -> None:
     """The angles do not depend on the level, so their gradient is that of the base / factor."""
@@ -543,23 +596,35 @@ def test_gradient_at_a_zero_y_is_zero(x_value: float) -> None:
 
 @pytest.mark.slow
 @pytest.mark.parametrize("hue_mode", ["cartesian", "polar"])
-def test_dynamo_export_matches_eager_for_very_large_values(hue_mode: str) -> None:
+@pytest.mark.parametrize(
+    "spectrum",
+    [
+        [0.0, 1e20, 2e20, 3e20, 1.5e20],
+        [0.0, 1e38, 0.0, 1e38, 0.0],
+        [1e38, 1e38, 1e38, 1e38, 1e38],
+        [1.0, 0.0, 0.0, 1e-25, 2e-25],
+    ],
+)
+def test_dynamo_export_matches_eager_for_extreme_levels(
+    hue_mode: str, spectrum: list[float]
+) -> None:
     pytest.importorskip("onnxscript")
     ort = pytest.importorskip("onnxruntime")
 
     node = SpectralHueSaturationValue(hue=hue_mode, eps=1e-8).eval()
     probe = _ExportProbe(node).eval()
-    cube = torch.tensor([0.0, 1.0, 2.0, 3.0, 1.5], dtype=torch.float32).reshape(1, 1, 1, -1) * 1e20
+    cube = torch.tensor(spectrum, dtype=torch.float32).reshape(1, 1, 1, -1)
     with torch.no_grad():
-        eager = node.forward(cube=cube)["hue"]
-    assert bool((eager != 0).any())
+        eager = [out.numpy() for out in probe(cube)]
+    assert all(np.isfinite(out).all() for out in eager)
 
     with tempfile.TemporaryDirectory() as tmp:
-        path = Path(tmp) / "spectral_hue_large.onnx"
+        path = Path(tmp) / "spectral_hue_extreme.onnx"
         torch.onnx.export(probe, (cube,), str(path), dynamo=True, opset_version=18)
         session = ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
-        got_hue, _, _ = session.run(None, {session.get_inputs()[0].name: cube.numpy()})
-    np.testing.assert_allclose(got_hue, eager.numpy(), atol=1e-5)
+        got = session.run(None, {session.get_inputs()[0].name: cube.numpy()})
+    for got_out, eager_out in zip(got, eager, strict=True):
+        np.testing.assert_allclose(got_out, eager_out, atol=1e-5, rtol=1e-5)
 
 
 # Spectra whose first hue coordinate is exactly zero and carries a minus sign (the
