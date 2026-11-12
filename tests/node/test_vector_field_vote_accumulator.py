@@ -197,6 +197,23 @@ def test_weights_with_wrong_shape_raises(bad_shape):
         VectorFieldVoteAccumulator()(vectors=vectors, weights=weights)
 
 
+@pytest.mark.parametrize("shape", [(1, 1, 2**24 + 1, 2), (1, 2**24 + 1, 1, 2)])
+def test_axis_longer_than_float32_counts_exactly_raises(shape):
+    """Past 2**24 pixels float32 coordinates merge; the node refuses the size."""
+    vectors = torch.zeros(1, 1, 1, 2).expand(shape)
+    with pytest.raises(ValueError, match="16777216"):
+        VectorFieldVoteAccumulator()(vectors=vectors)
+
+
+def test_axis_at_the_limit_is_accepted(monkeypatch):
+    """The limit itself is a valid size; one pixel more is not (limit lowered for the test)."""
+    monkeypatch.setattr("cuvis_ai.node.vote_accumulation._MAX_AXIS", 4)
+    out = VectorFieldVoteAccumulator()(vectors=torch.zeros(1, 4, 4, 2))["scores"]
+    assert torch.equal(out, torch.ones(1, 4, 4, 1))
+    with pytest.raises(ValueError, match="must not exceed 4"):
+        VectorFieldVoteAccumulator()(vectors=torch.zeros(1, 4, 5, 2))
+
+
 # ---------------------------------------------------------------------------
 # 5. Batch independence, halves round to even
 # ---------------------------------------------------------------------------

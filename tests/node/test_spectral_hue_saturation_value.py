@@ -546,8 +546,46 @@ def test_value_of_a_constant_spectrum_is_its_level(level: float) -> None:
     torch.testing.assert_close(value, cube[..., :1], rtol=1e-6, atol=0.0)
 
 
-def test_value_gradient_is_one_over_the_channel_count() -> None:
-    cube = torch.randn(1, 2, 3, 5, generator=torch.Generator().manual_seed(3)).requires_grad_(True)
+_DEVICES = ["cpu", pytest.param("cuda", marks=pytest.mark.gpu)]
+
+
+@pytest.mark.parametrize("device", _DEVICES)
+@pytest.mark.parametrize("channels", [3, 7, 10, 61, 200])
+@pytest.mark.parametrize("level", [0.1, 0.3, 1e-3, 9362.143, float(torch.finfo(torch.float32).max)])
+def test_value_of_a_constant_spectrum_is_exactly_its_level(
+    level: float, channels: int, device: str
+) -> None:
+    """Rounding in the sum must not move the mean of equal bands off their common value.
+
+    At the float32 maximum a mean rounded upward would become infinity.
+    """
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("no CUDA device")
+    cube = torch.full((1, 1, 1, channels), level, dtype=torch.float32, device=device)
+    value = SpectralHueSaturationValue().forward(cube=cube)["value"]
+    assert torch.equal(value, cube[..., :1])
+
+
+@pytest.mark.parametrize(("mean", "expected"), [(2.5, 2.0), (0.5, 1.0), (1.5, 1.5)])
+def test_a_mean_outside_the_bands_moves_to_the_nearest_band_and_keeps_its_gradient(
+    mean: float, expected: float
+) -> None:
+    bands = torch.tensor([[1.0, 2.0, 1.5]], requires_grad=True)
+    given = torch.tensor([[mean]], requires_grad=True)
+    kept = SpectralHueSaturationValue._kept_within(given, bands)
+    kept.sum().backward()
+    assert kept.item() == expected
+    assert given.grad.item() == 1.0
+    assert bands.grad is None or not bool(bands.grad.any())
+
+
+@pytest.mark.parametrize("flat", [False, True])
+def test_value_gradient_is_one_over_the_channel_count(flat: bool) -> None:
+    """Also for equal bands, where the bound on the mean touches both of its limits."""
+    cube = torch.randn(1, 2, 3, 5, generator=torch.Generator().manual_seed(3))
+    if flat:
+        cube = torch.full_like(cube, 0.1)
+    cube.requires_grad_(True)
     SpectralHueSaturationValue().forward(cube=cube)["value"].sum().backward()
     torch.testing.assert_close(cube.grad, torch.full_like(cube, 0.2))
 
