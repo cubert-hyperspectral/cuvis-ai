@@ -12,12 +12,11 @@ import numpy as np
 import pytest
 import torch
 from cuvis_ai_schemas.enums import ExecutionStage, NodeCategory, NodeTag
-from cuvis_ai_schemas.pipeline import PortSpec
 
 from cuvis_ai.node.vote_accumulation import VectorFieldVoteAccumulator
-from cuvis_ai_core.node import Node
 from cuvis_ai_core.pipeline.factory import PipelineBuilder
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from tests.fixtures.mock_nodes import SeededTensorSource
 
 pytestmark = pytest.mark.unit
 
@@ -382,23 +381,11 @@ def test_dynamo_export_matches_onnx_runtime_collision_heavy_weighted_case():
 # ---------------------------------------------------------------------------
 
 
-class _VectorSource(Node):
-    """Module-scope test source emitting a fixed vector field, for pipeline reload tests."""
-
-    _category = NodeCategory.SOURCE
-    _tags = frozenset({NodeTag.TORCH})
-    INPUT_SPECS: dict[str, PortSpec] = {}
-    OUTPUT_SPECS = {"vectors": PortSpec(dtype=torch.float32, shape=(-1, -1, -1, 2))}
-
-    def forward(self, **_) -> dict[str, torch.Tensor]:
-        return {"vectors": _vectors(seed=42, b=1, h=4, w=4)}
-
-
 def test_pipeline_save_and_reload_round_trips(tmp_path):
     pipe = CuvisPipeline("vote_accumulator_reload")
-    src = _VectorSource(name="src")
+    src = SeededTensorSource(name="src", shape=[1, 4, 4, 2], seed=42)
     node = VectorFieldVoteAccumulator(name="votes", order="xy")
-    pipe.connect(src.outputs.vectors, node.inputs.vectors)
+    pipe.connect(src.outputs.data, node.inputs.vectors)
     before = pipe.forward(batch={}, stage=ExecutionStage.INFERENCE)[("votes", "scores")]
     path = tmp_path / "vote_accumulator.yaml"
     pipe.save_to_file(str(path))
