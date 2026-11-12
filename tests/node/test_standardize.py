@@ -26,22 +26,34 @@ EPS = 1e-8
 
 # Dims each axis reduces per sample, per layout; the fitted statistics also reduce the batch dim 0.
 REDUCED = {
-    "bhwc": {"channel": [1, 2], "spatial": [1, 2], "spectrum": [3], "global": [1, 2, 3]},
-    "nchw": {"channel": [2, 3], "spatial": [2, 3], "spectrum": [1], "global": [1, 2, 3]},
+    "bhwc": {
+        "channel": [1, 2],
+        "spatial": [1, 2],
+        "spectrum": [3],
+        "global": [1, 2, 3],
+        "location": [],
+    },
+    "nchw": {
+        "channel": [2, 3],
+        "spatial": [2, 3],
+        "spectrum": [1],
+        "global": [1, 2, 3],
+        "location": [],
+    },
 }
 
 
 # ----- helpers --------------------------------------------------------------------------------
 
 
-def _cube(layout: str = "bhwc", seed: int = 0, b: int = 2) -> torch.Tensor:
+def _cube(layout: str = "bhwc", seed: int = 0, b: int = 2, h: int = 5, w: int = 4) -> torch.Tensor:
     g = torch.Generator().manual_seed(seed)
-    shape = (b, 5, 4, 6) if layout == "bhwc" else (b, 6, 5, 4)
+    shape = (b, h, w, 6) if layout == "bhwc" else (b, 6, h, w)
     return torch.rand(*shape, generator=g)
 
 
-def _frames(layout: str = "bhwc", n: int = 3) -> list[torch.Tensor]:
-    return [_cube(layout, seed=10 + i) for i in range(n)]
+def _frames(layout: str = "bhwc", n: int = 3, h: int = 5, w: int = 4) -> list[torch.Tensor]:
+    return [_cube(layout, seed=10 + i, h=h, w=w) for i in range(n)]
 
 
 def _stream(frames, folds=None):
@@ -89,6 +101,7 @@ def _close(a: torch.Tensor, b: torch.Tensor) -> bool:
     [
         ("channel", "fit"),
         ("global", "fit"),
+        ("location", "fit"),
         ("spectrum", "sample"),
         ("spatial", "sample"),
         ([1, 2, 3], "sample"),
@@ -182,6 +195,106 @@ def test_given_bhwc_per_channel_and_global_scalar():
     assert _close(node(cube=x)["cube"], (x - torch.tensor(mean)) / torch.tensor(std))
     scalar = Standardize(stats="given", axis="global", mean=[0.031223], std=[0.049720])
     assert _close(scalar(cube=x)["cube"], (x - 0.031223) / 0.049720)
+
+
+@pytest.mark.parametrize("layout", ["bhwc", "nchw"])
+@pytest.mark.parametrize("ddof", [0, 1])
+@torch.no_grad()
+def test_location_fit_matches_the_pooled_reference(layout, ddof):
+    frames = _frames(layout, h=5, w=4)
+    node = _fitted(frames, axis="location", ddof=ddof, layout=layout)
+    x = _cube(layout, seed=99, h=5, w=4)
+    expected = _ref_fit(frames, x, [], ddof)
+    assert _close(node(cube=x)["cube"], expected)
+
+
+@torch.no_grad()
+def test_location_fit_removes_a_bias_that_varies_over_the_image():
+    # A per-location offset must vanish after a location fit, unlike a per-band (spatial) fit.
+    h, w = 5, 4
+    g = torch.Generator().manual_seed(30)
+    bias = torch.rand(1, h, w, 1, generator=g) * 2.0
+    frames = [_cube(seed=40 + i, h=h, w=w) + bias for i in range(3)]
+    node = _fitted(frames, axis="location")
+    x = _cube(seed=41, h=h, w=w) + bias
+    out = node(cube=x)["cube"]
+    # Per band, the bias was constant at every location across frames, so after the fit
+    # its contribution to that location's mean is removed exactly.
+    ref_frames = [f - bias for f in frames]
+    expected = _ref_fit(ref_frames, x - bias, [], 1)
+    assert _close(out, expected)
+
+
+def test_location_default_stats_is_fit():
+    node = Standardize(axis="location")
+    assert node.hparams["stats"] == "fit"
+    assert node.requires_initial_fit is True
+
+
+@pytest.mark.parametrize("stats", ["sample", "given"])
+def test_location_rejects_sample_and_given_stats(stats):
+    kwargs = {"axis": "location", "stats": stats}
+    if stats == "given":
+        kwargs.update(mean=[0.0], std=[1.0])
+    with pytest.raises(ValueError):
+        Standardize(**kwargs)
+
+
+@torch.no_grad()
+def test_location_fit_catches_a_transposed_hw_frame_shape():
+    # Swapped H x W vs W x H must not silently merge: same element count, different shape.
+    frames = [_cube(seed=50, h=5, w=4), _cube(seed=51, h=4, w=5)]
+    node = Standardize(axis="location")
+    with pytest.raises(ValueError, match=r"shape"):
+        node.statistical_initialization(_stream(frames))
+
+
+@torch.no_grad()
+def test_location_fit_catches_a_differently_sized_batch():
+    frames = [_cube(seed=52, h=5, w=4, b=2), _cube(seed=53, h=6, w=4, b=2)]
+    node = Standardize(axis="location")
+    with pytest.raises(ValueError, match=r"shape"):
+        node.statistical_initialization(_stream(frames))
+
+
+@torch.no_grad()
+def test_location_fit_accepts_batches_of_different_sizes():
+    frames = [_cube(seed=54, h=5, w=4, b=1), _cube(seed=55, h=5, w=4, b=3)]
+    node = _fitted(frames, axis="location")
+    x = _cube(seed=56, h=5, w=4)
+    expected = _ref_fit(frames, x, [], 1)
+    assert _close(node(cube=x)["cube"], expected)
+
+
+def test_location_fit_skips_a_batch_the_fold_filter_empties():
+    frames = [_cube(seed=57, h=5, w=4, b=2), _cube(seed=58, h=5, w=4, b=2)]
+    folds = [torch.tensor([1, 1], dtype=torch.int32), torch.tensor([2, 3], dtype=torch.int32)]
+    node = Standardize(axis="location", exclude_folds=[1])
+    node.statistical_initialization(_stream(frames, folds))
+    x = _cube(seed=59, h=5, w=4)
+    expected = _ref_fit([frames[1]], x, [], 1)
+    assert _close(node(cube=x)["cube"], expected)
+
+
+@torch.no_grad()
+def test_location_forward_rejects_another_frame_shape():
+    node = _fitted(axis="location", h=5, w=4)
+    with pytest.raises(ValueError, match=r"shape"):
+        node(cube=_cube(seed=60, h=6, w=4))
+
+
+@torch.no_grad()
+def test_location_forward_rejects_a_broadcastable_singleton_dim():
+    # A cube with a singleton spatial dim that broadcasting would silently accept.
+    node = _fitted(axis="location", h=5, w=4)
+    with pytest.raises(ValueError, match=r"shape"):
+        node(cube=torch.rand(1, 1, 4, 6))
+
+
+def test_location_fit_needs_at_least_two_frames():
+    node = Standardize(axis="location")
+    with pytest.raises(RuntimeError):
+        node.statistical_initialization(_stream([_cube(seed=61, h=5, w=4, b=1)]))
 
 
 @torch.no_grad()
@@ -323,6 +436,7 @@ _MODES = [
     {"axis": "global", "ddof": 0, "exclude_folds": [1], "max_initialization_frames": 8},
     {"axis": "spectrum"},
     {"axis": "spatial", "ddof": 0, "eps": 1e-6, "eps_mode": "add"},
+    {"axis": "location"},
     {"axis": [1, 2, 3]},
     {"stats": "given", "layout": "nchw", "mean": list(IMAGENET_MEAN), "std": list(IMAGENET_STD)},
     {"axis": "channel", "with_std": False},
@@ -481,6 +595,78 @@ def test_unfrozen_fitted_state_loads_into_an_unfrozen_fresh_node():
     assert torch.equal(fresh(cube=x)["cube"], node(cube=x)["cube"])
 
 
+# ----- location axis: unfreeze lifecycle, gradient step, pipeline restore -----------------------
+
+
+@torch.no_grad()
+def test_location_unfreeze_before_fit_keeps_parameters():
+    node = Standardize(axis="location")
+    node.unfreeze()
+    node.statistical_initialization(_stream(_frames(h=5, w=4)))
+    assert isinstance(node.mean, torch.nn.Parameter)
+    assert node.mean.shape == (1, 5, 4, 6)
+    reference = _fitted(axis="location", h=5, w=4)
+    x = _cube(seed=62, h=5, w=4)
+    assert torch.equal(node(cube=x)["cube"], reference(cube=x)["cube"])
+
+
+@torch.no_grad()
+def test_location_unfrozen_fitted_state_loads_into_an_unfrozen_fresh_node():
+    node = _fitted(axis="location", h=5, w=4)
+    node.unfreeze()
+    state = node.state_dict()
+    fresh = Standardize(axis="location")
+    fresh.unfreeze()
+    fresh.load_state_dict(state)
+    assert isinstance(fresh.std, torch.nn.Parameter) and fresh.std.shape == (1, 5, 4, 6)
+    assert fresh._statistically_initialized is True
+    fresh.freeze()
+    x = _cube(seed=63, h=5, w=4)
+    assert torch.equal(fresh(cube=x)["cube"], node(cube=x)["cube"])
+    with pytest.raises(ValueError, match=r"shape"):
+        fresh(cube=_cube(seed=64, h=7, w=4))
+
+
+def test_location_gradient_step_lowers_the_loss():
+    node = _fitted(axis="location", h=5, w=4)
+    node.unfreeze()
+    optimizer = torch.optim.SGD(node.parameters(), lr=0.1)
+    x = _cube(seed=65, h=5, w=4)
+    before_mean = node.mean.detach().clone()
+    losses = []
+    for _ in range(3):
+        optimizer.zero_grad()
+        out = node(cube=x)["cube"]
+        loss = out.pow(2).mean()
+        loss.backward()
+        optimizer.step()
+        losses.append(loss.item())
+    assert losses[-1] < losses[0]
+    assert not torch.equal(node.mean.detach(), before_mean)
+
+
+@torch.no_grad()
+def test_location_pipeline_round_trips_through_yaml_and_weights(tmp_path):
+    # _CubeSource emits a fixed (2, 5, 4, 6) BHWC cube, matching the default h=5, w=4 here.
+    h, w = 5, 4
+    pipe = CuvisPipeline("standardize_location_reload")
+    src = _CubeSource(name="src")
+    std = Standardize(name="standardize", axis="location")
+    std.statistical_initialization(_stream(_frames(h=h, w=w)))
+    pipe.connect(src.outputs.cube, std.inputs.cube)
+    before = pipe.forward(batch={}, stage=ExecutionStage.INFERENCE)[("standardize", "cube")]
+    path = tmp_path / "standardize_location.yaml"
+    pipe.save_to_file(str(path))
+    rebuilt = CuvisPipeline.load_pipeline(str(path), weights_path=str(path.with_suffix(".pt")))
+    after = rebuilt.forward(batch={}, stage=ExecutionStage.INFERENCE)[("standardize", "cube")]
+    assert torch.equal(after, before)
+    restored = next(n for n in rebuilt.nodes if n.name == "standardize")
+    assert restored.mean.shape == (1, h, w, 6)
+    assert restored._statistically_initialized is True
+    with pytest.raises(ValueError, match=r"shape"):
+        restored(cube=_cube(seed=67, h=h + 1, w=w))
+
+
 # ----- port contract, non-contiguous input, export ------------------------------------------------
 
 
@@ -519,6 +705,56 @@ def test_export_smoke(kwargs):
     program = torch.export.export(_ExportProbe(node), (_cube(seed=19),))
     other = _cube(seed=20)
     assert _close(program.module()(other), node(cube=other)["cube"])
+
+
+def test_location_export_smoke():
+    frames = _frames(h=5, w=4)
+    node = _fitted(frames, axis="location", h=5, w=4)
+    node.eval()
+    program = torch.export.export(_ExportProbe(node), (_cube(seed=19, h=5, w=4),))
+    other = _cube(seed=20, h=5, w=4)
+    assert _close(program.module()(other), node(cube=other)["cube"])
+
+
+@pytest.mark.slow
+@torch.no_grad()
+def test_location_exports_and_matches_onnx_runtime():
+    """A location fit over several frames traces, and ONNX Runtime matches a numpy reference."""
+    pytest.importorskip("onnxscript")
+    ort = pytest.importorskip("onnxruntime")
+    h, w = 5, 4
+    frames = _frames(h=h, w=w, n=4)
+    node = _fitted(frames, axis="location", h=h, w=w, ddof=0)
+    node.eval()
+    probe = _ExportProbe(node).eval()
+    cube = _cube(seed=21, h=h, w=w)
+
+    data = torch.cat(frames).double().numpy()
+    mean_ref = data.mean(axis=0, keepdims=True)
+    std_ref = np.clip(data.std(axis=0, ddof=0, keepdims=True), EPS, None)
+    expected = ((cube.double().numpy() - mean_ref) / std_ref).astype(np.float32)
+
+    with torch.no_grad():
+        eager = probe(cube)
+    np.testing.assert_allclose(eager.numpy(), expected, atol=ATOL, rtol=RTOL)
+
+    import tempfile
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "standardize_location.onnx"
+        torch.onnx.export(
+            probe,
+            (cube,),
+            str(path),
+            dynamo=True,
+            opset_version=18,
+            input_names=["cube"],
+            output_names=["out"],
+        )
+        session = ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
+        (got,) = session.run(None, {"cube": cube.numpy()})
+    np.testing.assert_allclose(got, expected, atol=1e-5, rtol=1e-4)
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="needs cuda")
