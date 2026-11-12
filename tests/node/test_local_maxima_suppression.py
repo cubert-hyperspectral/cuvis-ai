@@ -282,14 +282,41 @@ def test_singleton_width_axis_matches_loop_reference():
     torch.testing.assert_close(out, expected)
 
 
-def test_all_zero_map_every_pixel_is_a_tied_maximum_only_first_survives():
-    scores = torch.zeros(1, 4, 4, 1)
+def test_all_zero_map_keeps_only_its_first_pixel():
+    """Kept and suppressed zeros look alike, so the gradient shows which pixel survived."""
+    scores = torch.zeros(1, 4, 4, 1, requires_grad=True)
     out = LocalMaximaSuppression(window=3)(scores=scores)["scores"]
-    expected = _loop_reference(scores, window=3, keep_plateaus=False)
-    torch.testing.assert_close(out, expected)
-    assert float(expected[0, 0, 0, 0]) == 0.0  # the "surviving" value is still zero
-    # exactly the cells that are the unique row-major-first tied max of their own window
-    assert bool((expected == 0.0).all())  # every value in the map is 0 either way
+    assert torch.equal(out, torch.zeros(1, 4, 4, 1))
+    out.sum().backward()
+    expected_grad = torch.zeros(1, 4, 4, 1)
+    expected_grad[0, 0, 0, 0] = 1.0
+    assert torch.equal(scores.grad, expected_grad)
+
+
+def test_all_zero_map_keeps_every_pixel_with_keep_plateaus():
+    scores = torch.zeros(1, 4, 4, 1, requires_grad=True)
+    out = LocalMaximaSuppression(window=3, keep_plateaus=True)(scores=scores)["scores"]
+    out.sum().backward()
+    assert torch.equal(scores.grad, torch.ones(1, 4, 4, 1))
+
+
+@pytest.mark.parametrize("keep_plateaus", [False, True])
+def test_nan_score_counts_as_minus_infinity_and_becomes_zero(keep_plateaus):
+    """A NaN neither wins nor hides a neighbour: both peaks beside it survive."""
+    scores = torch.zeros(1, 3, 3, 1)
+    scores[0, 0, :, 0] = torch.tensor([1.0, float("nan"), 2.0])
+    out = LocalMaximaSuppression(window=3, keep_plateaus=keep_plateaus)(scores=scores)["scores"]
+    expected = torch.zeros(1, 3, 3, 1)
+    expected[0, 0, 0, 0] = 1.0
+    expected[0, 0, 2, 0] = 2.0
+    assert torch.equal(out, expected)
+
+
+@pytest.mark.parametrize("keep_plateaus", [False, True])
+def test_all_nan_map_becomes_zero(keep_plateaus):
+    scores = torch.full((1, 3, 4, 1), float("nan"))
+    out = LocalMaximaSuppression(window=3, keep_plateaus=keep_plateaus)(scores=scores)["scores"]
+    assert torch.equal(out, torch.zeros(1, 3, 4, 1))
 
 
 # ---------------------------------------------------------------------------
@@ -453,6 +480,28 @@ def test_dynamo_export_matches_onnx_runtime(keep_plateaus):
     np.testing.assert_allclose(got, eager.numpy(), atol=1e-5, rtol=1e-4)
     reference = _loop_reference(scores, window=3, keep_plateaus=keep_plateaus).numpy()
     np.testing.assert_allclose(got, reference, atol=1e-5, rtol=1e-4)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("keep_plateaus", [False, True])
+def test_dynamo_export_matches_eager_with_nan_scores(keep_plateaus):
+    """Max pooling treats NaN differently in PyTorch and ONNX Runtime; the node hides that."""
+    pytest.importorskip("onnxscript")
+    ort = pytest.importorskip("onnxruntime")
+
+    node = LocalMaximaSuppression(window=3, keep_plateaus=keep_plateaus).eval()
+    scores = torch.zeros(1, 3, 3, 1)
+    scores[0, 0, :, 0] = torch.tensor([1.0, float("nan"), 2.0])
+    eager = node(scores=scores)["scores"]
+    assert float(eager[0, 0, 0, 0]) == 1.0
+    assert float(eager[0, 0, 2, 0]) == 2.0
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "local_maxima_nan.onnx"
+        torch.onnx.export(_ExportProbe(node), (scores,), str(path), dynamo=True, opset_version=18)
+        session = ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
+        (got,) = session.run(None, {session.get_inputs()[0].name: scores.numpy()})
+    np.testing.assert_array_equal(got, eager.numpy())
 
 
 # ---------------------------------------------------------------------------
