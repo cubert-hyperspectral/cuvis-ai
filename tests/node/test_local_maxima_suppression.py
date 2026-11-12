@@ -11,13 +11,12 @@ import numpy as np
 import pytest
 import torch
 from cuvis_ai_schemas.enums import ExecutionStage, NodeCategory, NodeTag
-from cuvis_ai_schemas.pipeline import PortSpec
 
 from cuvis_ai.node.spatial import LocalMaximaSuppression
 from cuvis_ai.node.vote_accumulation import VectorFieldVoteAccumulator
-from cuvis_ai_core.node import Node
 from cuvis_ai_core.pipeline.factory import PipelineBuilder
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from tests.fixtures.mock_nodes import SeededTensorSource
 
 pytestmark = pytest.mark.unit
 
@@ -184,22 +183,25 @@ def test_long_plateau_in_a_row_keeps_only_the_first_point():
     assert bool((expected[0, 1, 3:7, 0] == 0.0).all())
 
 
-def test_bent_plateau_can_leave_several_points():
-    """An L-shaped plateau with a one-cell gap at its elbow (so the bend sits outside a 3x3
-    window's reach from the arm's own first point) leaves one surviving point per arm, even
-    though the plateau is still a single connected region under 8-connectivity; the node
-    makes no stronger promise than the loop reference."""
-    scores = torch.zeros(1, 9, 9, 1)
-    for row in range(1, 6):
-        scores[0, row, 1, 0] = 3.0  # vertical arm, column 1
-    for col in range(3, 8):
-        scores[0, 5, col, 0] = 3.0  # horizontal arm, starting two columns past the elbow
+def test_connected_u_shaped_plateau_leaves_one_point_per_tip():
+    """A U-shaped plateau is one connected region, yet both upper tips survive a 3x3
+    window: the right tip has no tied value before it inside its own window. The tie rule
+    is local and does not pick one point per connected plateau."""
+    scores = torch.zeros(1, 8, 9, 1)
+    scores[0, 1:6, 1, 0] = 3.0  # left arm
+    scores[0, 1:6, 7, 0] = 3.0  # right arm
+    scores[0, 5, 1:8, 0] = 3.0  # bottom row joins the two arms
+    plateau = scores[0, :, :, 0] > 0
+    # connected: every plateau cell but the two tips has a plateau cell above or to its left
+    for row, col in plateau.nonzero().tolist():
+        if (row, col) not in ((1, 1), (1, 7)):
+            assert bool(plateau[row - 1, col]) or bool(plateau[row, col - 1])
     out = LocalMaximaSuppression(window=3)(scores=scores)["scores"]
-    expected = _loop_reference(scores, window=3, keep_plateaus=False)
-    torch.testing.assert_close(out, expected)
-    assert int((expected > 0).sum()) == 2
-    assert float(expected[0, 1, 1, 0]) == 3.0
-    assert float(expected[0, 5, 3, 0]) == 3.0
+    expected = torch.zeros_like(scores)
+    expected[0, 1, 1, 0] = 3.0
+    expected[0, 1, 7, 0] = 3.0
+    assert torch.equal(out, expected)
+    assert torch.equal(_loop_reference(scores, window=3, keep_plateaus=False), expected)
 
 
 def test_branching_plateau_matches_loop_reference():
@@ -458,26 +460,18 @@ def test_dynamo_export_matches_onnx_runtime(keep_plateaus):
 # ---------------------------------------------------------------------------
 
 
-class _ScoreSource(Node):
-    """Module-scope test source emitting a fixed score map, for pipeline reload tests."""
-
-    _category = NodeCategory.SOURCE
-    _tags = frozenset({NodeTag.TORCH})
-    INPUT_SPECS: dict[str, PortSpec] = {}
-    OUTPUT_SPECS = {"scores": PortSpec(dtype=torch.float32, shape=(-1, -1, -1, -1))}
-
-    def forward(self, **_) -> dict[str, torch.Tensor]:
-        return {"scores": _scores(seed=55, b=1, h=5, w=5, c=1)}
-
-
-def test_pipeline_save_and_reload_round_trips(tmp_path):
+@pytest.mark.parametrize("window", [3, [3, 5]])
+def test_pipeline_save_and_reload_round_trips(tmp_path, window):
     pipe = CuvisPipeline("local_maxima_reload")
-    src = _ScoreSource(name="src")
-    node = LocalMaximaSuppression(name="peaks", window=3)
-    pipe.connect(src.outputs.scores, node.inputs.scores)
+    src = SeededTensorSource(name="src", shape=[1, 5, 6, 1], seed=55)
+    node = LocalMaximaSuppression(name="peaks", window=window, keep_plateaus=True)
+    pipe.connect(src.outputs.data, node.inputs.scores)
     before = pipe.forward(batch={}, stage=ExecutionStage.INFERENCE)[("peaks", "scores")]
     path = tmp_path / "local_maxima.yaml"
     pipe.save_to_file(str(path))
     rebuilt = PipelineBuilder().build_from_config(str(path))
     after = rebuilt.forward(batch={}, stage=ExecutionStage.INFERENCE)[("peaks", "scores")]
     torch.testing.assert_close(after, before)
+    reloaded = next(n for n in rebuilt.nodes() if isinstance(n, LocalMaximaSuppression))
+    assert reloaded.window == window
+    assert reloaded.keep_plateaus is True
