@@ -53,7 +53,9 @@ class SpectralHueSaturationValue(Node):
     spectrum times the power. Dividing by a power of two is exact, so in the
     normal float range hue and value equal the unscaled formulas bit for bit,
     and a finite float32 spectrum keeps both although sums or squares of its
-    bands would leave the float range. The Cartesian floor is applied to the
+    bands would leave the float range. The one exception is a mean that
+    rounding has moved outside the range of the bands: the value is kept inside
+    it, so equal bands give exactly their common value. The Cartesian floor is applied to the
     scaled norm as ``eps`` over that power, and never below ``2**-64``. That
     bound changes no hue, since only an exactly flat pixel has a smaller
     scaled norm; it keeps the gradient of a flat pixel finite at very high
@@ -187,6 +189,20 @@ class SpectralHueSaturationValue(Node):
         return cube / level, level
 
     @staticmethod
+    def _kept_within(mean: Tensor, bands: Tensor) -> Tensor:
+        """``mean`` moved into the range of ``bands`` over the last axis, with its own gradient.
+
+        Rounding in the sum can move the mean of nearly equal bands past their
+        extremes, and at the top of the float range that step becomes infinity.
+        The correction is added as a detached difference, so the gradient stays
+        that of the mean.
+        """
+        lowest = bands.amin(dim=-1, keepdim=True)
+        highest = bands.amax(dim=-1, keepdim=True)
+        bounded = torch.minimum(torch.maximum(mean, lowest), highest)
+        return mean + (bounded - mean).detach()
+
+    @staticmethod
     def _safe_atan2(y: Tensor, x: Tensor) -> Tensor:
         """``atan2(y, x)`` fixed by convention at ``y == 0`` and blind to the sign of a zero ``x``.
 
@@ -278,7 +294,7 @@ class SpectralHueSaturationValue(Node):
         else:
             hue = self._polar_angles(coefficients)
         saturation = cube.amax(dim=-1, keepdim=True) - cube.amin(dim=-1, keepdim=True)
-        value = level * unit.mean(dim=-1, keepdim=True)
+        value = level * self._kept_within(unit.mean(dim=-1, keepdim=True), unit)
         return {"hue": hue, "saturation": saturation, "value": value}
 
 

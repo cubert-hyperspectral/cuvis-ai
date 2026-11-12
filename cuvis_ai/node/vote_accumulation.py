@@ -14,6 +14,10 @@ from cuvis_ai_core.node import Node
 _ORDERS = ("xy", "yx")
 
 
+# Pixel coordinates are float32, like the vectors; integers are exact there up to 2**24.
+_MAX_AXIS = 2**24
+
+
 class VectorFieldVoteAccumulator(Node):
     """Scatter each pixel's vote at the position its 2D vector points to.
 
@@ -83,7 +87,9 @@ class VectorFieldVoteAccumulator(Node):
         Parameters
         ----------
         vectors : Tensor
-            Per-pixel vector field ``[B, H, W, 2]``.
+            Per-pixel vector field ``[B, H, W, 2]``. Raises ``ValueError`` when the
+            height or the width exceeds ``2**24``: the coordinates are float32, like the
+            vectors, and count exactly only up to there.
         weights : Tensor, optional
             Per-pixel vote weight ``[B, H, W, 1]``; defaults to one everywhere. Raises
             ``ValueError`` if its shape differs from ``vectors``' first three dims plus
@@ -100,6 +106,12 @@ class VectorFieldVoteAccumulator(Node):
             raise ValueError(
                 f"VectorFieldVoteAccumulator: weights is {tuple(weights.shape)}, expected "
                 f"{expected_shape} (vectors' batch, height and width plus a trailing 1)."
+            )
+
+        if max(h, w) > _MAX_AXIS:
+            raise ValueError(
+                f"VectorFieldVoteAccumulator: height and width must not exceed {_MAX_AXIS}, "
+                f"the number of pixel coordinates float32 counts exactly; got {h} x {w}."
             )
 
         channel0 = vectors[..., 0]
