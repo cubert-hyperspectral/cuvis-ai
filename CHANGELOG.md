@@ -3,6 +3,7 @@
 ## Unreleased
 
 - New node `SpectralHueSaturationValue` (`cuvis_ai.node.spectral_hue`): splits every pixel spectrum of `cube` into `hue`, `saturation` and `value`. Hue is the direction of the spectrum once its mean is removed, written in an orthonormal basis of the mean-free hyperplane: `C - 1` unit-length coordinates with `hue="cartesian"`, or their `C - 2` angles with `hue="polar"`. It does not change under a positive gain or a constant offset on the spectrum. Saturation is the maximum minus the minimum over the bands, value is their mean. Tagged ONNX.
+- New node `VectorFieldVoteAccumulator` (`cuvis_ai.node.vote_accumulation`): every pixel of `vectors` `[B, H, W, 2]` holds an offset to a target pixel and adds its vote there, one by default or its entry of the optional `weights` input. Votes on the same target sum into `scores` `[B, H, W, 1]`; a vote that lands outside the frame or is not finite is dropped. `order` says whether the two channels are `xy` (default) or `yx`. Tagged ONNX.
 
 ## 0.22.9 - 2026-11-18
 

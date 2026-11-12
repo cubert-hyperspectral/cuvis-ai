@@ -160,6 +160,7 @@ from cuvis_ai.node.video import (
     VideoFrameNode,
     VideoIterator,
 )
+from cuvis_ai.node.vote_accumulation import VectorFieldVoteAccumulator
 
 __all__ = [
     "MaskBlobFilter",
@@ -267,6 +268,7 @@ __all__ = [
     "ScoreMapSmoothing",
     "ScoreUpsample",
     "SpectralHueSaturationValue",
+    "VectorFieldVoteAccumulator",
     "BinaryDecider",
     "DeepSVDDProjection",
     "LADGlobal",
