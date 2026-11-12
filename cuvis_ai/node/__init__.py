@@ -130,6 +130,7 @@ from cuvis_ai.node.preprocessors import (
     SpectralValidity,
 )
 from cuvis_ai.node.pretreatments import (
+    BandCrosstalkCorrector,
     ContinuumRemoval,
     Logarithm,
     SavitzkyGolay,
@@ -278,6 +279,7 @@ __all__ = [
     "SpectralDerivative",
     "Logarithm",
     "Standardize",
+    "BandCrosstalkCorrector",
     "EVISelector",
     "EVI2Selector",
     "SAVISelector",
