@@ -84,6 +84,38 @@ def test_matches_loop_reference(window, keep_plateaus):
     torch.testing.assert_close(out, expected)
 
 
+@pytest.mark.parametrize("keep_plateaus", [False, True])
+@pytest.mark.parametrize("window", [3, [1, 3], [3, 1], [5, 3], [3, 7]])
+def test_tie_heavy_negative_maps_match_loop_reference(window, keep_plateaus):
+    """Few distinct values, none positive: ties in every direction, and a kept value is
+    never the fill value zero, so a wrongly suppressed or wrongly kept pixel shows."""
+    g = torch.Generator().manual_seed(21)
+    scores = torch.randint(-3, 0, (2, 7, 9, 2), generator=g).to(torch.float32)
+    out = LocalMaximaSuppression(window=window, keep_plateaus=keep_plateaus)(scores=scores)
+    expected = _loop_reference(scores, window, keep_plateaus)
+    assert torch.equal(out["scores"], expected)
+    assert bool((expected != 0).any())
+
+
+@pytest.mark.parametrize(
+    ("first", "second"),
+    [
+        ((0, 2), (1, 1)),  # the earlier tie sits up and to the right
+        ((0, 0), (1, 1)),  # up and to the left
+        ((0, 1), (1, 1)),  # straight above
+        ((1, 0), (1, 1)),  # same row, to the left
+    ],
+)
+def test_of_two_tied_neighbours_only_the_first_in_row_order_stays(first, second):
+    scores = torch.zeros(1, 3, 3, 1)
+    scores[0, first[0], first[1], 0] = 2.0
+    scores[0, second[0], second[1], 0] = 2.0
+    out = LocalMaximaSuppression(window=3)(scores=scores)["scores"]
+    expected = torch.zeros(1, 3, 3, 1)
+    expected[0, first[0], first[1], 0] = 2.0
+    assert torch.equal(out, expected)
+
+
 # ---------------------------------------------------------------------------
 # 2. Single peak, two close peaks
 # ---------------------------------------------------------------------------
@@ -339,6 +371,12 @@ def test_invalid_list_window_raises(bad_window):
 def test_non_integer_window_raises():
     with pytest.raises(ValueError, match="window"):
         LocalMaximaSuppression(window=3.0)
+
+
+@pytest.mark.parametrize("bad_window", [True, [True, 3], [3, True]])
+def test_bool_window_raises(bad_window):
+    with pytest.raises(ValueError, match="window"):
+        LocalMaximaSuppression(window=bad_window)
 
 
 def test_non_bool_keep_plateaus_raises():

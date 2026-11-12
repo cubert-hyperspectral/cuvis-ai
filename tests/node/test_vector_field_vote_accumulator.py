@@ -216,6 +216,7 @@ def test_batch_elements_do_not_mix():
     )  # batch 1's own self-vote only; batch 0's extra vote does not leak
 
 
+@pytest.mark.parametrize("axis", ["column", "row"])
 @pytest.mark.parametrize(
     ("source", "offset", "expected_target", "lands_elsewhere"),
     [
@@ -226,15 +227,20 @@ def test_batch_elements_do_not_mix():
         (4, 1.5, 6, True),  # round(1.5) -> 2 (nearest even): target = 4 + 2 = 6
     ],
 )
-def test_halves_round_to_even(source, offset, expected_target, lands_elsewhere):
+def test_halves_round_to_even(source, offset, expected_target, lands_elsewhere, axis):
     h = w = 9
     vectors = torch.zeros(1, h, w, 2)
-    vectors[0, source, source] = torch.tensor([offset, 0.0])  # move along columns only
+    if axis == "column":
+        vectors[0, source, source] = torch.tensor([offset, 0.0])
+        target = (source, expected_target)
+    else:
+        vectors[0, source, source] = torch.tensor([0.0, offset])
+        target = (expected_target, source)
     out = VectorFieldVoteAccumulator()(vectors=vectors)["scores"]
     # The target also casts its own self-vote (zero vector) unless target == source,
     # in which case the redirected vote and the self-vote are the same single vote.
     expected = 2.0 if lands_elsewhere else 1.0
-    assert out[0, source, expected_target, 0] == expected
+    assert out[0, target[0], target[1], 0] == expected
 
 
 # ---------------------------------------------------------------------------
