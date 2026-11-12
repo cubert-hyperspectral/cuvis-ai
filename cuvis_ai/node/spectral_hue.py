@@ -12,6 +12,11 @@ from torch import Tensor
 
 from cuvis_ai_core.node import Node
 
+# Lower bound of the Cartesian floor on the scaled norm. Any pixel that is not exactly flat
+# has a scaled norm far above it (two different float32 numbers of magnitude up to 2 differ
+# by at least 2**-24), and its inverse leaves room for the backward pass of a flat pixel.
+_MIN_SCALED_FLOOR = 2.0**-64
+
 _HUE_MODES = ("cartesian", "polar")
 
 
@@ -43,10 +48,16 @@ class SpectralHueSaturationValue(Node):
     exactly as :class:`cuvis_ai.node.normalization.PerPixelUnitNorm` documents
     for its own floor.
 
-    Each pixel spectrum is divided by its largest magnitude before the hue
-    arithmetic, and the value is the mean of that scaled spectrum times the
-    magnitude. A finite float32 spectrum therefore keeps its hue and its value
-    although sums or squares of its bands would leave the float range. The
+    Each pixel spectrum is divided by a power of two near its largest magnitude
+    before the hue arithmetic, and the value is the mean of that scaled
+    spectrum times the power. Dividing by a power of two is exact, so in the
+    normal float range hue and value equal the unscaled formulas bit for bit,
+    and a finite float32 spectrum keeps both although sums or squares of its
+    bands would leave the float range. The Cartesian floor is applied to the
+    scaled norm as ``eps`` over that power, and never below ``2**-64``. That
+    bound changes no hue, since only an exactly flat pixel has a smaller
+    scaled norm; it keeps the gradient of a flat pixel finite at very high
+    levels, where it is smaller than the ``1 / eps`` of the floor. The
     polar angles keep float32 precision relative to the largest coordinate of
     the pixel: trailing coordinates more than about ``1e-19`` times smaller
     lose precision, and below about ``1e-23`` they count as zero. Non-finite
@@ -155,17 +166,24 @@ class SpectralHueSaturationValue(Node):
 
     @staticmethod
     def _unit_level(cube: Tensor) -> tuple[Tensor, Tensor]:
-        """Each pixel spectrum divided by its largest magnitude, and that magnitude.
+        """Each pixel spectrum divided by a power of two near its largest magnitude, and that power.
 
-        The scaled spectrum lies in ``[-1, 1]``, so the differences and sums
-        behind the hue coordinates, and their squares, stay inside the float
-        range whatever the level of the pixel. An all-zero pixel keeps a
-        magnitude of one and stays zero. The magnitude is detached: the hue
-        does not depend on the level and the value is linear in it, so dividing
-        by it as a constant leaves every gradient unchanged.
+        The scaled spectrum stays within ``[-2, 2]``, so the differences and
+        sums behind the hue coordinates, and their squares, stay inside the
+        float range whatever the level of the pixel. The division is exact,
+        because the divisor is a power of two: the scaled bands carry the same
+        bits as the input, where a division by the magnitude itself would round
+        every band and blur small differences on a large offset. The exponent
+        is kept inside the normal float32 range, so the power is neither
+        subnormal nor infinite. An all-zero pixel is divided by one and stays
+        zero. The power is detached: the hue does not depend on the level and
+        the value is linear in it, so dividing by it as a constant leaves every
+        gradient unchanged.
         """
-        level = cube.detach().abs().amax(dim=-1, keepdim=True)
-        level = torch.where(level > 0.0, level, torch.ones_like(level))
+        peak = cube.detach().abs().amax(dim=-1, keepdim=True)
+        peak = torch.where(peak > 0.0, peak, torch.ones_like(peak))
+        exponent = torch.floor(torch.log2(peak)).clamp(-126.0, 127.0)
+        level = torch.pow(2.0, exponent)
         return cube / level, level
 
     @staticmethod
@@ -252,9 +270,9 @@ class SpectralHueSaturationValue(Node):
         coefficients = self._cartesian_coefficients(unit)
         if self.hue == "cartesian":
             # The pixel's own coefficients are level * coefficients, so its floor is eps / level.
-            # At a very high level that quotient underflows; the smallest normal number stands
-            # in for it, so a flat spectrum still divides zero by a nonzero floor.
-            floor = (self.eps / level).clamp_min(torch.finfo(coefficients.dtype).tiny)
+            # The level is a normal power of two, so its reciprocal is exact and finite. The
+            # lower bound is explained in the class docstring.
+            floor = (self.eps / level).clamp_min(_MIN_SCALED_FLOOR)
             norm = coefficients.norm(p=2, dim=-1, keepdim=True)
             hue = coefficients / torch.maximum(norm, floor)
         else:
