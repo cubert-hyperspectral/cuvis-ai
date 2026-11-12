@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 import torch
 
-from cuvis_ai.node.normalization import MinMaxNormalizer, PercentileNormalizer
+from cuvis_ai.node.normalization import MinMaxNormalizer, PercentileNormalizer, PerPixelUnitNorm
 
 pytestmark = pytest.mark.unit
 
@@ -118,6 +118,27 @@ def test_percentile_normalizer_statistical_exports_and_matches_onnx_runtime() ->
 
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "percentile.onnx"
+        torch.onnx.export(probe, (data,), str(path), dynamo=True, opset_version=18)
+        session = ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
+        (got,) = session.run(None, {session.get_inputs()[0].name: data.numpy()})
+    np.testing.assert_allclose(got, eager.numpy(), atol=1e-5, rtol=1e-4)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("center", [True, False])
+def test_per_pixel_unit_norm_exports_and_matches_onnx_runtime(center: bool) -> None:
+    """Dynamo ONNX export plus ONNX Runtime parity, for both center modes."""
+    pytest.importorskip("onnxscript")
+    ort = pytest.importorskip("onnxruntime")
+    node = PerPixelUnitNorm(eps=1e-8, center=center)
+    node.eval()
+    probe = _ForwardOnlyProbe(node).eval()
+    data = _data(seed=3)
+    with torch.no_grad():
+        eager = probe(data)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / f"per_pixel_unit_norm_center_{center}.onnx"
         torch.onnx.export(probe, (data,), str(path), dynamo=True, opset_version=18)
         session = ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
         (got,) = session.run(None, {session.get_inputs()[0].name: data.numpy()})
