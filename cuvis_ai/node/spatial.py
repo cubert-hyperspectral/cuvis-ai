@@ -220,6 +220,9 @@ class LocalMaximaSuppression(Node):
     value becomes zero (including a suppressed negative value: zero is only the fill, not a
     floor on what a surviving value can be). The window is treated as filled with minus
     infinity past the image border, so the border neither creates nor hides a maximum.
+    A NaN score counts as minus infinity in every comparison and becomes zero itself: it
+    neither wins nor hides a neighbour, and the result does not depend on how a backend's
+    max pooling treats NaN.
 
     With ``keep_plateaus=False``, of several equal maxima inside one window only the first
     in row-major order (top row first, then left to right) stays: a value also needs to be
@@ -292,18 +295,20 @@ class LocalMaximaSuppression(Node):
         rh, rw = self.window_height // 2, self.window_width // 2
         x = scores.permute(0, 3, 1, 2).reshape(b * c, 1, h, w)
 
-        full_max = _block_max(x, rh, rh, rw, rw)
-        is_max = x >= full_max
+        is_nan = torch.isnan(x)
+        ranked = torch.where(is_nan, torch.full_like(x, float("-inf")), x)
+        full_max = _block_max(ranked, rh, rh, rw, rw)
+        is_max = (ranked >= full_max) & ~is_nan
 
         if self.keep_plateaus:
             kept = torch.where(is_max, x, torch.zeros_like(x))
             return {"scores": kept.reshape(b, c, h, w).permute(0, 2, 3, 1)}
 
         # Earlier cells: all rows above (full window width) union the same row's left cells.
-        above_max = _block_max(x, rh, -1, rw, rw)
-        left_max = _block_max(x, 0, 0, rw, -1)
+        above_max = _block_max(ranked, rh, -1, rw, rw)
+        left_max = _block_max(ranked, 0, 0, rw, -1)
         earlier_max = torch.maximum(above_max, left_max)
-        is_first = x > earlier_max
+        is_first = ranked > earlier_max
 
         kept = torch.where(is_max & is_first, x, torch.zeros_like(x))
         return {"scores": kept.reshape(b, c, h, w).permute(0, 2, 3, 1)}

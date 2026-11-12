@@ -343,6 +343,13 @@ def test_non_positive_or_non_finite_eps_raises(eps: float) -> None:
         SpectralHueSaturationValue(hue="cartesian", eps=eps)
 
 
+@pytest.mark.parametrize("eps", [1e-50, 1e-46, 1e-40, 1e39])
+def test_eps_outside_the_float32_range_raises(eps: float) -> None:
+    """A floor that rounds to zero or to infinity in float32 would fail at run time."""
+    with pytest.raises(ValueError, match="eps"):
+        SpectralHueSaturationValue(hue="cartesian", eps=eps)
+
+
 def test_invalid_hue_mode_raises() -> None:
     with pytest.raises(ValueError, match="hue"):
         SpectralHueSaturationValue(hue="not-a-mode")
@@ -493,6 +500,66 @@ def test_dynamo_export_atan2_axis_case_matches_eager(
         session = ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
         got_hue, _, _ = session.run(None, {session.get_inputs()[0].name: base.numpy()})
     np.testing.assert_allclose(got_hue, eager.numpy(), atol=1e-4, rtol=1e-3)
+
+
+@pytest.mark.parametrize(
+    ("hue_mode", "factor"),
+    [("cartesian", 1e20), ("polar", 1e20), ("polar", 1e-25)],
+)
+def test_hue_of_values_whose_squares_leave_the_float32_range(hue_mode: str, factor: float) -> None:
+    """Finite float32 spectra keep their hue although their squared norm over- or underflows."""
+    base = torch.tensor([0.0, 1.0, 2.0, 3.0, 1.5], dtype=torch.float32).reshape(1, 1, 1, -1)
+    node = SpectralHueSaturationValue(hue=hue_mode, eps=1e-8)
+    expected = node.forward(cube=base)["hue"]
+    got = node.forward(cube=base * factor)["hue"]
+    assert torch.isfinite(got).all()
+    torch.testing.assert_close(got, expected, atol=1e-5, rtol=1e-5)
+
+
+@pytest.mark.parametrize("factor", [1e20, 1e-25])
+def test_polar_gradient_scales_with_the_inverse_of_the_level(factor: float) -> None:
+    """The angles do not depend on the level, so their gradient is that of the base / factor."""
+    base = torch.tensor([0.0, 1.0, 2.0, 3.0, 1.5], dtype=torch.float32).reshape(1, 1, 1, -1)
+    node = SpectralHueSaturationValue(hue="polar", eps=1e-8)
+    reference = base.clone().requires_grad_(True)
+    node.forward(cube=reference)["hue"].sum().backward()
+    scaled = (base * factor).requires_grad_(True)
+    node.forward(cube=scaled)["hue"].sum().backward()
+    assert torch.isfinite(scaled.grad).all()
+    torch.testing.assert_close(scaled.grad * factor, reference.grad, atol=1e-4, rtol=1e-4)
+
+
+@pytest.mark.parametrize("x_value", [3.0, -3.0])
+def test_gradient_at_a_zero_y_is_zero(x_value: float) -> None:
+    """Where y is exactly zero the angle is a constant of the convention: no gradient."""
+    x = torch.tensor([x_value], dtype=torch.float64, requires_grad=True)
+    y = torch.tensor([0.0], dtype=torch.float64, requires_grad=True)
+    angle = SpectralHueSaturationValue._safe_atan2(y, x)
+    angle.sum().backward()
+    assert angle.item() == pytest.approx(0.0 if x_value > 0 else np.pi, abs=1e-12)
+    assert x.grad.item() == 0.0
+    assert y.grad.item() == 0.0
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("hue_mode", ["cartesian", "polar"])
+def test_dynamo_export_matches_eager_for_very_large_values(hue_mode: str) -> None:
+    pytest.importorskip("onnxscript")
+    ort = pytest.importorskip("onnxruntime")
+
+    node = SpectralHueSaturationValue(hue=hue_mode, eps=1e-8).eval()
+    probe = _ExportProbe(node).eval()
+    cube = torch.tensor([0.0, 1.0, 2.0, 3.0, 1.5], dtype=torch.float32).reshape(1, 1, 1, -1) * 1e20
+    with torch.no_grad():
+        eager = node.forward(cube=cube)["hue"]
+    assert bool((eager != 0).any())
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "spectral_hue_large.onnx"
+        torch.onnx.export(probe, (cube,), str(path), dynamo=True, opset_version=18)
+        session = ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
+        got_hue, _, _ = session.run(None, {session.get_inputs()[0].name: cube.numpy()})
+    np.testing.assert_allclose(got_hue, eager.numpy(), atol=1e-5)
 
 
 # Spectra whose first hue coordinate is exactly zero and carries a minus sign (the

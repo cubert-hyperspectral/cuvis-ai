@@ -43,6 +43,11 @@ class SpectralHueSaturationValue(Node):
     exactly as :class:`cuvis_ai.node.normalization.PerPixelUnitNorm` documents
     for its own floor.
 
+    Norms are taken on the coordinates divided by their largest magnitude, so a
+    finite float32 spectrum keeps its hue although the square of its values
+    would overflow or underflow. ``hue="polar"`` costs roughly three times
+    ``hue="cartesian"`` on a CPU, because of the masks described next.
+
     Every polar angle is an ``atan2(y, x)`` with a coordinate as ``x``. For all
     angles but the last, ``y`` is the norm of the coordinates after ``x`` and
     the angle lies in ``[0, pi]``; for the last angle ``y`` is the final
@@ -70,7 +75,8 @@ class SpectralHueSaturationValue(Node):
         their ``C - 2`` hyperspherical angles (default ``"cartesian"``).
     eps : float, optional
         Floor on the Cartesian coefficient norm before normalizing to unit
-        length (default ``1e-8``). Must be a finite, positive number.
+        length (default ``1e-8``). Must be a normal float32 number, so that the
+        floor is neither zero nor infinite in the dtype of the ports.
     **kwargs : dict
         Additional arguments passed to the ``Node`` base class.
     """
@@ -115,8 +121,12 @@ class SpectralHueSaturationValue(Node):
     def __init__(self, hue: str = "cartesian", eps: float = 1e-8, **kwargs: Any) -> None:
         if hue not in _HUE_MODES:
             raise ValueError(f"hue must be one of {_HUE_MODES}, got {hue!r}")
-        if not math.isfinite(eps) or eps <= 0.0:
-            raise ValueError(f"eps must be a finite, positive number, got {eps!r}")
+        float32 = torch.finfo(torch.float32)
+        if not float32.tiny <= eps <= float32.max:
+            raise ValueError(
+                f"eps must be a positive float32 number between {float32.tiny:.3g} and "
+                f"{float32.max:.3g}, got {eps!r}"
+            )
         self.hue = hue
         self.eps = float(eps)
         super().__init__(hue=self.hue, eps=self.eps, **kwargs)
@@ -136,6 +146,21 @@ class SpectralHueSaturationValue(Node):
         suffix = torch.cumsum((remaining * diffs).flip(-1), dim=-1).flip(-1)
         scale = -1.0 / torch.sqrt(remaining * (remaining + 1))
         return scale * suffix
+
+    @staticmethod
+    def _peak_scaled(coefficients: Tensor) -> tuple[Tensor, Tensor]:
+        """The coordinates divided by their largest magnitude per pixel, and that magnitude.
+
+        The scaled coordinates lie in ``[-1, 1]``, so their squares stay inside
+        the float range whatever the level of the spectrum. A zero vector keeps
+        a magnitude of one and stays zero. The magnitude is detached: dividing
+        by it as a constant leaves the gradients of the norm and of the angles
+        unchanged, since the norm is homogeneous and the angles do not depend
+        on the length.
+        """
+        peak = coefficients.detach().abs().amax(dim=-1, keepdim=True)
+        peak = torch.where(peak > 0.0, peak, torch.ones_like(peak))
+        return coefficients / peak, peak
 
     @staticmethod
     def _safe_atan2(y: Tensor, x: Tensor) -> Tensor:
@@ -218,11 +243,12 @@ class SpectralHueSaturationValue(Node):
                 f"channels, got {channels}"
             )
         coefficients = self._cartesian_coefficients(cube)
+        scaled, peak = self._peak_scaled(coefficients)
         if self.hue == "cartesian":
-            norm = coefficients.norm(p=2, dim=-1, keepdim=True).clamp_min(self.eps)
+            norm = (peak * scaled.norm(p=2, dim=-1, keepdim=True)).clamp_min(self.eps)
             hue = coefficients / norm
         else:
-            hue = self._polar_angles(coefficients)
+            hue = self._polar_angles(scaled)
         saturation = cube.amax(dim=-1, keepdim=True) - cube.amin(dim=-1, keepdim=True)
         value = cube.mean(dim=-1, keepdim=True)
         return {"hue": hue, "saturation": saturation, "value": value}
