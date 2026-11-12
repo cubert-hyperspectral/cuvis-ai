@@ -4126,6 +4126,28 @@ capabilities:
       optional: false
       description: 'Same shape: each channel convolved with a normalised Gaussian of `sigma_px` (radius round(4 sigma), mirrored border).'
   doc_summary: Smooth a score map [B, H, W, C] with a Gaussian of ``sigma_px`` pixels.
+- class_name: cuvis_ai.node.vote_accumulation.VectorFieldVoteAccumulator
+  category: transform
+  tags: [onnx, postprocessing, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    vectors:
+      dtype: float32
+      shape: [-1, -1, -1, 2]
+      optional: false
+      description: Per-pixel relative vector field [B, H, W, 2].
+    weights:
+      dtype: float32
+      shape: [-1, -1, -1, 1]
+      optional: true
+      description: Per-pixel vote weight [B, H, W, 1]; one for every pixel when not connected.
+  output_specs:
+    scores:
+      dtype: float32
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: 'Vote map [B, H, W, 1]: the sum of weights of every vote landing on each pixel.'
+  doc_summary: Scatter each pixel's vote at the position its 2D vector points to.
 - class_name: cuvis_ai.node.tiling.ImageTiler
   category: transform
   tags: [batched, differentiable, image, preprocessing, torch]
