@@ -48,13 +48,14 @@ class SpectralHueSaturationValue(Node):
     the angle lies in ``[0, pi]``; for the last angle ``y`` is the final
     coordinate and the angle lies in ``(-pi, pi]``. Where ``y`` is exactly
     zero the angle is fixed by convention instead of evaluating ``atan2`` at
-    an axis point: zero when ``x`` is nonnegative, pi otherwise. This also
-    keeps the eager and the
-    ONNX-exported graph in agreement, since the ONNX lowering of ``atan2``
-    returns ``-pi`` where eager PyTorch returns ``pi`` for a zero first
-    argument and a negative second one. A flat spectrum then gives every angle
-    zero. A square root behind the suffix norms is masked the same way, so it
-    is never differentiated at exactly zero.
+    an axis point: zero when ``x`` is nonnegative, pi otherwise. A flat
+    spectrum then gives every angle zero. A zero ``x`` counts as positive zero
+    whatever its sign bit. Both rules also keep the eager and the ONNX-exported
+    graph in agreement: the ONNX lowering of ``atan2`` returns ``-pi`` where
+    eager PyTorch returns ``pi`` for a zero ``y`` and a negative ``x``, and the
+    opposite sign of ``pi/2`` for an ``x`` of ``-0.0``. A square root behind
+    the suffix norms is masked like ``y``, so it is never differentiated at
+    exactly zero.
 
     Exactly degenerate inputs give finite (zero) gradients through these
     masks, but this node is a fixed preprocessing step, not a general-purpose
@@ -138,15 +139,24 @@ class SpectralHueSaturationValue(Node):
 
     @staticmethod
     def _safe_atan2(y: Tensor, x: Tensor) -> Tensor:
-        """``atan2(y, x)`` fixed by convention at ``y == 0``.
+        """``atan2(y, x)`` fixed by convention at ``y == 0`` and blind to the sign of a zero ``x``.
 
         Where ``y`` is exactly zero the result is 0 for ``x >= 0`` and pi for
         ``x < 0``, and ``atan2`` itself never sees that zero: ``y`` is replaced
         by a nonzero placeholder there via ``torch.where`` before the call, so
         the undefined axis point is never evaluated or differentiated.
+
+        A zero ``x`` loses its sign before the call. The coordinates are a
+        negative scale times a sum, so an exactly cancelling sum gives ``-0.0``;
+        eager ``atan2(y, -0.0)`` is still ``+-pi/2``, but the ONNX lowering
+        divides ``y`` by ``x`` and returns the opposite sign. The replacement is
+        added as a detached difference, so the gradient with respect to ``x``
+        stays that of ``atan2``.
         """
         is_zero = y == 0.0
         safe_y = torch.where(is_zero, torch.ones_like(y), y)
+        unsigned_zero_x = torch.where(x == 0.0, torch.zeros_like(x), x)
+        x = x + (unsigned_zero_x - x).detach()
         angle = torch.atan2(safe_y, x)
         axis_value = torch.where(x >= 0.0, torch.zeros_like(x), torch.full_like(x, math.pi))
         return torch.where(is_zero, axis_value, angle)

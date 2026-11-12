@@ -10,13 +10,12 @@ from pathlib import Path
 import numpy as np
 import pytest
 import torch
-from cuvis_ai_schemas.enums import ExecutionStage, NodeCategory, NodeTag
-from cuvis_ai_schemas.pipeline import PortSpec
+from cuvis_ai_schemas.enums import ExecutionStage
 
 from cuvis_ai.node.spectral_hue import SpectralHueSaturationValue
-from cuvis_ai_core.node.node import Node
 from cuvis_ai_core.pipeline.factory import PipelineBuilder
 from cuvis_ai_core.pipeline.pipeline import CuvisPipeline
+from tests.fixtures.mock_nodes import SeededTensorSource
 
 pytestmark = pytest.mark.unit
 
@@ -80,18 +79,6 @@ def _random_cube(
 ) -> torch.Tensor:
     rng = torch.Generator().manual_seed(seed)
     return torch.randn((batches, height, width, channels), generator=rng, dtype=torch.float32)
-
-
-class _CubeSource(Node):
-    """Module-scope test source emitting a fixed BHWC cube, for pipeline reload tests."""
-
-    _category = NodeCategory.SOURCE
-    _tags = frozenset({NodeTag.TORCH})
-    INPUT_SPECS: dict[str, PortSpec] = {}
-    OUTPUT_SPECS = {"data": PortSpec(dtype=torch.float32, shape=(-1, -1, -1, -1))}
-
-    def forward(self, **_) -> dict[str, torch.Tensor]:
-        return {"data": _random_cube(2, 3, 4, 7, seed=42)}
 
 
 # ---------------------------------------------------------------------------
@@ -508,6 +495,66 @@ def test_dynamo_export_atan2_axis_case_matches_eager(
     np.testing.assert_allclose(got_hue, eager.numpy(), atol=1e-4, rtol=1e-3)
 
 
+# Spectra whose first hue coordinate is exactly zero and carries a minus sign (the
+# coordinates are a negative scale times a sum that cancels). atan2(y, -0.0) is +-pi/2
+# in eager, but its ONNX lowering divides y by x and gets the other sign.
+_NEGATIVE_ZERO_SPECTRA = [
+    [2.0, 3.0, 1.0],
+    [3.0, 2.0, 4.0],
+    [1.0, 2.0, 1.0, 0.0],
+    [0.0, 1.0, 0.0, -1.0, 0.0],
+]
+
+
+@pytest.mark.parametrize("spectrum", _NEGATIVE_ZERO_SPECTRA)
+def test_polar_angles_for_a_negative_zero_coordinate_match_the_reference(
+    spectrum: list[float],
+) -> None:
+    cube = torch.tensor(spectrum, dtype=torch.float64).reshape(1, 1, 1, -1)
+    coefficients = SpectralHueSaturationValue._cartesian_coefficients(cube)[0, 0, 0]
+    assert coefficients[0].item() == 0.0
+    assert bool(torch.signbit(coefficients[0]))
+    angles = SpectralHueSaturationValue(hue="polar")(cube=cube)["hue"][0, 0, 0].numpy()
+    expected = _reference_for_spectrum(np.array(spectrum), eps=1e-8)["polar"]
+    np.testing.assert_allclose(angles, expected, atol=1e-12)
+    assert abs(angles[0]) == pytest.approx(np.pi / 2, abs=1e-12)
+
+
+@pytest.mark.parametrize("zero", [0.0, -0.0])
+@pytest.mark.parametrize("y_value", [2.0, -4.0])
+def test_gradient_at_a_zero_coordinate_is_that_of_atan2(zero: float, y_value: float) -> None:
+    """d/dx atan2(y, x) = -y / (x^2 + y^2) and d/dy = x / (x^2 + y^2), at x = +-0."""
+    x = torch.tensor([zero], dtype=torch.float64, requires_grad=True)
+    y = torch.tensor([y_value], dtype=torch.float64, requires_grad=True)
+    angle = SpectralHueSaturationValue._safe_atan2(y, x)
+    angle.sum().backward()
+    assert angle.item() == pytest.approx(np.sign(y_value) * np.pi / 2, abs=1e-12)
+    assert x.grad.item() == pytest.approx(-1.0 / y_value, abs=1e-12)
+    assert y.grad.item() == pytest.approx(0.0, abs=1e-12)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("spectrum", _NEGATIVE_ZERO_SPECTRA)
+def test_dynamo_export_matches_eager_for_a_negative_zero_coordinate(
+    spectrum: list[float],
+) -> None:
+    pytest.importorskip("onnxscript")
+    ort = pytest.importorskip("onnxruntime")
+
+    node = SpectralHueSaturationValue(hue="polar", eps=1e-8).eval()
+    probe = _ExportProbe(node).eval()
+    cube = torch.tensor(spectrum, dtype=torch.float32).reshape(1, 1, 1, -1)
+    with torch.no_grad():
+        eager = node.forward(cube=cube)["hue"]
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "spectral_hue_negative_zero.onnx"
+        torch.onnx.export(probe, (cube,), str(path), dynamo=True, opset_version=18)
+        session = ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
+        got_hue, _, _ = session.run(None, {session.get_inputs()[0].name: cube.numpy()})
+    np.testing.assert_allclose(got_hue, eager.numpy(), atol=1e-5)
+
+
 # ---------------------------------------------------------------------------
 # 13. Pipeline save and reload.
 # ---------------------------------------------------------------------------
@@ -516,7 +563,7 @@ def test_dynamo_export_atan2_axis_case_matches_eager(
 @pytest.mark.parametrize("hue_mode", ["cartesian", "polar"])
 def test_pipeline_round_trips_through_yaml(tmp_path, hue_mode: str) -> None:
     pipe = CuvisPipeline("spectral_hue_reload")
-    src = _CubeSource(name="src")
+    src = SeededTensorSource(name="src", shape=[2, 3, 4, 7], seed=42)
     node = SpectralHueSaturationValue(name="hue_node", hue=hue_mode, eps=1e-8)
     pipe.connect(src.outputs.data, node.inputs.cube)
     before = pipe.forward(batch={}, stage=ExecutionStage.INFERENCE)[("hue_node", "hue")]
