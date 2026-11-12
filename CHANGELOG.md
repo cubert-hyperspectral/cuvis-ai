@@ -5,6 +5,7 @@
 - `PerPixelUnitNorm` takes `center` (default `True`, as before). With `center=False` each pixel spectrum is divided by its own L2 norm without subtracting its mean first, so a positive gain drops out and a constant offset stays in.
 - `Standardize` takes `axis="location"`: one mean and one standard deviation per pixel position and band, fitted over the frames of the training stream (`stats="fit"` only). The statistics are tied to one frame size, so the fit and `forward` refuse a frame of another shape.
 - New node `BandCrosstalkCorrector` (`cuvis_ai.node.pretreatments`): applies a learned square band-mixing matrix to every pixel spectrum, `cube` in and `cube` out. The matrix starts as the identity and trains after `unfreeze`. `normalize_trace=True` rescales the applied matrix so that its trace equals the band count, and `clip_negative` (on by default) clips the output at zero.
+- `DistinctnessLoss` averages the pairwise cosines over all C * (C - 1) / 2 pairs i < j, the formula in its docstring, instead of over the nonzero ones. A hard one-hot selection of different bands, which `ConcreteChannelMixer(use_hard_inference=True)` gives at VAL and TEST, has every cosine at 0, so the loss was NaN and with it the total `val_loss` of the Concrete band selector + AdaCLIP pipeline; it is 0 now. A pair with cosine 0 next to nonzero ones no longer drops out of the mean. The soft selection during training has no cosine at 0, so its loss and gradient are unchanged.
 
 ## 0.22.8 - 2026-11-10
 
