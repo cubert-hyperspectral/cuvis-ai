@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `PerPixelUnitNorm` takes `center` (default `True`, as before). With `center=False` each pixel spectrum is divided by its own L2 norm without subtracting its mean first, so a positive gain drops out and a constant offset stays in.
+- `Standardize` takes `axis="location"`: one mean and one standard deviation per pixel position and band, fitted over the frames of the training stream (`stats="fit"` only). The statistics are tied to one frame size, so the fit and `forward` refuse a frame of another shape.
+- New node `BandCrosstalkCorrector` (`cuvis_ai.node.pretreatments`): applies a learned square band-mixing matrix to every pixel spectrum, `cube` in and `cube` out. The matrix starts as the identity and trains after `unfreeze`. `normalize_trace=True` rescales the applied matrix so that its trace equals the band count, and `clip_negative` (on by default) clips the output at zero.
 - The Hydra configuration pages (`config-groups.md`, `hydra-basics.md`, `hydra-inheritance.md`, `hydra-sweeps.md`) and the trainrun example in `docs/workflows/monitoring.md` name the pipeline yaml by path (`pipeline: ../pipeline/<area>/<name>.yaml`) instead of composing it through a Hydra `@pipeline` default, which `TrainRunConfig` refuses. The examples that chose or swept the pipeline through Hydra (`pipeline=` sweeps, a `pipeline_name` variable, hierarchical pipeline groups, generated experiments) give way to a note: `pipeline=` on the command line is read as a config group override and refused, so each pipeline gets its own trainrun, and the sweeps page shows a base trainrun with one variant per pipeline. The pipeline override example on the config groups page and the `${pipeline.metadata.name}` references are gone, since `pipeline` is a path string.
 
 ## 0.22.8 - 2026-11-10
