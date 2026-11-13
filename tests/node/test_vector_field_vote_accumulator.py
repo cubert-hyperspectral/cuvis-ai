@@ -361,6 +361,75 @@ def test_export_smoke_matches_forward_with_weights_connected():
     torch.testing.assert_close(traced, expected)
 
 
+def _all_votes_on_the_first_pixel(side: int) -> torch.Tensor:
+    """A square field in which every pixel points at ``(0, 0)``."""
+    rows = torch.arange(side, dtype=torch.float32).view(1, side, 1).expand(1, side, side)
+    cols = torch.arange(side, dtype=torch.float32).view(1, 1, side).expand(1, side, side)
+    return torch.stack([-cols, -rows], dim=-1)
+
+
+def test_many_fractional_votes_on_one_target_sum_without_float32_drift():
+    """102400 votes of 0.1: a running float32 sum is off by about 1e-4 of the total."""
+    side = 320
+    weights = torch.full((1, side, side, 1), 0.1)
+    out = VectorFieldVoteAccumulator()(
+        vectors=_all_votes_on_the_first_pixel(side), weights=weights
+    )["scores"]
+    expected = side * side * float(torch.tensor(0.1, dtype=torch.float32))
+    assert out[0, 0, 0, 0].item() == pytest.approx(expected, rel=1e-6)
+    assert out.sum().item() == pytest.approx(expected, rel=1e-6)
+
+
+def test_large_weights_that_cancel_leave_the_small_ones():
+    """1e8 + 1022 ones - 1e8 on one target is 1022; in float32 the ones vanish beside 1e8."""
+    side = 32
+    weights = torch.ones(1, side * side)
+    weights[0, 0], weights[0, -1] = 1e8, -1e8
+    out = VectorFieldVoteAccumulator()(
+        vectors=_all_votes_on_the_first_pixel(side), weights=weights.view(1, side, side, 1)
+    )["scores"]
+    assert out[0, 0, 0, 0].item() == side * side - 2
+
+
+def test_gradient_of_concentrated_votes_is_one_per_weight():
+    side = 8
+    weights = torch.full((1, side, side, 1), 0.1, requires_grad=True)
+    out = VectorFieldVoteAccumulator()(
+        vectors=_all_votes_on_the_first_pixel(side), weights=weights
+    )["scores"]
+    assert out.dtype == torch.float32
+    out.sum().backward()
+    assert weights.grad.dtype == torch.float32
+    assert torch.equal(weights.grad, torch.ones_like(weights))
+
+
+@pytest.mark.slow
+def test_dynamo_export_matches_eager_for_concentrated_fractional_votes():
+    pytest.importorskip("onnxscript")
+    ort = pytest.importorskip("onnxruntime")
+
+    side = 320
+    vectors = _all_votes_on_the_first_pixel(side).contiguous()
+    weights = torch.full((1, side, side, 1), 0.1)
+    probe = _ExportProbeWithWeights(VectorFieldVoteAccumulator().eval()).eval()
+    with torch.no_grad():
+        eager = probe(vectors, weights)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "vote_accumulator_concentrated.onnx"
+        torch.onnx.export(probe, (vectors, weights), str(path), dynamo=True, opset_version=18)
+        session = ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
+        (got,) = session.run(
+            None,
+            {
+                session.get_inputs()[0].name: vectors.numpy(),
+                session.get_inputs()[1].name: weights.numpy(),
+            },
+        )
+    np.testing.assert_allclose(got, eager.numpy(), rtol=1e-6, atol=0.0)
+    assert float(got[0, 0, 0, 0]) == pytest.approx(side * side * 0.1, rel=1e-6)
+
+
 @pytest.mark.slow
 def test_dynamo_export_matches_onnx_runtime_collision_heavy_weighted_case():
     pytest.importorskip("onnxscript")

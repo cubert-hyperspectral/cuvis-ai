@@ -33,6 +33,12 @@ class VectorFieldVoteAccumulator(Node):
     computation (a dropped vote's index is clamped into range and its weight is zeroed),
     so no boolean-mask indexing and no data-dependent shape enters the graph.
 
+    The votes are summed in float64 and the map is cast back to float32. A running
+    float32 sum drifts when many fractional votes meet on one target (about ``1e-4`` of
+    the total for 100 000 votes of 0.1) and loses small weights beside large ones that
+    cancel; the wider sum keeps both exact to float32 rounding. A float32 score holds a
+    count of unit votes exactly up to ``2**24`` per target.
+
     The output has no gradient with respect to ``vectors`` (the rounding step has none),
     and a gradient with respect to ``weights`` that matches a plain weighted sum at each
     kept target.
@@ -139,9 +145,10 @@ class VectorFieldVoteAccumulator(Node):
         index = (safe_row.to(torch.int64) * w + safe_col.to(torch.int64)).reshape(b, h * w)
         scattered_weight = torch.where(valid, wgt, torch.zeros_like(wgt)).reshape(b, h * w)
 
-        flat_scores = torch.zeros(b, h * w, dtype=vectors.dtype, device=vectors.device)
-        flat_scores = flat_scores.scatter_add(1, index, scattered_weight)
-        return {"scores": flat_scores.reshape(b, h, w, 1)}
+        # Summed in float64, then cast back; the class docstring says why.
+        flat_scores = torch.zeros(b, h * w, dtype=torch.float64, device=vectors.device)
+        flat_scores = flat_scores.scatter_add(1, index, scattered_weight.to(torch.float64))
+        return {"scores": flat_scores.to(vectors.dtype).reshape(b, h, w, 1)}
 
 
 __all__ = ["VectorFieldVoteAccumulator"]
