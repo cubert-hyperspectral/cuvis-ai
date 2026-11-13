@@ -139,7 +139,12 @@ from cuvis_ai.node.pretreatments import (
 )
 from cuvis_ai.node.prompts import BBoxPrompt, MaskPrompt, PointPrompt, TextPrompt
 from cuvis_ai.node.segmentation import IntensityThresholdSegmenter
-from cuvis_ai.node.spatial import GridSubsample, ScoreMapSmoothing, ScoreUpsample
+from cuvis_ai.node.spatial import (
+    GridSubsample,
+    LocalMaximaSuppression,
+    ScoreMapSmoothing,
+    ScoreUpsample,
+)
 from cuvis_ai.node.spectral_angle_mapper import SpectralAngleMapper, SpectralObjectMask
 from cuvis_ai.node.spectral_extractor import (
     BBoxSpectralExtractor,
@@ -147,6 +152,7 @@ from cuvis_ai.node.spectral_extractor import (
     SignaturesToReferences,
     SpectralSignatureExtractor,
 )
+from cuvis_ai.node.spectral_hue import SpectralHueSaturationValue
 from cuvis_ai.node.spectrum_plot import SpectraPlot, SpectrumPlotNode
 from cuvis_ai.node.svm import OneClassSVMDetector
 from cuvis_ai.node.tiling import GridStitcher, ImageTiler
@@ -159,6 +165,7 @@ from cuvis_ai.node.video import (
     VideoFrameNode,
     VideoIterator,
 )
+from cuvis_ai.node.vote_accumulation import VectorFieldVoteAccumulator
 
 __all__ = [
     "MaskBlobFilter",
@@ -263,8 +270,11 @@ __all__ = [
     "FixedPCAProjection",
     "ExportedSpan",
     "GridSubsample",
+    "LocalMaximaSuppression",
     "ScoreMapSmoothing",
     "ScoreUpsample",
+    "SpectralHueSaturationValue",
+    "VectorFieldVoteAccumulator",
     "BinaryDecider",
     "DeepSVDDProjection",
     "LADGlobal",

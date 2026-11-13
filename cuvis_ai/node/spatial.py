@@ -6,7 +6,10 @@ a 1000 x 1080 cube it pays to score every ``s``-th pixel in both axes and interp
 grid's score map to the height and width of a reference tensor (bilinear by default).
 ``ScoreMapSmoothing`` convolves a score map with a Gaussian, the usual post-processing of
 patch-level anomaly detectors: isolated one-patch peaks drop, regions that several patches agree
-on keep their level. All three are stateless, torch-native and differentiable.
+on keep their level. ``LocalMaximaSuppression`` keeps the local maxima of a score map and zeroes
+everything else, a peak-picking step for a vote map, for example. All four are stateless and
+torch-native. The first three are differentiable; ``LocalMaximaSuppression`` passes the gradient
+to the values it keeps and none to the choice of which values those are.
 """
 
 from __future__ import annotations
@@ -174,4 +177,152 @@ class ScoreMapSmoothing(Node):
         return {"scores": x.reshape(b, c, h, w).permute(0, 2, 3, 1)}
 
 
-__all__ = ["GridSubsample", "ScoreMapSmoothing", "ScoreUpsample"]
+def _window_sizes(window: int | list[int]) -> tuple[int, int]:
+    """Validate and return ``(height, width)`` for the ``window`` constructor argument."""
+    if isinstance(window, (list, tuple)):
+        if len(window) != 2:
+            raise ValueError(
+                f"LocalMaximaSuppression: a list window must have 2 entries [height, width], "
+                f"got {window!r}."
+            )
+        sizes = (window[0], window[1])
+    else:
+        sizes = (window, window)
+    for size in sizes:
+        if isinstance(size, bool) or not isinstance(size, int) or size < 1 or size % 2 == 0:
+            raise ValueError(
+                f"LocalMaximaSuppression: window sizes must be odd positive integers, "
+                f"got {window!r}."
+            )
+    return sizes[0], sizes[1]
+
+
+def _block_max(x: Tensor, top: int, bottom: int, left: int, right: int) -> Tensor:
+    """Max over a rectangle placed relative to every pixel of ``x`` ``[N, 1, H, W]``.
+
+    The rectangle spans the row offsets ``-top..bottom`` and the column offsets
+    ``-left..right``. A negative extent moves that edge to the other side of the pixel:
+    ``bottom=-1`` ends the rectangle one row above it, ``right=-1`` one column to its left.
+    Cells past the image border count as ``-inf``, so they never win. An empty rectangle
+    (for example ``top=0, bottom=-1``) gives ``-inf`` for every pixel.
+    """
+    kh, kw = top + bottom + 1, left + right + 1
+    if kh < 1 or kw < 1:
+        return torch.full_like(x, float("-inf"))
+    padded = F.pad(x, (left, right, top, bottom), value=float("-inf"))
+    return F.max_pool2d(padded, kernel_size=(kh, kw), stride=1)
+
+
+class LocalMaximaSuppression(Node):
+    """Keep the local maxima of a score map ``[B, H, W, C]`` and zero everything else.
+
+    A value stays when it equals the maximum of the ``window`` centred on it; every other
+    value becomes zero (including a suppressed negative value: zero is only the fill, not a
+    floor on what a surviving value can be). The window is treated as filled with minus
+    infinity past the image border, so the border neither creates nor hides a maximum.
+    A NaN or minus-infinity score is never a maximum and becomes zero: it neither wins nor
+    hides a neighbour, both plateau modes agree on it, and the result does not depend on
+    how a backend's max pooling treats NaN.
+
+    With ``keep_plateaus=False``, of several equal maxima inside one window only the first
+    in row-major order (top row first, then left to right) stays: a value also needs to be
+    strictly greater than the maximum of the window cells that come before it in that order.
+    Those earlier cells form two rectangles relative to the pixel: every row above it across
+    the full window width, and the cells to its left in its own row; no pool over the later
+    cells is needed, since a later cell's own earlier-cells test already covers the tie
+    against this one. With ``keep_plateaus=True`` every tied maximum stays.
+
+    This tie rule is local, not global: of several equal maxima, one survives only if no
+    equal value comes before it inside its own window. A plateau that fits inside one window
+    radius collapses to its single first point; a long, bent or branching plateau can leave
+    several surviving points, because a later point's window may not reach back far enough to
+    see an earlier tied value. The node makes no stronger guarantee than that.
+
+    This differs from :class:`cuvis_ai.node.mask_ops.ScoreMapSuppression`, which lowers
+    scores inside a given mask; this node has no mask input and decides purely from the
+    score map's own local structure.
+
+    The suppression decision is a comparison of pooled values: a kept value passes its
+    gradient through unchanged, a suppressed one gets none, and the choice between the two
+    has no gradient. The node is a peak-picking postprocessing step, not a layer to train
+    through.
+
+    Parameters
+    ----------
+    window : int or list[int], optional
+        Window size (default ``3``): either one odd positive integer for a square window,
+        or ``[height, width]`` with both entries odd and positive.
+    keep_plateaus : bool, optional
+        Keep every tied maximum of a plateau instead of only the first in row-major order
+        (default ``False``).
+
+    References
+    ----------
+    The node is the suppression step of the CentroidNetV2 decoder, which keeps the local
+    maxima of the vote map and reduces a plateau of equal maxima to a single point before
+    the vote threshold of Eq. 12 is applied.
+
+    K. Dijkstra, J. van de Loosdrecht, W. A. Atsma, L. R. B. Schomaker, M. A. Wiering.
+    "CentroidNetV2: A hybrid deep neural network for small-object segmentation and
+    counting." Neurocomputing 423 (2021), pages 490 to 505, Section 3.3.1.
+    https://doi.org/10.1016/j.neucom.2020.10.075
+    """
+
+    _category = NodeCategory.TRANSFORM
+    _tags = frozenset({NodeTag.ONNX, NodeTag.POSTPROCESSING, NodeTag.TORCH})
+
+    INPUT_SPECS = {
+        "scores": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, -1),
+            description="Score map [B, H, W, C], e.g. a vote map.",
+        ),
+    }
+    OUTPUT_SPECS = {
+        "scores": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, -1),
+            description="Same shape: the local maxima of `scores` kept at their value, "
+            "everything else set to 0.",
+        ),
+    }
+
+    def __init__(
+        self, window: int | list[int] = 3, keep_plateaus: bool = False, **kwargs: Any
+    ) -> None:
+        self.window_height, self.window_width = _window_sizes(window)
+        self.window = window if isinstance(window, int) else list(window)
+        if not isinstance(keep_plateaus, bool):
+            raise ValueError(
+                f"LocalMaximaSuppression: keep_plateaus must be a bool, got {keep_plateaus!r}."
+            )
+        self.keep_plateaus = keep_plateaus
+        super().__init__(window=self.window, keep_plateaus=self.keep_plateaus, **kwargs)
+
+    def forward(self, scores: Tensor, **_: Any) -> dict[str, Tensor]:
+        """Return ``scores`` with every non-local-maximum value set to 0; see the class
+        docstring for the tie rule."""
+        b, h, w, c = scores.shape
+        rh, rw = self.window_height // 2, self.window_width // 2
+        x = scores.permute(0, 3, 1, 2).reshape(b * c, 1, h, w)
+
+        is_nan = torch.isnan(x)
+        ranked = torch.where(is_nan, torch.full_like(x, float("-inf")), x)
+        full_max = _block_max(ranked, rh, rh, rw, rw)
+        is_max = (ranked >= full_max) & (ranked > float("-inf"))
+
+        if self.keep_plateaus:
+            kept = torch.where(is_max, x, torch.zeros_like(x))
+            return {"scores": kept.reshape(b, c, h, w).permute(0, 2, 3, 1)}
+
+        # Earlier cells: all rows above (full window width) union the same row's left cells.
+        above_max = _block_max(ranked, rh, -1, rw, rw)
+        left_max = _block_max(ranked, 0, 0, rw, -1)
+        earlier_max = torch.maximum(above_max, left_max)
+        is_first = ranked > earlier_max
+
+        kept = torch.where(is_max & is_first, x, torch.zeros_like(x))
+        return {"scores": kept.reshape(b, c, h, w).permute(0, 2, 3, 1)}
+
+
+__all__ = ["GridSubsample", "LocalMaximaSuppression", "ScoreMapSmoothing", "ScoreUpsample"]
