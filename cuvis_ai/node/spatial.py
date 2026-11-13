@@ -255,6 +255,17 @@ class LocalMaximaSuppression(Node):
     keep_plateaus : bool, optional
         Keep every tied maximum of a plateau instead of only the first in row-major order
         (default ``False``).
+
+    References
+    ----------
+    The node is the suppression step of the CentroidNetV2 decoder, which keeps the local
+    maxima of the vote map and reduces a plateau of equal maxima to a single point before
+    the vote threshold of Eq. 12 is applied.
+
+    K. Dijkstra, J. van de Loosdrecht, W. A. Atsma, L. R. B. Schomaker, M. A. Wiering.
+    "CentroidNetV2: A hybrid deep neural network for small-object segmentation and
+    counting." Neurocomputing 423 (2021), pages 490 to 505, Section 3.3.1.
+    https://doi.org/10.1016/j.neucom.2020.10.075
     """
 
     _category = NodeCategory.TRANSFORM
