@@ -49,6 +49,21 @@ class VectorFieldVoteAccumulator(Node):
         How the two channels of ``vectors`` map to column and row offsets (default
         ``"xy"``): ``"xy"`` reads channel 0 as the column offset ``dx`` and channel 1 as
         the row offset ``dy``; ``"yx"`` reverses that.
+
+    References
+    ----------
+    The node is the voting step of CentroidNet: every pixel votes for the object centre
+    its predicted vector points to. Votes are accumulated at full resolution, as in
+    CentroidNetV2 (the first paper bins them by four pixels).
+
+    K. Dijkstra, J. van de Loosdrecht, L. R. B. Schomaker, M. A. Wiering. "CentroidNet: A
+    deep neural network for joint object localization and counting." ECML PKDD 2018,
+    Algorithm 1. https://doi.org/10.1007/978-3-030-10997-4_36
+
+    K. Dijkstra, J. van de Loosdrecht, W. A. Atsma, L. R. B. Schomaker, M. A. Wiering.
+    "CentroidNetV2: A hybrid deep neural network for small-object segmentation and
+    counting." Neurocomputing 423 (2021), pages 490 to 505, Section 3.3.1, Algorithm 1.
+    https://doi.org/10.1016/j.neucom.2020.10.075
     """
 
     _category = NodeCategory.TRANSFORM
