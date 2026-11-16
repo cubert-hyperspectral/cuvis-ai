@@ -15,7 +15,6 @@ from cuvis_ai.utils.welford import WelfordAccumulator
 from cuvis_ai_core.node import Node
 
 ## This node is not approved
-# missing tests against standard implementations
 # missing tutorial examples and approved documentation
 
 
@@ -159,6 +158,17 @@ class TrainablePCA(PCA):
 
     TRAINABLE_BUFFERS = ("_components",)
 
+    OUTPUT_SPECS = {
+        **PCA.OUTPUT_SPECS,
+        "reconstructed": PortSpec(
+            dtype=torch.float32,
+            shape=(-1, -1, -1, -1),
+            description="Cube rebuilt from the retained components: the mean plus the "
+            "unwhitened scores times the components [B, H, W, C]",
+            optional=True,
+        ),
+    }
+
     def __init__(
         self,
         num_channels: int,
@@ -215,7 +225,12 @@ class TrainablePCA(PCA):
         self._statistically_initialized = True
 
     def forward(self, data: Tensor, **_: Any) -> dict[str, Tensor]:
-        """Project data onto statistically initialized global components."""
+        """Project data onto the fitted global components.
+
+        ``reconstructed`` is the cube rebuilt from the retained components, the mean plus the
+        unwhitened scores times the components; the squared difference to ``data`` is the
+        residual a subspace detector scores.
+        """
         if not self._statistically_initialized:
             raise RuntimeError("PCA not initialized. Call statistical_initialization() first.")
 
@@ -225,8 +240,11 @@ class TrainablePCA(PCA):
         batch_size, height, width, channels = data.shape
         flat = data.reshape(-1, channels)
 
-        projected = self._project(flat, self._mean, self._components)
+        scores = self._project(flat, self._mean, self._components)
+        # Rebuilt from the unwhitened scores, so the output is the same with and without whiten.
+        reconstructed = scores @ self._components + self._mean
 
+        projected = scores
         if self.whiten:
             explained_variance = self._explained_variance.to(
                 device=data.device, dtype=projected.dtype
@@ -236,6 +254,7 @@ class TrainablePCA(PCA):
 
         outputs = {
             "projected": projected.reshape(batch_size, height, width, self.n_components),
+            "reconstructed": reconstructed.reshape(batch_size, height, width, channels),
         }
 
         if self._explained_variance.numel() > 0:

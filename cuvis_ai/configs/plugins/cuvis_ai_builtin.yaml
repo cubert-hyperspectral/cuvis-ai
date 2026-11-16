@@ -1484,6 +1484,11 @@ capabilities:
       shape: [-1, -1]
       optional: true
       description: Principal components matrix
+    reconstructed:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: true
+      description: 'Cube rebuilt from the retained components: the mean plus the unwhitened scores times the components [B, H, W, C]'
   doc_summary: Trainable PCA node with orthogonality regularization.
 - class_name: cuvis_ai.node.fusion.ScoreMapFusion
   category: transform
