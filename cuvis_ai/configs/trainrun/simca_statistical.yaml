@@ -1,0 +1,22 @@
+# @package _global_
+
+
+defaults:
+- /data@data: lentils
+- _self_
+
+
+name: simca_statistical
+
+# Pipeline reference, resolved relative to this trainrun's directory.
+pipeline: ../pipeline/anomaly/simca/simca_statistical.yaml
+
+# Statistical only (no training block). The fit runs in graph order on the train split, which
+# must hold normal frames only: the normalizer, the PCA, the score statistics of
+# SubspaceDistances, then the limits of SIMCADecision.
+output_dir: outputs/simca_statistical
+unfreeze_nodes: []
+freeze_nodes: []
+metric_nodes:
+- metrics_anomaly
+loss_nodes: []

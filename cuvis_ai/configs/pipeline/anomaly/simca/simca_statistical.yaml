@@ -1,0 +1,89 @@
+metadata:
+  name: SIMCA_Statistical
+  description: 'SIMCA anomaly detection on spectra: PCA model of normal, score and
+    orthogonal distance, DD-SIMCA decision (statistical training)'
+  created: ''
+  tags:
+  - statistical
+  - simca
+  - anomaly
+  author: cuvis.ai
+  cuvis_ai_version: 0.14.4
+plugins:
+- cuvis_ai_builtin
+nodes:
+- name: AnomalyDataNode
+  class_name: cuvis_ai.node.data.AnomalyDataNode
+  hparams:
+    normal_class_ids:
+    - 0
+    - 1
+    anomaly_class_ids: null
+- name: MinMaxNormalizer
+  class_name: cuvis_ai.node.normalization.MinMaxNormalizer
+  hparams:
+    eps: 1.0e-06
+    use_running_stats: true
+    max_initialization_frames: null
+- name: metrics_anomaly
+  class_name: cuvis_ai.node.metrics.AnomalyDetectionMetrics
+  hparams:
+    ap_thresholds: 200
+    pixel_stride: 1
+- name: mask
+  class_name: cuvis_ai.node.anomaly_visualization.AnomalyMask
+  hparams:
+    channel: 30
+    up_to: 5
+- name: TrainablePCA
+  class_name: cuvis_ai.node.dimensionality_reduction.TrainablePCA
+  hparams:
+    num_channels: 61
+    n_components: 10
+    whiten: false
+    init_method: svd
+    eps: 1.0e-06
+- name: SubspaceDistances
+  class_name: cuvis_ai.node.anomaly.subspace_distances.SubspaceDistances
+  hparams:
+    n_components: 10
+- name: SIMCADecision
+  class_name: cuvis_ai.node.deciders.simca_decision.SIMCADecision
+  hparams:
+    alpha: 0.01
+- name: TensorBoardMonitorNode
+  class_name: cuvis_ai.node.monitor.TensorBoardMonitorNode
+  hparams:
+    output_dir: outputs/simca_statistical/../tensorboard
+    run_name: SIMCA_Statistical
+    comment: ''
+    flush_secs: 120
+connections:
+- source: AnomalyDataNode.outputs.cube
+  target: MinMaxNormalizer.inputs.data
+- source: AnomalyDataNode.outputs.mask
+  target: metrics_anomaly.inputs.targets
+- source: AnomalyDataNode.outputs.mask
+  target: mask.inputs.mask
+- source: AnomalyDataNode.outputs.cube
+  target: mask.inputs.cube
+- source: MinMaxNormalizer.outputs.normalized
+  target: TrainablePCA.inputs.data
+- source: MinMaxNormalizer.outputs.normalized
+  target: SubspaceDistances.inputs.data
+- source: metrics_anomaly.outputs.metrics
+  target: TensorBoardMonitorNode.inputs.metrics
+- source: mask.outputs.artifacts
+  target: TensorBoardMonitorNode.inputs.artifacts
+- source: TrainablePCA.outputs.projected
+  target: SubspaceDistances.inputs.projected
+- source: TrainablePCA.outputs.reconstructed
+  target: SubspaceDistances.inputs.reconstructed
+- source: SubspaceDistances.outputs.score_distance
+  target: SIMCADecision.inputs.score_distance
+- source: SubspaceDistances.outputs.orthogonal_distance
+  target: SIMCADecision.inputs.orthogonal_distance
+- source: SIMCADecision.outputs.decisions
+  target: metrics_anomaly.inputs.decisions
+- source: SIMCADecision.outputs.decisions
+  target: mask.inputs.decisions
