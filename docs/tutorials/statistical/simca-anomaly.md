@@ -108,6 +108,7 @@ supply either one.
 
 - Fit on normal data only. Every node in the chain learns what normal looks like, so foreign material in the train split widens the limits, and nothing warns about it.
 - Check the limit on normal frames the fit has not seen. The chi-square limit assumes that the two distances are independent and follow the fitted shape. Count the share of flagged pixels on those frames and compare it with `alpha`; if the two disagree, use a fixed limit from the same frames.
+- Keep `n_components` small. Every component the PCA keeps is taken out of the residual, so with too many of them the orthogonal distance has nothing left to show; on the lentils demo recording it separates stones with 3 components and no longer does with 10. Choose the number on normal frames the fit has not seen.
 - Keep `n_components` below the rank of the data. The fit rejects a component without variance, because neither distance would see a deviation along it.
 - For ranking metrics, read `combined_distance` directly. The `logits` input of `AnomalyDetectionMetrics` passes its values through a sigmoid, which saturates on a distance, so do not connect the two.
 

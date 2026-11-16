@@ -2,7 +2,7 @@
 
 
 defaults:
-- /data@data: lentils
+- /data@data: lentils_normals
 - _self_
 
 
@@ -11,9 +11,10 @@ name: simca_statistical
 # Pipeline reference, resolved relative to this trainrun's directory.
 pipeline: ../pipeline/anomaly/simca/simca_statistical.yaml
 
-# Statistical only (no training block). The fit runs in graph order on the train split, which
-# must hold normal frames only: the normalizer, the PCA, the score statistics of
-# SubspaceDistances, then the limits of SIMCADecision.
+# Statistical only (no training block). The fit runs in graph order on the train split: the
+# normalizer, the PCA, the score statistics of SubspaceDistances, then the limits of
+# SIMCADecision. The train split must hold normal frames only, which is why this trainrun uses
+# the lentils_normals data config and not lentils.
 output_dir: outputs/simca_statistical
 unfreeze_nodes: []
 freeze_nodes: []

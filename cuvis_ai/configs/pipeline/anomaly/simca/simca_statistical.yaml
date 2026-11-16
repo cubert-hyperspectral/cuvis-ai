@@ -18,6 +18,7 @@ nodes:
     normal_class_ids:
     - 0
     - 1
+    - 4
     anomaly_class_ids: null
 - name: MinMaxNormalizer
   class_name: cuvis_ai.node.normalization.MinMaxNormalizer
@@ -39,14 +40,14 @@ nodes:
   class_name: cuvis_ai.node.dimensionality_reduction.TrainablePCA
   hparams:
     num_channels: 61
-    n_components: 10
+    n_components: 3
     whiten: false
     init_method: svd
     eps: 1.0e-06
 - name: SubspaceDistances
   class_name: cuvis_ai.node.anomaly.subspace_distances.SubspaceDistances
   hparams:
-    n_components: 10
+    n_components: 3
 - name: SIMCADecision
   class_name: cuvis_ai.node.deciders.simca_decision.SIMCADecision
   hparams:

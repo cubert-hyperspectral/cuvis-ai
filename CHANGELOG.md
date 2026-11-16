@@ -9,7 +9,8 @@
 - New node `SIMCADecision` (`cuvis_ai.node.deciders`): the DD-SIMCA decision. It models each of two distances as a scaled chi-square (method of moments, degrees of freedom rounded and kept within 1 to 250), returns `combined_distance` (`f = N_h h / h0 + N_q q / q0`, larger is more anomalous) and `decisions` at `alpha`. The limit is derived from `alpha` whenever weights are loaded, so `alpha` in a saved pipeline can change without a new fit.
 - `TrainablePCA` has a new optional output `reconstructed` `[B, H, W, C]`: the mean plus the unwhitened scores times the components. The existing outputs are unchanged, and `FixedPCAProjection` still exposes `projected` only. The node is now tested against sklearn PCA.
 - `TrainablePCA` fits on CUDA over more than one batch. Its accumulator was created on the CPU, so the second CUDA batch failed with a device mismatch.
-- New pipeline `anomaly/simca/simca_statistical.yaml` with the trainrun `simca_statistical.yaml`, and a tutorial page, SIMCA Anomaly Detection.
+- New pipeline `anomaly/simca/simca_statistical.yaml` with the trainrun `simca_statistical.yaml`, and a tutorial page, SIMCA Anomaly Detection. The trainrun uses the new data config `lentils_normals`, which trains on the three frames of the lentils demo recording that hold no foreign object; the shared `lentils` config trains on frames with stones.
+- `WelfordAccumulator` takes `dtype` (default `torch.float32`, as before) for the tensors its getters return. With `dtype=torch.float64` the mean, variance and covariance come back without the rounding to float32, which matters before a covariance is inverted.
 
 ## 0.22.8 - 2026-11-10
 
