@@ -121,6 +121,9 @@ def _minimal_constructor_kwargs(node_cls: type[Node]) -> dict[str, object]:
         kwargs["init_method"] = "variance"
     if class_name == "MinMaxNormalizer":
         kwargs["use_running_stats"] = True
+    if class_name == "SubspaceDistances":
+        # Its scores input takes the registry's synthetic 5-wide rank-4 tensor.
+        kwargs["n_components"] = 5
 
     return kwargs
 
