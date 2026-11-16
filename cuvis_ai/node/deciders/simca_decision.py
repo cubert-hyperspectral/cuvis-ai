@@ -134,14 +134,14 @@ class SIMCADecision(Node):
             pair = torch.stack((score.reshape(-1), orthogonal.reshape(-1)), dim=1)
             if accumulator is None:
                 # On the stream's device: the accumulator merges each batch into its own buffers.
-                accumulator = WelfordAccumulator(2).to(pair.device)
+                accumulator = WelfordAccumulator(2, dtype=torch.float64).to(pair.device)
             accumulator.update(pair)
 
         if accumulator is None or accumulator.count < 2:
             raise ValueError("SIMCADecision received no pixels to fit on (it needs at least two).")
 
-        mean = accumulator.mean.to(torch.float64)
-        variance = accumulator.var.to(torch.float64)
+        mean = accumulator.mean
+        variance = accumulator.var
         if not (torch.isfinite(mean).all() and torch.isfinite(variance).all()):
             raise ValueError(
                 "SIMCADecision found non-finite distances in the fit data; check the upstream "
@@ -169,11 +169,15 @@ class SIMCADecision(Node):
         self._statistically_initialized = True
 
     def _refresh_threshold(self) -> None:
-        """Set the limit to the ``1 - alpha`` quantile of ``chi2(N_h + N_q)``."""
+        """Set the limit to the ``1 - alpha`` quantile of ``chi2(N_h + N_q)``.
+
+        The quantile is read from the upper tail (``isf``): ``1 - alpha`` rounds to 1 for a
+        very small ``alpha``, which would put the limit at infinity.
+        """
         from scipy.stats import chi2
 
         dof = float(self.n_h) + float(self.n_q)
-        self.threshold.fill_(float(chi2.ppf(1.0 - self.alpha, dof)))
+        self.threshold.fill_(float(chi2.isf(self.alpha, dof)))
 
     def load_state_dict(
         self, state_dict: Mapping[str, Any], strict: bool = True, assign: bool = False

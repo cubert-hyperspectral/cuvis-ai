@@ -32,11 +32,14 @@ class SubspaceDistances(Node):
     can feed it. The statistical fit learns the mean and the covariance of the scores and must
     see normal data only.
 
-    The covariance is inverted through the correlation matrix: the scores are scaled by their
-    own standard deviation, the correlation matrix is inverted, and the scale is applied back.
-    The score distance therefore does not change when the scores are rescaled per component
-    (a whitened PCA gives the same value), however far apart the component variances lie. A
-    score component without any variance on the fit data is an error: leaving it out would
+    The fit keeps its statistics in float64 and turns the covariance into a whitening matrix
+    ``W`` with ``W^T W = S^-1``, through the eigen-decomposition of the correlation matrix; the
+    score distance is the squared length of ``W (t - m)``. Working on the correlation matrix
+    makes the result independent of the scale of each component (a whitened PCA gives the same
+    value), however far apart the component variances lie, and the whitening form keeps the
+    distance non-negative in float32. Components that are exactly collinear on the fit data
+    span fewer directions than there are components; the direction they do not span is left
+    out. A component without any variance on the fit data is an error: leaving it out would
     create a direction that neither distance sees.
 
     Parameters
@@ -97,10 +100,10 @@ class SubspaceDistances(Node):
         super().__init__(n_components=self.n_components, **kwargs)
 
         self.register_buffer("score_mean", torch.zeros(self.n_components, dtype=torch.float32))
-        self.register_buffer("score_precision", torch.eye(self.n_components, dtype=torch.float32))
+        self.register_buffer("score_whitening", torch.eye(self.n_components, dtype=torch.float32))
 
     def statistical_initialization(self, input_stream: InputStream) -> None:
-        """Learn the mean and the inverse covariance of the scores from normal data.
+        """Learn the mean and the whitening matrix of the scores from normal data.
 
         Parameters
         ----------
@@ -126,10 +129,12 @@ class SubspaceDistances(Node):
                 )
             flat = scores.reshape(-1, self.n_components)
             if accumulator is None:
-                # On the stream's device: the accumulator merges each batch into its own buffers.
-                accumulator = WelfordAccumulator(self.n_components, track_covariance=True).to(
-                    flat.device
-                )
+                # On the stream's device: the accumulator merges each batch into its own
+                # buffers. float64 getters: a covariance rounded to float32 can stop being
+                # positive definite when score components are strongly correlated.
+                accumulator = WelfordAccumulator(
+                    self.n_components, track_covariance=True, dtype=torch.float64
+                ).to(flat.device)
             accumulator.update(flat)
 
         if accumulator is None or accumulator.count < 2:
@@ -137,8 +142,8 @@ class SubspaceDistances(Node):
                 "SubspaceDistances received no pixels to fit on (it needs at least two)."
             )
 
-        mean = accumulator.mean.to(torch.float64)
-        covariance = accumulator.cov.to(torch.float64)
+        mean = accumulator.mean
+        covariance = accumulator.cov
         if not (torch.isfinite(mean).all() and torch.isfinite(covariance).all()):
             raise ValueError(
                 "SubspaceDistances found non-finite scores in the fit data; check the cube and "
@@ -154,14 +159,24 @@ class SubspaceDistances(Node):
                 "SubspaceDistances."
             )
 
-        # Rank decisions are taken on the correlation matrix, which does not depend on the
-        # scale of a component, so a whitened and an unwhitened reduction give the same T2.
+        # Decompose the correlation matrix, which does not depend on the scale of a component,
+        # so a whitened and an unwhitened reduction give the same T2.
         inverse_std = variance.rsqrt()
-        scale = torch.outer(inverse_std, inverse_std)
-        precision = torch.linalg.pinv(covariance * scale, hermitian=True) * scale
+        correlation = covariance * torch.outer(inverse_std, inverse_std)
+        eigenvalues, eigenvectors = torch.linalg.eigh(correlation)
+        # A direction the fit data does not span (exactly collinear components) has an
+        # eigenvalue at round-off level, possibly below zero. It is left out, never inverted.
+        tolerance = eigenvalues.max() * self.n_components * torch.finfo(eigenvalues.dtype).eps
+        inverse_sqrt = torch.where(
+            eigenvalues > tolerance,
+            eigenvalues.clamp_min(tolerance).rsqrt(),
+            torch.zeros_like(eigenvalues),
+        )
+        # Row i of the whitening matrix is eigenvector i, scaled to unit variance.
+        whitening = (eigenvectors * inverse_sqrt).T * inverse_std
 
         self.score_mean.copy_(mean.to(self.score_mean.dtype))
-        self.score_precision.copy_(precision.to(self.score_precision.dtype))
+        self.score_whitening.copy_(whitening.to(self.score_whitening.dtype))
         self._statistically_initialized = True
 
     def forward(
@@ -189,15 +204,12 @@ class SubspaceDistances(Node):
                 "data first."
             )
 
-        centred = projected - self.score_mean
-        score_distance = torch.einsum("bhwk,kl,bhwl->bhw", centred, self.score_precision, centred)
+        whitened = torch.einsum("bhwk,lk->bhwl", projected - self.score_mean, self.score_whitening)
         residual = data - reconstructed
-        orthogonal_distance = (residual * residual).sum(dim=-1)
 
         return {
-            # The quadratic form is non-negative; the clamp removes float32 round-off below zero.
-            "score_distance": score_distance.clamp_min(0.0).unsqueeze(-1),
-            "orthogonal_distance": orthogonal_distance.unsqueeze(-1),
+            "score_distance": (whitened * whitened).sum(dim=-1, keepdim=True),
+            "orthogonal_distance": (residual * residual).sum(dim=-1, keepdim=True),
         }
 
 

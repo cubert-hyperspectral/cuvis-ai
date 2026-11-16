@@ -221,3 +221,16 @@ def test_fits_over_two_cuda_batches() -> None:
     out = node.forward(**batches[0])
     assert out["decisions"].device.type == "cuda"
     assert node.threshold.device.type == "cuda"
+
+
+def test_a_very_small_alpha_keeps_a_finite_limit() -> None:
+    """``1 - alpha`` rounds to 1 for an alpha below 1e-16, so the limit has to come from the
+    upper tail directly."""
+    h = _scaled_chi_square(21, 3000, mean=3.0, dof=4)
+    q = _scaled_chi_square(22, 3000, mean=0.5, dof=7)
+    node = _fitted(h, q, alpha=1e-20)
+
+    assert torch.isfinite(node.threshold)
+    assert float(node.threshold) > ref.limit(1e-6, float(node.n_h), float(node.n_q))
+    far = torch.full((1, 1, 1, 1), 1e6)
+    assert node.forward(**_batch(far, far))["decisions"].all()

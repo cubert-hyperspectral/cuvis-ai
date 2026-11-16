@@ -10,30 +10,12 @@ import torch
 from sklearn.decomposition import PCA as SklearnPCA
 
 from cuvis_ai.node.dimensionality_reduction import PCA, TrainablePCA
+from tests.fixtures.simca_reference import low_rank_cubes, pixels_of
 
 pytestmark = pytest.mark.unit
 
 N_CHANNELS = 6
 N_COMPONENTS = 3
-
-
-def _correlated_cubes(seed: int = 0, n_batches: int = 3) -> list[torch.Tensor]:
-    """Seeded float32 cubes [2, 6, 5, C] with a well separated spectrum and a non-zero mean."""
-    rng = np.random.default_rng(seed)
-    basis = np.linalg.qr(rng.normal(size=(N_CHANNELS, N_CHANNELS)))[0]
-    scales = np.array([9.0, 4.0, 2.0, 0.3, 0.2, 0.1])
-    mean = rng.normal(size=N_CHANNELS) * 2.0
-    cubes = []
-    for _ in range(n_batches):
-        latent = rng.normal(size=(2 * 6 * 5, N_CHANNELS)) * scales
-        cube = (latent @ basis.T + mean).reshape(2, 6, 5, N_CHANNELS)
-        cubes.append(torch.from_numpy(cube.astype(np.float32)))
-    return cubes
-
-
-def _pixels(cubes: list[torch.Tensor]) -> np.ndarray:
-    """All pixels of the cubes as one float64 [N, C] matrix, the form sklearn fits on."""
-    return np.concatenate([c.numpy().reshape(-1, c.shape[-1]) for c in cubes]).astype(np.float64)
 
 
 def _fitted_pca(cubes: list[torch.Tensor], whiten: bool = False) -> TrainablePCA:
@@ -159,9 +141,9 @@ def test_trainable_pca_initializes_and_projects_with_shared_helpers(
 
 
 def test_trainable_pca_matches_sklearn_pca() -> None:
-    cubes = _correlated_cubes()
+    cubes = low_rank_cubes()
     node = _fitted_pca(cubes)
-    reference = SklearnPCA(n_components=N_COMPONENTS, svd_solver="full").fit(_pixels(cubes))
+    reference = SklearnPCA(n_components=N_COMPONENTS, svd_solver="full").fit(pixels_of(cubes))
 
     components = node._components.numpy()
     signs = _signs(components, reference.components_)
@@ -171,7 +153,7 @@ def test_trainable_pca_matches_sklearn_pca() -> None:
 
     outputs = node.forward(cubes[0])
     projected = outputs["projected"].numpy().reshape(-1, N_COMPONENTS) * signs
-    assert np.allclose(projected, reference.transform(_pixels(cubes[:1])), rtol=1e-4, atol=1e-3)
+    assert np.allclose(projected, reference.transform(pixels_of(cubes[:1])), rtol=1e-4, atol=1e-3)
     # The node's ratio is taken over the retained components and sums to 1; sklearn's
     # explained_variance_ratio_ divides by the total variance of all channels instead.
     retained = reference.explained_variance_ / reference.explained_variance_.sum()
@@ -179,25 +161,25 @@ def test_trainable_pca_matches_sklearn_pca() -> None:
 
 
 def test_trainable_pca_whitened_projection_matches_sklearn() -> None:
-    cubes = _correlated_cubes(seed=1)
+    cubes = low_rank_cubes(seed=1)
     node = _fitted_pca(cubes, whiten=True)
     reference = SklearnPCA(n_components=N_COMPONENTS, svd_solver="full", whiten=True).fit(
-        _pixels(cubes)
+        pixels_of(cubes)
     )
 
     signs = _signs(node._components.numpy(), reference.components_)
     projected = node.forward(cubes[0])["projected"].numpy().reshape(-1, N_COMPONENTS) * signs
-    assert np.allclose(projected, reference.transform(_pixels(cubes[:1])), rtol=1e-4, atol=1e-3)
+    assert np.allclose(projected, reference.transform(pixels_of(cubes[:1])), rtol=1e-4, atol=1e-3)
 
 
 @pytest.mark.parametrize("whiten", [False, True])
 def test_trainable_pca_reconstructed_matches_sklearn_inverse_transform(whiten: bool) -> None:
-    cubes = _correlated_cubes(seed=2)
+    cubes = low_rank_cubes(seed=2)
     node = _fitted_pca(cubes, whiten=whiten)
-    reference = SklearnPCA(n_components=N_COMPONENTS, svd_solver="full").fit(_pixels(cubes))
+    reference = SklearnPCA(n_components=N_COMPONENTS, svd_solver="full").fit(pixels_of(cubes))
 
     reconstructed = node.forward(cubes[0])["reconstructed"]
-    pixels = _pixels(cubes[:1])
+    pixels = pixels_of(cubes[:1])
     expected = reference.inverse_transform(reference.transform(pixels)).reshape(cubes[0].shape)
 
     assert reconstructed.shape == cubes[0].shape
@@ -216,7 +198,7 @@ def test_trainable_pca_reconstructed_is_an_optional_output_port() -> None:
 @pytest.mark.parametrize("whiten", [False, True])
 def test_trainable_pca_existing_outputs_keep_their_formula(whiten: bool) -> None:
     """Adding ``reconstructed`` leaves the three existing outputs as they were."""
-    cubes = _correlated_cubes(seed=3)
+    cubes = low_rank_cubes(seed=3)
     node = _fitted_pca(cubes, whiten=whiten)
     cube = cubes[1]
     outputs = node.forward(cube)
@@ -232,24 +214,39 @@ def test_trainable_pca_existing_outputs_keep_their_formula(whiten: bool) -> None
 
 
 def test_pca_per_frame_matches_sklearn_on_one_frame() -> None:
-    frame = _correlated_cubes(seed=4, n_batches=1)[0][:1]
+    frame = low_rank_cubes(seed=4, n_batches=1)[0][:1]
     node = PCA(n_components=N_COMPONENTS)
-    reference = SklearnPCA(n_components=N_COMPONENTS, svd_solver="full").fit(_pixels([frame]))
+    reference = SklearnPCA(n_components=N_COMPONENTS, svd_solver="full").fit(pixels_of([frame]))
 
     outputs = node.forward(frame)
     signs = _signs(outputs["components"].numpy(), reference.components_)
     projected = outputs["projected"].numpy().reshape(-1, N_COMPONENTS) * signs
-    assert np.allclose(projected, reference.transform(_pixels([frame])), rtol=1e-4, atol=1e-3)
+    assert np.allclose(projected, reference.transform(pixels_of([frame])), rtol=1e-4, atol=1e-3)
 
 
 @pytest.mark.gpu
 def test_trainable_pca_fits_over_two_cuda_batches() -> None:
     if not torch.cuda.is_available():
         pytest.skip("needs CUDA")
-    cubes = [cube.to("cuda") for cube in _correlated_cubes(seed=5, n_batches=2)]
+    cubes = [cube.to("cuda") for cube in low_rank_cubes(seed=5, n_batches=2)]
     node = TrainablePCA(num_channels=N_CHANNELS, n_components=N_COMPONENTS).to("cuda")
     node.statistical_initialization({"data": cube} for cube in cubes)
 
     outputs = node.forward(cubes[0])
     assert outputs["projected"].device.type == "cuda"
     assert outputs["reconstructed"].device.type == "cuda"
+
+
+@pytest.mark.gpu
+def test_trainable_pca_fitted_on_cpu_still_handles_a_cuda_cube() -> None:
+    """The node converts its fitted buffers to the input's device for the projection; the
+    reconstruction has to use the same converted buffers."""
+    if not torch.cuda.is_available():
+        pytest.skip("needs CUDA")
+    cubes = low_rank_cubes(seed=6, n_batches=2)
+    node = _fitted_pca(cubes)
+    expected = node.forward(cubes[0])
+
+    outputs = node.forward(cubes[0].to("cuda"))
+    assert outputs["projected"].device.type == "cuda"
+    assert torch.allclose(outputs["reconstructed"].cpu(), expected["reconstructed"], atol=1e-5)

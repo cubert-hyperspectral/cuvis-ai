@@ -240,9 +240,13 @@ class TrainablePCA(PCA):
         batch_size, height, width, channels = data.shape
         flat = data.reshape(-1, channels)
 
-        scores = self._project(flat, self._mean, self._components)
+        # Projection and reconstruction share the buffers converted to the input's device and
+        # dtype, as ``_project`` does, so a node fitted on another device keeps working.
+        mean = self._mean.to(device=flat.device, dtype=flat.dtype)
+        components = self._components.to(device=flat.device, dtype=flat.dtype)
+        scores = (flat - mean) @ components.T
         # Rebuilt from the unwhitened scores, so the output is the same with and without whiten.
-        reconstructed = scores @ self._components + self._mean
+        reconstructed = scores @ components + mean
 
         projected = scores
         if self.whiten:

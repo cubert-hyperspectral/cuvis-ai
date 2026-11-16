@@ -227,3 +227,40 @@ def test_fits_over_two_cuda_batches() -> None:
 
     out = node.forward(**stream[0])
     assert out["score_distance"].device.type == "cuda"
+
+
+def test_nearly_collinear_scores_keep_a_large_outlier_distance() -> None:
+    """The covariance of these three pixels is positive definite, but only just. Statistics
+    rounded to float32 turn it indefinite and would score the outlier at zero."""
+    b, d = 1.0 + 2.0**-13, 2.0**-12
+    fit = torch.tensor([[-1.0, -b], [0.0, d], [1.0, b]]).reshape(1, 3, 1, 2)
+    cube = torch.zeros(1, 3, 1, N_CHANNELS)
+    node = SubspaceDistances(n_components=2)
+    node.statistical_initialization(iter([{"data": cube, "projected": fit, "reconstructed": cube}]))
+
+    outlier = torch.tensor([0.0, 1.0]).reshape(1, 1, 1, 2)
+    pixel = torch.zeros(1, 1, 1, N_CHANNELS)
+    distance = node.forward(data=pixel, projected=outlier, reconstructed=pixel)["score_distance"]
+
+    points = fit.reshape(-1, 2).double().numpy()
+    centred = np.array([0.0, 1.0]) - points.mean(axis=0)
+    expected = centred @ np.linalg.inv(np.cov(points, rowvar=False)) @ centred
+    assert expected > 1e6
+    assert distance.item() == pytest.approx(expected, rel=1e-2)
+
+
+def test_exactly_collinear_scores_leave_out_the_direction_they_do_not_span() -> None:
+    rng = np.random.default_rng(7)
+    first = rng.normal(size=(1, 8, 8, 1))
+    third = rng.normal(size=(1, 8, 8, 1))
+    scores = torch.from_numpy(np.concatenate([first, 2.0 * first, third], axis=-1)).float()
+    node = SubspaceDistances(n_components=3)
+    node.statistical_initialization(iter(_score_stream(scores)))
+
+    flat = scores.reshape(-1, 3).double().numpy()
+    centred = flat - flat.mean(axis=0)
+    precision = np.linalg.pinv(np.cov(flat, rowvar=False))
+    expected = np.einsum("nk,kl,nl->n", centred, precision, centred)
+    out = node.forward(**_score_stream(scores)[0])["score_distance"].numpy().reshape(-1)
+    assert np.isfinite(out).all()
+    assert np.allclose(out, expected, rtol=1e-3, atol=1e-4)
