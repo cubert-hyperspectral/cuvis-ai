@@ -175,6 +175,7 @@ nav:
       - Statistical:
           - Overview: tutorials/statistical/index.md
           - RX Anomaly: tutorials/statistical/rx-anomaly.md
+          - SIMCA Anomaly: tutorials/statistical/simca-anomaly.md
           - Channel Selector: tutorials/statistical/channel-selector.md
           - Blood Perfusion: tutorials/statistical/blood-perfusion.md
       - Gradient:

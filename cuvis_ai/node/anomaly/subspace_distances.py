@@ -23,6 +23,7 @@ class SubspaceDistances(Node):
 
     - ``score_distance``: the squared Mahalanobis distance of the scores to the scores of the
       fit data, ``(t - m)^T S^-1 (t - m)``. For PCA scores this is Hotelling's T2.
+
     - ``orthogonal_distance``: the squared residual between the pixel and its reconstruction,
       ``sum((x - x_hat)^2)`` over the channels, known as Q.
 
