@@ -24,7 +24,9 @@ class WelfordAccumulator(nn.Module):
     """Numerically stable streaming mean / variance / covariance.
 
     All internal accumulation happens in **float64** for numerical stability.
-    Property getters return **float32** tensors.
+    Property getters return **float32** tensors by default; pass ``dtype=torch.float64``
+    to read the statistics without that rounding, for example before inverting a
+    covariance matrix.
 
     The buffers are registered with ``persistent=False`` so they are
     **excluded** from ``state_dict()`` — only the parent node's own
@@ -40,12 +42,22 @@ class WelfordAccumulator(nn.Module):
         If ``True``, maintain the full (C, C) covariance matrix (O(C²)
         memory and compute per update).  If ``False`` (default), only
         per-feature variance is tracked (O(C)).
+    dtype : torch.dtype, optional
+        Floating-point type of the tensors the getters return (default
+        ``torch.float32``).  The accumulation itself is always float64.
     """
 
-    def __init__(self, n_features: int, *, track_covariance: bool = False) -> None:
+    def __init__(
+        self,
+        n_features: int,
+        *,
+        track_covariance: bool = False,
+        dtype: torch.dtype = torch.float32,
+    ) -> None:
         super().__init__()
         self._n_features = n_features
         self._track_cov = track_covariance
+        self._dtype = dtype
 
         self.register_buffer("_n", torch.tensor(0, dtype=torch.long), persistent=False)
         self.register_buffer(
@@ -123,28 +135,28 @@ class WelfordAccumulator(nn.Module):
 
     @property
     def mean(self) -> Tensor:
-        """Per-feature mean, shape ``(C,)``, float32."""
+        """Per-feature mean, shape ``(C,)``, in the getter dtype (float32 by default)."""
         if self.count == 0:
             raise RuntimeError("No samples accumulated yet.")
-        return self._mean.float()
+        return self._mean.to(self._dtype)
 
     @property
     def var(self) -> Tensor:
-        """Per-feature sample variance, shape ``(C,)``, float32."""
+        """Per-feature sample variance, shape ``(C,)``, in the getter dtype."""
         if self.count < 2:
             raise RuntimeError("Need at least 2 samples to compute variance.")
         if self._track_cov:
-            return (self._M2.diagonal() / (self.count - 1)).float()
-        return (self._M2 / (self.count - 1)).float()
+            return (self._M2.diagonal() / (self.count - 1)).to(self._dtype)
+        return (self._M2 / (self.count - 1)).to(self._dtype)
 
     @property
     def std(self) -> Tensor:
-        """Per-feature standard deviation, shape ``(C,)``, float32."""
+        """Per-feature standard deviation, shape ``(C,)``, in the getter dtype."""
         return self.var.sqrt()
 
     @property
     def cov(self) -> Tensor:
-        """Sample covariance matrix, shape ``(C, C)``, float32.
+        """Sample covariance matrix, shape ``(C, C)``, in the getter dtype.
 
         Raises
         ------
@@ -158,11 +170,11 @@ class WelfordAccumulator(nn.Module):
             )
         if self.count < 2:
             raise RuntimeError("Need at least 2 samples to compute covariance.")
-        return (self._M2 / (self.count - 1)).float()
+        return (self._M2 / (self.count - 1)).to(self._dtype)
 
     @property
     def corr(self) -> Tensor:
-        """Absolute correlation matrix, shape ``(C, C)``, float32.
+        """Absolute correlation matrix, shape ``(C, C)``, in the getter dtype.
 
         Raises
         ------
@@ -170,7 +182,7 @@ class WelfordAccumulator(nn.Module):
             If ``track_covariance`` was not enabled or fewer than 2
             samples have been accumulated.
         """
-        c = self.cov  # float32, (C, C) — also validates preconditions
+        c = self.cov  # (C, C) in the getter dtype; also validates the preconditions
         s = self.std.clamp(min=1e-12)
         denom = torch.outer(s, s)
         corr = c / denom
