@@ -121,3 +121,15 @@ def test_trainable_pca_initializes_and_projects_with_shared_helpers(
     assert torch.allclose(outputs["projected"], expected, atol=1e-5)
     assert torch.allclose(outputs["components"], node._components, atol=1e-5)
     assert torch.isclose(outputs["explained_variance_ratio"].sum(), torch.tensor(1.0), atol=1e-5)
+
+
+@pytest.mark.gpu
+def test_trainable_pca_fits_over_two_cuda_batches() -> None:
+    if not torch.cuda.is_available():
+        pytest.skip("needs CUDA")
+    torch.manual_seed(0)
+    cubes = [torch.rand(2, 4, 4, 5, device="cuda") for _ in range(2)]
+    node = TrainablePCA(num_channels=5, n_components=3).to("cuda")
+    node.statistical_initialization({"data": cube} for cube in cubes)
+
+    assert node.forward(cubes[0])["projected"].device.type == "cuda"

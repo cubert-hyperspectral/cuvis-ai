@@ -192,7 +192,9 @@ class TrainablePCA(PCA):
             if x is not None:
                 flat = x.reshape(-1, x.shape[-1])  # [B*H*W, C]
                 if acc is None:
-                    acc = WelfordAccumulator(flat.shape[1], track_covariance=True)
+                    # On the stream's device: the accumulator merges each batch into its own
+                    # buffers, so a CPU accumulator fails on the second CUDA batch.
+                    acc = WelfordAccumulator(flat.shape[1], track_covariance=True).to(flat.device)
                 acc.update(flat)
 
         if acc is None or acc.count == 0:
