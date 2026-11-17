@@ -535,14 +535,14 @@
       "license": "SAM License",
       "license_file": "LICENSE",
       "aliases": [],
-      "selected_by": null,
-      "default": false,
+      "selected_by": "weight_name",
+      "default": true,
       "plugin_default": true,
       "explicit_path_hparams": [
         "checkpoint_path"
       ],
       "cache_dir_name": "models--cubert-gmbh--sam3",
-      "description": "SAM3 checkpoint for the magic-wand point expansion, text / box / mask propagation and segment-everything nodes; every sam3 node needs it unless checkpoint_path points at a local file (mirror of facebook/sam3 at 3c879f39).",
+      "description": "SAM3 checkpoint for the magic-wand point expansion, text / box / mask propagation and segment-everything nodes; every SAM 3 node needs it unless checkpoint_path points at a local file (mirror of facebook/sam3 at 3c879f39).",
       "source": "manifest",
       "pin_mismatch": false
     },

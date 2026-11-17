@@ -7,7 +7,7 @@
 name: sam3
 # SAM3-based video object tracking plugin.
 repo: "https://github.com/cubert-hyperspectral/cuvis-ai-sam3.git"
-tag: "v0.6.0"  # SAM31TextPropagation and the sam3.1 weights row; installs on Python 3.12 and 3.13 (Colab)
+tag: "v0.6.1"  # SAM31TextPropagation; weight_name picks sam3 (default) or sam3.1; installs on Python 3.12 and 3.13 (Colab)
 package_name: "cuvis-ai-sam3"
 capabilities:
 - class_name: cuvis_ai_sam3.node.SAM3TextPropagation
@@ -298,8 +298,10 @@ weights:
   - {path: config.json, size_bytes: 25843, sha256: 4616385e4b21f2e5e22c875b65679185cbccfa95de42542b9166f7dc3d57160f}
   license: SAM License
   license_file: LICENSE
+  selected_by: weight_name
+  default: true
   explicit_path_hparams: [checkpoint_path]
-  description: SAM3 checkpoint for the magic-wand point expansion, text / box / mask propagation and segment-everything nodes; every sam3 node needs it unless checkpoint_path points at a local file (mirror of facebook/sam3 at 3c879f39).
+  description: SAM3 checkpoint for the magic-wand point expansion, text / box / mask propagation and segment-everything nodes; every SAM 3 node needs it unless checkpoint_path points at a local file (mirror of facebook/sam3 at 3c879f39).
 - name: sam3.1
   display_name: SAM 3.1
   summary: Text prompts with many objects (Object Multiplex)

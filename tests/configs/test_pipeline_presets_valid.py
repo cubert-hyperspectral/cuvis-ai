@@ -63,14 +63,14 @@ def test_dinomaly_custom_training_preset_keeps_the_trained_spine() -> None:
     "preset", ["sam31_text_propagation.yaml", "sam31_text_propagation_video.yaml"]
 )
 def test_sam31_text_presets_name_the_weights_their_node_selects(preset: str) -> None:
-    """Each SAM 3.1 preset sets ``weight_name`` to a row the sam3 manifest lets a node select.
+    """Each SAM 3.1 preset sets ``weight_name: sam3.1``, a row the sam3 manifest lets a node select.
 
-    The ``sam3.1`` checkpoint is picked by that hparam and its group has no default row, so a
-    preset that leaves the hparam out or misspells it is not provisioned by a host application
-    and fails only when it runs.
+    A host application gives a node the row its ``weight_name`` names and, where the hparam is
+    left out, the default row of the group, which is the SAM 3 checkpoint. A preset that drops
+    or misspells the hparam is provisioned with the wrong file and fails only when it runs.
     """
     manifest = load_plugin_manifest(_PLUGINS / "sam3.yaml")
-    selectable = {row.name for row in manifest.weights if row.selected_by == "weight_name"}
+    rows = {row.name: row for row in manifest.weights}
     pipeline = PipelineConfig.load_from_file(_PIPELINES / "sam3" / preset)
     (tracker,) = [
         node
@@ -79,4 +79,20 @@ def test_sam31_text_presets_name_the_weights_their_node_selects(preset: str) -> 
     ]
 
     assert tracker.class_name in {entry.class_name for entry in manifest.capabilities}
-    assert tracker.hparams["weight_name"] in selectable
+    assert tracker.hparams["weight_name"] == "sam3.1"
+    assert rows["sam3.1"].selected_by == "weight_name" and not rows["sam3.1"].default
+
+
+def test_sam3_manifest_lets_a_pipeline_need_one_checkpoint() -> None:
+    """Both sam3 rows sit in the ``weight_name`` group and ``sam3`` is its default row.
+
+    A host application requires a row without a selector for every node of the plugin, which
+    would make a SAM 3.1 pipeline need the SAM 3 checkpoint too. With ``sam3`` as the default of
+    the group, the pipelines on the SAM 3 nodes, which set no ``weight_name``, keep needing
+    ``sam3`` and nothing else, and a pipeline that names ``sam3.1`` needs that file alone.
+    """
+    manifest = load_plugin_manifest(_PLUGINS / "sam3.yaml")
+
+    assert [row.name for row in manifest.weights if row.selected_by is None] == []
+    assert {row.selected_by for row in manifest.weights} == {"weight_name"}
+    assert [row.name for row in manifest.weights if row.default] == ["sam3"]
