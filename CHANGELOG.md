@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- CI: every job that runs in the `cuvis_pyil` Ubuntu 24.04 container runs on `ubuntu-24.04` instead of `ubuntu-latest`. `ubuntu-latest` became Ubuntu 26.04, and `actions/setup-python` mounts the host's Python into the container, where `import ssl` then failed (`libcrypto.so.3: version OPENSSL_3.3.0 not found`). That broke Test Suite and Documentation Build on every pull request, and would have broken the release workflow, the docs deploy, the docs prune, the ONNX export sweep and the plugin runtime smoke test the same way.
 - `PerPixelUnitNorm` takes `center` (default `True`, as before). With `center=False` each pixel spectrum is divided by its own L2 norm without subtracting its mean first, so a positive gain drops out and a constant offset stays in.
 - `Standardize` takes `axis="location"`: one mean and one standard deviation per pixel position and band, fitted over the frames of the training stream (`stats="fit"` only). The statistics are tied to one frame size, so the fit and `forward` refuse a frame of another shape.
 - New node `BandCrosstalkCorrector` (`cuvis_ai.node.pretreatments`): applies a learned square band-mixing matrix to every pixel spectrum, `cube` in and `cube` out. The matrix starts as the identity and trains after `unfreeze`. `normalize_trace=True` rescales the applied matrix so that its trace equals the band count, and `clip_negative` (on by default) clips the output at zero.

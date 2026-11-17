@@ -14,7 +14,9 @@ concurrency:
 jobs:
   test:
     name: Test Suite
-    runs-on: ubuntu-latest
+    # Same Ubuntu release as the job container: actions/setup-python mounts the host's
+    # Python into it, and a newer host links it against an OpenSSL the container lacks.
+    runs-on: ubuntu-24.04
     container:
       image: cubertgmbh/cuvis_pyil:3.5.0-ubuntu24.04
 
@@ -160,7 +162,9 @@ jobs:
 
   doc-build:
     name: Documentation Build
-    runs-on: ubuntu-latest
+    # Same Ubuntu release as the job container: actions/setup-python mounts the host's
+    # Python into it, and a newer host links it against an OpenSSL the container lacks.
+    runs-on: ubuntu-24.04
     container:
       image: cubertgmbh/cuvis_pyil:3.5.0-ubuntu24.04
 
