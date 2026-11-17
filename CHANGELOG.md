@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Lock: soupsieve 2.9.2 to 4.1.1 (CVE-2026-126190, CVE-2026-126191, CVE-2026-126192, CVE-2026-126193) and tornado 6.6 to 6.6.1 (CVE-2026-126347), the advisories pip-audit started flagging on main. soupsieve 4 needs Python 3.11.5 or newer, so the lock keeps 2.10 for Python 3.11.0 to 3.11.4.
 - `PerPixelUnitNorm` takes `center` (default `True`, as before). With `center=False` each pixel spectrum is divided by its own L2 norm without subtracting its mean first, so a positive gain drops out and a constant offset stays in.
 - `Standardize` takes `axis="location"`: one mean and one standard deviation per pixel position and band, fitted over the frames of the training stream (`stats="fit"` only). The statistics are tied to one frame size, so the fit and `forward` refuse a frame of another shape.
 - New node `BandCrosstalkCorrector` (`cuvis_ai.node.pretreatments`): applies a learned square band-mixing matrix to every pixel spectrum, `cube` in and `cube` out. The matrix starts as the identity and trains after `unfreeze`. `normalize_trace=True` rescales the applied matrix so that its trace equals the band count, and `clip_negative` (on by default) clips the output at zero.
