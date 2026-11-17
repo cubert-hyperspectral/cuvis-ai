@@ -8,9 +8,12 @@ checkpoint contract pin those names here as well.
 
 from pathlib import Path
 
+import pytest
 from cuvis_ai_schemas.pipeline.config import PipelineConfig
+from cuvis_ai_schemas.plugin import load_plugin_manifest
 
 _PIPELINES = Path(__file__).resolve().parents[2] / "cuvis_ai" / "configs" / "pipeline"
+_PLUGINS = _PIPELINES.parent / "plugins"
 
 
 def test_dinomaly_cir_lentils_preset_loads() -> None:
@@ -54,3 +57,26 @@ def test_dinomaly_custom_training_preset_keeps_the_trained_spine() -> None:
     assert nodes["decider"].class_name.endswith("TwoStageBinaryDecider")
     assert nodes["decider"].hparams["image_threshold"] is None
     assert nodes["decider"].hparams["pixel_threshold"] is None
+
+
+@pytest.mark.parametrize(
+    "preset", ["sam31_text_propagation.yaml", "sam31_text_propagation_video.yaml"]
+)
+def test_sam31_text_presets_name_the_weights_their_node_selects(preset: str) -> None:
+    """Each SAM 3.1 preset sets ``weight_name`` to a row the sam3 manifest lets a node select.
+
+    The ``sam3.1`` checkpoint is picked by that hparam and its group has no default row, so a
+    preset that leaves the hparam out or misspells it is not provisioned by a host application
+    and fails only when it runs.
+    """
+    manifest = load_plugin_manifest(_PLUGINS / "sam3.yaml")
+    selectable = {row.name for row in manifest.weights if row.selected_by == "weight_name"}
+    pipeline = PipelineConfig.load_from_file(_PIPELINES / "sam3" / preset)
+    (tracker,) = [
+        node
+        for node in pipeline.nodes
+        if node.class_name == "cuvis_ai_sam3.node.SAM31TextPropagation"
+    ]
+
+    assert tracker.class_name in {entry.class_name for entry in manifest.capabilities}
+    assert tracker.hparams["weight_name"] in selectable

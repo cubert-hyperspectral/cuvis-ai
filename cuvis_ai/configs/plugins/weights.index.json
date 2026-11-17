@@ -547,6 +547,43 @@
       "pin_mismatch": false
     },
     {
+      "name": "sam3.1",
+      "display_name": "SAM 3.1",
+      "summary": "Text prompts with many objects (Object Multiplex)",
+      "used_for": [
+        "Text prompts"
+      ],
+      "plugin": "sam3",
+      "family": "sam3.1",
+      "kind": "weights",
+      "aux_files": [
+        {
+          "path": "config.json",
+          "size_bytes": 25843,
+          "sha256": "4616385e4b21f2e5e22c875b65679185cbccfa95de42542b9166f7dc3d57160f"
+        }
+      ],
+      "repo_id": "cubert-gmbh/sam3.1",
+      "filename": "sam3.1_multiplex.pt",
+      "revision": "8f2b686066130b1bc20e94f94d0b2ac69aa7f362",
+      "sha256": "0567debeec80ba4ac6369540c6c248025283cb3ff2b92827509e57e2b3541cb6",
+      "size_bytes": 3502755717,
+      "total_bytes": 3502781560,
+      "license": "SAM License",
+      "license_file": "LICENSE",
+      "aliases": [],
+      "selected_by": "weight_name",
+      "default": false,
+      "plugin_default": false,
+      "explicit_path_hparams": [
+        "checkpoint_path"
+      ],
+      "cache_dir_name": "models--cubert-gmbh--sam3.1",
+      "description": "SAM 3.1 Object Multiplex checkpoint for SAM31TextPropagation, the text-prompt tracker that costs about the same for one object as for sixteen; needed where a pipeline sets weight_name to sam3.1, unless checkpoint_path points at a local file (mirror of facebook/sam3.1 at daa63191).",
+      "source": "manifest",
+      "pin_mismatch": false
+    },
+    {
       "name": "steervit_dinov2_base",
       "display_name": "SteerViT (DINOv2 base, research)",
       "summary": "Prompt-steered features and zero-shot anomaly maps",
