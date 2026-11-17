@@ -107,6 +107,23 @@ def test_the_trainer_fits_the_three_nodes_in_order(fitted) -> None:
             assert node._statistically_initialized is True, node.name
 
 
+def test_the_scores_of_the_fit_frames_are_centred_and_uncorrelated(fitted) -> None:
+    """The trainer fits every node on the same frames, so on those frames the PCA scores have
+    zero mean and the eigenvalues as their covariance. T2 as a sum over components rests on it.
+    """
+    pipeline, datamodule = fitted
+    pca = next(node for node in pipeline.nodes() if node.name == "pca")
+    projected = [
+        pipeline.forward(batch=batch, stage=ExecutionStage.INFERENCE)[("pca", "projected")]
+        for batch in datamodule.train_dataloader()
+    ]
+    scores = torch.cat(projected).reshape(-1, N_COMPONENTS).double()
+    sigma = pca._explained_variance.double().sqrt()
+    assert torch.allclose(scores.mean(dim=0) / sigma, torch.zeros_like(sigma), atol=1e-4)
+    covariance_in_eigenvalues = torch.cov(scores.T) / torch.outer(sigma, sigma)
+    assert torch.allclose(covariance_in_eigenvalues, torch.eye(N_COMPONENTS).double(), atol=1e-3)
+
+
 def test_the_fitted_chain_matches_the_reference(fitted) -> None:
     pipeline, datamodule = fitted
     train, evaluation = _draws()
