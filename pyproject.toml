@@ -171,6 +171,11 @@ cuvis_ai = ["assets/node_icons/*.svg", "configs/**/*.yaml"]
 
 [tool.uv]
 default-groups = ["dev", "cuda"]
+# uv.lock resolves for CPython 3.11.5 and newer only. The package itself still installs from
+# 3.11.0 (`requires-python`), but soupsieve 3 and later need 3.11.5: for 3.11.0 to 3.11.4 uv
+# would lock an older soupsieve next to the current one, and the audit job, which runs on one
+# interpreter, would never check that side of the lock.
+environments = ["python_full_version >= '3.11.5'"]
 
 # torch / torchvision come from a PyTorch wheel index, forked by platform: aarch64 Linux (Jetson
 # Thor, JetPack 7, CUDA 13 driver) resolves from cu130, because the cu128 index serves an SBSA

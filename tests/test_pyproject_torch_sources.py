@@ -9,10 +9,15 @@ consumer (the ``cuvis_ai_builtin`` manifest inside a composed child environment)
 index pin. torchcodec is no dependency any more (``test_torchcodec_is_not_a_dependency``): cuvis-ai
 imports it nowhere, and a torchcodec built for another torch fails at import inside core's video
 reader, which a plain ``pip install cuvis-ai`` produced next to PyPI's torch.
+
+The lock is also kept to CPython 3.11.5 and newer (``[tool.uv].environments``) and resolves no
+package to different versions by Python version: the audit job installs the lock on one
+interpreter, so it would check one side of such a fork and leave the other unaudited.
 """
 
 from __future__ import annotations
 
+import functools
 import tomllib
 from pathlib import Path
 
@@ -37,21 +42,39 @@ ENVIRONMENTS = {
 EXPECTED_INDEX = {"jetson": CU130, "linux-x86_64": CU128, "windows": CU128}
 PYTHON_MINORS = ("3.11", "3.12", "3.13")
 PYTHON_FULL_VERSIONS = {"3.11": "3.11.9", "3.12": "3.12.7", "3.13": "3.13.7"}
+# The newest CPython the lock leaves out. ``requires-python`` admits it, so without the
+# restriction uv locks an older release of a package for it once the newer ones need 3.11.5.
+BELOW_LOCK_FLOOR = "3.11.4"
+# Every CPython release a marker boundary can fall on.
+PYTHON_RELEASES = tuple(f"{minor}.{patch}" for minor in PYTHON_MINORS for patch in range(40))
+# Packages that may resolve to different versions by Python version, each with its reason.
+PYTHON_FORK_ALLOWLIST: dict[str, str] = {}
+
+
+def _environment(platform: str, release: str) -> dict[str, str]:
+    """A marker environment for one platform and one CPython release."""
+    return {
+        **ENVIRONMENTS[platform],
+        "python_version": release.rsplit(".", 1)[0],
+        "python_full_version": release,
+    }
 
 
 def _lock_environment(platform: str, minor: str) -> dict[str, str]:
     """A marker environment for one platform and one supported CPython minor."""
-    return {
-        **ENVIRONMENTS[platform],
-        "python_version": minor,
-        "python_full_version": PYTHON_FULL_VERSIONS[minor],
-    }
+    return _environment(platform, PYTHON_FULL_VERSIONS[minor])
+
+
+@functools.cache
+def _marker(text: str) -> Marker:
+    """Parse a marker once: the lock repeats the same few on every forked entry."""
+    return Marker(text)
 
 
 def _applies(pkg: dict, environment: dict[str, str]) -> bool:
     """Whether a lock entry is selected in ``environment`` (no markers = every environment)."""
     markers = pkg.get("resolution-markers")
-    return markers is None or any(Marker(m).evaluate(environment) for m in markers)
+    return markers is None or any(_marker(m).evaluate(environment) for m in markers)
 
 
 @pytest.fixture(scope="module")
@@ -187,3 +210,41 @@ def test_lock_forks_ship_a_wheel_per_supported_python(lock: dict, package: str, 
     cu128 = [name for name in _wheel_names(by_registry[CU128]) if abi in name]
     assert sum("manylinux_2_28_x86_64" in name for name in cu128) == 1, cu128
     assert sum("win_amd64" in name for name in cu128) == 1, cu128
+
+
+def test_dev_lock_leaves_out_pythons_below_its_floor(pyproject: dict) -> None:
+    """``[tool.uv].environments`` keeps the lock to CPython 3.11.5 and newer, on every platform."""
+    environments = [Marker(m) for m in pyproject["tool"]["uv"].get("environments", [])]
+    assert environments, "[tool.uv].environments must restrict the dev lock"
+    for platform in ENVIRONMENTS:
+        too_old = _environment(platform, BELOW_LOCK_FLOOR)
+        assert not any(m.evaluate(too_old) for m in environments), f"{platform}: {too_old}"
+        for minor in PYTHON_MINORS:
+            supported = _lock_environment(platform, minor)
+            assert any(m.evaluate(supported) for m in environments), f"{platform}: {supported}"
+
+
+def test_lock_forks_no_package_by_python_version(lock: dict) -> None:
+    """One platform gets one version of a package, whatever the CPython release.
+
+    A platform fork (torch per wheel index) is fine. A Python fork is not: pip-audit runs on one
+    interpreter and never sees the other side. One that is wanted goes into
+    ``PYTHON_FORK_ALLOWLIST`` with its reason.
+    """
+    entries: dict[str, list[dict]] = {}
+    for pkg in lock["package"]:
+        entries.setdefault(pkg["name"], []).append(pkg)
+    forked = set()
+    for name, pkgs in entries.items():
+        if len(pkgs) < 2:
+            continue
+        for platform in ENVIRONMENTS:
+            versions = {
+                pkg["version"]
+                for release in PYTHON_RELEASES
+                for pkg in pkgs
+                if _applies(pkg, _environment(platform, release))
+            }
+            if len(versions) > 1:
+                forked.add(name)
+    assert forked == set(PYTHON_FORK_ALLOWLIST), f"forked by Python version: {sorted(forked)}"
