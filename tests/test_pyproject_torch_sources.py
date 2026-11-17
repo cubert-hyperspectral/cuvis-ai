@@ -42,8 +42,10 @@ ENVIRONMENTS = {
 EXPECTED_INDEX = {"jetson": CU130, "linux-x86_64": CU128, "windows": CU128}
 PYTHON_MINORS = ("3.11", "3.12", "3.13")
 PYTHON_FULL_VERSIONS = {"3.11": "3.11.9", "3.12": "3.12.7", "3.13": "3.13.7"}
-# The newest CPython the lock leaves out. ``requires-python`` admits it, so without the
-# restriction uv locks an older release of a package for it once the newer ones need 3.11.5.
+# The oldest CPython the lock covers and the newest one it leaves out. ``requires-python``
+# admits the latter, so without the restriction uv locks an older release of a package for it
+# once the newer ones need 3.11.5.
+LOCK_FLOOR = "3.11.5"
 BELOW_LOCK_FLOOR = "3.11.4"
 # Every CPython release a marker boundary can fall on.
 PYTHON_RELEASES = tuple(f"{minor}.{patch}" for minor in PYTHON_MINORS for patch in range(40))
@@ -219,9 +221,10 @@ def test_dev_lock_leaves_out_pythons_below_its_floor(pyproject: dict) -> None:
     for platform in ENVIRONMENTS:
         too_old = _environment(platform, BELOW_LOCK_FLOOR)
         assert not any(m.evaluate(too_old) for m in environments), f"{platform}: {too_old}"
-        for minor in PYTHON_MINORS:
-            supported = _lock_environment(platform, minor)
-            assert any(m.evaluate(supported) for m in environments), f"{platform}: {supported}"
+        supported = [_environment(platform, LOCK_FLOOR)]
+        supported += [_lock_environment(platform, minor) for minor in PYTHON_MINORS]
+        for environment in supported:
+            assert any(m.evaluate(environment) for m in environments), f"{platform}: {environment}"
 
 
 def test_lock_forks_no_package_by_python_version(lock: dict) -> None:
