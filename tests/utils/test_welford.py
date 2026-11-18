@@ -267,3 +267,31 @@ class TestModuleBehaviour:
 def test_n_features_is_the_constructor_width() -> None:
     assert WelfordAccumulator(7).n_features == 7
     assert WelfordAccumulator(3, track_covariance=True).n_features == 3
+
+
+# ------------------------------------------------------------------
+# Getter precision
+# ------------------------------------------------------------------
+
+
+def test_getters_return_float32_by_default() -> None:
+    acc = WelfordAccumulator(3, track_covariance=True)
+    acc.update(torch.from_numpy(_random_data(50, 3)))
+    assert acc.mean.dtype == acc.var.dtype == acc.cov.dtype == torch.float32
+
+
+def test_float64_getters_keep_what_float32_rounds_away() -> None:
+    """Three nearly collinear samples: the covariance is positive definite in float64, and its
+    float32 rounding is not."""
+    b, d = 1.0 + 2.0**-13, 2.0**-12
+    data = np.array([[-1.0, -b], [0.0, d], [1.0, b]])
+    acc = WelfordAccumulator(2, track_covariance=True, dtype=torch.float64)
+    acc.update(torch.from_numpy(data))
+
+    assert acc.mean.dtype == acc.var.dtype == acc.std.dtype == acc.cov.dtype == torch.float64
+    np.testing.assert_allclose(acc.cov.numpy(), np.cov(data, rowvar=False), rtol=1e-12)
+    assert np.linalg.eigvalsh(acc.cov.numpy()).min() > 0
+
+    rounded = WelfordAccumulator(2, track_covariance=True)
+    rounded.update(torch.from_numpy(data))
+    assert np.linalg.eigvalsh(rounded.cov.double().numpy()).min() < 0

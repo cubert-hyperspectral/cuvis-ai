@@ -5,6 +5,7 @@ from cuvis_ai.node.anomaly import (
     LADGlobal,
     RXGlobal,
     RXPerBatch,
+    SubspaceDistances,
 )
 from cuvis_ai.node.anomaly_visualization import (
     AnomalyMask,
@@ -67,6 +68,7 @@ from cuvis_ai.node.deciders import (
     MultiRangeSlicer,
     QuantileBinaryDecider,
     ScoreThreshold,
+    SIMCADecision,
     TwoStageBinaryDecider,
 )
 from cuvis_ai.node.dimensionality_reduction import PCA, FixedPCAProjection, TrainablePCA
@@ -271,9 +273,11 @@ __all__ = [
     "QuantileBinaryDecider",
     "RXGlobal",
     "RXPerBatch",
+    "SubspaceDistances",
     "TwoStageBinaryDecider",
     "FrameScoreGate",
     "ScoreThreshold",
+    "SIMCADecision",
     "SavitzkyGolay",
     "ContinuumRemoval",
     "SpectralDerivative",

@@ -1,0 +1,23 @@
+# Lentils demo recording (cu3s + COCO), train on frames without foreign objects.
+# For class models such as SIMCA, which learn what normal looks like from the train split:
+# measurements 0, 4 and 6 show black lentils and background only. The shared lentils.yaml
+# trains on measurements 2 and 3, which contain stones.
+# The cu3s DataModule is provided by the cuvis-ai-dataloader plugin (extras [cu3s, coco]).
+
+data_module: cu3s
+splits:
+  constraints:
+  - kind: no_split_overlap
+    severity: error
+  train:
+    - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [0, 4, 6]}
+  # Held-out frames with stones: measurement 1 for val, measurement 5 for test.
+  val:
+    - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [1]}
+  test:
+    - {kind: file_indices, source: data/Lentils/Lentils_000.cu3s, ids: [5]}
+batch_size: 2
+params:
+  cu3s_file_path: data/Lentils/Lentils_000.cu3s
+  annotation_json_path: data/Lentils/Lentils_000.json
+  processing_mode: Reflectance

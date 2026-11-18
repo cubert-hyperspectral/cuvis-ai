@@ -140,6 +140,38 @@ capabilities:
       optional: false
       description: Anomaly scores per pixel (BHW1 format)
   doc_summary: Computes μ, Σ per image in the batch on the fly; no fit/finalize.
+- class_name: cuvis_ai.node.anomaly.subspace_distances.SubspaceDistances
+  category: model
+  tags: [anomaly, hyperspectral, onnx, stateful, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#4E7BD4\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <circle cx=\"14\" cy=\"20\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"14\" cy=\"44\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"16\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"32\" r=\"3\"/>\n  <circle cx=\"32\" cy=\"48\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"26\" r=\"3\"/>\n  <circle cx=\"50\" cy=\"38\" r=\"3\"/>\n  <path d=\"M17 20l12-4M17 32l12-16M17 44l12-28\"/>\n  <path d=\"M17 20l12 12M17 32l12 0M17 44l12-12\"/>\n  <path d=\"M17 20l12 28M17 32l12 16M17 44l12 4\"/>\n  <path d=\"M35 16l12 10M35 32l12-6M35 48l12-22\"/>\n  <path d=\"M35 16l12 22M35 32l12 6M35 48l12-10\"/>\n</svg>\n"
+  input_specs:
+    data:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Cube the reduction node was given [B, H, W, C]
+    projected:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Scores of every pixel [B, H, W, K]
+    reconstructed:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: false
+      description: Cube rebuilt from the scores [B, H, W, C]
+  output_specs:
+    score_distance:
+      dtype: float32
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: Squared Mahalanobis distance of the scores, Hotelling T2 for PCA [B, H, W, 1]
+    orthogonal_distance:
+      dtype: float32
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: Squared residual between the cube and its reconstruction, Q [B, H, W, 1]
+  doc_summary: Score distance and orthogonal distance of every pixel to a fitted subspace model.
 - class_name: cuvis_ai.node.deciders.binary_decider.BinaryDecider
   category: transform
   tags: [calibration, classification, numpy, postprocessing]
@@ -206,6 +238,33 @@ capabilities:
       optional: false
       description: 'Pixels with a score at or below (`keep: below`) or above (`keep: above`) the threshold [B, H, W, 1].'
   doc_summary: Mark the pixels whose raw score lies below or above a threshold (no sigmoid).
+- class_name: cuvis_ai.node.deciders.simca_decision.SIMCADecision
+  category: transform
+  tags: [anomaly, classification, onnx, postprocessing, stateful, torch]
+  icon_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\" fill=\"none\" stroke=\"#6FAE5C\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M52 26a20 20 0 0 0-36 0\"/>\n  <path d=\"M52 16v10h-10\"/>\n  <path d=\"M12 38a20 20 0 0 0 36 0\"/>\n  <path d=\"M12 48v-10h10\"/>\n</svg>\n"
+  input_specs:
+    score_distance:
+      dtype: float32
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: Distance inside the model of normal, e.g. Hotelling T2 [B, H, W, 1]
+    orthogonal_distance:
+      dtype: float32
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: Distance off the model of normal, e.g. the Q residual [B, H, W, 1]
+  output_specs:
+    combined_distance:
+      dtype: float32
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: Anomaly score f = N_h h / h0 + N_q q / q0, larger is more anomalous [B, H, W, 1]
+    decisions:
+      dtype: bool
+      shape: [-1, -1, -1, 1]
+      optional: false
+      description: Pixels whose combined distance exceeds the limit at alpha [B, H, W, 1]
+  doc_summary: Combine a score distance and an orthogonal distance into one decision (DD-SIMCA).
 - class_name: cuvis_ai.node.deciders.frame_score_gate.FrameScoreGate
   category: transform
   tags: [anomaly, postprocessing, torch]
@@ -1484,6 +1543,11 @@ capabilities:
       shape: [-1, -1]
       optional: true
       description: Principal components matrix
+    reconstructed:
+      dtype: float32
+      shape: [-1, -1, -1, -1]
+      optional: true
+      description: 'Cube rebuilt from the retained components: the mean plus the unwhitened scores times the components [B, H, W, C]'
   doc_summary: Trainable PCA node with orthogonality regularization.
 - class_name: cuvis_ai.node.fusion.ScoreMapFusion
   category: transform
