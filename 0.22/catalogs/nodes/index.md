@@ -4,7 +4,7 @@ Every node available in cuvis-ai pipelines, in one place. Built-in nodes ship wi
 
 CategoryTagsSource
 
-231 items
+233 items
 
 Clear
 
@@ -4774,6 +4774,30 @@ Outputs
 
 [View plugin repo (v0.2.2)](https://github.com/cubert-hyperspectral/cuvis-ai-deepeiou/tree/v0.2.2)
 
+`SAM31TextPropagation`sam3[↗](https://github.com/cubert-hyperspectral/cuvis-ai-sam3 "Open plugin repo")modelcuvis_ai_sam3.nodeTrack the objects a text prompt names across RGB frames with SAM 3.1 Object Multiplex.batchedinferlearnmaskrgbsegstatefultexttorchtrackvid
+
+Track the objects a text prompt names across RGB frames with SAM 3.1 Object Multiplex.
+
+Inputs
+
+| Port                   | Dtype     | Shape            | Description                                                     |
+| ---------------------- | --------- | ---------------- | --------------------------------------------------------------- |
+| `rgb_image`            | `float32` | `[1, -1, -1, 3]` |                                                                 |
+| `frame_id` optional    | `int64`   | `[1]`            | Source frame index [1]. If omitted, local stream index is used. |
+| `text_prompt` optional | `any`     | `any`            | Optional text prompt applied on the current frame.              |
+
+Outputs
+
+| Port                 | Dtype     | Shape         | Description                                                                                           |
+| -------------------- | --------- | ------------- | ----------------------------------------------------------------------------------------------------- |
+| `mask`               | `int32`   | `[1, -1, -1]` |                                                                                                       |
+| `object_ids`         | `int64`   | `[1, -1]`     |                                                                                                       |
+| `detection_scores`   | `float32` | `[1, -1]`     |                                                                                                       |
+| `category_ids`       | `int64`   | `[1, -1]`     | Category IDs [1,N], aligned with object_ids.                                                          |
+| `category_semantics` | `uint8`   | `[-1]`        | UTF-8 JSON bytes of the cumulative category-id-to-text mapping, for example {"1":"person","2":"car"}. |
+
+[View plugin repo (v0.6.1)](https://github.com/cubert-hyperspectral/cuvis-ai-sam3/tree/v0.6.1)
+
 `SAM3BboxPropagation`sam3[↗](https://github.com/cubert-hyperspectral/cuvis-ai-sam3 "Open plugin repo")modelcuvis_ai_sam3.nodeSAM3 streaming propagation with runtime bbox prompts.batchedbboxinferlearnmaskrgbsegstatefultorchtrackvid
 
 SAM3 streaming propagation with runtime bbox prompts.
@@ -4794,7 +4818,7 @@ Outputs
 | `object_ids`       | `int64`   | `[1, -1]`     |             |
 | `detection_scores` | `float32` | `[1, -1]`     |             |
 
-[View plugin repo (v0.5.3)](https://github.com/cubert-hyperspectral/cuvis-ai-sam3/tree/v0.5.3)
+[View plugin repo (v0.6.1)](https://github.com/cubert-hyperspectral/cuvis-ai-sam3/tree/v0.6.1)
 
 `SAM3MaskPropagation`sam3[↗](https://github.com/cubert-hyperspectral/cuvis-ai-sam3 "Open plugin repo")modelcuvis_ai_sam3.nodeSAM3 streaming propagation with runtime label-map prompts.batchedinferlearnmaskrgbsegstatefultorchtrackvid
 
@@ -4817,7 +4841,7 @@ Outputs
 | `object_ids`       | `int64`   | `[1, -1]`     |             |
 | `detection_scores` | `float32` | `[1, -1]`     |             |
 
-[View plugin repo (v0.5.3)](https://github.com/cubert-hyperspectral/cuvis-ai-sam3/tree/v0.5.3)
+[View plugin repo (v0.6.1)](https://github.com/cubert-hyperspectral/cuvis-ai-sam3/tree/v0.6.1)
 
 `SAM3PointExpansion`sam3[↗](https://github.com/cubert-hyperspectral/cuvis-ai-sam3 "Open plugin repo")modelcuvis_ai_sam3.nodeExpand positive/negative click points into one object mask on a single frame.batchedimginferkplearnmaskrgbsegtorch
 
@@ -4839,7 +4863,7 @@ Outputs
 | `object_ids`       | `int64`   | `[1, -1]`     |             |
 | `detection_scores` | `float32` | `[1, -1]`     |             |
 
-[View plugin repo (v0.5.3)](https://github.com/cubert-hyperspectral/cuvis-ai-sam3/tree/v0.5.3)
+[View plugin repo (v0.6.1)](https://github.com/cubert-hyperspectral/cuvis-ai-sam3/tree/v0.6.1)
 
 `SAM3PointPropagation`sam3[↗](https://github.com/cubert-hyperspectral/cuvis-ai-sam3 "Open plugin repo")modelcuvis_ai_sam3.nodeSAM3 streaming propagation with a point prompt.batchedinferkplearnmaskrgbsegstatefultorchtrackvid
 
@@ -4860,7 +4884,7 @@ Outputs
 | `object_ids`       | `int64`   | `[1, -1]`     |             |
 | `detection_scores` | `float32` | `[1, -1]`     |             |
 
-[View plugin repo (v0.5.3)](https://github.com/cubert-hyperspectral/cuvis-ai-sam3/tree/v0.5.3)
+[View plugin repo (v0.6.1)](https://github.com/cubert-hyperspectral/cuvis-ai-sam3/tree/v0.6.1)
 
 `SAM3SegmentEverything`sam3[↗](https://github.com/cubert-hyperspectral/cuvis-ai-sam3 "Open plugin repo")modelcuvis_ai_sam3.nodeSegment everything on one RGB frame using SAM3 point-grid prompting.batchedimginferlearnmaskrgbsegtorch
 
@@ -4881,7 +4905,7 @@ Outputs
 | `object_ids`       | `int64`   | `[1, -1]`     |             |
 | `detection_scores` | `float32` | `[1, -1]`     |             |
 
-[View plugin repo (v0.5.3)](https://github.com/cubert-hyperspectral/cuvis-ai-sam3/tree/v0.5.3)
+[View plugin repo (v0.6.1)](https://github.com/cubert-hyperspectral/cuvis-ai-sam3/tree/v0.6.1)
 
 `SAM3TextPropagation`sam3[↗](https://github.com/cubert-hyperspectral/cuvis-ai-sam3 "Open plugin repo")modelcuvis_ai_sam3.nodeSAM3 streaming propagation with a text/concept prompt.batchedinferlearnmaskrgbsegstatefultexttorchtrackvid
 
@@ -4905,7 +4929,7 @@ Outputs
 | `category_ids`       | `int64`   | `[1, -1]`     | Category IDs [1,N], aligned with object_ids.                                                          |
 | `category_semantics` | `uint8`   | `[-1]`        | UTF-8 JSON bytes of the cumulative category-id-to-text mapping, for example {"1":"person","2":"car"}. |
 
-[View plugin repo (v0.5.3)](https://github.com/cubert-hyperspectral/cuvis-ai-sam3/tree/v0.5.3)
+[View plugin repo (v0.6.1)](https://github.com/cubert-hyperspectral/cuvis-ai-sam3/tree/v0.6.1)
 
 `SoftChannelSelector`modelcuvis_ai.node.channel_selectorSoft channel selector with temperature-based Gumbel-Softmax selection.dim-redhsilearnonnxpretorch
 
@@ -8675,6 +8699,138 @@ def forward(
         "spectral_std": stds_t.to(torch.float32),
         "spectral_valid": valids_t,
     }
+```
+
+`BandCrosstalkCorrector`transformcuvis_ai.node.pretreatments.crosstalkApply a learned square band-mixing matrix to every pixel spectrum.calibhsilearnonnxpretorch
+
+#### BandCrosstalkCorrector
+
+```python
+BandCrosstalkCorrector(
+    input_channels,
+    clip_negative=True,
+    normalize_trace=False,
+    eps=1e-08,
+    **kwargs,
+)
+```
+
+Bases: `Node`
+
+Apply a learned square band-mixing matrix to every pixel spectrum.
+
+Removes crosstalk between spectral bands by replacing each pixel's spectrum with a linear combination of all bands: `out[..., d] = sum_c weights[d, c] * cube[..., c]`. `weights` starts as the identity (no correction) and is listed in `TRAINABLE_BUFFERS`, so a trainrun can `unfreeze` the node and fit the matrix by gradient against a target with an existing loss node.
+
+With `normalize_trace=True` the matrix applied in `forward` is rescaled to a fixed trace on the fly: `w = weights * (C / trace(weights))`. The saved `weights` stay exactly as trained; only the applied matrix changes. This fixes the mean of the diagonal at one but does not preserve the total intensity or the norm of a pixel in general: output values stay near their input level only when the matrix is close to diagonal. The rule holds for any nonzero trace, a negative one included. The scale of a trained matrix is then free (any nonzero multiple of it gives the same output), and turning the option on after training multiplies every output by the constant `C / trace(weights)`.
+
+A trace whose absolute value falls below `eps` raises `ValueError` in eager `forward` instead of dividing by a near-zero number into NaN or infinity. That check reads a tensor value and cannot be traced by `torch.export`, so :meth:`export_module` returns an adapter that runs the same matrix mixing without the check.
+
+A cube whose channel count differs from `input_channels` raises `ValueError`; both ports carry `input_channels` as their channel dimension.
+
+:class:`cuvis_ai.node.channel_mixer.LearnableChannelMixer` also mixes bands with learned weights and can be set up square. It is a model block built on 1x1 convolutions with optional bias, activation and output normalization, and its output port is `rgb`. This node is the calibration step of the pretreatment family: `cube` in and `cube` out, one `[C, C]` matrix that starts as the identity, no bias, and no output normalization beyond the optional ReLU clip.
+
+Parameters:
+
+| Name              | Type    | Description                                                                                                                     | Default    |
+| ----------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `input_channels`  | `int`   | Number of spectral bands C; weights is [C, C].                                                                                  | *required* |
+| `clip_negative`   | `bool`  | Apply ReLU to the output (default True).                                                                                        | `True`     |
+| `normalize_trace` | `bool`  | Rescale the applied matrix to trace C on the fly (default False).                                                               | `False`    |
+| `eps`             | `float` | Floor on the absolute trace magnitude before :meth:forward raises when normalize_trace is set (default 1e-8). Must be positive. | `1e-08`    |
+
+Source code in `cuvis_ai/node/pretreatments/crosstalk.py`
+
+```python
+def __init__(
+    self,
+    input_channels: int,
+    clip_negative: bool = True,
+    normalize_trace: bool = False,
+    eps: float = 1e-8,
+    **kwargs: Any,
+) -> None:
+    if int(input_channels) < 1:
+        raise ValueError(f"input_channels must be a positive integer, got {input_channels!r}")
+    if float(eps) <= 0.0:
+        raise ValueError(f"eps must be positive, got {eps!r}")
+    self.input_channels = int(input_channels)
+    self.clip_negative = bool(clip_negative)
+    self.normalize_trace = bool(normalize_trace)
+    self.eps = float(eps)
+    super().__init__(
+        input_channels=self.input_channels,
+        clip_negative=self.clip_negative,
+        normalize_trace=self.normalize_trace,
+        eps=self.eps,
+        **kwargs,
+    )
+    self.register_buffer("weights", torch.eye(self.input_channels, dtype=torch.float32))
+```
+
+##### forward
+
+```python
+forward(cube, **_)
+```
+
+Apply the band-mixing matrix to `cube`.
+
+Parameters:
+
+| Name   | Type     | Description                      | Default    |
+| ------ | -------- | -------------------------------- | ---------- |
+| `cube` | `Tensor` | Hyperspectral cube [B, H, W, C]. | *required* |
+
+Returns:
+
+| Type                | Description                                 |
+| ------------------- | ------------------------------------------- |
+| `dict[str, Tensor]` | {"cube": corrected} with the input's shape. |
+
+Source code in `cuvis_ai/node/pretreatments/crosstalk.py`
+
+```python
+def forward(self, cube: Tensor, **_: Any) -> dict[str, Tensor]:
+    """Apply the band-mixing matrix to ``cube``.
+
+    Parameters
+    ----------
+    cube : Tensor
+        Hyperspectral cube ``[B, H, W, C]``.
+
+    Returns
+    -------
+    dict[str, Tensor]
+        ``{"cube": corrected}`` with the input's shape.
+    """
+    matrix = self._resolve_matrix(self.weights)
+    return {"cube": self._mix(cube, matrix, self.clip_negative)}
+```
+
+##### export_module
+
+```python
+export_module()
+```
+
+Adapter without the trace-magnitude guard; see `_ConstantMatrixAdapter`.
+
+The guard in :meth:`forward` reads the trace of `weights` as a Python float to decide whether to raise, which `torch.export` cannot trace even though the matrix mixing itself is tensor ops throughout. This resolves the matrix once, outside tracing (as :meth:`export_module`'s contract requires), and returns an adapter that applies that fixed matrix with no further trace check.
+
+Source code in `cuvis_ai/node/pretreatments/crosstalk.py`
+
+```python
+def export_module(self) -> torch.nn.Module:
+    """Adapter without the trace-magnitude guard; see ``_ConstantMatrixAdapter``.
+
+    The guard in :meth:`forward` reads the trace of ``weights`` as a Python float
+    to decide whether to raise, which ``torch.export`` cannot trace even though the
+    matrix mixing itself is tensor ops throughout. This resolves the matrix once,
+    outside tracing (as :meth:`export_module`'s contract requires), and returns an
+    adapter that applies that fixed matrix with no further trace check.
+    """
+    matrix = self._resolve_matrix(self.weights)
+    return _ConstantMatrixAdapter(matrix, self.clip_negative)
 ```
 
 `BandpassByWavelength`transformcuvis_ai.node.preprocessorsSelect channels by wavelength interval from BHWC tensors.hsipre
@@ -13951,24 +14107,35 @@ Outputs
 
 [View plugin repo (v0.4.0)](https://github.com/cubert-hyperspectral/cuvis-ai-inspecscrap/tree/v0.4.0)
 
-`PerPixelUnitNorm`transformcuvis_ai.node.normalizationPer-pixel mean-centering and L2 normalization across channels.normnumpyonnxpre
+`PerPixelUnitNorm`transformcuvis_ai.node.normalizationPer-pixel L2 normalization across channels, with or without mean-centering.normnumpyonnxpre
 
 #### PerPixelUnitNorm
 
 ```python
-PerPixelUnitNorm(eps=1e-08, **kwargs)
+PerPixelUnitNorm(eps=1e-08, center=True, **kwargs)
 ```
 
 Bases: `_NormalizerBase`
 
-Per-pixel mean-centering and L2 normalization across channels.
+Per-pixel L2 normalization across channels, with or without mean-centering.
+
+With `center=True` (the default) each pixel's spectrum is mean-centered across channels before the division: `z = x - mean(x)`, output `z / max(||z||_2, eps)`. The output then does not change under a positive gain or a constant offset on the spectrum. With `center=False` the mean subtraction is skipped and the spectrum is divided by its own norm: `x / max(||x||_2, eps)`. The output then does not change under a positive gain, and a constant offset stays in. Both statements hold for spectra whose norm stays above `eps`. With `center=True` that norm is taken after the mean subtraction in float32, so a small spectral signal on a large constant level can cancel to zero there.
+
+Parameters:
+
+| Name       | Type    | Description                                                                                                                                                                                             | Default |
+| ---------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `eps`      | `float` | Floor for the L2 norm in the denominator. It keeps the division finite for a spectrum whose norm is zero: a constant spectrum with center=True, an all-zero spectrum with center=False (default: 1e-8). | `1e-08` |
+| `center`   | `bool`  | Subtract each pixel's mean over the channels before the division (default: True).                                                                                                                       | `True`  |
+| `**kwargs` | `dict`  | Additional arguments passed to Node base class.                                                                                                                                                         | `{}`    |
 
 Source code in `cuvis_ai/node/normalization.py`
 
 ```python
-def __init__(self, eps: float = 1e-8, **kwargs) -> None:
+def __init__(self, eps: float = 1e-8, center: bool = True, **kwargs) -> None:
     self.eps = float(eps)
-    super().__init__(eps=self.eps, **kwargs)
+    self.center = bool(center)
+    super().__init__(eps=self.eps, center=self.center, **kwargs)
 ```
 
 `PercentileComposite`rfdetr[↗](https://github.com/cubert-hyperspectral/cuvis-ai-rfdetr "Open plugin repo")transformcuvis_ai_rfdetr.node.percentile_compositeThree-band false-color composite with per-band percentile stretch.hsiimgrgb
@@ -16999,15 +17166,16 @@ Subtract a mean and divide by a standard deviation along a chosen axis.
 - `"spectrum"`: one mean and std per spectrum over its bands (SNV);
 - `"global"`: one scalar mean and std over every value;
 - `"spatial"`: one mean and std per band over the height and width of each sample;
+- `"location"`: one mean and std per pixel position and band, fit over the training stream;
 - a list of dims (`[1, 2, 3]`, `[3]`): reduce exactly those dims.
 
-`stats` says where the numbers come from: `"fit"` estimates them once over the training stream during statistical initialization and keeps them as buffers that travel with the weights (the default for `channel` and `global`); `"sample"` computes them for every sample in `forward` (the default for `spectrum`, `spatial` and a list of dims); `"given"` takes `mean` and `std` as hparams (per channel, or one value each with `axis="global"`). `with_mean=False` only scales, `with_std=False` only centres. `layout="nchw"` reads the cube as `[N, C, H, W]` images instead of `[B, H, W, C]`.
+`stats` says where the numbers come from: `"fit"` estimates them once over the training stream during statistical initialization and keeps them as buffers that travel with the weights (the default for `channel`, `global` and `location`); `"sample"` computes them for every sample in `forward` (the default for `spectrum`, `spatial` and a list of dims); `"given"` takes `mean` and `std` as hparams (per channel, or one value each with `axis="global"`). `axis="location"` takes only `stats="fit"`; `"sample"` and `"given"` raise `ValueError` for it, because a per-sample or given statistic shaped like one frame has no meaning for a sample of a different size. `with_mean=False` only scales, `with_std=False` only centres. `layout="nchw"` reads the cube as `[N, C, H, W]` images instead of `[B, H, W, C]`.
 
 `ddof` (delta degrees of freedom) is the number subtracted from the sample count in the divisor of the variance. `ddof=0` divides by N (the population standard deviation; the numpy and sklearn `StandardScaler` default). `ddof=1` divides by N - 1 (the Bessel-corrected sample standard deviation; the torch `std` default). The two differ by the factor sqrt((N - 1) / N), a uniform scalar on the data that PLS predictions and component selection are invariant to, but reproduced numbers depend on it. The default is 1.
 
 `eps` keeps the division finite, so a flat spectrum or a constant band maps to zero instead of NaN. By default (`eps_mode="floor"`) it is a floor on the standard deviation and leaves every other value untouched; `eps_mode="add"` divides by `std + eps` instead, the formula of the removed z-score nodes, for pipelines that have to reproduce their numbers bit for bit.
 
-A fit pools over the height and width of every frame, so `stats="fit"` takes `channel`, `spatial`, `global` or a list of dims that contains both spatial dims; per-spectrum statistics (`spectrum`) are computed per sample. With `stats="fit"`, `exclude_folds` leaves the frames whose `fold` id is listed out of the fit (the node then has a `fold [B]` input), and `max_initialization_frames` stops the fit after that many frames.
+A fit pools over the height and width of every frame, so `stats="fit"` takes `channel`, `spatial`, `global` or a list of dims that contains both spatial dims; per-spectrum statistics (`spectrum`) are computed per sample. `axis="location"` is the one named exception: it pools over nothing inside a frame, so the fitted statistic keeps the full `[1, H, W, C]` (or `[1, C, H, W]`) shape and is tied to one frame size, which every later `forward` call must match exactly (a mismatch, including a broadcastable singleton dim, raises `ValueError`). Its fit holds two float64 accumulators the size of one frame (the running mean and the running sum of squared deviations), 16 bytes per value of a frame: about 1 GB for a 1024 x 1024 x 61 frame, and a few times that at the peak while a batch is merged. The fitted node keeps a float32 mean and std of that size. With `stats="fit"`, `exclude_folds` leaves the frames whose `fold` id is listed out of the fit (the node then has a `fold [B]` input), and `max_initialization_frames` stops the fit after that many frames.
 
 `mean` and `std` are listed in `TRAINABLE_BUFFERS`, so a trainrun that unfreezes the node fine-tunes them by gradient.
 
@@ -17015,20 +17183,20 @@ Replaces: `MeanCenter` is `Standardize(axis="channel", with_std=False)`, `UnitVa
 
 Parameters:
 
-| Name                        | Type                  | Description                                                                               | Default     |
-| --------------------------- | --------------------- | ----------------------------------------------------------------------------------------- | ----------- |
-| `axis`                      | `str or list[int]`    | "channel", "spectrum", "global", "spatial" or a list of dims in 1..3 (default "channel"). | `'channel'` |
-| `with_mean`                 | `bool`                | Subtract the mean (default True).                                                         | `True`      |
-| `with_std`                  | `bool`                | Divide by the standard deviation (default True).                                          | `True`      |
-| `stats`                     | `str or None`         | "fit", "sample" or "given"; None picks the default for axis.                              | `None`      |
-| `mean`                      | `list[float] or None` | The statistics for stats="given", one value per channel or one value in total.            | `None`      |
-| `std`                       | `list[float] or None` | The statistics for stats="given", one value per channel or one value in total.            | `None`      |
-| `ddof`                      | `int`                 | Delta degrees of freedom, 0 or 1 (default 1).                                             | `1`         |
-| `eps`                       | `float`               | Keeps the division finite (default 1e-8); how it applies is set by eps_mode.              | `1e-08`     |
-| `eps_mode`                  | `str`                 | "floor" (default) divides by max(std, eps), "add" by std + eps.                           | `'floor'`   |
-| `exclude_folds`             | `list[int] or None`   | Fold ids left out of the fit (stats="fit" only).                                          | `None`      |
-| `max_initialization_frames` | `int or None`         | Cap on the frames the fit consumes (stats="fit" only); None uses the whole stream.        | `None`      |
-| `layout`                    | `str`                 | "bhwc" (default) or "nchw".                                                               | `'bhwc'`    |
+| Name                        | Type                  | Description                                                                                           | Default     |
+| --------------------------- | --------------------- | ----------------------------------------------------------------------------------------------------- | ----------- |
+| `axis`                      | `str or list[int]`    | "channel", "spectrum", "global", "spatial", "location" or a list of dims in 1..3 (default "channel"). | `'channel'` |
+| `with_mean`                 | `bool`                | Subtract the mean (default True).                                                                     | `True`      |
+| `with_std`                  | `bool`                | Divide by the standard deviation (default True).                                                      | `True`      |
+| `stats`                     | `str or None`         | "fit", "sample" or "given"; None picks the default for axis.                                          | `None`      |
+| `mean`                      | `list[float] or None` | The statistics for stats="given", one value per channel or one value in total.                        | `None`      |
+| `std`                       | `list[float] or None` | The statistics for stats="given", one value per channel or one value in total.                        | `None`      |
+| `ddof`                      | `int`                 | Delta degrees of freedom, 0 or 1 (default 1).                                                         | `1`         |
+| `eps`                       | `float`               | Keeps the division finite (default 1e-8); how it applies is set by eps_mode.                          | `1e-08`     |
+| `eps_mode`                  | `str`                 | "floor" (default) divides by max(std, eps), "add" by std + eps.                                       | `'floor'`   |
+| `exclude_folds`             | `list[int] or None`   | Fold ids left out of the fit (stats="fit" only).                                                      | `None`      |
+| `max_initialization_frames` | `int or None`         | Cap on the frames the fit consumes (stats="fit" only); None uses the whole stream.                    | `None`      |
+| `layout`                    | `str`                 | "bhwc" (default) or "nchw".                                                                           | `'bhwc'`    |
 
 Source code in `cuvis_ai/node/pretreatments/standardize.py`
 
@@ -17053,9 +17221,14 @@ def __init__(
         raise ValueError(f"layout must be one of {_LAYOUTS}, got {layout!r}")
     axis = self._check_axis(axis)
     if stats is None:
-        stats = "fit" if axis in ("channel", "global") else "sample"
+        stats = "fit" if axis in ("channel", "global", "location") else "sample"
     if stats not in _STATS:
         raise ValueError(f"stats must be one of {_STATS}, got {stats!r}")
+    if axis == "location" and stats != "fit":
+        raise ValueError(
+            f"axis='location' takes only stats='fit', got {stats!r}; a per-sample or "
+            "given statistic shaped like one frame has no meaning for another frame size"
+        )
     if not (with_mean or with_std):
         raise ValueError("with_mean and with_std are both False; the node would do nothing")
     if ddof not in (0, 1):
@@ -17063,10 +17236,11 @@ def __init__(
     if eps_mode not in _EPS_MODES:
         raise ValueError(f"eps_mode must be one of {_EPS_MODES}, got {eps_mode!r}")
     dims = tuple(axis) if isinstance(axis, list) else _AXIS_DIMS[layout][axis]
-    if stats == "fit" and not _SPATIAL_DIMS[layout] <= set(dims):
+    if stats == "fit" and axis != "location" and not _SPATIAL_DIMS[layout] <= set(dims):
         raise ValueError(
             f"stats='fit' needs an axis that reduces height and width, got {axis!r}; "
-            "the statistics would be tied to one frame size (use stats='sample')"
+            "the statistics would be tied to one frame size (use stats='sample', or "
+            "axis='location' to opt into statistics tied to one frame size)"
         )
     if stats != "fit" and (exclude_folds is not None or max_initialization_frames is not None):
         raise ValueError("exclude_folds and max_initialization_frames need stats='fit'")
@@ -17189,6 +17363,7 @@ def statistical_initialization(self, input_stream: InputStream) -> None:
     count = 0
     mean = m2 = torch.zeros(0, dtype=torch.float64)
     stat_shape: list[int] = []
+    frame_shape: tuple[int, ...] | None = None
     frames = 0
     for batch in input_stream:
         x = batch.get("cube")
@@ -17210,6 +17385,17 @@ def statistical_initialization(self, input_stream: InputStream) -> None:
             x = x[:remaining]
         if x.shape[0] == 0:
             continue
+        if self.axis == "location":
+            # The fit result is tied to one frame size, so every batch must agree on the
+            # full shape after dim 0, compared before flattening: two shapes with the same
+            # product (a transposed H and W, say) must not merge silently.
+            if frame_shape is None:
+                frame_shape = tuple(x.shape[1:])
+            elif tuple(x.shape[1:]) != frame_shape:
+                raise ValueError(
+                    f"{type(self).__name__} with axis='location' needs every frame to have "
+                    f"the same shape, got {frame_shape} and {tuple(x.shape[1:])}"
+                )
         frames += x.shape[0]
         keep = [d for d in range(x.ndim) if d not in reduce]
         rows = x.permute(*reduce, *keep).reshape(-1, math.prod(x.shape[d] for d in keep))
@@ -17221,10 +17407,13 @@ def statistical_initialization(self, input_stream: InputStream) -> None:
             mean, m2 = mean_b, m2_b
             stat_shape = [1 if d in reduce else x.shape[d] for d in range(x.ndim)]
         else:
+            # In place on the running mean and m2, so a merge does not reallocate the two
+            # accumulators (each the size of one frame for axis="location").
             total = count + m
             delta = mean_b - mean
-            mean = mean + delta * (m / total)
-            m2 = m2 + m2_b + delta * delta * (count * m / total)
+            mean += delta * (m / total)
+            m2 += m2_b
+            m2 += delta * delta * (count * m / total)
         count += m
     if count < 2:
         raise RuntimeError(
@@ -17285,6 +17474,11 @@ def forward(self, cube: Tensor, fold: Tensor | None = None, **_: Any) -> dict[st
     else:
         if self.stats == "fit":
             require_fitted(self)
+        if self.axis == "location" and tuple(cube.shape[1:]) != tuple(self.mean.shape[1:]):
+            raise ValueError(
+                f"{type(self).__name__} with axis='location' was fitted on frames of shape "
+                f"{tuple(self.mean.shape[1:])}, got {tuple(cube.shape[1:])}"
+            )
         mean, std = self.mean, self.std
     out = cube
     if self.with_mean:

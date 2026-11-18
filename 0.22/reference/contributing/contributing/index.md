@@ -285,7 +285,7 @@ ______________________________________________________________________
 
 ### Prerequisites
 
-- **Python 3.10+** (3.11 recommended)
+- **Python 3.11.5 or newer, below 3.14.** The package installs from Python 3.11.0, but `uv.lock` resolves for 3.11.5 and newer, so `uv sync` in a checkout needs at least that.
 - **uv** package manager: [Install instructions](https://github.com/astral-sh/uv)
 - **Git** for version control
 - **CUDA** (optional, for GPU acceleration)

@@ -4231,7 +4231,7 @@
 <h2 id="development-environment-setup">Development Environment Setup<a class="headerlink" href="#development-environment-setup" title="Permanent link">&para;</a></h2>
 <h3 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>Python 3.10+</strong> (3.11 recommended)</li>
+<li><strong>Python 3.11.5 or newer, below 3.14.</strong> The package installs from Python 3.11.0, but <code>uv.lock</code> resolves for 3.11.5 and newer, so <code>uv sync</code> in a checkout needs at least that.</li>
 <li><strong>uv</strong> package manager: <a href="https://github.com/astral-sh/uv">Install instructions</a></li>
 <li><strong>Git</strong> for version control</li>
 <li><strong>CUDA</strong> (optional, for GPU acceleration)</li>

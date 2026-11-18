@@ -4141,7 +4141,7 @@
 <ul>
 <li>Completion of <a href="../../tutorials/statistical/channel-selector/">Channel Selector Tutorial</a> - Understanding training workflows</li>
 <li>Basic networking knowledge (client-server, localhost, ports)</li>
-<li>Python 3.10+, PyTorch 2.0+, gRPC library installed</li>
+<li>Python 3.11.5 or newer (below 3.14), PyTorch 2.0+, gRPC library installed</li>
 </ul>
 <hr />
 <h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
@@ -4782,7 +4782,7 @@ The server automatically cleans up inactive sessions after a timeout (default: 1
 <h2 id="production-deployment">Production Deployment<a class="headerlink" href="#production-deployment" title="Permanent link">&para;</a></h2>
 <h3 id="docker-deployment">Docker Deployment<a class="headerlink" href="#docker-deployment" title="Permanent link">&para;</a></h3>
 <p><strong>Dockerfile:</strong>
-<div class="language-dockerfile highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="k">FROM</span><span class="w"> </span><span class="s">python:3.10-slim</span>
+<div class="language-dockerfile highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="k">FROM</span><span class="w"> </span><span class="s">python:3.11-slim</span>
 </span><span id="__span-20-2"><a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>
 </span><span id="__span-20-3"><a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="k">WORKDIR</span><span class="w"> </span><span class="s">/app</span>
 </span><span id="__span-20-4"><a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a>
