@@ -335,11 +335,10 @@ class DistinctnessLoss(LossNode):
         # Compute all pairwise cosine similarities using matrix multiplication (optimized)
         similarity_matrix = w_norm @ w_norm.T  # [C, C] matrix of cosine similarities
 
-        # Extract upper triangular part (i < j pairs), excluding diagonal
+        # Mean over the C * (C - 1) / 2 pairs i < j. A pair with cosine 0 counts as 0, so a
+        # one-hot selection of different bands (a hard selection at VAL) gives 0, not NaN.
         upper_tri = torch.triu(similarity_matrix, diagonal=1)
-
-        # Compute mean of non-zero elements (i < j pairs)
-        mean_cos = upper_tri[upper_tri != 0].mean()
+        mean_cos = upper_tri.sum() / (num_channels * (num_channels - 1) / 2)
 
         # Minimize mean cosine similarity (repulsion)
         loss = self.weight * mean_cos

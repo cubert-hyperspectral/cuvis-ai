@@ -314,6 +314,32 @@ class TestDistinctnessLoss:
         output = distinctness_loss_node.forward(selection_weights=zero_channels)
         assert output["loss"].item() == 0.0
 
+    def test_one_hot_selection_of_different_bands(self, distinctness_loss_node):
+        """A hard one-hot selection of three different bands gives 0, not NaN.
+
+        This is what ConcreteChannelMixer(use_hard_inference=True) hands the loss at VAL:
+        every pairwise cosine is 0.
+        """
+        weights = torch.zeros(3, 61)
+        weights[0, 40] = weights[1, 56] = weights[2, 58] = 1.0
+        weights.requires_grad_(True)
+
+        loss = distinctness_loss_node.forward(selection_weights=weights)["loss"]
+        loss.backward()
+
+        assert loss.item() == 0.0
+        assert torch.isfinite(weights.grad).all()
+
+    def test_zero_cosine_pairs_count_in_the_mean(self, distinctness_loss_node):
+        """Pairs with cosine 0 count in the mean over all i < j pairs."""
+        weights = torch.tensor([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [1.0, 1.0, 0.0]])
+
+        loss = distinctness_loss_node.forward(selection_weights=weights)["loss"]
+
+        # cos(0, 1) = 0, cos(0, 2) = cos(1, 2) = 1 / sqrt(2), over 3 pairs
+        expected = torch.tensor(2.0**0.5 / 3.0)
+        assert torch.allclose(loss, expected, atol=1e-7)
+
     def test_gradient_flow(self, distinctness_loss_node, selection_weights_3x5):
         """Test that gradients flow correctly through the loss."""
         weights = selection_weights_3x5
