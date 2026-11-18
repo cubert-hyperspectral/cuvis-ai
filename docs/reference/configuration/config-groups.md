@@ -25,16 +25,25 @@ cuvis_ai/configs/
 ```yaml
 # @package _global_
 defaults:
-  - /pipeline/anomaly/rx@pipeline: rx_statistical
   - /data@data: lentils
   - /training@training: default
   - _self_
 
-name: rx_demo
+name: channel_selector_demo
+# Pipeline reference, resolved relative to this trainrun's directory.
+pipeline: ../pipeline/anomaly/rx/channel_selector.yaml
 output_dir: ./outputs/${name}
+unfreeze_nodes:
+  - SoftChannelSelector
+  - RXGlobal
+  - ScoreToLogit
+loss_nodes:
+  - bce
+metric_nodes:
+  - metrics_anomaly
 ```
 
-## Pipeline Group
+## Pipelines
 
 Current pipeline families:
 
@@ -43,15 +52,10 @@ Current pipeline families:
 - `cuvis_ai/configs/pipeline/anomaly/adaclip/`
 - `cuvis_ai/configs/pipeline/sam3/`
 
-Override example:
-
-```yaml
-pipeline:
-  nodes:
-    - name: RXGlobal
-      hparams:
-        eps: 1.0e-08
-```
+A pipeline is not composed into a trainrun as a config group: the trainrun names the pipeline
+yaml by path (`pipeline:`, resolved relative to the trainrun file), and `TrainRunConfig` refuses a
+pipeline mapping in the trainrun. To change a node's hparams, save an edited copy of the pipeline
+yaml and point the trainrun at it.
 
 ## Data Group
 
