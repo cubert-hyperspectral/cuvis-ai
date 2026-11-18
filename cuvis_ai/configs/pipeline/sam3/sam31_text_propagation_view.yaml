@@ -16,7 +16,7 @@ metadata:
 plugins:
 - sam3
 nodes:
-- name: sam3_tracker
+- name: sam31_tracker
   class_name: cuvis_ai_sam3.node.SAM31TextPropagation
   hparams:
     weight_name: sam3.1

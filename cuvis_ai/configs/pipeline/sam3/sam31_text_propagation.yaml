@@ -18,7 +18,7 @@ nodes:
 - name: true_rgb
   class_name: cuvis_ai.node.channel_selector.CIETristimulusRGBSelector
   hparams: {}
-- name: sam3_tracker
+- name: sam31_tracker
   class_name: cuvis_ai_sam3.node.SAM31TextPropagation
   hparams:
     weight_name: sam3.1
@@ -38,18 +38,18 @@ connections:
 - source: cu3s_data.outputs.wavelengths
   target: true_rgb.inputs.wavelengths
 - source: true_rgb.outputs.rgb_image
-  target: sam3_tracker.inputs.rgb_image
+  target: sam31_tracker.inputs.rgb_image
 - source: cu3s_data.outputs.mesu_index
-  target: sam3_tracker.inputs.frame_id
+  target: sam31_tracker.inputs.frame_id
 - source: cu3s_data.outputs.mesu_index
   target: tracking_coco_json.inputs.frame_id
-- source: sam3_tracker.outputs.mask
+- source: sam31_tracker.outputs.mask
   target: tracking_coco_json.inputs.mask
-- source: sam3_tracker.outputs.object_ids
+- source: sam31_tracker.outputs.object_ids
   target: tracking_coco_json.inputs.object_ids
-- source: sam3_tracker.outputs.detection_scores
+- source: sam31_tracker.outputs.detection_scores
   target: tracking_coco_json.inputs.detection_scores
-- source: sam3_tracker.outputs.category_ids
+- source: sam31_tracker.outputs.category_ids
   target: tracking_coco_json.inputs.category_ids
-- source: sam3_tracker.outputs.category_semantics
+- source: sam31_tracker.outputs.category_semantics
   target: tracking_coco_json.inputs.category_semantics
