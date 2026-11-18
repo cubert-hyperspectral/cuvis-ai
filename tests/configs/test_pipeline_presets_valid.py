@@ -59,9 +59,40 @@ def test_dinomaly_custom_training_preset_keeps_the_trained_spine() -> None:
     assert nodes["decider"].hparams["pixel_threshold"] is None
 
 
-@pytest.mark.parametrize(
-    "preset", ["sam31_text_propagation.yaml", "sam31_text_propagation_video.yaml"]
+_SAM31_CLASS = "cuvis_ai_sam3.node.SAM31TextPropagation"
+# Every shipped preset on the SAM 3.1 node, found by the class it names: a preset added later is
+# held to the rules below without being listed here.
+_SAM31_PRESETS = sorted(
+    path.relative_to(_PIPELINES).as_posix()
+    for path in _PIPELINES.rglob("*.yaml")
+    if _SAM31_CLASS in path.read_text(encoding="utf-8")
 )
+
+
+def test_sam31_presets_are_found() -> None:
+    """The search finds the three shipped SAM 3.1 presets, so the tests below do not run empty."""
+    assert {
+        "sam3/sam31_text_propagation.yaml",
+        "sam3/sam31_text_propagation_video.yaml",
+        "sam3/sam31_text_propagation_view.yaml",
+    } <= set(_SAM31_PRESETS)
+
+
+@pytest.mark.parametrize("preset", _SAM31_PRESETS)
+def test_sam31_text_presets_call_their_tracker_sam31_tracker(preset: str) -> None:
+    """The SAM 3.1 node is named ``sam31_tracker``, not ``sam3_tracker`` as in the SAM 3 presets.
+
+    A host application shows the node name, not the class, in its profiling table and its logs.
+    A SAM 3.1 preset that keeps the name of the SAM 3 preset it was copied from reads there as a
+    SAM 3 run.
+    """
+    pipeline = PipelineConfig.load_from_file(_PIPELINES / preset)
+    names = {node.name for node in pipeline.nodes if node.class_name == _SAM31_CLASS}
+
+    assert names == {"sam31_tracker"}
+
+
+@pytest.mark.parametrize("preset", _SAM31_PRESETS)
 def test_sam31_text_presets_name_the_weights_their_node_selects(preset: str) -> None:
     """Each SAM 3.1 preset sets ``weight_name: sam3.1``, a row the sam3 manifest lets a node select.
 
@@ -71,12 +102,8 @@ def test_sam31_text_presets_name_the_weights_their_node_selects(preset: str) -> 
     """
     manifest = load_plugin_manifest(_PLUGINS / "sam3.yaml")
     rows = {row.name: row for row in manifest.weights}
-    pipeline = PipelineConfig.load_from_file(_PIPELINES / "sam3" / preset)
-    (tracker,) = [
-        node
-        for node in pipeline.nodes
-        if node.class_name == "cuvis_ai_sam3.node.SAM31TextPropagation"
-    ]
+    pipeline = PipelineConfig.load_from_file(_PIPELINES / preset)
+    (tracker,) = [node for node in pipeline.nodes if node.class_name == _SAM31_CLASS]
 
     assert tracker.class_name in {entry.class_name for entry in manifest.capabilities}
     assert tracker.hparams["weight_name"] == "sam3.1"
