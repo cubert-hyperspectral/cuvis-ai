@@ -1,0 +1,28 @@
+metadata:
+  name: SAM31_Text_Propagation_View
+  description: SAM 3.1 text-prompt propagation driven by the host-rendered view frame. The host
+    supplies the displayed RGB/CIR/SWIR false-color image as rgb_image (no overlays) for every frame
+    it steps through, plus the source frame_id and the text prompt; the hyperspectral cube never
+    leaves the host. Type what to look for, then every object the prompt names is tracked across the
+    session on the view you see. Tracks up to 64 objects per prompt.
+  tags:
+  - tracking
+  - sam3
+  - text-prompt
+  - rgb
+  - video
+  - cuvisnext
+  author: cuvis.ai
+plugins:
+- sam3
+nodes:
+- name: sam3_tracker
+  class_name: cuvis_ai_sam3.node.SAM31TextPropagation
+  hparams:
+    weight_name: sam3.1
+    score_threshold_detection: 0.4
+    new_det_thresh: 0.65
+    det_nms_thresh: 0.1
+    overlap_suppress_thresh: 0.7
+    max_num_objects: 64
+connections: []

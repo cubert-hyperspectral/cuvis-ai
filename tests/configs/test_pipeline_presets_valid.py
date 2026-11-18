@@ -60,7 +60,12 @@ def test_dinomaly_custom_training_preset_keeps_the_trained_spine() -> None:
 
 
 @pytest.mark.parametrize(
-    "preset", ["sam31_text_propagation.yaml", "sam31_text_propagation_video.yaml"]
+    "preset",
+    [
+        "sam31_text_propagation.yaml",
+        "sam31_text_propagation_video.yaml",
+        "sam31_text_propagation_view.yaml",
+    ],
 )
 def test_sam31_text_presets_name_the_weights_their_node_selects(preset: str) -> None:
     """Each SAM 3.1 preset sets ``weight_name: sam3.1``, a row the sam3 manifest lets a node select.
