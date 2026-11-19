@@ -36,8 +36,10 @@ class VectorFieldVoteAccumulator(Node):
     The votes are summed in float64 and the map is cast back to float32. A running
     float32 sum drifts when many fractional votes meet on one target (about ``1e-4`` of
     the total for 100 000 votes of 0.1) and loses small weights beside large ones that
-    cancel; the wider sum keeps both exact to float32 rounding. A float32 score holds a
-    count of unit votes exactly up to ``2**24`` per target.
+    cancel; the wider sum keeps both exact to float32 rounding as long as the partial
+    sums fit the 53 bits of float64. Weights more than about ``9e15`` times apart that
+    cancel on one target still lose the smaller ones: ``[1e16, 1, -1e16]`` sums to zero.
+    A float32 score holds a count of unit votes exactly up to ``2**24`` per target.
 
     The output has no gradient with respect to ``vectors`` (the rounding step has none),
     and a gradient with respect to ``weights`` that matches a plain weighted sum at each

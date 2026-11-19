@@ -59,13 +59,25 @@ class SpectralHueSaturationValue(Node):
     scaled norm as ``eps`` over that power, and never below ``2**-64``. That
     bound changes no hue, since only an exactly flat pixel has a smaller
     scaled norm; it keeps the gradient of a flat pixel finite at very high
-    levels, where it is smaller than the ``1 / eps`` of the floor. The
+    levels, where it is smaller than the ``1 / eps`` of the floor. For a cube
+    of another float dtype the bound is the smallest normal number of that
+    dtype where that is larger, so a flat float16 pixel has a zero hue too. The
     polar angles keep float32 precision relative to the largest coordinate of
     the pixel: trailing coordinates more than about ``1e-19`` times smaller
     lose precision, and below about ``1e-23`` they count as zero. Non-finite
     input is not repaired: a pixel with a NaN or infinite band has no defined
     hue or value. ``hue="polar"`` costs roughly three times ``hue="cartesian"``
     on a CPU, because of the masks described next.
+
+    Three more limits sit at the ends of the float32 range. Where ``eps`` over
+    the pixel's power of two exceeds the float32 maximum, the Cartesian hue is
+    exactly zero; the exact quotient would be at most about ``6e-39`` times the
+    square root of the band count. A band more than about ``1e45`` times
+    smaller than the largest magnitude of its pixel vanishes in the scaled
+    spectrum, which shows only when the larger bands cancel:
+    ``[1e38, -1e38, 1e-10]`` has a value of zero. And the gradient of the value
+    is formed at the scaled level, so for bands of about ``1e38`` and above an
+    upstream gradient of 4 or more overflows to infinity.
 
     Every polar angle is an ``atan2(y, x)`` with a coordinate as ``x``. For all
     angles but the last, ``y`` is the norm of the coordinates after ``x`` and
@@ -287,8 +299,10 @@ class SpectralHueSaturationValue(Node):
         if self.hue == "cartesian":
             # The pixel's own coefficients are level * coefficients, so its floor is eps / level.
             # The level is a normal power of two, so its reciprocal is exact and finite. The
-            # lower bound is explained in the class docstring.
-            floor = (self.eps / level).clamp_min(_MIN_SCALED_FLOOR)
+            # lower bound is explained in the class docstring; the smallest normal number of
+            # the dtype keeps it above zero for a float16 cube, where 2**-64 is zero.
+            lowest = max(_MIN_SCALED_FLOOR, torch.finfo(unit.dtype).tiny)
+            floor = (self.eps / level).clamp_min(lowest)
             norm = coefficients.norm(p=2, dim=-1, keepdim=True)
             hue = coefficients / torch.maximum(norm, floor)
         else:

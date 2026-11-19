@@ -641,6 +641,25 @@ def test_cartesian_floor_with_the_smallest_accepted_eps() -> None:
 
 
 @pytest.mark.parametrize("hue_mode", ["cartesian", "polar"])
+@pytest.mark.parametrize("level", [0.25, 60000.0])
+def test_flat_float16_spectrum_gives_zero_hue(hue_mode: str, level: float) -> None:
+    """The floor of 2**-64 is zero in float16; a flat pixel must not become 0 / 0."""
+    cube = torch.full((1, 1, 1, 16), level, dtype=torch.float16)
+    hue = SpectralHueSaturationValue(hue=hue_mode, eps=1e-8).forward(cube=cube)["hue"]
+    assert torch.equal(hue, torch.zeros_like(hue))
+
+
+def test_float16_spectrum_keeps_the_hue_of_its_float32_copy() -> None:
+    """The floor that keeps a flat float16 pixel finite changes no pixel that has a hue."""
+    cube = torch.tensor([1.0, 2.0, 4.0, 3.0, 2.5], dtype=torch.float16).reshape(1, 1, 1, -1)
+    node = SpectralHueSaturationValue(hue="cartesian", eps=1e-8)
+    hue = node.forward(cube=cube)["hue"]
+    assert hue.dtype == torch.float16
+    expected = node.forward(cube=cube.float())["hue"]
+    torch.testing.assert_close(hue.float(), expected, atol=2e-3, rtol=0.0)
+
+
+@pytest.mark.parametrize("hue_mode", ["cartesian", "polar"])
 @pytest.mark.parametrize("level", [1e38, 1e30, 1e12, 1e-30, 1e-42])
 def test_gradients_are_finite_for_a_flat_spectrum_at_any_level(hue_mode: str, level: float) -> None:
     cube = torch.full((1, 1, 1, 61), level, dtype=torch.float32, requires_grad=True)
