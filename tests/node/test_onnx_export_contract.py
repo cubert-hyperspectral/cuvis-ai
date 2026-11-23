@@ -196,6 +196,40 @@ def test_onnx_tagged_node_exports_and_matches_onnx_runtime(class_name: str) -> N
     _export_and_check(class_name)
 
 
+def test_distinctness_loss_exports_its_pairwise_mean() -> None:
+    """DistinctnessLoss exported with three selector rows matches eager in ONNX Runtime.
+
+    The registry sweep feeds a rank-2 input as one row, which takes the C < 2 early
+    return, so it never exports the pairwise mean. This export does, and checks a
+    hard one-hot selection (every cosine 0) and a mixed one against eager.
+    """
+    pytest.importorskip("onnxscript")
+    ort = pytest.importorskip("onnxruntime")
+    from cuvis_ai.node.losses import DistinctnessLoss
+
+    torch.manual_seed(0)
+    one_hot = torch.zeros(3, 61)
+    one_hot[0, 40] = one_hot[1, 56] = one_hot[2, 58] = 1.0
+    mixed = torch.rand(3, 61)
+    mixed[2] = mixed[0]
+
+    probe = _Probe(DistinctnessLoss(weight=1.0).eval(), {"selection_weights": mixed}).eval()
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "DistinctnessLoss.onnx"
+        torch.onnx.export(
+            probe, (mixed,), str(path), dynamo=True, opset_version=18, external_data=False
+        )
+        session = ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
+        input_name = session.get_inputs()[0].name
+        for weights in (one_hot, mixed):
+            (got,) = session.run(None, {input_name: weights.numpy()})
+            with torch.no_grad():
+                (want,) = probe(weights)
+            np.testing.assert_allclose(got, want.numpy(), atol=1e-6, rtol=1e-5)
+
+    assert float(got) > 0.3  # the mixed rows share one pair at cosine 1
+
+
 #: Set to a file path to have the sweep append one JSON line per node to it.
 REPORT_ENV = "CUVIS_ONNX_CONTRACT_REPORT"
 
