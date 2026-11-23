@@ -6,7 +6,7 @@ Install Cuvis.AI and its dependencies.
 
 | Component | Recommended |
 | --- | --- |
-| **Python** | **3.11, 3.12 or 3.13** |
+| **Python** | **3.11, 3.12 or 3.13** (a checkout synced with `uv sync` needs 3.11.5 or newer) |
 | **RAM** | **32 GB** (16 GB minimum; hyperspectral cubes are memory-hungry) |
 | **GPU** | **NVIDIA + CUDA 12.8** on x86_64, **JetPack 7 / CUDA 13** on Jetson Thor (aarch64); optional but strongly recommended |
 | **OS** | **Windows or Linux** — macOS works for pure-Python use but has no Cuvis SDK build, so `.cu3s` / `.cu3` I/O is unavailable |
