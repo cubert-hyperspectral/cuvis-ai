@@ -28,7 +28,7 @@ This tutorial demonstrates **distributed training and inference** using Cuvis.AI
 
 - Completion of [Channel Selector Tutorial](../tutorials/statistical/channel-selector.md) - Understanding training workflows
 - Basic networking knowledge (client-server, localhost, ports)
-- Python 3.10+, PyTorch 2.0+, gRPC library installed
+- Python 3.11.5 or newer (below 3.14), PyTorch 2.0+, gRPC library installed
 
 ---
 
@@ -702,7 +702,7 @@ def format_progress(progress: cuvis_ai_pb2.TrainResponse) -> str:
 
 **Dockerfile:**
 ```dockerfile
-FROM python:3.10-slim
+FROM python:3.11-slim
 
 WORKDIR /app
 
