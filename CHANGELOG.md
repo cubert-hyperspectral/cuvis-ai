@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- `DistinctnessLoss` averages the pairwise cosines over all C * (C - 1) / 2 pairs i < j, the formula in its docstring, instead of over the nonzero ones. A hard one-hot selection of different bands, which `ConcreteChannelMixer(use_hard_inference=True)` gives at VAL and TEST, has every cosine at 0, so the loss was NaN and with it the total `val_loss` of the Concrete band selector + AdaCLIP pipeline; it is 0 now. A pair with cosine 0 next to nonzero ones no longer drops out of the mean. The soft selection during training has no cosine at 0, so its loss and gradient are unchanged.
+- `DistinctnessLoss` averages the pairwise cosines over all C * (C - 1) / 2 pairs i < j, the formula in its docstring, instead of over the nonzero ones. A hard one-hot selection of different bands, which `ConcreteChannelMixer(use_hard_inference=True)` gives at VAL and TEST, has every cosine at 0, so the loss was NaN and with it the total `val_loss` of the Concrete band selector + AdaCLIP pipeline; it is 0 now. A pair with cosine 0 next to nonzero ones no longer drops out of the mean. During training the loss and gradient are unchanged as long as every pairwise cosine stays above 0, which the softmax selection normally keeps; a softmax saturated at a low temperature can round rows to exact one-hot, and those pairs now count as 0 instead of dropping out.
 
 ## 0.22.9 - 2026-11-18
 
