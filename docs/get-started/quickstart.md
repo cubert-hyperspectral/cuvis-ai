@@ -4,7 +4,7 @@ Get up and running with Cuvis.AI in 5 minutes.
 
 ## Installation
 
-First, ensure you have Python 3.10+ and [uv](https://docs.astral.sh/uv/) installed:
+First, ensure you have Python 3.11.5 or newer (below 3.14) and [uv](https://docs.astral.sh/uv/) installed:
 
 ```bash
 # Clone the repository

@@ -9,7 +9,7 @@ This guide covers running the Cuvis.AI gRPC service in local, containerized, and
 
 ## Prerequisites
 
-- Python 3.10+
+- Python 3.11.5 or newer, below 3.14
 - PyTorch and PyTorch Lightning dependencies installed via project tooling
 - gRPC runtime (`grpcio`)
 - Access to `.cu3s` data and optional annotation JSON files
@@ -67,7 +67,7 @@ server.add_secure_port("[::]:50051", credentials)
 
 `Dockerfile` example:
 ```dockerfile
-FROM python:3.10-slim
+FROM python:3.11-slim
 
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
