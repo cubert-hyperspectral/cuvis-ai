@@ -8,18 +8,23 @@ plugin concerns into one runnable unit.
 ```yaml
 # @package _global_
 defaults:
-  - /pipeline/anomaly/rx@pipeline: rx_statistical
   - /data@data: lentils
   - /training@training: default
   - _self_
 
-name: rx_demo
+name: channel_selector_demo
+# Pipeline reference, resolved relative to this trainrun's directory.
+pipeline: ../pipeline/anomaly/rx/channel_selector.yaml
 output_dir: ./outputs/${name}
-loss_nodes: []
+loss_nodes:
+  - bce
 metric_nodes:
-  - metrics
+  - metrics_anomaly
 freeze_nodes: []
-unfreeze_nodes: []
+unfreeze_nodes:
+  - SoftChannelSelector
+  - RXGlobal
+  - ScoreToLogit
 ```
 
 ## Required Fields
@@ -27,9 +32,9 @@ unfreeze_nodes: []
 | Field | Meaning |
 |---|---|
 | `name` | Experiment identifier |
-| `pipeline` | Composed pipeline config |
+| `pipeline` | Path of the pipeline YAML, resolved relative to the trainrun file; an inline pipeline (also one composed through a Hydra `@pipeline` default) is refused |
 | `data` | Data config: module, splits, params (see [Data](#data)) |
-| `training` | Training config |
+| `training` | Training config; a statistical-only run leaves it out |
 | `output_dir` | Output root |
 
 ## Common Optional Fields
@@ -85,30 +90,26 @@ recordings open, `read_ahead` and `cuda_cubes` together crashed the Cuvis SDK in
 
 ### Statistical Workflow
 
+No `training` block: the run fits the statistical nodes on the train split and evaluates.
+
 ```yaml
+# @package _global_
 defaults:
-  - /pipeline/anomaly/rx@pipeline: rx_statistical
   - /data@data: lentils
-  - /training@training: default_statistical
   - _self_
 
 name: rx_statistical_demo
-metric_nodes:
-  - metrics
-```
-
-### SAM3 Workflow
-
-```yaml
-defaults:
-  - /pipeline/sam3@pipeline: sam3_text_propagation
-  - /data@data: tracking_cap_and_car
-  - /training@training: default
-  - _self_
-
-name: sam3_text_demo
+# Pipeline reference, resolved relative to this trainrun's directory.
+pipeline: ../pipeline/anomaly/rx/rx_statistical.yaml
 output_dir: ./outputs/${name}
+metric_nodes:
+  - metrics_anomaly
 ```
+
+### Inference-only pipelines
+
+The SAM3 tracking presets and other pipelines without statistical or trainable nodes have no
+trainrun; run them with [`restore-pipeline`](../../workflows/restore-pipeline.md).
 
 ## Related Pages
 
