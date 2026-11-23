@@ -9,12 +9,8 @@ name: concrete_adaclip
 
 output_dir: ./outputs/${name}
 
-# Debug settings - save intermediate tensors for inspection
-debug:
-  save_intermediates: false  # Set to false to disable debug saving
-  save_dir: ${output_dir}/debug_intermediates
-
-# Pipeline configuration is hardcoded in the script to avoid YAML serialization issues.
+# Pipeline reference, resolved relative to this trainrun's directory.
+pipeline: ../pipeline/anomaly/adaclip/concrete_adaclip_gradient_two_stage.yaml
 
 training:
   seed: 42
@@ -25,8 +21,10 @@ training:
     betas: [0.9, 0.999]
   scheduler:
     name: reduce_on_plateau
-    monitor: metrics_anomaly/iou
-    mode: max
+    # The decider sets the image gate but no pixel threshold: it gives no decisions until
+    # the calibration after the fit, so metrics_anomaly/iou is not logged while training.
+    monitor: val/iou_loss
+    mode: min
     factor: 0.5
     patience: 5
     threshold: 0.0001

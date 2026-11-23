@@ -73,15 +73,19 @@ connections:
 
 ## Compose It Into A Trainrun
 
+A trainrun references its pipeline by path. With the minimal pipeline above saved as
+`configs/pipeline/minimal_rx.yaml`, a statistical trainrun in `configs/trainrun/` fits the RX
+detector on the train split:
+
 ```yaml
 # @package _global_
 defaults:
-  - /pipeline/sam3@pipeline: sam3_text_propagation
-  - /data@data: tracking_cap_and_car
-  - /training@training: default
+  - /data@data: lentils
   - _self_
 
-name: sam3_text_demo
+name: minimal_rx
+# Pipeline reference, resolved relative to this trainrun's directory.
+pipeline: ../pipeline/minimal_rx.yaml
 output_dir: ./outputs/${name}
 ```
 
