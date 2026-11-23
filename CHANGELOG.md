@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- `object_selection_point_expansion.ipynb` selects the person the tracking tutorials follow: its two default positive points sit on the hoodie and the trousers of the hooded person at the right edge of frame 11 whose hoodie stays dark in CIR (one point selects only the hoodie). The frame centre it used lies on the pavement beside the sign post, so SAM3 expanded the paved ground into the object mask and step B propagated that instead of a person. On a Colab T4 the expansion now masks the whole person and the 100-frame propagation stays on them.
+- The last cell of `lentils_dinomaly.ipynb` shows the three overlay videos on Colab: it passes each path to `Video` positionally. Colab's IPython 7.34 called `os.path.exists(None)` for `Video(filename=...)` and the cell stopped with a `TypeError`.
+- `object_tracking_passive.ipynb` says that it needs a GPU with more than 15 GB (an L4 or A100 on Colab), in its prerequisites and in section 7, and its Colab bootstrap warns on a smaller GPU instead of recommending the T4. On Colab's free T4 the SAM3 text propagation of section 7 runs out of GPU memory at frame 6 of 90, also with the Cuvis SDK on the CPU, so a shorter run does not help either. The new `SDK_ON_GPU` variable reaches all five cu3s data modules, as in `channel_selector_lentils`; `False` moves about 2 GB of SDK memory off the GPU. Sections 3 and 7 give the 90 frames the run processes (they said 200).
+- Lock: mistune 3.3.3 to 3.4.0 (CVE-2026-97698, CVE-2026-97699), the advisories pip-audit started flagging after the 0.22.9 release. mistune comes in through nbconvert, in the `dev` and `docs` extras only. No other entry of `uv.lock` changes.
+
 ## 0.22.9 - 2026-11-18
 
 - New pipelines `SAM31_Text_Propagation` (`cuvis_ai/configs/pipeline/sam3/sam31_text_propagation.yaml`, cu3s source) and `SAM31_Text_Propagation_Video` (`sam31_text_propagation_video.yaml`, RGB video frames): text-prompt tracking with `SAM31TextPropagation` of cuvis-ai-sam3 (new in its 0.6.0), the SAM 3.1 Object Multiplex node, where a frame costs about the same for one object as for sixteen (the model tracks the objects of a prompt in buckets of sixteen). The wiring is that of the SAM 3 text pipelines. The thresholds are the SAM 3.1 defaults (`score_threshold_detection: 0.4`, `new_det_thresh: 0.65`), `max_num_objects` is 64, and `weight_name: sam3.1` names the weights the node loads. The node needs a CUDA device.
