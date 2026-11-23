@@ -42,16 +42,20 @@ def _unresolvable_uses(
     data_module_uses: dict[str, set[str]],
     plugins_dir: Path,
 ) -> list[str]:
-    """One line per used plugin or data module whose manifest is local or missing."""
-    by_name: dict[str, tuple[str, PluginManifest]] = {}
-    by_data_module: dict[str, tuple[str, PluginManifest]] = {}
+    """One line per used plugin or data module whose manifest is local or missing.
+
+    Every manifest that answers to a used name counts: the loaders take the first match in
+    catalog order, so a local one is a problem wherever it sorts.
+    """
+    by_name: dict[str, list[tuple[str, PluginManifest]]] = defaultdict(list)
+    by_data_module: dict[str, list[tuple[str, PluginManifest]]] = defaultdict(list)
     for path in sorted(plugins_dir.glob("*.yaml")):
         manifest = load_plugin_manifest(path)
-        by_name[manifest.name] = (path.name, manifest)
+        by_name[manifest.name].append((path.name, manifest))
         for capability in manifest.capabilities:
             data_module_name = getattr(capability, "data_module_name", None)
             if data_module_name:
-                by_data_module[data_module_name] = (path.name, manifest)
+                by_data_module[data_module_name].append((path.name, manifest))
 
     problems = []
     for kind, uses, index in (
@@ -60,14 +64,13 @@ def _unresolvable_uses(
     ):
         for name, configs in sorted(uses.items()):
             users = ", ".join(sorted(configs))
-            if name not in index:
+            if not index.get(name):
                 problems.append(f"{kind} {name!r} has no manifest (used by {users})")
-                continue
-            file_name, manifest = index[name]
-            if not isinstance(manifest, GitPluginSource):
-                problems.append(
-                    f"{file_name} has a local path source, but {kind} {name!r} is used by {users}"
-                )
+            problems.extend(
+                f"{file_name} has a local path source, but {kind} {name!r} is used by {users}"
+                for file_name, manifest in index.get(name, [])
+                if not isinstance(manifest, GitPluginSource)
+            )
     return problems
 
 
@@ -131,3 +134,40 @@ def test_only_a_used_local_manifest_or_a_missing_one_is_reported(tmp_path: Path)
     assert any("b.yaml" in line and "group/p.yaml" in line for line in problems)
     assert any("'ghost'" in line and "no manifest" in line for line in problems)
     assert not any("unused_local" in line or "c.yaml" in line for line in problems)
+
+
+_DATA_MODULE_MANIFEST = """\
+name: {name}
+{source}
+capabilities:
+- class_name: {name}_pkg.data.Module
+  kind: data_module
+  data_module_name: dm
+"""
+
+
+def test_a_local_provider_of_a_used_data_module_is_reported_whatever_its_order(
+    tmp_path: Path,
+) -> None:
+    """Restore and the composer load the first provider of a data module in catalog order.
+
+    A local provider that sorts before a git one would be the one loaded, so any local provider
+    of a used data module counts, not only the one that happens to sort last.
+    """
+    plugins = tmp_path / "plugins"
+    plugins.mkdir()
+    (plugins / "a_local.yaml").write_text(
+        _DATA_MODULE_MANIFEST.format(name="dm_local", source='path: "D:/somewhere/dm"'),
+        encoding="utf-8",
+    )
+    (plugins / "z_git.yaml").write_text(
+        _DATA_MODULE_MANIFEST.format(
+            name="dm_git", source='repo: "https://example.com/dm.git"\ntag: "v1.0.0"'
+        ),
+        encoding="utf-8",
+    )
+
+    problems = _unresolvable_uses({}, {"dm": {"t.yaml"}}, plugins)
+
+    assert len(problems) == 1
+    assert "a_local.yaml" in problems[0] and "t.yaml" in problems[0]
