@@ -337,8 +337,9 @@ class DistinctnessLoss(LossNode):
 
         # Mean over the C * (C - 1) / 2 pairs i < j. A pair with cosine 0 counts as 0, so a
         # one-hot selection of different bands (a hard selection at VAL) gives 0, not NaN.
+        # Dividing before summing keeps the running total at most 1, so float16 cannot overflow.
         upper_tri = torch.triu(similarity_matrix, diagonal=1)
-        mean_cos = upper_tri.sum() / (num_channels * (num_channels - 1) / 2)
+        mean_cos = (upper_tri / (num_channels * (num_channels - 1) / 2)).sum()
 
         # Minimize mean cosine similarity (repulsion)
         loss = self.weight * mean_cos

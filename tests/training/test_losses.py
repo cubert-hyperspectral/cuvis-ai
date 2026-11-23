@@ -340,6 +340,18 @@ class TestDistinctnessLoss:
         expected = torch.tensor(2.0**0.5 / 3.0)
         assert torch.allclose(loss, expected, atol=1e-7)
 
+    def test_many_identical_rows_stay_finite_in_float16(self, distinctness_loss_node):
+        """364 identical rows give 66066 pairs at cosine 1, past the float16 maximum of 65504.
+
+        The mean is 1; summing the pairs before dividing would overflow to inf.
+        """
+        weights = torch.ones(364, 5, dtype=torch.float16)
+
+        loss = distinctness_loss_node.forward(selection_weights=weights)["loss"]
+
+        assert torch.isfinite(loss)
+        assert loss.item() == pytest.approx(1.0, abs=1e-2)
+
     def test_gradient_flow(self, distinctness_loss_node, selection_weights_3x5):
         """Test that gradients flow correctly through the loss."""
         weights = selection_weights_3x5
