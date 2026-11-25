@@ -993,10 +993,11 @@ trainer.fit()
 # @package _global_
 
 name: drcnn_adaclip
+# Pipeline reference, resolved relative to this trainrun's directory.
+pipeline: ../pipeline/anomaly/adaclip/drcnn_adaclip_gradient.yaml
 output_dir: ./outputs/${name}
 
 defaults:
-  - /pipeline/anomaly/adaclip@pipeline: drcnn_adaclip_gradient
   - /data@data: lentils
   - /training@training: default
   - _self_
